@@ -8,6 +8,11 @@ import session from 'express-session'
 import { log } from './log'
 import { AddressInfo } from 'net'
 
+interface User {
+  username: string
+  password: string
+}
+
 const app = express()
 
 app.use(bodyParser.urlencoded({ extended: true }))
@@ -22,10 +27,10 @@ app.use(
 app.use(passport.initialize())
 app.use(passport.session())
 
-const users = [
+const users: User[] = [
   {
     username: 'admin',
-    password: '$2b$10$VSWErD7Nq15M7qPBJc10FOwPji1aU8Z0GqAncluqsuEE/5J2y8h0W', // Hashed password: "password"
+    password: '$2b$10$aRdMnDQSg/DeFoJNHj7HoupkHwQw8OE5WcxVONnICyy9FBK0eMcfe', // Hashed password: "password"
   },
 ]
 
@@ -48,11 +53,11 @@ passport.use(
   })
 )
 // TODO need check
-passport.serializeUser((user, done) => done(null, user)) //user.id ?
+passport.serializeUser((user, done) => done(null, user))
 
-passport.deserializeUser((username, done) => {
-  const user = users.find(user => user.username === username)
-  done(null, user)
+passport.deserializeUser((user: User, done) => {
+  const loggedUser = users.find(usr => usr.username === user.username)
+  done(null, loggedUser)
 })
 
 // Login route
