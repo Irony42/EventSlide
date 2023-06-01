@@ -88,7 +88,7 @@ app.post(
       res.status(400).send('No photo sent !')
       return
     }
-    console.log("Files : " + (req.files as any).map((f: { filename: any }) => f.filename))
+    log.debug('Files : ' + (req.files as any).map((f: { filename: any }) => f.filename))
   }
 )
 
