@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express'
+import express, { NextFunction, Request, Response } from 'express'
 import passport from 'passport'
 import LocalStrategy from 'passport-local'
 import bcrypt from 'bcrypt'
@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser'
 import session from 'express-session'
 import { log } from './log'
 import { AddressInfo } from 'net'
+import multer, { Multer } from 'multer'
 
 interface User {
   username: string
@@ -52,7 +53,7 @@ passport.use(
     })
   })
 )
-// TODO need check
+
 passport.serializeUser((user, done) => done(null, user))
 
 passport.deserializeUser((user: User, done) => {
@@ -60,17 +61,26 @@ passport.deserializeUser((user: User, done) => {
   done(null, loggedUser)
 })
 
+const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
+  if (req.isAuthenticated())
+    return next()
+  res.redirect('/login')
+}
+
+const upload: Multer = multer({ dest: '/uploads' })
+
+
+
+
+
+
+
+
+
 // Login route
 app.post('/login', passport.authenticate('local', { failureRedirect: '/login-failure' }), (req: Request, res: Response) => {
   res.redirect('/protected-route')
 })
 
-app.get('/protected-route', (req: Request, res: Response) => {
-  if (req.isAuthenticated()) {
-    res.send('You are authenticated!')
-  } else {
-    res.redirect('/login')
-  }
-})
 
 const server = app.listen(4300, () => log.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
