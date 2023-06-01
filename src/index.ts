@@ -79,6 +79,19 @@ app.post(
   }
 )
 
+app.post(
+  '/upload',
+  isAuthenticated,
+  upload.array('photos', 20),
+  (req: Request, res: Response) => {
+    if (!req.files || !req.file) {
+      res.status(400).send('No photo sent !')
+      return
+    }
+    console.log("Files : " + (req.files as any).map((f: { filename: any }) => f.filename))
+  }
+)
+
 const server = app.listen(4300, () =>
   log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
 )
