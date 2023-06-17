@@ -68,7 +68,16 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
   res.redirect('/login')
 }
 
-const upload: Multer = multer({ dest: '/uploads' })
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'photos/PierreEtCindy/') // Chemin de destination des fichiers
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname) // Nom du fichier
+  }
+});
+
+const upload: Multer = multer({ storage: storage })
 
 // Login route
 app.post(
@@ -84,11 +93,12 @@ app.post(
   isAuthenticated,
   upload.array('photos', 20),
   (req: Request, res: Response) => {
-    if (!req.files || !req.file) {
+    if (!req.files) {
       res.status(400).send('No photo sent !')
       return
     }
     log.debug('Files : ' + (req.files as any).map((f: { filename: any }) => f.filename))
+    res.status(200).send('Files : ' + (req.files as any).map((f: { filename: any }) => f.filename))
   }
 )
 
