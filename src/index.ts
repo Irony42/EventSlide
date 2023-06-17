@@ -28,6 +28,8 @@ app.use(
 app.use(passport.initialize())
 app.use(passport.session())
 
+app.use(express.static('public')); 
+
 const users: User[] = [
   {
     username: 'admin',
@@ -84,7 +86,7 @@ app.post(
   '/login',
   passport.authenticate('local', { failureRedirect: '/login-failure' }),
   (req: Request, res: Response) => {
-    res.redirect('/protected-route')
+    res.redirect('/uploadPhotos.html')
   }
 )
 
