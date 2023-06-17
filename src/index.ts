@@ -70,10 +70,10 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'photos/PierreEtCindy/') // Chemin de destination des fichiers
+    cb(null, 'photos/')
   },
   filename: function (req, file, cb) {
-    cb(null, file.originalname) // Nom du fichier
+    cb(null, file.originalname)
   }
 });
 
