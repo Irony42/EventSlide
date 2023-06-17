@@ -84,7 +84,7 @@ const upload: Multer = multer({ storage: storage })
 // Login route
 app.post(
   '/login',
-  passport.authenticate('local', { failureRedirect: '/login-failure' }),
+  passport.authenticate('local', { failureRedirect: '/index.html?authenticationfailed=true' }),
   (req: Request, res: Response) => {
     res.redirect('/uploadPhotos.html')
   }
