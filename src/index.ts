@@ -28,7 +28,7 @@ app.use(
 app.use(passport.initialize())
 app.use(passport.session())
 
-app.use(express.static('public')); 
+app.use(express.static('public'))
 
 const users: User[] = [
   {
@@ -76,31 +76,34 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     cb(null, file.originalname)
-  }
-});
+  },
+})
 
 const upload: Multer = multer({ storage: storage })
 
 // Login route
 app.post(
   '/login',
-  passport.authenticate('local', { failureRedirect: '/index.html?authenticationfailed=true' }),
+  passport.authenticate('local', {
+    failureRedirect: '/login.html?authenticationfailed=true',
+  }),
   (req: Request, res: Response) => {
-    res.redirect('/uploadPhotos.html')
+    res.redirect('/index.html') //TODO Administration page after login
   }
 )
 
 app.post(
   '/upload',
-  isAuthenticated,
   upload.array('photos', 20),
   (req: Request, res: Response) => {
     if (!req.files) {
       res.status(400).send('No photo sent !')
       return
     }
-    log.debug('Files : ' + (req.files as any).map((f: { filename: any }) => f.filename))
-    res.status(200).send('Files : ' + (req.files as any).map((f: { filename: any }) => f.filename))
+    log.debug(
+      'Files : ' + (req.files as any).map((f: { filename: any }) => f.filename)
+    )
+    res.redirect('uploadConfirmation.html')
   }
 )
 
