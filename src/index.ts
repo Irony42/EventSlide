@@ -68,7 +68,16 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
   res.redirect('/login')
 }
 
-const upload: Multer = multer({ dest: '/uploads' })
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'photos/')
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname)
+  }
+});
+
+const upload: Multer = multer({ storage: storage })
 
 // Login route
 app.post(
@@ -76,6 +85,20 @@ app.post(
   passport.authenticate('local', { failureRedirect: '/login-failure' }),
   (req: Request, res: Response) => {
     res.redirect('/protected-route')
+  }
+)
+
+app.post(
+  '/upload',
+  isAuthenticated,
+  upload.array('photos', 20),
+  (req: Request, res: Response) => {
+    if (!req.files) {
+      res.status(400).send('No photo sent !')
+      return
+    }
+    log.debug('Files : ' + (req.files as any).map((f: { filename: any }) => f.filename))
+    res.status(200).send('Files : ' + (req.files as any).map((f: { filename: any }) => f.filename))
   }
 )
 
