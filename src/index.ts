@@ -9,6 +9,7 @@ import { log } from './log'
 import { AddressInfo } from 'net'
 import multer, { Multer } from 'multer'
 import * as path from 'path'
+import * as fs from 'fs'
 
 interface User {
   username: string
@@ -109,9 +110,7 @@ app.post(
   }
 )
 
-// Displayer route
-app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {})
-
+// Get ONE photo route
 app.get(
   '/admin/getpic/:filename',
   isAuthenticated,
@@ -122,6 +121,27 @@ app.get(
     res.sendFile(imagePath)
   }
 )
+
+// Get photo list
+app.get('/admin/getPics', isAuthenticated, (req: Request, res: Response) => {
+  const uploadsPath = path.resolve(__dirname, '..', 'photos')
+
+  fs.readdir(uploadsPath, (err, files) => {
+    if (err) {
+      console.error(err)
+      res
+        .status(500)
+        .json({ error: 'Erreur lors de la lecture du dossier des images' })
+      return
+    }
+
+    const imageList = files.map((file) => {
+      return { filePath: file }
+    })
+
+    res.json({ images: imageList })
+  })
+})
 
 const server = app.listen(4300, () =>
   log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
