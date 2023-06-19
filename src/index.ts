@@ -8,6 +8,7 @@ import session from 'express-session'
 import { log } from './log'
 import { AddressInfo } from 'net'
 import multer, { Multer } from 'multer'
+import * as path from 'path'
 
 interface User {
   username: string
@@ -105,6 +106,20 @@ app.post(
   }),
   (req: Request, res: Response) => {
     res.redirect('/index.html') //TODO Administration page after login
+  }
+)
+
+// Displayer route
+app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {})
+
+app.get(
+  '/admin/getpic/:filename',
+  isAuthenticated,
+  (req: Request, res: Response) => {
+    const fileName = req.params.filename
+    const imagePath = path.resolve(__dirname, '..', `photos/${fileName}`)
+
+    res.sendFile(imagePath)
   }
 )
 
