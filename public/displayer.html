@@ -4,6 +4,10 @@
 <head>
   <title>Eventslide diaporama</title>
   <style>
+    body {
+      background-color: #353740;
+    }
+
     #slideshow {
       position: fixed;
       top: 0;
@@ -19,6 +23,7 @@
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script>
     var images = [];
+    var intervalImageChanger
 
     function changeImage() {
       var currentImageIndex = 0;
@@ -34,7 +39,8 @@
         }
       }
 
-      setInterval(nextImage, 5000);
+      intervalImageChanger && clearInterval(intervalImageChanger);
+      intervalImageChanger = setInterval(nextImage, 5000);
       $('#slideshow').click(nextImage);
     }
 
