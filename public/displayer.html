@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>Eventslide diaporama</title>
   <style>
@@ -17,29 +18,40 @@
   </style>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script>
-    $(document).ready(function() {
-      $.getJSON('/admin/getpics', (data) => {
-        var images = data.images;
-        var currentImageIndex = 0;
+    var images = [];
 
-        function changeImage() {
-          var currentImage = images[currentImageIndex];
-          var imageUrl = '/admin/getpic/' + currentImage.filePath;
-          $('#slideshow').css('background-image', 'url("' + imageUrl + '")');
+    function changeImage() {
+      var currentImageIndex = 0;
 
-          currentImageIndex++;
-          if (currentImageIndex >= images.length) {
-            currentImageIndex = 0;
-          }
+      function nextImage() {
+        var currentImage = images[currentImageIndex];
+        var imageUrl = '/admin/getpic/' + currentImage.filePath;
+        $('#slideshow').css('background-image', 'url("' + imageUrl + '")');
+
+        currentImageIndex++;
+        if (currentImageIndex >= images.length) {
+          currentImageIndex = 0;
         }
+      }
 
-        setInterval(changeImage, 5000);
-        $('#slideshow').click(changeImage)
+      setInterval(nextImage, 5000);
+      $('#slideshow').click(nextImage);
+    }
+
+    function updateImageList() {
+      $.getJSON('/admin/getpics', function (data) {
+        images = data.images;
+        changeImage();
       });
-    });
+    }
+
+    updateImageList();
+    setInterval(updateImageList, 30000);
   </script>
 </head>
+
 <body>
   <div id="slideshow"></div>
 </body>
+
 </html>
