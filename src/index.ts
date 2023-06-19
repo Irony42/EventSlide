@@ -123,7 +123,7 @@ app.get(
 )
 
 // Get photo list
-app.get('/admin/getPics', isAuthenticated, (req: Request, res: Response) => {
+app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {
   const uploadsPath = path.resolve(__dirname, '..', 'photos')
 
   fs.readdir(uploadsPath, (err, files) => {
