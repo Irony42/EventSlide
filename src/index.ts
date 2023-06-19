@@ -81,17 +81,7 @@ const storage = multer.diskStorage({
 
 const upload: Multer = multer({ storage: storage })
 
-// Login route
-app.post(
-  '/login',
-  passport.authenticate('local', {
-    failureRedirect: '/login.html?authenticationfailed=true',
-  }),
-  (req: Request, res: Response) => {
-    res.redirect('/index.html') //TODO Administration page after login
-  }
-)
-
+// Photo upload route
 app.post(
   '/upload',
   upload.array('photos', 20),
@@ -104,6 +94,17 @@ app.post(
       'Files : ' + (req.files as any).map((f: { filename: any }) => f.filename)
     )
     res.redirect('uploadConfirmation.html')
+  }
+)
+
+// Login route
+app.post(
+  '/login',
+  passport.authenticate('local', {
+    failureRedirect: '/login.html?authenticationfailed=true',
+  }),
+  (req: Request, res: Response) => {
+    res.redirect('/index.html') //TODO Administration page after login
   }
 )
 
