@@ -106,7 +106,7 @@ app.post(
     failureRedirect: '/login.html?authenticationfailed=true',
   }),
   (req: Request, res: Response) => {
-    res.redirect('/index.html') //TODO Administration page after login
+    res.redirect('/administration.html')
   }
 )
 
