@@ -10,6 +10,7 @@ import { AddressInfo } from 'net'
 import multer, { Multer } from 'multer'
 import * as path from 'path'
 import * as fs from 'fs'
+import * as https from 'https'
 
 interface User {
   username: string
@@ -17,6 +18,11 @@ interface User {
 }
 
 const app = express()
+
+const options = {
+  key: fs.readFileSync('ssl/key.pem'),
+  cert: fs.readFileSync('ssl/cert.pem')
+};
 
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use(cookieParser())
@@ -143,6 +149,7 @@ app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {
   })
 })
 
-const server = app.listen(4300, () =>
-  log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
-)
+
+const server = https.createServer(options, app)
+
+server.listen(443, () => { console.log("HTTPS server online.")})
