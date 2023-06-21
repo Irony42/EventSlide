@@ -19,11 +19,6 @@ interface User {
 
 const app = express()
 
-const options = {
-  key: fs.readFileSync('ssl/key.pem'),
-  cert: fs.readFileSync('ssl/cert.pem')
-};
-
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use(cookieParser())
 app.use(
@@ -149,7 +144,15 @@ app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {
   })
 })
 
-
+// Uncomment for production
+const options = {
+  key: fs.readFileSync('ssl/key.pem'),
+  cert: fs.readFileSync('ssl/cert.pem')
+};
 const server = https.createServer(options, app)
-
 server.listen(443, () => { console.log("HTTPS server online.")})
+
+// Uncomment for dev
+// const server = app.listen(4300, () =>
+//   log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
+// )
