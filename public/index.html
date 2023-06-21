@@ -5,6 +5,39 @@
 </head>
 <body>
   <h1>Envoyer des photos</h1>
+  <style>
+    body {
+      background-color: #ffffff; /* Blanc */
+      color: #ff0000; /* Rouge */
+      font-family: Arial, sans-serif;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    form {
+      margin: 0 auto;
+      width: 300px;
+    }
+
+    input[type="file"] {
+      display: block;
+      margin: 0 auto;
+    }
+
+    input[type="submit"] {
+      display: block;
+      margin: 20px auto;
+      background-color: #ff0000; /* Rouge */
+      color: #ffffff; /* Blanc */
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
 
   <form action="http://localhost:4300/upload" method="POST" enctype="multipart/form-data">
     <input type="file" name="photos" accept="image/*" multiple required><br><br>
