@@ -95,15 +95,11 @@ app.post(
     const photosDatas: any = {}
     const partyName = req.hostname.substring(0, req.hostname.indexOf('.'))
     log.debug(
-      'Files : ' +
-        (req.files as any).map(
-          (f: { filename: any }) => f.filename,
-          (photosDatas[partyName] = {
-            picPath: filename,
-            status: 'accepted',
-          })
-        )
+      'Files : ' + (req.files as any).map((f: { filename: any }) => f.filename)
     )
+
+    photosDatas[partyName] = (req.files as any).map((f: { filename: any }) => ({ picPath: f.filename, status: "accepted" }))
+
     fs.appendFile(`${partyName}.json`, JSON.stringify(photosDatas), (err) => {
       if (err) {
         console.error(err)
