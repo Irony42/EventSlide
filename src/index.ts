@@ -143,6 +143,32 @@ app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {
   })
 })
 
+app.get(
+  'admin/changepicsstatus/:filename/:status',
+  isAuthenticated,
+  (req: Request, res: Response) => {
+    const targetFileName = req.params.filename
+    const newStatus = req.params.status
+    const partyName = req.hostname.substring(0, req.hostname.indexOf('.'))
+
+    fs.readFile(`${partyName}.json`, (err, data) => {
+      if (err) {
+        console.error(err)
+        return
+      }
+      const photosDatas = JSON.parse(data.toString())
+      photosDatas[targetFileName].fileData.status = newStatus
+      const updatedData = JSON.stringify(photosDatas)
+      fs.writeFile(`${partyName}.json`, updatedData, (err) => {
+        if (err) {
+          console.error(err)
+          return
+        }
+      })
+    })
+  }
+)
+
 const server = app.listen(4300, () =>
   log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
 )
