@@ -110,18 +110,22 @@ app.post(
       picPath: f.filename,
       status: 'accepted',
     }))
+    const fileName = `statusfiles/${partyName}.json` as string
 
-    fs.readFile(`statusfiles/${partyName}.json`, (err, data) => {
+    fs.readFile(fileName, (err, data) => {
       if (err) {
-        console.error('Error while reading party file :', err)
-        res.status(500).send('Error while trying to retrieve your party.')
-        return
+        if (err.code != 'ENOENT') {
+          console.error('Error while reading party file :', err)
+          res.status(500).send('Error while trying to retrieve your party.')
+          return
+        }
+        fs.writeFileSync(fileName, '')
       }
       const existingPhotosDatas = JSON.parse(data.toString())
       existingPhotosDatas[partyName].push(photosDatas)
       const datas = JSON.stringify(existingPhotosDatas)
 
-      fs.writeFile(`statusfiles/${partyName}.json`, datas, (err) => {
+      fs.writeFile(fileName, datas, (err) => {
         if (err) {
           console.error('Error while saving party :', err)
           res.status(500).send('Error while saving the pictures status.')
