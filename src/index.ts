@@ -111,16 +111,24 @@ app.post(
       status: 'accepted',
     }))
 
-    fs.appendFile(
-      `statusfiles/${partyName}.json`,
-      JSON.stringify(photosDatas),
-      (err) => {
+    fs.readFile(`statusfiles/${partyName}.json`, (err, data) => {
+      if (err) {
+        console.error('Error while reading party file :', err)
+        res.status(500).send('Error while trying to retrieve your party.')
+        return
+      }
+      const existingPhotosDatas = JSON.parse(data.toString())
+      existingPhotosDatas[partyName].push(photosDatas)
+      const datas = JSON.stringify(existingPhotosDatas)
+
+      fs.writeFile(`statusfiles/${partyName}.json`, datas, (err) => {
         if (err) {
-          console.error(err)
+          console.error('Error while saving party :', err)
+          res.status(500).send('Error while saving the pictures status.')
           return
         }
-      }
-    )
+      })
+    })
     res.redirect('../uploadConfirmation.html')
   }
 )
