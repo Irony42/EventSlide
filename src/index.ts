@@ -77,7 +77,7 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const partyName = req.params.partyname
+    const partyName = req.query.partyname
     if (!partyName) cb(Error('No partyname provided'), '')
 
     const photoFolder = `photos/${partyName}`
@@ -95,27 +95,24 @@ const upload: Multer = multer({ storage: storage })
 
 // Photo upload route
 app.post(
-  '/upload/:partyname',
+  '/upload',
   upload.array('photos', 20),
   (req: Request, res: Response) => {
     if (!req.files) return res.status(400).send('No photo sent !')
 
-    const partyName = req.params.partyname
+    const partyName = req.query.partyname as string
     if (!partyName)
       return res.status(400).send('Missing partyname query param.')
 
     const photosDatas: any = {}
-    log.debug(
-      'Files : ' + (req.files as any).map((f: { filename: any }) => f.filename)
-    )
-
+    //TODO: Need to read existing JSON file if any, and then add thoses values to the existing ones.
     photosDatas[partyName] = (req.files as any).map((f: { filename: any }) => ({
       picPath: f.filename,
       status: 'accepted',
     }))
 
     fs.appendFile(
-      `photos/${partyName}/${partyName}.json`,
+      `statusfiles/${partyName}.json`,
       JSON.stringify(photosDatas),
       (err) => {
         if (err) {
@@ -150,11 +147,7 @@ app.get(
   (req: Request, res: Response) => {
     const fileName = req.params.filename
     const partyName = req.params.partyname
-    const imagePath = path.resolve(
-      __dirname,
-      '..',
-      `photos/${partyName}/${fileName}`
-    )
+    const imagePath = path.resolve(__dirname, '..', `statusfiles/${fileName}`)
 
     res.sendFile(imagePath)
   }
@@ -192,15 +185,14 @@ app.get(
   (req: Request, res: Response) => {
     const targetFileName = req.query.filename as string
     const newStatus = req.query.status as string
+    const partyName = req.query.partyname as string
 
     if (!targetFileName || !newStatus) {
       res.status(500).send('Missing filename or status query param')
       return
     }
 
-    const partyName = req.hostname.substring(0, req.hostname.indexOf('.'))
-
-    fs.readFile(`photos/${partyName}/${partyName}.json`, (err, data) => {
+    fs.readFile(`statusfiles/${partyName}.json`, (err, data) => {
       if (err) {
         console.error('Error while reading party file :', err)
         res.status(500).send('Error while trying to retrieve your party.')
@@ -211,17 +203,13 @@ app.get(
 
       const updatedData = JSON.stringify(photosDatas)
 
-      fs.writeFile(
-        `photos/${partyName}/${partyName}.json`,
-        updatedData,
-        (err) => {
-          if (err) {
-            console.error('Error while saving party :', err)
-            res.status(500).send('Error while saving the pictures status.')
-            return
-          }
+      fs.writeFile(`statusfiles/${partyName}.json`, updatedData, (err) => {
+        if (err) {
+          console.error('Error while saving party :', err)
+          res.status(500).send('Error while saving the pictures status.')
+          return
         }
-      )
+      })
     })
   }
 )

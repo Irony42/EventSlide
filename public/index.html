@@ -41,7 +41,7 @@
     }
   </style>
 
-  <form action="http://localhost:4300/upload/myParty" method="POST" enctype="multipart/form-data">
+  <form action="http://localhost:4300/upload?partyname=myParty" method="POST" enctype="multipart/form-data">
     <input type="file" name="photos" accept="image/*" multiple required><br><br>
     <input type="submit" value="Envoyer">
   </form>
