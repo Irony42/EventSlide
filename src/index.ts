@@ -114,12 +114,16 @@ app.post(
       status: 'accepted',
     }))
 
-    fs.appendFile(`${partyName}.json`, JSON.stringify(photosDatas), (err) => {
-      if (err) {
-        console.error(err)
-        return
+    fs.appendFile(
+      `photos/${partyName}/${partyName}.json`,
+      JSON.stringify(photosDatas),
+      (err) => {
+        if (err) {
+          console.error(err)
+          return
+        }
       }
-    })
+    )
     res.redirect('../uploadConfirmation.html')
   }
 )
@@ -157,26 +161,30 @@ app.get(
 )
 
 // Get photo list
-app.get('/admin/getpics/:partyname', isAuthenticated, (req: Request, res: Response) => {
-  const partyName = req.params.partyname
-  const uploadsPath = path.resolve(__dirname, '..', 'photos', partyName)
+app.get(
+  '/admin/getpics/:partyname',
+  isAuthenticated,
+  (req: Request, res: Response) => {
+    const partyName = req.params.partyname
+    const uploadsPath = path.resolve(__dirname, '..', 'photos', partyName)
 
-  fs.readdir(uploadsPath, (err, files) => {
-    if (err) {
-      console.error(err)
-      res
-        .status(500)
-        .json({ error: 'Erreur lors de la lecture du dossier des images' })
-      return
-    }
+    fs.readdir(uploadsPath, (err, files) => {
+      if (err) {
+        console.error(err)
+        res
+          .status(500)
+          .json({ error: 'Erreur lors de la lecture du dossier des images' })
+        return
+      }
 
-    const imageList = files.map((file) => {
-      return { filePath: file }
+      const imageList = files.map((file) => {
+        return { filePath: file }
+      })
+
+      res.json({ images: imageList })
     })
-
-    res.json({ images: imageList })
-  })
-})
+  }
+)
 
 app.get(
   'admin/changepicsstatus',
@@ -192,7 +200,7 @@ app.get(
 
     const partyName = req.hostname.substring(0, req.hostname.indexOf('.'))
 
-    fs.readFile(`${partyName}.json`, (err, data) => {
+    fs.readFile(`photos/${partyName}/${partyName}.json`, (err, data) => {
       if (err) {
         console.error('Error while reading party file :', err)
         res.status(500).send('Error while trying to retrieve your party.')
@@ -203,13 +211,17 @@ app.get(
 
       const updatedData = JSON.stringify(photosDatas)
 
-      fs.writeFile(`${partyName}.json`, updatedData, (err) => {
-        if (err) {
-          console.error('Error while saving party :', err)
-          res.status(500).send('Error while saving the pictures status.')
-          return
+      fs.writeFile(
+        `photos/${partyName}/${partyName}.json`,
+        updatedData,
+        (err) => {
+          if (err) {
+            console.error('Error while saving party :', err)
+            res.status(500).send('Error while saving the pictures status.')
+            return
+          }
         }
-      })
+      )
     })
   }
 )
