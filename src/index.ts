@@ -155,16 +155,23 @@ app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {
 })
 
 app.get(
-  'admin/changepicsstatus/:filename/:status',
+  'admin/changepicsstatus',
   isAuthenticated,
   (req: Request, res: Response) => {
     const targetFileName = req.params.filename
     const newStatus = req.params.status
+
+    if (!targetFileName || !newStatus) {
+      res.status(500).send('Missing filename or status query param')
+      return
+    }
+
     const partyName = req.hostname.substring(0, req.hostname.indexOf('.'))
 
     fs.readFile(`${partyName}.json`, (err, data) => {
       if (err) {
-        console.error(err)
+        console.error('Error while reading party file :', err)
+        res.status(500).send('Error while trying to retrieve your party.')
         return
       }
       const photosDatas = JSON.parse(data.toString())
@@ -172,7 +179,8 @@ app.get(
       const updatedData = JSON.stringify(photosDatas)
       fs.writeFile(`${partyName}.json`, updatedData, (err) => {
         if (err) {
-          console.error(err)
+          console.error('Error while saving party :', err)
+          res.status(500).send('Error while saving the pictures status.')
           return
         }
       })
