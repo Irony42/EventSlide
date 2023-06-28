@@ -30,7 +30,7 @@
 
       function nextImage() {
         var currentImage = images[currentImageIndex];
-        var imageUrl = '/admin/getpic/' + currentImage.filePath;
+        const imageUrl = '/admin/getpic/' + currentImage.filePath;
         $('#slideshow').css('background-image', 'url("' + imageUrl + '")');
 
         currentImageIndex++;

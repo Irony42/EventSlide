@@ -1,8 +1,21 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>Eventslide : Authentification</title>
+  <style>
+    body {
+      background-color: #353740;
+      color: #fff;
+      text-align: center;
+    }
+
+    p {
+      color: red;
+    }
+  </style>
 </head>
+
 <body>
   <h1>Authentification</h1>
   <form action="http://localhost:4300/login" method="POST">
@@ -15,7 +28,7 @@
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const authenticationFailed = urlParams.get('authenticationfailed');
-    
+
     if (authenticationFailed === 'true') {
       const message = document.createElement('p');
       message.textContent = "L'authentification a échoué. Veuillez vérifier votre nom d'utilisateur et votre mot de passe.";
@@ -23,4 +36,5 @@
     }
   </script>
 </body>
+
 </html>

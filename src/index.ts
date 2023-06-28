@@ -10,6 +10,7 @@ import { AddressInfo } from 'net'
 import multer, { Multer } from 'multer'
 import * as path from 'path'
 import * as fs from 'fs'
+import * as https from 'https'
 
 interface User {
   username: string
@@ -117,7 +118,7 @@ app.post(
     failureRedirect: '/login.html?authenticationfailed=true',
   }),
   (req: Request, res: Response) => {
-    res.redirect('/index.html') //TODO Administration page after login
+    res.redirect('/administration.html')
   }
 )
 
@@ -176,7 +177,9 @@ app.get(
       }
       const photosDatas = JSON.parse(data.toString())
       photosDatas[targetFileName].fileData.status = newStatus
+
       const updatedData = JSON.stringify(photosDatas)
+      
       fs.writeFile(`${partyName}.json`, updatedData, (err) => {
         if (err) {
           console.error('Error while saving party :', err)
@@ -188,6 +191,15 @@ app.get(
   }
 )
 
-const server = app.listen(4300, () =>
-  log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
-)
+// Uncomment for production
+const options = {
+  key: fs.readFileSync('ssl/key.pem'),
+  cert: fs.readFileSync('ssl/cert.pem')
+};
+const server = https.createServer(options, app)
+server.listen(443, () => { console.log("HTTPS server online.")})
+
+// Uncomment for dev
+// const server = app.listen(4300, () =>
+//   log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
+// )
