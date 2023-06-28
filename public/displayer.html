@@ -22,15 +22,16 @@
   </style>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script>
+    const partyname = new URLSearchParams(window.location.search).get('partyname');
     var images = [];
-    var intervalImageChanger
+    var intervalImageChanger;
 
     function changeImage() {
       var currentImageIndex = 0;
 
       function nextImage() {
         var currentImage = images[currentImageIndex];
-        const imageUrl = '/admin/getpic/' + currentImage.filePath;
+        const imageUrl = `/admin/getpic/${partyname}/${currentImage.filePath}`;
         $('#slideshow').css('background-image', 'url("' + imageUrl + '")');
 
         currentImageIndex++;
@@ -45,7 +46,7 @@
     }
 
     function updateImageList() {
-      $.getJSON('/admin/getpics', function (data) {
+      $.getJSON(`/admin/getpics/${partyname}`, function (data) {
         images = data.images;
         changeImage();
       });

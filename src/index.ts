@@ -15,6 +15,7 @@ import * as https from 'https'
 interface User {
   username: string
   password: string
+  partyId: string
 }
 
 const app = express()
@@ -37,6 +38,7 @@ const users: User[] = [
   {
     username: 'admin',
     password: '$2b$10$aRdMnDQSg/DeFoJNHj7HoupkHwQw8OE5WcxVONnICyy9FBK0eMcfe', // Hashed password: "password"
+    partyId: 'myParty',
   },
 ]
 
@@ -75,7 +77,14 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'photos/')
+    const partyName = req.params.partyname
+    if (!partyName) cb(Error('No partyname provided'), '')
+
+    const photoFolder = `photos/${partyName}`
+    if (!fs.existsSync(photoFolder))
+      fs.mkdirSync(photoFolder, { recursive: true })
+
+    cb(null, photoFolder)
   },
   filename: function (req, file, cb) {
     cb(null, file.originalname)
@@ -86,20 +95,24 @@ const upload: Multer = multer({ storage: storage })
 
 // Photo upload route
 app.post(
-  '/upload',
+  '/upload/:partyname',
   upload.array('photos', 20),
   (req: Request, res: Response) => {
-    if (!req.files) {
-      res.status(400).send('No photo sent !')
-      return
-    }
+    if (!req.files) return res.status(400).send('No photo sent !')
+
+    const partyName = req.params.partyname
+    if (!partyName)
+      return res.status(400).send('Missing partyname query param.')
+
     const photosDatas: any = {}
-    const partyName = req.hostname.substring(0, req.hostname.indexOf('.'))
     log.debug(
       'Files : ' + (req.files as any).map((f: { filename: any }) => f.filename)
     )
 
-    photosDatas[partyName] = (req.files as any).map((f: { filename: any }) => ({ picPath: f.filename, status: "accepted" }))
+    photosDatas[partyName] = (req.files as any).map((f: { filename: any }) => ({
+      picPath: f.filename,
+      status: 'accepted',
+    }))
 
     fs.appendFile(`${partyName}.json`, JSON.stringify(photosDatas), (err) => {
       if (err) {
@@ -107,7 +120,7 @@ app.post(
         return
       }
     })
-    res.redirect('uploadConfirmation.html')
+    res.redirect('../uploadConfirmation.html')
   }
 )
 
@@ -118,25 +131,35 @@ app.post(
     failureRedirect: '/login.html?authenticationfailed=true',
   }),
   (req: Request, res: Response) => {
-    res.redirect('/administration.html')
+    res.redirect(
+      `/administration.html?partyname=${
+        (req.user as User | undefined)?.partyId
+      }`
+    )
   }
 )
 
 // Get ONE photo route
 app.get(
-  '/admin/getpic/:filename',
+  '/admin/getpic/:partyname/:filename',
   isAuthenticated,
   (req: Request, res: Response) => {
     const fileName = req.params.filename
-    const imagePath = path.resolve(__dirname, '..', `photos/${fileName}`)
+    const partyName = req.params.partyname
+    const imagePath = path.resolve(
+      __dirname,
+      '..',
+      `photos/${partyName}/${fileName}`
+    )
 
     res.sendFile(imagePath)
   }
 )
 
 // Get photo list
-app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {
-  const uploadsPath = path.resolve(__dirname, '..', 'photos')
+app.get('/admin/getpics/:partyname', isAuthenticated, (req: Request, res: Response) => {
+  const partyName = req.params.partyname
+  const uploadsPath = path.resolve(__dirname, '..', 'photos', partyName)
 
   fs.readdir(uploadsPath, (err, files) => {
     if (err) {
@@ -159,8 +182,8 @@ app.get(
   'admin/changepicsstatus',
   isAuthenticated,
   (req: Request, res: Response) => {
-    const targetFileName = req.params.filename
-    const newStatus = req.params.status
+    const targetFileName = req.query.filename as string
+    const newStatus = req.query.status as string
 
     if (!targetFileName || !newStatus) {
       res.status(500).send('Missing filename or status query param')
@@ -179,7 +202,7 @@ app.get(
       photosDatas[targetFileName].fileData.status = newStatus
 
       const updatedData = JSON.stringify(photosDatas)
-      
+
       fs.writeFile(`${partyName}.json`, updatedData, (err) => {
         if (err) {
           console.error('Error while saving party :', err)
@@ -192,14 +215,14 @@ app.get(
 )
 
 // Uncomment for production
-const options = {
-  key: fs.readFileSync('ssl/key.pem'),
-  cert: fs.readFileSync('ssl/cert.pem')
-};
-const server = https.createServer(options, app)
-server.listen(443, () => { console.log("HTTPS server online.")})
+// const options = {
+//   key: fs.readFileSync('ssl/key.pem'),
+//   cert: fs.readFileSync('ssl/cert.pem')
+// };
+// const server = https.createServer(options, app)
+// server.listen(443, () => { console.log("HTTPS server online.")})
 
 // Uncomment for dev
-// const server = app.listen(4300, () =>
-//   log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
-// )
+const server = app.listen(4300, () =>
+  log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
+)
