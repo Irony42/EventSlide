@@ -23,7 +23,7 @@
       width: 100%;
     }
 
-    .validated {
+    .accepted {
       border-color: green;
     }
 
@@ -38,6 +38,28 @@
 
   <script>
     const partyname = new URLSearchParams(window.location.search).get('partyname');
+    function changePicStatus(fileName, newStatus) {
+      const url = `/admin/changepicstatus?filename=${fileName}&status=${newStatus}&partyname=${partyname}`;
+
+      fetch(url)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Erreur lors de la modification du statut de l\'image');
+          }
+
+          const imageContainer = document.querySelector(`.image-container[data-filename="${fileName}"]`);
+          if (imageContainer) {
+            imageContainer.classList.remove('accepted');
+            imageContainer.classList.remove('rejected');
+            imageContainer.classList.add(newStatus);
+            imageContainer.onclick = () => changePicStatus(fileName, newStatus == 'accepted' ? 'rejected' : 'accepted')
+          }
+        })
+        .catch(error => {
+          console.error('Une erreur s\'est produite lors de la modification du statut de l\'image:', error);
+        });
+    }
+
     function fetchImages() {
       fetch(`/admin/getpics/${partyname}`)
         .then(response => response.json())
@@ -54,11 +76,13 @@
             const imageContainer = document.createElement('div');
             imageContainer.className = 'image-container';
 
-            if (status === 'validated') {
-              imageContainer.classList.add('validated');
+            if (status === 'accepted') {
+              imageContainer.classList.add('accepted');
             } else if (status === 'rejected') {
               imageContainer.classList.add('rejected');
             }
+            imageContainer.setAttribute('data-filename', fileName)
+            imageContainer.onclick = () => changePicStatus(fileName, status == 'accepted' ? 'rejected' : 'accepted')
 
             imageContainer.appendChild(imageElement);
             imagesContainer.appendChild(imageContainer);

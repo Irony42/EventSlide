@@ -157,9 +157,9 @@ app.get('/admin/getpics/:partyname', isAuthenticated, (req: Request, res: Respon
   res.json(filteredPartyPics)
 })
 
-app.get('admin/changepicsstatus', isAuthenticated, (req: Request, res: Response) => {
+app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response) => {
   const targetFileName = req.query.filename as string
-  const newStatus = req.query.status as string
+  const newStatus = req.query.status as 'accepted' | 'rejected'
   const partyName = req.query.partyname as string
 
   if (!targetFileName || !newStatus) {
@@ -174,8 +174,13 @@ app.get('admin/changepicsstatus', isAuthenticated, (req: Request, res: Response)
       return
     }
     const photosDatas = JSON.parse(data.toString())
-    photosDatas[targetFileName].fileData.status = newStatus
+    console.log('BEFORE', photosDatas)
+    const pictureToChange: ModeratedPicture = photosDatas.pictures.find((p: any) => p.fileName == targetFileName)
+    if (pictureToChange) {
+      pictureToChange.status = newStatus
+    }
 
+    console.log('after', photosDatas)
     const updatedData = JSON.stringify(photosDatas)
 
     fs.writeFile(`statusfiles/${partyName}.json`, updatedData, (err) => {
@@ -184,6 +189,7 @@ app.get('admin/changepicsstatus', isAuthenticated, (req: Request, res: Response)
         res.status(500).send('Error while saving the pictures status.')
         return
       }
+      res.status(200).send('ok')
     })
   })
 })

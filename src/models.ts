@@ -6,7 +6,7 @@ export interface User {
 
 export interface ModeratedPicture {
   fileName: string
-  status: string
+  status: 'accepted' | 'rejected'
 }
 
 export interface ModeratedPictures {
