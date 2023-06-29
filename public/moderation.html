@@ -4,6 +4,11 @@
 <head>
   <title>Images</title>
   <style>
+    body {
+      background-color: #353740;
+      color: #fff;
+    }
+
     .image-container {
       display: inline-block;
       margin: 10px;
@@ -39,7 +44,7 @@
         .then(data => {
           const imagesContainer = document.getElementById('images');
 
-          data.images.forEach(image => {
+          data.pictures.forEach(image => {
             const { fileName, status } = image;
 
             const imageElement = document.createElement('img');

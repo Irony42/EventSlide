@@ -7,14 +7,9 @@ import cookieParser from 'cookie-parser'
 import session from 'express-session'
 import { AddressInfo } from 'net'
 import multer, { Multer } from 'multer'
+import { User, ModeratedPictures, ModeratedPicture } from './models'
 import * as path from 'path'
 import * as fs from 'fs'
-
-interface User {
-  username: string
-  password: string
-  partyId: string
-}
 
 const app = express()
 
@@ -85,7 +80,7 @@ const storage = multer.diskStorage({
     cb(null, photoFolder)
   },
   filename: function (req, file, cb) {
-    cb(null, file.originalname)
+    cb(null, `${Date.now()}_${file.originalname}`)
   },
 })
 
@@ -102,12 +97,11 @@ app.post(
     if (!partyName)
       return res.status(400).send('Missing partyname query param.')
 
-
-    const photosDatas = (req.files as any).map((f: { filename: any }) => ({
-      picPath: f.filename,
-      status: 'accepted',
+    const photosDatas: ModeratedPicture[] = (req.files as any).map((f: { filename: any }) => ({
+      fileName: f.filename,
+      status: 'accepted' // Need to have a default value per party for status
     }))
-    const statusFileName = `statusfiles/${partyName}.json` as string
+    const statusFileName = `statusfiles/${partyName}.json`
 
     fs.readFile(statusFileName, (err, data) => {
       if (err) {
@@ -118,8 +112,10 @@ app.post(
         }
         fs.writeFileSync(statusFileName, '')
       }
-      const existingPhotosDatas = data ? JSON.parse(data.toString()) : {[partyName]: []}
-      existingPhotosDatas[partyName].push(photosDatas)
+      const existingPhotosDatas: ModeratedPictures = data
+        ? JSON.parse(data.toString())
+        : { pictures: [] }
+      existingPhotosDatas.pictures.push(...photosDatas)
       const datas = JSON.stringify(existingPhotosDatas)
 
       fs.writeFile(statusFileName, datas, (err) => {
@@ -156,11 +152,7 @@ app.get(
   (req: Request, res: Response) => {
     const fileName = req.params.filename
     const partyName = req.params.partyname
-    const imagePath = path.resolve(
-      __dirname,
-      '..',
-      `photos/${partyName}/${fileName}`
-    )
+    const imagePath = path.resolve(__dirname, '..', `photos/${partyName}/${fileName}`)
 
     res.sendFile(imagePath)
   }
@@ -172,21 +164,38 @@ app.get(
   isAuthenticated,
   (req: Request, res: Response) => {
     const partyName = req.params.partyname
-    const uploadsPath = path.resolve(__dirname, '..', 'photos', partyName)
+    const acceptedOnly = req.query.acceptedonly
+    //const uploadsPath = path.resolve(__dirname, '..', 'photos', partyName)
 
-    fs.readdir(uploadsPath, (err, files) => {
-      if (err) {
-        console.error(err)
-        res.status(500).json({ error: 'Error while reading pictures folder' })
-        return
-      }
+    const partyFile = fs
+      .readFileSync(
+        path.resolve(__dirname, '..', 'statusfiles', `${partyName}.json`)
+      )
+      .toString()
 
-      const imageList = files.map((file) => {
-        return { fileName: file }
-      })
+    const partyPics: ModeratedPictures = JSON.parse(partyFile)
 
-      res.json({ images: imageList })
-    })
+    const filteredPartyPics: ModeratedPictures = acceptedOnly && partyPics.pictures
+    ? { pictures: partyPics.pictures.filter((picture) => picture.status === 'accepted') } 
+    : partyPics
+
+    console.log("JSON : ", filteredPartyPics)
+    res.json(filteredPartyPics)
+
+    
+    // fs.readdir(uploadsPath, (err, files) => {
+    //   if (err) {
+    //     console.error(err)
+    //     res.status(500).json({ error: 'Error while reading pictures folder' })
+    //     return
+    //   }
+
+    //   const imageList = files.map((file) => {
+    //     return { fileName: file }
+    //   })
+
+    //   res.json({ images: imageList })
+    // })
   }
 )
 
