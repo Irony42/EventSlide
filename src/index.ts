@@ -144,7 +144,6 @@ app.get('/admin/getpic/:partyname/:filename', isAuthenticated, (req: Request, re
 app.get('/admin/getpics/:partyname', isAuthenticated, (req: Request, res: Response) => {
   const partyName = req.params.partyname
   const acceptedOnly = req.query.acceptedonly
-  //const uploadsPath = path.resolve(__dirname, '..', 'photos', partyName)
 
   const partyFile = fs.readFileSync(path.resolve(__dirname, '..', 'statusfiles', `${partyName}.json`)).toString()
 
@@ -155,22 +154,7 @@ app.get('/admin/getpics/:partyname', isAuthenticated, (req: Request, res: Respon
       ? { pictures: partyPics.pictures.filter((picture) => picture.status === 'accepted') }
       : partyPics
 
-  console.log('JSON : ', filteredPartyPics)
   res.json(filteredPartyPics)
-
-  // fs.readdir(uploadsPath, (err, files) => {
-  //   if (err) {
-  //     console.error(err)
-  //     res.status(500).json({ error: 'Error while reading pictures folder' })
-  //     return
-  //   }
-
-  //   const imageList = files.map((file) => {
-  //     return { fileName: file }
-  //   })
-
-  //   res.json({ images: imageList })
-  // })
 })
 
 app.get('admin/changepicsstatus', isAuthenticated, (req: Request, res: Response) => {
