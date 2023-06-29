@@ -103,7 +103,6 @@ app.post(
       return res.status(400).send('Missing partyname query param.')
 
     const photosDatas: any = {}
-    //TODO: Need to read existing JSON file if any, and then add thoses values to the existing ones.
     photosDatas[partyName] = (req.files as any).map((f: { filename: any }) => ({
       picPath: f.filename,
       status: 'accepted',
@@ -119,7 +118,7 @@ app.post(
         }
         fs.writeFileSync(fileName, '')
       }
-      const existingPhotosDatas = JSON.parse(data.toString())
+      const existingPhotosDatas = data ? JSON.parse(data.toString()) : {[partyName]: []}
       existingPhotosDatas[partyName].push(photosDatas)
       const datas = JSON.stringify(existingPhotosDatas)
 
@@ -129,9 +128,9 @@ app.post(
           res.status(500).send('Error while saving the pictures status.')
           return
         }
+        res.redirect('../uploadConfirmation.html')
       })
     })
-    res.redirect('../uploadConfirmation.html')
   }
 )
 
