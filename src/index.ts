@@ -102,8 +102,8 @@ app.post(
     if (!partyName)
       return res.status(400).send('Missing partyname query param.')
 
-    const photosDatas: any = {}
-    photosDatas[partyName] = (req.files as any).map((f: { filename: any }) => ({
+
+    const photosDatas = (req.files as any).map((f: { filename: any }) => ({
       picPath: f.filename,
       status: 'accepted',
     }))
