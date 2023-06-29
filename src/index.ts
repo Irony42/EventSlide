@@ -5,7 +5,6 @@ import bcrypt from 'bcrypt'
 import bodyParser from 'body-parser'
 import cookieParser from 'cookie-parser'
 import session from 'express-session'
-import { log } from './log'
 import { AddressInfo } from 'net'
 import multer, { Multer } from 'multer'
 import * as path from 'path'
@@ -235,5 +234,5 @@ app.get(
 
 // Uncomment for dev
 const server = app.listen(4300, () =>
-  log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
+  console.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
 )
