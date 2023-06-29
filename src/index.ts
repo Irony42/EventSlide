@@ -173,14 +173,14 @@ app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response)
       res.status(500).send('Error while trying to retrieve your party.')
       return
     }
+    
     const photosDatas = JSON.parse(data.toString())
-    console.log('BEFORE', photosDatas)
     const pictureToChange: ModeratedPicture = photosDatas.pictures.find((p: any) => p.fileName == targetFileName)
+    
     if (pictureToChange) {
       pictureToChange.status = newStatus
     }
 
-    console.log('after', photosDatas)
     const updatedData = JSON.stringify(photosDatas)
 
     fs.writeFile(`statusfiles/${partyName}.json`, updatedData, (err) => {
