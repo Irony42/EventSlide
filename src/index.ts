@@ -10,7 +10,6 @@ import { AddressInfo } from 'net'
 import multer, { Multer } from 'multer'
 import * as path from 'path'
 import * as fs from 'fs'
-import * as https from 'https'
 
 interface User {
   username: string
