@@ -157,7 +157,11 @@ app.get(
   (req: Request, res: Response) => {
     const fileName = req.params.filename
     const partyName = req.params.partyname
-    const imagePath = path.resolve(__dirname, '..', `statusfiles/${fileName}`)
+    const imagePath = path.resolve(
+      __dirname,
+      '..',
+      `photos/${partyName}/${fileName}`
+    )
 
     res.sendFile(imagePath)
   }
@@ -174,9 +178,7 @@ app.get(
     fs.readdir(uploadsPath, (err, files) => {
       if (err) {
         console.error(err)
-        res
-          .status(500)
-          .json({ error: 'Erreur lors de la lecture du dossier des images' })
+        res.status(500).json({ error: 'Error while reading pictures folder' })
         return
       }
 
