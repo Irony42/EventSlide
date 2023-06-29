@@ -10,6 +10,7 @@ import multer, { Multer } from 'multer'
 import { User, ModeratedPictures, ModeratedPicture } from './models'
 import * as path from 'path'
 import * as fs from 'fs'
+import * as https from 'https'
 
 const app = express()
 
@@ -173,7 +174,7 @@ app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response)
       res.status(500).send('Error while trying to retrieve your party.')
       return
     }
-    
+
     const photosDatas = JSON.parse(data.toString())
     const pictureToChange: ModeratedPicture = photosDatas.pictures.find((p: any) => p.fileName == targetFileName)
     
@@ -195,12 +196,12 @@ app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response)
 })
 
 // Uncomment for production
-// const options = {
-//   key: fs.readFileSync('ssl/key.pem'),
-//   cert: fs.readFileSync('ssl/cert.pem')
-// };
-// const server = https.createServer(options, app)
-// server.listen(443, () => { console.log("HTTPS server online.")})
+const options = {
+  key: fs.readFileSync('ssl/key.pem'),
+  cert: fs.readFileSync('ssl/cert.pem')
+};
+const server = https.createServer(options, app)
+server.listen(443, () => { console.log("HTTPS server online.")})
 
 // Uncomment for dev
-const server = app.listen(4300, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
+// const server = app.listen(4300, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
