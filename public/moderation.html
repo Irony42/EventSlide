@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Images</title>
+  <style>
+    .image-container {
+      display: inline-block;
+      margin: 10px;
+      padding: 5px;
+      border: 2px solid;
+      border-radius: 5px;
+      height: 28vh;
+    }
+
+    .image-container img {
+      height: 100%;
+      width: 100%;
+    }
+
+    .validated {
+      border-color: green;
+    }
+
+    .rejected {
+      border-color: red;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="images"></div>
+
+  <script>
+    const partyname = new URLSearchParams(window.location.search).get('partyname');
+    function fetchImages() {
+      fetch(`/admin/getpics/${partyname}`)
+        .then(response => response.json())
+        .then(data => {
+          const imagesContainer = document.getElementById('images');
+
+          data.images.forEach(image => {
+            const { fileName, status } = image;
+
+            const imageElement = document.createElement('img');
+            const imageUrl = `/admin/getpic/${partyname}/${fileName}`;
+            imageElement.src = imageUrl;
+
+            const imageContainer = document.createElement('div');
+            imageContainer.className = 'image-container';
+
+            if (status === 'validated') {
+              imageContainer.classList.add('validated');
+            } else if (status === 'rejected') {
+              imageContainer.classList.add('rejected');
+            }
+
+            imageContainer.appendChild(imageElement);
+            imagesContainer.appendChild(imageContainer);
+          });
+        })
+        .catch(error => {
+          console.error('Une erreur s\'est produite lors de la récupération des images:', error);
+        });
+    }
+
+    fetchImages();
+  </script>
+</body>
+
+</html>

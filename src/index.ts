@@ -182,7 +182,7 @@ app.get(
       }
 
       const imageList = files.map((file) => {
-        return { filePath: file }
+        return { fileName: file }
       })
 
       res.json({ images: imageList })
