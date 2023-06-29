@@ -7,7 +7,7 @@
     body {
       background-color: #353740;
       color: #fff;
-      text-align:center
+      text-align: center
     }
 
     a {
@@ -32,7 +32,25 @@
 <body>
   <h1>Administration</h1>
   <a href="/displayer.html" class="block">Afficher vos photos</a>
-  <a href="#" class="block">[WIP] Modérer les soumissions</a>
+  <a href="/moderation.html" class="block">Modérer les soumissions</a>
+
+  <script>
+    function getQueryParam(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+    const partyName = getQueryParam("partyname");
+
+    const links = document.querySelectorAll("a");
+    links.forEach((link) => {
+      const href = link.getAttribute("href");
+      if (href && href.includes("?")) {
+        link.setAttribute("href", href + "&partyname=" + partyName);
+      } else {
+        link.setAttribute("href", href + "?partyname=" + partyName);
+      }
+    });
+  </script>
 </body>
 
 </html>

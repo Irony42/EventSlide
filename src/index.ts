@@ -5,17 +5,12 @@ import bcrypt from 'bcrypt'
 import bodyParser from 'body-parser'
 import cookieParser from 'cookie-parser'
 import session from 'express-session'
-import { log } from './log'
 import { AddressInfo } from 'net'
 import multer, { Multer } from 'multer'
+import { User, ModeratedPictures, ModeratedPicture } from './models'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as https from 'https'
-
-interface User {
-  username: string
-  password: string
-}
 
 const app = express()
 
@@ -25,7 +20,7 @@ app.use(
   session({
     secret: 'your-secret-key',
     resave: true,
-    saveUninitialized: true,
+    saveUninitialized: true
   })
 )
 app.use(passport.initialize())
@@ -37,28 +32,27 @@ const users: User[] = [
   {
     username: 'admin',
     password: '$2b$10$aRdMnDQSg/DeFoJNHj7HoupkHwQw8OE5WcxVONnICyy9FBK0eMcfe', // Hashed password: "password"
-  },
+    partyId: 'myParty'
+  }
 ]
 
 // Passport configuration
 passport.use(
-  new LocalStrategy.Strategy(
-    (username: string, password: string, done: any) => {
-      const user = users.find((user) => user.username === username)
-      if (!user) {
-        return done(null, false, { message: 'Incorrect username.' })
-      }
-      bcrypt.compare(password, user.password, (err, result) => {
-        if (err) {
-          return done(err)
-        }
-        if (!result) {
-          return done(null, false, { message: 'Incorrect password.' })
-        }
-        return done(null, user)
-      })
+  new LocalStrategy.Strategy((username: string, password: string, done: any) => {
+    const user = users.find((user) => user.username === username)
+    if (!user) {
+      return done(null, false, { message: 'Incorrect username.' })
     }
-  )
+    bcrypt.compare(password, user.password, (err, result) => {
+      if (err) {
+        return done(err)
+      }
+      if (!result) {
+        return done(null, false, { message: 'Incorrect password.' })
+      }
+      return done(null, user)
+    })
+  })
 )
 
 passport.serializeUser((user, done) => done(null, user))
@@ -75,72 +69,129 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'photos/')
+    const partyName = req.query.partyname
+    if (!partyName) cb(Error('No partyname provided'), '')
+
+    const photoFolder = `photos/${partyName}`
+    if (!fs.existsSync(photoFolder)) fs.mkdirSync(photoFolder, { recursive: true })
+
+    cb(null, photoFolder)
   },
   filename: function (req, file, cb) {
-    cb(null, file.originalname)
-  },
+    cb(null, `${Date.now()}_${file.originalname}`)
+  }
 })
 
 const upload: Multer = multer({ storage: storage })
 
 // Photo upload route
-app.post(
-  '/upload',
-  upload.array('photos', 20),
-  (req: Request, res: Response) => {
-    if (!req.files) {
-      res.status(400).send('No photo sent !')
-      return
+app.post('/upload', upload.array('photos', 20), (req: Request, res: Response) => {
+  if (!req.files) return res.status(400).send('No photo sent !')
+
+  const partyName = req.query.partyname as string
+  if (!partyName) return res.status(400).send('Missing partyname query param.')
+
+  const photosDatas: ModeratedPicture[] = (req.files as any).map((f: { filename: any }) => ({
+    fileName: f.filename,
+    status: 'accepted' // Need to have a default value per party for status
+  }))
+  const statusFileName = `statusfiles/${partyName}.json`
+
+  fs.readFile(statusFileName, (err, data) => {
+    if (err) {
+      if (err.code != 'ENOENT') {
+        console.error('Error while reading party file :', err)
+        res.status(500).send('Error while trying to retrieve your party.')
+        return
+      }
+      fs.writeFileSync(statusFileName, '')
     }
-    log.debug(
-      'Files : ' + (req.files as any).map((f: { filename: any }) => f.filename)
-    )
-    res.redirect('uploadConfirmation.html')
-  }
-)
+    const existingPhotosDatas: ModeratedPictures = data ? JSON.parse(data.toString()) : { pictures: [] }
+    existingPhotosDatas.pictures.push(...photosDatas)
+    const datas = JSON.stringify(existingPhotosDatas)
+
+    fs.writeFile(statusFileName, datas, (err) => {
+      if (err) {
+        console.error('Error while saving party :', err)
+        res.status(500).send('Error while saving the pictures status.')
+        return
+      }
+      res.redirect('../uploadConfirmation.html')
+    })
+  })
+})
 
 // Login route
 app.post(
   '/login',
   passport.authenticate('local', {
-    failureRedirect: '/login.html?authenticationfailed=true',
+    failureRedirect: '/login.html?authenticationfailed=true'
   }),
   (req: Request, res: Response) => {
-    res.redirect('/administration.html')
+    res.redirect(`/administration.html?partyname=${(req.user as User | undefined)?.partyId}`)
   }
 )
 
 // Get ONE photo route
-app.get(
-  '/admin/getpic/:filename',
-  isAuthenticated,
-  (req: Request, res: Response) => {
-    const fileName = req.params.filename
-    const imagePath = path.resolve(__dirname, '..', `photos/${fileName}`)
+app.get('/admin/getpic/:partyname/:filename', isAuthenticated, (req: Request, res: Response) => {
+  const fileName = req.params.filename
+  const partyName = req.params.partyname
+  const imagePath = path.resolve(__dirname, '..', `photos/${partyName}/${fileName}`)
 
-    res.sendFile(imagePath)
-  }
-)
+  res.sendFile(imagePath)
+})
 
 // Get photo list
-app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {
-  const uploadsPath = path.resolve(__dirname, '..', 'photos')
+app.get('/admin/getpics/:partyname', isAuthenticated, (req: Request, res: Response) => {
+  const partyName = req.params.partyname
+  const acceptedOnly = req.query.acceptedonly
 
-  fs.readdir(uploadsPath, (err, files) => {
+  const partyFile = fs.readFileSync(path.resolve(__dirname, '..', 'statusfiles', `${partyName}.json`)).toString()
+
+  const partyPics: ModeratedPictures = JSON.parse(partyFile)
+
+  const filteredPartyPics: ModeratedPictures =
+    acceptedOnly && partyPics.pictures
+      ? { pictures: partyPics.pictures.filter((picture) => picture.status === 'accepted') }
+      : partyPics
+
+  res.json(filteredPartyPics)
+})
+
+app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response) => {
+  const targetFileName = req.query.filename as string
+  const newStatus = req.query.status as 'accepted' | 'rejected'
+  const partyName = req.query.partyname as string
+
+  if (!targetFileName || !newStatus) {
+    res.status(500).send('Missing filename or status query param')
+    return
+  }
+
+  fs.readFile(`statusfiles/${partyName}.json`, (err, data) => {
     if (err) {
-      console.error(err)
-      res
-        .status(500)
-        .json({ error: 'Erreur lors de la lecture du dossier des images' })
+      console.error('Error while reading party file :', err)
+      res.status(500).send('Error while trying to retrieve your party.')
       return
     }
 
-    const imageList = files.map((file) => {
-      return { filePath: file }
-    })
+    const photosDatas = JSON.parse(data.toString())
+    const pictureToChange: ModeratedPicture = photosDatas.pictures.find((p: any) => p.fileName == targetFileName)
+    
+    if (pictureToChange) {
+      pictureToChange.status = newStatus
+    }
 
-    res.json({ images: imageList })
+    const updatedData = JSON.stringify(photosDatas)
+
+    fs.writeFile(`statusfiles/${partyName}.json`, updatedData, (err) => {
+      if (err) {
+        console.error('Error while saving party :', err)
+        res.status(500).send('Error while saving the pictures status.')
+        return
+      }
+      res.status(200).send('ok')
+    })
   })
 })
 
@@ -153,6 +204,4 @@ const server = https.createServer(options, app)
 server.listen(443, () => { console.log("HTTPS server online.")})
 
 // Uncomment for dev
-// const server = app.listen(4300, () =>
-//   log.debug(`Listening on port ${(server.address() as AddressInfo).port}`)
-// )
+// const server = app.listen(4300, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))

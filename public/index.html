@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>Envoyer des photos</title>
 </head>
+
 <body>
   <h1>Envoyer des photos</h1>
   <style>
     body {
-      background-color: #ffffff; /* Blanc */
-      color: #ff0000; /* Rouge */
+      background-color: #ffffff;
+      color: #ff0000;
       font-family: Arial, sans-serif;
     }
 
@@ -29,8 +31,8 @@
     input[type="submit"] {
       display: block;
       margin: 20px auto;
-      background-color: #ff0000; /* Rouge */
-      color: #ffffff; /* Blanc */
+      background-color: #ff0000;
+      color: #ffffff;
       padding: 10px 20px;
       border: none;
       border-radius: 5px;
@@ -39,10 +41,11 @@
     }
   </style>
 
-  <form action="http://localhost:4300/upload" method="POST" enctype="multipart/form-data">
+  <form action="http://localhost:4300/upload?partyname=myParty" method="POST" enctype="multipart/form-data">
     <input type="file" name="photos" accept="image/*" multiple required><br><br>
     <input type="submit" value="Envoyer">
   </form>
 
 </body>
+
 </html>
