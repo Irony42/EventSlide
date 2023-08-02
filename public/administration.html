@@ -35,26 +35,8 @@
   <a href="/moderation.html" class="block">Modérer les soumissions</a>
 
   <h1>Compte et utilisateurs</h1>
-  <a href="#" class="block">Modifier mon mot de passe</a>
+  <a href="/passwordChange.html" class="block">Modifier mon mot de passe</a>
   <a href="/newUser.html" class="block">Créer un nouvel utilisateur</a>
-
-  <script>
-    function getQueryParam(name) {
-      const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get(name);
-    }
-    const partyName = getQueryParam("partyname");
-
-    const links = document.querySelectorAll("a");
-    links.forEach((link) => {
-      const href = link.getAttribute("href");
-      if (href && href.includes("?")) {
-        link.setAttribute("href", href + "&partyname=" + partyName);
-      } else {
-        link.setAttribute("href", href + "?partyname=" + partyName);
-      }
-    });
-  </script>
 </body>
 
 </html>

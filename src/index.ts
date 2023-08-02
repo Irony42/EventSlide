@@ -163,13 +163,63 @@ app.post('/register', isAuthenticated, (req: Request, res: Response) => {
   })
 })
 
+// Change user password
+app.post('/passwordChange', isAuthenticated, (req: Request, res: Response) => {
+  const { password, newPassword, newPassword2 } = req.body
+  const { username } = req.user as any
+
+  if (newPassword !== newPassword2) {
+    console.log('Password not changed, different new passwords.')
+    return res.redirect('/passwordChange.html?passwordChange=true')
+  }
+
+  const query = 'SELECT * FROM users WHERE username = ?'
+  db.get(query, [username], (err, user: User) => {
+    if (err) {
+      console.error('Error while fetching user data:', err)
+      return res.redirect('/passwordChange.html?passwordChange=true')
+    }
+
+    bcrypt.compare(password, user.password, (err, result) => {
+      if (err) {
+        console.error('Error while comparing passwords:', err)
+        return res.redirect('/passwordChange.html?passwordChange=true')
+      }
+
+      if (!result) {
+        console.log('Incorrect current password.')
+        return res.redirect('/passwordChange.html?passwordChange=true')
+      }
+
+      bcrypt.hash(newPassword, 10, (err, hash) => {
+        if (err) {
+          console.error('Error while hashing new password:', err)
+          return res.redirect('/passwordChange.html?passwordChange=true')
+        }
+
+        const updateQuery = 'UPDATE users SET password = ? WHERE username = ?'
+        db.run(updateQuery, [hash, username], (err) => {
+          if (err) {
+            console.error('Error while updating password in the database:', err)
+            return res.redirect('/passwordChange.html?passwordChange=true')
+          }
+
+          return res.redirect('/passwordChange.html?passwordChange=false')
+        })
+      })
+    })
+  })
+})
+
 // Uncomment for production
 const options = {
   key: fs.readFileSync('ssl/key.pem'),
   cert: fs.readFileSync('ssl/cert.pem')
-};
+}
 const server = https.createServer(options, app)
-server.listen(443, () => { console.log("HTTPS server online.")})
+server.listen(443, () => {
+  console.log('HTTPS server online.')
+})
 
 // Uncomment for dev
 // const server = app.listen(4300, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
