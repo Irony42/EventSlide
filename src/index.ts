@@ -44,11 +44,40 @@ db.run(`
     console.error('Error creating users table:', err)
   } else {
     console.log('Users table created successfully.')
+    const defaultUsername = 'admin';
+    const defaultPasswordHash = '$2b$10$aRdMnDQSg/DeFoJNHj7HoupkHwQw8OE5WcxVONnICyy9FBK0eMcfe'; // Hashed password for "password"
+    const defaultPartyId = 'myParty'
+    db.run(
+      'INSERT INTO users (username, password, partyId) VALUES (?, ?, ?)',
+      [defaultUsername, defaultPasswordHash, defaultPartyId],
+      (err) => {
+        if (err) {
+          console.error('Error inserting default user:', err)
+        } else {
+          console.log('Default user added successfully.')
+        }
+      }
+    )
+  }
+})
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fileName TEXT NOT NULL,
+    status TEXT NOT NULL,
+    partyId TEXT NOT NULL
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating photos table:', err)
+  } else {
+    console.log('Photos table created successfully.')
   }
 })
 
 process.on('exit', () => {
-  db.close();
+  db.close()
 });
 
 // Passport configuration
@@ -117,30 +146,18 @@ app.post('/upload', upload.array('photos', 20), (req: Request, res: Response) =>
     fileName: f.filename,
     status: 'accepted' // Need to have a default value per party for status
   }))
-  const statusFileName = `statusfiles/${partyName}.json`
 
-  fs.readFile(statusFileName, (err, data) => {
-    if (err) {
-      if (err.code != 'ENOENT') {
-        console.error('Error while reading party file :', err)
-        res.status(500).send('Error while trying to retrieve your party.')
-        return
-      }
-      fs.writeFileSync(statusFileName, '')
-    }
-    const existingPhotosDatas: ModeratedPictures = data ? JSON.parse(data.toString()) : { pictures: [] }
-    existingPhotosDatas.pictures.push(...photosDatas)
-    const datas = JSON.stringify(existingPhotosDatas)
-
-    fs.writeFile(statusFileName, datas, (err) => {
+  const query = 'INSERT INTO photos (fileName, status, partyId) VALUES (?, ?, ?)';
+  photosDatas.forEach((photoData) => {
+    db.run(query, [photoData.fileName, photoData.status, partyName], (err) => {
       if (err) {
-        console.error('Error while saving party :', err)
-        res.status(500).send('Error while saving the pictures status.')
-        return
+        console.error('Error while saving photo to the database:', err)
+        return res.status(500).send('Error while uploading picture.')
       }
-      res.redirect('../uploadConfirmation.html')
     })
   })
+
+  res.redirect('../uploadConfirmation.html')
 })
 
 // Login route
@@ -168,16 +185,19 @@ app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {
   const { partyId } = req.user as any
   const acceptedOnly = req.query.acceptedonly
 
-  const partyFile = fs.readFileSync(path.resolve(__dirname, '..', 'statusfiles', `${partyId}.json`)).toString()
+  const query = acceptedOnly
+    ? 'SELECT * FROM photos WHERE partyId = ? AND status = "accepted"'
+    : 'SELECT * FROM photos WHERE partyId = ?'
 
-  const partyPics: ModeratedPictures = JSON.parse(partyFile)
+  db.all(query, [partyId], (err, rows: ModeratedPicture[]) => {
+    if (err) {
+      console.error('Error while retrieving photo statuses:', err)
+      return res.status(500).send('Error while retrieving photo statuses.')
+    }
 
-  const filteredPartyPics: ModeratedPictures =
-    acceptedOnly && partyPics.pictures
-      ? { pictures: partyPics.pictures.filter((picture) => picture.status === 'accepted') }
-      : partyPics
-
-  res.json(filteredPartyPics)
+    const partyPics: ModeratedPictures = { pictures: rows }
+    res.json(partyPics)
+  });
 })
 
 app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response) => {
@@ -190,30 +210,14 @@ app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response)
     return
   }
 
-  fs.readFile(`statusfiles/${partyId}.json`, (err, data) => {
+  const query = 'UPDATE photos SET status = ? WHERE fileName = ? AND partyId = ?'
+  db.run(query, [newStatus, targetFileName, partyId], (err) => {
     if (err) {
-      console.error('Error while reading party file :', err)
-      res.status(500).send('Error while trying to retrieve your party.')
+      console.error('Error while updating photo status:', err)
+      res.status(500).send('Error while updating photo status.')
       return
     }
-
-    const photosDatas = JSON.parse(data.toString())
-    const pictureToChange: ModeratedPicture = photosDatas.pictures.find((p: any) => p.fileName == targetFileName)
-    
-    if (pictureToChange) {
-      pictureToChange.status = newStatus
-    }
-
-    const updatedData = JSON.stringify(photosDatas)
-
-    fs.writeFile(`statusfiles/${partyId}.json`, updatedData, (err) => {
-      if (err) {
-        console.error('Error while saving party :', err)
-        res.status(500).send('Error while saving the pictures status.')
-        return
-      }
-      res.status(200).send('ok')
-    })
+    res.status(200).send('ok')
   })
 })
 
@@ -240,12 +244,12 @@ app.post('/register', isAuthenticated, (req: Request, res: Response) => {
 })
 
 // Uncomment for production
-const options = {
-  key: fs.readFileSync('ssl/key.pem'),
-  cert: fs.readFileSync('ssl/cert.pem')
-};
-const server = https.createServer(options, app)
-server.listen(443, () => { console.log("HTTPS server online.")})
+// const options = {
+//   key: fs.readFileSync('ssl/key.pem'),
+//   cert: fs.readFileSync('ssl/cert.pem')
+// };
+// const server = https.createServer(options, app)
+// server.listen(443, () => { console.log("HTTPS server online.")})
 
 // Uncomment for dev
-// const server = app.listen(4300, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
+const server = app.listen(4300, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
