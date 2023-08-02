@@ -52,10 +52,10 @@ passport.use(
           return done(null, false, { message: 'Incorrect password.' })
         }
         return done(null, row)
-      });
-    });
+      })
+    })
   })
-);
+)
 
 passport.serializeUser((user: any, done) => done(null, user.id))
 
@@ -63,8 +63,8 @@ passport.deserializeUser((id, done) => {
   const query = 'SELECT * FROM users WHERE id = ?'
   db.get(query, [id], (err, row) => {
     done(err, row as String)
-  });
-});
+  })
+})
 
 const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
   if (req.isAuthenticated()) return next()
@@ -100,7 +100,7 @@ app.post('/upload', upload.array('photos', 20), (req: Request, res: Response) =>
     status: 'accepted' // Need to have a default value per party for status
   }))
 
-  const query = 'INSERT INTO photos (fileName, status, partyId) VALUES (?, ?, ?)';
+  const query = 'INSERT INTO photos (fileName, status, partyId) VALUES (?, ?, ?)'
   photosDatas.forEach((photoData) => {
     db.run(query, [photoData.fileName, photoData.status, partyName], (err) => {
       if (err) {
@@ -150,7 +150,7 @@ app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {
 
     const partyPics: ModeratedPictures = { pictures: rows }
     res.json(partyPics)
-  });
+  })
 })
 
 app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response) => {
@@ -178,19 +178,19 @@ app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response)
 app.post('/register', isAuthenticated, (req: Request, res: Response) => {
   const { username, password } = req.body
   const { partyId } = req.user as any
-  
+
   bcrypt.hash(password, 10, (err, hash) => {
     if (err) {
-      console.error("Error while registering new user :", err)
+      console.error('Error while registering new user :', err)
       return res.status(500).send('Error while hashing the password.')
     }
     const query = 'INSERT INTO users (username, password, partyId) VALUES (?, ?, ?)'
     db.run(query, [username, hash, partyId], (err) => {
       if (err) {
-        console.log("Error while registering new user (database) : ", err)
+        console.log('Error while registering new user (database) : ', err)
         return res.redirect('/newUser.html?userCreationFailed=true')
       }
-      console.log("Registered new user : ", username)
+      console.log('Registered new user : ', username)
       res.redirect('/newUser.html?userCreationFailed=false')
     })
   })
