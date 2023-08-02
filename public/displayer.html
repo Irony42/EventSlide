@@ -31,7 +31,7 @@
 
       function nextImage() {
         var currentImage = images[currentImageIndex];
-        const imageUrl = `/admin/getpic/${partyname}/${currentImage.fileName}`;
+        const imageUrl = `/admin/getpic/${currentImage.fileName}`;
         $('#slideshow').css('background-image', 'url("' + imageUrl + '")');
 
         currentImageIndex++;
@@ -46,7 +46,7 @@
     }
 
     function updateImageList() {
-      $.getJSON(`/admin/getpics/${partyname}?acceptedonly=true`, function (data) {
+      $.getJSON(`/admin/getpics?acceptedonly=true`, function (data) {
         images = data.pictures;
         changeImage();
       });

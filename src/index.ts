@@ -110,7 +110,7 @@ const upload: Multer = multer({ storage: storage })
 app.post('/upload', upload.array('photos', 20), (req: Request, res: Response) => {
   if (!req.files) return res.status(400).send('No photo sent !')
 
-  const partyName = req.query.partyname as string //TODO use party from user not from request
+  const partyName = req.query.partyname as string
   if (!partyName) return res.status(400).send('Missing partyname query param.')
 
   const photosDatas: ModeratedPicture[] = (req.files as any).map((f: { filename: any }) => ({
@@ -155,20 +155,20 @@ app.post(
 )
 
 // Get ONE photo route
-app.get('/admin/getpic/:partyname/:filename', isAuthenticated, (req: Request, res: Response) => {
+app.get('/admin/getpic/:filename', isAuthenticated, (req: Request, res: Response) => {
   const fileName = req.params.filename
-  const partyName = req.params.partyname
-  const imagePath = path.resolve(__dirname, '..', `photos/${partyName}/${fileName}`)
+  const { partyId } = req.user as any
+  const imagePath = path.resolve(__dirname, '..', `photos/${partyId}/${fileName}`)
 
   res.sendFile(imagePath)
 })
 
 // Get photo list
-app.get('/admin/getpics/:partyname', isAuthenticated, (req: Request, res: Response) => {
-  const partyName = req.params.partyname //TODO check partyName from user, not from param
+app.get('/admin/getpics', isAuthenticated, (req: Request, res: Response) => {
+  const { partyId } = req.user as any
   const acceptedOnly = req.query.acceptedonly
 
-  const partyFile = fs.readFileSync(path.resolve(__dirname, '..', 'statusfiles', `${partyName}.json`)).toString()
+  const partyFile = fs.readFileSync(path.resolve(__dirname, '..', 'statusfiles', `${partyId}.json`)).toString()
 
   const partyPics: ModeratedPictures = JSON.parse(partyFile)
 
@@ -183,14 +183,14 @@ app.get('/admin/getpics/:partyname', isAuthenticated, (req: Request, res: Respon
 app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response) => {
   const targetFileName = req.query.filename as string
   const newStatus = req.query.status as 'accepted' | 'rejected'
-  const partyName = req.query.partyname as string
+  const { partyId } = req.user as any
 
   if (!targetFileName || !newStatus) {
     res.status(500).send('Missing filename or status query param')
     return
   }
 
-  fs.readFile(`statusfiles/${partyName}.json`, (err, data) => {
+  fs.readFile(`statusfiles/${partyId}.json`, (err, data) => {
     if (err) {
       console.error('Error while reading party file :', err)
       res.status(500).send('Error while trying to retrieve your party.')
@@ -206,7 +206,7 @@ app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response)
 
     const updatedData = JSON.stringify(photosDatas)
 
-    fs.writeFile(`statusfiles/${partyName}.json`, updatedData, (err) => {
+    fs.writeFile(`statusfiles/${partyId}.json`, updatedData, (err) => {
       if (err) {
         console.error('Error while saving party :', err)
         res.status(500).send('Error while saving the pictures status.')

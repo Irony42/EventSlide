@@ -39,7 +39,7 @@
   <script>
     const partyname = new URLSearchParams(window.location.search).get('partyname');
     function changePicStatus(fileName, newStatus) {
-      const url = `/admin/changepicstatus?filename=${fileName}&status=${newStatus}&partyname=${partyname}`;
+      const url = `/admin/changepicstatus?filename=${fileName}&status=${newStatus}`;
 
       fetch(url)
         .then(response => {
@@ -61,7 +61,7 @@
     }
 
     function fetchImages() {
-      fetch(`/admin/getpics/${partyname}`)
+      fetch(`/admin/getpics`)
         .then(response => response.json())
         .then(data => {
           const imagesContainer = document.getElementById('images');
@@ -70,7 +70,7 @@
             const { fileName, status } = image;
 
             const imageElement = document.createElement('img');
-            const imageUrl = `/admin/getpic/${partyname}/${fileName}`;
+            const imageUrl = `/admin/getpic/${fileName}`;
             imageElement.src = imageUrl;
 
             const imageContainer = document.createElement('div');
