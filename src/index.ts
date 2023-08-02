@@ -164,12 +164,12 @@ app.post('/register', isAuthenticated, (req: Request, res: Response) => {
 })
 
 // Uncomment for production
-// const options = {
-//   key: fs.readFileSync('ssl/key.pem'),
-//   cert: fs.readFileSync('ssl/cert.pem')
-// };
-// const server = https.createServer(options, app)
-// server.listen(443, () => { console.log("HTTPS server online.")})
+const options = {
+  key: fs.readFileSync('ssl/key.pem'),
+  cert: fs.readFileSync('ssl/cert.pem')
+};
+const server = https.createServer(options, app)
+server.listen(443, () => { console.log("HTTPS server online.")})
 
 // Uncomment for dev
-const server = app.listen(4300, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
+// const server = app.listen(4300, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
