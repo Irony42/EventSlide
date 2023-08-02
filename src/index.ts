@@ -11,7 +11,9 @@ import { User, ModeratedPictures, ModeratedPicture } from './models'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as https from 'https'
+import sqlite3 from 'sqlite3'
 
+// Initialization
 const app = express()
 
 app.use(bodyParser.urlencoded({ extended: true }))
@@ -28,43 +30,63 @@ app.use(passport.session())
 
 app.use(express.static('public'))
 
-const users: User[] = [
-  {
-    username: 'admin',
-    password: '$2b$10$aRdMnDQSg/DeFoJNHj7HoupkHwQw8OE5WcxVONnICyy9FBK0eMcfe', // Hashed password: "password"
-    partyId: 'myParty'
+const db = new sqlite3.Database('database/database.sqlite')
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    partyId TEXT NOT NULL
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating users table:', err)
+  } else {
+    console.log('Users table created successfully.')
   }
-]
+})
+
+process.on('exit', () => {
+  db.close();
+});
 
 // Passport configuration
 passport.use(
   new LocalStrategy.Strategy((username: string, password: string, done: any) => {
-    const user = users.find((user) => user.username === username)
-    if (!user) {
-      return done(null, false, { message: 'Incorrect username.' })
-    }
-    bcrypt.compare(password, user.password, (err, result) => {
+    const query = 'SELECT * FROM users WHERE username = ?'
+    db.get(query, [username], (err, row: User) => {
       if (err) {
         return done(err)
       }
-      if (!result) {
-        return done(null, false, { message: 'Incorrect password.' })
+      if (!row) {
+        return done(null, false, { message: 'Incorrect username.' })
       }
-      return done(null, user)
-    })
+      bcrypt.compare(password, row.password, (err, result) => {
+        if (err) {
+          return done(err)
+        }
+        if (!result) {
+          return done(null, false, { message: 'Incorrect password.' })
+        }
+        return done(null, row)
+      });
+    });
   })
-)
+);
 
-passport.serializeUser((user, done) => done(null, user))
+passport.serializeUser((user: any, done) => done(null, user.id))
 
-passport.deserializeUser((user: User, done) => {
-  const loggedUser = users.find((usr) => usr.username === user.username)
-  done(null, loggedUser)
-})
+passport.deserializeUser((id, done) => {
+  const query = 'SELECT * FROM users WHERE id = ?'
+  db.get(query, [id], (err, row) => {
+    done(err, row as String)
+  });
+});
 
 const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
   if (req.isAuthenticated()) return next()
-  res.redirect('/login')
+  res.redirect('/login.html')
 }
 
 const storage = multer.diskStorage({
@@ -88,7 +110,7 @@ const upload: Multer = multer({ storage: storage })
 app.post('/upload', upload.array('photos', 20), (req: Request, res: Response) => {
   if (!req.files) return res.status(400).send('No photo sent !')
 
-  const partyName = req.query.partyname as string
+  const partyName = req.query.partyname as string //TODO use party from user not from request
   if (!partyName) return res.status(400).send('Missing partyname query param.')
 
   const photosDatas: ModeratedPicture[] = (req.files as any).map((f: { filename: any }) => ({
@@ -143,7 +165,7 @@ app.get('/admin/getpic/:partyname/:filename', isAuthenticated, (req: Request, re
 
 // Get photo list
 app.get('/admin/getpics/:partyname', isAuthenticated, (req: Request, res: Response) => {
-  const partyName = req.params.partyname
+  const partyName = req.params.partyname //TODO check partyName from user, not from param
   const acceptedOnly = req.query.acceptedonly
 
   const partyFile = fs.readFileSync(path.resolve(__dirname, '..', 'statusfiles', `${partyName}.json`)).toString()
@@ -191,6 +213,28 @@ app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response)
         return
       }
       res.status(200).send('ok')
+    })
+  })
+})
+
+// Create new user
+app.post('/register', isAuthenticated, (req: Request, res: Response) => {
+  const { username, password } = req.body
+  const { partyId } = req.user as any
+  
+  bcrypt.hash(password, 10, (err, hash) => {
+    if (err) {
+      console.error("Error while registering new user :", err)
+      return res.status(500).send('Error while hashing the password.')
+    }
+    const query = 'INSERT INTO users (username, password, partyId) VALUES (?, ?, ?)'
+    db.run(query, [username, hash, partyId], (err) => {
+      if (err) {
+        console.log("Error while registering new user (database) : ", err)
+        return res.redirect('/newUser.html?userCreationFailed=true')
+      }
+      console.log("Registered new user : ", username)
+      res.redirect('/newUser.html?userCreationFailed=false')
     })
   })
 })
