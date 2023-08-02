@@ -11,7 +11,6 @@ import { User, ModeratedPictures, ModeratedPicture } from './models'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as https from 'https'
-import sqlite3 from 'sqlite3'
 import { db, initDatabase } from './database'
 
 // Initialization
