@@ -50,10 +50,13 @@ db.run(`
     db.run(
       'INSERT INTO users (username, password, partyId) VALUES (?, ?, ?)',
       [defaultUsername, defaultPasswordHash, defaultPartyId],
-      (err) => {
-        if (err) {
+      (err: {errno: number, code: string } | undefined) => {
+        if (err && err.code === 'SQLITE_CONSTRAINT') {
+          console.log('Default user already exist.')
+        } else if (err) {
           console.error('Error inserting default user:', err)
-        } else {
+        }
+        else {
           console.log('Default user added successfully.')
         }
       }
