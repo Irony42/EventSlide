@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Eventslide : New user</title>
+  <style>
+    body {
+      background-color: #353740;
+      color: #fff;
+      text-align: center;
+    }
+
+    p {
+      color: red;
+    }
+    p.success {
+      color: green;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Créer un nouvel utilisateur</h1>
+  <form action="/register" method="POST">
+    <label for="username">Nom d'utilisateur:</label>
+    <input type="text" id="username" name="username" required><br><br>
+    <label for="password">Mot de passe:</label>
+    <input type="password" id="password" name="password" required><br><br>
+    <input type="submit" value="Créer l'utilisateur">
+  </form>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const authenticationFailed = urlParams.get('userCreationFailed');
+
+    if (authenticationFailed === 'true') {
+      const message = document.createElement('p');
+      message.textContent = "La création de l'utilisateur a échouée.";
+      document.body.appendChild(message);
+    } else if (authenticationFailed === 'false') {
+      const message = document.createElement('p');
+      message.className = "success"
+      message.textContent = "Utilisateur créé.";
+      document.body.appendChild(message);
+    }
+  </script>
+</body>
+
+</html>
