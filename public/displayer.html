@@ -23,9 +23,10 @@
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script>
     const partyname = new URLSearchParams(window.location.search).get('partyname');
+    const storageKey = `EventSlide_${partyname}_currentIndex`;
     var images = [];
     var intervalImageChanger;
-    var currentImageIndex = 0;
+    var currentImageIndex = sessionStorage.getItem(storageKey) || 0;
 
     function changeImage() {
 
@@ -36,6 +37,7 @@
 
         if (currentImageIndex >= images.length) {
           currentImageIndex++;
+          sessionStorage.setItem(storageKey, currentImageIndex);
         }
       }
 
