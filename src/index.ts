@@ -38,6 +38,16 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
   res.redirect('/login.html')
 }
 
+const maxSize = 200 * 1024 * 1024 // 200 MB (in bytes)
+
+const fileFilter = (req: any, file: any, cb: any) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true)
+  } else {
+    cb(new Error('Unsupported file type! Only images are allowed.'))
+  }
+}
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const partyName = req.query.partyname
@@ -53,7 +63,13 @@ const storage = multer.diskStorage({
   }
 })
 
-const upload: Multer = multer({ storage: storage })
+const upload: Multer = multer({
+  storage: storage,
+  fileFilter,
+  limits: {
+    fileSize: maxSize
+  }
+})
 
 // Photo upload route
 app.post('/upload', upload.array('photos', 20), (req: Request, res: Response) => {
