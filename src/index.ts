@@ -103,7 +103,7 @@ app.post(
     failureRedirect: '/login.html?authenticationfailed=true'
   }),
   (req: Request, res: Response) => {
-    res.redirect(`/administration.html?partyname=${(req.user as User | undefined)?.partyId}`)
+    res.redirect('/administration.html')
   }
 )
 
