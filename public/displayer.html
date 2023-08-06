@@ -25,18 +25,17 @@
     const partyname = new URLSearchParams(window.location.search).get('partyname');
     var images = [];
     var intervalImageChanger;
+    var currentImageIndex = 0;
 
     function changeImage() {
-      var currentImageIndex = 0;
 
       function nextImage() {
         var currentImage = images[currentImageIndex];
         const imageUrl = `/admin/getpic/${currentImage.fileName}`;
         $('#slideshow').css('background-image', 'url("' + imageUrl + '")');
 
-        currentImageIndex++;
         if (currentImageIndex >= images.length) {
-          currentImageIndex = 0;
+          currentImageIndex++;
         }
       }
 
