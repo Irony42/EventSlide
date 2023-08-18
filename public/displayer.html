@@ -31,14 +31,17 @@
     function changeImage() {
 
       function nextImage() {
-        var currentImage = images[currentImageIndex];
-        const imageUrl = `/admin/getpic/${currentImage.fileName}`;
-        $('#slideshow').css('background-image', 'url("' + imageUrl + '")');
-
-        if (currentImageIndex >= images.length) {
+        var imageUrl;
+        if (currentImageIndex < images.length) {
+          var currentImage = images[currentImageIndex];
+          imageUrl = `/admin/getpic/${currentImage.fileName}`;
+          
           currentImageIndex++;
           sessionStorage.setItem(storageKey, currentImageIndex);
+        } else {
+          imageUrl = '/default.jpg';
         }
+        $('#slideshow').css('background-image', `url("${imageUrl}")`);
       }
 
       intervalImageChanger && clearInterval(intervalImageChanger);
