@@ -22,31 +22,30 @@
   </style>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script>
-    const partyname = new URLSearchParams(window.location.search).get('partyname');
-    const storageKey = `EventSlide_${partyname}_currentIndex`;
+    const storageKey = `EventSlide_currentIndex`;
     var images = [];
     var intervalImageChanger;
     var currentImageIndex = sessionStorage.getItem(storageKey) || 0;
+    var isUpdatingInterval = false;
 
     function changeImage() {
-
-      function nextImage() {
-        var imageUrl;
-        if (currentImageIndex < images.length) {
-          var currentImage = images[currentImageIndex];
-          imageUrl = `/admin/getpic/${currentImage.fileName}`;
-          
-          currentImageIndex++;
-          sessionStorage.setItem(storageKey, currentImageIndex);
-        } else {
-          imageUrl = '/default.jpg';
-        }
-        $('#slideshow').css('background-image', `url("${imageUrl}")`);
-      }
-
       intervalImageChanger && clearInterval(intervalImageChanger);
       intervalImageChanger = setInterval(nextImage, 5000);
       $('#slideshow').click(nextImage);
+    }
+
+    function nextImage() {
+      var imageUrl;
+      if (currentImageIndex < images.length) {
+        var currentImage = images[currentImageIndex];
+        imageUrl = `/admin/getpic/${currentImage.fileName}`;
+
+        currentImageIndex++;
+        sessionStorage.setItem(storageKey, currentImageIndex);
+      } else {
+        imageUrl = '/default.jpg';
+      }
+      $('#slideshow').css('background-image', `url("${imageUrl}")`);
     }
 
     function updateImageList() {
@@ -56,8 +55,40 @@
       });
     }
 
+    function handleIntervalChange(event) {
+      if (event.key === 'Enter') {
+        const intervalValue = parseInt(event.target.value);
+        if (!isNaN(intervalValue)) {
+          clearInterval(intervalImageChanger);
+          intervalImageChanger = setInterval(nextImage, intervalValue);
+        }
+        event.target.remove();
+        setTimeout(() => isUpdatingInterval = false, 300);
+      }
+    }
+
+    function showIntervalInput() {
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.placeholder = 'Interval en ms';
+      input.addEventListener('keydown', handleIntervalChange);
+      document.body.appendChild(input);
+      input.focus();
+    }
+
     updateImageList();
     setInterval(updateImageList, 15000);
+
+
+    $(document).ready(function () {
+      $('#slideshow').click(nextImage);
+      $(document).keydown(function (event) {
+        if (event.key === 'Enter' && !isUpdatingInterval) {
+          isUpdatingInterval = true;
+          showIntervalInput();
+        }
+      });
+    });
   </script>
 </head>
 
