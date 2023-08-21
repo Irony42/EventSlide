@@ -158,7 +158,7 @@ app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response)
 })
 
 // Delete photo
-app.post('/admin/deletepic/:filename', isAuthenticated, (req: Request, res: Response) => {
+app.delete('/admin/deletepic/:filename', isAuthenticated, (req: Request, res: Response) => {
   const fileName = req.params.filename
   const { partyId } = req.user as any
   const imagePath = path.resolve(__dirname, '..', `photos/${partyId}/${fileName}`)
