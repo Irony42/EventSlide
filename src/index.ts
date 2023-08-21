@@ -38,7 +38,7 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
   res.redirect('/login.html')
 }
 
-const maxSize = 200 * 1024 * 1024 // 200 MB (in bytes)
+const maxSize = 50 * 1024 * 1024 // 50 MB (in bytes)
 
 const fileFilter = (req: any, file: any, cb: any) => {
   if (file.mimetype.startsWith('image/')) {
