@@ -25,13 +25,13 @@
     const storageKey = `EventSlide_currentIndex`;
     var images = [];
     var intervalImageChanger;
+    var intervalImageChangerValue = 10000;
     var currentImageIndex = sessionStorage.getItem(storageKey) || 0;
     var isUpdatingInterval = false;
 
     function changeImage() {
       intervalImageChanger && clearInterval(intervalImageChanger);
-      intervalImageChanger = setInterval(nextImage, 5000);
-      $('#slideshow').click(nextImage);
+      intervalImageChanger = setInterval(nextImage, intervalImageChangerValue);
     }
 
     function nextImage() {
@@ -60,7 +60,8 @@
         const intervalValue = parseInt(event.target.value);
         if (!isNaN(intervalValue)) {
           clearInterval(intervalImageChanger);
-          intervalImageChanger = setInterval(nextImage, intervalValue);
+          intervalImageChangerValue = intervalValue;
+          intervalImageChanger = setInterval(nextImage, intervalImageChangerValue);
         }
         event.target.remove();
         setTimeout(() => isUpdatingInterval = false, 300);
@@ -80,12 +81,19 @@
     setInterval(updateImageList, 15000);
 
 
-    $(document).ready(function () {
+    $(document).ready(() => {
       $('#slideshow').click(nextImage);
-      $(document).keydown(function (event) {
+      $(document).keydown((event) => {
         if (event.key === 'Enter' && !isUpdatingInterval) {
           isUpdatingInterval = true;
           showIntervalInput();
+        } else if (event.key === 'Delete') {
+          const response = confirm('Reset image count ?')
+          if (response) {
+            sessionStorage.setItem(storageKey, 0);
+            currentImageIndex = 0;
+            nextImage();
+          }
         }
       });
     });
