@@ -16,6 +16,7 @@
       border: 2px solid;
       border-radius: 5px;
       height: 28vh;
+      position: relative;
     }
 
     .image-container img {
@@ -29,6 +30,13 @@
 
     .rejected {
       border-color: red;
+    }
+
+    .delete-icon {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -60,6 +68,27 @@
         });
     }
 
+    function deleteImage(fileName) {
+      const url = `/admin/deletepic/${fileName}`;
+
+      fetch(url, {
+        method: 'DELETE'
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Erreur lors de la suppression de l\'image');
+          }
+
+          const imageContainer = document.querySelector(`.image-container[data-filename="${fileName}"]`);
+          if (imageContainer) {
+            imageContainer.remove();
+          }
+        })
+        .catch(error => {
+          console.error('Une erreur s\'est produite lors de la suppression de l\'image:', error);
+        });
+    }
+
     function fetchImages() {
       fetch(`/admin/getpics`)
         .then(response => response.json())
@@ -83,6 +112,12 @@
             }
             imageContainer.setAttribute('data-filename', fileName)
             imageContainer.onclick = () => changePicStatus(fileName, status == 'accepted' ? 'rejected' : 'accepted')
+
+            const deleteIcon = document.createElement('span');
+            deleteIcon.className = 'delete-icon';
+            deleteIcon.innerHTML = '&#10060;';
+            deleteIcon.onclick = () => deleteImage(fileName);
+            imageContainer.appendChild(deleteIcon);
 
             imageContainer.appendChild(imageElement);
             imagesContainer.appendChild(imageContainer);
