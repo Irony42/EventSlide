@@ -157,6 +157,33 @@ app.get('/admin/changepicstatus', isAuthenticated, (req: Request, res: Response)
   })
 })
 
+// Delete photo
+app.post('/admin/deletepic/:filename', isAuthenticated, (req: Request, res: Response) => {
+  const fileName = req.params.filename
+  const { partyId } = req.user as any
+  const imagePath = path.resolve(__dirname, '..', `photos/${partyId}/${fileName}`)
+
+  if (!fs.existsSync(imagePath)) {
+    return res.status(404).send('Photo not found.')
+  }
+
+  fs.unlink(imagePath, (err) => {
+    if (err) {
+      console.error('Error while deleting photo:', err)
+      return res.status(500).send('Error while deleting photo.')
+    }
+
+    const deleteQuery = 'DELETE FROM photos WHERE fileName = ? AND partyId = ?'
+    db.run(deleteQuery, [fileName, partyId], (err) => {
+      if (err) {
+        console.error('Error while deleting photo from database:', err)
+        return res.status(500).send('Error while deleting photo from database.')
+      }
+      res.status(200).send('Photo deleted successfully.')
+    })
+  })
+})
+
 // Create new user
 app.post('/register', isAuthenticated, (req: Request, res: Response) => {
   const { username, password } = req.body
