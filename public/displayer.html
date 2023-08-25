@@ -29,11 +29,6 @@
     var currentImageIndex = sessionStorage.getItem(storageKey) || 0;
     var isUpdatingInterval = false;
 
-    function changeImage() {
-      intervalImageChanger && clearInterval(intervalImageChanger);
-      intervalImageChanger = setInterval(nextImage, intervalImageChangerValue);
-    }
-
     function nextImage() {
       var imageUrl;
       if (currentImageIndex < images.length) {
@@ -51,7 +46,6 @@
     function updateImageList() {
       $.getJSON(`/admin/getpics?acceptedonly=true`, function (data) {
         images = data.pictures;
-        changeImage();
       });
     }
 
@@ -78,6 +72,8 @@
     }
 
     updateImageList();
+    intervalImageChanger && clearInterval(intervalImageChanger);
+    intervalImageChanger = setInterval(nextImage, intervalImageChangerValue);
     setInterval(updateImageList, 15000);
 
 
