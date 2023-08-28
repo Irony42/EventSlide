@@ -72,7 +72,7 @@ const upload: Multer = multer({
 })
 
 // Photo upload route
-app.post('/upload', upload.array('photos', 20), (req: Request, res: Response) => {
+app.post('/upload', upload.array('photos', 50), (req: Request, res: Response) => {
   if (!req.files) return res.status(400).send('No photo sent !')
 
   const partyName = req.query.partyname as string
