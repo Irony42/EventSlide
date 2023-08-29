@@ -12,6 +12,7 @@ import * as fs from 'fs'
 import * as https from 'https'
 import { db, initDatabase } from './database'
 import { initPassport } from './passport'
+import archiver from 'archiver'
 
 // Initialization
 const app = express()
@@ -181,6 +182,41 @@ app.delete('/admin/deletepic/:filename', isAuthenticated, (req: Request, res: Re
       }
       res.status(200).send('Photo deleted successfully.')
     })
+  })
+})
+
+// Download archive of all photos
+app.get('/admin/downloadzip', isAuthenticated, (req: Request, res: Response) => {
+  const { partyId } = req.user as any
+  const zipFileName = `${partyId}_photos.zip`
+
+  // Set the content type to zip
+  res.setHeader('Content-Type', 'application/zip')
+  res.setHeader('Content-Disposition', `attachment; filename=${zipFileName}`)
+
+  const output = res
+  const archive = archiver('zip', {
+    zlib: { level: 9 } // Compression level
+  })
+
+  archive.pipe(output)
+
+  // Get the list of photos from the database
+  const query = 'SELECT fileName FROM photos WHERE partyId = ?'
+  db.all(query, [partyId], (err, rows: { fileName: string }[]) => {
+    if (err) {
+      console.error('Error while retrieving photo filenames:', err)
+      return res.status(500).send('Error while creating the zip file.')
+    }
+
+    // Add each photo to the zip
+    rows.forEach((row) => {
+      const photoPath = path.resolve(__dirname, '..', `photos/${partyId}/${row.fileName}`)
+      archive.file(photoPath, { name: row.fileName })
+    })
+
+    // Finalize the archive and send the zip
+    archive.finalize()
   })
 })
 
