@@ -4,8 +4,9 @@ import { db } from '../database'
 import path from 'path'
 import fs from 'fs'
 import archiver from 'archiver'
+import sharp from 'sharp'
 
-export const uploadPic =  (req: Request, res: Response) => {
+export const uploadPic = (req: Request, res: Response) => {
   if (!req.files) return res.status(400).send('No photo sent !')
 
   const partyName = req.query.partyname as string
@@ -24,17 +25,36 @@ export const uploadPic =  (req: Request, res: Response) => {
         return res.status(500).send('Error while uploading picture.')
       }
     })
+
+    const thumbnailPath = path.resolve(__dirname, '..', '..', `thumbnails/${partyName}/${photoData.fileName}`)
+    if (!fs.existsSync(thumbnailPath)) {
+      sharp(path.resolve(__dirname, '..', '..', `photos/${partyName}/${photoData.fileName}`))
+        .resize({ width: 500, height: 500, fit: 'inside', withoutEnlargement: true })
+        .toFile(thumbnailPath, (err, info) => {
+          if (err) {
+            console.error('Error generating thumbnail:', err)
+          }
+        })
+    }
   })
 
   res.redirect('../uploadConfirmation.html')
 }
 
-export const getPic = (req: Request, res: Response) => {
+const getPicture = (req: Request, res: Response, folderName: string) => {
   const fileName = req.params.filename
   const { partyId } = req.user as any
-  const imagePath = path.resolve(__dirname, '..', '..', `photos/${partyId}/${fileName}`)
+  const imagePath = path.resolve(__dirname, '..', '..', `${folderName}/${partyId}/${fileName}`)
 
   res.sendFile(imagePath)
+}
+
+export const getPic = (req: Request, res: Response) => {
+  getPicture(req, res, 'photos')
+}
+
+export const getThumbnail = (req: Request, res: Response) => {
+  getPicture(req, res, 'thumbnails')
 }
 
 export const getPics = (req: Request, res: Response) => {
