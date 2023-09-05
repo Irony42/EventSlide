@@ -8,7 +8,7 @@ import * as fs from 'fs'
 import * as https from 'https'
 import { initDatabase } from './database'
 import { initPassport } from './passport'
-import { changePicsStatus, deletePic, downloadArchive, getPic, getPics, uploadPic } from './routes/pictures'
+import { changePicsStatus, deletePic, downloadArchive, getPic, getPics, getThumbnail, uploadPic } from './routes/pictures'
 import { changerUserPassword, registerUser } from './routes/user'
 import { upload } from './pictureStorage'
 
@@ -53,6 +53,7 @@ app.post('/upload', upload.array('photos', 50), uploadPic)
 
 // Pictures routes (private)
 app.get('/admin/getpic/:filename', isAuthenticated, getPic)
+app.get('/admin/getthumbnail/:filename', isAuthenticated, getThumbnail)
 app.get('/admin/getpics', isAuthenticated, getPics)
 app.get('/admin/changepicstatus', isAuthenticated, changePicsStatus)
 app.get('/admin/downloadzip', isAuthenticated, downloadArchive)
