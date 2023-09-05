@@ -9,6 +9,9 @@ const storage = multer.diskStorage({
     const photoFolder = `photos/${partyName}`
     if (!fs.existsSync(photoFolder)) fs.mkdirSync(photoFolder, { recursive: true })
 
+    const thumbnailsFolder = `thumbnails/${partyName}`
+    if (!fs.existsSync(thumbnailsFolder)) fs.mkdirSync(thumbnailsFolder, { recursive: true })
+
     cb(null, photoFolder)
   },
   filename: function (req, file, cb) {
