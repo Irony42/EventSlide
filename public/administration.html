@@ -2,42 +2,32 @@
 <html>
 
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Eventslide : Administration</title>
-  <style>
-    body {
-      background-color: #353740;
-      color: #fff;
-      text-align: center
-    }
-
-    a {
-      color: #f0f0f0;
-    }
-
-    .block {
-      display: block;
-      margin-bottom: 5px;
-    }
-
-    a:hover {
-      color: #fff;
-    }
-
-    h1 {
-      color: #fff;
-    }
-  </style>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/app.css">
 </head>
 
-<body>
-  <h1>Administration</h1>
-  <a href="/displayer.html" class="block">Afficher vos photos</a>
-  <a href="/moderation.html" class="block">Modérer les soumissions</a>
-  <a href="/admin/downloadzip" class="block">Télécharger toutes les photos</a>
+<body class="modern-body">
+  <main class="page-shell">
+    <section class="card app-card">
+      <div class="card-body p-4 p-md-5">
+        <h1 class="app-title h3 text-center mb-4">Administration</h1>
+        <div class="admin-grid mb-4">
+          <a href="/displayer.html" class="btn btn-outline-light block">Afficher vos photos</a>
+          <a href="/moderation.html" class="btn btn-outline-light block">Modérer les soumissions</a>
+          <a href="/admin/downloadzip" class="btn btn-primary block">Télécharger toutes les photos</a>
+        </div>
 
-  <h1>Compte et utilisateurs</h1>
-  <a href="/passwordChange.html" class="block">Modifier mon mot de passe</a>
-  <a href="/newUser.html" class="block">Créer un nouvel utilisateur</a>
+        <h2 class="h5 text-center mb-3">Compte et utilisateurs</h2>
+        <div class="admin-grid">
+          <a href="/passwordChange.html" class="btn btn-outline-info block">Modifier mon mot de passe</a>
+          <a href="/newUser.html" class="btn btn-outline-info block">Créer un nouvel utilisateur</a>
+        </div>
+      </div>
+    </section>
+  </main>
 </body>
 
 </html>

@@ -2,47 +2,22 @@
 <html>
 
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Images</title>
-  <style>
-    body {
-      background-color: #353740;
-      color: #fff;
-    }
-
-    .image-container {
-      display: inline-block;
-      margin: 10px;
-      padding: 5px;
-      border: 2px solid;
-      border-radius: 5px;
-      height: 28vh;
-      position: relative;
-    }
-
-    .image-container img {
-      height: 100%;
-      width: 100%;
-    }
-
-    .accepted {
-      border-color: green;
-    }
-
-    .rejected {
-      border-color: red;
-    }
-
-    .delete-icon {
-      position: absolute;
-      top: 5px;
-      right: 5px;
-      cursor: pointer;
-    }
-  </style>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/app.css">
 </head>
 
-<body>
-  <div id="images"></div>
+<body class="modern-body">
+  <div class="container py-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
+      <h1 class="h3 mb-0 app-title">Modération des photos</h1>
+      <a href="/administration.html" class="btn btn-outline-light">Retour administration</a>
+    </div>
+    <p class="app-subtitle mb-4">Cliquez une image pour alterner accepté/refusé. Cliquez sur la croix pour supprimer.</p>
+    <div id="images" class="moderation-grid"></div>
+  </div>
 
   <script>
     const partyname = new URLSearchParams(window.location.search).get('partyname');
@@ -101,6 +76,7 @@
             const imageElement = document.createElement('img');
             const imageUrl = `/admin/getthumbnail/${fileName}`;
             imageElement.src = imageUrl;
+            imageElement.alt = fileName;
 
             const imageContainer = document.createElement('div');
             imageContainer.className = 'image-container';
@@ -116,7 +92,10 @@
             const deleteIcon = document.createElement('span');
             deleteIcon.className = 'delete-icon';
             deleteIcon.innerHTML = '&#10060;';
-            deleteIcon.onclick = () => deleteImage(fileName);
+            deleteIcon.onclick = (event) => {
+              event.stopPropagation();
+              deleteImage(fileName);
+            };
             imageContainer.appendChild(deleteIcon);
 
             imageContainer.appendChild(imageElement);
