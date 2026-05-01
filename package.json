@@ -4,7 +4,14 @@
   "description": "Capture, Share, Project : Bring your party to life with our instant photo sharing software",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "dev:front": "vite",
+    "dev:back": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
+    "dev": "npm run dev:back",
+    "build:front": "vite build",
+    "build:back": "tsc -p tsconfig.json",
+    "build": "npm run build:front && npm run build:back",
+    "preview:front": "vite preview",
+    "start": "node ./dist/index.js",
     "test": "jest",
     "execute": "tsc && node ./dist/index"
   },
@@ -33,10 +40,15 @@
     "multer": "1.4.5-lts.1",
     "passport": "^0.6.0",
     "passport-local": "1.0.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.14.2",
     "sharp": "^0.32.6",
     "sqlite3": "5.1.6"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@rolldown/binding-win32-x64-msvc": "^1.0.0-rc.18",
     "@types/archiver": "^5.3.2",
     "@types/bcrypt": "^5.0.0",
     "@types/cookie-parser": "^1.4.3",
@@ -44,11 +56,18 @@
     "@types/express-session": "^1.17.7",
     "@types/jest": "29.5.1",
     "@types/multer": "^1.4.7",
-    "@types/node": "20.2.5",
+    "@types/node": "^25.6.0",
     "@types/passport": "^1.0.12",
     "@types/passport-local": "^1.0.35",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
     "nodemon": "^3.0.1",
     "ts-node": "^10.9.1",
-    "typescript": "^5.1.6"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.1",
+    "vite": "^8.0.10"
   }
 }

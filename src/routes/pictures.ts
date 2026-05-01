@@ -6,6 +6,8 @@ import fs from 'fs'
 import archiver from 'archiver'
 import sharp from 'sharp'
 
+const isApiRequest = (req: Request) => req.path.startsWith('/api/')
+
 export const uploadPic = (req: Request, res: Response) => {
   if (!req.files) return res.status(400).send('No photo sent !')
 
@@ -38,7 +40,8 @@ export const uploadPic = (req: Request, res: Response) => {
     }
   })
 
-  res.redirect('../uploadConfirmation.html')
+  if (isApiRequest(req)) return res.json({ success: true })
+  res.redirect('/upload/confirmation')
 }
 
 const getPicture = (req: Request, res: Response, folderName: string) => {
@@ -82,6 +85,8 @@ export const changePicsStatus = (req: Request, res: Response) => {
   const { partyId } = req.user as any
 
   if (!targetFileName || !newStatus) {
+    if (isApiRequest(req))
+      return res.status(500).json({ success: false, message: 'Missing filename or status query param' })
     res.status(500).send('Missing filename or status query param')
     return
   }
@@ -90,9 +95,12 @@ export const changePicsStatus = (req: Request, res: Response) => {
   db.run(query, [newStatus, targetFileName, partyId], (err) => {
     if (err) {
       console.error('Error while updating photo status:', err)
+      if (isApiRequest(req))
+        return res.status(500).json({ success: false, message: 'Error while updating photo status.' })
       res.status(500).send('Error while updating photo status.')
       return
     }
+    if (isApiRequest(req)) return res.json({ success: true })
     res.status(200).send('ok')
   })
 }
@@ -117,8 +125,13 @@ export const deletePic = (req: Request, res: Response) => {
     db.run(deleteQuery, [fileName, partyId], (err) => {
       if (err) {
         console.error('Error while deleting photo from database:', err)
+        if (isApiRequest(req))
+          return res
+            .status(500)
+            .json({ success: false, message: 'Error while deleting photo from database.' })
         return res.status(500).send('Error while deleting photo from database.')
       }
+      if (isApiRequest(req)) return res.json({ success: true })
       res.status(200).send('Photo deleted successfully.')
     })
   })
