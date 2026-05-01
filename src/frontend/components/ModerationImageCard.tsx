@@ -1,3 +1,4 @@
+import { KeyboardEvent, MouseEvent } from 'react'
 import { Picture } from '../types'
 
 interface ModerationImageCardProps {
@@ -7,26 +8,46 @@ interface ModerationImageCardProps {
 }
 
 export default function ModerationImageCard({ picture, onToggle, onDelete }: ModerationImageCardProps) {
+  const imageLabel = `Photo ${picture.fileName}`
+
+  const handleDelete = (event?: MouseEvent | KeyboardEvent) => {
+    event?.stopPropagation()
+    if (window.confirm(`Supprimer définitivement ${picture.fileName} ?`)) {
+      void onDelete(picture.fileName)
+    }
+  }
+
   return (
     <div
       className={`image-container ${picture.status}`}
       data-filename={picture.fileName}
-      onClick={() => onToggle(picture.fileName, picture.status)}
+      onClick={() => void onToggle(picture.fileName, picture.status)}
       onKeyDown={(event) => {
-        if (event.key === 'Enter') onToggle(picture.fileName, picture.status)
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          void onToggle(picture.fileName, picture.status)
+        }
       }}
       role="button"
       tabIndex={0}
+      aria-label={`Basculer le statut de ${imageLabel}`}
     >
-      <span
+      <button
+        type="button"
         className="delete-icon"
         onClick={(event) => {
-          event.stopPropagation()
-          onDelete(picture.fileName)
+          handleDelete(event)
         }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            handleDelete(event)
+          }
+        }}
+        aria-label={`Supprimer ${imageLabel}`}
       >
         &#10060;
-      </span>
+      </button>
       <img
         src={`/api/admin/getthumbnail/${encodeURIComponent(picture.fileName)}`}
         alt={picture.fileName}

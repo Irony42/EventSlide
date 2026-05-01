@@ -8,6 +8,10 @@ const isApiRequest = (req: Request) => req.path.startsWith('/api/')
 export const registerUser = (req: Request, res: Response) => {
   const { username, password } = req.body
   const { partyId } = req.user as any
+  if (!username || !password) {
+    if (isApiRequest(req)) return res.status(400).json({ success: false, message: 'Missing credentials.' })
+    return res.redirect('/admin/users/new?userCreationFailed=true')
+  }
 
   bcrypt.hash(password, 10, (err, hash) => {
     if (err) {
@@ -41,10 +45,14 @@ export const changerUserPassword = (req: Request, res: Response) => {
   }
 
   const query = 'SELECT * FROM users WHERE username = ?'
-  db.get(query, [username], (err, user: User) => {
+  db.get(query, [username], (err, user: User | undefined) => {
     if (err) {
       console.error('Error while fetching user data:', err)
       if (isApiRequest(req)) return res.status(500).json({ success: false, message: 'Fetch user failed.' })
+      return res.redirect('/admin/password?passwordChange=true')
+    }
+    if (!user) {
+      if (isApiRequest(req)) return res.status(404).json({ success: false, message: 'User not found.' })
       return res.redirect('/admin/password?passwordChange=true')
     }
 

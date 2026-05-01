@@ -5,6 +5,7 @@ import { Picture } from '../types'
 export const useAcceptedPicturesPolling = (refreshMs: number) => {
   const [pictures, setPictures] = useState<Picture[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -12,7 +13,12 @@ export const useAcceptedPicturesPolling = (refreshMs: number) => {
     const load = async () => {
       try {
         const response = await getPictures(true)
-        if (mounted) setPictures(response.pictures)
+        if (mounted) {
+          setPictures(response.pictures)
+          setError(null)
+        }
+      } catch {
+        if (mounted) setError('Impossible de récupérer les images pour le diaporama.')
       } finally {
         if (mounted) setLoading(false)
       }
@@ -26,5 +32,5 @@ export const useAcceptedPicturesPolling = (refreshMs: number) => {
     }
   }, [refreshMs])
 
-  return { pictures, loading }
+  return { pictures, loading, error }
 }

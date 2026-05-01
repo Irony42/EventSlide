@@ -6,12 +6,25 @@ import session from 'express-session'
 import { AddressInfo } from 'net'
 import path from 'path'
 import * as fs from 'fs'
-import * as https from 'https'
 import { initDatabase } from './database'
 import { initPassport } from './passport'
 import { changePicsStatus, deletePic, downloadArchive, getPic, getPics, getThumbnail, uploadPic } from './routes/pictures'
 import { changerUserPassword, registerUser } from './routes/user'
 import { upload } from './pictureStorage'
+
+const parseBoolean = (value: string | undefined, fallback: boolean) => {
+  if (value === undefined) return fallback
+  return value.toLowerCase() === 'true'
+}
+
+const sessionSecret = process.env.SESSION_SECRET
+const isProduction = process.env.NODE_ENV === 'production'
+const sessionSecureCookie = parseBoolean(process.env.SESSION_COOKIE_SECURE, isProduction)
+const port = Number(process.env.PORT ?? 4300)
+
+if (isProduction && !sessionSecret) {
+  throw new Error('SESSION_SECRET must be defined in production.')
+}
 
 // Initialization
 const app = express()
@@ -21,9 +34,14 @@ app.use(express.json())
 app.use(cookieParser())
 app.use(
   session({
-    secret: 'your-secret-key',
-    resave: true,
-    saveUninitialized: true
+    secret: sessionSecret ?? 'dev-session-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: sessionSecureCookie
+    }
   })
 )
 app.use(passport.initialize())
@@ -91,13 +109,13 @@ app.post('/api/upload', upload.array('photos', 50), uploadPic)
 app.get('/admin/getpic/:filename', isAuthenticated, getPic)
 app.get('/admin/getthumbnail/:filename', isAuthenticated, getThumbnail)
 app.get('/admin/getpics', isAuthenticated, getPics)
-app.get('/admin/changepicstatus', isAuthenticated, changePicsStatus)
+app.patch('/admin/changepicstatus', isAuthenticated, changePicsStatus)
 app.get('/admin/downloadzip', isAuthenticated, downloadArchive)
 app.delete('/admin/deletepic/:filename', isAuthenticated, deletePic)
 app.get('/api/admin/getpic/:filename', isAuthenticatedApi, getPic)
 app.get('/api/admin/getthumbnail/:filename', isAuthenticatedApi, getThumbnail)
 app.get('/api/admin/getpics', isAuthenticatedApi, getPics)
-app.get('/api/admin/changepicstatus', isAuthenticatedApi, changePicsStatus)
+app.patch('/api/admin/changepicstatus', isAuthenticatedApi, changePicsStatus)
 app.get('/api/admin/downloadzip', isAuthenticatedApi, downloadArchive)
 app.delete('/api/admin/deletepic/:filename', isAuthenticatedApi, deletePic)
 
@@ -111,7 +129,7 @@ const clientDistPath = path.resolve(__dirname, '..', 'dist', 'client')
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath))
   app.get('*', (req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/admin/get') || req.path.startsWith('/admin/change') || req.path.startsWith('/admin/download') || req.path.startsWith('/admin/delete')) return next()
+    if (req.path.startsWith('/api/') || req.path.startsWith('/admin/get') || req.path.startsWith('/admin/download') || req.path.startsWith('/admin/delete')) return next()
     return res.sendFile(path.join(clientDistPath, 'index.html'))
   })
 }
@@ -127,4 +145,4 @@ if (fs.existsSync(clientDistPath)) {
 // })
 
 // Uncomment for dev
- const server = app.listen(4300, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
+const server = app.listen(port, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))

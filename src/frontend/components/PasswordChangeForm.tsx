@@ -9,10 +9,17 @@ export default function PasswordChangeForm({ onSubmit }: PasswordChangeFormProps
   const [password, setPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newPassword2, setNewPassword2] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    await onSubmit(password, newPassword, newPassword2)
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      await onSubmit(password, newPassword, newPassword2)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -27,6 +34,7 @@ export default function PasswordChangeForm({ onSubmit }: PasswordChangeFormProps
           className="form-control"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
+          disabled={isSubmitting}
           required
         />
       </div>
@@ -40,6 +48,7 @@ export default function PasswordChangeForm({ onSubmit }: PasswordChangeFormProps
           className="form-control"
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
+          disabled={isSubmitting}
           required
         />
       </div>
@@ -53,10 +62,15 @@ export default function PasswordChangeForm({ onSubmit }: PasswordChangeFormProps
           className="form-control"
           value={newPassword2}
           onChange={(event) => setNewPassword2(event.target.value)}
+          disabled={isSubmitting}
           required
         />
       </div>
-      <PrimaryActionButton type="submit" label="Changer de mot de passe" />
+      <PrimaryActionButton
+        type="submit"
+        disabled={isSubmitting}
+        label={isSubmitting ? 'Mise à jour en cours...' : 'Changer de mot de passe'}
+      />
     </form>
   )
 }

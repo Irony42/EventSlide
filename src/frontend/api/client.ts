@@ -24,6 +24,23 @@ export const apiClient = {
     })
     return parseJson<T>(response)
   },
+  patch: async <T>(url: string, body: unknown): Promise<T> => {
+    const response = await fetch(url, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: defaultHeaders,
+      body: JSON.stringify(body)
+    })
+    return parseJson<T>(response)
+  },
+  postForm: async <T>(url: string, body: FormData): Promise<T> => {
+    const response = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      body
+    })
+    return parseJson<T>(response)
+  },
   del: async <T>(url: string): Promise<T> => {
     const response = await fetch(url, { method: 'DELETE', credentials: 'include' })
     return parseJson<T>(response)

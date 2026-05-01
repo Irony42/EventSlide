@@ -9,6 +9,11 @@
 ```
 npm install
 ```
+5. Create your environment file:
+```
+copy .env.example .env
+```
+6. Set a strong `SESSION_SECRET` before production.
 
 ### How to run in development
 - Terminal 1:
@@ -26,6 +31,11 @@ npm run dev:front
 npm run build
 npm run start
 ```
+
+### Environment variables
+- `PORT`: backend HTTP port (default: `4300`)
+- `SESSION_SECRET`: session signing secret (required in production)
+- `SESSION_COOKIE_SECURE`: set to `true` behind HTTPS in production
 
 ### SPA routes
 - `/upload`: upload photos

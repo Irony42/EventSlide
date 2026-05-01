@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Picture } from '../types'
 import { useSessionIndex } from '../hooks/useSessionIndex'
 
@@ -15,11 +15,11 @@ export const useSlideshowController = (pictures: Picture[]) => {
     return `/api/admin/getpic/${encodeURIComponent(pictures[safeIndex].fileName)}`
   }, [index, pictures])
 
-  const nextImage = () => {
+  const nextImage = useCallback(() => {
     if (pictures.length === 0) return
     const nextIndex = (index + 1) % pictures.length
     updateIndex(nextIndex)
-  }
+  }, [index, pictures.length, updateIndex])
 
   useEffect(() => {
     const interval = window.setInterval(() => setTick((prev) => prev + 1), intervalMs)
@@ -28,8 +28,7 @@ export const useSlideshowController = (pictures: Picture[]) => {
 
   useEffect(() => {
     if (tick > 0) nextImage()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tick])
+  }, [tick, nextImage])
 
   return { currentImageUrl, nextImage, intervalMs, setIntervalMs, resetIndex }
 }

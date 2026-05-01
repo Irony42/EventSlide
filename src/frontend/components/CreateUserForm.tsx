@@ -8,10 +8,17 @@ interface CreateUserFormProps {
 export default function CreateUserForm({ onSubmit }: CreateUserFormProps) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    await onSubmit(username, password)
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      await onSubmit(username, password)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -25,6 +32,7 @@ export default function CreateUserForm({ onSubmit }: CreateUserFormProps) {
           className="form-control"
           value={username}
           onChange={(event) => setUsername(event.target.value)}
+          disabled={isSubmitting}
           required
         />
       </div>
@@ -38,10 +46,15 @@ export default function CreateUserForm({ onSubmit }: CreateUserFormProps) {
           className="form-control"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
+          disabled={isSubmitting}
           required
         />
       </div>
-      <PrimaryActionButton type="submit" label="Créer l'utilisateur" />
+      <PrimaryActionButton
+        type="submit"
+        disabled={isSubmitting}
+        label={isSubmitting ? 'Création en cours...' : "Créer l'utilisateur"}
+      />
     </form>
   )
 }

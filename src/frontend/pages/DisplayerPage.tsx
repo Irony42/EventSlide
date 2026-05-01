@@ -6,7 +6,7 @@ import { useSlideshowController } from '../features/useSlideshowController'
 import { useAcceptedPicturesPolling } from '../hooks/useAcceptedPicturesPolling'
 
 export default function DisplayerPage() {
-  const { pictures } = useAcceptedPicturesPolling(15000)
+  const { pictures, error } = useAcceptedPicturesPolling(15000)
   const { currentImageUrl, nextImage, setIntervalMs, resetIndex } = useSlideshowController(pictures)
   const [showHint, setShowHint] = useState(false)
   const [showIntervalInput, setShowIntervalInput] = useState(false)
@@ -15,7 +15,7 @@ export default function DisplayerPage() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Enter') setShowIntervalInput(true)
       if (event.key === 'Delete') {
-        const confirmed = window.confirm('Reset image count ?')
+        const confirmed = window.confirm("Réinitialiser l'index du diaporama ?")
         if (confirmed) resetIndex()
       }
     }
@@ -27,6 +27,11 @@ export default function DisplayerPage() {
   return (
     <>
       <SlideshowCanvas imageUrl={currentImageUrl} onNext={nextImage} />
+      {error ? (
+        <p className="status-message error position-fixed top-0 start-50 translate-middle-x mt-3 px-3 py-2">
+          {error}
+        </p>
+      ) : null}
       <SlideshowTooltip
         showHint={showHint}
         onEnter={() => setShowHint(true)}

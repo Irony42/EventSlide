@@ -6,11 +6,17 @@ interface UploadFormProps {
 
 export default function UploadForm({ onUpload }: UploadFormProps) {
   const [files, setFiles] = useState<FileList | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!files || files.length === 0) return
-    await onUpload(files)
+    if (!files || files.length === 0 || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      await onUpload(files)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -26,12 +32,13 @@ export default function UploadForm({ onUpload }: UploadFormProps) {
           accept="image/*"
           multiple
           required
+          disabled={isSubmitting}
           onChange={(event) => setFiles(event.target.files)}
         />
         <div className="form-text">Formats image uniquement. Sélection multiple autorisée.</div>
       </div>
-      <button type="submit" className="btn btn-danger w-100">
-        Envoyer
+      <button type="submit" className="btn btn-danger w-100" disabled={isSubmitting}>
+        {isSubmitting ? 'Envoi en cours...' : 'Envoyer'}
       </button>
     </form>
   )

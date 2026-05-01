@@ -12,7 +12,7 @@ export const useModerationPictures = () => {
       const response = await getPictures(false)
       setPictures(response.pictures)
       setError(null)
-    } catch (err) {
+    } catch {
       setError('Impossible de charger les photos.')
     } finally {
       setLoading(false)
@@ -25,17 +25,27 @@ export const useModerationPictures = () => {
 
   const toggleStatus = async (fileName: string, currentStatus: PictureStatus) => {
     const nextStatus: PictureStatus = currentStatus === 'accepted' ? 'rejected' : 'accepted'
-    await changePictureStatus(fileName, nextStatus)
-    setPictures((prev) =>
-      prev.map((picture) =>
-        picture.fileName === fileName ? { ...picture, status: nextStatus } : picture
+    try {
+      await changePictureStatus(fileName, nextStatus)
+      setPictures((prev) =>
+        prev.map((picture) =>
+          picture.fileName === fileName ? { ...picture, status: nextStatus } : picture
+        )
       )
-    )
+      setError(null)
+    } catch {
+      setError("Impossible de mettre à jour le statut de l'image.")
+    }
   }
 
   const removePicture = async (fileName: string) => {
-    await deletePicture(fileName)
-    setPictures((prev) => prev.filter((picture) => picture.fileName !== fileName))
+    try {
+      await deletePicture(fileName)
+      setPictures((prev) => prev.filter((picture) => picture.fileName !== fileName))
+      setError(null)
+    } catch {
+      setError("Impossible de supprimer l'image.")
+    }
   }
 
   return { pictures, loading, error, toggleStatus, removePicture, reload: loadPictures }
