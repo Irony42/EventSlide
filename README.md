@@ -1,60 +1,60 @@
-# EventSlide 📸
+# EventSlide
 ### Capture, Share, Project: Bring your party to life with our instant photo sharing software
 
-EventSlide est une application moderne de partage de photos en temps réel pour vos événements. Les invités scannent un QR Code, prennent une photo, et elle s'affiche instantanément sur le grand écran après modération.
+EventSlide is a modern real-time photo sharing application for your events. Guests scan a QR Code, take a photo, and it is instantly displayed on the big screen after moderation.
 
-## ✨ Fonctionnalités clés
-- **Temps réel (SSE)** : Affichage instantané des photos sur le diaporama sans rechargement.
-- **Optimisation intelligente** : Compression automatique des photos (via Sharp) pour économiser l'espace et la bande passante.
-- **Modération complète** : Galerie d'administration pour valider ou rejeter les photos avant projection.
-- **Effets visuels** : Diaporama fluide avec transitions fondues et effet Ken Burns (zoom doux).
-- **Accès simplifié** : Générateur de QR Code intégré pour les invités.
-- **Multi-utilisateur** : Gestion de comptes administrateurs avec sessions sécurisées.
+## Key Features
+- **Real-time (SSE)**: Instant photo display on the slideshow without reloading.
+- **Smart Optimization**: Automatic photo compression (via Sharp) to save storage and bandwidth.
+- **Full Moderation**: Admin gallery to validate or reject photos before projection.
+- **Visual Effects**: Smooth slideshow with fade transitions and Ken Burns effect (soft zoom).
+- **Simplified Access**: Integrated QR Code generator for guests.
+- **Multi-user**: Admin account management with secure sessions.
 
-## 🚀 Installation rapide
+## Quick Installation
 
-1. **Prérequis** : Node.js 22.12+ (recommandé).
-2. **Installation** :
+1. **Prerequisites**: Node.js 22.12+ (recommended).
+2. **Installation**:
    ```bash
    npm install
    ```
-3. **Configuration** :
-   - Copiez le fichier d'exemple : `cp .env.example .env`
-   - Définissez un `SESSION_SECRET` robuste.
-   - (Optionnel) Placez vos certificats SSL dans le dossier `/ssl` pour la production.
-4. **Image par défaut** : Assurez-vous d'avoir une image `public/default.jpg` pour le lancement du diaporama.
+3. **Configuration**:
+   - Copy the example file: `cp .env.example .env`
+   - Set a strong `SESSION_SECRET`.
+   - (Optional) Place your SSL certificates in the `/ssl` folder for production.
+4. **Default Image**: Ensure you have a `public/default.jpg` image for the slideshow launch.
 
-## 🛠️ Développement et Production
+## Development and Production
 
-### En développement
-Lancez les deux terminaux suivants pour bénéficier du Hot Reload (Vite + Nodemon) :
-- **Backend** : `npm run dev:back` (port 4300 par défaut)
-- **Frontend** : `npm run dev:front` (port 5173 par défaut)
+### In Development
+Run the following two terminals to benefit from Hot Reload (Vite + Nodemon):
+- **Backend**: `npm run dev:back` (default port 4300)
+- **Frontend**: `npm run dev:front` (default port 5173)
 
-### En production
-Générez le build optimisé et lancez le serveur :
+### In Production
+Generate the optimized build and start the server:
 ```bash
 npm run build
 npm run start
 ```
 
-## 🌐 Navigation
+## Navigation
 
 ### Public
-- `/upload` : Interface d'envoi pour les invités (optimisée mobile).
-- `/upload?partyname=MonEvent` : Lien direct pour un événement spécifique.
+- `/upload`: Upload interface for guests (mobile-optimized).
+- `/upload?partyname=MyEvent`: Direct link for a specific event.
 
-### Administration (Sécurisé)
-- `/admin` : Tableau de bord principal.
-- `/admin/moderation` : File d'attente des photos (statut *pending* par défaut).
-- `/admin/displayer` : Le diaporama à projeter.
-- `/admin/qrcode` : Générateur de QR Code pour les invités.
-- `/admin/users/new` : Création de nouveaux comptes modérateurs.
+### Administration (Secure)
+- `/admin`: Main dashboard.
+- `/admin/moderation`: Photo queue (pending status by default).
+- `/admin/displayer`: The slideshow to project.
+- `/admin/qrcode`: QR Code generator for guests.
+- `/admin/users/new`: Create new moderator accounts.
 
-## ⚙️ Variables d'environnement
-- `PORT` : Port d'écoute du serveur (défaut : `4300`).
-- `SESSION_SECRET` : Clé de signature des sessions (requis).
-- `SESSION_COOKIE_SECURE` : `true` pour activer le flag Secure (HTTPS requis).
+## Environment Variables
+- `PORT`: Server listening port (default: `4300`).
+- `SESSION_SECRET`: Session signing key (required).
+- `SESSION_COOKIE_SECURE`: `true` to enable the Secure flag (HTTPS required).
 
 ### How to use
 - Open `/login`, log in with `admin` / `password`
