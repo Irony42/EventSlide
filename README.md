@@ -1,51 +1,60 @@
-# EventSlide
-## Capture, Share, Project : Bring your party to life with our instant photo sharing software
+# EventSlide 📸
+### Capture, Share, Project: Bring your party to life with our instant photo sharing software
 
-### How to install:
-1. Place your certificates in the ssl folder.
-2. Place a default picture in public/default.jpg
-3. Use node 22.12+ (recommended for latest Vite and React stack)
-4. Install dependencies:
-```
-npm install
-```
-5. Create your environment file:
-```
-copy .env.example .env
-```
-6. Set a strong `SESSION_SECRET` before production.
+EventSlide est une application moderne de partage de photos en temps réel pour vos événements. Les invités scannent un QR Code, prennent une photo, et elle s'affiche instantanément sur le grand écran après modération.
 
-### How to run in development
-- Terminal 1:
-```
-npm run dev:back
-```
-- Terminal 2:
-```
-npm run dev:front
-```
-- Open the SPA at [http://localhost:5173](http://localhost:5173)
+## ✨ Fonctionnalités clés
+- **Temps réel (SSE)** : Affichage instantané des photos sur le diaporama sans rechargement.
+- **Optimisation intelligente** : Compression automatique des photos (via Sharp) pour économiser l'espace et la bande passante.
+- **Modération complète** : Galerie d'administration pour valider ou rejeter les photos avant projection.
+- **Effets visuels** : Diaporama fluide avec transitions fondues et effet Ken Burns (zoom doux).
+- **Accès simplifié** : Générateur de QR Code intégré pour les invités.
+- **Multi-utilisateur** : Gestion de comptes administrateurs avec sessions sécurisées.
 
-### Build and run in production
-```
+## 🚀 Installation rapide
+
+1. **Prérequis** : Node.js 22.12+ (recommandé).
+2. **Installation** :
+   ```bash
+   npm install
+   ```
+3. **Configuration** :
+   - Copiez le fichier d'exemple : `cp .env.example .env`
+   - Définissez un `SESSION_SECRET` robuste.
+   - (Optionnel) Placez vos certificats SSL dans le dossier `/ssl` pour la production.
+4. **Image par défaut** : Assurez-vous d'avoir une image `public/default.jpg` pour le lancement du diaporama.
+
+## 🛠️ Développement et Production
+
+### En développement
+Lancez les deux terminaux suivants pour bénéficier du Hot Reload (Vite + Nodemon) :
+- **Backend** : `npm run dev:back` (port 4300 par défaut)
+- **Frontend** : `npm run dev:front` (port 5173 par défaut)
+
+### En production
+Générez le build optimisé et lancez le serveur :
+```bash
 npm run build
 npm run start
 ```
 
-### Environment variables
-- `PORT`: backend HTTP port (default: `4300`)
-- `SESSION_SECRET`: session signing secret (required in production)
-- `SESSION_COOKIE_SECURE`: set to `true` behind HTTPS in production
+## 🌐 Navigation
 
-### SPA routes
-- `/upload`: upload photos
-- `/upload/confirmation`: confirmation page
-- `/login`: authentication
-- `/admin`: administration dashboard
-- `/admin/moderation`: moderation grid
-- `/admin/displayer`: slideshow
-- `/admin/users/new`: create user
-- `/admin/password`: change password
+### Public
+- `/upload` : Interface d'envoi pour les invités (optimisée mobile).
+- `/upload?partyname=MonEvent` : Lien direct pour un événement spécifique.
+
+### Administration (Sécurisé)
+- `/admin` : Tableau de bord principal.
+- `/admin/moderation` : File d'attente des photos (statut *pending* par défaut).
+- `/admin/displayer` : Le diaporama à projeter.
+- `/admin/qrcode` : Générateur de QR Code pour les invités.
+- `/admin/users/new` : Création de nouveaux comptes modérateurs.
+
+## ⚙️ Variables d'environnement
+- `PORT` : Port d'écoute du serveur (défaut : `4300`).
+- `SESSION_SECRET` : Clé de signature des sessions (requis).
+- `SESSION_COOKIE_SECURE` : `true` pour activer le flag Secure (HTTPS requis).
 
 ### How to use
 - Open `/login`, log in with `admin` / `password`
