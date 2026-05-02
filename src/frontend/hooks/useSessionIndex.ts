@@ -4,9 +4,12 @@ export const useSessionIndex = (storageKey: string) => {
   const [index, setIndex] = useState<number>(() => Number(sessionStorage.getItem(storageKey) || 0))
 
   const updateIndex = useCallback(
-    (nextIndex: number) => {
-      setIndex(nextIndex)
-      sessionStorage.setItem(storageKey, String(nextIndex))
+    (nextIndex: number | ((prev: number) => number)) => {
+      setIndex((prev) => {
+        const newVal = typeof nextIndex === 'function' ? nextIndex(prev) : nextIndex
+        sessionStorage.setItem(storageKey, String(newVal))
+        return newVal
+      })
     },
     [storageKey]
   )

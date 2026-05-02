@@ -7,7 +7,6 @@ const storageKey = 'EventSlide_currentIndex'
 export const useSlideshowController = (pictures: Picture[]) => {
   const { index, updateIndex, resetIndex } = useSessionIndex(storageKey)
   const [intervalMs, setIntervalMs] = useState(10000)
-  const [tick, setTick] = useState(0)
 
   const currentImageUrl = useMemo(() => {
     if (pictures.length === 0) return '/default.jpg'
@@ -17,18 +16,13 @@ export const useSlideshowController = (pictures: Picture[]) => {
 
   const nextImage = useCallback(() => {
     if (pictures.length === 0) return
-    const nextIndex = (index + 1) % pictures.length
-    updateIndex(nextIndex)
-  }, [index, pictures.length, updateIndex])
+    updateIndex((prev) => (prev + 1) % pictures.length)
+  }, [pictures.length, updateIndex])
 
   useEffect(() => {
-    const interval = window.setInterval(() => setTick((prev) => prev + 1), intervalMs)
+    const interval = window.setInterval(nextImage, intervalMs)
     return () => window.clearInterval(interval)
-  }, [intervalMs])
-
-  useEffect(() => {
-    if (tick > 0) nextImage()
-  }, [tick, nextImage])
+  }, [intervalMs, nextImage])
 
   return { currentImageUrl, nextImage, intervalMs, setIntervalMs, resetIndex }
 }
