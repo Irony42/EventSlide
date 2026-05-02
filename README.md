@@ -4,17 +4,52 @@
 ### How to install:
 1. Place your certificates in the ssl folder.
 2. Place a default picture in public/default.jpg
-3. Change linkURL in uploadconfirmation.html
-4. Use node 18+ (was tested on node 18.16.0)
-5. Use the following command to build the project: 
+3. Use node 22.12+ (recommended for latest Vite and React stack)
+4. Install dependencies:
 ```
-npm run build //only build
-npm run execute //build and execute
+npm install
+```
+5. Create your environment file:
+```
+copy .env.example .env
+```
+6. Set a strong `SESSION_SECRET` before production.
+
+### How to run in development
+- Terminal 1:
+```
+npm run dev:back
+```
+- Terminal 2:
+```
+npm run dev:front
+```
+- Open the SPA at [http://localhost:5173](http://localhost:5173)
+
+### Build and run in production
+```
+npm run build
+npm run start
 ```
 
-### How to use :
-- Open login.html page, log-in with `admin` `password`
+### Environment variables
+- `PORT`: backend HTTP port (default: `4300`)
+- `SESSION_SECRET`: session signing secret (required in production)
+- `SESSION_COOKIE_SECURE`: set to `true` behind HTTPS in production
+
+### SPA routes
+- `/upload`: upload photos
+- `/upload/confirmation`: confirmation page
+- `/login`: authentication
+- `/admin`: administration dashboard
+- `/admin/moderation`: moderation grid
+- `/admin/displayer`: slideshow
+- `/admin/users/new`: create user
+- `/admin/password`: change password
+
+### How to use
+- Open `/login`, log in with `admin` / `password`
 - Change your password
-- Open the displayer page in fullscreen on a video projector (pro-tip: press Enter to change the time between 2 photos, then press Enter again)
-- Open the administration page on a PC to allow you to allow/deny pictures to be show. (click on the picture to change state, green border = will be display, red : no display. Red cross delete the picture)
-- Share the link to the index.html page to your hosts.
+- Open `/admin/displayer` in fullscreen on a video projector (pro-tip: press Enter to change the time between 2 photos)
+- Open `/admin/moderation` to allow/deny submitted pictures (green border = displayed, red border = hidden, red cross = delete)
+- Share the `/upload` page link with your guests

@@ -5,46 +5,87 @@ import path from 'path'
 import fs from 'fs'
 import archiver from 'archiver'
 import sharp from 'sharp'
+import { parsePartyName } from '../pictureStorage'
 
-export const uploadPic = (req: Request, res: Response) => {
-  if (!req.files) return res.status(400).send('No photo sent !')
+const isApiRequest = (req: Request) => req.path.startsWith('/api/')
+const pictureStatusValues = new Set(['accepted', 'rejected'])
+const fileNamePattern = /^[a-zA-Z0-9._-]{1,255}$/
 
-  const partyName = req.query.partyname as string
-  if (!partyName) return res.status(400).send('Missing partyname query param.')
+const sendError = (req: Request, res: Response, status: number, message: string) => {
+  if (isApiRequest(req)) return res.status(status).json({ success: false, message })
+  return res.status(status).send(message)
+}
+
+const parsePictureStatus = (rawStatus: unknown): ModeratedPicture['status'] | null => {
+  if (typeof rawStatus !== 'string' || !pictureStatusValues.has(rawStatus)) return null
+  return rawStatus as ModeratedPicture['status']
+}
+
+const parseFileName = (rawFileName: unknown): string | null => {
+  if (typeof rawFileName !== 'string') return null
+  if (!fileNamePattern.test(rawFileName)) return null
+  return rawFileName
+}
+
+const runQuery = (query: string, params: unknown[]) =>
+  new Promise<void>((resolve, reject) => {
+    db.run(query, params, (err) => {
+      if (err) reject(err)
+      else resolve()
+    })
+  })
+
+export const uploadPic = async (req: Request, res: Response) => {
+  if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+    return sendError(req, res, 400, 'No photo sent!')
+  }
+
+  const partyName = parsePartyName(req.query.partyname)
+  if (!partyName) return sendError(req, res, 400, 'Invalid partyname query param.')
 
   const photosDatas: ModeratedPicture[] = (req.files as any).map((f: { filename: any }) => ({
     fileName: f.filename,
     status: 'accepted' // Need to have a default value per party for status
   }))
 
-  const query = 'INSERT INTO photos (fileName, status, partyId) VALUES (?, ?, ?)'
-  photosDatas.forEach((photoData) => {
-    db.run(query, [photoData.fileName, photoData.status, partyName], (err) => {
-      if (err) {
-        console.error('Error while saving photo to the database:', err)
-        return res.status(500).send('Error while uploading picture.')
-      }
-    })
+  try {
+    const query = 'INSERT INTO photos (fileName, status, partyId) VALUES (?, ?, ?)'
+    await Promise.all(
+      photosDatas.map(async (photoData) => {
+        await runQuery(query, [photoData.fileName, photoData.status, partyName])
 
-    const thumbnailPath = path.resolve(__dirname, '..', '..', `thumbnails/${partyName}/${photoData.fileName}`)
-    if (!fs.existsSync(thumbnailPath)) {
-      sharp(path.resolve(__dirname, '..', '..', `photos/${partyName}/${photoData.fileName}`))
-        .resize({ width: 500, height: 500, fit: 'inside', withoutEnlargement: true })
-        .toFile(thumbnailPath, (err, info) => {
-          if (err) {
-            console.error('Error generating thumbnail:', err)
-          }
-        })
-    }
-  })
+        const thumbnailPath = path.resolve(
+          __dirname,
+          '..',
+          '..',
+          `thumbnails/${partyName}/${photoData.fileName}`
+        )
+        if (!fs.existsSync(thumbnailPath)) {
+          await sharp(path.resolve(__dirname, '..', '..', `photos/${partyName}/${photoData.fileName}`))
+            .resize({ width: 500, height: 500, fit: 'inside', withoutEnlargement: true })
+            .toFile(thumbnailPath)
+        }
+      })
+    )
+  } catch (error) {
+    console.error('Error while uploading picture:', error)
+    return sendError(req, res, 500, 'Error while uploading picture.')
+  }
 
-  res.redirect('../uploadConfirmation.html')
+  if (isApiRequest(req)) return res.json({ success: true })
+  res.redirect('/upload/confirmation')
 }
 
 const getPicture = (req: Request, res: Response, folderName: string) => {
-  const fileName = req.params.filename
+  const fileName = parseFileName(req.params.filename)
+  if (!fileName) {
+    return sendError(req, res, 400, 'Invalid filename parameter.')
+  }
   const { partyId } = req.user as any
   const imagePath = path.resolve(__dirname, '..', '..', `${folderName}/${partyId}/${fileName}`)
+  if (!fs.existsSync(imagePath)) {
+    return sendError(req, res, 404, 'Photo not found.')
+  }
 
   res.sendFile(imagePath)
 }
@@ -77,48 +118,55 @@ export const getPics = (req: Request, res: Response) => {
 }
 
 export const changePicsStatus = (req: Request, res: Response) => {
-  const targetFileName = req.query.filename as string
-  const newStatus = req.query.status as 'accepted' | 'rejected'
+  const targetFileName = parseFileName(req.body.filename ?? req.query.filename)
+  const newStatus = parsePictureStatus(req.body.status ?? req.query.status)
   const { partyId } = req.user as any
 
   if (!targetFileName || !newStatus) {
-    res.status(500).send('Missing filename or status query param')
-    return
+    return sendError(req, res, 400, 'Invalid filename or status.')
   }
 
   const query = 'UPDATE photos SET status = ? WHERE fileName = ? AND partyId = ?'
   db.run(query, [newStatus, targetFileName, partyId], (err) => {
     if (err) {
       console.error('Error while updating photo status:', err)
-      res.status(500).send('Error while updating photo status.')
-      return
+      return sendError(req, res, 500, 'Error while updating photo status.')
     }
+    if (isApiRequest(req)) return res.json({ success: true })
     res.status(200).send('ok')
   })
 }
 
 export const deletePic = (req: Request, res: Response) => {
-  //TODO DELETE thumbnails
-  const fileName = req.params.filename
+  const fileName = parseFileName(req.params.filename)
+  if (!fileName) return sendError(req, res, 400, 'Invalid filename parameter.')
   const { partyId } = req.user as any
   const imagePath = path.resolve(__dirname, '..', '..', `photos/${partyId}/${fileName}`)
+  const thumbnailPath = path.resolve(__dirname, '..', '..', `thumbnails/${partyId}/${fileName}`)
 
   if (!fs.existsSync(imagePath)) {
-    return res.status(404).send('Photo not found.')
+    return sendError(req, res, 404, 'Photo not found.')
   }
 
   fs.unlink(imagePath, (err) => {
     if (err) {
       console.error('Error while deleting photo:', err)
-      return res.status(500).send('Error while deleting photo.')
+      return sendError(req, res, 500, 'Error while deleting photo.')
+    }
+
+    if (fs.existsSync(thumbnailPath)) {
+      fs.unlink(thumbnailPath, (thumbnailError) => {
+        if (thumbnailError) console.error('Error while deleting thumbnail:', thumbnailError)
+      })
     }
 
     const deleteQuery = 'DELETE FROM photos WHERE fileName = ? AND partyId = ?'
     db.run(deleteQuery, [fileName, partyId], (err) => {
       if (err) {
         console.error('Error while deleting photo from database:', err)
-        return res.status(500).send('Error while deleting photo from database.')
+        return sendError(req, res, 500, 'Error while deleting photo from database.')
       }
+      if (isApiRequest(req)) return res.json({ success: true })
       res.status(200).send('Photo deleted successfully.')
     })
   })
@@ -134,6 +182,11 @@ export const downloadArchive = (req: Request, res: Response) => {
   const output = res
   const archive = archiver('zip', {
     zlib: { level: 9 }
+  })
+
+  archive.on('error', (error) => {
+    console.error('Archive generation error:', error)
+    if (!res.headersSent) sendError(req, res, 500, 'Error while creating the zip file.')
   })
 
   archive.pipe(output)

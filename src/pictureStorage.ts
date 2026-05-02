@@ -1,10 +1,21 @@
 import fs from 'fs'
 import multer, { Multer } from 'multer'
 
+const partyNamePattern = /^[a-zA-Z0-9_-]{1,64}$/
+
+export const parsePartyName = (rawPartyName: unknown): string | null => {
+  if (typeof rawPartyName !== 'string') return null
+  if (!partyNamePattern.test(rawPartyName)) return null
+  return rawPartyName
+}
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const partyName = req.query.partyname
-    if (!partyName) cb(Error('No partyname provided'), '')
+    const partyName = parsePartyName(req.query.partyname)
+    if (!partyName) {
+      cb(Error('Invalid partyname provided'), '')
+      return
+    }
 
     const photoFolder = `photos/${partyName}`
     if (!fs.existsSync(photoFolder)) fs.mkdirSync(photoFolder, { recursive: true })
@@ -15,7 +26,8 @@ const storage = multer.diskStorage({
     cb(null, photoFolder)
   },
   filename: function (req, file, cb) {
-    cb(null, `${Date.now()}_${file.originalname}`)
+    const normalizedOriginalName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')
+    cb(null, `${Date.now()}_${normalizedOriginalName}`)
   }
 })
 
