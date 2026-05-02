@@ -12,10 +12,10 @@ export default function UploadPage() {
   const selectedParty = useQueryParam('party') ?? 'myParty'
   const [error, setError] = useState<string | null>(null)
 
-  const handleUpload = async (files: FileList) => {
+  const handleUpload = async (files: FileList, onProgress: (progress: number) => void) => {
     setError(null)
     try {
-      await uploadPictures(selectedParty, files)
+      await uploadPictures(selectedParty, files, onProgress)
     } catch {
       setError("L'envoi a échoué. Veuillez réessayer.")
       throw new Error('Upload failed')

@@ -6,15 +6,15 @@ import bcrypt from 'bcrypt'
 
 export const initPassport = (passport: PassportStatic) => {
   passport.use(
-    new LocalStrategy.Strategy((username: string, password: string, done: any) => {
-      const query = 'SELECT * FROM users WHERE username = ?'
-      db.get(query, [username], (err, row: User) => {
-        if (err) {
-          return done(err)
-        }
+    new LocalStrategy.Strategy(async (username: string, password: string, done: any) => {
+      try {
+        const query = 'SELECT * FROM users WHERE username = ?'
+        const row = await db.get<User>(query, [username])
+        
         if (!row) {
           return done(null, false, { message: 'Incorrect username.' })
         }
+        
         bcrypt.compare(password, row.password, (err, result) => {
           if (err) {
             return done(err)
@@ -24,16 +24,21 @@ export const initPassport = (passport: PassportStatic) => {
           }
           return done(null, row)
         })
-      })
+      } catch (err) {
+        return done(err)
+      }
     })
   )
 
   passport.serializeUser((user: any, done) => done(null, user.id))
 
-  passport.deserializeUser((id, done) => {
-    const query = 'SELECT * FROM users WHERE id = ?'
-    db.get(query, [id], (err, row) => {
-      done(err, row as String)
-    })
+  passport.deserializeUser(async (id, done) => {
+    try {
+      const query = 'SELECT * FROM users WHERE id = ?'
+      const row = await db.get(query, [id])
+      done(null, row as any)
+    } catch (err) {
+      done(err, null)
+    }
   })
 }

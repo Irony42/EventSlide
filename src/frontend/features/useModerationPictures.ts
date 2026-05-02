@@ -21,12 +21,30 @@ export const useModerationPictures = () => {
 
   useEffect(() => {
     loadPictures()
+
+    // Assuming moderation is for the user's party, we just subscribe without partyname
+    // which will default to their session partyId in the backend.
+    const eventSource = new EventSource('/api/stream')
+    eventSource.onmessage = (event) => {
+      if (event.data === 'update') {
+        loadPictures()
+      }
+    }
+
+    eventSource.onerror = () => {
+      console.error('SSE connection lost, reconnecting...')
+    }
+
+    return () => {
+      eventSource.close()
+    }
   }, [])
 
   const toggleStatus = async (fileName: string, currentStatus: PictureStatus) => {
     const nextStatus: PictureStatus = currentStatus === 'accepted' ? 'rejected' : 'accepted'
     try {
       await changePictureStatus(fileName, nextStatus)
+      // The SSE will trigger a reload, but we can do it optimistically as well:
       setPictures((prev) =>
         prev.map((picture) =>
           picture.fileName === fileName ? { ...picture, status: nextStatus } : picture

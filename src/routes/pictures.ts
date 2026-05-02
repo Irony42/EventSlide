@@ -6,9 +6,13 @@ import fs from 'fs'
 import archiver from 'archiver'
 import sharp from 'sharp'
 import { parsePartyName } from '../pictureStorage'
+import { EventEmitter } from 'events'
+
+// EventEmitter for Server-Sent Events (SSE)
+export const picturesEmitter = new EventEmitter()
 
 const isApiRequest = (req: Request) => req.path.startsWith('/api/')
-const pictureStatusValues = new Set(['accepted', 'rejected'])
+const pictureStatusValues = new Set(['accepted', 'rejected', 'pending'])
 const fileNamePattern = /^[a-zA-Z0-9._-]{1,255}$/
 
 const sendError = (req: Request, res: Response, status: number, message: string) => {
@@ -27,14 +31,6 @@ const parseFileName = (rawFileName: unknown): string | null => {
   return rawFileName
 }
 
-const runQuery = (query: string, params: unknown[]) =>
-  new Promise<void>((resolve, reject) => {
-    db.run(query, params, (err) => {
-      if (err) reject(err)
-      else resolve()
-    })
-  })
-
 export const uploadPic = async (req: Request, res: Response) => {
   if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
     return sendError(req, res, 400, 'No photo sent!')
@@ -45,28 +41,39 @@ export const uploadPic = async (req: Request, res: Response) => {
 
   const photosDatas: ModeratedPicture[] = (req.files as any).map((f: { filename: any }) => ({
     fileName: f.filename,
-    status: 'accepted' // Need to have a default value per party for status
+    status: 'pending' // Default to pending
   }))
 
   try {
     const query = 'INSERT INTO photos (fileName, status, partyId) VALUES (?, ?, ?)'
     await Promise.all(
       photosDatas.map(async (photoData) => {
-        await runQuery(query, [photoData.fileName, photoData.status, partyName])
+        await db.run(query, [photoData.fileName, photoData.status, partyName])
 
-        const thumbnailPath = path.resolve(
-          __dirname,
-          '..',
-          '..',
-          `thumbnails/${partyName}/${photoData.fileName}`
-        )
-        if (!fs.existsSync(thumbnailPath)) {
-          await sharp(path.resolve(__dirname, '..', '..', `photos/${partyName}/${photoData.fileName}`))
-            .resize({ width: 500, height: 500, fit: 'inside', withoutEnlargement: true })
-            .toFile(thumbnailPath)
+        const originalPath = path.resolve(__dirname, '..', '..', `photos/${partyName}/${photoData.fileName}`)
+        const tempPath = path.resolve(__dirname, '..', '..', `photos/${partyName}/temp_${photoData.fileName}`)
+        const thumbnailPath = path.resolve(__dirname, '..', '..', `thumbnails/${partyName}/${photoData.fileName}`)
+        
+        // Compress the original image
+        if (fs.existsSync(originalPath)) {
+          await sharp(originalPath)
+            .resize({ width: 1920, height: 1080, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 80 }) // Compress
+            .toFile(tempPath)
+          
+          // Replace original with compressed version
+          fs.renameSync(tempPath, originalPath)
+
+          // Generate thumbnail
+          if (!fs.existsSync(thumbnailPath)) {
+            await sharp(originalPath)
+              .resize({ width: 500, height: 500, fit: 'inside', withoutEnlargement: true })
+              .toFile(thumbnailPath)
+          }
         }
       })
     )
+    picturesEmitter.emit('update', partyName)
   } catch (error) {
     console.error('Error while uploading picture:', error)
     return sendError(req, res, 500, 'Error while uploading picture.')
@@ -98,7 +105,7 @@ export const getThumbnail = (req: Request, res: Response) => {
   getPicture(req, res, 'thumbnails')
 }
 
-export const getPics = (req: Request, res: Response) => {
+export const getPics = async (req: Request, res: Response) => {
   const { partyId } = req.user as any
   const acceptedOnly = req.query.acceptedonly
 
@@ -106,18 +113,17 @@ export const getPics = (req: Request, res: Response) => {
     ? 'SELECT * FROM photos WHERE partyId = ? AND status = "accepted"'
     : 'SELECT * FROM photos WHERE partyId = ?'
 
-  db.all(query, [partyId], (err, rows: ModeratedPicture[]) => {
-    if (err) {
-      console.error('Error while retrieving photo statuses:', err)
-      return res.status(500).send('Error while retrieving photo statuses.')
-    }
-
+  try {
+    const rows = await db.all<ModeratedPicture[]>(query, [partyId])
     const partyPics: ModeratedPictures = { pictures: rows }
     res.json(partyPics)
-  })
+  } catch (err) {
+    console.error('Error while retrieving photo statuses:', err)
+    return res.status(500).send('Error while retrieving photo statuses.')
+  }
 }
 
-export const changePicsStatus = (req: Request, res: Response) => {
+export const changePicsStatus = async (req: Request, res: Response) => {
   const targetFileName = parseFileName(req.body.filename ?? req.query.filename)
   const newStatus = parsePictureStatus(req.body.status ?? req.query.status)
   const { partyId } = req.user as any
@@ -127,17 +133,19 @@ export const changePicsStatus = (req: Request, res: Response) => {
   }
 
   const query = 'UPDATE photos SET status = ? WHERE fileName = ? AND partyId = ?'
-  db.run(query, [newStatus, targetFileName, partyId], (err) => {
-    if (err) {
-      console.error('Error while updating photo status:', err)
-      return sendError(req, res, 500, 'Error while updating photo status.')
-    }
+  try {
+    await db.run(query, [newStatus, targetFileName, partyId])
+    picturesEmitter.emit('update', partyId)
+    
     if (isApiRequest(req)) return res.json({ success: true })
     res.status(200).send('ok')
-  })
+  } catch (err) {
+    console.error('Error while updating photo status:', err)
+    return sendError(req, res, 500, 'Error while updating photo status.')
+  }
 }
 
-export const deletePic = (req: Request, res: Response) => {
+export const deletePic = async (req: Request, res: Response) => {
   const fileName = parseFileName(req.params.filename)
   if (!fileName) return sendError(req, res, 400, 'Invalid filename parameter.')
   const { partyId } = req.user as any
@@ -148,31 +156,27 @@ export const deletePic = (req: Request, res: Response) => {
     return sendError(req, res, 404, 'Photo not found.')
   }
 
-  fs.unlink(imagePath, (err) => {
-    if (err) {
-      console.error('Error while deleting photo:', err)
-      return sendError(req, res, 500, 'Error while deleting photo.')
-    }
-
+  try {
+    await fs.promises.unlink(imagePath)
     if (fs.existsSync(thumbnailPath)) {
-      fs.unlink(thumbnailPath, (thumbnailError) => {
-        if (thumbnailError) console.error('Error while deleting thumbnail:', thumbnailError)
+      await fs.promises.unlink(thumbnailPath).catch((err) => {
+        console.error('Error while deleting thumbnail:', err)
       })
     }
 
     const deleteQuery = 'DELETE FROM photos WHERE fileName = ? AND partyId = ?'
-    db.run(deleteQuery, [fileName, partyId], (err) => {
-      if (err) {
-        console.error('Error while deleting photo from database:', err)
-        return sendError(req, res, 500, 'Error while deleting photo from database.')
-      }
-      if (isApiRequest(req)) return res.json({ success: true })
-      res.status(200).send('Photo deleted successfully.')
-    })
-  })
+    await db.run(deleteQuery, [fileName, partyId])
+    picturesEmitter.emit('update', partyId)
+    
+    if (isApiRequest(req)) return res.json({ success: true })
+    res.status(200).send('Photo deleted successfully.')
+  } catch (err) {
+    console.error('Error while deleting photo:', err)
+    return sendError(req, res, 500, 'Error while deleting photo.')
+  }
 }
 
-export const downloadArchive = (req: Request, res: Response) => {
+export const downloadArchive = async (req: Request, res: Response) => {
   const { partyId } = req.user as any
   const zipFileName = `${partyId}_photos.zip`
 
@@ -192,16 +196,17 @@ export const downloadArchive = (req: Request, res: Response) => {
   archive.pipe(output)
 
   const query = 'SELECT fileName FROM photos WHERE partyId = ?'
-  db.all(query, [partyId], (err, rows: { fileName: string }[]) => {
-    if (err) {
-      console.error('Error while retrieving photo filenames:', err)
-      return res.status(500).send('Error while creating the zip file.')
-    }
-    rows.forEach((row) => {
+  try {
+    const rows = await db.all<{ fileName: string }[]>(query, [partyId])
+    rows.forEach((row: any) => {
       const photoPath = path.resolve(__dirname, '..', '..', `photos/${partyId}/${row.fileName}`)
-      archive.file(photoPath, { name: row.fileName })
+      if (fs.existsSync(photoPath)) {
+        archive.file(photoPath, { name: row.fileName })
+      }
     })
-
     archive.finalize()
-  })
+  } catch (err) {
+    console.error('Error while retrieving photo filenames:', err)
+    return res.status(500).send('Error while creating the zip file.')
+  }
 }

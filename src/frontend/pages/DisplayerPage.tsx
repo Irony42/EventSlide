@@ -3,10 +3,10 @@ import IntervalInputOverlay from '../components/IntervalInputOverlay'
 import SlideshowCanvas from '../components/SlideshowCanvas'
 import SlideshowTooltip from '../components/SlideshowTooltip'
 import { useSlideshowController } from '../features/useSlideshowController'
-import { useAcceptedPicturesPolling } from '../hooks/useAcceptedPicturesPolling'
+import { useAcceptedPictures } from '../hooks/useAcceptedPictures'
 
 export default function DisplayerPage() {
-  const { pictures, error } = useAcceptedPicturesPolling(15000)
+  const { pictures, error } = useAcceptedPictures()
   const { currentImageUrl, nextImage, setIntervalMs, resetIndex } = useSlideshowController(pictures)
   const [showHint, setShowHint] = useState(false)
   const [showIntervalInput, setShowIntervalInput] = useState(false)

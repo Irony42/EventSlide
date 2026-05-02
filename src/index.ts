@@ -8,7 +8,7 @@ import path from 'path'
 import * as fs from 'fs'
 import { initDatabase } from './database'
 import { initPassport } from './passport'
-import { changePicsStatus, deletePic, downloadArchive, getPic, getPics, getThumbnail, uploadPic } from './routes/pictures'
+import { changePicsStatus, deletePic, downloadArchive, getPic, getPics, getThumbnail, uploadPic, picturesEmitter } from './routes/pictures'
 import { changerUserPassword, registerUser } from './routes/user'
 import { upload } from './pictureStorage'
 
@@ -50,7 +50,7 @@ app.use(passport.session())
 app.use(express.static('public'))
 app.use('/assets', express.static(path.resolve(__dirname, '..', 'dist', 'client', 'assets')))
 
-initDatabase()
+// initDatabase will be awaited before starting the server
 initPassport(passport)
 
 const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
@@ -101,6 +101,31 @@ app.get('/api/session', (req: Request, res: Response) => {
   })
 })
 
+// Server-Sent Events stream for real-time updates
+app.get('/api/stream', (req: Request, res: Response) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  })
+
+  const sendUpdate = (updatedPartyId: string) => {
+    // Ideally we should check if the connected user belongs to this partyId, 
+    // but for this simple app we can broadcast or check req.user if authenticated.
+    // If it's the public displayer, it might not be authenticated but has partyId in query.
+    const reqPartyId = req.query.partyname || (req.user as any)?.partyId || 'myParty'
+    if (reqPartyId === updatedPartyId) {
+      res.write('data: update\n\n')
+    }
+  }
+
+  picturesEmitter.on('update', sendUpdate)
+
+  req.on('close', () => {
+    picturesEmitter.off('update', sendUpdate)
+  })
+})
+
 // Pictures routes (public)
 app.post('/upload', upload.array('photos', 50), uploadPic)
 app.post('/api/upload', upload.array('photos', 50), uploadPic)
@@ -139,10 +164,17 @@ if (fs.existsSync(clientDistPath)) {
 //   key: fs.readFileSync('ssl/key.pem'),
 //   cert: fs.readFileSync('ssl/cert.pem')
 // }
-// const server = https.createServer(options, app)
-// server.listen(443, () => {
-//   console.log('HTTPS server online.')
+// initDatabase().then(() => {
+//   const server = https.createServer(options, app)
+//   server.listen(443, () => {
+//     console.log('HTTPS server online.')
+//   })
 // })
 
 // Uncomment for dev
-const server = app.listen(port, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
+initDatabase().then(() => {
+  const server = app.listen(port, () => console.debug(`Listening on port ${(server.address() as AddressInfo).port}`))
+}).catch(err => {
+  console.error('Failed to initialize database', err)
+  process.exit(1)
+})

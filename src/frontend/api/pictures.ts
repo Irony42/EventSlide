@@ -10,13 +10,40 @@ export const changePictureStatus = (filename: string, status: PictureStatus) =>
     status
   })
 
-export const uploadPictures = (partyName: string, files: FileList) => {
-  const formData = new FormData()
-  Array.from(files).forEach((file) => formData.append('photos', file))
-  return apiClient.postForm<{ success: boolean }>(
-    `/api/upload?partyname=${encodeURIComponent(partyName)}`,
-    formData
-  )
+export const uploadPictures = (partyName: string, files: FileList, onProgress?: (percent: number) => void) => {
+  return new Promise<{ success: boolean }>((resolve, reject) => {
+    const formData = new FormData()
+    Array.from(files).forEach((file) => formData.append('photos', file))
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `/api/upload?partyname=${encodeURIComponent(partyName)}`)
+    xhr.withCredentials = true
+
+    if (onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = Math.round((event.loaded / event.total) * 100)
+          onProgress(percentComplete)
+        }
+      }
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const response = JSON.parse(xhr.responseText)
+          resolve(response)
+        } catch {
+          resolve({ success: true })
+        }
+      } else {
+        reject(new Error(xhr.responseText || 'Upload failed'))
+      }
+    }
+
+    xhr.onerror = () => reject(new Error('Network error'))
+    xhr.send(formData)
+  })
 }
 
 export const deletePicture = (filename: string) =>

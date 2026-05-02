@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { getPictures } from '../api/pictures'
 import { Picture } from '../types'
+import { useQueryParam } from './useQueryParam'
 
-export const useAcceptedPicturesPolling = (refreshMs: number) => {
+export const useAcceptedPictures = () => {
   const [pictures, setPictures] = useState<Picture[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const partyParam = useQueryParam('partyname') || 'myParty'
 
   useEffect(() => {
     let mounted = true
@@ -25,12 +27,24 @@ export const useAcceptedPicturesPolling = (refreshMs: number) => {
     }
 
     load()
-    const interval = window.setInterval(load, refreshMs)
+
+    // Connect to Server-Sent Events for real-time updates
+    const eventSource = new EventSource(`/api/stream?partyname=${partyParam}`)
+    eventSource.onmessage = (event) => {
+      if (event.data === 'update') {
+        load()
+      }
+    }
+
+    eventSource.onerror = () => {
+      console.error('SSE connection lost, reconnecting...')
+    }
+
     return () => {
       mounted = false
-      window.clearInterval(interval)
+      eventSource.close()
     }
-  }, [refreshMs])
+  }, [partyParam])
 
   return { pictures, loading, error }
 }

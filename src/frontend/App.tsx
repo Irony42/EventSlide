@@ -6,6 +6,7 @@ import DisplayerPage from './pages/DisplayerPage'
 import LoginPage from './pages/LoginPage'
 import ModerationPage from './pages/ModerationPage'
 import PasswordChangePage from './pages/PasswordChangePage'
+import QRCodePage from './pages/QRCodePage'
 import UploadConfirmationPage from './pages/UploadConfirmationPage'
 import UploadPage from './pages/UploadPage'
 
@@ -54,6 +55,14 @@ export default function App() {
         element={
           <AuthGuard>
             <PasswordChangePage />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/admin/qrcode"
+        element={
+          <AuthGuard>
+            <QRCodePage />
           </AuthGuard>
         }
       />
