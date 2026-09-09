@@ -1,0 +1,17 @@
+# Normalise line endings in the repository. Contributors run Windows and Linux, and a
+# CRLF/LF flip-flop makes every diff unreadable.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.sqlite binary
+*.pdf binary
+
+package-lock.json -diff linguist-generated
+tests/e2e/__screenshots__/** binary -diff

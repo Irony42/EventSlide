@@ -1,12 +1,40 @@
 node_modules
 dist
-photos
-thumbnails
-statusfiles/*.json
-.env
 coverage
-database/*.sqlite
-# SQLite
+
+# Runtime state. An event's photos and database belong to the operator, never to git.
+data/
+media/
+photos/
+thumbnails/
+
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.db
+
+.env
+.env.*
+!.env.example
+
+# Playwright
+playwright-report/
+test-results/
+tests/e2e/__screenshots__/**/*-actual.png
+tests/e2e/__screenshots__/**/*-diff.png
+blob-report/
+.playwright/
+
+# TypeScript incremental build state
+*.tsbuildinfo
+
+# TLS material for a local HTTPS run
+ssl/*.pem
+ssl/*.key
+ssl/*.crt
+
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

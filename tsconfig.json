@@ -1,12 +1,9 @@
 {
-  "compilerOptions": {
-    "target": "es6",
-    "module": "commonjs",
-    "rootDir": "src",
-    "outDir": "dist",
-    "strict": true,
-    "esModuleInterop": true
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/frontend"]
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Solution file. Editors read this; `npm run typecheck` runs each project.",
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.server.json" },
+    { "path": "./tsconfig.web.json" }
+  ]
 }
