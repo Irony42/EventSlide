@@ -1,0 +1,84 @@
+/* Generated from docs/DESIGN-SYSTEM.md section 2 — keep the two in sync. */
+:root {
+  color-scheme: dark;
+
+  /* ---- Surfaces. Dark by default: the room is dark and phones are held in it. ---- */
+  --surface-base: oklch(16% 0.02 265); /* page background, wall letterbox */
+  --surface-raised: oklch(21% 0.025 265); /* Card, toolbar, moderation tile */
+  --surface-overlay: oklch(26% 0.03 265); /* Dialog, Toast, popover */
+  --surface-scrim: oklch(0% 0 0 / 0.55); /* behind wall captions, over photos */
+  /* ---- Borders ---- */
+  --border-subtle: oklch(30% 0.02 265); /* default hairline */
+  --border-strong: oklch(44% 0.02 265); /* input rest state, focused card */
+  /* ---- Text ---- */
+  --text-primary: oklch(97% 0.005 265);
+  --text-secondary: oklch(78% 0.015 265);
+  --text-muted: oklch(62% 0.02 265);
+
+  /* ---- Accent. One hue. Reserved for the primary action and nothing else. ---- */
+  --accent: oklch(72% 0.17 305);
+  --accent-strong: oklch(64% 0.19 305); /* hover / pressed */
+  --accent-contrast: oklch(18% 0.02 305); /* text on top of --accent */
+  /* ---- Semantic ---- */
+  --success: oklch(76% 0.16 155);
+  --danger: oklch(68% 0.19 22);
+  --warning: oklch(82% 0.15 85);
+  /* ---- Focus ---- */
+  --focus-ring: 0 0 0 3px oklch(72% 0.17 305 / 0.65);
+  --focus-offset: 2px;
+
+  /* ---- Space. 4 px base. No in-between values. ---- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+  --space-10: 4rem;
+
+  /* ---- Type. Fluid, so the phone and the projector both read well. ---- */
+  --font-sans:
+    'InterVariable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: clamp(1.125rem, 0.4vw + 1rem, 1.25rem);
+  --text-xl: clamp(1.5rem, 1vw + 1.2rem, 2rem);
+  --text-display: clamp(2rem, 3vw + 1rem, 4rem);
+  --leading-tight: 1.15; /* --text-xl and --text-display only */
+  --leading-snug: 1.35; /* wall captions, card titles */
+  --leading-normal: 1.55; /* body */
+  --tracking-tight: -0.02em; /* --text-display only */
+
+  /* ---- Radii ---- */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.25rem;
+  --radius-full: 999px;
+
+  /* ---- Shadows. Elevation is the only thing shadows encode. ---- */
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
+  --shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.45);
+  --shadow-lg: 0 24px 60px -12px oklch(0% 0 0 / 0.55);
+
+  /* ---- Motion ---- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* things entering */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* things moving */
+  --ease-linear: linear; /* Ken Burns, progress */
+  --duration-fast: 140ms; /* press feedback, focus */
+  --duration-base: 240ms; /* dialogs, toasts, tile state */
+  --duration-slow: 520ms; /* wall crossfade */
+
+  /* ---- Layout ---- */
+  --container-guest: 30rem; /* single column, phone-first */
+  --container-host: 78rem; /* moderation console, admin */
+  --wall-safe: 4%; /* projector overscan inset */
+  --z-wall-caption: 10;
+  --z-dialog: 50;
+  --z-toast: 60;
+
+  /* ---- Targets. 44 px is the floor, not the aspiration. ---- */
+  --touch-min: 2.75rem;
+}

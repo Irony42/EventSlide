@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 
 const here = (relative: string) => fileURLToPath(new URL(relative, import.meta.url))
 
-const API_TARGET = process.env.VITE_API_TARGET ?? 'http://localhost:4300'
+const API_TARGET = process.env['VITE_API_TARGET'] ?? 'http://localhost:4300'
 
 export default defineConfig({
   root: here('.'),
@@ -36,15 +36,9 @@ export default defineConfig({
     outDir: here('../dist/client'),
     emptyOutDir: true,
     sourcemap: true,
-    // Photos dominate the payload at an event; keeping the JS bundle small is what
-    // makes the guest page usable on 4G.
+    // Photos dominate the payload at an event, so the JS budget is what makes the
+    // guest page usable on 4G. Low on purpose: crossing it should prompt a look at
+    // what was just imported, not a raised limit.
     chunkSizeWarningLimit: 400,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-        },
-      },
-    },
   },
 })

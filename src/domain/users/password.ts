@@ -25,20 +25,27 @@ const MAX_BYTES = 72
  * found, plus the values 1.0 itself shipped.
  */
 const BLOCKLIST = new Set([
-  'password',
-  'password1',
-  'password123',
-  'passw0rd',
-  'motdepasse',
-  'azertyuiop',
-  'qwertyuiop',
+  // Every entry is at least MIN_LENGTH characters. A shorter one would be dead weight:
+  // `password.tooShort` fires first, so `password.tooCommon` could never be reached for
+  // it — the first draft of this list carried ten such entries.
+  'password1234',
+  'password123456',
+  'passwordpassword',
+  'motdepasse12',
+  'motdepasse123',
+  'azertyuiop12',
+  'qwertyuiop12',
+  'qwertyuiopqwerty',
   '123456789012',
+  '1234567890123456',
   'administrator',
-  'eventslide',
+  'administrateur',
+  'eventslide12',
   'eventslide123',
-  'photobooth',
+  'photobooth12',
   'letmein12345',
-  'changemenow',
+  'changemenow1',
+  'iloveyou1234',
 ])
 
 /**
