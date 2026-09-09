@@ -21,25 +21,24 @@ The adversary at an event is almost never a professional. It is a guest with a p
 ten minutes, and no accountability. The model is built around that, plus one anonymous
 internet scanner.
 
-| #   | Adversary / event                                                                | Asset at risk                                           | Control                                                                                                                                                                                                                            | Where                                                                                              |
-| --- | -------------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| T1  | Bored guest with the QR code, poking at URLs                                     | other events' photos, moderation actions, host accounts | guest token grants **upload + own-photo delete on one event** and nothing else; every admin route behind `requireRole`; ids are opaque, non-enumerable `TEXT`                                                                      | `src/interface/http/middleware/authz.ts`, `src/infrastructure/db/migrations/001_initial_schema.ts` |
-| T2  | Screenshot of the join link shared outside the venue (WhatsApp, X)               | uninvited uploads, quota burn, junk on the wall         | join code is rotatable (`POST /api/events/:slug/join-code/rotate`), event has `status` the host can set to closed, per-event rate limit and byte quota, moderation is on by default                                                | `src/domain/events/`, `src/application/usecases/events/rotateJoinCode.ts`                          |
-| T3  | Guest uploading something offensive, in front of 200 people                      | the room, the host's reputation                         | **nothing reaches the projector unpublished.** `photos.status` starts `pending`; the wall renders only `published`; the host can `hidden` a live photo and the SSE invalidation removes it from every projector within one refetch | `src/domain/photos/photoStatus.ts`, `src/interface/http/routes/streamRoutes.ts`                    |
-| T4  | Scanner finds the upload endpoint and fills the disk                             | availability of the whole box, every other event on it  | upload requires a valid event-scoped token (there is **no** unauthenticated upload path in 2.0), byte limits at multer, per-IP and per-event rate limits, per-event `quota_bytes` that closes uploads instead of filling the disk  | `src/interface/http/middleware/rateLimit.ts`, `src/application/usecases/photos/uploadPhoto.ts`     |
-| T5  | Curious guest reading another event's photos                                     | confidentiality across tenants on one host              | **every** repository method takes `eventId`; media served by a controller that resolves the event from the path and 404s across events; named isolation tests at rings 3, 4 and 6                                                  | §3                                                                                                 |
-| T6  | Passive privacy exposure: GPS of a private home in EXIF                          | guests' home addresses, device serials, timestamps      | EXIF is stripped on ingest by re-encoding; orientation is baked in first; raw bytes never reach the media root                                                                                                                     | §4                                                                                                 |
-| T7  | Attacker on the venue Wi-Fi reading traffic                                      | session cookie, guest token, photos in flight           | HTTPS terminated in front of the app, `Secure` cookies in production, HSTS, `upgrade-insecure-requests`                                                                                                                            | §11                                                                                                |
-| T8  | Malicious file dressed as a photo (renamed `.php`, `.svg`, polyglot, pixel bomb) | RCE via a served payload, CPU/RAM exhaustion in `sharp` | magic bytes decide the type, dimension probe before decode, everything re-encoded to a known format, media never served from a static handler                                                                                      | §4                                                                                                 |
+| #   | Adversary / event                                                                | Asset at risk                                           | Control                                                                                                                                                                                                                                  | Where                                                                                              |
+| --- | -------------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| T1  | Bored guest with the QR code, poking at URLs                                     | other events' photos, moderation actions, host accounts | guest token grants **upload + own-photo delete on one event** and nothing else; every admin route behind `requireRole`; ids are opaque, non-enumerable `TEXT`                                                                            | `src/interface/http/middleware/authz.ts`, `src/infrastructure/db/migrations/001_initial_schema.ts` |
+| T2  | Screenshot of the join link shared outside the venue (WhatsApp, X)               | uninvited uploads, quota burn, junk on the wall         | join code is rotatable (`POST /api/events/:slug/join-code/rotate`), event has `status` the host can set to closed, per-event rate limit and byte quota, moderation is on by default                                                      | `src/domain/events/`, `src/application/usecases/events/rotateJoinCode.ts`                          |
+| T3  | Guest uploading something offensive, in front of 200 people                      | the room, the host's reputation                         | **nothing reaches the projector unpublished.** `photos.status` starts `pending`; the wall renders only `published`; the host can flip a live photo to `hidden` and the SSE invalidation drops it from every projector within one refetch | `src/domain/photos/photoStatus.ts`, `src/interface/http/routes/streamRoutes.ts`                    |
+| T4  | Scanner finds the upload endpoint and fills the disk                             | availability of the whole box, every other event on it  | upload requires a valid event-scoped token (there is **no** unauthenticated upload path in 2.0), byte limits at multer, per-IP and per-event rate limits, per-event `quota_bytes` that closes uploads instead of filling the disk        | `src/interface/http/middleware/rateLimit.ts`, `src/application/usecases/photos/uploadPhoto.ts`     |
+| T5  | Curious guest reading another event's photos                                     | confidentiality across tenants on one host              | **every** repository method takes `eventId`; media served by a controller that resolves the event from the path and 404s across events; named isolation tests at rings 3, 4 and 6                                                        | §3                                                                                                 |
+| T6  | Passive privacy exposure: GPS of a private home in EXIF                          | guests' home addresses, device serials, timestamps      | EXIF is stripped on ingest by re-encoding; orientation is baked in first; raw bytes never reach the media root                                                                                                                           | §4                                                                                                 |
+| T7  | Attacker on the venue Wi-Fi reading traffic                                      | session cookie, guest token, photos in flight           | HTTPS terminated in front of the app, `Secure` cookies in production, HSTS, `upgrade-insecure-requests`                                                                                                                                  | §11                                                                                                |
+| T8  | Malicious file dressed as a photo (renamed `.php`, `.svg`, polyglot, pixel bomb) | RCE via a served payload, CPU/RAM exhaustion in `sharp` | magic bytes decide the type, dimension probe before decode, everything re-encoded to a known format, media never served from a static handler                                                                                            | §4                                                                                                 |
 
 **Explicitly out of scope.** A guest you invited is inside the trust boundary for
-uploading. Denial of service by 200 people on the same Wi-Fi doing the intended thing
-is a capacity question, not a security one. A malicious _host_ on their own instance
-owns the data anyway.
+uploading; 200 people on one Wi-Fi doing the intended thing is a capacity question, not
+a security one; a malicious _host_ on their own instance owns the data anyway.
 
 ## 2. Identity and authorization
 
-Two principals. There is no third, and there is no ambient "logged in means allowed".
+Two principals, no third, and no ambient "logged in means allowed".
 
 | Principal        | Credential                                    | Lifetime                                                                          | Grants                                                            |
 | ---------------- | --------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -68,7 +67,7 @@ payload = { "v": 1, "eid": "<event id>", "gid": "<guest id>",
 
 Verification lives in `src/infrastructure/crypto/guestTokenService.ts` behind the
 `GuestTokenService` port. `requireGuest()` compares the token's `eid` with the event
-resolved from `:eventSlug` — a valid token for another event is a **403, not a 401**.
+resolved from `:eventSlug`: a valid token for another event is **403, not 401**.
 
 ### Cookie flags
 
@@ -80,7 +79,7 @@ resolved from `:eventSlug` — a valid token for another event is a **403, not a
 
 `es_sid`, not `connect.sid`: no reason to advertise the stack. One guest cookie **per
 event** lets a staff member be a guest at two concurrent events without one token
-silently overwriting the other.
+overwriting the other.
 
 **Self-deletion grace window.** A guest may delete their own photo for
 `settings.guestDeleteGraceMinutes` (default 15) after `created_at` — long enough for
@@ -101,14 +100,12 @@ middleware only proves ownership.
 
 `requireRole` resolves the event from `:eventSlug` and checks membership **of that
 event**; a moderator of `gala` is 403 on `mariage`. **A route with no explicit
-authorization decision is a review blocker** — reviewers reject the diff rather than
-asking what was intended. Public is a decision too, and it is written as a comment on
-the route.
+authorization decision is a review blocker** — reject the diff rather than ask what was
+intended. Public is a decision too, written as a comment on the route.
 
 ## 3. Tenant isolation as an invariant
 
-One box hosts many events. Isolation is not a feature, it is the thing that must not
-break.
+One box hosts many events. Isolation is not a feature; it is the thing that must not break.
 
 | Layer   | Mechanism                                                                                                                             | Consequence                                                                                        |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -128,7 +125,7 @@ Tests that hold the line, each with its own name and no happy-path folding:
 
 ## 4. Upload hardening, in order
 
-Order is the control. Each step assumes the previous one ran.
+Order is the control: each step assumes the previous one ran.
 
 | #   | Step                                                                                                                                              | Where                                                    | Failure                          |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------- |
@@ -139,8 +136,8 @@ Order is the control. Each step assumes the previous one ran.
 | 5   | `sharp` **metadata probe** before decode: `width × height ≤ 80 MP`, each side ≤ 20 000 px, `pages === 1`, plus `limitInputPixels` on the pipeline | `src/infrastructure/media/sharpImageProcessor.ts`        | 413 `upload.imageTooLarge`       |
 | 6   | Re-encode: `.rotate()` → resize `fit: 'inside'` to 2560 px → encode JPEG q82. Metadata is **not** carried over                                    | same                                                     | 422 `upload.undecodable`         |
 | 7   | SHA-256 of the **re-encoded** bytes → `content_hash`                                                                                              | `src/infrastructure/crypto/hashing.ts`                   | —                                |
-| 8   | Write file → verify size on disk → **then** insert the row, inside one transaction                                                                | `src/infrastructure/media/filesystemMediaStore.ts`       | 500, temp + partial file removed |
-| 9   | Quota check against `countBytes(eventId)` inside the same transaction                                                                             | `uploadPhoto.ts`                                         | 413 `event.quotaExceeded`        |
+| 8   | Write the file to the media root → verify its size on disk                                                                                        | `src/infrastructure/media/filesystemMediaStore.ts`       | 500, temp + partial file removed |
+| 9   | One transaction: quota check against `countBytes(eventId)`, then insert the row                                                                   | `uploadPhoto.ts`                                         | 413 `event.quotaExceeded`        |
 | 10  | `try/finally` unlink of the temp file on **every** path, success included                                                                         | `middleware/upload.ts`                                   | —                                |
 
 Details that are load-bearing:
@@ -154,8 +151,6 @@ Details that are load-bearing:
 - **Hash after re-encode, not before.** The stored bytes are what must be
   content-addressed; hashing the upload would turn two identical photos with different
   EXIF headers into two slides.
-- **SVG is rejected, not sanitised.** It is a script container served from our own
-  origin; no benefit is worth that.
 - **`UNIQUE (event_id, content_hash)`** makes a double tap a no-op: the insert
   conflicts, the use case returns the existing photo, the response is `200` with the
   same id instead of `201`. Enforced in the database, not only in code, because two
@@ -167,9 +162,9 @@ Details that are load-bearing:
 
 ## 5. Rate limits and quotas
 
-`express-rate-limit` with a SQLite-backed store so limits survive a restart and are
-shared across workers **(planned: the store; the limits themselves are in-memory in the
-first cut, which is a real gap on a restart loop)**.
+`express-rate-limit`, with a SQLite-backed store so limits survive a restart
+**(planned: the store. In the first cut the counters are in-process, which is a real gap
+on a restart loop)**.
 
 | Endpoint                                      | Per IP       | Per event      | Per guest token | Window |
 | --------------------------------------------- | ------------ | -------------- | --------------- | ------ |
@@ -208,8 +203,8 @@ first cut, which is a real gap on a restart loop)**.
 | Logout                         | `req.session.destroy()` **and** `res.clearCookie('es_sid')`                                                                                                    | 1.0 called `req.logout()` and left the session row behind                                           |
 
 Passport is removed. Login is one use case (`authenticateUser`) plus one controller;
-`passport.deserializeUser` hitting the database on every request, through a
-module-level `db` singleton, was untestable and served no purpose here.
+`passport.deserializeUser` hit the database on every request through a module-level
+`db` singleton, was untestable, and bought nothing here.
 
 ## 7. CSRF
 
@@ -240,8 +235,7 @@ the header — the same-origin policy governs reading, not sending.
 
 Consequence for the frontend: **no native `<form method="post">` submissions**. Every
 mutation goes through `web/src/lib/http.ts`, which attaches the header, so no endpoint
-can be reached in a way that skips it. 1.0's HTML form posts are gone along with the
-duplicate legacy routes.
+can be reached in a way that skips it. 1.0's form posts are gone with the legacy routes.
 
 ## 8. Content Security Policy and headers
 
@@ -261,10 +255,10 @@ loosening.
 | `base-uri`                                | `'none'`             | blocks `<base>` injection that would repoint relative URLs                                                                                                                                               |
 | `upgrade-insecure-requests`               | on, production only  |                                                                                                                                                                                                          |
 
-Other headers: `Strict-Transport-Security` 180 days with `includeSubDomains` (production
-and only behind TLS), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
-`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`,
-`Permissions-Policy: geolocation=(), microphone=(), payment=()`, `X-Powered-By` removed.
+Other headers: HSTS 180 days with `includeSubDomains` (production, behind TLS only),
+`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `COOP: same-origin`,
+`CORP: same-origin`, `Permissions-Policy: geolocation=(), microphone=(), payment=()`,
+and `X-Powered-By` removed.
 
 **The explicit consequences**, also hard constraints in [../AGENTS.md](../AGENTS.md):
 
@@ -274,19 +268,17 @@ and only behind TLS), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-re
   captive-portal Wi-Fi, which is where guests actually are.
 - **Fonts are self-hosted** in `web/src/design-system/`. `fonts.googleapis.com` is both
   a CSP hole and a third-party log of every guest's IP.
-- Vite's HMR client needs a relaxed CSP in dev. That relaxation is keyed on
-  `NODE_ENV !== 'production'` in one place, and a test asserts the production policy
-  contains no `'unsafe-inline'` in `script-src`.
-- Media responses carry `nosniff` and the stored content type. Everything is re-encoded,
-  so stored bytes are never HTML — the "upload HTML, serve it from our origin" chain has
-  no first link.
+- Vite's HMR client needs a relaxed CSP in dev, keyed on `NODE_ENV !== 'production'`
+  in one place; a test asserts the production policy has no `'unsafe-inline'` in
+  `script-src`.
+- Media responses carry `nosniff` and the stored content type. Everything is
+  re-encoded, so stored bytes are never HTML: the "upload HTML, serve it from our
+  origin" chain has no first link.
 
 ## 9. Privacy and GDPR-shaped obligations
 
 Guests do not sign up, do not consent to a policy, and often do not know the software
 exists. That raises the bar rather than lowering it.
-
-### What is stored
 
 | Data                                                | Why                                     | Retention                                                    |
 | --------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------ |
@@ -301,7 +293,7 @@ exists. That raises the bar rather than lowering it.
 original filename as a path, the uploader's IP alongside the photo row, and any
 third-party analytics. There is no telemetry and no outbound network call at runtime.
 
-### Logging rules (`src/infrastructure/logging/`)
+### Logging (`src/infrastructure/logging/`)
 
 | Logged                                                   | Never logged                                                  |
 | -------------------------------------------------------- | ------------------------------------------------------------- |
@@ -311,14 +303,14 @@ third-party analytics. There is no telemetry and no outbound network call at run
 | stack traces (server-side only, with `requestId`)        | passwords or hashes, even truncated                           |
 | truncated client IP (`/24`, `/64`) at `info`             | full IP at the default level                                  |
 
-pino is configured with an explicit `redact` list covering `req.headers.cookie`,
+pino uses an explicit `redact` list covering `req.headers.cookie`,
 `req.headers.authorization`, `*.password`, `*.token`, `*.csrf`. A full client IP is
 recorded only at `debug` and only when the operator sets `LOG_IP_FULL=true`
-**(planned)** — someone chasing abuse may need it, and it should be a deliberate act.
-Responses never carry a stack trace, SQL fragment, or filesystem path; the error
-middleware logs those against a `requestId` and returns the code only.
+**(planned)**: someone chasing abuse may need it, and it should be a deliberate act.
+Responses never carry a stack trace, SQL fragment, or path; the error middleware logs
+those against a `requestId` and returns the code only.
 
-### Flows a host can actually perform
+### Data-subject flows a host can actually perform
 
 | Request                    | How                                                                                                                                       | Result                                                                       |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -328,13 +320,13 @@ middleware logs those against a `requestId` and returns the code only.
 | "Forget the whole event"   | delete the event → `ON DELETE CASCADE` clears photos, guests, reactions, memberships; the media sweeper removes `<MEDIA_ROOT>/<eventId>/` | nothing left but the audit line that it happened                             |
 | Automatic expiry           | `settings.retentionDays` with a purge job in `src/main/` **(planned)**                                                                    | events age out without the host remembering                                  |
 
-Deletion is real deletion: `DELETE`, not a `deleted_at` column. A soft-delete of a photo
-someone asked you to remove is not a deletion.
+Deletion is real: `DELETE`, not a `deleted_at` column. A soft-delete of a photo someone
+asked you to remove is not a deletion.
 
 ## 10. Secrets and configuration
 
-`src/infrastructure/config/env.ts` is the **only** file that reads `process.env`. It
-parses once with zod at startup and exports a frozen typed object.
+`src/infrastructure/config/env.ts` is the **only** file that reads `process.env`: parsed
+once with zod at startup, exported as a frozen typed object.
 
 | Variable                       | Required              | Default                                | Effect                                     |
 | ------------------------------ | --------------------- | -------------------------------------- | ------------------------------------------ |
@@ -348,14 +340,14 @@ parses once with zod at startup and exports a frozen typed object.
 | `EVENT_DEFAULT_QUOTA_BYTES`    | no                    | `5368709120`                           | new events' `quota_bytes`                  |
 | `PORT` / `LOG_LEVEL`           | no                    | `4300`, `info`                         |                                            |
 
-Boot refuses, loudly, when in production either secret is missing, shorter than 32
+Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,
 `dev-session-secret`, `secret`), or when `PUBLIC_URL` is missing. 1.0's `.env.example`
 shipped `change-me-in-production` next to a `sessionSecret ?? 'dev-session-secret'`
 fallback, so the likely production value was a public constant. The process prints every
-failing key at once and exits non-zero; it does not start degraded. Development secrets
-come from a fixed dev constant, which is safe precisely because the same code path
-refuses that constant in production.
+failing key at once and exits non-zero; it does not start degraded. Dev secrets come
+from a fixed constant, which is safe only because the same code path refuses it in
+production.
 
 **There is no default account in 2.0.** 1.0 recreated `admin` / `password` on every
 boot, in `initDatabase`, in production, forever. Instead: while the `users` table is
@@ -388,7 +380,7 @@ already uploaded is sitting in the moderation queue; nothing published itself.
 
 ## 12. Accepted risks
 
-Stated plainly, because a threat model that claims to cover everything covers nothing.
+Stated plainly: a threat model that claims to cover everything covers nothing.
 
 | Risk                                                               | Why it is accepted                                                                                     | Partial mitigation                                                                                                                                                            |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -397,7 +389,7 @@ Stated plainly, because a threat model that claims to cover everything covers no
 | Guest identity is a device cookie, not a person                    | anonymity is a feature; a cleared cookie means a new guest, and a shared phone means a shared identity | grace-window deletion is deliberately short, so a mis-attributed identity has a narrow blast radius                                                                           |
 | Captions and display names are guest-supplied text on a 3 m screen | pre-moderating text as well as photos would slow the wall to uselessness                               | length-bounded, control characters stripped in the domain, rendered as text (React escapes; no `dangerouslySetInnerHTML` anywhere), and the host can hide any photo instantly |
 | Rate-limit state is in-process in the first cut                    | a restart resets buckets                                                                               | quota is transactional and survives restarts; SQLite-backed limiter store is **(planned)**                                                                                    |
-| Self-hosted operators own their own patching, TLS, and backups     | there is no hosted control plane to push a fix from                                                    | pinned dependencies, a `SECURITY.md` advisory feed, boot-time config refusal so a misconfigured instance does not start quietly                                               |
+| Self-hosted operators own their own patching, TLS, and backups     | there is no hosted control plane to push a fix from                                                    | pinned dependencies, published advisories, and boot-time config refusal so a misconfigured instance never starts quietly                                                      |
 | A malicious host can read every photo in their own event           | they organised the event; the data is theirs                                                           | per-event roles limit _moderators_ to their own events                                                                                                                        |
 
 ## 13. Reporting a vulnerability
