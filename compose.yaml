@@ -1,0 +1,55 @@
+# EventSlide, self-hosted.
+#
+#   1. Generate two secrets:
+#        node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+#   2. Put them in a `.env` next to this file, along with PUBLIC_URL.
+#   3. docker compose up -d
+#
+# PUBLIC_URL must be the address a guest's phone can actually reach — the machine's LAN
+# address or a domain, never localhost. It is what the QR code encodes, and a QR code
+# pointing at localhost is the most common way a setup fails on the night.
+
+services:
+  eventslide:
+    build: .
+    image: eventslide:2.0.0
+    restart: unless-stopped
+    ports:
+      - '${PORT:-4300}:4300'
+    environment:
+      NODE_ENV: production
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL to the address guests will reach, e.g. https://photos.example.com}
+      SESSION_SECRET: ${SESSION_SECRET:?generate with node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"}
+      GUEST_TOKEN_SECRET: ${GUEST_TOKEN_SECRET:?generate a second, different secret the same way}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Number of reverse proxies in front of this container. Wrong values break
+      # per-IP rate limiting: too low and one guest's burst locks out the venue, too
+      # high and a client can spoof its address past the limit.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      DEFAULT_EVENT_QUOTA_BYTES: ${DEFAULT_EVENT_QUOTA_BYTES:-5000000000}
+      # Creates the first owner account on an empty database, then is ignored. There is
+      # no default admin password in 2.0.
+      BOOTSTRAP_OWNER_EMAIL: ${BOOTSTRAP_OWNER_EMAIL:-}
+      BOOTSTRAP_OWNER_PASSWORD: ${BOOTSTRAP_OWNER_PASSWORD:-}
+    volumes:
+      # The database and every photo. Back up this one path.
+      - eventslide-data:/data
+    # A photo wall is not a target worth much, but the container writes only to /data
+    # and there is no reason for it to be able to write anywhere else.
+    read_only: true
+    tmpfs:
+      # multer stages an upload here before the pipeline re-encodes it.
+      - /tmp:size=512m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          # sharp is the memory-hungry part; a bomb is rejected from the header before
+          # it is decoded, but a legitimate 50-megapixel photo still needs room.
+          memory: 1g
+
+volumes:
+  eventslide-data:

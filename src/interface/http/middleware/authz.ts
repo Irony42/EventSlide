@@ -95,14 +95,19 @@ export const requireRole =
 /**
  * Resolves the guest device token against the event in the URL.
  *
- * Four checks, and each closes a real hole:
+ * Three checks, and each closes a real hole:
  * 1. The token verifies — signature and age.
  * 2. **Its event matches the event in the path.** Without this, a guest at one wedding
  *    could point their own cookie at another event's upload endpoint. This is the
  *    cross-event attack, and it has named tests at rings 4 and 6.
  * 3. The guest row still exists and is not revoked, which is what makes a signed
  *    stateless token revocable at all.
- * 4. The event still accepts guests.
+ *
+ * It deliberately does NOT check the event's lifecycle. Identity and permission are
+ * not the same question as "may this action happen now": a guest at a closed event can
+ * still view their own photos, and only the upload use case knows that it needs
+ * `acceptsUploads()`. Putting the lifecycle check here would either block reads that
+ * should work, or duplicate a rule the use case has to enforce anyway.
  */
 export const requireGuest =
   (deps: HttpDeps): RequestHandler =>
