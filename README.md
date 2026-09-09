@@ -121,4 +121,10 @@ npm run verify:full    # the above plus the Playwright journeys
 
 ## Licence
 
-GPL-3.0. See [LICENSE](LICENSE).
+GPL-3.0, as declared in `package.json`.
+
+The repository has never carried the licence text itself. Add it before any release:
+
+```bash
+curl -o LICENSE https://www.gnu.org/licenses/gpl-3.0.txt
+```
