@@ -15,8 +15,6 @@ upload endpoint, a hardcoded `admin`/`password` account, `MemoryStore` sessions,
 no rate limiting, no EXIF stripping, and zero tests behind `jest --passWithNoTests`. It
 is unsupported and must not be deployed.
 
----
-
 ## 1. Threat model
 
 The adversary at an event is almost never a professional. It is a guest with a phone,
@@ -38,8 +36,6 @@ internet scanner.
 uploading. Denial of service by 200 people on the same Wi-Fi doing the intended thing
 is a capacity question, not a security one. A malicious _host_ on their own instance
 owns the data anyway.
-
----
 
 ## 2. Identity and authorization
 
@@ -109,8 +105,6 @@ authorization decision is a review blocker** — reviewers reject the diff rathe
 asking what was intended. Public is a decision too, and it is written as a comment on
 the route.
 
----
-
 ## 3. Tenant isolation as an invariant
 
 One box hosts many events. Isolation is not a feature, it is the thing that must not
@@ -131,8 +125,6 @@ Tests that hold the line, each with its own name and no happy-path folding:
 | 3    | shared port contract suite runs the cross-event case against **both** the fake and SQLite (`src/application/testing/contracts/photoRepositoryContract.ts`) |
 | 4    | every mutating route ships happy + 401 + wrong-tenant + wrong-role + 400 (supertest)                                                                       |
 | 6    | `tests/e2e/security/tenant-isolation.spec.ts`, `guest-token-scope.spec.ts` — real server, real cookie jar                                                  |
-
----
 
 ## 4. Upload hardening, in order
 
@@ -162,6 +154,8 @@ Details that are load-bearing:
 - **Hash after re-encode, not before.** The stored bytes are what must be
   content-addressed; hashing the upload would turn two identical photos with different
   EXIF headers into two slides.
+- **SVG is rejected, not sanitised.** It is a script container served from our own
+  origin; no benefit is worth that.
 - **`UNIQUE (event_id, content_hash)`** makes a double tap a no-op: the insert
   conflicts, the use case returns the existing photo, the response is `200` with the
   same id instead of `201`. Enforced in the database, not only in code, because two
@@ -170,8 +164,6 @@ Details that are load-bearing:
   insert left rows pointing at no file. A failed ingest now leaves neither.
 - **SVG is rejected, not sanitised.** It is a script container served from our own
   origin; no benefit is worth that.
-
----
 
 ## 5. Rate limits and quotas
 
@@ -202,8 +194,6 @@ first cut, which is a real gap on a restart loop)**.
   per event and drops the oldest idle connection rather than refusing the projector, the
   one client that must never be disconnected.
 
----
-
 ## 6. Session security
 
 | Property                       | Value                                                                                                                                                          | Why                                                                                                 |
@@ -220,8 +210,6 @@ first cut, which is a real gap on a restart loop)**.
 Passport is removed. Login is one use case (`authenticateUser`) plus one controller;
 `passport.deserializeUser` hitting the database on every request, through a
 module-level `db` singleton, was untestable and served no purpose here.
-
----
 
 ## 7. CSRF
 
@@ -254,8 +242,6 @@ Consequence for the frontend: **no native `<form method="post">` submissions**. 
 mutation goes through `web/src/lib/http.ts`, which attaches the header, so no endpoint
 can be reached in a way that skips it. 1.0's HTML form posts are gone along with the
 duplicate legacy routes.
-
----
 
 ## 8. Content Security Policy and headers
 
@@ -294,8 +280,6 @@ and only behind TLS), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-re
 - Media responses carry `nosniff` and the stored content type. Everything is re-encoded,
   so stored bytes are never HTML — the "upload HTML, serve it from our origin" chain has
   no first link.
-
----
 
 ## 9. Privacy and GDPR-shaped obligations
 
@@ -347,8 +331,6 @@ middleware logs those against a `requestId` and returns the code only.
 Deletion is real deletion: `DELETE`, not a `deleted_at` column. A soft-delete of a photo
 someone asked you to remove is not a deletion.
 
----
-
 ## 10. Secrets and configuration
 
 `src/infrastructure/config/env.ts` is the **only** file that reads `process.env`. It
@@ -381,8 +363,6 @@ empty the server logs a one-time bootstrap token, and `POST /api/setup/owner` ac
 once with an email and password to create the first owner. That endpoint returns 404 as
 soon as an owner exists. Password rules live in `src/domain/users/`, not the controller.
 
----
-
 ## 11. Deployment posture
 
 | Concern           | Do this                                                                                                                                 | Because                                                                                                                                                                                           |
@@ -406,8 +386,6 @@ already-issued guest tokens.** To cut off guests who already joined, revoke them
 `gid` lookup then fails) or close the event, which stops uploads outright. Anything
 already uploaded is sitting in the moderation queue; nothing published itself.
 
----
-
 ## 12. Accepted risks
 
 Stated plainly, because a threat model that claims to cover everything covers nothing.
@@ -421,8 +399,6 @@ Stated plainly, because a threat model that claims to cover everything covers no
 | Rate-limit state is in-process in the first cut                    | a restart resets buckets                                                                               | quota is transactional and survives restarts; SQLite-backed limiter store is **(planned)**                                                                                    |
 | Self-hosted operators own their own patching, TLS, and backups     | there is no hosted control plane to push a fix from                                                    | pinned dependencies, a `SECURITY.md` advisory feed, boot-time config refusal so a misconfigured instance does not start quietly                                               |
 | A malicious host can read every photo in their own event           | they organised the event; the data is theirs                                                           | per-event roles limit _moderators_ to their own events                                                                                                                        |
-
----
 
 ## 13. Reporting a vulnerability
 

@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    /* No `types`, no DOM lib. `process`, `Buffer`, `require`, `document` and
+       `setTimeout` do not exist in this project, so domain code that reaches for the
+       platform fails to compile rather than merely failing lint. This is a stronger
+       guarantee than the eslint boundary rules and it costs one config file. */
+    "lib": ["ES2023"],
+    "types": [],
+    "noEmit": true
+  },
+  "include": ["src/domain/**/*.ts"]
+}

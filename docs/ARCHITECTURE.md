@@ -83,50 +83,42 @@ src/main  ──► may import all of the above (composition only)
 
 ### Enforcement 1 — eslint import zones
 
-Review does not catch import drift; a build failure does. `npm run lint` carries a
-boundary block whose only job is to fail on a violating import. **[planned]** — the
-`eslint.config.js` on disk is still the 1.0 config; this block lands with the first
-2.0 layer commit.
+Review does not catch import drift; a build failure does. `eslint.config.js` carries one
+`files` block per layer, each listing what that layer may not reach for. It uses the
+built-in `no-restricted-imports` rather than an import-graph plugin — the patterns are
+readable in the error message, and the boundary needs no extra dependency.
 
 ```js
-// eslint.config.js — boundary section
-{
-  files: ['src/**/*.ts'],
-  plugins: { import: importPlugin },
-  rules: {
-    'import/no-restricted-paths': ['error', {
-      zones: [
-        // The domain is sealed. Anything outside it is a design error.
-        { target: './src/domain', from: './src', except: ['./domain'] },
-        { target: './src/domain', from: './node_modules' },
-
-        // Use cases talk to ports, never to adapters or transports.
-        { target: './src/application', from: './src/infrastructure' },
-        { target: './src/application', from: './src/interface' },
-        { target: './src/application', from: './src/main' },
-
-        // Handlers receive adapters through `deps`; they never construct one.
-        { target: './src/interface', from: './src/infrastructure' },
-        { target: './src/interface', from: './src/main' },
-
-        // Adapters implement ports; they must not know about use cases or routes.
-        { target: './src/infrastructure', from: './src/application/usecases' },
-        { target: './src/infrastructure', from: './src/interface' },
-      ],
-    }],
-    'no-restricted-imports': ['error', {
-      paths: [
-        { name: 'express',         message: 'HTTP belongs in src/interface/http.' },
-        { name: 'better-sqlite3',  message: 'SQL belongs in src/infrastructure/db.' },
-        { name: 'sharp',           message: 'Use the ImageProcessor port.' },
-      ],
-      patterns: ['node:fs*', 'node:path*'],
-    }],
+// eslint.config.js — layer blocks (abridged; the file is the source of truth)
+const DOMAIN_FORBIDDEN = [
+  {
+    group: ['**/application/**', '**/infrastructure/**', '**/interface/**', '**/main/**', '**/web/**'],
+    message: 'src/domain is pure and may not depend on an outer layer. Model the need as a port instead.',
   },
-}
+  {
+    group: ['express*', 'better-sqlite3', 'sharp', 'multer', 'archiver', 'helmet', 'bcrypt',
+            'pino*', 'zod', 'react', 'react-*', 'fs', 'path', 'crypto', 'node:*'],
+    message: 'src/domain must have no I/O and no framework dependency.',
+  },
+]
+
+{ files: ['src/domain/**/*.ts'],        rules: { 'no-restricted-imports': ['error', { patterns: DOMAIN_FORBIDDEN }] } },
+{ files: ['src/application/**/*.ts'],   rules: { 'no-restricted-imports': ['error', { patterns: APPLICATION_FORBIDDEN }] } },
+{ files: ['src/infrastructure/**/*.ts'],rules: { /* may not import interface, main, web */ } },
+{ files: ['src/interface/**/*.ts'],     rules: { /* may not import infrastructure, main, web */ } },
+{ files: ['web/**/*.{ts,tsx}'],         rules: { /* may not import any src/** layer */ } },
 ```
 
-The rule is never suppressed with `eslint-disable`. If domain code appears to need
+Three further bans in the same file, each closing a defect class rather than a style
+preference:
+
+| Ban                                         | Where                                                | Why                                                                                                                               |
+| ------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `new Date()`, `Date.now()`, `Math.random()` | `src/domain`, `src/application`                      | ambient time and randomness make a test flaky by construction; take a `Date` parameter or inject the `Clock` / `IdGenerator` port |
+| `process.env`                               | everywhere except `src/infrastructure/config/env.ts` | configuration is parsed once and passed as a value                                                                                |
+| `page.waitForTimeout()`                     | `tests/e2e`                                          | the single largest source of flake in an SSE-driven app                                                                           |
+
+The rules are never suppressed with `eslint-disable`. If domain code appears to need
 I/O, the model is wrong: declare a port in `src/application/ports/` and implement it in
 `src/infrastructure/`.
 
@@ -135,16 +127,25 @@ I/O, the model is wrong: declare a port in `src/application/ports/` and implemen
 Lint catches deliberate imports. The type projects make whole categories of code
 _unwritable_, because the ambient types are not there to compile against.
 
-| Project                | Includes                                                                         | `lib` / `types`                        | What becomes impossible                                                   |
-| ---------------------- | -------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------- |
-| `tsconfig.domain.json` | `src/domain`                                                                     | `lib: ["ES2023"]`, `types: []`         | `process`, `Buffer`, `document`, `require` — no Node or DOM globals exist |
-| `tsconfig.server.json` | `src/**` (references domain)                                                     | `lib: ["ES2023"]`, `types: ["node"]`   | any DOM reference; `document` in a use case fails to compile              |
-| `tsconfig.web.json`    | `web/src`                                                                        | `lib: ["ES2023","DOM","DOM.Iterable"]` | importing `src/**` — those paths are outside `rootDir`                    |
-| `tsconfig.node.json`   | `vite.config.ts`, `vitest.config.ts`, `eslint.config.js`, `playwright.config.ts` | `types: ["node"]`                      | build config leaking into shipped code                                    |
+| Project                | Includes                                                             | `lib` / `types`                        | What becomes impossible                                                   |
+| ---------------------- | -------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------- |
+| `tsconfig.base.json`   | —                                                                    | shared strictness only                 | — (extended by all of the below)                                          |
+| `tsconfig.domain.json` | `src/domain`                                                         | `lib: ["ES2023"]`, `types: []`         | `process`, `Buffer`, `document`, `require` — no Node or DOM globals exist |
+| `tsconfig.server.json` | `src/**` including colocated tests                                   | `lib: ["ES2023"]`, `types: ["node"]`   | any DOM reference; `document` in a use case fails to compile              |
+| `tsconfig.web.json`    | `web/**`                                                             | `lib: ["ES2023","DOM","DOM.Iterable"]` | Node globals; `verbatimModuleSyntax` also forbids CJS interop shortcuts   |
+| `tsconfig.tools.json`  | `tests/**`, `scripts/**`, `vitest.config.ts`, `playwright.config.ts` | `lib` with DOM, `types: ["node"]`      | build and e2e config leaking into shipped code                            |
+| `tsconfig.build.json`  | `src/**` minus tests and test doubles                                | emits to `dist/server`                 | shipping a fake or a test harness in the build output                     |
 
-`npm run typecheck` runs all four. `types: []` on the domain project is the strongest
-guard in the repo: a `Date.now()` still compiles (it is ECMAScript), but
-`process.env`, `crypto.randomUUID()` from Node, and `fs` do not exist at all.
+`npm run typecheck` runs domain, server, web and tools. `types: []` on the domain
+project is the strongest guard in the repo: `Date.now()` still compiles (it is
+ECMAScript, and lint bans it separately), but `process.env`, Node's
+`crypto.randomUUID()` and `fs` do not exist at all — there is nothing to import.
+
+The base config carries the strictness flags that have each caught a real bug here:
+`noUncheckedIndexedAccess` (a SQLite `rows[0]` is `T | undefined`, and so is a playlist
+lookup), `exactOptionalPropertyTypes` (on a partial update, "absent" and "cleared" are
+different intents), `noImplicitReturns`, `noPropertyAccessFromIndexSignature` and
+`noUnusedLocals`.
 
 ### Why the ceremony pays
 

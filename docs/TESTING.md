@@ -6,8 +6,9 @@ be slow**. Companion to [CLAUDE.md](../CLAUDE.md) §5 (the summary) and
 deep version: mechanics, rationale, and the failure it prevents.
 
 > **Status.** 2.0 is being built; the tree currently on disk under `src/` is still the
-> 1.0 code being replaced. Everything below describes the target architecture. Paths
-> marked _(planned)_ do not exist yet — do not report them as implemented.
+> 1.0 code being replaced. Everything below describes the **target** — including the
+> lint rules, scripts and coverage gates it names, and every path marked _(planned)_.
+> None of it is a claim that the file already exists; do not report it as implemented.
 
 ---
 
@@ -88,12 +89,15 @@ the wrong key:
 // WRONG — this fake makes a cross-tenant bug pass.
 private readonly rows = new Map<PhotoId, Photo>()
 async findById(_eventId: EventId, photoId: PhotoId) {
-  return this.rows.get(photoId) ?? null      // eventId ignored
+  return this.rows.get(photoId) ?? null                    // eventId ignored
+}
 
 // RIGHT — src/application/testing/fakePhotoRepository.ts (planned)
+private readonly rows = new Map<string, Photo>()
 private key(eventId: EventId, photoId: PhotoId) { return `${eventId}:${photoId}` }
 async findById(eventId: EventId, photoId: PhotoId) {
   return this.rows.get(this.key(eventId, photoId)) ?? null
+}
 ```
 
 With the first map, a use case that calls `photos.findById(photoId)` — dropping the
