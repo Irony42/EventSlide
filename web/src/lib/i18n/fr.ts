@@ -230,6 +230,33 @@ export const fr = {
     'reaction.rateLimited': 'Doucement — attendez un instant avant de réagir à nouveau.',
     'rate.limited': 'Trop de tentatives. Patientez un instant.',
   },
+
+  /**
+   * Design-system primitives and the app shell.
+   *
+   * Separate from the feature sections because a primitive's copy — the label on a
+   * dialog's close button, the name of the toast region — would otherwise be reworded
+   * once per feature folder that renders it.
+   */
+  ui: {
+    dialogClose: 'Fermer la fenêtre',
+    notifications: 'Notifications',
+    dismissNotification: 'Masquer cette notification',
+    percent: (value: number) => `${value} %`,
+    optional: 'Facultatif',
+  },
+
+  shell: {
+    skipToContent: 'Aller au contenu principal',
+    sessionChecking: 'Vérification de votre session…',
+    sessionFailed: 'Impossible de vérifier votre session. Vérifiez votre réseau puis réessayez.',
+    crashTitle: 'Cet écran s’est arrêté',
+    crashHint: 'Rien n’est perdu : vos photos sont sur le serveur. Réessayez pour reprendre.',
+    notFoundTitle: 'Page introuvable',
+    notFoundHint: 'Cette adresse n’existe pas. Vérifiez le lien ou revenez à l’accueil.',
+    notFoundHome: 'Revenir à l’accueil',
+    comingSoon: 'Cet écran arrive bientôt.',
+  },
 } as const
 
 export type Translations = typeof fr

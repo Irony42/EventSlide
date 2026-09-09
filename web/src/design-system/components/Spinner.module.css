@@ -1,0 +1,54 @@
+.spinner {
+  display: inline-block;
+  flex: none;
+  border-radius: var(--radius-full);
+  /* A ring rather than a filled shape: the gap is what reads as motion at a glance. */
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: spin 700ms var(--ease-linear) infinite;
+}
+
+.sm {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.md {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.lg {
+  width: 2rem;
+  height: 2rem;
+  border-width: 3px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/**
+ * Under reduced motion the global rule in base.css collapses the animation, which
+ * would leave a static ring that reads as a broken control. Pulse the opacity instead:
+ * still perceivable as "working", with no rotation.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: pulse 1.2s var(--ease-in-out) infinite alternate !important;
+    animation-duration: 1.2s !important;
+    border-top-color: currentColor;
+    border-right-color: transparent;
+  }
+
+  @keyframes pulse {
+    from {
+      opacity: 0.35;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}

@@ -267,6 +267,21 @@ export default tseslint.config(
     },
   },
 
+  /* ------------------------------------------- test harnesses compose adapters -- */
+  {
+    // A `testing/` harness is the composition root's counterpart for tests: it wires
+    // real adapters where using a fake would test nothing. The HMAC token service is
+    // the clearest case — forging a token is precisely what the middleware under test
+    // exists to prevent, so a fake signer would assert nothing at all.
+    //
+    // The exemption is narrow on purpose: only `testing/` folders, and only the import
+    // boundary. Production code under `src/interface` still cannot reach an adapter.
+    files: ['src/interface/**/testing/**/*.ts', 'src/application/**/testing/**/*.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+
   /* ------------------------------------------------------------------- e2e -- */
   {
     files: ['tests/e2e/**/*.ts'],

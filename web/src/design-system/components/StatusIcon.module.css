@@ -1,0 +1,9 @@
+.icon {
+  /* Sized from the text it sits beside, so a badge at --text-xs and a toast at
+     --text-base each get a proportionate glyph without a size prop. */
+  width: 1em;
+  height: 1em;
+  flex: none;
+  /* Optical centring against a lowercase x-height. */
+  transform: translateY(0.05em);
+}
