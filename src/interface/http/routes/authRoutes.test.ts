@@ -171,6 +171,50 @@ describe('POST /api/auth/login', () => {
     expect(cookieValue(response.headers, HARNESS_SESSION_COOKIE)).not.toBe(before)
   })
 
+  it('writes the identity into the session the response actually names', async () => {
+    // The happy path proves a cookie came back and the fixation test proves the id
+    // changed; neither would notice a payload written into a session that regeneration
+    // then threw away. This asserts what a login is for: the session the browser now
+    // holds carries the identity, on a later request.
+    const subject = harness()
+    seedHost(subject)
+    const agent = request.agent(subject.app)
+
+    await agent.post('/api/auth/login').send({ email: HOST_EMAIL, password: PASSWORD }).expect(200)
+
+    const response = await agent.get('/api/auth/me')
+
+    expect(response.body).toEqual({
+      authenticated: true,
+      user: {
+        userId: HOST_ID,
+        email: HOST_EMAIL,
+        displayName: null,
+        mustChangePassword: false,
+      },
+    })
+  })
+
+  it('carries the forced-change flag of an invited account into the session', async () => {
+    // Decided once, at the sign-in, and read on every later request. A flag that
+    // reached the response body but not the session would let an invited moderator
+    // walk past the one screen that exists to make them choose their own password.
+    const subject = harness()
+    subject.users.seed(
+      aUser({ id: HOST_ID, email: HOST_EMAIL, displayName: 'Camille', mustChangePassword: true }),
+    )
+    const agent = request.agent(subject.app)
+
+    const response = await agent
+      .post('/api/auth/login')
+      .send({ email: HOST_EMAIL, password: PASSWORD })
+
+    expect(response.status).toBe(200)
+    expect(response.body.mustChangePassword).toBe(true)
+    const session = await agent.get('/api/auth/me')
+    expect(session.body.user.mustChangePassword).toBe(true)
+  })
+
   // Every row asserts the same body, which is the point: an unknown address, a wrong
   // password, a switched-off account and an unparseable address must be
   // indistinguishable, or the login form is an account-enumeration oracle.
@@ -359,6 +403,19 @@ describe('GET /api/auth/me', () => {
     const response = await request(harness().app).get('/api/auth/me')
 
     expect(setCookies(response.headers)).toEqual([])
+  })
+
+  it('forbids any cache from storing the answer', async () => {
+    // The identity itself, on the one read the client makes on every page load. With
+    // `rolling: true` an authenticated answer also carries a fresh `Set-Cookie`, so a
+    // shared cache — a venue proxy, or whatever a self-hosted box sits behind — holding
+    // this response would hand one host's session to the next visitor.
+    const subject = harness()
+    const agent = await signedIn(subject)
+
+    const response = await agent.get('/api/auth/me')
+
+    expect(response.headers['cache-control']).toBe('no-store')
   })
 
   it('answers with the session principal when there is a session', async () => {

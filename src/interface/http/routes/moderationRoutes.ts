@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express'
+import { Router, type Request, type RequestHandler, type Response } from 'express'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import { asPhotoId, type EventId } from '../../../domain/shared/ids'
@@ -41,35 +41,48 @@ import type { RouteDeps } from '../useCases'
  * the answer. That split is what let those rules acquire tests at all.
  */
 
-interface ModeratorContext {
+export interface ModeratorScope {
   readonly eventId: EventId
-  /** The event's canonical slug, for building media URLs. */
+  /**
+   * The event's canonical slug, taken from the resolved event rather than from the
+   * path, so the media links in a response cannot differ from the ones the wall and
+   * the printed card use.
+   */
   readonly slug: string
   readonly actor: PhotoActor
 }
 
+type ModeratorHandler = (scope: ModeratorScope, req: Request, res: Response) => Promise<void>
+
 /**
- * Reads back what `requireRole` already resolved.
+ * `asyncHandler` plus the one narrowing every handler here would otherwise repeat.
  *
- * The event and the principal are both populated by the middleware before any handler
- * here runs, so the guard is unreachable in production. It exists so that mounting one
- * of these routes without an authorization decision fails loudly instead of quietly
- * addressing an event of `undefined` — and so that saying that needs no `!` assertion.
- *
- * The slug comes from the resolved event rather than from the path, so the media links
- * in a response cannot differ from the ones the wall and the printed card use.
+ * `requireRole` populates the principal and the event before any handler runs, so the
+ * guard is unreachable in production: reaching it means a route was mounted without an
+ * authorization decision. It fails loudly rather than asserting non-null — a `!` would
+ * turn that wiring bug into a `TypeError` mid-event, and a route quietly addressing an
+ * event of `undefined` is the 1.0 failure mode this layer exists to prevent. The
+ * `unexpected` kind is what has the error handler log it against the request id and
+ * answer an opaque 500. Exported so its guard can be exercised without a route in
+ * front of it.
  */
-const moderatorContext = (req: Request): ModeratorContext => {
-  const { user, event } = req.context
-  if (user === undefined || event === undefined) {
-    throw DomainError.unexpected('server.unexpected')
-  }
-  return {
-    eventId: event.id,
-    slug: event.slug.value,
-    actor: { kind: 'host', userId: user.userId },
-  }
-}
+export const withModerator = (handler: ModeratorHandler): RequestHandler =>
+  asyncHandler(async (req, res) => {
+    const { user, event } = req.context
+    if (user === undefined || event === undefined) {
+      throw DomainError.unexpected('server.unexpected')
+    }
+
+    await handler(
+      {
+        eventId: event.id,
+        slug: event.slug.value,
+        actor: { kind: 'host', userId: user.userId },
+      },
+      req,
+      res,
+    )
+  })
 
 /**
  * Moderation reads are never stored.
@@ -98,9 +111,8 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
   router.get(
     '/events/:eventSlug/moderation',
     requireRole('moderator', deps),
-    asyncHandler(async (req, res) => {
+    withModerator(async ({ eventId, slug, actor }, req, res) => {
       const query = moderationQueueQuery.parse(req.query)
-      const { eventId, slug, actor } = moderatorContext(req)
 
       const result = await usecases.getModerationQueue({
         eventId,
@@ -111,7 +123,7 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
       })
 
       noStore(res)
-      return sendResult(res, result, (response, view) =>
+      sendResult(res, result, (response, view) =>
         sendJson<ModerationQueuePageDto>(response, {
           items: view.items.map((item) => toModerationQueueItemDto({ item, slug })),
           pendingCount: view.pendingCount,
@@ -134,23 +146,21 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
   router.get(
     '/events/:eventSlug/photos',
     requireRole('moderator', deps),
-    asyncHandler(async (req, res) => {
+    withModerator(async ({ eventId, slug }, req, res) => {
       const query = photoListQuery.parse(req.query)
-      const { eventId, slug } = moderatorContext(req)
 
       const result = await usecases.listEventPhotos({
         eventId,
-        // The wire carries one status; the port takes a list. `null` is "no filter",
-        // which is the host's full album view.
+        // `all` is the host's full album view, which the port spells as "no filter".
         statuses: query.status === 'all' ? null : [query.status],
         limit: query.limit,
-        // `exactOptionalPropertyTypes`: an absent cursor is `null`, never a present
-        // key holding `undefined`.
+        // An absent cursor is `null`, never a present key holding `undefined`
+        // (`exactOptionalPropertyTypes`).
         cursor: query.cursor ?? null,
       })
 
       noStore(res)
-      return sendResult(res, result, (response, page) =>
+      sendResult(res, result, (response, page) =>
         sendJson<PhotoListResponseDto>(response, {
           // `authorName` is null because this read resolves no guest. Looking one up
           // here would mean a controller reading a repository, and inventing a
@@ -174,10 +184,9 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
   router.patch(
     '/events/:eventSlug/photos/:photoId/status',
     requireRole('moderator', deps),
-    asyncHandler(async (req, res) => {
+    withModerator(async ({ eventId, actor }, req, res) => {
       const params = photoParams.parse(req.params)
       const body = moderationDecisionBody.parse(req.body)
-      const { eventId, actor } = moderatorContext(req)
 
       const result = await usecases.moderatePhoto({
         eventId,
@@ -186,7 +195,7 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
         actor,
       })
 
-      return sendResultNoContent(res, result)
+      sendResultNoContent(res, result)
     }),
   )
 
@@ -204,9 +213,8 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
   router.post(
     '/events/:eventSlug/moderation/bulk',
     requireRole('moderator', deps),
-    asyncHandler(async (req, res) => {
+    withModerator(async ({ eventId, actor }, req, res) => {
       const body = bulkModerationBody.parse(req.body)
-      const { eventId, actor } = moderatorContext(req)
 
       const result = await usecases.moderatePhotosBulk({
         eventId,
@@ -215,7 +223,7 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
         actor,
       })
 
-      return sendResult(res, result, (response, outcome) =>
+      sendResult(res, result, (response, outcome) =>
         sendJson<BulkModerationResponseDto>(response, {
           applied: outcome.applied,
           skipped: outcome.skipped,
@@ -236,9 +244,8 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
   router.delete(
     '/events/:eventSlug/photos/:photoId',
     requireRole('moderator', deps),
-    asyncHandler(async (req, res) => {
+    withModerator(async ({ eventId, actor }, req, res) => {
       const params = photoParams.parse(req.params)
-      const { eventId, actor } = moderatorContext(req)
 
       const result = await usecases.deletePhoto({
         eventId,
@@ -246,7 +253,7 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
         actor,
       })
 
-      return sendResultNoContent(res, result)
+      sendResultNoContent(res, result)
     }),
   )
 
@@ -261,14 +268,13 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
   router.get(
     '/events/:eventSlug/top-photos',
     requireRole('moderator', deps),
-    asyncHandler(async (req, res) => {
+    withModerator(async ({ eventId, slug }, req, res) => {
       const query = topPhotosQuery.parse(req.query)
-      const { eventId, slug } = moderatorContext(req)
 
       const result = await usecases.getTopPhotos({ eventId, limit: query.limit })
 
       noStore(res)
-      return sendResult(res, result, (response, ranked) =>
+      sendResult(res, result, (response, ranked) =>
         sendJson<TopPhotosResponseDto>(response, {
           items: ranked.map(({ photo, counts, total }) =>
             toTopPhotoDto({ photo, slug, counts, total }),

@@ -1,4 +1,5 @@
-import { Router } from 'express'
+import { Router, type Request, type RequestHandler, type Response } from 'express'
+import type { Event } from '../../../domain/events/event'
 import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { GUEST_COOKIE, resolvePublicEvent } from '../middleware/authz'
@@ -6,7 +7,7 @@ import { joinLimiter } from '../middleware/rateLimit'
 import { toPublicEventDto, toWallResponseDto } from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
 import { joinBody, wallQuery } from '../schemas/requestSchemas'
-import type { JoinResponseDto, WallResponseDto } from '../presenters/dto'
+import type { JoinResponseDto } from '../presenters/dto'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
 /**
@@ -49,6 +50,27 @@ export interface PublicRouteDeps extends Omit<RouteDeps, 'usecases'> {
  * would sign a guest out while the party is still going.
  */
 const GUEST_COOKIE_MAX_AGE_MS = 36 * 60 * 60 * 1000
+
+type PublicEventHandler = (event: Event, req: Request, res: Response) => Promise<void>
+
+/**
+ * `asyncHandler` plus the one narrowing `resolvePublicEvent` leaves behind.
+ *
+ * The 404 is unreachable behind that middleware, which is the point: a route that ever
+ * loses its authorization decision must fail closed rather than dereference an absent
+ * event. A `!` here would turn that wiring bug into a `TypeError` on a projector at
+ * 22:00, answered as a 500 after the fact. Exported so the guard can be exercised
+ * without a route in front of it.
+ */
+export const withPublicEvent = (handler: PublicEventHandler): RequestHandler =>
+  asyncHandler(async (req, res) => {
+    const event = req.context.event
+    if (event === undefined) {
+      sendError(res, DomainError.notFound('event.notFound'))
+      return
+    }
+    await handler(event, req, res)
+  })
 
 export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Router => {
   const router = Router()
@@ -107,71 +129,40 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
    * path is reached at all. The use case answers the same way on its own; having both is
    * deliberate, because "nothing appears in front of the room without a host saying so"
    * is worth two independent gates rather than one.
+   *
+   * The playlist and its timings are presented exactly as the domain computed them.
+   * `slideIntervalMs` and `kenBurnsDurationMs` are one value and its derivation
+   * (`interval + CROSSFADE_MS`), so a route that set either of them — from a query
+   * parameter, a test hook, or anything else — would make the 1.0 defect representable
+   * again: a zoom out of step with the slide, snapping in front of the room. The
+   * projector's own timing hooks are read from the display URL by
+   * `web/src/features/wall/hooks/useTimingOverrides.ts`, where they change one browser
+   * and never the API's answer.
    */
   router.get(
     '/events/:eventSlug/wall',
     resolvePublicEvent(deps),
-    asyncHandler(async (req, res) => {
+    withPublicEvent(async (event, req, res) => {
       const query = wallQuery.parse(req.query)
 
-      // Resolved by the middleware, which validated the path segment and confirmed the
-      // event serves its wall. Taking the canonical `Slug` off the event rather than
-      // re-deriving one from the URL is the point of `RequestContext`: a handler never
-      // repeats the lookup, and never scopes a read by an id it parsed out of the path
-      // itself.
-      const event = req.context.event
-      if (event === undefined) {
-        sendError(res, DomainError.notFound('event.notFound'))
-        return
-      }
-
-      // The Playwright suite drives the wall with `?e2e_interval=250&e2e_transition=0`
-      // so a visual test does not wait ten real seconds a slide. Honoured **only** when
-      // the server was started with `E2E_HOOKS=1`, and dropped silently otherwise: the
-      // config module refuses to boot production with that flag, and this is the other
-      // half of that guarantee — without it anyone could dictate the projector's timing
-      // from a query string.
-      //
-      // They override the *presented* timings rather than reaching the use case, and
-      // `wallQuery`'s 50ms floor against `SlideInterval`'s 2000ms is why: the domain
-      // bound exists to stop a host choosing a strobe for a room full of people, so a
-      // 250ms harness value must not be able to turn a test hook into a 400.
-      const hooks = deps.config.e2eHooks
-      const intervalOverrideMs = hooks ? (query.e2e_interval ?? null) : null
-      const kenBurnsOverrideMs = hooks ? (query.e2e_transition ?? null) : null
-
       const result = await usecases.getWallPlaylist({
+        // The canonical `Slug` off the resolved event rather than one re-derived from the
+        // URL: a handler never repeats the lookup, and never scopes a read by an id it
+        // parsed out of the path itself.
         slug: event.slug,
         layout: query.layout ?? null,
-        // No client-settable interval on this endpoint: the timing a room sees is the
-        // domain's default until a host setting exists for it, never a query parameter
-        // a passer-by can send.
+        // Neither the timing a room sees nor the size of the query a passer-by can
+        // provoke is the caller's decision. `null` on each takes the domain's default.
         slideIntervalMs: null,
-        // The rotation window is the domain's own default too. This endpoint is public,
-        // so the size of the query it can provoke is not the caller's decision.
         windowSize: null,
       })
 
       // A live view. A cached playlist is a wall that stopped updating — and the caller
       // is a machine that runs unattended for eight hours behind whatever proxy the
-      // venue has. The header is set before the result is unwrapped so a 404 is not
-      // cached either.
+      // venue has.
       res.setHeader('Cache-Control', 'no-store')
 
-      sendResult(res, result, (response, view) => {
-        const dto = toWallResponseDto(view)
-        // Both hooks or neither, which is what the Playwright fixture sends: the Ken
-        // Burns duration is derived from the interval by the domain, so a harness that
-        // shortened the slide without shortening the zoom would recreate the 1.0 snap it
-        // exists to catch. Zero is a duration the domain itself produces, for
-        // `prefers-reduced-motion` — the wall renders it as no motion at all.
-        const body: WallResponseDto = {
-          ...dto,
-          slideIntervalMs: intervalOverrideMs ?? dto.slideIntervalMs,
-          kenBurnsDurationMs: kenBurnsOverrideMs ?? dto.kenBurnsDurationMs,
-        }
-        sendJson(response, body)
-      })
+      sendResult(res, result, (response, view) => sendJson(response, toWallResponseDto(view)))
     }),
   )
 

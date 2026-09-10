@@ -6,7 +6,7 @@ import type { Photo, PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import { asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
-import { requireGuest } from '../middleware/authz'
+import { GUEST_COOKIE, requireGuest } from '../middleware/authz'
 import { reactionLimiter, uploadLimiter } from '../middleware/rateLimit'
 import { toGuestPhotoDto, toReactionsDto, toUploadResponseDto } from '../presenters/presenters'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
@@ -35,6 +35,11 @@ import type { HttpUseCases } from '../useCases'
  * the repository has no `findById(photoId)` at all, so the wrong event genuinely
  * misses. A 403 would confirm the photo exists and turn this into an enumeration
  * oracle over other people's evenings.
+ *
+ * One path is shared with the host surface: `DELETE /events/:eventSlug/photos/:photoId`
+ * is a guest taking back their own photo *and* a moderator removing any photo, in both
+ * sections of docs/API.md. `server.ts` mounts this router first, so that route defers —
+ * see {@link declineWithoutGuestToken}.
  */
 
 /**
@@ -100,17 +105,50 @@ export const withGuest = (handler: GuestHandler): RequestHandler =>
     await handler({ event, guest: guest.guest }, req, res)
   })
 
+/**
+ * Hands the request to the next router when no guest device token was presented.
+ *
+ * `DELETE /events/:eventSlug/photos/:photoId` is two endpoints on one path: section 3 of
+ * docs/API.md gives it to a guest for their own photo, section 6 gives it to a moderator
+ * for any photo. `server.ts` mounts this router before `moderationRoutes`, and
+ * `requireGuest` answers 401 rather than calling `next()` — so without this the
+ * moderator's handler was unreachable on the assembled server and "delete any photo"
+ * was a dead endpoint.
+ *
+ * `next('router')` leaves this router rather than skipping one handler, which is the
+ * only way the next `/api` router gets a chance to match. The test for it lives in
+ * `guestRoutes.test.ts`, behind the real `requireRole`.
+ *
+ * It keys on the **cookie**, not on a session, and that direction matters: a host who
+ * also joined their own event as a guest must keep the guest path, since deferring on
+ * the presence of a session would send a legitimate guest at somebody else's event into
+ * `requireRole` and answer 404. A caller with neither credential is refused by
+ * `requireRole` with the same `401 auth.required` this router used to send.
+ */
+const declineWithoutGuestToken: RequestHandler = (req, _res, next) => {
+  const raw = req.cookies?.[GUEST_COOKIE]
+  if (typeof raw !== 'string' || raw.length === 0) {
+    next('router')
+    return
+  }
+  next()
+}
+
 const actorFor = (guest: Guest): PhotoActor => ({ kind: 'guest', guestId: guest.id })
 
 /**
  * Whether this guest may still take their own photo back.
  *
  * `Photo.canBeDeletedBy` is the rule — their own photo, not yet on the wall, inside the
- * grace window — and the event's switch is the host's veto over the whole feature. Both
- * are asked here, in the same order `deletePhoto` asks them, because the two answers
- * must agree: a `canDelete: true` that DELETE then refuses is precisely the enabled
- * button the field exists to prevent. Neither condition is restated; each is read from
- * the entity that owns it.
+ * grace window — and the event's switch is the host's veto over the whole feature.
+ * Neither condition is restated: each is read from the entity that owns it.
+ *
+ * The **conjunction**, though, is a second copy of the one `deletePhoto` makes, and the
+ * two must agree or the DTO promises a button the server then refuses. Only a test holds
+ * them together today ("reports canDelete false for every photo when the host turned
+ * self-deletion off", which asserts the flag and the subsequent 403 in one case).
+ * Single-sourcing it means one predicate in `src/domain/photos` that `deletePhoto` also
+ * calls, which is an application-layer change and not this module's to make.
  */
 const canGuestDelete = (event: Event, photo: Photo, guest: Guest, now: Date): boolean =>
   event.settings.allowGuestSelfDelete &&
@@ -157,8 +195,8 @@ export const guestRoutes = ({ deps, usecases }: GuestRouteDeps): Router => {
     requireGuest(deps),
     uploads.array(PHOTOS_FIELD),
     withGuest(async ({ event, guest }, req, res) => {
-      // `req.files` is an array for `.array()`, and absent when the request was not
-      // multipart at all. Both mean the same thing to a guest: nothing was sent.
+      // Absent when the request was not multipart at all, which to a guest is the same
+      // thing as an empty picker.
       const files = Array.isArray(req.files) ? req.files : []
       if (files.length === 0) {
         // The contract makes `photos` a required part (1..maxFilesPerUpload). Answering
@@ -173,9 +211,9 @@ export const guestRoutes = ({ deps, usecases }: GuestRouteDeps): Router => {
       const result = await usecases.uploadPhotos({
         eventId: event.id,
         author: { kind: 'guest', guestId: guest.id },
-        // `declaredName` travels as metadata and is echoed back, never as a path: the
-        // media store addresses bytes by `(eventId, contentHash, variant)` and never
-        // sees a client-chosen name. 1.0 built its path out of one.
+        // `declaredName` travels as metadata only, never as a path: the media store
+        // addresses bytes by `(eventId, contentHash, variant)` and never sees a
+        // client-chosen name. 1.0 built its storage path out of one.
         files: files.map((file) => ({ bytes: file.buffer, declaredName: file.originalname })),
         // Conditional rather than `caption: fields.caption`: under
         // `exactOptionalPropertyTypes` an absent field and an explicit `null` are
@@ -228,9 +266,13 @@ export const guestRoutes = ({ deps, usecases }: GuestRouteDeps): Router => {
    * host allows self-deletion at all — belong to `Photo.canBeDeletedBy` and the use
    * case. Pulling a photo off the wall mid-slideshow is the host's call, so a published
    * photo is refused here and moderated there.
+   *
+   * The shared path: without a guest cookie this defers to `moderationRoutes`, which
+   * owns the same `DELETE` for a moderator.
    */
   router.delete(
     '/events/:eventSlug/photos/:photoId',
+    declineWithoutGuestToken,
     requireGuest(deps),
     withGuest(async ({ event, guest }, req, res) => {
       const params = photoParams.parse(req.params)

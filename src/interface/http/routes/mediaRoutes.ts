@@ -10,7 +10,7 @@ import { asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { GUEST_COOKIE, requireRole, resolvePublicEvent } from '../middleware/authz'
 import { sendError } from '../presenters/send'
-import { eventSlugParams, photoVariantParams } from '../schemas/requestSchemas'
+import { photoVariantParams } from '../schemas/requestSchemas'
 import type { HttpDeps } from '../types'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
@@ -25,11 +25,16 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * the guest's GPS coordinates. And the filename was a path, so keeping `..` out was a
  * regex's job.
  *
- * Both routes below refuse with **404 and never 403**. A 403 confirms that a photo id
- * exists inside an event the caller cannot see, which turns a media URL into an
- * enumeration oracle for a wedding's photo count. That rule is in docs/API.md and it is
- * the reason `getPhotoMedia` returns `photo.notFound` for a variant the caller merely
- * lacks the standing to read.
+ * Any refusal that would confirm a photo or an event exists is **404, never 403**. A 403
+ * confirms that a photo id sits inside an event the caller cannot see, which turns a
+ * media URL into an enumeration oracle for a wedding's photo count. That rule is in
+ * docs/API.md, and it is why `getPhotoMedia` answers `photo.notFound` for a variant the
+ * caller merely lacks the standing to read, and why `requireRole` answers the album with
+ * `event.notFound` for a caller who is not a member of that event.
+ *
+ * The album is the one route here that also answers **401**: refusing a caller with no
+ * session before the event is looked up is what stops an anonymous request being used to
+ * discover which slugs are on the box.
  */
 
 /**
@@ -222,19 +227,21 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
     '/events/:eventSlug/album.zip',
     requireRole('moderator', deps),
     asyncHandler(async (req, res) => {
-      const params = eventSlugParams.parse(req.params)
-
       const event = req.context.event
       if (!event) return sendError(res, DomainError.notFound('event.notFound'))
 
+      // Nothing is written to the response until the use case has answered: once
+      // `Content-Disposition: attachment` is on the wire the client is saving a file, and
+      // a refusal after that point is a download of an error page named `-album.zip`.
       const result = await usecases.exportAlbum({ eventId: event.id })
       if (!result.ok) return sendError(res, result.error)
 
       res.setHeader('Content-Type', 'application/zip')
-      // The slug has been parsed against `^[a-z0-9]+(?:-[a-z0-9]+)*$`, so it cannot
-      // carry a quote or a CRLF into this header. Nothing guest-supplied reaches the
-      // filename, here or inside the archive.
-      res.setHeader('Content-Disposition', `attachment; filename="${params.eventSlug}-album.zip"`)
+      // The name comes from the resolved event, never from the path, so the download
+      // cannot be called something the wall and the printed card do not. It is a
+      // validated `Slug`, so it carries neither a quote nor a CRLF into this header, and
+      // nothing guest-supplied reaches the filename, here or inside the archive.
+      res.setHeader('Content-Disposition', `attachment; filename="${event.slug.value}-album.zip"`)
       // An album is a snapshot of a queue that keeps moving, and unlike a photo it is
       // not content-addressed, so there is no name that could make it cacheable.
       res.setHeader('Cache-Control', 'no-store')

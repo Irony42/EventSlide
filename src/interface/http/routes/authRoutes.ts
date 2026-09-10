@@ -147,6 +147,12 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
     // `{ authenticated: false }` rather than 401 — the client asks this on every page
     // load, and a 401 in the console on a first visit is noise (docs/API.md §5).
     (req, res) => {
+      // Never stored. This read carries the identity itself, and `rolling: true` on the
+      // session means an authenticated one also carries a fresh `Set-Cookie` — so a
+      // shared cache holding this response would hand one host's session to whoever
+      // asks next. Every principal-scoped read in this API says so explicitly.
+      res.setHeader('Cache-Control', 'no-store')
+
       sendJson(res, toSessionResponseDto(req.context.user))
     },
   )

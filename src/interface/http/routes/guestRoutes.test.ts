@@ -2,9 +2,9 @@ import type { Express } from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { guestRoutes, withGuest } from './guestRoutes'
-import { GUEST_COOKIE, resolvePublicEvent } from '../middleware/authz'
+import { GUEST_COOKIE, requireRole, resolvePublicEvent } from '../middleware/authz'
 import { sendNoContent } from '../presenters/send'
-import { buildHarness, type Harness } from '../testing/middlewareHarness'
+import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
 import type { MediaMetadata, MediaStore } from '../../../application/ports/mediaStore'
 import { AT, aGuest, aPhoto, aReaction, anEvent } from '../../../application/testing/builders'
@@ -29,7 +29,7 @@ import { makeWithdrawReaction } from '../../../application/usecases/reactions/wi
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asPhotoId, type EventId } from '../../../domain/shared/ids'
+import { asEventId, asPhotoId, asUserId, type EventId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 
 /**
@@ -46,6 +46,9 @@ const WEDDING = 'wedding-id'
 const GALA = 'gala-id'
 const GUEST = 'guest-1'
 const OTHER_GUEST = 'guest-2'
+/** A moderator of the wedding, for the one path the host surface also owns. */
+const MODERATOR = '99999999-9999-4999-8999-999999999999'
+const MODERATOR_EMAIL = 'moderateur@example.test'
 
 /**
  * Photo ids are UUIDs because `photoParams` says so — the ids in a URL are opaque and
@@ -62,6 +65,15 @@ const BASE = '/api/events/mariage'
 
 /** An empty cookie is what a cleared or never-set device token looks like on the wire. */
 const NO_TOKEN = ''
+
+/**
+ * What the route tables below issue their request through.
+ *
+ * `request(app)` for a one-shot call and `request.agent(app)` when the session cookie
+ * has to survive a sign-in; supertest returns the same type for both, so one table can
+ * be walked by a signed-in caller and an anonymous one alike.
+ */
+type Client = ReturnType<typeof request>
 
 // ------------------------------------------------------------- test doubles --
 
@@ -173,6 +185,8 @@ interface Subject {
   readonly reactions: FakeReactionRepository
   readonly media: RecordingMediaStore
   readonly upload: ScriptedUploadPhotos
+  /** Paths the stand-in moderator handler answered, so a deferral is observable. */
+  readonly hostHandlerReached: readonly string[]
   /** A valid token for the wedding, which is the event in every path below. */
   readonly token: string
   /** A valid token naming the gala: the cross-event attack. */
@@ -200,6 +214,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
   const upload = new ScriptedUploadPhotos()
   const ids = new SequentialIdGenerator()
   const budget = options.budget ?? { windowMs: 60_000, maxPerWindow: 30 }
+  const hostHandlerReached: string[] = []
 
   const harness = buildHarness({
     ...(options.config === undefined ? {} : { config: options.config }),
@@ -238,6 +253,20 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
           },
         }),
       )
+
+      // Stands in for `moderationRoutes`, which owns the same `DELETE` for a moderator
+      // and which `server.ts` mounts after this router. Real `requireRole`, so what a
+      // deferred request meets here is what it meets in production; the handler only
+      // records that it was reached, since deleting is the other module's test.
+      app.delete(
+        '/api/events/:eventSlug/photos/:photoId',
+        requireRole('moderator', deps),
+        (req, res) => {
+          hostHandlerReached.push(req.path)
+          sendNoContent(res)
+        },
+      )
+      app.post('/sign-in/moderator', signInAs({ userId: MODERATOR, email: MODERATOR_EMAIL }))
     },
   })
 
@@ -260,6 +289,13 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
     }),
     aGuest({ id: OTHER_GUEST, eventId: WEDDING, displayName: 'Sacha' }),
   )
+
+  harness.memberships.seed({
+    eventId: asEventId(WEDDING),
+    userId: asUserId(MODERATOR),
+    role: 'moderator',
+    grantedAt: AT,
+  })
 
   photos.seed(
     aPhoto({ id: PENDING, eventId: WEDDING, author: { kind: 'guest', id: GUEST } }),
@@ -295,6 +331,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
     reactions,
     media,
     upload,
+    hostHandlerReached,
     token: harness.issueGuestToken(WEDDING, GUEST),
     galaToken: harness.issueGuestToken(GALA, GUEST),
   }
@@ -332,6 +369,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
     await request(subject.app)
       .post(`${BASE}/photos`)
       .set('Cookie', cookie(subject.token))
+      .field('caption', 'Les confettis')
       .attach('photos', Buffer.from('first-bytes'), 'first.jpg')
       .expect(201)
 
@@ -439,7 +477,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
   })
 
   it('answers 400 for a file sent under a field name that is not photos', async () => {
-    // Multer's own limit, translated once in the error handler.
+    // `LIMIT_UNEXPECTED_FILE` from multer, translated once in the error handler.
     const subject = buildSubject()
 
     const response = await request(subject.app)
@@ -945,13 +983,17 @@ describe('GET /api/events/:eventSlug/photos/:photoId/reactions', () => {
   })
 
   it('never leaks the unweighted total the photo of the night is ranked on', async () => {
+    // Asserting the whole key set rather than `total === undefined`: an absent key is
+    // also what a 404 body has, so the negative alone would hold even if the endpoint
+    // had stopped answering.
     const subject = buildSubject()
 
     const response = await request(subject.app)
       .get(`${BASE}/photos/${PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
 
-    expect(response.body.total).toBeUndefined()
+    expect(response.status).toBe(200)
+    expect(Object.keys(response.body).sort()).toEqual(['counts', 'mine'])
   })
 })
 
@@ -960,63 +1002,73 @@ describe('GET /api/events/:eventSlug/photos/:photoId/reactions', () => {
 /**
  * Every route, in one table.
  *
- * A route with no authorization decision is the defect these two cases exist to catch,
- * and the only way to be sure none was forgotten is to walk the whole surface.
+ * A route with no authorization decision is the defect these cases exist to catch, and
+ * the only way to be sure none was forgotten is to walk the whole surface.
  */
 const ROUTES = [
   {
     name: 'POST /photos',
-    send: (app: Express, token: string) =>
-      request(app)
+    sharedWithHost: false,
+    send: (client: Client, token: string) =>
+      client
         .post(`${BASE}/photos`)
         .set('Cookie', cookie(token))
         .attach('photos', Buffer.from('one'), 'one.jpg'),
   },
   {
     name: 'GET /photos/mine',
-    send: (app: Express, token: string) =>
-      request(app).get(`${BASE}/photos/mine`).set('Cookie', cookie(token)),
+    sharedWithHost: false,
+    send: (client: Client, token: string) =>
+      client.get(`${BASE}/photos/mine`).set('Cookie', cookie(token)),
   },
   {
+    // The one path the host surface also owns: a session-only caller is answered by
+    // `moderationRoutes`, not refused here.
     name: 'DELETE /photos/:photoId',
-    send: (app: Express, token: string) =>
-      request(app).delete(`${BASE}/photos/${PENDING}`).set('Cookie', cookie(token)),
+    sharedWithHost: true,
+    send: (client: Client, token: string) =>
+      client.delete(`${BASE}/photos/${PENDING}`).set('Cookie', cookie(token)),
   },
   {
     name: 'PATCH /photos/:photoId/caption',
-    send: (app: Express, token: string) =>
-      request(app)
+    sharedWithHost: false,
+    send: (client: Client, token: string) =>
+      client
         .patch(`${BASE}/photos/${PENDING}/caption`)
         .set('Cookie', cookie(token))
         .send({ caption: 'x' }),
   },
   {
     name: 'POST /photos/:photoId/reactions',
-    send: (app: Express, token: string) =>
-      request(app)
+    sharedWithHost: false,
+    send: (client: Client, token: string) =>
+      client
         .post(`${BASE}/photos/${PUBLISHED}/reactions`)
         .set('Cookie', cookie(token))
         .send({ kind: 'love' }),
   },
   {
     name: 'DELETE /photos/:photoId/reactions/:kind',
-    send: (app: Express, token: string) =>
-      request(app)
-        .delete(`${BASE}/photos/${PUBLISHED}/reactions/love`)
-        .set('Cookie', cookie(token)),
+    sharedWithHost: false,
+    send: (client: Client, token: string) =>
+      client.delete(`${BASE}/photos/${PUBLISHED}/reactions/love`).set('Cookie', cookie(token)),
   },
   {
     name: 'GET /photos/:photoId/reactions',
-    send: (app: Express, token: string) =>
-      request(app).get(`${BASE}/photos/${PUBLISHED}/reactions`).set('Cookie', cookie(token)),
+    sharedWithHost: false,
+    send: (client: Client, token: string) =>
+      client.get(`${BASE}/photos/${PUBLISHED}/reactions`).set('Cookie', cookie(token)),
   },
 ]
+
+/** The routes this router owns outright, where a session grants nothing at all. */
+const GUEST_ONLY_ROUTES = ROUTES.filter((route) => !route.sharedWithHost)
 
 describe('the guest surface requires a guest token on every route', () => {
   it.each(ROUTES)('$name answers 401 without one', async ({ send }) => {
     const subject = buildSubject()
 
-    const response = await send(subject.app, NO_TOKEN)
+    const response = await send(request(subject.app), NO_TOKEN)
 
     expect(response.status).toBe(401)
     expect(response.body.error.code).toBe('auth.required')
@@ -1025,10 +1077,83 @@ describe('the guest surface requires a guest token on every route', () => {
   it.each(ROUTES)('$name answers 403 for a token naming another event', async ({ send }) => {
     const subject = buildSubject()
 
-    const response = await send(subject.app, subject.galaToken)
+    const response = await send(request(subject.app), subject.galaToken)
 
     expect(response.status).toBe(403)
     expect(response.body.error.code).toBe('guest.wrongEvent')
+  })
+
+  it.each(ROUTES)('$name answers 403 once the host has revoked the guest', async ({ send }) => {
+    const subject = buildSubject({ revoked: true })
+
+    const response = await send(request(subject.app), subject.token)
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('guest.revoked')
+  })
+
+  /**
+   * A moderator's session is not a guest token.
+   *
+   * There is no ambient "logged in means allowed" here: the credential that grants the
+   * guest surface is the event-scoped device token and nothing else, so a signed-in
+   * moderator of this very event still gets 401 on the routes this router owns.
+   */
+  it.each(GUEST_ONLY_ROUTES)('$name answers 401 for a moderator session', async ({ send }) => {
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/moderator').expect(204)
+
+    const response = await send(agent, NO_TOKEN)
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+})
+
+/**
+ * The shared `DELETE`, which two principals own in docs/API.md.
+ *
+ * `server.ts` mounts this router before `moderationRoutes`, so a session-only request
+ * would be swallowed by `requireGuest`'s 401 and section 6's "delete any photo" would be
+ * a dead endpoint. The guest route declines instead, and the handler standing in for
+ * `moderationRoutes` — behind the real `requireRole` — is what answers.
+ */
+describe('DELETE /api/events/:eventSlug/photos/:photoId is shared with the host surface', () => {
+  it('defers to the moderator handler when no guest token is presented', async () => {
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/moderator').expect(204)
+
+    const response = await agent.delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+
+    expect(response.status).toBe(204)
+    expect(subject.hostHandlerReached).toEqual([`/api/events/mariage/photos/${ANOTHER_GUESTS}`])
+  })
+
+  it('keeps the guest handler when a guest token is presented', async () => {
+    // The deferral keys on the cookie, so a guest at an event they do not moderate is
+    // still answered here — and by their own rules, not a moderator's.
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('photo.deleteForbidden')
+    expect(subject.hostHandlerReached).toEqual([])
+  })
+
+  it('refuses a caller with neither credential, without reaching either handler', async () => {
+    const subject = buildSubject()
+
+    const response = await request(subject.app).delete(`${BASE}/photos/${PENDING}`)
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+    expect(subject.hostHandlerReached).toEqual([])
+    expect(await subject.photos.findById(asEventId(WEDDING), asPhotoId(PENDING))).not.toBeNull()
   })
 })
 
@@ -1043,14 +1168,14 @@ const CROSS_EVENT_ROUTES = [
   {
     name: 'DELETE /photos/:photoId',
     code: 'photo.notFound',
-    send: (app: Express, token: string) =>
-      request(app).delete(`${BASE}/photos/${GALA_PHOTO}`).set('Cookie', cookie(token)),
+    send: (client: Client, token: string) =>
+      client.delete(`${BASE}/photos/${GALA_PHOTO}`).set('Cookie', cookie(token)),
   },
   {
     name: 'PATCH /photos/:photoId/caption',
     code: 'photo.notFound',
-    send: (app: Express, token: string) =>
-      request(app)
+    send: (client: Client, token: string) =>
+      client
         .patch(`${BASE}/photos/${GALA_PHOTO}/caption`)
         .set('Cookie', cookie(token))
         .send({ caption: 'x' }),
@@ -1058,8 +1183,8 @@ const CROSS_EVENT_ROUTES = [
   {
     name: 'POST /photos/:photoId/reactions',
     code: 'photo.notFound',
-    send: (app: Express, token: string) =>
-      request(app)
+    send: (client: Client, token: string) =>
+      client
         .post(`${BASE}/photos/${GALA_PHOTO}/reactions`)
         .set('Cookie', cookie(token))
         .send({ kind: 'love' }),
@@ -1067,16 +1192,14 @@ const CROSS_EVENT_ROUTES = [
   {
     name: 'GET /photos/:photoId/reactions',
     code: 'photo.notFound',
-    send: (app: Express, token: string) =>
-      request(app).get(`${BASE}/photos/${GALA_PHOTO}/reactions`).set('Cookie', cookie(token)),
+    send: (client: Client, token: string) =>
+      client.get(`${BASE}/photos/${GALA_PHOTO}/reactions`).set('Cookie', cookie(token)),
   },
   {
     name: 'DELETE /photos/:photoId/reactions/:kind',
     code: 'reaction.notFound',
-    send: (app: Express, token: string) =>
-      request(app)
-        .delete(`${BASE}/photos/${GALA_PHOTO}/reactions/love`)
-        .set('Cookie', cookie(token)),
+    send: (client: Client, token: string) =>
+      client.delete(`${BASE}/photos/${GALA_PHOTO}/reactions/love`).set('Cookie', cookie(token)),
   },
 ]
 
@@ -1084,7 +1207,7 @@ describe('a resource from another event does not exist', () => {
   it.each(CROSS_EVENT_ROUTES)('$name answers 404 $code', async ({ send, code }) => {
     const subject = buildSubject()
 
-    const response = await send(subject.app, subject.token)
+    const response = await send(request(subject.app), subject.token)
 
     expect(response.status).toBe(404)
     expect(response.body.error.code).toBe(code)
@@ -1095,44 +1218,42 @@ describe('a resource from another event does not exist', () => {
 const INVALID_REQUESTS = [
   {
     name: 'a photo id that is not a uuid',
-    send: (app: Express, token: string) =>
-      request(app).delete(`${BASE}/photos/not-a-uuid`).set('Cookie', cookie(token)),
+    send: (client: Client, token: string) =>
+      client.delete(`${BASE}/photos/not-a-uuid`).set('Cookie', cookie(token)),
   },
   {
     name: 'a caption body with no caption key',
-    send: (app: Express, token: string) =>
-      request(app).patch(`${BASE}/photos/${PENDING}/caption`).set('Cookie', cookie(token)).send({}),
+    send: (client: Client, token: string) =>
+      client.patch(`${BASE}/photos/${PENDING}/caption`).set('Cookie', cookie(token)).send({}),
   },
   {
     name: 'a caption that is not a string',
-    send: (app: Express, token: string) =>
-      request(app)
+    send: (client: Client, token: string) =>
+      client
         .patch(`${BASE}/photos/${PENDING}/caption`)
         .set('Cookie', cookie(token))
         .send({ caption: 42 }),
   },
   {
     name: 'a caption body carrying an undefined key',
-    send: (app: Express, token: string) =>
-      request(app)
+    send: (client: Client, token: string) =>
+      client
         .patch(`${BASE}/photos/${PENDING}/caption`)
         .set('Cookie', cookie(token))
         .send({ caption: 'x', pinned: true }),
   },
   {
     name: 'a reaction kind outside the closed set',
-    send: (app: Express, token: string) =>
-      request(app)
+    send: (client: Client, token: string) =>
+      client
         .post(`${BASE}/photos/${PUBLISHED}/reactions`)
         .set('Cookie', cookie(token))
         .send({ kind: 'shrug' }),
   },
   {
     name: 'a reaction kind outside the closed set in the path',
-    send: (app: Express, token: string) =>
-      request(app)
-        .delete(`${BASE}/photos/${PUBLISHED}/reactions/shrug`)
-        .set('Cookie', cookie(token)),
+    send: (client: Client, token: string) =>
+      client.delete(`${BASE}/photos/${PUBLISHED}/reactions/shrug`).set('Cookie', cookie(token)),
   },
 ]
 
@@ -1140,7 +1261,7 @@ describe('the boundary refuses a malformed request', () => {
   it.each(INVALID_REQUESTS)('answers 400 for $name', async ({ send }) => {
     const subject = buildSubject()
 
-    const response = await send(subject.app, subject.token)
+    const response = await send(request(subject.app), subject.token)
 
     expect(response.status).toBe(400)
     expect(response.body.error.code).toBe('request.invalid')

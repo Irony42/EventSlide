@@ -10,12 +10,14 @@ import {
   type MediaStore,
   type MediaVariant,
 } from '../../../application/ports/mediaStore'
-import { makeExportAlbum } from '../../../application/usecases/photos/exportAlbum'
+import { makeExportAlbum, type ExportAlbum } from '../../../application/usecases/photos/exportAlbum'
 import { makeGetPhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { AT, aGuest, anEvent, aPhoto, type PhotoInput } from '../../../application/testing/builders'
 import type { ContentHash } from '../../../domain/photos/contentHash'
+import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId, type EventId } from '../../../domain/shared/ids'
+import { err } from '../../../domain/shared/result'
 
 /**
  * Ring 4: the wire contract of the two routes that serve bytes.
@@ -46,6 +48,9 @@ const JPEG = Uint8Array.of(0xff, 0xd8, 0xff)
 
 /** The ZIP local file header signature, asserted rather than trusted. */
 const LOCAL_FILE_HEADER = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+
+/** The policy the route promises for a content-addressed variant, 200 and 304 alike. */
+const IMMUTABLE_CACHE = 'private, max-age=31536000, immutable'
 
 class InMemoryMediaStore implements MediaStore {
   private readonly objects = new Map<string, Uint8Array>()
@@ -146,7 +151,20 @@ interface World extends Harness {
   readonly media: InMemoryMediaStore
 }
 
-const buildWorld = async ({ archive = new StubArchiveWriter() } = {}): Promise<World> => {
+interface WorldOptions {
+  readonly archive?: ArchiveWriter
+  /**
+   * Replaces the real use case. Only for the refusal `exportAlbum` cannot be driven to
+   * from outside: `requireRole` has already resolved the event by the time the handler
+   * runs, so the real one has nothing left to refuse.
+   */
+  readonly exportAlbum?: ExportAlbum
+}
+
+const buildWorld = async ({
+  archive = new StubArchiveWriter(),
+  exportAlbum,
+}: WorldOptions = {}): Promise<World> => {
   const photos = new FakePhotoRepository()
   const media = new InMemoryMediaStore()
 
@@ -159,13 +177,15 @@ const buildWorld = async ({ archive = new StubArchiveWriter() } = {}): Promise<W
           deps,
           usecases: {
             getPhotoMedia: makeGetPhotoMedia({ photos, media }),
-            exportAlbum: makeExportAlbum({
-              events: deps.events,
-              photos,
-              media,
-              archive,
-              logger: deps.logger,
-            }),
+            exportAlbum:
+              exportAlbum ??
+              makeExportAlbum({
+                events: deps.events,
+                photos,
+                media,
+                archive,
+                logger: deps.logger,
+              }),
           },
         }),
       )
@@ -293,6 +313,9 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant', () => {
 
     expect(response.status).toBe(200)
     expect([...response.body]).toEqual([...JPEG])
+    // docs/API.md: `original` is never cached publicly. `private` is what makes that true
+    // of the one variant only a moderator may read.
+    expect(response.headers['cache-control']).toBe(IMMUTABLE_CACHE)
   })
 
   it('answers 404 for a photo belonging to another event, never 403', async () => {
@@ -318,7 +341,7 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant', () => {
   it('sets an immutable one-year cache policy and a strong ETag', async () => {
     const response = await getBytes(world, mediaPath(PUBLISHED, 'display'))
 
-    expect(response.headers['cache-control']).toBe('private, max-age=31536000, immutable')
+    expect(response.headers['cache-control']).toBe(IMMUTABLE_CACHE)
     expect(response.headers['etag']).toMatch(/^"[0-9a-f]{64}-display"$/)
   })
 
@@ -339,11 +362,15 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant', () => {
     const second = await getBytes(world, mediaPath(PUBLISHED, 'display')).set('If-None-Match', etag)
 
     expect(second.status).toBe(304)
+    // The validator and the caching policy survive the freshness check, or the projector
+    // revalidates every slide for the rest of the night.
     expect(second.headers['etag']).toBe(etag)
-    // No bytes, and no declared length: a 304 carrying a Content-Length is a response
-    // some proxies wait on.
+    expect(second.headers['cache-control']).toBe(IMMUTABLE_CACHE)
+    // No bytes, no declared length, and nothing describing a body that is not there: a
+    // 304 carrying a Content-Length is a response some proxies wait on.
+    expect(second.body).toHaveLength(0)
     expect(second.headers['content-length']).toBeUndefined()
-    expect(second.text ?? '').toBe('')
+    expect(second.headers['content-type']).toBeUndefined()
   })
 
   it.each([
@@ -406,8 +433,31 @@ describe('GET /events/:eventSlug/album.zip', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers['content-type']).toBe('application/zip')
+    // Named from the resolved event, so the file the host saves is called what the wall
+    // and the printed card call this event.
     expect(response.headers['content-disposition']).toBe('attachment; filename="mariage-album.zip"')
+    // An album is a snapshot of a queue that keeps moving and is not content-addressed,
+    // so unlike a photo there is no name that could make it safe to keep.
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.headers['x-content-type-options']).toBe('nosniff')
     expect(Buffer.from(response.body).subarray(0, 4)).toEqual(LOCAL_FILE_HEADER)
+  })
+
+  it('refuses without committing the response to a download', async () => {
+    // Once `Content-Disposition: attachment` is on the wire the client is saving a file,
+    // so a refusal has to be decided before any archive header is set — otherwise the
+    // host ends up with a JSON error page named `mariage-album.zip`.
+    const world = await buildWorld({
+      exportAlbum: () => Promise.resolve(err(DomainError.notFound('event.notFound'))),
+    })
+    const agent = await signedIn(world, 'host')
+
+    const response = await agent.get('/events/mariage/album.zip')
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
+    expect(response.headers['content-type']).toMatch(/^application\/json/)
+    expect(response.headers['content-disposition']).toBeUndefined()
   })
 
   it('answers 401 without a session', async () => {

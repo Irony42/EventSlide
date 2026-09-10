@@ -1,9 +1,10 @@
 import request from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { moderationRoutes } from './moderationRoutes'
+import { moderationRoutes, withModerator } from './moderationRoutes'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
-import { GUEST_COOKIE } from '../middleware/authz'
+import { GUEST_COOKIE, resolvePublicEvent } from '../middleware/authz'
 import type { PresenterContext } from '../presenters/presenters'
+import { sendNoContent } from '../presenters/send'
 import type { HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
 import type { MediaMetadata, MediaStore } from '../../../application/ports/mediaStore'
@@ -249,6 +250,16 @@ describe('GET /api/events/:eventSlug/moderation', () => {
 
     expect(response.body.items).toHaveLength(1)
     expect(response.body.pendingCount).toBe(2)
+  })
+
+  it('reports no cursor even when the limit left photos behind', async () => {
+    // The queue is ordered in full before the limit applies, so there is no page to
+    // continue from. `null` rather than an absent key, so the client reads one shape.
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get('/api/events/mariage/moderation?limit=1')
+
+    expect(response.body.nextCursor).toBeNull()
   })
 
   it('presents a row with its media links and a caption badge, never the caption text', async () => {
@@ -862,5 +873,75 @@ describe('GET /api/events/:eventSlug/top-photos', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.error.code).toBe('request.invalid')
+  })
+})
+
+// ---------------------------------------------------------- withModerator --
+
+/**
+ * The narrowing every handler above relies on.
+ *
+ * Unreachable behind `requireRole`, which is the point: a route mounted without its
+ * authorization decision must fail loudly rather than address an event of `undefined`
+ * or invent an actor. Each case is a mounting mistake, and each must answer 500 — never
+ * a 2xx, and never a decision applied to some other event.
+ */
+describe('withModerator', () => {
+  const guarded = (): Harness => {
+    const harness = buildHarness({
+      routes: (app, deps) => {
+        app.post('/sign-in', signInAs({ userId: MODERATOR, email: 'moderateur@example.test' }))
+        // No authorization middleware at all: neither principal nor event resolved.
+        app.get(
+          '/bare',
+          withModerator(async (_scope, _req, res) => {
+            sendNoContent(res)
+          }),
+        )
+        // The event resolved but no principal: what a public route leaves behind.
+        app.get(
+          '/events/:eventSlug/half',
+          resolvePublicEvent(deps),
+          withModerator(async (_scope, _req, res) => {
+            sendNoContent(res)
+          }),
+        )
+      },
+    })
+    harness.events.seed(anEvent({ id: WEDDING, slug: 'mariage', ownerId: OWNER }))
+    return harness
+  }
+
+  it('refuses a route mounted with no authorization decision', async () => {
+    const response = await request(guarded().app).get('/bare')
+
+    expect(response.status).toBe(500)
+    expect(response.body.error.code).toBe('server.unexpected')
+    // The deliberate refusal, not a dereference of `undefined`: the error handler
+    // stamps a `requestId` into the details of anything it did not expect, and a `!`
+    // in place of this guard would answer 500 with exactly that.
+    expect(response.body.error.details).toEqual({})
+  })
+
+  it('refuses a signed-in caller when no event was resolved', async () => {
+    // A session is not authorization: without the event there is nothing to be a
+    // moderator *of*, so the handler must not run at all.
+    const harness = guarded()
+    const agent = request.agent(harness.app)
+    await agent.post('/sign-in').expect(204)
+
+    const response = await agent.get('/bare')
+
+    expect(response.status).toBe(500)
+    expect(response.body.error.code).toBe('server.unexpected')
+    expect(response.body.error.details).toEqual({})
+  })
+
+  it('refuses an event resolved without a principal', async () => {
+    const response = await request(guarded().app).get('/events/mariage/half')
+
+    expect(response.status).toBe(500)
+    expect(response.body.error.code).toBe('server.unexpected')
+    expect(response.body.error.details).toEqual({})
   })
 })

@@ -252,8 +252,9 @@ moderation beats wondering whether the upload worked.
 }
 ```
 
-`canDelete` is computed server-side from the grace window and the current status, so the
-client does not re-implement the rule and then disagree with the server.
+`canDelete` is computed server-side from the grace window, the current status **and the
+event's `allowGuestSelfDelete` switch**, so the client does not re-implement the rule and
+then disagree with the server: it is exactly what `DELETE` below would allow.
 
 ### `DELETE /api/events/:slug/photos/:photoId`
 
@@ -262,7 +263,13 @@ A guest taking back a photo they regret. Permitted only for their own photo, onl
 event allows self-deletion. Pulling a photo off the wall mid-slideshow is the host's
 call.
 
-**204**. **Errors** — `403 photo.deleteNotAllowed`, `404 photo.notFound`.
+**204**. **Errors** — `403 photo.deleteForbidden`,
+`403 event.guestSelfDeleteDisabled`, `404 photo.notFound`.
+
+This path is **shared with the moderator endpoint of the same name** in §6. The request
+is dispatched on the credential presented: with an `es_guest` cookie the guest rules
+above apply, and without one it is handled as the moderator endpoint — so a caller with
+neither credential gets `401 auth.required` from the role check.
 
 ### `PATCH /api/events/:slug/photos/:photoId/caption`
 
@@ -271,6 +278,9 @@ call.
 ```
 
 `null` clears it. Author-only, while pending, inside the grace window. **204**.
+
+**Errors** — `403 photo.captionEditForbidden`, `403 event.captionsNotAllowed`,
+`404 photo.notFound`, `400 caption.tooLong`.
 
 ### `POST /api/events/:slug/photos/:photoId/reactions`
 
@@ -287,7 +297,9 @@ Only on a **published** photo: you react to what is on the wall.
 
 ### `DELETE /api/events/:slug/photos/:photoId/reactions/:kind`
 
-Withdraw one's own reaction. **204**.
+Withdraw one's own reaction. **204**. **Errors** — `404 reaction.notFound`, which is also
+the answer for another guest's reaction: the row is addressed by
+`(event, photo, guest, kind)`, so it is not forbidden, it is simply not there.
 
 ### `GET /api/events/:slug/photos/:photoId/reactions`
 
@@ -338,6 +350,20 @@ buffered.
 
 ## 5. Authentication
 
+Three of these four take no principal, and each for its own reason: a login is where a
+principal comes from, a logout can only ever destroy the one it was handed — answering
+401 to a client whose session has just expired would leave the stale cookie in the
+browser — and `/auth/me` exists to answer whether there is a principal at all. Stated
+here so that an absent authorization middleware in `routes/authRoutes.ts` is a
+documented decision rather than an omission a reader has to judge.
+
+| Method | Path                 | Principal                                |
+| ------ | -------------------- | ---------------------------------------- |
+| `POST` | `/api/auth/login`    | none                                     |
+| `POST` | `/api/auth/logout`   | none                                     |
+| `GET`  | `/api/auth/me`       | none                                     |
+| `POST` | `/api/auth/password` | any signed-in user; no event, so no role |
+
 ### `POST /api/auth/login`
 
 ```json
@@ -380,6 +406,10 @@ Destroys the session and clears the cookie. **204**. Idempotent.
 `{ "authenticated": false }` with **200** when there is no session — the client asks
 this on every page load, and a 401 in the console on first visit is noise.
 
+`Cache-Control: no-store`, always. The body is an identity and a rolling session
+re-sends its cookie alongside it, so a shared cache holding this response would hand
+one host's session to whoever asks next.
+
 ### `POST /api/auth/password`
 
 ```json
@@ -387,7 +417,9 @@ this on every page load, and a 401 in the console on first visit is noise.
 ```
 
 **204**. **Errors** — `401 auth.invalidCredentials`, `400 password.*`,
-`400 password.unchanged`.
+`400 password.unchanged`, and `404 user.notFound` when the session outlived the
+account it names — the id comes from the session, so a miss means the account was
+deleted underneath it and never that the caller guessed wrong.
 
 ---
 
