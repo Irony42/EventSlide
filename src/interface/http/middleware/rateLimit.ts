@@ -1,4 +1,4 @@
-import rateLimit, { type RateLimitRequestHandler } from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator, type RateLimitRequestHandler } from 'express-rate-limit'
 import type { Request } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { errorBody } from '../presenters/send'
@@ -17,6 +17,19 @@ import { errorBody } from '../presenters/send'
  * `X-Forwarded-For` and bypass the limit entirely. Hence `TRUST_PROXY_HOPS` is
  * explicit configuration rather than a guess.
  */
+
+/**
+ * The client's address, collapsed to a /56 for IPv6.
+ *
+ * A raw IPv6 address is not a usable rate-limit key: a residential allocation is
+ * routinely a /64, so one client has 2^64 addresses and a per-address limit is no limit
+ * at all. `ipKeyGenerator` collapses the address to its subnet, which is what makes the
+ * bucket mean "this client" rather than "this address this second".
+ *
+ * express-rate-limit warns at startup (`ERR_ERL_KEY_GEN_IPV6`) when a custom key
+ * generator uses `req.ip` without it — the warning is how this was caught.
+ */
+const clientKey = (req: Request): string => ipKeyGenerator(req.ip ?? 'unknown')
 
 const limiter = (perMinute: number, code: string, keyBy?: (req: Request) => string) =>
   rateLimit({
@@ -53,7 +66,7 @@ export const uploadLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(
     perMinute,
     'rate.limited',
-    (req) => `${req.ip ?? 'unknown'}:${req.params['eventSlug'] ?? 'none'}`,
+    (req) => `${clientKey(req)}:${req.params['eventSlug'] ?? 'none'}`,
   )
 
 /** Reactions are cheap but tappable at speed; the domain budget is the finer control. */
@@ -61,5 +74,5 @@ export const reactionLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(
     perMinute,
     'reaction.rateLimited',
-    (req) => `${req.ip ?? 'unknown'}:${req.params['eventSlug'] ?? 'none'}`,
+    (req) => `${clientKey(req)}:${req.params['eventSlug'] ?? 'none'}`,
   )

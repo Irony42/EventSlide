@@ -394,7 +394,7 @@ tests/e2e/
 ```
 
 - **Worker-scoped app fixture.** One server per Playwright worker, own port, own
-  `data/e2e-<worker>.sqlite` (migrated, then deleted), own media root under the OS temp
+  SQLite file and media root under the OS temp directory, both removed on dispose,
   dir — so workers cannot see each other's photos, which is what makes parallel workers
   safe. Never the dev database. Seed through the API or a seed script, never SQL in a
   spec: seeding via the public surface is itself a test.
