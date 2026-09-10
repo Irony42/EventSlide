@@ -1,0 +1,7 @@
+/* Sized from the text around it, like StatusIcon, so one glyph serves a toast at
+   --text-base and a dialog header at --text-lg without a size prop. */
+.icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+}

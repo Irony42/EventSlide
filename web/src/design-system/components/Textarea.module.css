@@ -1,0 +1,48 @@
+/* Font size is inherited from base.css, which holds the 16px input floor. */
+.textarea {
+  padding: var(--space-3);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  line-height: var(--leading-normal);
+  min-width: 0;
+  width: 100%;
+  resize: vertical;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.textarea:hover:not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.textarea:focus-visible {
+  border-color: var(--accent);
+}
+
+.textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/**
+ * Auto-grow with no JavaScript.
+ *
+ * `field-sizing: content` lets the browser size the box to its value, so the caret
+ * never moves and there is no shadow element to keep in sync. Browsers without it fall
+ * back to `rows` and the manual resize handle — a caption is one or two lines, so the
+ * degradation costs nothing.
+ */
+.grow {
+  field-sizing: content;
+  resize: none;
+}

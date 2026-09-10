@@ -1,0 +1,66 @@
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+  min-width: 0;
+}
+
+/* Entering, not looping: one movement, then the toast sits still. Under reduced
+   motion base.css collapses this to an instant appearance. */
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: rise var(--duration-base) var(--ease-out) both;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+/* The tone tints the glyph only. The word beside it carries the meaning, so a
+   colourblind host under stage lighting loses nothing. */
+.glyph {
+  display: inline-flex;
+  font-size: var(--text-base);
+  flex: none;
+}
+
+.neutral {
+  color: var(--text-secondary);
+}
+
+.success {
+  color: var(--success);
+}
+
+.danger {
+  color: var(--danger);
+}
+
+.warning {
+  color: var(--warning);
+}
+
+.accent {
+  color: var(--accent);
+}

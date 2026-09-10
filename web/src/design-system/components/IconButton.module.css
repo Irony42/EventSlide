@@ -1,0 +1,84 @@
+/**
+ * Square, and never smaller than --touch-min even when the glyph is tiny.
+ *
+ * 1.0's delete affordance on a thumbnail was a 28px `.delete-icon`; guests deleted the
+ * wrong photo or missed it entirely, one-handed, in the dark.
+ */
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.iconButton:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.iconButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* The glyph is decorative; the button's aria-label is the accessible name. */
+.glyph {
+  display: inline-flex;
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+/* ---------------------------------------------------------------- variants -- */
+
+.ghost {
+  color: var(--text-secondary);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
+
+.solid {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.solid:hover:not(:disabled) {
+  background: var(--surface-overlay);
+}
+
+.danger {
+  color: var(--danger);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: var(--surface-base);
+}
+
+/* ------------------------------------------------------------------- sizes -- */
+
+.md {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+}
+
+/* Over a photo, or on the wall, where the target is read at arm's length. */
+.lg {
+  min-width: var(--space-10);
+  min-height: var(--space-10);
+}
+
+.lg .glyph {
+  font-size: var(--text-xl);
+}
