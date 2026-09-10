@@ -13,7 +13,8 @@ import { loadConfig } from '../src/infrastructure/config/env'
 const main = (): void => {
   const wantsStatus = process.argv.includes('--status')
   const config = loadConfig()
-  const path = process.env['DATABASE_PATH'] ?? config.storage.databasePath
+  // Only the config module reads the environment; it has already resolved this.
+  const path = config.storage.databasePath
 
   const db = openDatabase({ path })
   try {

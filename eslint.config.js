@@ -132,8 +132,7 @@ export default tseslint.config(
         {
           // One module reads the environment, validates it once, and exports a typed
           // object. Everything else takes configuration as a parameter.
-          selector:
-            "MemberExpression[object.object.name='process'][object.property.name='env']",
+          selector: "MemberExpression[object.object.name='process'][object.property.name='env']",
           message:
             'process.env is read only by src/infrastructure/config/env.ts. Take the value as configuration instead.',
         },
@@ -216,6 +215,17 @@ export default tseslint.config(
     },
   },
 
+  /* --------------------------------------------------------------- scripts -- */
+  {
+    // A CLI script's output IS its interface: `db:status` that printed nothing would
+    // be useless. Everything else still applies, including the ban on reading
+    // `process.env` outside the config module.
+    files: ['scripts/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+
   /* ------------------------------------------------------------------ web -- */
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
@@ -246,7 +256,13 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['**/src/domain/**', '**/src/application/**', '**/src/infrastructure/**', '**/src/interface/**', '**/src/main/**'],
+              group: [
+                '**/src/domain/**',
+                '**/src/application/**',
+                '**/src/infrastructure/**',
+                '**/src/interface/**',
+                '**/src/main/**',
+              ],
               message:
                 'The web app talks to the server over HTTP only. Its types come from web/src/lib/api/, so the wire format stays an explicit contract.',
             },
@@ -289,8 +305,7 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          selector:
-            "CallExpression[callee.property.name='waitForTimeout']",
+          selector: "CallExpression[callee.property.name='waitForTimeout']",
           message:
             'waitForTimeout is the single largest source of flake in an SSE-driven app. Use an auto-retrying expect() instead.',
         },
