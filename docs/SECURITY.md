@@ -154,7 +154,7 @@ Order is the control: each step assumes the previous one ran.
 | 6   | Re-encode: `.rotate()` → resize `fit: 'inside'` to 2560 px → encode JPEG q82. Metadata is **not** carried over                                    | same                                                     | 422 `upload.undecodable`         |
 | 7   | SHA-256 of the **re-encoded** bytes → `content_hash`                                                                                              | `src/infrastructure/crypto/hashing.ts`                   | —                                |
 | 8   | Write the file to the media root → verify its size on disk                                                                                        | `src/infrastructure/media/filesystemMediaStore.ts`       | 500, temp + partial file removed |
-| 9   | One transaction: quota check against `countBytes(eventId)`, then insert the row                                                                   | `uploadPhoto.ts`                                         | 413 `event.quotaExceeded`        |
+| 9   | One transaction: quota check against `countBytes(eventId)`, then insert the row                                                                   | `uploadPhotos.ts`                                        | 413 `event.quotaExceeded`        |
 | 10  | `try/finally` unlink of the temp file on **every** path, success included                                                                         | `middleware/upload.ts`                                   | —                                |
 
 Details that are load-bearing:
