@@ -220,14 +220,14 @@ describe('streamRoutes', () => {
   it('unsubscribes from the bus when the client disconnects', async () => {
     const stream = await open('/api/events/mariage/stream')
     await stream.waitFor((text) => text.includes(': connected'), 'connection')
-    expect(subject.deps.bus.subscriberCount(asEventId(WEDDING))).toBe(1)
+    expect(subject.bus.subscriberCount(asEventId(WEDDING))).toBe(1)
 
     stream.close()
 
     // An eight-hour run with a projector that reconnects every few minutes would
     // otherwise accumulate a listener per connection.
     await expect
-      .poll(() => subject.deps.bus.subscriberCount(asEventId(WEDDING)), { timeout: 3_000 })
+      .poll(() => subject.bus.subscriberCount(asEventId(WEDDING)), { timeout: 3_000 })
       .toBe(0)
   })
 
