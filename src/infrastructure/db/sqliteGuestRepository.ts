@@ -68,15 +68,22 @@ const SELECT_GUEST = `
  *
  * `photo_count` is absent on purpose: it is derived, so writing it is not possible and
  * the entity's value is discarded here.
+ *
+ * `event_id` is absent for a different reason: `guests.id` is unique on its own, so
+ * updating it would let a save carrying the wrong event re-file another event's guest
+ * — overwriting that guest's name and presence, and detaching their photos from the
+ * count derived above. A guest belongs to one event for life; the `WHERE` keeps the
+ * write off the row instead of moving it, and `save` turns the resulting no-op into a
+ * loud failure rather than a silent one.
  */
 const UPSERT_GUEST = `
   INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, revoked_at)
        VALUES (?, ?, ?, ?, ?, ?)
-  ON CONFLICT (id) DO UPDATE SET event_id     = excluded.event_id,
-                                 display_name = excluded.display_name,
+  ON CONFLICT (id) DO UPDATE SET display_name = excluded.display_name,
                                  joined_at    = excluded.joined_at,
                                  last_seen_at = excluded.last_seen_at,
                                  revoked_at   = excluded.revoked_at
+                           WHERE guests.event_id = excluded.event_id
 `
 
 /**
@@ -160,7 +167,7 @@ export class SqliteGuestRepository implements GuestRepository {
   async save(guest: Guest): Promise<void> {
     const props = guest.toProps()
 
-    this.db
+    const written = this.db
       .prepare<[string, string, string | null, string, string, string | null]>(UPSERT_GUEST)
       .run(
         props.id,
@@ -170,6 +177,13 @@ export class SqliteGuestRepository implements GuestRepository {
         toIsoText(props.lastSeenAt),
         props.revokedAt === null ? null : toIsoText(props.revokedAt),
       )
+
+    // The `WHERE` above skipped the update, so this id is held by a guest at another
+    // event. Nothing was written — and a caller told the save succeeded would go on to
+    // grant that guest upload rights here.
+    if (written.changes === 0) {
+      throw new Error(`guests.id ${props.id} is already held by a guest of another event`)
+    }
   }
 
   async delete(eventId: EventId, guestId: GuestId): Promise<void> {

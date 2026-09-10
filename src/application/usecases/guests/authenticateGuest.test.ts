@@ -151,6 +151,27 @@ describe('authenticateGuest', () => {
     expect(stored?.lastSeenAt).toEqual(AT)
   })
 
+  /**
+   * The same attack from the other side: the token and the URL agree on the gala, so
+   * the event comparison passes, and the only thing between the holder and Léa's
+   * wedding identity is that the guest row is read *within* the event. An unscoped
+   * `findById(guestId)` would resolve her row at the gala and hand it over.
+   */
+  it('refuses a guest id that exists only at another event, though token and URL agree', async () => {
+    const result = await authenticate(tokenFor(GALA, LEA), GALA_SLUG)
+
+    expect(!result.ok && result.error.kind).toBe('unauthenticated')
+  })
+
+  it('leaves the other event row untouched when its guest id is used at the gala', async () => {
+    clock.advance(90_000)
+
+    await authenticate(tokenFor(GALA, LEA), GALA_SLUG)
+
+    const stored = await guests.findById(WEDDING, LEA)
+    expect(stored?.lastSeenAt).toEqual(AT)
+  })
+
   // -------------------------------------------------------------------- the URL --
 
   it('refuses a slug the domain would never have stored', async () => {

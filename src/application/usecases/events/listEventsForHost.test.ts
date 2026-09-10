@@ -43,9 +43,7 @@ describe('listEventsForHost', () => {
    * the one place a missing scope would show every wedding on the box at once.
    */
   it('never lists an event belonging to another host', async () => {
-    events.seed(
-      anEvent({ id: GALA, ownerId: OTHER_HOST, slug: 'gala-annuel', joinCode: 'Z3N9PT' }),
-    )
+    events.seed(anEvent({ id: GALA, ownerId: OTHER_HOST, slug: 'gala-annuel', joinCode: 'Z3N9PT' }))
 
     const result = await listEventsForHost({ userId: HOST })
 

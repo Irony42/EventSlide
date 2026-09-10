@@ -4,8 +4,10 @@ import styles from './IconButton.module.css'
 export type IconButtonVariant = 'ghost' | 'solid' | 'danger'
 export type IconButtonSize = 'md' | 'lg'
 
-export interface IconButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label' | 'children'> {
+export interface IconButtonProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  'aria-label' | 'children'
+> {
   /**
    * Required by the type, not by review. An icon-only button without one is a silent
    * "button" to a screen reader, and 1.0 shipped four of them on the moderation tile.

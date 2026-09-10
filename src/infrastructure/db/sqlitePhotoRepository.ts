@@ -222,18 +222,17 @@ const toPhoto = (row: PhotoRow): Photo =>
 /**
  * The keyset position: the sort key of the last row of a page.
  *
- * Base64url of a JSON pair, so a caller cannot read a timestamp out of it, cannot
- * hand-build one, and cannot mistake it for a page number to increment.
+ * Encoded rather than exposed as two query parameters so a caller cannot mistake it for
+ * a page number to increment. Base64url is not a secret — anyone can decode it — which
+ * is why `decodeCursor` validates the shape instead of trusting it.
  */
 interface Cursor {
   readonly createdAt: string
   readonly id: string
 }
 
-const encodeCursor = (row: PhotoRow | undefined): string | null =>
-  row === undefined
-    ? null
-    : Buffer.from(JSON.stringify([row.created_at, row.id]), 'utf8').toString('base64url')
+const encodeCursor = (row: PhotoRow): string =>
+  Buffer.from(JSON.stringify([row.created_at, row.id]), 'utf8').toString('base64url')
 
 const decodeCursor = (raw: string): Cursor => {
   // Restarting from page one on an unreadable cursor would show a guest an album that
@@ -262,6 +261,18 @@ const requirePositiveLimit = (limit: number, method: string): void => {
 }
 
 const placeholders = (count: number): string => new Array(count).fill('?').join(', ')
+
+interface AggregateRow {
+  readonly value: number | null
+}
+
+/**
+ * `SUM` over an event that has received nothing yet is `NULL`, which is zero bytes
+ * rather than a missing answer. One helper for both counters so that conversion lives
+ * in a single tested place instead of being spelled `COALESCE` in one query and `?? 0`
+ * in the next.
+ */
+const aggregate = (row: AggregateRow | undefined): number => row?.value ?? 0
 
 export class SqlitePhotoRepository implements PhotoRepository {
   constructor(private readonly db: Db) {}
@@ -335,7 +346,11 @@ export class SqlitePhotoRepository implements PhotoRepository {
 
     const exhausted = limit === undefined || rows.length <= limit
     const page = exhausted ? rows : rows.slice(0, limit)
-    return { items: page.map(toPhoto), nextCursor: exhausted ? null : encodeCursor(page.at(-1)) }
+    const last = exhausted ? undefined : page.at(-1)
+    return {
+      items: page.map(toPhoto),
+      nextCursor: last === undefined ? null : encodeCursor(last),
+    }
   }
 
   async listIdsByStatus(
@@ -345,8 +360,6 @@ export class SqlitePhotoRepository implements PhotoRepository {
   ): Promise<readonly PhotoId[]> {
     requirePositiveLimit(limit, 'listIdsByStatus')
 
-    // Ids only. The wall needs a stable order of hundreds of them, not hundreds of
-    // hydrated aggregates it would immediately throw away.
     return this.db
       .prepare<[string, string, number], { readonly id: string }>(
         `SELECT id
@@ -377,23 +390,23 @@ export class SqlitePhotoRepository implements PhotoRepository {
    * occupies the disk it was written to.
    */
   async totalBytes(eventId: EventId): Promise<number> {
-    const row = this.db
-      .prepare<[string], { readonly total: number }>(
-        `SELECT COALESCE(SUM(byte_size), 0) AS total FROM photos WHERE event_id = ?`,
-      )
-      .get(eventId)
-
-    return row?.total ?? 0
+    return aggregate(
+      this.db
+        .prepare<[string], AggregateRow>(
+          `SELECT SUM(byte_size) AS value FROM photos WHERE event_id = ?`,
+        )
+        .get(eventId),
+    )
   }
 
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
-    const row = this.db
-      .prepare<[string, string], { readonly count: number }>(
-        `SELECT COUNT(*) AS count FROM photos WHERE event_id = ? AND author_guest_id = ?`,
-      )
-      .get(eventId, guestId)
-
-    return row?.count ?? 0
+    return aggregate(
+      this.db
+        .prepare<[string, string], AggregateRow>(
+          `SELECT COUNT(*) AS value FROM photos WHERE event_id = ? AND author_guest_id = ?`,
+        )
+        .get(eventId, guestId),
+    )
   }
 
   async save(photo: Photo): Promise<void> {

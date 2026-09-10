@@ -193,15 +193,13 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   revokeGuest: vi.fn(async () => undefined),
 
   listModerators: vi.fn(async () => ({ items: [] })),
-  inviteModerator: vi.fn(
-    async (): Promise<ModeratorDto> => ({
-      userId: 'user-2',
-      email: 'moderateur@example.com',
-      displayName: null,
-      role: 'moderator',
-      grantedAt: CREATED_AT,
-    }),
-  ),
+  inviteModerator: vi.fn(async (): Promise<ModeratorDto> => ({
+    userId: 'user-2',
+    email: 'moderateur@example.com',
+    displayName: null,
+    role: 'moderator',
+    grantedAt: CREATED_AT,
+  })),
   revokeModerator: vi.fn(async () => undefined),
 
   albumUrl: vi.fn((slug: string) => `/api/events/${slug}/album.zip`),

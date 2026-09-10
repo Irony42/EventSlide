@@ -292,6 +292,72 @@ describe('SqliteEventRepository', () => {
     })
   })
 
+  // -------------------------------------------------------------- retention --
+
+  /**
+   * The deadline is computed in SQL — `closed_at + retentionDays`, with `retentionDays`
+   * read out of the JSON column — so these two cases hold that arithmetic to what
+   * `Event.isDueForPurge` decides. The contract cannot: it only ever sees a repository
+   * that agrees with itself.
+   */
+  describe('the purge deadline computed in SQL', () => {
+    const DAY = 86_400_000
+
+    it('treats the deadline instant itself as due, to the millisecond', async () => {
+      // `Event.isDueForPurge` is `now >= deadline`, and `closed_at` carries
+      // milliseconds. A deadline formatted to whole seconds compares as later than the
+      // instant it should match, and the last album of the night is never collected.
+      await repo.save(
+        anEvent({
+          id: 'evt-1',
+          ownerId: HOST,
+          status: 'closed',
+          closedAt: new Date('2026-06-20T21:00:00.500Z'),
+          settings: { retentionDays: 1 },
+        }),
+      )
+
+      const due = await repo.listDueForPurge(new Date('2026-06-21T21:00:00.500Z'))
+
+      expect(due.map((event) => event.id)).toEqual(['evt-1'])
+    })
+
+    it('is not due a millisecond before its deadline', async () => {
+      await repo.save(
+        anEvent({
+          id: 'evt-1',
+          ownerId: HOST,
+          status: 'closed',
+          closedAt: new Date('2026-06-20T21:00:00.500Z'),
+          settings: { retentionDays: 1 },
+        }),
+      )
+
+      const due = await repo.listDueForPurge(new Date('2026-06-21T21:00:00.499Z'))
+
+      expect(due).toEqual([])
+    })
+
+    it('collects an archived event too, because retention applies to both end states', async () => {
+      // `retentionApplies` covers closed and archived. An archived album is the one a
+      // host expects to be gone once the window passes, so a status list that forgot it
+      // would keep every archive on the disk for ever.
+      await repo.save(
+        anEvent({
+          id: 'evt-1',
+          ownerId: HOST,
+          status: 'archived',
+          closedAt: AT,
+          settings: { retentionDays: 1 },
+        }),
+      )
+
+      const due = await repo.listDueForPurge(new Date(AT.getTime() + DAY * 3))
+
+      expect(due.map((event) => event.id)).toEqual(['evt-1'])
+    })
+  })
+
   // ------------------------------------------------------------ corrupt rows --
 
   describe('a row the domain refuses', () => {

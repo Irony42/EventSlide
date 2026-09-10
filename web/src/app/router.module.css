@@ -1,0 +1,11 @@
+/* The wait between a route being requested and its lazy chunk arriving. Centred and
+   quiet: on a phone over 4G this is the first thing a guest sees. */
+.routeFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 50dvh;
+  padding: var(--space-6);
+  color: var(--text-secondary);
+}

@@ -145,10 +145,10 @@ export class SqliteUserRepository implements UserRepository {
     // create an owner, and the answer never needs the number. A disabled account still
     // counts — 1.0 recreated `admin` / `password` on every boot, and answering "empty"
     // beside a deliberately disabled owner is how that comes back.
-    const row = this.db.prepare<[], { readonly present: number }>(
+    const anyAccount = this.db.prepare<[], { readonly present: number }>(
       `SELECT 1 AS present FROM users LIMIT 1`,
     )
 
-    return row.get() === undefined
+    return anyAccount.get() === undefined
   }
 }

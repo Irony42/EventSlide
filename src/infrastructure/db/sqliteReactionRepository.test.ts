@@ -101,12 +101,6 @@ interface QueryLog {
   readonly prepared: string[]
 }
 
-/**
- * Records the SQL the adapter prepares while forwarding every call to the real
- * database. Not a stub — the tally below is computed from real rows. It exists so
- * "one grouped query" can be asserted at all: an N+1 returns exactly the same numbers
- * as the grouped query does, and would be invisible to every other test here.
- */
 /** The thrown value itself, so an assertion can read a machine code off it. */
 const refusalOf = (write: () => void): unknown => {
   try {
@@ -117,6 +111,12 @@ const refusalOf = (write: () => void): unknown => {
   throw new Error('expected the write to be refused')
 }
 
+/**
+ * Records the SQL the adapter prepares while forwarding every call to the real
+ * database. Not a stub — the tally below is computed from real rows. It exists so
+ * "one grouped query" can be asserted at all: an N+1 returns exactly the same numbers
+ * as the grouped query does, and would be invisible to every other test here.
+ */
 const withQueryLog = (db: Db): QueryLog => {
   const prepared: string[] = []
   const proxied = new Proxy(db, {
@@ -164,7 +164,9 @@ describe('SqliteReactionRepository', () => {
     // Asserted on the SQLite constraint code, not on a message, and not on the use
     // case's own check: the database is the enforcement, so a double tap that races
     // past the read is still refused.
-    await repo.save(aReaction({ id: 'r1', eventId: WEDDING, photoId: P1, guestId: LEA }))
+    await repo.save(
+      aReaction({ id: 'r1', eventId: WEDDING, photoId: P1, guestId: LEA, kind: 'love' }),
+    )
 
     const second = repo.save(
       aReaction({ id: 'r2', eventId: WEDDING, photoId: P1, guestId: LEA, kind: 'love' }),
@@ -218,11 +220,28 @@ describe('SqliteReactionRepository', () => {
   // -------------------------------------------------------------- ordering --
 
   it('breaks a tie in a guest reaction list by id, so two devices agree', async () => {
+    // Written in descending id order and read back in ascending id order, against one
+    // shared `createdAt`: insertion order alone would return `clap` first, so this
+    // fails if the tie-break is dropped instead of quietly agreeing with the rowids.
     await repo.save(
-      aReaction({ id: 'r1', eventId: WEDDING, photoId: P1, guestId: LEA, kind: 'love' }),
+      aReaction({
+        id: 'r2',
+        eventId: WEDDING,
+        photoId: P2,
+        guestId: LEA,
+        kind: 'clap',
+        createdAt: AT,
+      }),
     )
     await repo.save(
-      aReaction({ id: 'r2', eventId: WEDDING, photoId: P2, guestId: LEA, kind: 'clap' }),
+      aReaction({
+        id: 'r1',
+        eventId: WEDDING,
+        photoId: P1,
+        guestId: LEA,
+        kind: 'love',
+        createdAt: AT,
+      }),
     )
 
     const entries = await repo.listByGuest(WEDDING, LEA)

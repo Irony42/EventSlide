@@ -33,6 +33,13 @@ class SaturatedEventRepository extends FakeEventRepository {
   }
 }
 
+/** A generator that under-delivers entropy: the port lying, which `JoinCode` refuses. */
+class ShortEntropyIdGenerator extends SequentialIdGenerator {
+  override bytes(count: number): Uint8Array {
+    return super.bytes(count).slice(1)
+  }
+}
+
 describe('rotateJoinCode', () => {
   let events: FakeEventRepository
   let memberships: FakeMembershipRepository
@@ -101,6 +108,19 @@ describe('rotateJoinCode', () => {
     const result = await rotateJoinCode({ eventId: WEDDING, actorId: OWNER })
 
     expect(result.ok && result.value.joinCode.value).toBe(SECOND_CODE)
+  })
+
+  it('surfaces a generator that hands back too little entropy for a code', async () => {
+    const rotate = makeRotateJoinCode({
+      events,
+      memberships,
+      ids: new ShortEntropyIdGenerator(),
+      bus,
+    })
+
+    const result = await rotate({ eventId: WEDDING, actorId: OWNER })
+
+    expect(!result.ok && result.error.code).toBe('joinCode.wrongEntropyLength')
   })
 
   describe('when no join code is free', () => {

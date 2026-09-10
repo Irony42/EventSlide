@@ -225,7 +225,11 @@ describe('createEvent', () => {
   // ------------------------------------------------------------------ quota --
 
   it('keeps the quota the host chose', async () => {
-    const result = await createEvent({ ownerId: OWNER, name: 'Camille & Sacha', quotaBytes: 12_345 })
+    const result = await createEvent({
+      ownerId: OWNER,
+      name: 'Camille & Sacha',
+      quotaBytes: 12_345,
+    })
 
     expect(unwrap(result).quotaBytes).toBe(12_345)
   })

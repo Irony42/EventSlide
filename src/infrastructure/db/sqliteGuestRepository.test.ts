@@ -183,6 +183,37 @@ describe('SqliteGuestRepository', () => {
     expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(1)
   })
 
+  // -------------------------------------------------------- cross-event writes --
+
+  it('refuses a save that would re-file a guest under another event', async () => {
+    // `guests.id` is unique on its own, so a save carrying the wrong event is the one
+    // way a write here can reach another event's row. It must fail, not succeed
+    // quietly: the caller would go on to grant that guest upload rights at this event.
+    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
+
+    const moved = repo.save(aGuest({ id: 'guest-lea', eventId: GALA, displayName: 'Pirate' }))
+
+    await expect(moved).rejects.toThrow()
+  })
+
+  it('leaves the guest of the other event untouched when such a save is refused', async () => {
+    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: 'Léa' }))
+    await expect(
+      repo.save(aGuest({ id: 'guest-lea', eventId: GALA, displayName: 'Pirate' })),
+    ).rejects.toThrow()
+
+    const stored = await repo.findById(WEDDING, LEA)
+
+    expect(stored?.displayName?.value).toBe('Léa')
+  })
+
+  it('never lists a guest at the event a refused save named', async () => {
+    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
+    await expect(repo.save(aGuest({ id: 'guest-lea', eventId: GALA }))).rejects.toThrow()
+
+    expect(await repo.list(GALA)).toEqual([])
+  })
+
   // -------------------------------------------------------------- stored shape --
 
   it('stores an absent display name as NULL rather than as an empty string', async () => {

@@ -34,14 +34,7 @@ export interface FieldProps {
  * A placeholder is never a label: it disappears on the first keystroke, is invisible
  * to a screen reader as a name, and fails contrast on every phone in sunlight.
  */
-export function Field({
-  label,
-  hint,
-  error,
-  optional = false,
-  className,
-  children,
-}: FieldProps) {
+export function Field({ label, hint, error, optional = false, className, children }: FieldProps) {
   const generated = useId()
   const hintId = `${generated}-hint`
   const errorId = `${generated}-error`

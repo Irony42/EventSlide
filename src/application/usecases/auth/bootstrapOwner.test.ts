@@ -93,6 +93,8 @@ describe('bootstrapOwner', () => {
     const result = await bootstrap()
 
     expect(result.ok && result.value).toEqual({ created: false, reason: 'accountsExist' })
+    expect((await users.findById(asUserId('user-9')))?.disabledAt).toEqual(AT)
+    expect(await users.findById(asUserId('user-1'))).toBeNull()
   })
 
   it('refuses a configured address that is not an address', async () => {

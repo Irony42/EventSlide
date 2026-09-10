@@ -41,9 +41,7 @@ export function EmptyState({
         </span>
       )}
       <Heading className={styles['title']}>{title}</Heading>
-      {description === undefined ? null : (
-        <p className={styles['description']}>{description}</p>
-      )}
+      {description === undefined ? null : <p className={styles['description']}>{description}</p>}
       {children}
       {action === undefined ? null : <div className={styles['action']}>{action}</div>}
     </div>

@@ -39,6 +39,14 @@ interface CountRow {
 }
 
 /**
+ * `COUNT(*)` without `GROUP BY` always returns exactly one row, but the driver cannot
+ * express that — `get` is typed as possibly absent. Summing the rows yields the same
+ * number without a fallback no test could reach, and without the `!` this project bans.
+ */
+const sumOf = (rows: readonly CountRow[]): number =>
+  rows.reduce((total, row) => total + row.count, 0)
+
+/**
  * The column carries `CHECK (role IN ('owner', 'moderator'))`, so an unknown role can
  * only come from a hand-edited database. Refusing to hydrate it is the safe direction:
  * guessing would either lock the owner out of their own event or, far worse, promote a
@@ -144,9 +152,6 @@ export class SqliteMembershipRepository implements MembershipRepository {
 
   /** Guards the last-owner rule, which is per event — never a global owner count. */
   async countByRole(eventId: EventId, role: EventRole): Promise<number> {
-    const row = this.countRole.get(eventId, role)
-    // `COUNT(*)` always yields a row. The fallback is there because the type says it
-    // might not, and a `!` assertion is banned in production code.
-    return row?.count ?? 0
+    return sumOf(this.countRole.all(eventId, role))
   }
 }

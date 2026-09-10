@@ -147,6 +147,21 @@ describe('SqliteUserRepository', () => {
     },
   )
 
+  // ------------------------------------------------------------------ deletion --
+
+  it('refuses to delete a host who still owns an event, so no album leaves with them', async () => {
+    // `events.owner_id` is ON DELETE RESTRICT, which only bites while the foreign-key
+    // pragma is on. Ownership is transferred first, deliberately. SQLite implements
+    // RESTRICT as an immediate action, so the code is `_TRIGGER` rather than the
+    // `_FOREIGNKEY` a deferred violation reports.
+    await repo.save(aUser({ id: 'user-host' }))
+    grantOwnership(db)
+
+    await expect(repo.delete(HOST)).rejects.toMatchObject({
+      code: 'SQLITE_CONSTRAINT_TRIGGER',
+    })
+  })
+
   it('refuses to hydrate an account whose stored address the domain rejects', async () => {
     // A corrupt row is a bug to surface, not a login to serve: the unique index assumes
     // a normalised address, and an account whose identifier is not one breaks that.

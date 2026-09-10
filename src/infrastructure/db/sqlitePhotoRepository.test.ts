@@ -286,6 +286,17 @@ describe('SqlitePhotoRepository', () => {
     expect(countReactionRows(db)).toBe(1)
   })
 
+  it('cannot capture another event photo by saving one under the same id', async () => {
+    // The update is scoped by event_id as well as by id, so it matches nothing and the
+    // insert collides on the primary key. An unscoped `WHERE id = ?` would instead move
+    // the gala's photo into the wedding, taking its bytes and its wall with it.
+    await repo.save(aPhoto({ id: 'p1', eventId: GALA, status: 'pending', author: SAM }))
+
+    await expect(repo.save(aPhoto({ id: 'p1', eventId: WEDDING }))).rejects.toThrow()
+
+    expect((await repo.findById(GALA, asPhotoId('p1')))?.eventId).toBe(GALA)
+  })
+
   it('commits no row of a batch when one photo duplicates a content hash', async () => {
     // 1.0 fired one insert per file through Promise.all, so a duplicate in the fifth
     // file left four rows committed and the guest unable to tell which photos landed.

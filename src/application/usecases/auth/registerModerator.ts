@@ -61,11 +61,18 @@ export const makeRegisterModerator =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    // Scoped read: an owner of the corporate gala is nobody on this wedding, and a
-    // moderator is nobody's recruiter — a moderator who could invite moderators would
-    // be an owner with extra steps.
+    // Scoped read: an owner of the corporate gala is nobody on this wedding.
     const actorRole = await memberships.roleFor(eventId, actorId)
-    if (actorRole === null || !canInviteModerators(actorRole)) {
+    // A signed-in caller with no part in this event is answered exactly as one asking
+    // about an event that does not exist. Answering `forbidden` here would confirm the
+    // event exists and turn the invitation endpoint into an enumeration oracle for
+    // other people's weddings — docs/API.md reserves 403 for a principal genuinely in
+    // scope, and `requireRole` makes the same choice at the HTTP boundary.
+    if (actorRole === null) return err(DomainError.notFound('event.notFound'))
+    // A moderator is nobody's recruiter: one who could invite moderators would be an
+    // owner with extra steps. `canInviteModerators` is asked rather than the
+    // qualifying roles being listed, so a role added later is refused by default.
+    if (!canInviteModerators(actorRole)) {
       return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
     }
 

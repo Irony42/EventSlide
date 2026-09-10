@@ -127,6 +127,15 @@ describe('authenticateUser', () => {
     expect(hasher.verifications).toEqual([{ attempt: PASSWORD, hash: hasher.dummyHash }])
   })
 
+  it('still compares the password of a disabled account, so its refusal is not faster', async () => {
+    users.seed(aUser({ id: 'user-1', disabledAt: AT }))
+
+    const result = await authenticate({ email: 'hote@example.test', password: PASSWORD })
+
+    expect(result.ok).toBe(false)
+    expect(hasher.verifications).toEqual([{ attempt: PASSWORD, hash: current(PASSWORD) }])
+  })
+
   it('does not record a sign-in for a disabled account', async () => {
     users.seed(aUser({ id: 'user-1', disabledAt: AT }))
 

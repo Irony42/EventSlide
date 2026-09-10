@@ -138,11 +138,18 @@ describe('registerModerator', () => {
     expect(await memberships.listForEvent(asEventId('event-1'))).toHaveLength(2)
   })
 
-  it('refuses an owner of another event', async () => {
+  it('answers an owner of another event as if this one did not exist', async () => {
     const result = await invite({ eventId: asEventId('event-2') })
 
-    expect(!result.ok && result.error.kind).toBe('forbidden')
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+    expect(!result.ok && result.error.kind).toBe('notFound')
     expect(await memberships.listForEvent(asEventId('event-2'))).toEqual([])
+  })
+
+  it('tells a caller with no part in the event nothing about their own input', async () => {
+    const result = await invite({ actorId: asUserId('etrangere-1'), email: 'lea' })
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
   })
 
   it('does not count a role on another event as a role on this one', async () => {
@@ -233,6 +240,7 @@ describe('registerModerator', () => {
     const result = await invite()
 
     expect(!result.ok && result.error.code).toBe('user.passwordHashEmpty')
+    expect(await storedInvitee()).toBeNull()
     expect(await memberships.listForEvent(asEventId('event-1'))).toHaveLength(1)
   })
 })

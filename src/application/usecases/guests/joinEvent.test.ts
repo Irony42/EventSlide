@@ -74,7 +74,7 @@ describe('joinEvent', () => {
     expect(guest?.label()).toBe('Léa')
   })
 
-  it('counts a guest who has only scanned the code as present', async () => {
+  it('stamps a guest who has only scanned the code as seen, so the host counts them', async () => {
     await join({ joinCode: WEDDING_CODE })
 
     const guest = await guests.findById(WEDDING, asGuestId('guest-1'))
@@ -207,6 +207,12 @@ describe('joinEvent', () => {
     expect(!result.ok && result.error.code).toBe('displayName.tooLong')
   })
 
+  it('stores no guest when the domain refuses the name', async () => {
+    await join({ joinCode: WEDDING_CODE, displayName: 'Léa'.repeat(20) })
+
+    expect(await guests.list(WEDDING)).toEqual([])
+  })
+
   it('spends no guest id on a name the domain refuses', async () => {
     await join({ joinCode: WEDDING_CODE, displayName: 'Léa'.repeat(20) })
 
@@ -232,6 +238,10 @@ describe('joinEvent', () => {
   it('announces the arrival on the joined event only', async () => {
     await join({ joinCode: GALA_CODE })
 
-    expect(bus.publishedFor(WEDDING)).toEqual([])
+    // The whole recording, not `publishedFor(WEDDING)`: an assertion that one event saw
+    // nothing also passes when nothing was announced at all.
+    expect(bus.published).toEqual([
+      { type: 'guest.joined', eventId: GALA, guestId: asGuestId('guest-1') },
+    ])
   })
 })

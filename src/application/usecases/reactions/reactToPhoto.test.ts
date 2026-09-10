@@ -75,9 +75,7 @@ describe('reactToPhoto', () => {
   it.each(['pending', 'rejected', 'hidden'] as const)(
     'refuses a reaction to a %s photo: you react to what is on the wall',
     async (status: PhotoStatus) => {
-      photos = new FakePhotoRepository().seed(
-        aPhoto({ id: 'photo-1', eventId: 'event-1', status }),
-      )
+      photos = new FakePhotoRepository().seed(aPhoto({ id: 'photo-1', eventId: 'event-1', status }))
 
       const result = await react()
 
