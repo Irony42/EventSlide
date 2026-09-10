@@ -27,13 +27,22 @@ export const useSession = (): SessionState => {
   })
   const [attempt, setAttempt] = useState(0)
 
-  const refresh = useCallback(() => setAttempt((current) => current + 1), [])
+  /**
+   * Marks the refetch as pending here rather than in the effect body.
+   *
+   * Setting state synchronously inside an effect causes a cascading render, and lint
+   * rejects it. Doing it in the event handler that asked for the refresh is both
+   * correct and cheaper: the first load already starts with `loading: true` from the
+   * initial state, so the effect never needs to set it.
+   */
+  const refresh = useCallback(() => {
+    setState((previous) => ({ ...previous, loading: true, error: null }))
+    setAttempt((current) => current + 1)
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
     let current = true
-
-    setState((previous) => ({ ...previous, loading: true, error: null }))
 
     api.session(controller.signal).then(
       (session) => {

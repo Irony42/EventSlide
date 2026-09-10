@@ -69,9 +69,6 @@ export function Dialog({
 }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const openerRef = useRef<Element | null>(null)
-  const openRef = useRef(open)
-  openRef.current = open
-
   const generated = useId()
   const titleId = `${generated}-title`
   const descriptionId = `${generated}-description`
@@ -114,7 +111,11 @@ export function Dialog({
     const handleNativeClose = () => {
       // A `<form method="dialog">` inside the body, or a browser gesture: sync React
       // rather than leaving the element closed while the prop still says open.
-      if (openRef.current) onClose()
+      // The listener only exists while `open` is true — the effect returns early
+      // otherwise and removes it on teardown — so no staleness guard is needed. The
+      // ref that used to hold the latest `open` was written during render, which is
+      // unsafe under concurrent rendering: a discarded render still mutated it.
+      onClose()
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {

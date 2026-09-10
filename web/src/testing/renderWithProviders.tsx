@@ -253,5 +253,9 @@ export const renderWithProviders = (
     </MemoryRouter>
   )
 
-  return { ...render(ui, { wrapper: Providers }), api }
+  // `Object.assign` rather than a spread: Testing Library's `RenderResult` is an
+  // intersection with a mapped type over the query helpers, and TypeScript loses the
+  // mapped half when it infers the type of an object-literal spread — so a spread
+  // compiles to a result with no `getByRole`.
+  return Object.assign(render(ui, { wrapper: Providers }), { api })
 }
