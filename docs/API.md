@@ -228,6 +228,9 @@ same photo twice on the wall.
 another event; `403 guest.revoked`; `409 event.notAcceptingUploads`;
 `413 upload.tooLarge`; `413 event.quotaExceeded`; `400 upload.tooManyFiles`;
 `400 caption.tooLong`; `403 photo.tooManyForGuest`; `429 rate.limited`.
+`400 upload.noFiles` when the request carries no `photos` part at all — a 201 with an
+empty `results` array would tell a guest whose picker silently failed that their upload
+worked. `400 upload.unexpectedField` when a file arrives under any other field name.
 
 ### `GET /api/events/:slug/photos/mine`
 

@@ -16,7 +16,7 @@ import { aPhoto } from '../fixtures/media'
  * information.
  */
 
-test.describe('the projected wall', () => {
+test.describe('the projected wall @visual', () => {
   test.skip(
     ({ browserName }) => browserName !== 'chromium',
     'snapshots are taken on one engine; font rasterisation differs between them',

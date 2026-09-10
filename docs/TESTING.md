@@ -407,10 +407,23 @@ tests/e2e/                        (planned)
   **only when `E2E_HOOKS=1`**, never set in production; a ring-4 test asserts they are
   ignored without it. `E2E_CLOCK_EPOCH` fixes the clock so relative times are stable.
 - **Visual snapshots cover the wall layouts only** (`tests/e2e/visual/display.spec.ts`),
-  where "looks right" _is_ the requirement. They need the seeded demo album,
-  `e2e_transition=0`, and `prefers-reduced-motion`. Update deliberately with
-  `npm run test:e2e:update-snapshots` and read the diff. Admin screens are never
-  snapshotted — they churn and teach nothing.
+  where "looks right" _is_ the requirement. Admin screens are never snapshotted — they
+  churn and teach nothing, and a snapshot that fails because a button moved four pixels
+  gets updated without being read.
+
+  They are tagged `@visual` and **excluded from `npm run test:e2e`**, which runs
+  `--grep-invert @visual`. Two reasons, both practical:
+
+  |                                  |                                                                                                                                                                                                           |
+  | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | A baseline is platform-specific  | Font rasterisation differs between a Windows workstation and a Linux runner, so a baseline generated locally fails in CI and vice versa. Baselines must be produced on the platform that will check them. |
+  | A missing baseline fails the run | Playwright treats an absent snapshot as a failure under `--forbid-only`/CI, so including these in the default job would keep it red until someone generated images on the right machine.                  |
+
+  So: `npm run test:e2e:visual` runs them (one engine, `chromium-desktop`), and
+  `npm run test:e2e:update-snapshots` regenerates the baselines. Run the update on the
+  same platform as the checker, commit the images, and **read the diff** — an updated
+  snapshot nobody looked at is a test that has been switched off.
+
 - **Accessibility.** `@axe-core/playwright` over `/join/:code`, `/e/:slug/upload`,
   `/admin` and the moderation console, tags `wcag2a` + `wcag2aa`, failing on `serious`
   and `critical`. The projector page is exempt from contrast rules by design (a photo on
