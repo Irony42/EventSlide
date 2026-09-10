@@ -270,9 +270,7 @@ export const toSignedInUserDto = (user: AuthenticatedUser): SessionUserDto => ({
  * login response carries the fresh name; this endpoint answers the question it is
  * actually asked, which is whether the caller is signed in.
  */
-export const toSessionResponseDto = (
-  principal: UserPrincipal | undefined,
-): SessionResponseDto =>
+export const toSessionResponseDto = (principal: UserPrincipal | undefined): SessionResponseDto =>
   principal === undefined
     ? { authenticated: false }
     : {
@@ -397,6 +395,11 @@ export const toWallResponseDto = (view: WallPlaylistView): WallResponseDto => {
 
   return {
     event: { slug, name: view.event.name.value },
+    // The wall doubles as the invitation: its empty state exists to tell the room how
+    // to join, and someone arriving at 23:00 has only the screen to read. The cost —
+    // a leaked display URL now grants upload as well as read — is recorded in
+    // docs/SECURITY.md §12, and the host's mitigation is to rotate the code.
+    joinCode: view.event.joinCode.value,
     revision: view.playlist.revision,
     items: view.playlist.items.flatMap((id) => {
       const photo = byId.get(id)
@@ -411,3 +414,46 @@ export const toWallResponseDto = (view: WallPlaylistView): WallResponseDto => {
     reactionsEnabled: view.event.settings.allowReactions,
   }
 }
+
+// ------------------------------------------------ event routes (additive) --
+
+// Imported here rather than folded into the statement list at the top of the file, so
+// that route modules being written against this file at the same time merge cleanly.
+// Type-only, so nothing is added to the bundle.
+import type { MembershipWithUser } from '../../../application/ports/userRepository'
+import type { RegisterModeratorResult } from '../../../application/usecases/auth/registerModerator'
+import type { ModeratorDto } from './dto'
+
+/**
+ * One membership, for the host's "who has the console" list.
+ *
+ * The address is here because it is how the host recognises the person they invited,
+ * and it is only ever shown to an owner of that same event. Note what is absent: no
+ * password state, no last login, nothing about the other events that account may run —
+ * a membership row is not a window onto a colleague's account.
+ */
+export const toModeratorDto = (membership: MembershipWithUser): ModeratorDto => ({
+  userId: membership.userId,
+  email: membership.email,
+  displayName: membership.displayName,
+  role: membership.role,
+  grantedAt: iso(membership.grantedAt),
+})
+
+/**
+ * The answer to an invitation.
+ *
+ * `created` is the useful half: it says whether the temporary password the host just
+ * typed is worth reading out. An address that already had an account keeps its own
+ * password — an invitation that reset it would let one host take over a colleague's
+ * account, and with it every other event that colleague runs.
+ */
+export interface ModeratorInviteDto {
+  readonly userId: string
+  readonly created: boolean
+}
+
+export const toModeratorInviteDto = (result: RegisterModeratorResult): ModeratorInviteDto => ({
+  userId: result.userId,
+  created: result.created,
+})

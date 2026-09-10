@@ -219,3 +219,26 @@ export const topPhotosQuery = z
     limit: z.coerce.number().int().min(1).max(50).default(10),
   })
   .strict()
+
+// ------------------------------------------------ event routes (additive) --
+
+/**
+ * The invitation form, in full.
+ *
+ * `inviteModeratorBody` above carries only the address, which is all the table in
+ * docs/API.md names — but `registerModerator` also needs the temporary password the
+ * host reads out to the person they are handing the laptop to, and there is no mailer
+ * in this product to send one instead. It is not generated here: the HTTP layer holds
+ * no `IdGenerator`, and a controller inventing a credential is exactly the kind of
+ * decision this layer must not make.
+ *
+ * Bounded only in length, like `loginBody`. The password policy belongs to `Password`,
+ * and repeating it here would be a second implementation that drifts — and one that
+ * would refuse the host's input before the domain could explain why.
+ */
+export const moderatorInvitationBody = inviteModeratorBody
+  .extend({
+    displayName: z.string().max(120).nullish(),
+    temporaryPassword: z.string().min(1).max(1_000),
+  })
+  .strict()

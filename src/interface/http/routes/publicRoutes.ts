@@ -6,7 +6,7 @@ import { joinLimiter } from '../middleware/rateLimit'
 import { toPublicEventDto, toWallResponseDto } from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
 import { joinBody, wallQuery } from '../schemas/requestSchemas'
-import type { JoinResponseDto } from '../presenters/dto'
+import type { JoinResponseDto, WallResponseDto } from '../presenters/dto'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
 /**
@@ -131,17 +131,24 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
       // config module refuses to boot production with that flag, and this is the other
       // half of that guarantee — without it anyone could dictate the projector's timing
       // from a query string.
+      //
+      // They override the *presented* timings rather than reaching the use case, and
+      // `wallQuery`'s 50ms floor against `SlideInterval`'s 2000ms is why: the domain
+      // bound exists to stop a host choosing a strobe for a room full of people, so a
+      // 250ms harness value must not be able to turn a test hook into a 400.
       const hooks = deps.config.e2eHooks
-      const slideIntervalMs = hooks ? (query.e2e_interval ?? null) : null
+      const intervalOverrideMs = hooks ? (query.e2e_interval ?? null) : null
       const kenBurnsOverrideMs = hooks ? (query.e2e_transition ?? null) : null
 
       const result = await usecases.getWallPlaylist({
         slug: event.slug,
         layout: query.layout ?? null,
-        slideIntervalMs,
-        // The rotation window is the domain's own default. It is not a client setting:
-        // this endpoint is public, so the size of the query it can provoke is not the
-        // caller's decision.
+        // No client-settable interval on this endpoint: the timing a room sees is the
+        // domain's default until a host setting exists for it, never a query parameter
+        // a passer-by can send.
+        slideIntervalMs: null,
+        // The rotation window is the domain's own default too. This endpoint is public,
+        // so the size of the query it can provoke is not the caller's decision.
         windowSize: null,
       })
 
@@ -153,14 +160,17 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
 
       sendResult(res, result, (response, view) => {
         const dto = toWallResponseDto(view)
-        // The Ken Burns duration is derived from the interval by the domain, so there is
-        // no second setting left to fall out of sync with the first. The transition hook
-        // is the one exception, and it asks for a value the domain itself produces under
-        // `prefers-reduced-motion`: zero, meaning no motion at all.
-        sendJson(
-          response,
-          kenBurnsOverrideMs === null ? dto : { ...dto, kenBurnsDurationMs: kenBurnsOverrideMs },
-        )
+        // Both hooks or neither, which is what the Playwright fixture sends: the Ken
+        // Burns duration is derived from the interval by the domain, so a harness that
+        // shortened the slide without shortening the zoom would recreate the 1.0 snap it
+        // exists to catch. Zero is a duration the domain itself produces, for
+        // `prefers-reduced-motion` — the wall renders it as no motion at all.
+        const body: WallResponseDto = {
+          ...dto,
+          slideIntervalMs: intervalOverrideMs ?? dto.slideIntervalMs,
+          kenBurnsDurationMs: kenBurnsOverrideMs ?? dto.kenBurnsDurationMs,
+        }
+        sendJson(response, body)
       })
     }),
   )

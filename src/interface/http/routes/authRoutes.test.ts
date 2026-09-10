@@ -1,0 +1,554 @@
+import type { RequestHandler } from 'express'
+import request from 'supertest'
+import { describe, expect, it } from 'vitest'
+import { SESSION_COOKIE, authRoutes } from './authRoutes'
+import { GUEST_COOKIE } from '../middleware/authz'
+import { buildHarness, signInAs, testHttpConfig, type Harness } from '../testing/middlewareHarness'
+import type { HttpConfig } from '../types'
+import { AT, aUser } from '../../../application/testing/builders'
+import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
+import type { PasswordHasher } from '../../../application/ports/passwordHasher'
+import { makeAuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
+import { makeChangePassword } from '../../../application/usecases/auth/changePassword'
+import type { Password } from '../../../domain/users/password'
+import type { PasswordHash } from '../../../domain/users/user'
+
+const HOST_ID = 'host-id'
+const HOST_EMAIL = 'camille@example.test'
+const FORMER_EMAIL = 'ancienne@example.test'
+
+/** The plaintext behind `builders.aUser`'s default hash. */
+const PASSWORD = 'un-mot-de-passe-solide'
+const NEW_PASSWORD = 'une-phrase-de-passe-2026'
+
+/**
+ * `buildHarness` mounts `express-session` under the library's default cookie name,
+ * where the real server uses `es_session`. The fixation assertion below is about the id
+ * changing rather than about the name, so it reads whichever name the app under test
+ * emits — while the logout assertion names `SESSION_COOKIE` exactly, because clearing
+ * the wrong name is the failure that test exists to catch.
+ */
+const HARNESS_SESSION_COOKIE = 'connect.sid'
+
+/**
+ * `hash:<plaintext>` — the shape `builders.aUser` already defaults to, so a fixture and
+ * a login agree on one password without either restating it.
+ *
+ * Real bcrypt costs ~200 ms by design and there is no seam that makes it cheaper, which
+ * is the whole reason `PasswordHasher` is a port. The fake still behaves: a wrong
+ * password genuinely fails to verify, which is all these tests observe. Built here
+ * rather than in `src/interface/http/testing/`, because the shared harness is mounted
+ * by sibling route modules and a use-case bag is this module's own business.
+ */
+class FakePasswordHasher implements PasswordHasher {
+  readonly dummyHash: PasswordHash = 'hash:*no-such-account*'
+
+  async hash(password: Password): Promise<PasswordHash> {
+    return `hash:${password.value}`
+  }
+
+  async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
+    return hash === `hash:${attempt}`
+  }
+
+  needsRehash(): boolean {
+    // The opportunistic cost upgrade on sign-in is `authenticateUser`'s rule and has
+    // its own ring-2 test. Exercising it here would add a branch no response reveals.
+    return false
+  }
+}
+
+const passThrough: RequestHandler = (_req, _res, next) => {
+  next()
+}
+
+interface AuthHarness extends Harness {
+  readonly users: FakeUserRepository
+}
+
+interface AuthHarnessOptions {
+  readonly config?: Partial<HttpConfig>
+  /** Mounted in front of the router, for the failures the fakes cannot reach. */
+  readonly before?: RequestHandler
+}
+
+const harness = ({ config = {}, before = passThrough }: AuthHarnessOptions = {}): AuthHarness => {
+  const users = new FakeUserRepository()
+  const hasher = new FakePasswordHasher()
+
+  const built = buildHarness({
+    config,
+    routes: (app, deps) => {
+      // Two sign-in routes so a test can establish a session without driving a real
+      // login: the routes under test then fail for one reason each.
+      app.post('/test/sign-in', signInAs({ userId: HOST_ID, email: HOST_EMAIL }))
+      app.post(
+        '/test/sign-in/invited',
+        signInAs({ userId: HOST_ID, email: HOST_EMAIL, mustChangePassword: true }),
+      )
+
+      app.use(before)
+      app.use(
+        '/api',
+        authRoutes({
+          deps,
+          // The bag `authRoutes` asks for, built from fakes here: the HTTP layer is
+          // never given a user repository, so a route test has to compose the two use
+          // cases itself.
+          usecases: {
+            authenticateUser: makeAuthenticateUser({ users, hasher, clock: deps.clock }),
+            changePassword: makeChangePassword({ users, hasher }),
+          },
+        }),
+      )
+    },
+  })
+
+  return { ...built, users }
+}
+
+/** supertest types `headers` loosely, so the shape read here is narrowed explicitly. */
+const setCookies = (headers: Record<string, unknown>): readonly string[] => {
+  const raw = headers['set-cookie']
+  if (typeof raw === 'string') return [raw]
+  if (Array.isArray(raw)) return raw.map((entry) => String(entry))
+  return []
+}
+
+const setCookie = (headers: Record<string, unknown>, name: string): string | undefined =>
+  setCookies(headers).find((cookie) => cookie.startsWith(`${name}=`))
+
+const cookieValue = (headers: Record<string, unknown>, name: string): string | undefined =>
+  setCookie(headers, name)?.slice(`${name}=`.length).split(';')[0]
+
+/** An agent holding a session, established without a real login. */
+const signedIn = async (subject: AuthHarness, path = '/test/sign-in') => {
+  const agent = request.agent(subject.app)
+  await agent.post(path).expect(204)
+  return agent
+}
+
+const seedHost = (subject: AuthHarness): void => {
+  subject.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL, displayName: 'Camille' }))
+}
+
+describe('POST /api/auth/login', () => {
+  it('answers with the signed-in identity and establishes a session', async () => {
+    const subject = harness()
+    seedHost(subject)
+
+    const response = await request(subject.app)
+      .post('/api/auth/login')
+      .send({ email: HOST_EMAIL, password: PASSWORD })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      userId: HOST_ID,
+      email: HOST_EMAIL,
+      displayName: 'Camille',
+      mustChangePassword: false,
+    })
+    expect(cookieValue(response.headers, HARNESS_SESSION_COOKIE)).toBeTruthy()
+  })
+
+  it('regenerates the session id, so a planted one does not survive the login', async () => {
+    // The fixation defence. 1.0 never regenerated: an id planted through a subdomain,
+    // a proxy or a link was still valid — and now privileged — after the victim signed
+    // in. This is the single most important assertion in this file.
+    const subject = harness()
+    seedHost(subject)
+    const agent = request.agent(subject.app)
+    const planted = await agent.post('/test/sign-in').expect(204)
+    const before = cookieValue(planted.headers, HARNESS_SESSION_COOKIE)
+
+    const response = await agent
+      .post('/api/auth/login')
+      .send({ email: HOST_EMAIL, password: PASSWORD })
+
+    expect(response.status).toBe(200)
+    expect(before).toBeTruthy()
+    expect(cookieValue(response.headers, HARNESS_SESSION_COOKIE)).toBeTruthy()
+    expect(cookieValue(response.headers, HARNESS_SESSION_COOKIE)).not.toBe(before)
+  })
+
+  // Every row asserts the same body, which is the point: an unknown address, a wrong
+  // password, a switched-off account and an unparseable address must be
+  // indistinguishable, or the login form is an account-enumeration oracle.
+  const refusals: readonly [string, object][] = [
+    ['an unknown address', { email: 'inconnu@example.test', password: PASSWORD }],
+    ['a wrong password', { email: HOST_EMAIL, password: 'un-autre-mot-de-passe' }],
+    ['a disabled account', { email: FORMER_EMAIL, password: PASSWORD }],
+    ['an address that is not an address', { email: 'pas-une-adresse', password: PASSWORD }],
+  ]
+
+  it.each(refusals)('answers exactly the same 401 for %s', async (_case, body) => {
+    const subject = harness()
+    seedHost(subject)
+    subject.users.seed(aUser({ id: 'former-id', email: FORMER_EMAIL, disabledAt: AT }))
+
+    const response = await request(subject.app).post('/api/auth/login').send(body)
+
+    expect(response.status).toBe(401)
+    expect(response.body).toEqual({
+      error: {
+        code: 'auth.invalidCredentials',
+        message: expect.any(String),
+        details: {},
+      },
+    })
+  })
+
+  it('leaves no session behind when the credentials are refused', async () => {
+    // A row per guess would be a slow leak, and 1.0's MemoryStore never released one.
+    const subject = harness()
+    seedHost(subject)
+
+    const response = await request(subject.app)
+      .post('/api/auth/login')
+      .send({ email: HOST_EMAIL, password: 'un-autre-mot-de-passe' })
+
+    expect(response.status).toBe(401)
+    expect(setCookies(response.headers)).toEqual([])
+  })
+
+  const malformed: readonly [string, object][] = [
+    ['an empty body', {}],
+    ['no password', { email: HOST_EMAIL }],
+    ['no email', { password: PASSWORD }],
+    ['an empty password', { email: HOST_EMAIL, password: '' }],
+    ['an email that is not a string', { email: 42, password: PASSWORD }],
+    ['an unexpected field', { email: HOST_EMAIL, password: PASSWORD, remember: true }],
+  ]
+
+  it.each(malformed)('answers 400 for %s', async (_case, body) => {
+    const subject = harness()
+    seedHost(subject)
+
+    const response = await request(subject.app).post('/api/auth/login').send(body)
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+  })
+
+  it('answers 429 once the per-minute login limit is spent', async () => {
+    const subject = harness({
+      config: { rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 1 } },
+    })
+    seedHost(subject)
+    const guess = { email: HOST_EMAIL, password: 'un-autre-mot-de-passe' }
+
+    const first = await request(subject.app).post('/api/auth/login').send(guess)
+    const second = await request(subject.app).post('/api/auth/login').send(guess)
+
+    expect(first.status).toBe(401)
+    expect(second.status).toBe(429)
+    expect(second.body.error.code).toBe('rate.limited')
+  })
+
+  // A regeneration that failed quietly would leave the fixation defence off and answer
+  // 200 to hide it, so the failure has to be surfaced. The store going away mid-login
+  // is not reachable through the fakes; this replaces `regenerate` at the seam
+  // `express-session` itself exposes.
+  const regenerationFailures: readonly [string, unknown][] = [
+    ['an Error', new Error('session store unavailable')],
+    ['a bare value, as callback APIs do produce', 'session store unavailable'],
+  ]
+
+  it.each(regenerationFailures)(
+    'refuses the login when session regeneration fails with %s',
+    async (_case, cause) => {
+      const subject = harness({
+        before: (req, _res, next) => {
+          req.session.regenerate = (done) => {
+            done(cause)
+            return req.session
+          }
+          next()
+        },
+      })
+      seedHost(subject)
+
+      const response = await request(subject.app)
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: PASSWORD })
+
+      expect(response.status).toBe(500)
+      expect(response.body.error.code).toBe('server.unexpected')
+      expect(setCookies(response.headers)).toEqual([])
+    },
+  )
+})
+
+describe('POST /api/auth/logout', () => {
+  it('destroys the session', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/logout')
+
+    expect(response.status).toBe(204)
+    const after = await agent.get('/api/auth/me')
+    expect(after.body).toEqual({ authenticated: false })
+  })
+
+  it('clears the session cookie by name, path and expiry', async () => {
+    // `destroy` removes the stored row but tells the browser nothing, and a browser
+    // matches a deletion on name and path only.
+    const subject = harness()
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/logout')
+
+    const cleared = setCookie(response.headers, SESSION_COOKIE)
+    expect(cleared).toBeDefined()
+    expect(cookieValue(response.headers, SESSION_COOKIE)).toBe('')
+    expect(cleared).toContain('Path=/')
+    expect(cleared).toContain('Expires=Thu, 01 Jan 1970')
+    expect(cleared).toContain('HttpOnly')
+  })
+
+  it('answers 204 with no session at all', async () => {
+    const response = await request(harness().app).post('/api/auth/logout')
+
+    expect(response.status).toBe(204)
+  })
+
+  it.each([1, 2])('answers 204 again after %i previous logouts', async (previous) => {
+    const subject = harness()
+    const agent = await signedIn(subject)
+    for (let attempt = 0; attempt < previous; attempt += 1) {
+      await agent.post('/api/auth/logout')
+    }
+
+    const response = await agent.post('/api/auth/logout')
+
+    expect(response.status).toBe(204)
+  })
+
+  it('surfaces a session store that cannot destroy the session', async () => {
+    // 204 here would say the session is gone when it is still valid.
+    const subject = harness({
+      before: (req, _res, next) => {
+        req.session.destroy = (done) => {
+          done(new Error('session store unavailable'))
+          return req.session
+        }
+        next()
+      },
+    })
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/logout')
+
+    expect(response.status).toBe(500)
+    expect(response.body.error.code).toBe('server.unexpected')
+  })
+})
+
+describe('GET /api/auth/me', () => {
+  it('answers 200 and authenticated: false without a session', async () => {
+    // Not 401: the client asks this on every page load, and a 401 in the console on a
+    // first visit is noise (docs/API.md §5).
+    const response = await request(harness().app).get('/api/auth/me')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ authenticated: false })
+  })
+
+  it('creates no session for an anonymous caller', async () => {
+    const response = await request(harness().app).get('/api/auth/me')
+
+    expect(setCookies(response.headers)).toEqual([])
+  })
+
+  it('answers with the session principal when there is a session', async () => {
+    // `displayName` is null by design: the session carries an identity and nothing
+    // that goes stale, and reading the row would make this controller touch a
+    // repository. The login response is what carries the fresh name.
+    const subject = harness()
+    const agent = await signedIn(subject)
+
+    const response = await agent.get('/api/auth/me')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      authenticated: true,
+      user: {
+        userId: HOST_ID,
+        email: HOST_EMAIL,
+        displayName: null,
+        mustChangePassword: false,
+      },
+    })
+  })
+})
+
+describe('POST /api/auth/password', () => {
+  const change = { currentPassword: PASSWORD, newPassword: NEW_PASSWORD }
+
+  it('clears the forced-change flag in the session on success', async () => {
+    // Otherwise the invited moderator's "choose a password" gate stays shut until a
+    // reload, on the one screen they cannot get past.
+    const subject = harness()
+    subject.users.seed(
+      aUser({ id: HOST_ID, email: HOST_EMAIL, displayName: 'Camille', mustChangePassword: true }),
+    )
+    const agent = await signedIn(subject, '/test/sign-in/invited')
+
+    const response = await agent.post('/api/auth/password').send(change)
+
+    expect(response.status).toBe(204)
+    const after = await agent.get('/api/auth/me')
+    expect(after.body).toEqual({
+      authenticated: true,
+      user: {
+        userId: HOST_ID,
+        email: HOST_EMAIL,
+        displayName: null,
+        mustChangePassword: false,
+      },
+    })
+  })
+
+  it('changes the password of the session account, so the new one signs in', async () => {
+    const subject = harness()
+    seedHost(subject)
+    const agent = await signedIn(subject)
+    await agent.post('/api/auth/password').send(change).expect(204)
+
+    const response = await request(subject.app)
+      .post('/api/auth/login')
+      .send({ email: HOST_EMAIL, password: NEW_PASSWORD })
+
+    expect(response.status).toBe(200)
+    expect(response.body.userId).toBe(HOST_ID)
+  })
+
+  it('answers 401 when the principal is gone by the time the handler runs', async () => {
+    // Unreachable through `requireUser`, which is exactly the point: the guard is what
+    // keeps a later middleware that clears the principal from turning this into a
+    // password change for nobody, and `strict` forbids the non-null assertion that
+    // would hide the question. Driven by a principal the request yields only once.
+    const subject = harness({
+      before: (req, _res, next) => {
+        const reads = [req.context.user]
+        Object.defineProperty(req.context, 'user', { get: () => reads.shift() })
+        next()
+      },
+    })
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/password').send(change)
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+
+  it('answers 401 without a session', async () => {
+    const subject = harness()
+    seedHost(subject)
+
+    const response = await request(subject.app).post('/api/auth/password').send(change)
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+
+  it('answers 401 to a guest token, which is no principal here', async () => {
+    // The closest thing to a wrong-role case on a route with no event in its path: a
+    // guest device token grants upload to one event and nothing else, least of all a
+    // password change.
+    const subject = harness()
+    seedHost(subject)
+    const token = subject.issueGuestToken('wedding-id', 'guest-1')
+
+    const response = await request(subject.app)
+      .post('/api/auth/password')
+      .set('Cookie', `${GUEST_COOKIE}=${token}`)
+      .send(change)
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+
+  it('answers 401 for a wrong current password', async () => {
+    const subject = harness()
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    const response = await agent
+      .post('/api/auth/password')
+      .send({ currentPassword: 'un-autre-mot-de-passe', newPassword: NEW_PASSWORD })
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.invalidCredentials')
+  })
+
+  const rejected: readonly [string, string, string][] = [
+    ['shorter than the minimum', 'court', 'password.tooShort'],
+    ['on the blocklist', 'password1234', 'password.tooCommon'],
+    ['the account email', HOST_EMAIL, 'password.sameAsEmail'],
+    ['the password already on file', PASSWORD, 'password.unchanged'],
+  ]
+
+  it.each(rejected)(
+    'answers 400 with the domain code for a password %s',
+    async (_case, newPassword, code) => {
+      const subject = harness()
+      seedHost(subject)
+      const agent = await signedIn(subject)
+
+      const response = await agent
+        .post('/api/auth/password')
+        .send({ currentPassword: PASSWORD, newPassword })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe(code)
+    },
+  )
+
+  const malformed: readonly [string, object][] = [
+    ['an empty body', {}],
+    ['no new password', { currentPassword: PASSWORD }],
+    ['no current password', { newPassword: NEW_PASSWORD }],
+    ['an empty current password', { currentPassword: '', newPassword: NEW_PASSWORD }],
+  ]
+
+  it.each(malformed)('answers 400 for %s', async (_case, body) => {
+    const subject = harness()
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/password').send(body)
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+  })
+
+  it('refuses a body naming another account, so the session is the only identity', async () => {
+    // The account whose password changes is read from the session. A `userId` a client
+    // could send would make this endpoint a password reset for every account on the box.
+    const subject = harness()
+    seedHost(subject)
+    subject.users.seed(aUser({ id: 'former-id', email: FORMER_EMAIL }))
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/password').send({ ...change, userId: 'former-id' })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+  })
+
+  it('answers 404 when the session names an account that no longer exists', async () => {
+    // A session outliving its user: the id came from a session, so a miss means the
+    // account was deleted underneath it — never that the caller guessed wrong.
+    const subject = harness()
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/password').send(change)
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('user.notFound')
+  })
+})

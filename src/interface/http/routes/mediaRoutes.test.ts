@@ -120,19 +120,20 @@ class InMemoryMediaStore implements MediaStore {
  *
  * Not the `archiver` adapter: `src/interface` may not import `src/infrastructure`, and
  * what this route is responsible for is that the chunks reach the socket in order and
- * that a failure does not become a truncated 200. `failMidStream` reproduces the
- * rejection `archiverWriter.test.ts` already proves the real writer performs when an
- * entry's bytes disappear part-way through a multi-gigabyte download.
+ * that a failure does not become a truncated 200. `failsWith` reproduces the rejection
+ * `archiverWriter.test.ts` already proves the real writer performs when an entry's bytes
+ * disappear part-way through a multi-gigabyte download.
  */
 class StubArchiveWriter implements ArchiveWriter {
-  constructor(private readonly failMidStream = false) {}
+  /** `undefined` means "never fail" — a rejection value of any shape is a failure. */
+  constructor(private readonly failsWith?: unknown) {}
 
   stream(entries: AsyncIterable<ArchiveEntry>): AsyncIterable<Uint8Array> {
-    const failMidStream = this.failMidStream
+    const failsWith = this.failsWith
     return (async function* () {
       yield new Uint8Array(LOCAL_FILE_HEADER)
       for await (const entry of entries) {
-        if (failMidStream) throw new Error('an entry vanished mid-archive')
+        if (failsWith !== undefined) throw failsWith
         yield new TextEncoder().encode(entry.name)
         for await (const chunk of entry.bytes) yield chunk
       }
@@ -332,14 +333,17 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant', () => {
     // A projector re-requesting the same slide across an eight-hour run must not
     // re-download several megabytes each time.
     const first = await getBytes(world, mediaPath(PUBLISHED, 'display'))
-    const etag = first.headers['etag']
+    const etag = first.headers['etag'] ?? ''
+    expect(etag).toMatch(/^"[0-9a-f]{64}-display"$/)
 
     const second = await getBytes(world, mediaPath(PUBLISHED, 'display')).set('If-None-Match', etag)
 
     expect(second.status).toBe(304)
-    expect(second.headers['content-length']).toBeUndefined()
     expect(second.headers['etag']).toBe(etag)
-    expect(second.body.length ?? 0).toBe(0)
+    // No bytes, and no declared length: a 304 carrying a Content-Length is a response
+    // some proxies wait on.
+    expect(second.headers['content-length']).toBeUndefined()
+    expect(second.text ?? '').toBe('')
   })
 
   it.each([
@@ -362,6 +366,7 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant', () => {
   })
 
   it.each([
+    ['an empty cookie', () => ''],
     ['a forged token', () => 'not-a-signed-token'],
     ['a token minted for another event', (subject: World) => subject.issueGuestToken(GALA, GUEST)],
     [
@@ -436,10 +441,13 @@ describe('GET /events/:eventSlug/album.zip', () => {
     expect(response.body.error.code).toBe('event.notFound')
   })
 
-  it('abandons the connection when the archive fails mid-stream', async () => {
+  it.each([
+    ['an Error', new Error('an entry vanished mid-archive')],
+    ['a rejection that is not an Error', 'the media root went read-only'],
+  ])('abandons the connection when the archive fails mid-stream with %s', async (_label, cause) => {
     // Headers are long gone by then, so a truncated ZIP under a 200 would look like a
     // complete album — and a host who deletes their photos afterwards has lost them.
-    const world = await buildWorld({ archive: new StubArchiveWriter(true) })
+    const world = await buildWorld({ archive: new StubArchiveWriter(cause) })
     const agent = await signedIn(world, 'host')
 
     await expect(agent.get('/events/mariage/album.zip').responseType('blob')).rejects.toThrow()
