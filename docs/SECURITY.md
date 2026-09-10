@@ -7,13 +7,15 @@ content. Architecture context: [../CLAUDE.md](../CLAUDE.md) §2 and §8. Route m
 
 ## Status of this document
 
-This specifies the **target 2.0 posture**. The 2.0 tree is under construction; `src/` on
-this branch still holds the 1.0 code being replaced. Controls decided and specified here
-but not yet merged are marked **(planned)**; everything else is the contract, and code
-that contradicts a rule below is wrong. 1.0 is not a baseline — it shipped a public
-upload endpoint, a hardcoded `admin`/`password` account, `MemoryStore` sessions, no CSP,
-no rate limiting, no EXIF stripping, and zero tests behind `jest --passWithNoTests`. It
-is unsupported and must not be deployed.
+This specifies the **2.0 posture**. The 1.0 implementation was removed from this branch
+in `fa6e9bd` and remains on `main`. Controls specified here but not yet merged are
+marked **(planned)**; everything else is the contract, and code that contradicts a rule
+below is wrong.
+
+1.0 is not a baseline — it shipped a public upload endpoint, a hardcoded
+`admin`/`password` account, `MemoryStore` sessions, no CSP, no rate limiting, no EXIF
+stripping, and zero tests behind `jest --passWithNoTests`. It is unsupported and must
+not be deployed.
 
 ## 1. Threat model
 
@@ -24,9 +26,9 @@ internet scanner.
 | #   | Adversary / event                                                                | Asset at risk                                           | Control                                                                                                                                                                                                                                  | Where                                                                                              |
 | --- | -------------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | T1  | Bored guest with the QR code, poking at URLs                                     | other events' photos, moderation actions, host accounts | guest token grants **upload + own-photo delete on one event** and nothing else; every admin route behind `requireRole`; ids are opaque, non-enumerable `TEXT`                                                                            | `src/interface/http/middleware/authz.ts`, `src/infrastructure/db/migrations/001_initial_schema.ts` |
-| T2  | Screenshot of the join link shared outside the venue (WhatsApp, X)               | uninvited uploads, quota burn, junk on the wall         | join code is rotatable (`POST /api/events/:slug/join-code/rotate`), event has `status` the host can set to closed, per-event rate limit and byte quota, moderation is on by default                                                      | `src/domain/events/`, `src/application/usecases/events/rotateJoinCode.ts`                          |
+| T2  | Screenshot of the join link shared outside the venue (WhatsApp, X)               | uninvited uploads, quota burn, junk on the wall         | join code is rotatable (`POST /api/events/:slug/join-code`), event has `status` the host can set to closed, per-event rate limit and byte quota, moderation is on by default                                                             | `src/domain/events/`, `src/application/usecases/events/rotateJoinCode.ts`                          |
 | T3  | Guest uploading something offensive, in front of 200 people                      | the room, the host's reputation                         | **nothing reaches the projector unpublished.** `photos.status` starts `pending`; the wall renders only `published`; the host can flip a live photo to `hidden` and the SSE invalidation drops it from every projector within one refetch | `src/domain/photos/photoStatus.ts`, `src/interface/http/routes/streamRoutes.ts`                    |
-| T4  | Scanner finds the upload endpoint and fills the disk                             | availability of the whole box, every other event on it  | upload requires a valid event-scoped token (there is **no** unauthenticated upload path in 2.0), byte limits at multer, per-IP and per-event rate limits, per-event `quota_bytes` that closes uploads instead of filling the disk        | `src/interface/http/middleware/rateLimit.ts`, `src/application/usecases/photos/uploadPhoto.ts`     |
+| T4  | Scanner finds the upload endpoint and fills the disk                             | availability of the whole box, every other event on it  | upload requires a valid event-scoped token (there is **no** unauthenticated upload path in 2.0), byte limits at multer, per-IP and per-event rate limits, per-event `quota_bytes` that closes uploads instead of filling the disk        | `src/interface/http/middleware/rateLimit.ts`, `src/application/usecases/photos/uploadPhotos.ts`    |
 | T5  | Curious guest reading another event's photos                                     | confidentiality across tenants on one host              | **every** repository method takes `eventId`; media served by a controller that resolves the event from the path and 404s across events; named isolation tests at rings 3, 4 and 6                                                        | §3                                                                                                 |
 | T6  | Passive privacy exposure: GPS of a private home in EXIF                          | guests' home addresses, device serials, timestamps      | EXIF is stripped on ingest by re-encoding; orientation is baked in first; raw bytes never reach the media root                                                                                                                           | §4                                                                                                 |
 | T7  | Attacker on the venue Wi-Fi reading traffic                                      | session cookie, guest token, photos in flight           | HTTPS terminated in front of the app, `Secure` cookies in production, HSTS, `upgrade-insecure-requests`                                                                                                                                  | §11                                                                                                |
@@ -40,21 +42,36 @@ a security one; a malicious _host_ on their own instance owns the data anyway.
 
 Two principals, no third, and no ambient "logged in means allowed".
 
-| Principal        | Credential                                    | Lifetime                                                                          | Grants                                                            |
-| ---------------- | --------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Host / moderator | `express-session` cookie, SQLite-backed store | idle 2 h rolling, absolute 12 h                                                   | per-event role from the membership table                          |
-| Guest            | HMAC-signed device token in a cookie          | event's `settings.guestTokenTtlHours` (default 24 h), never past event end + 24 h | upload to **one** event; delete own photo inside the grace window |
+| Principal        | Credential                                    | Lifetime                                  | Grants                                                            |
+| ---------------- | --------------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------- |
+| Host / moderator | `express-session` cookie, SQLite-backed store | idle 2 h rolling, absolute 12 h           | per-event role from the membership table                          |
+| Guest            | HMAC-signed device token in a cookie          | 36 h from issue, enforced at verification | upload to **one** event; delete own photo inside the grace window |
 
 ### Guest token format
 
-Opaque to the client, verified statelessly, then confirmed against the `guests` row.
+Verified statelessly, then confirmed against the `guests` row — which is what makes a
+stateless token revocable.
 
 ```
-es.g1.<base64url(payload)>.<base64url(HMAC-SHA256(payload, GUEST_TOKEN_SECRET))>
+v1.<base64url(payload)>.<base64url(HMAC-SHA256("v1." + payload, GUEST_TOKEN_SECRET))>
 
-payload = { "v": 1, "eid": "<event id>", "gid": "<guest id>",
-            "iat": "2026-06-20T20:14:03.000Z", "exp": "2026-06-21T20:14:03.000Z" }
+payload = { "e": "<event id>", "g": "<guest id>", "i": 1781038800000 }
 ```
+
+Implementation: `src/infrastructure/crypto/hmacGuestTokenService.ts`.
+
+Three details that are load-bearing rather than incidental:
+
+- **The version prefix is inside the MAC**, not merely alongside it. Signing
+  `"v1." + payload` means a v1 token cannot be replayed as a future v2 with different
+  claim semantics.
+- **No expiry claim in the payload.** The lifetime is a verifier-side constant (36 h,
+  long enough that a token issued at the aperitif still works at 2 a.m.), so shortening
+  it takes effect for every outstanding token immediately. An `exp` inside the payload
+  would leave already-issued tokens on the old policy.
+- **A negative age is rejected as expired.** The server issued the token, so a token
+  claiming to come from the future is not clock skew — it is a token that would outlive
+  its window.
 
 | Rule                                                           | Reason                                                                               |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -370,7 +387,7 @@ soon as an owner exists. Password rules live in `src/domain/users/`, not the con
 | Updates           | pin the version, read the release notes, `npm audit` before a deploy                                                                    | see §12: self-hosted means you own patching                                                                                                                                                       |
 
 **If the join code leaks** (screenshotted, posted, printed on the wrong sign):
-`POST /api/events/:slug/join-code/rotate`, then reprint the QR — the old code stops
+`POST /api/events/:slug/join-code`, then reprint the QR — the old code stops
 resolving immediately, and the join link is a server-resolved path (`/join/:code`), so
 there is no stale query parameter to mislead anyone the way 1.0's `?partyname=` /
 `?party` mismatch did. Know the limit: **rotation stops new joins, it does not revoke
