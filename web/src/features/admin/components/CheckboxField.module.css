@@ -1,0 +1,38 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* A settings row is a click target on a laptop too, and the label is part of it. */
+  min-height: var(--touch-min);
+  cursor: pointer;
+}
+
+.box {
+  /* The native control, tinted. Rebuilding a checkbox loses the platform's keyboard
+     behaviour and its high-contrast rendering, and gains nothing. */
+  accent-color: var(--accent);
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  flex: none;
+  cursor: pointer;
+}
+
+.box:disabled {
+  cursor: not-allowed;
+}
+
+.label {
+  line-height: var(--leading-snug);
+}
+
+.hint {
+  padding-inline-start: calc(var(--space-4) + var(--space-3));
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}

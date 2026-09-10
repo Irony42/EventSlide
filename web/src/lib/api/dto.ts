@@ -46,6 +46,13 @@ export interface WallItemDto {
 
 export interface WallResponse {
   readonly event: { readonly slug: string; readonly name: string }
+  /**
+   * The join code, because the wall doubles as the invitation while it is empty
+   * (DESIGN-SYSTEM.md section 10) and someone arriving at 23:00 has only the screen to
+   * read. Optional: a server build that does not present it yet leaves the projector
+   * showing the invitation without a code rather than crashing it.
+   */
+  readonly joinCode?: string
   /** Order-sensitive fingerprint of `items`; unchanged means the playlist did not move. */
   readonly revision: string
   readonly items: readonly WallItemDto[]

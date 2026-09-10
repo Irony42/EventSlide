@@ -69,6 +69,31 @@ export const fr = {
     graceOver: 'Le délai pour supprimer vous-même cette photo est passé.',
     thanks: 'Merci, vos photos sont bien arrivées.',
     sendMore: 'Envoyer d’autres photos',
+
+    /* ---------- guest surface: features/join + features/guest-upload ---------- */
+
+    itemPreparing: 'Préparation…',
+    queueLabel: 'Photos à envoyer',
+    queueSummary: (done: number, total: number) =>
+      `${done} envoyée${done > 1 ? 's' : ''} sur ${total}`,
+    queueFailed: (count: number) =>
+      count === 1 ? 'Un envoi a échoué.' : `${count} envois ont échoué.`,
+    itemAlt: (position: number) => `Photo ${position} à envoyer`,
+    itemProgress: (position: number) => `Envoi de la photo ${position}`,
+    removeItem: (position: number) => `Retirer la photo ${position}`,
+    retryItem: (position: number) => `Réessayer l’envoi de la photo ${position}`,
+    captionRemaining: (remaining: number) => `${remaining} caractères restants.`,
+    signedAs: (name: string) => `Vos photos apparaîtront sous le nom ${name}.`,
+    signedAnonymous: 'Vos photos apparaîtront sans nom.',
+    mineEmpty: 'Vous n’avez encore envoyé aucune photo.',
+    mineFailed: 'Vos envois n’ont pas pu être affichés. Réessayez.',
+    mineAlt: 'Votre photo',
+    deleteOwnNumbered: (position: number) => `Supprimer la photo ${position}`,
+    notJoinedTitle: 'Rejoignez la galerie pour envoyer vos photos',
+    notJoinedHint: 'Scannez à nouveau le QR code, ou saisissez le code de la soirée.',
+    notJoinedAction: 'Saisir le code',
+
+    /* -------------------------- end guest surface --------------------------- */
   },
 
   moderation: {
@@ -99,6 +124,49 @@ export const fr = {
     byAnonymous: 'Invité anonyme',
     shortcuts: 'Raccourcis',
     shortcutsHint: 'J / K pour naviguer, P pour publier, R pour refuser, Z pour annuler.',
+
+    /* ---- Added by features/moderation. Keep additions inside this block. ---- */
+    shortcutsMore:
+      'H pour retirer de l’écran, Espace pour sélectionner, Échap pour tout désélectionner.',
+    queueLabel: 'Photos à modérer',
+    filterLabel: 'Filtrer par état',
+    emptyFiltered: 'Aucune photo dans cette catégorie.',
+    emptyFilteredHint: 'Changez de filtre pour voir les autres photos.',
+    loadFailed: 'La file de modération n’a pas pu être chargée.',
+    live: 'Mises à jour en direct',
+    liveLost: 'Connexion perdue — nouvelle tentative en cours.',
+    // The word beside the border colour and the icon, so the status survives stage
+    // lighting and a red-green colourblind host.
+    statePending: 'En attente',
+    statePublished: 'Publiée',
+    stateRejected: 'Refusée',
+    stateHidden: 'Retirée de l’écran',
+    selected: (count: number) =>
+      count === 1 ? '1 photo sélectionnée' : `${count} photos sélectionnées`,
+    /**
+     * Goes inside "la photo de …", where `byAnonymous` would read as "de Invité
+     * anonyme". The standalone caption line keeps `byAnonymous`.
+     */
+    anonymousInName: 'l’invité anonyme',
+    selectPhoto: (author: string) => `Sélectionner la photo de ${author}`,
+    publishPhoto: (author: string) => `Publier la photo de ${author}`,
+    rejectPhoto: (author: string) => `Refuser la photo de ${author}`,
+    hidePhoto: (author: string) => `Retirer de l’écran la photo de ${author}`,
+    enlargePhoto: (author: string) => `Agrandir la photo de ${author}`,
+    photoOf: (author: string) => `Photo de ${author}`,
+    photoAlt: (author: string) => `Photo envoyée par ${author}`,
+    photoAltWithCaption: (caption: string, author: string) =>
+      `${caption} — photo envoyée par ${author}`,
+    previousPhoto: 'Photo précédente',
+    nextPhoto: 'Photo suivante',
+    bulkHide: (count: number) => `Retirer de l’écran (${count})`,
+    published: (count: number) => (count === 1 ? '1 photo publiée.' : `${count} photos publiées.`),
+    refused: (count: number) => (count === 1 ? '1 photo refusée.' : `${count} photos refusées.`),
+    removed: (count: number) =>
+      count === 1 ? '1 photo retirée de l’écran.' : `${count} photos retirées de l’écran.`,
+    decisionFailed: 'La décision n’a pas pu être enregistrée. Réessayez.',
+    undoFailed: 'L’annulation n’a pas pu être enregistrée. Réessayez.',
+    dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
   },
 
   wall: {
@@ -108,6 +176,21 @@ export const fr = {
     reactions: 'Réactions',
     offline: 'Connexion perdue — nouvelle tentative en cours',
     paused: 'Diaporama en pause',
+
+    /* ---- Added by features/wall. Keep additions inside this block. ---- */
+    codeLabel: 'Code de la soirée',
+    // The accessible name of the inline QR. Read by nothing in the room, but the wall
+    // is also opened on a laptop while a host sets the projector up.
+    qrTitle: 'QR code pour rejoindre la galerie',
+    // A photo's alt text. 1.0 used the filename, which reads aloud as IMG_4821.jpg.
+    photoBy: (name: string) => `Photo envoyée par ${name}`,
+    photoByAnonymous: 'Photo envoyée par un invité',
+    errorTitle: 'Les photos n’ont pas pu être chargées',
+    errorHint: 'Nouvelle tentative en cours. Vérifiez le réseau du lieu si l’écran reste vide.',
+    dismissJoinCard: 'Masquer le rappel du code',
+    shortcuts: 'Raccourcis clavier',
+    shortcutsHint:
+      'Espace met en pause, les flèches changent de photo, F passe en plein écran, L change la disposition.',
   },
 
   admin: {
@@ -151,6 +234,72 @@ export const fr = {
     retentionDays: (days: number) => `${days} jours après la fin`,
     moderators: 'Modérateurs',
     inviteModerator: 'Inviter un modérateur',
+
+    /* ---- Added by features/admin (auth, event management). ---- */
+    loading: 'Chargement de vos évènements…',
+    loadFailed: 'Chargement impossible',
+    eventLoading: 'Chargement de l’évènement…',
+    eventsEmpty: 'Aucun évènement pour le moment.',
+    eventsEmptyHint:
+      'Créez votre premier évènement, puis imprimez son QR code pour le poser sur les tables.',
+    create: 'Créer l’évènement',
+    slugHint: 'Facultatif. Laissez vide pour la déduire du nom.',
+    slugPreviewLabel: 'Adresse de la galerie',
+    slugPreviewEmpty: 'Saisissez un nom pour voir l’adresse.',
+    eventCreated: (name: string) => `${name} est prêt. Imprimez le QR code quand vous voulez.`,
+    joinCodeHint: 'À communiquer aux invités qui ne peuvent pas scanner le QR code.',
+    eventControls: 'Pilotage de l’évènement',
+    joinLink: 'Lien d’invitation',
+    printQr: 'Imprimer le QR code',
+    qrScanPrompt: 'Scannez pour envoyer vos photos.',
+    qrAlt: (eventName: string) => `QR code d’accès à ${eventName}`,
+    storageLabel: 'Espace photos utilisé',
+    storage: (used: string) => `${used} utilisés`,
+    statusSaved: 'Le nouvel état est enregistré.',
+    rotateJoinCodeTitle: 'Changer le code d’accès ?',
+    codeRotated: 'Le code d’accès a été changé. L’ancien ne fonctionne plus.',
+    settingsSaved: 'Réglages enregistrés.',
+    settingsReadOnly: 'Cet évènement est archivé : ses réglages ne peuvent plus être modifiés.',
+    retentionHint: 'Les photos sont supprimées ce délai après la clôture de l’évènement.',
+    selfDeleteGrace: 'Délai de suppression',
+    selfDeleteGraceHint: 'Pendant ce délai, un invité peut retirer lui-même sa photo.',
+    graceNone: 'Aucun délai',
+    graceSeconds: (seconds: number) => `${seconds} secondes`,
+    graceMinutes: (minutes: number) => (minutes === 1 ? '1 minute' : `${minutes} minutes`),
+    graceHours: (hours: number) => (hours === 1 ? '1 heure' : `${hours} heures`),
+    maxPhotosPerGuest: 'Photos par invité',
+    maxPhotosUnlimited: 'Sans limite',
+    guestList: 'Invités',
+    guestsEmpty: 'Personne n’a encore rejoint la galerie.',
+    guestsEmptyHint: 'Les invités apparaissent ici dès qu’ils scannent le QR code.',
+    lastSeen: (when: string) => `Dernière activité : ${when}`,
+    dateUnknown: 'Date inconnue',
+    guestRevokedBadge: 'Accès retiré',
+    revokeGuest: 'Retirer l’accès',
+    revokeGuestTitle: 'Retirer l’accès de cet invité ?',
+    revokeGuestHint:
+      'Ses photos déjà publiées restent à l’écran, mais il ne pourra plus en envoyer.',
+    guestRevoked: 'L’accès a été retiré.',
+    moderatorsEmpty: 'Vous êtes seul à modérer cet évènement.',
+    moderatorEmail: 'Adresse e-mail du modérateur',
+    moderatorEmailHint: 'Il recevra des droits sur cet évènement uniquement.',
+    inviteSubmit: 'Inviter',
+    moderatorInvited: (email: string) => `${email} peut désormais modérer cet évènement.`,
+    revokeModerator: 'Retirer',
+    revokeModeratorTitle: 'Retirer ce modérateur ?',
+    revokeModeratorHint:
+      'Il perdra l’accès à cet évènement. Ses décisions passées sont conservées.',
+    moderatorRevoked: 'Le modérateur a été retiré.',
+    roleOwner: 'Organisateur',
+    roleModerator: 'Modérateur',
+    lastOwnerHint: 'Le dernier organisateur ne peut pas être retiré.',
+    purge: 'Supprimer l’évènement',
+    purgeTitle: 'Supprimer définitivement cet évènement ?',
+    purgeWarning:
+      'Toutes les photos, les invités et l’album seront supprimés. Cette action est définitive.',
+    purgeConfirmLabel: 'Adresse de l’évènement',
+    purgeConfirmHint: (slug: string) => `Saisissez « ${slug} » pour confirmer la suppression.`,
+    purged: (name: string) => `${name} a été supprimé.`,
   },
 
   auth: {
@@ -167,6 +316,10 @@ export const fr = {
       `Au moins ${min} caractères. Une phrase est plus sûre qu’un mot.`,
     confirmPassword: 'Confirmer le nouveau mot de passe',
     mustChangePassword: 'Choisissez un mot de passe avant de continuer.',
+
+    /* ---- Added by features/auth. ---- */
+    changePasswordIntro: 'Choisissez un mot de passe que vous n’utilisez pas ailleurs.',
+    passwordSaved: 'Mot de passe enregistré.',
   },
 
   /**
@@ -222,6 +375,22 @@ export const fr = {
     'password.tooRepetitive': 'Ce mot de passe est trop répétitif.',
     'password.unchanged': 'Choisissez un mot de passe différent de l’actuel.',
     'password.mismatch': 'Les deux mots de passe ne correspondent pas.',
+
+    /* ---- Added by features/admin: codes the host-facing forms can receive. ---- */
+    'eventName.empty': 'Donnez un nom à votre évènement.',
+    'eventName.tooShort': 'Ce nom est trop court.',
+    'eventName.tooLong': 'Ce nom est trop long.',
+    'slug.tooShort': 'L’adresse doit comporter au moins deux caractères.',
+    'slug.tooLong': 'Cette adresse est trop longue.',
+    'slug.malformed':
+      'L’adresse n’accepte que des lettres sans accent, des chiffres et des tirets.',
+    'slug.reserved': 'Cette adresse est réservée. Choisissez-en une autre.',
+    'eventSettings.graceSecondsInvalid': 'Ce délai de suppression n’est pas accepté.',
+    'eventSettings.retentionDaysInvalid': 'Ce délai de conservation n’est pas accepté.',
+    'eventSettings.maxPhotosPerGuestInvalid': 'Ce nombre de photos par invité n’est pas accepté.',
+    'email.malformed': 'Cette adresse e-mail n’est pas valide.',
+    'user.notFound': 'Aucun compte ne correspond à cette adresse e-mail.',
+    'membership.alreadyExists': 'Cette personne modère déjà cet évènement.',
 
     'displayName.tooLong': 'Prénom trop long.',
     'joinCode.wrongLength': 'Le code comporte six caractères.',

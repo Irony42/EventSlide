@@ -1,0 +1,62 @@
+.printable {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.eventName {
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+}
+
+/**
+ * The plate the QR sits on.
+ *
+ * Inverted on purpose: a QR code has to be dark modules on a light field to scan, and
+ * a dark-on-dark code is unreadable to every phone camera. `--text-primary` is the
+ * light token and `--surface-base` the dark one, so the inversion still costs no new
+ * value. The padding is the quiet zone the spec requires around the symbol, which is
+ * why the SVG itself is rendered with no margin of its own.
+ */
+.plate {
+  inline-size: 100%;
+  aspect-ratio: 1;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--text-primary);
+  color: var(--surface-base);
+}
+
+.qr {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.prompt {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.code {
+  font-size: var(--text-xl);
+  font-weight: 650;
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  /* The button is not part of what goes on the table. */
+  .printAction {
+    display: none;
+  }
+
+  /* Consumer printers drop background colours by default, which would take the plate —
+     and with it the contrast the camera needs — down to nothing. */
+  .plate {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    inline-size: 60%;
+  }
+}

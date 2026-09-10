@@ -1,0 +1,61 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+/**
+ * One card per event.
+ *
+ * The minimum track is the single-column token: a dashboard card holds a title, four
+ * figures and up to four actions, and narrower than that the actions wrap into a
+ * column of their own. Two columns on a laptop, one on anything smaller.
+ */
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--container-guest)), 1fr));
+  gap: var(--space-4);
+  list-style: none;
+  padding: 0;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.eventLink {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.eventLink:hover {
+  text-decoration: underline;
+}
+
+/* A navigation affordance, not a fifth button variant: an accent link with a target
+   comfortable enough for a mouse in a hurry. */
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding-inline: var(--space-2);
+  font-size: var(--text-sm);
+}

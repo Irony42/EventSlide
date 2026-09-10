@@ -1,0 +1,102 @@
+/**
+ * Full-bleed, and fixed on purpose.
+ *
+ * The app shell gives the wall surface the 4% overscan padding, which is right for
+ * text and wrong for the photo: a letterboxed photo must reach the physical edge or
+ * the room gets a black frame inside a black frame. Fixed positioning takes the wall
+ * out of that padded box, and every piece of text inside it re-applies `--wall-safe`
+ * for itself. There is nothing to scroll on a projector, so nothing is lost.
+ */
+.wall {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--surface-base);
+}
+
+.centre {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--wall-safe);
+}
+
+/* Top-right, opposite the caption, inside the overscan inset. */
+.notices {
+  position: absolute;
+  inset-inline-end: var(--wall-safe);
+  inset-block-start: var(--wall-safe);
+  z-index: var(--z-wall-caption);
+  display: grid;
+  gap: var(--space-2);
+  justify-items: end;
+}
+
+.notice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  color: var(--text-primary);
+}
+
+/**
+ * Held back by the delay, not by JavaScript.
+ *
+ * A venue's network drops for a second or two several times an evening and the browser
+ * reconnects by itself. Announcing every one of those to a room of two hundred people
+ * would make the wall look broken when it is working; a notice that waits is a notice
+ * that means something. The delay survives `prefers-reduced-motion`, which collapses
+ * duration and iteration count but not `animation-delay`.
+ */
+.delayed {
+  animation: notice-in var(--duration-base) var(--ease-out) calc(var(--duration-slow) * 4) both;
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The tone colours the glyph; the words stay at full contrast, because the message is
+   the part that has to be read from the back of the room. */
+.warning .noticeIcon {
+  color: var(--warning);
+}
+
+.accent .noticeIcon {
+  color: var(--accent);
+}
+
+.failure {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  max-inline-size: var(--container-guest);
+  text-align: center;
+}
+
+.failureIcon {
+  font-size: var(--text-display);
+  color: var(--danger);
+}
+
+.failureTitle {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+}
+
+.failureHint {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+}

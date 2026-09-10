@@ -1,0 +1,24 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  line-height: var(--leading-normal);
+}
+
+.warningGlyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--danger);
+  /* Optically centred on the first line of the sentence beside it. */
+  margin-block-start: var(--space-1);
+}

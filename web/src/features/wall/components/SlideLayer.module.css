@@ -1,0 +1,67 @@
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--surface-base);
+}
+
+/**
+ * Both layers are always present and always positioned.
+ *
+ * Opacity is the only animated property (DESIGN-SYSTEM.md section 7): a projector runs
+ * this for eight hours on whatever mini PC the venue owns, and anything that forces
+ * layout every frame is a stutter the whole room sees.
+ */
+.slide {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity var(--wall-transition, var(--duration-slow)) var(--ease-in-out);
+  will-change: opacity;
+}
+
+.front {
+  opacity: 1;
+}
+
+/**
+ * The image box is the photo, not the screen.
+ *
+ * `max-*` with `auto` sizing rather than a stretched box with `object-fit`, so the
+ * element's own geometry carries the photo's aspect ratio: a portrait phone shot is a
+ * portrait box centred on black. The letterbox is the grid's empty space.
+ */
+.image {
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  inline-size: auto;
+  block-size: auto;
+  object-fit: contain;
+}
+
+/**
+ * Ken Burns.
+ *
+ * The duration arrives as `--wall-kenburns-duration`, computed by the server from the
+ * slide interval plus the crossfade. 1.0 wrote `animation: kenburns 20s infinite
+ * alternate` beside a 10 s slide, so every image visibly snapped back to its start
+ * scale mid-slide. The scale is a visual constant and mirrors
+ * `src/domain/slideshow/kenBurns.ts`; only the duration crosses the wire, because only
+ * the duration can disagree with the slideshow.
+ */
+.slide[data-motion='kenburns'] .image {
+  animation: ken-burns var(--wall-kenburns-duration) var(--ease-linear) both;
+  will-change: transform;
+}
+
+@keyframes ken-burns {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.08) translate3d(-1%, -1%, 0);
+  }
+}

@@ -1,0 +1,73 @@
+/**
+ * A fixed 4x3 grid of six named areas.
+ *
+ * Named areas rather than an auto-placed flow: the geometry has to be deterministic so
+ * that a photo arriving at 23:00 never reshuffles the wall, and so that two projectors
+ * on the same event show the same thing. The padding is the projector overscan inset —
+ * a tile at the physical edge loses a corner on consumer hardware.
+ */
+.mosaic {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--wall-safe);
+  background: var(--surface-base);
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  grid-template-areas:
+    'a a b c'
+    'a a d d'
+    'e e f f';
+}
+
+.slot0 {
+  grid-area: a;
+}
+
+.slot1 {
+  grid-area: b;
+}
+
+.slot2 {
+  grid-area: c;
+}
+
+.slot3 {
+  grid-area: d;
+}
+
+.slot4 {
+  grid-area: e;
+}
+
+.slot5 {
+  grid-area: f;
+}
+
+.tile {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+/* `cover` is the crop the mosaic is allowed. Faces are not detected, so the areas
+   above stay near 4:3 and 1:1 to limit the damage. */
+.image {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  animation: tile-in var(--wall-transition, var(--duration-slow)) var(--ease-in-out) both;
+  will-change: opacity;
+}
+
+@keyframes tile-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

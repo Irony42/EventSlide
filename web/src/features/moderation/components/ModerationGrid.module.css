@@ -1,0 +1,14 @@
+.grid {
+  display: grid;
+  /* The track minimum is the one in DESIGN-SYSTEM.md section 6, which fixes it for
+     this grid: as many tiles as fit at a size a host can still judge a photo at, with
+     no media query to keep in step with a breakpoint. */
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space-4);
+  list-style: none;
+  padding: 0;
+}
+
+.cell {
+  min-width: 0;
+}

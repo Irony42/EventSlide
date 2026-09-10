@@ -1,0 +1,60 @@
+/* Two targets, side by side, both reachable with one thumb. */
+.picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+/**
+ * The label is the button. Its `position: relative` is load-bearing: the real input is
+ * stretched over it, so the whole tile is the file input's own hit area rather than a
+ * script forwarding clicks.
+ */
+.action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-2);
+  min-height: var(--touch-min);
+  padding-block: var(--space-5);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  cursor: pointer;
+}
+
+/* Adding photos is the screen's primary action, so it gets the one accent colour. */
+.library {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* The ring belongs on the tile, because the element that actually has focus is
+   transparent and 44 px of invisible outline would be no signal at all. */
+.action:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.action:active {
+  transform: scale(0.98);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+/**
+ * Transparent, not hidden. `display: none` and `visibility: hidden` both take the
+ * input out of the tab order, which is how a file picker ends up mouse-only.
+ */
+.input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}

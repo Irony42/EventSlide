@@ -1,0 +1,67 @@
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.summary {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  /* The count must not reflow the row as photos arrive. */
+  font-variant-numeric: tabular-nums;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  min-width: 0;
+}
+
+/**
+ * A fixed square, cropped. The queue is a checklist rather than a gallery, and rows
+ * that changed height with each photo's aspect ratio made the list jump as thumbnails
+ * decoded.
+ */
+.thumb {
+  flex: none;
+  inline-size: var(--space-10);
+  block-size: var(--space-10);
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-overlay);
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.error {
+  font-size: var(--text-sm);
+  color: var(--danger);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+}
