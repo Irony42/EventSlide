@@ -12,10 +12,13 @@ export default defineConfig({
   snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{testFilePath}/{arg}{ext}',
 
   fullyParallel: true,
-  forbidOnly: !!process.env.CI,
+  forbidOnly: !!process.env['CI'],
   // Locally a retry hides a bug. In CI a browser occasionally loses a frame.
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  retries: process.env['CI'] ? 2 : 0,
+  // Two in CI to bound memory; locally Playwright's own default (half the cores)
+  // is right, and it is applied by omitting the key entirely — under
+  // exactOptionalPropertyTypes an explicit undefined is not the same as absent.
+  ...(process.env['CI'] ? { workers: 2 } : {}),
   timeout: 60_000,
   expect: {
     // SSE propagation across two browser contexts is the slowest thing asserted here.
@@ -23,7 +26,7 @@ export default defineConfig({
     toHaveScreenshot: { maxDiffPixelRatio: 0.01 },
   },
 
-  reporter: process.env.CI
+  reporter: process.env['CI']
     ? [['github'], ['html', { open: 'never' }], ['list']]
     : [['html', { open: 'never' }], ['list']],
 
