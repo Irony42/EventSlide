@@ -5,10 +5,11 @@ be slow**. Companion to [CLAUDE.md](../CLAUDE.md) §5 (the summary) and
 `.claude/skills/eventslide-testing/` (the step-by-step recipe). This document is the
 deep version: mechanics, rationale, and the failure it prevents.
 
-> **Status.** 2.0 is being built; the tree currently on disk under `src/` is still the
-> 1.0 code being replaced. Everything below describes the **target** — including the
-> lint rules, scripts and coverage gates it names, and every path marked _(planned)_.
-> None of it is a claim that the file already exists; do not report it as implemented.
+> **Status.** Rings 1–4 are in place and green; the lint rules, scripts and coverage
+> gates named below all exist. Ring 5 is landing with the feature surfaces, and ring 6
+> is written but cannot pass until the web app is built — a Playwright suite with no
+> server to run against is a specification, not a passing test, and it is committed as
+> the former.
 
 ---
 
@@ -63,7 +64,7 @@ caught it** — plus ring 6 only if the leak was in the wiring between rings.
 
 ## 3. Fakes, not mocks
 
-`src/application/testing/` _(planned)_ holds a real in-memory implementation of every
+`src/application/testing/` holds a real in-memory implementation of every
 port. They are production-quality code, and they are verified by the same contract
 suites as the SQLite adapters (§4).
 
@@ -92,7 +93,7 @@ async findById(_eventId: EventId, photoId: PhotoId) {
   return this.rows.get(photoId) ?? null                    // eventId ignored
 }
 
-// RIGHT — src/application/testing/fakePhotoRepository.ts (planned)
+// RIGHT — src/application/testing/fakePhotoRepository.ts
 private readonly rows = new Map<string, Photo>()
 private key(eventId: EventId, photoId: PhotoId) { return `${eventId}:${photoId}` }
 async findById(eventId: EventId, photoId: PhotoId) {
@@ -126,7 +127,7 @@ tenant's bytes fails a ring-2 test instead of surfacing at someone's wedding.
 ## 4. Shared port contract suites
 
 A contract suite is a `describe` block parameterised by a factory, exported from
-`src/application/testing/contracts/` _(planned)_, and **run against every
+`src/application/testing/contracts/`, and **run against every
 implementation of the port**.
 
 ```ts
@@ -190,7 +191,7 @@ behaviour there worth pinning.
 
 ## 5. Builders
 
-`src/application/testing/builders.ts` _(planned)_ exports `anEvent()`, `aPhoto()`,
+`src/application/testing/builders.ts` exports `anEvent()`, `aPhoto()`,
 `aGuest()`, `aUser()`. Sensible defaults, partial override, plain strings branded
 internally so tests stay readable.
 
@@ -378,11 +379,18 @@ supertest or Testing Library test can answer, and anything that needs a stubbed 
 if you are stubbing the network, you are in the wrong ring.
 
 ```
-tests/e2e/                        (planned)
-  fixtures/app.ts        server-per-worker, throwaway SQLite file + media root
-  fixtures/surfaces.ts   guestPhone / hostDesktop / projector contexts
-  fixtures/media.ts      generated JPEGs, one with EXIF orientation 6 and GPS
-  journeys/  security/  a11y/  visual/
+tests/e2e/
+  fixtures/startTestApp.ts  a real server per worker: own port, own SQLite file,
+                            own media root, all removed on dispose
+  fixtures/app.ts           the Playwright fixtures, plus the three surfaces
+                            (guest phone / host laptop / projector) as contexts
+  fixtures/guest.ts         join-and-upload through the real pages
+  fixtures/media.ts         generated JPEGs, including EXIF orientation 6 with GPS,
+                            a pixel bomb, and a disguised script
+  journeys/    guest-upload, moderation, display-wall
+  security/    tenant-isolation
+  a11y/        accessibility (axe + hand-asserted keyboard paths)
+  visual/      display (tagged @visual, excluded from the default run)
 ```
 
 - **Worker-scoped app fixture.** One server per Playwright worker, own port, own
@@ -437,7 +445,7 @@ tests/e2e/                        (planned)
 
 ## 10. Coverage gates
 
-Configured in `vitest.config.ts` _(planned)_ and enforced in CI.
+Configured in `vitest.config.ts` and enforced in CI.
 
 | Scope                   | Statements | Branches |
 | ----------------------- | ---------- | -------- |
