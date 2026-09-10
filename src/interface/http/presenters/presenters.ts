@@ -178,3 +178,236 @@ export const toSessionUserDto = (user: User): SessionUserDto => ({
   displayName: user.displayName,
   mustChangePassword: user.mustChangePassword,
 })
+
+// ------------------------------------------- moderation routes (additive) --
+
+// Imported here rather than folded into the statement list at the top of the file, so
+// that five route modules being written against this file at the same time merge
+// cleanly. Type-only, so nothing is added to the bundle.
+import type { QueueItem } from '../../../domain/moderation/moderationQueue'
+import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
+import type { ModerationQueueItemDto, TopPhotoDto } from './dto'
+
+export interface ModerationQueueItemDtoInput {
+  readonly item: QueueItem
+  readonly slug: string
+}
+
+/**
+ * One queue row.
+ *
+ * Takes the domain's `QueueItem` rather than a `Photo`, because that is what
+ * `getModerationQueue` returns: the four columns every queue rule needs, projected out
+ * of the `(event_id, status, created_at DESC)` index. The image URLs are derived from
+ * the id and the slug — the same builder the wall and the printed card use — so the
+ * grid renders from the projection alone.
+ */
+export const toModerationQueueItemDto = ({
+  item,
+  slug,
+}: ModerationQueueItemDtoInput): ModerationQueueItemDto => ({
+  id: item.id,
+  status: item.status,
+  thumbUrl: mediaUrl(slug, item.id, 'thumb'),
+  displayUrl: mediaUrl(slug, item.id, 'display'),
+  hasCaption: item.hasCaption,
+  createdAt: iso(item.createdAt),
+})
+
+export interface TopPhotoDtoInput {
+  readonly photo: Photo
+  readonly slug: string
+  readonly counts: ReactionCounts
+  readonly total: number
+}
+
+/**
+ * "Photo de la soirée".
+ *
+ * Only the thumb is offered: the panel is a podium of small tiles beside the wall, and
+ * handing the projector a second full-size URL per entry would have it fetch megabytes
+ * it never renders.
+ */
+export const toTopPhotoDto = ({ photo, slug, counts, total }: TopPhotoDtoInput): TopPhotoDto => ({
+  photoId: photo.id,
+  thumbUrl: mediaUrl(slug, photo.id, 'thumb'),
+  counts,
+  total,
+})
+
+// ------------------------------------------------ auth routes (additive) --
+
+// Imported here rather than folded into the statement list at the top of the file, so
+// that several route modules being written against this file at the same time merge
+// cleanly. Type-only, so nothing is added to the bundle.
+import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
+import type { UserPrincipal } from '../types'
+import type { SessionResponseDto } from './dto'
+
+/**
+ * What a successful login answers with.
+ *
+ * Takes the use case's `AuthenticatedUser` and not the `User` entity, which is why
+ * {@link toSessionUserDto} cannot serve here: `authenticateUser` deliberately returns
+ * an identity and nothing else, so the entity never reaches the HTTP layer at all
+ * (docs/adr/0004-remove-passport.md). This is the one response that can carry a fresh
+ * `displayName`, because it is the one moment the row was read.
+ */
+export const toSignedInUserDto = (user: AuthenticatedUser): SessionUserDto => ({
+  userId: user.userId,
+  email: user.email,
+  displayName: user.displayName,
+  mustChangePassword: user.mustChangePassword,
+})
+
+/**
+ * `GET /api/auth/me`, built from the session principal alone.
+ *
+ * `displayName` is `null` here rather than the stored name. The session holds an
+ * identity and nothing more (`SessionPayload`), so a name in it would be a copy that
+ * goes stale the moment the account is renamed — and reading the row would make a
+ * controller touch a repository, which is the one thing a controller may not do. The
+ * login response carries the fresh name; this endpoint answers the question it is
+ * actually asked, which is whether the caller is signed in.
+ */
+export const toSessionResponseDto = (
+  principal: UserPrincipal | undefined,
+): SessionResponseDto =>
+  principal === undefined
+    ? { authenticated: false }
+    : {
+        authenticated: true,
+        user: {
+          userId: principal.userId,
+          email: principal.email,
+          displayName: null,
+          mustChangePassword: principal.mustChangePassword,
+        },
+      }
+
+// ----------------------------------------------- guest routes (additive) --
+
+// Imported here rather than folded into the statement list at the top of the file, so
+// that route modules being written against this file at the same time merge cleanly.
+// Type-only, so nothing is added to the bundle.
+import type {
+  UploadOutcome,
+  UploadPhotosResult,
+} from '../../../application/usecases/photos/uploadPhotos'
+import type { PhotoReactionsView } from '../../../application/usecases/reactions/getPhotoReactions'
+import type { ReactionsResponseDto, UploadOutcomeDto, UploadResponseDto } from './dto'
+
+/**
+ * One file's fate.
+ *
+ * `duplicate` is a **success** and carries the id of the photo that already holds those
+ * bytes: a double-tapped "Envoyer", or a retry after the connection dropped mid-upload,
+ * must read as "it is already there" rather than as a failure the guest answers by
+ * sending it a third time. 1.0 answered it with a second identical slide on the wall.
+ *
+ * A refusal crosses the wire as its `code` and nothing else — the client picks its
+ * French from that, and `declaredName` stays out of the response body: the guest matches
+ * an outcome to a row in their picker by `index`, and echoing a client-supplied filename
+ * back into a document is how it ends up rendered somewhere it should not be.
+ */
+export const toUploadOutcomeDto = (outcome: UploadOutcome): UploadOutcomeDto => {
+  switch (outcome.kind) {
+    case 'stored':
+      return { index: outcome.index, status: 'accepted', photoId: outcome.photoId }
+    case 'duplicate':
+      return { index: outcome.index, status: 'duplicate', photoId: outcome.photoId }
+    case 'refused':
+      return { index: outcome.index, status: 'rejected', code: outcome.error.code }
+  }
+}
+
+/**
+ * One entry per submitted file, in the order they were submitted.
+ *
+ * `published` is deliberately absent from the wire format: on an auto-publish event
+ * every accepted photo is live, and a second list of the same ids would let a client
+ * decide a photo's status from the upload response instead of from the photo.
+ */
+export const toUploadResponseDto = (result: UploadPhotosResult): UploadResponseDto => ({
+  results: result.outcomes.map(toUploadOutcomeDto),
+})
+
+/**
+ * The badge counts under one photo, plus this phone's own taps.
+ *
+ * `counts` comes through unchanged from the domain's `tally`, which always carries every
+ * kind at zero — so no client handles a missing key. `total` is dropped: it exists to
+ * rank the photo of the night, and a phone that summed a different way would show a
+ * number the host's panel disagrees with.
+ */
+export const toReactionsDto = (view: PhotoReactionsView): ReactionsResponseDto => ({
+  counts: view.counts,
+  mine: view.mine,
+})
+
+// ---------------------------------------------- public routes (additive) --
+
+// Imported here rather than folded into the statement list at the top of the file, so
+// that route modules being written against this file at the same time merge cleanly.
+// Type-only, so nothing is added to the bundle.
+import type { WallPlaylistView } from '../../../application/usecases/slideshow/getWallPlaylist'
+import type { PhotoId } from '../../../domain/shared/ids'
+import type { WallItemDto, WallResponseDto } from './dto'
+
+/**
+ * One slide.
+ *
+ * `authorName` is `null` because the wall's read model carries no guest identity:
+ * `getWallPlaylist` returns published photos and their playlist, and resolving an author
+ * would mean either a second repository read from a controller — the one thing a
+ * controller may not do — or a use case that returns names it does not have today. The
+ * field stays on the wire because docs/API.md declares it nullable, so filling it later
+ * is an addition rather than a breaking change.
+ *
+ * Note what is absent: no status, no byte size, no content hash, no storage key. The
+ * projector is a public client, and a wall item is the least it needs to render a slide.
+ */
+const toWallItemDto = (photo: Photo, slug: string): WallItemDto => ({
+  id: photo.id,
+  displayUrl: mediaUrl(slug, photo.id, 'display'),
+  thumbUrl: mediaUrl(slug, photo.id, 'thumb'),
+  width: photo.dimensions.width,
+  height: photo.dimensions.height,
+  caption: photo.caption?.value ?? null,
+  authorName: null,
+  createdAt: iso(photo.createdAt),
+})
+
+/**
+ * The projected wall.
+ *
+ * The **playlist** decides which photos are on the wall and in what order — never the
+ * photo list the repository happened to return. `buildPlaylist` applies the window and
+ * the newest-first rule with an id tie-break, so two projectors handed the same photos
+ * compute the same sequence and the same `revision`; iterating `view.photos` here would
+ * quietly reintroduce 1.0's per-browser slideshow order.
+ *
+ * Takes no {@link PresenterContext}: every URL on this response is a relative media path,
+ * so the wall renders identically whether the projector reached the server by its public
+ * URL or by its address on the venue's LAN.
+ */
+export const toWallResponseDto = (view: WallPlaylistView): WallResponseDto => {
+  const slug = view.event.slug.value
+  const byId = new Map(view.photos.map((photo): readonly [PhotoId, Photo] => [photo.id, photo]))
+
+  return {
+    event: { slug, name: view.event.name.value },
+    revision: view.playlist.revision,
+    items: view.playlist.items.flatMap((id) => {
+      const photo = byId.get(id)
+      // A playlist id with no photo behind it is not reachable through the use case, which
+      // builds both from one read. Skipping rather than emitting a placeholder keeps the
+      // failure mode "one slide short" instead of a hole the projector has to render.
+      return photo === undefined ? [] : [toWallItemDto(photo, slug)]
+    }),
+    slideIntervalMs: view.slideIntervalMs,
+    kenBurnsDurationMs: view.kenBurnsDurationMs,
+    layout: view.layout,
+    reactionsEnabled: view.event.settings.allowReactions,
+  }
+}

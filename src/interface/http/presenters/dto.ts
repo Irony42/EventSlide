@@ -43,6 +43,18 @@ export interface WallItemDto {
 
 export interface WallResponseDto {
   readonly event: { readonly slug: string; readonly name: string }
+  /**
+   * The join code, because the wall doubles as the invitation.
+   *
+   * Someone arriving at 23:00 has only the screen to read, and the empty state exists
+   * to tell the room how to join — so withholding the code here would break the
+   * product to protect something the QR code on every table already gives away.
+   *
+   * It does widen one accepted risk: a leaked display URL now grants upload as well as
+   * read. That is recorded in docs/SECURITY.md, and the mitigation is the one a host
+   * already has — rotate the code.
+   */
+  readonly joinCode: string
   readonly revision: string
   readonly items: readonly WallItemDto[]
   readonly slideIntervalMs: number
@@ -174,4 +186,49 @@ export interface TopPhotoDto {
   readonly thumbUrl: string
   readonly counts: ReactionCounts
   readonly total: number
+}
+
+// ------------------------------------------- moderation routes (additive) --
+
+/**
+ * One row of the moderation queue.
+ *
+ * Deliberately **not** a {@link ModerationPhotoDto}. `getModerationQueue` returns the
+ * domain's four-column `QueueItem` projection — id, status, arrival, whether the guest
+ * attached text — because the host works through hundreds of rows on a laptop while
+ * more arrive over SSE, and not one queue rule needs a photo's dimensions, bytes or
+ * author. The two image URLs are derived from the id and the slug, so the grid still
+ * renders without a second read.
+ */
+export interface ModerationQueueItemDto {
+  readonly id: string
+  readonly status: PhotoStatus
+  readonly thumbUrl: string
+  readonly displayUrl: string
+  /**
+   * A caption is projected at the size of the room and has to be read before
+   * publishing, so the row carries the badge rather than the text.
+   */
+  readonly hasCaption: boolean
+  readonly createdAt: string
+}
+
+export interface ModerationQueuePageDto {
+  readonly items: readonly ModerationQueueItemDto[]
+  /**
+   * Across the whole event, not the page in hand: a badge that shrank to the page size
+   * the moment the host applied a limit would under-report the work left.
+   */
+  readonly pendingCount: number
+  readonly nextCursor: string | null
+}
+
+/** The admin gallery: the same photos as the queue, without the queue's ordering. */
+export interface PhotoListResponseDto {
+  readonly items: readonly ModerationPhotoDto[]
+  readonly nextCursor: string | null
+}
+
+export interface TopPhotosResponseDto {
+  readonly items: readonly TopPhotoDto[]
 }

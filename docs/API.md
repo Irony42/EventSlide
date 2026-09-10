@@ -158,6 +158,7 @@ structurally incapable of returning a pending photo.
 ```json
 {
   "event": { "slug": "camille-et-sacha", "name": "Camille & Sacha" },
+  "joinCode": "H7K2QM",
   "revision": "1f3k9a2",
   "items": [
     {
@@ -181,6 +182,11 @@ structurally incapable of returning a pending photo.
 `revision` is an order-sensitive fingerprint of `items`. The client refetches when an
 SSE signal arrives and compares revisions to decide whether the playlist actually
 changed — which is what stops the wall jumping on every unrelated event.
+
+`joinCode` is present because the wall is also the invitation: it shows the code and a
+QR while it is empty, and keeps a small corner reminder afterwards, so a guest arriving
+late can join from the screen alone. It is the only host-side value the wall carries,
+and it is exactly the value already printed on the tables.
 
 **Errors** — `404 event.notFound` when the event does not exist or is `draft` or
 `archived`. A `closed` event still serves its wall: the projector is usually still on

@@ -206,3 +206,16 @@ export const wallQuery = z
     e2e_transition: z.coerce.number().int().min(0).max(10_000).optional(),
   })
   .strict()
+
+// ------------------------------------------- moderation routes (additive) --
+
+/**
+ * "Photo de la soirée". Bounded low on purpose: the panel is projected, and a podium
+ * of forty photos is not a podium. The default is what the client asks for when it
+ * sends no query at all.
+ */
+export const topPhotosQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(50).default(10),
+  })
+  .strict()
