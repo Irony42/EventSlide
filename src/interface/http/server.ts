@@ -63,6 +63,19 @@ export const buildServer = ({
   app.use(securityHeaders(config.isProduction))
   app.use(permissionsPolicy)
 
+  // Ahead of the body parser, so a request the parser refuses still has a request id
+  // and a logger. Mounted after it, the one failure nobody can correlate to a log line
+  // is a malformed body — the failure a client is most likely to be arguing about.
+  app.use(requestContext(deps.logger))
+
+  // Liveness and readiness, before the body parser, the cookie parser and the session:
+  // a probe is a machine with no cookie jar, and one that does happen to carry a stale
+  // `es_session` must not be answered by way of the session store. An unusable store
+  // would otherwise make liveness fail for a reason liveness is not about, and a 500
+  // from liveness is a container restart — mid-event, that drops every in-flight
+  // upload. Being ahead of the CSRF gate follows from the same position.
+  app.use('/api', healthRoutes(health))
+
   // Bounded well below any legitimate payload: the only JSON bodies here are a login,
   // a caption and a list of at most 200 photo ids. Uploads go through multer.
   app.use(express.json({ limit: '64kb' }))
@@ -88,13 +101,8 @@ export const buildServer = ({
     }),
   )
 
-  app.use(requestContext(deps.logger))
   app.use(issueCsrfToken({ secureCookie: config.secureCookie }))
   app.use(attachUser())
-
-  // Liveness and readiness sit outside the CSRF gate and before everything else: a
-  // probe must not depend on the session store or on a cookie.
-  app.use('/api', healthRoutes(health))
 
   // Every state-changing request from here on must echo the CSRF cookie.
   app.use('/api', requireCsrfToken)

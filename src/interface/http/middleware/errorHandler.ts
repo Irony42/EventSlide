@@ -78,6 +78,18 @@ export const errorHandler =
       return
     }
 
+    // `express.json` refuses a body before any route runs, and its failures are the
+    // client's problem: a body over the limit, or one that is not JSON at all. Left
+    // untranslated they fall through to the opaque 500 below, which tells a client with
+    // a bad body that the server is broken and files every one of them in the error log,
+    // so a burst of malformed requests reads exactly like an outage.
+    const bodyFailure = bodyParserToDomain(error)
+    if (bodyFailure !== null) {
+      logger?.debug('request body rejected', { code: bodyFailure.code, kind: bodyFailure.kind })
+      sendError(res, bodyFailure)
+      return
+    }
+
     logger?.error('unhandled error', {
       error: error instanceof Error ? error.message : String(error),
       // Only in development: a stack trace in a production log is fine, but this is
@@ -101,6 +113,38 @@ export const errorHandler =
         ),
       )
   }
+
+/**
+ * body-parser's own refusals, recognised by the `type` it stamps on every one of them.
+ *
+ * Recognised by `type` rather than by `status`: `status` is set by `http-errors` on
+ * anything a library chose to throw with one, so keying on it would quietly re-map a
+ * genuine internal failure from some other dependency into a 4xx and hide a bug.
+ *
+ * `entity.too.large` is a deliberate limit stopping the action, which is the
+ * `quotaExceeded` kind (413). Everything else here is a body that could not be parsed
+ * into valid values, which is `invalid` (400) — including `request.aborted`, where the
+ * client has already gone and only the log line matters.
+ */
+const BODY_PARSER_TYPES: ReadonlyMap<string, () => DomainError> = new Map([
+  ['entity.too.large', () => DomainError.quotaExceeded('request.tooLarge')],
+  ['entity.parse.failed', () => DomainError.invalid('request.invalid')],
+  ['entity.verify.failed', () => DomainError.invalid('request.invalid')],
+  ['charset.unsupported', () => DomainError.invalid('request.invalid')],
+  ['encoding.unsupported', () => DomainError.invalid('request.invalid')],
+  ['parameters.too.many', () => DomainError.invalid('request.invalid')],
+  ['request.aborted', () => DomainError.invalid('request.invalid')],
+  ['request.size.invalid', () => DomainError.invalid('request.invalid')],
+  ['stream.encoding.set', () => DomainError.invalid('request.invalid')],
+  ['stream.not.readable', () => DomainError.invalid('request.invalid')],
+])
+
+const bodyParserToDomain = (error: unknown): DomainError | null => {
+  if (!(error instanceof Error)) return null
+  const type: unknown = (error as { type?: unknown }).type
+  if (typeof type !== 'string') return null
+  return BODY_PARSER_TYPES.get(type)?.() ?? null
+}
 
 interface MulterLikeError extends Error {
   readonly code: string

@@ -70,6 +70,25 @@ describe('migrator', () => {
     closeDatabase(db)
   })
 
+  it('names the migration even when its body throws something that is not an Error', () => {
+    const db = freshDb()
+    const failing: Migration[] = [
+      {
+        id: 1,
+        name: 'throws_a_string',
+        up: () => {
+          throw 'not an Error'
+        },
+      },
+    ]
+
+    // The operator runs this from a terminal during an upgrade. A bare `undefined` in
+    // the message leaves them with nothing to act on, and the id is what tells them
+    // which migration to look at.
+    expect(() => migrate(db, failing)).toThrow(/Migration 1 \(throws_a_string\).*not an Error/s)
+    closeDatabase(db)
+  })
+
   it('refuses to run when an already-applied migration has been edited', () => {
     const db = freshDb()
     migrate(db, [{ id: 1, name: 'original', up: (inner) => inner.exec(`SELECT 1`) }])

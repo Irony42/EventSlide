@@ -138,6 +138,34 @@ describe('inMemoryEventBus', () => {
     expect(warnings).toContain('event bus subscriber threw')
   })
 
+  it('a subscriber that throws a non-Error still cannot fail the publisher', () => {
+    // `throw 'boom'` in a callback is not hypothetical, and an error report that says
+    // `undefined` is how a broken projector stays broken. The publisher is on the
+    // guest's upload path either way.
+    const { logger, warnings } = recordingLogger()
+    const bus = createInMemoryEventBus({ logger })
+    bus.subscribe(WEDDING, () => {
+      throw 'projector exploded'
+    })
+    const healthy = vi.fn()
+    bus.subscribe(WEDDING, healthy)
+
+    expect(() => bus.publish(photoPublished())).not.toThrow()
+    expect(healthy).toHaveBeenCalledTimes(1)
+    expect(warnings).toContain('event bus subscriber threw')
+  })
+
+  it('unsubscribing after the bus has been closed is not an error', () => {
+    // Shutdown drops every listener, and an SSE handler's `close` callback fires after
+    // that. It must not resurrect an entry for an event nobody is watching any more.
+    const bus = createInMemoryEventBus({ logger: silentLogger() })
+    const unsubscribe = bus.subscribe(WEDDING, vi.fn())
+    bus.close()
+
+    expect(() => unsubscribe()).not.toThrow()
+    expect(bus.subscriberCount()).toBe(0)
+  })
+
   it('refuses a subscription past the per-event limit and still returns a usable unsubscribe', () => {
     const { logger, warnings } = recordingLogger()
     const bus = createInMemoryEventBus({ logger, maxSubscribersPerEvent: 2 })

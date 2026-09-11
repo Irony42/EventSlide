@@ -1,4 +1,4 @@
-import { Router, type Response } from 'express'
+import { Router, type RequestHandler, type Response } from 'express'
 import type { DomainEvent } from '../../../application/ports/eventBus'
 import type { Logger } from '../../../application/ports/logger'
 import type { EventId } from '../../../domain/shared/ids'
@@ -179,42 +179,48 @@ export const openStream = ({
   return cleanup
 }
 
+/**
+ * Opens the channel for the event the middleware in front resolved.
+ *
+ * One handler for both channels, because the frames are identical and the only
+ * difference is the authorization decision mounted ahead of it — writing it twice is how
+ * the two would drift.
+ *
+ * The 404 is unreachable behind `resolvePublicEvent` or `requireRole`, which is the
+ * point: a route that ever loses its authorization decision must fail closed rather than
+ * dereference an absent event. A `!` here would turn that wiring bug into a `TypeError`
+ * on a projector at 22:00, answered as a 500 after the fact. Exported so the guard can
+ * be exercised without a route in front of it, as `publicRoutes.withPublicEvent` is.
+ */
+export const streamHandler =
+  (deps: HttpDeps): RequestHandler =>
+  (req, res) => {
+    const event = req.context.event
+    if (event === undefined) {
+      res.status(404).end()
+      return
+    }
+    openStream({
+      deps,
+      logger: req.context.logger,
+      eventId: event.id,
+      lastEventId: req.get('last-event-id'),
+      res,
+    })
+  }
+
 export const streamRoutes = (deps: HttpDeps): Router => {
   const router = Router()
 
   /** The wall's channel. Public, for an event that serves its wall. */
-  router.get('/events/:eventSlug/stream', resolvePublicEvent(deps), (req, res) => {
-    const event = req.context.event
-    if (!event) {
-      // `resolvePublicEvent` always populates it; this keeps the type honest without a
-      // non-null assertion.
-      res.status(404).end()
-      return
-    }
-    openStream({
-      deps,
-      logger: req.context.logger,
-      eventId: event.id,
-      lastEventId: req.get('last-event-id'),
-      res,
-    })
-  })
+  router.get('/events/:eventSlug/stream', resolvePublicEvent(deps), streamHandler(deps))
 
   /** The moderation console's channel. Same frames, moderator authorization. */
-  router.get('/events/:eventSlug/moderation/stream', requireRole('moderator', deps), (req, res) => {
-    const event = req.context.event
-    if (!event) {
-      res.status(404).end()
-      return
-    }
-    openStream({
-      deps,
-      logger: req.context.logger,
-      eventId: event.id,
-      lastEventId: req.get('last-event-id'),
-      res,
-    })
-  })
+  router.get(
+    '/events/:eventSlug/moderation/stream',
+    requireRole('moderator', deps),
+    streamHandler(deps),
+  )
 
   return router
 }

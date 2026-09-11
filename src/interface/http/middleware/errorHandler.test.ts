@@ -63,6 +63,32 @@ const harness = (isProduction = false): Harness =>
         const error = Object.assign(new Error('Too many files'), { code: 'LIMIT_FILE_COUNT' })
         next(error)
       })
+
+      app.get('/multer-field-value', (_req, _res, next) => {
+        const error = Object.assign(new Error('Field value too long'), {
+          code: 'LIMIT_FIELD_VALUE',
+        })
+        next(error)
+      })
+
+      // Not every throw is an `Error`. A rejected promise carrying a plain object, or a
+      // library that throws a string, must not make the handler itself throw while
+      // building its log line.
+      app.get('/non-error', (_req, _res, next) => {
+        next({ whatIsThis: 'not an Error' })
+      })
+
+      // Headers on the wire, then a failure: the shape of a ZIP export or an SSE frame
+      // that dies part-way through.
+      app.get(
+        '/stream-boom',
+        asyncHandler(async (_req, res) => {
+          res.status(200).type('application/zip')
+          res.write('PK the first bytes of an archive')
+          await Promise.resolve()
+          throw new Error('the archive failed half-way')
+        }),
+      )
     },
   })
 
@@ -176,6 +202,31 @@ describe('errorHandler', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.error.code).toBe('upload.tooManyFiles')
+  })
+
+  it('translates a multer limit it has no specific answer for into a plain rejection', async () => {
+    // `LIMIT_FIELD_VALUE` and its siblings are still multer refusing the request, so
+    // they must not fall through to the opaque 500 that means "this is our bug".
+    const response = await request(harness().app).get('/multer-field-value')
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('upload.rejected')
+  })
+
+  it('answers an opaque 500 when the thrown value is not an Error at all', async () => {
+    const response = await request(harness().app).get('/non-error')
+
+    expect(response.status).toBe(500)
+    expect(response.body.error.code).toBe('server.unexpected')
+  })
+
+  it('destroys the socket when a response has already started', async () => {
+    // The status is long gone once headers are on the wire, so a truncated body with a
+    // dead socket is the only honest signal that the archive is incomplete. Answering
+    // 200 and stopping would hand the client a corrupt ZIP it believes is whole.
+    await expect(request(harness().app).get('/stream-boom')).rejects.toThrow(
+      /socket hang up|ECONNRESET|aborted/,
+    )
   })
 
   it('leaks no stack trace in production', async () => {

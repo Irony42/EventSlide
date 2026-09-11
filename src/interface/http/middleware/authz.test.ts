@@ -66,6 +66,27 @@ const signedIn = async (subject: Harness, who: 'host' | 'other') => {
   return agent
 }
 
+describe('attachUser', () => {
+  it('finds nobody when the request has no session at all', async () => {
+    // Identity resolution must fail closed rather than throw. Mounted before the
+    // session middleware — a wiring mistake, but a possible one — the alternative is a
+    // `TypeError` answered as an opaque 500 on a route that should simply be anonymous.
+    const subject = buildHarness({
+      withSession: false,
+      routes: (app) => {
+        app.get('/me', requireUser, (_req, res) => {
+          res.status(204).end()
+        })
+      },
+    })
+
+    const response = await request(subject.app).get('/me')
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+})
+
 describe('requireUser', () => {
   it('answers 401 without a session', async () => {
     const response = await request(harness().app).get('/me')
@@ -269,6 +290,22 @@ describe('requireGuest', () => {
       .set('Cookie', `${GUEST_COOKIE}=${token}`)
 
     expect(response.status).toBe(404)
+  })
+
+  it('answers 404 for a slug that is not even slug-shaped', async () => {
+    // The slug is parsed before the repository is asked anything, so a hostile path
+    // segment never reaches a lookup — and it answers exactly like an absent event, so
+    // the shape of the refusal says nothing about what exists.
+    const subject = harness()
+    seedGuest(subject)
+    const token = subject.issueGuestToken(WEDDING, 'guest-1')
+
+    const response = await request(subject.app)
+      .get('/events/NOT_A_SLUG/upload')
+      .set('Cookie', `${GUEST_COOKIE}=${token}`)
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
   })
 
   it('rejects an expired token', async () => {

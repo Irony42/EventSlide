@@ -1,5 +1,5 @@
 import type { SessionData } from 'express-session'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrate } from './migrator'
 import { migrations } from './migrations'
@@ -33,6 +33,14 @@ const length = (store: SqliteSessionStore): Promise<number> =>
     store.length((error, count) => (error ? reject(error) : resolve(count ?? 0)))
   })
 
+const clear = (store: SqliteSessionStore): Promise<void> =>
+  new Promise((resolve, reject) => {
+    store.clear((error) => (error ? reject(error) : resolve()))
+  })
+
+const rowCount = (db: Db): number =>
+  db.prepare<[], { count: number }>(`SELECT COUNT(*) AS count FROM sessions`).get()?.count ?? -1
+
 describe('SqliteSessionStore', () => {
   let db: Db
   let store: SqliteSessionStore
@@ -44,6 +52,7 @@ describe('SqliteSessionStore', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     store.close()
     closeDatabase(db)
   })
@@ -135,9 +144,7 @@ describe('SqliteSessionStore', () => {
     await set(store, 'sid-1', sessionWith(60_000))
     await set(store, 'sid-2', sessionWith(60_000))
 
-    await new Promise<void>((resolve, reject) => {
-      store.clear((error) => (error ? reject(error) : resolve()))
-    })
+    await clear(store)
 
     expect(await length(store)).toBe(0)
   })
@@ -167,5 +174,82 @@ describe('SqliteSessionStore', () => {
     )
 
     expect(await get(store, 'broken')).toBeNull()
+  })
+
+  it('treats a maxAge of zero as expired instead of granting the default lifetime', async () => {
+    // The bug this pins: the expiry was guarded on `maxAge > 0`, so a cookie
+    // express-session had already expired fell through to the twelve-hour default and
+    // the session was silently revived. Any finite maxAge is authoritative, and zero is
+    // the boundary the old guard got wrong.
+    await set(store, 'sid-1', sessionWith(0, { userId: 'user-1' }))
+
+    expect(await get(store, 'sid-1')).toBeNull()
+  })
+
+  it('sweeps expired rows on the interval, not only at construction', async () => {
+    // The store exists because MemoryStore never evicted. A sweep that only ran at
+    // startup would leak for exactly as long as the process lives, which is the same
+    // defect with extra steps.
+    vi.useFakeTimers()
+    const sweeper = new SqliteSessionStore({
+      db,
+      logger: silentLogger(),
+      sweepIntervalMs: 60_000,
+    })
+    await set(sweeper, 'dead', sessionWith(-1_000))
+    expect(rowCount(db)).toBe(1)
+
+    vi.advanceTimersByTime(60_000)
+
+    expect(rowCount(db)).toBe(0)
+    sweeper.close()
+  })
+
+  it('reports a failed write to express-session rather than throwing at it', async () => {
+    // express-session is callback-based: a store that throws instead of calling back
+    // leaves the request hanging, so a host loses their login with no error at all.
+    closeDatabase(db)
+
+    await expect(set(store, 'sid-1', sessionWith(60_000))).rejects.toThrow()
+  })
+
+  it('reports a failed destroy, so a logout is never silently ignored', async () => {
+    closeDatabase(db)
+
+    await expect(destroy(store, 'sid-1')).rejects.toThrow()
+  })
+
+  it('reports a failed count rather than answering zero', async () => {
+    // Zero is what an empty store reports. Answering it for a failure would make the
+    // health endpoint claim nobody is logged in.
+    closeDatabase(db)
+
+    await expect(length(store)).rejects.toThrow()
+  })
+
+  it('reports a failed clear rather than claiming the store is empty', async () => {
+    closeDatabase(db)
+
+    await expect(clear(store)).rejects.toThrow()
+  })
+
+  it('still calls back when a touch cannot be written', () => {
+    // `touch` runs on every authenticated request. It swallows the failure on purpose —
+    // a host must not be logged out because one expiry refresh failed — but it has to
+    // call back, or the request never completes.
+    closeDatabase(db)
+    let calledBack = false
+
+    store.touch('sid-1', sessionWith(60_000), () => void (calledBack = true))
+
+    expect(calledBack).toBe(true)
+  })
+
+  it('reports zero swept rows instead of throwing on the sweep timer', () => {
+    // Nothing catches for the interval callback: a throw there is an unhandled
+    // rejection that takes the server down mid-event.
+    closeDatabase(db)
+
+    expect(store.sweep()).toBe(0)
   })
 })

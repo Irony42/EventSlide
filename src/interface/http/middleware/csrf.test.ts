@@ -11,6 +11,12 @@ const harness = (secureCookie = false): Harness =>
       app.get('/read', (_req, res) => {
         res.json({ ok: true })
       })
+      // The same read, but behind the gate — which is how `server.ts` mounts it, on
+      // `/api` ahead of every router. Without a route wired this way nothing exercises
+      // the safe-method exemption itself.
+      app.get('/guarded-read', requireCsrfToken, (_req, res) => {
+        res.json({ ok: true })
+      })
       app.post('/write', requireCsrfToken, (_req, res) => {
         res.status(204).end()
       })
@@ -76,7 +82,21 @@ describe('issueCsrfToken', () => {
 
 describe('requireCsrfToken', () => {
   it('lets a read through without any token', async () => {
-    await request(harness().app).get('/read').expect(200)
+    // The projector holds nothing and the join page is reached from a QR scan. The gate
+    // is mounted in front of every `/api` route, public ones included, so a gate that
+    // demanded a token on a read would break both surfaces.
+    //
+    // `/guarded-read`, not `/read`: this test used to request the route the harness
+    // wires with `issueCsrfToken` alone, so it sat under `requireCsrfToken` while
+    // asserting nothing about it — which is how the safe-method branch stayed uncovered
+    // while this file read as complete.
+    await request(harness().app).get('/guarded-read').expect(200)
+  })
+
+  it('exempts HEAD as well as GET, since a HEAD changes nothing either', async () => {
+    // Express answers a HEAD from the GET route, so this reaches the same handler with
+    // the method the gate has to recognise on its own.
+    await request(harness().app).head('/guarded-read').expect(200)
   })
 
   it('accepts a write whose header matches the cookie', async () => {

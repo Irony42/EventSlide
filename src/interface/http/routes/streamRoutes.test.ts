@@ -1,8 +1,21 @@
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { resetSignalLogs, streamRoutes } from './streamRoutes'
-import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
+import supertest from 'supertest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  openStream as openStreamFor,
+  resetSignalLogs,
+  streamHandler,
+  streamRoutes,
+} from './streamRoutes'
+import {
+  buildHarness,
+  buildTestWorld,
+  signInAs,
+  type Harness,
+  type TestWorld,
+} from '../testing/middlewareHarness'
+import { SseSink, asResponse } from '../testing/sseSink'
 import { AT, anEvent } from '../../../application/testing/builders'
 import { asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import type { DomainEvent } from '../../../application/ports/eventBus'
@@ -266,5 +279,151 @@ describe('streamRoutes', () => {
 
     expect(stream.statusCode).toBe(200)
     await stream.waitFor((text) => text.includes(': connected'), 'connection')
+  })
+})
+
+/**
+ * The stream itself, driven without a socket.
+ *
+ * `openStream` is exported for this: a heartbeat fires on a fifteen-second interval, and
+ * the guards that refuse to write to a response whose socket has already gone exist for
+ * a race no socket test can schedule. Here the interval is driven by fake timers and
+ * "the socket is gone" is a property the test sets, so both are decided rather than
+ * waited for.
+ */
+describe('openStream', () => {
+  let world: TestWorld
+
+  beforeEach(() => {
+    resetSignalLogs()
+    world = buildTestWorld()
+    // Nothing in this block awaits a real timer, so the heartbeat can simply be driven.
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const open = (lastEventId?: string): SseSink => {
+    const sink = new SseSink()
+    openStreamFor({
+      deps: world.deps,
+      logger: world.deps.logger,
+      eventId: asEventId(WEDDING),
+      lastEventId,
+      res: asResponse(sink),
+    })
+    return sink
+  }
+
+  it('flushes the headers rather than leaving them to ride out with the first frame', () => {
+    // A client reports the connection open on the headers, and the first photo may be
+    // minutes away. Today the `: connected` comment frame would push them out anyway, so
+    // this is the assertion that keeps the two independent: remove the comment frame and
+    // the projector would otherwise sit on a pending request until someone uploads.
+    const sink = open()
+
+    expect(sink.headersFlushed).toBe(true)
+  })
+
+  it('emits a comment frame on the heartbeat interval, so a proxy sees traffic', () => {
+    // Proxies and mobile networks close an idle connection after 30–60 seconds. 1.0
+    // sent nothing between events, so a quiet spell ended the stream and the wall
+    // stopped updating for the rest of the night with nothing on screen to say so.
+    const sink = open()
+
+    vi.advanceTimersByTime(15_000)
+
+    expect(sink.text).toContain(': keep-alive')
+  })
+
+  it('writes no heartbeat to a response whose socket has already gone', () => {
+    const sink = open()
+    sink.endWriting()
+
+    vi.advanceTimersByTime(15_000)
+
+    expect(sink.text).not.toContain(': keep-alive')
+  })
+
+  it('writes no signal to a response whose socket has already gone', () => {
+    // The bus delivers synchronously, so a connection that died between the publish and
+    // the write is reachable — and writing to it would throw inside `publish`, which the
+    // port promises never throws so that a slow projector cannot fail a guest's upload.
+    const sink = open()
+    sink.endWriting()
+
+    world.deps.bus.publish(photoPublished(WEDDING))
+
+    expect(sink.text).not.toContain('event: change')
+    expect(world.bus.listenerErrors).toEqual([])
+  })
+
+  it('stops the heartbeat once the client has disconnected', () => {
+    // An eight-hour run with a projector that reconnects every few minutes would
+    // otherwise accumulate one interval per connection.
+    const sink = open()
+
+    sink.emit('close')
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('keeps another client of the same event when one connection errors then closes', () => {
+    // A handler plausibly tears down on both `error` and `close`. Doing both must not
+    // take a concurrently connected projector's subscription with it.
+    const failing = open()
+    const healthy = open()
+
+    failing.emit('error', new Error('ECONNRESET'))
+    failing.emit('close')
+
+    world.deps.bus.publish(photoPublished(WEDDING))
+    expect(healthy.text).toContain('event: change')
+    expect(world.bus.subscriberCount(asEventId(WEDDING))).toBe(1)
+  })
+
+  it('unsubscribes after an error value that is not an Error', () => {
+    // Node emits whatever the socket layer hands it. A handler that assumed `.message`
+    // would throw from inside an error listener, which takes the process down.
+    const sink = open()
+
+    sink.emit('error', 'the socket layer said something else')
+
+    expect(world.bus.subscriberCount(asEventId(WEDDING))).toBe(0)
+  })
+
+  it('replays at most the most recent signals, so an idle event bounds its memory', () => {
+    // The buffer closes the gap during a reconnect; it is not a durable log. The client
+    // refetches the wall on every connect, so dropping the oldest signal costs nothing
+    // while an unbounded buffer would grow for eight hours.
+    const watching = open()
+    for (let i = 0; i < 65; i += 1) world.deps.bus.publish(photoPublished(WEDDING))
+    expect(watching.text).toContain('id: 65\n')
+
+    const reconnected = open()
+
+    expect(reconnected.text).not.toContain('id: 1\n')
+    expect(reconnected.text).toContain('id: 2\n')
+  })
+})
+
+describe('streamHandler', () => {
+  it('fails closed when no middleware resolved the event', async () => {
+    // Unreachable behind `resolvePublicEvent` or `requireRole`, and that is why it is
+    // asserted: a route that ever loses its authorization decision must answer 404
+    // rather than dereference an absent event, which a `!` would turn into a
+    // `TypeError` on a projector at 22:00 answered as a 500 after the fact.
+    const subject = buildHarness({
+      routes: (app, deps) => {
+        app.get('/events/:eventSlug/unguarded-stream', streamHandler(deps))
+      },
+    })
+
+    const response = await supertest(subject.app).get('/events/mariage/unguarded-stream')
+
+    expect(response.status).toBe(404)
+    expect(subject.bus.subscriberCount()).toBe(0)
   })
 })

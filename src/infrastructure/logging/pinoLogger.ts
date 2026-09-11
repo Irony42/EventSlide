@@ -48,8 +48,9 @@ export const createPinoLogger = ({ level, pretty }: PinoLoggerOptions): Logger =
       paths: [...REDACTED, ...REDACTED.map((field) => `*.${field}`)],
       censor: '[redacted]',
     },
-    // Seconds-precision ISO, matching the timestamps stored in the database, so a log
-    // line and a row can be lined up by eye.
+    // ISO-8601 with milliseconds (`Date.prototype.toISOString`), the same form the
+    // database stores, so a log line and a row can be lined up by eye. pino's default
+    // is epoch milliseconds, which cannot.
     timestamp: pino.stdTimeFunctions.isoTime,
     formatters: {
       level: (label) => ({ level: label }),

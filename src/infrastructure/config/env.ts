@@ -40,11 +40,26 @@ const secret = (name: string) =>
       message: `${name} is still the example value from .env.example`,
     })
 
+/**
+ * The public origin. `z.string().url()` alone accepts any parseable URL, including
+ * `javascript:alert(1)` and `data:text/html,…`: the value is concatenated into the
+ * event DTO's `joinUrl`, which the admin console renders as a link and as a QR code,
+ * so a non-navigable scheme would put a script URI behind the join button. A guest's
+ * phone has to be able to open it, which leaves exactly two schemes; production
+ * narrows that further to https, or http on localhost behind a TLS proxy.
+ */
+const publicUrl = z
+  .string()
+  .url()
+  .refine((value) => /^https?:\/\//i.test(value), {
+    message: 'PUBLIC_URL must be an http or https origin',
+  })
+
 const schema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: positiveInt(4300, 65535),
-    PUBLIC_URL: z.string().url().default('http://localhost:5173'),
+    PUBLIC_URL: publicUrl.default('http://localhost:5173'),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
     // Optional here, required for production by the refinement below, so a developer
@@ -71,7 +86,20 @@ const schema = z
     LOGIN_RATE_LIMIT_PER_MINUTE: positiveInt(10, 600),
     REACTION_RATE_LIMIT_PER_MINUTE: positiveInt(30, 600),
 
-    BCRYPT_COST: positiveInt(12, 15),
+    /**
+     * Bounded at both ends. `createBcryptPasswordHasher` refuses anything outside
+     * 10-15 with a bare `Error`, so without the floor a cost of 9 passed validation
+     * here and then failed while the container was assembling adapters — an exception
+     * that names neither the variable nor the file that owns it. Refusing it here is
+     * what makes the aggregated ConfigError the single place a misconfigured boot is
+     * explained.
+     */
+    BCRYPT_COST: z.coerce
+      .number()
+      .int()
+      .min(10, 'BCRYPT_COST must be at least 10')
+      .max(15, 'BCRYPT_COST must be at most 15')
+      .default(12),
 
     BOOTSTRAP_OWNER_EMAIL: z.string().optional(),
     BOOTSTRAP_OWNER_PASSWORD: z.string().optional(),
@@ -183,10 +211,11 @@ export class ConfigError extends Error {
 export const loadConfig = (source: Record<string, string | undefined> = process.env): AppConfig => {
   const parsed = schema.safeParse(source)
   if (!parsed.success) {
+    // Every issue this schema can raise names a variable: an object-shape failure
+    // carries its key, and each `addIssue` above sets `path` explicitly. There is no
+    // path-less case to format around, so there is no branch here either.
     throw new ConfigError(
-      parsed.error.issues.map((issue) =>
-        issue.path.length > 0 ? `${issue.path.join('.')}: ${issue.message}` : issue.message,
-      ),
+      parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
     )
   }
 
