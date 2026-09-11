@@ -3,10 +3,17 @@ dist
 coverage
 
 # Runtime state. An event's photos and database belong to the operator, never to git.
-data/
-media/
-photos/
-thumbnails/
+#
+# Anchored with a leading slash, and that is load-bearing rather than tidiness. A bare
+# `photos/` matches a directory of that name at *any* depth, so these four patterns were
+# silently excluding `src/domain/photos/`, `src/application/usecases/photos/` and
+# `src/infrastructure/media/` — the photo entity, the upload use cases and the whole
+# media adapter. None of it had ever been committed, every `git add` quietly skipped it,
+# and a fresh clone would not have built. Keep the slashes.
+/data/
+/media/
+/photos/
+/thumbnails/
 
 *.sqlite
 *.sqlite-shm
