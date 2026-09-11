@@ -5,6 +5,21 @@ import { migrations } from './migrations'
 
 const freshDb = (): Db => openDatabase({ path: ':memory:' })
 
+/**
+ * Records the order migrations ran in, in the database itself.
+ *
+ * A migration is a SQL string, so it cannot push to an array in the test's scope — and
+ * that makes for a better test: what the migrator promises is that these statements
+ * reached SQLite in id order, and `rowid` is the database's own record of it.
+ */
+const marks = (n: number): string =>
+  `CREATE TABLE IF NOT EXISTS applied_order (n INTEGER); INSERT INTO applied_order (n) VALUES (${n})`
+
+const orderApplied = (db: Db): number[] =>
+  (db.prepare(`SELECT n FROM applied_order ORDER BY rowid`).all() as { n: number }[]).map(
+    (row) => row.n,
+  )
+
 const tableNames = (db: Db): string[] =>
   (
     db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`).all() as {
@@ -24,26 +39,24 @@ const indexNames = (db: Db): string[] =>
 describe('migrator', () => {
   it('applies every pending migration in id order', () => {
     const db = freshDb()
-    const order: number[] = []
     const applied = migrate(db, [
-      { id: 2, name: 'second', up: () => void order.push(2) },
-      { id: 1, name: 'first', up: () => void order.push(1) },
+      { id: 2, name: 'second', sql: marks(2) },
+      { id: 1, name: 'first', sql: marks(1) },
     ])
 
-    expect(order).toEqual([1, 2])
+    expect(orderApplied(db)).toEqual([1, 2])
     expect(applied).toEqual([1, 2])
     closeDatabase(db)
   })
 
   it('is idempotent: a second run applies nothing', () => {
     const db = freshDb()
-    let runs = 0
-    const list: Migration[] = [{ id: 1, name: 'once', up: () => void runs++ }]
+    const list: Migration[] = [{ id: 1, name: 'once', sql: marks(1) }]
 
     migrate(db, list)
     const second = migrate(db, list)
 
-    expect(runs).toBe(1)
+    expect(orderApplied(db)).toEqual([1])
     expect(second).toEqual([])
     closeDatabase(db)
   })
@@ -54,10 +67,9 @@ describe('migrator', () => {
       {
         id: 1,
         name: 'half_applied',
-        up: (inner) => {
-          inner.exec(`CREATE TABLE should_not_survive (a TEXT)`)
-          throw new Error('boom')
-        },
+        // A valid statement, then one SQLite refuses: the first must not survive the
+        // second, which is the whole point of the per-migration transaction.
+        sql: `CREATE TABLE should_not_survive (a TEXT); CREATE TABLE (`,
       },
     ]
 
@@ -70,47 +82,43 @@ describe('migrator', () => {
     closeDatabase(db)
   })
 
-  it('names the migration even when its body throws something that is not an Error', () => {
+  it('names the migration in the failure, and says what SQLite objected to', () => {
     const db = freshDb()
     const failing: Migration[] = [
       {
         id: 1,
-        name: 'throws_a_string',
-        up: () => {
-          throw 'not an Error'
-        },
+        name: 'bad_syntax',
+        sql: `CREATE TABLE (`,
       },
     ]
 
-    // The operator runs this from a terminal during an upgrade. A bare `undefined` in
-    // the message leaves them with nothing to act on, and the id is what tells them
-    // which migration to look at.
-    expect(() => migrate(db, failing)).toThrow(/Migration 1 \(throws_a_string\).*not an Error/s)
+    // The operator runs this from a terminal during an upgrade. The id is what tells
+    // them which migration to look at, and SQLite's own words are what tell them why.
+    // Since a migration is SQL, the only thing that can raise here is the driver, and it
+    // always raises an `Error` — so the `String(cause)` arm in the migrator is defensive
+    // and not reachable through this surface.
+    expect(() => migrate(db, failing)).toThrow(/Migration 1 \(bad_syntax\).*syntax error/s)
     closeDatabase(db)
   })
 
   it('refuses to run when an already-applied migration has been edited', () => {
     const db = freshDb()
-    migrate(db, [{ id: 1, name: 'original', up: (inner) => inner.exec(`SELECT 1`) }])
+    migrate(db, [{ id: 1, name: 'original', sql: `SELECT 1` }])
 
     // Same id and name, different body: exactly the mistake that silently diverges
     // the schema of an installation that already ran the first version.
-    expect(() =>
-      migrate(db, [{ id: 1, name: 'original', up: (inner) => inner.exec(`SELECT 2`) }]),
-    ).toThrow(/append-only/)
+    expect(() => migrate(db, [{ id: 1, name: 'original', sql: `SELECT 2` }])).toThrow(/append-only/)
     closeDatabase(db)
   })
 
   it('refuses to run against a database migrated by a newer build', () => {
     const db = freshDb()
     migrate(db, [
-      { id: 1, name: 'known', up: (inner) => inner.exec(`SELECT 1`) },
-      { id: 2, name: 'from_the_future', up: (inner) => inner.exec(`SELECT 1`) },
+      { id: 1, name: 'known', sql: `SELECT 1` },
+      { id: 2, name: 'from_the_future', sql: `SELECT 1` },
     ])
 
-    expect(() =>
-      migrate(db, [{ id: 1, name: 'known', up: (inner) => inner.exec(`SELECT 1`) }]),
-    ).toThrow(/newer version/)
+    expect(() => migrate(db, [{ id: 1, name: 'known', sql: `SELECT 1` }])).toThrow(/newer version/)
     closeDatabase(db)
   })
 
@@ -118,8 +126,8 @@ describe('migrator', () => {
     const db = freshDb()
     expect(() =>
       migrate(db, [
-        { id: 1, name: 'a', up: () => {} },
-        { id: 1, name: 'b', up: () => {} },
+        { id: 1, name: 'a', sql: `SELECT 1` },
+        { id: 1, name: 'b', sql: `SELECT 1` },
       ]),
     ).toThrow(/Duplicate migration id 1/)
     closeDatabase(db)
@@ -127,15 +135,15 @@ describe('migrator', () => {
 
   it.each([0, -1, 1.5])('rejects the invalid migration id %s', (id) => {
     const db = freshDb()
-    expect(() => migrate(db, [{ id, name: 'bad', up: () => {} }])).toThrow(/positive integer/)
+    expect(() => migrate(db, [{ id, name: 'bad', sql: `SELECT 1` }])).toThrow(/positive integer/)
     closeDatabase(db)
   })
 
   it('reports applied and pending separately', () => {
     const db = freshDb()
     const list: Migration[] = [
-      { id: 1, name: 'one', up: (inner) => inner.exec(`SELECT 1`) },
-      { id: 2, name: 'two', up: (inner) => inner.exec(`SELECT 1`) },
+      { id: 1, name: 'one', sql: `SELECT 1` },
+      { id: 2, name: 'two', sql: `SELECT 1` },
     ]
     migrate(db, [list[0]!])
 

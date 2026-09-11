@@ -16,11 +16,20 @@ export interface Migration {
   /** `snake_case`, describes the change. */
   readonly name: string
   /**
-   * Applied inside a transaction the migrator opens. Must be safe to run against a
-   * fresh database (use `IF NOT EXISTS`), so first boot and a test's `:memory:`
-   * database behave identically.
+   * The SQL this migration applies, run inside a transaction the migrator opens. Must
+   * be safe against a fresh database (use `IF NOT EXISTS`), so first boot and a test's
+   * `:memory:` database behave identically.
+   *
+   * A string rather than a `(db) => void`, because the ledger's checksum is taken over
+   * it. Hashing a function meant hashing `Function.prototype.toString()`, which is its
+   * *source text* — and that differs between the TypeScript source `tsx` runs and the
+   * JavaScript `tsc` emits, even though the SQL inside is identical. So the migration
+   * applied by `npm run db:migrate` never matched the one the built server verified at
+   * boot, and the documented install sequence — migrate, build, start — failed on the
+   * last step with "Migration 1 has changed since it was applied". Hashing the SQL
+   * hashes exactly what reached the database, which is what the ledger is for.
    */
-  readonly up: (db: Db) => void
+  readonly sql: string
 }
 
 export interface AppliedMigration {
@@ -54,14 +63,16 @@ const LEDGER = `
 /**
  * Fingerprint of what a migration does.
  *
- * `up` is a function, so this hashes its source text. That is coarse — reformatting
- * changes the checksum — but it catches the failure it exists to catch: someone edits
- * a migration that has already run somewhere, and two databases silently diverge with
+ * Over the SQL itself, so it is the same whether the migration is loaded from
+ * TypeScript source or from the compiled output — see `Migration.sql` for why that
+ * mattered. Still coarse: reformatting the SQL changes the checksum. That is the right
+ * trade, because it catches the failure the ledger exists to catch — someone edits a
+ * migration that has already run somewhere, and two databases silently diverge with
  * nothing to reveal it.
  */
 const checksumOf = (migration: Migration): string =>
   createHash('sha256')
-    .update(`${migration.id}:${migration.name}:${migration.up.toString()}`)
+    .update(`${migration.id}:${migration.name}:${migration.sql}`)
     .digest('hex')
     .slice(0, 32)
 
@@ -138,7 +149,7 @@ export const migrate = (db: Db, migrations: readonly Migration[]): readonly numb
     // One transaction per migration: the schema change and any backfill inside it
     // either both land or neither does, so a partially-migrated database cannot exist.
     const run = db.transaction(() => {
-      migration.up(db)
+      db.exec(migration.sql)
       record.run(migration.id, migration.name, checksumOf(migration), new Date().toISOString())
     })
 

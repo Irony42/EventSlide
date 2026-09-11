@@ -18,8 +18,7 @@ import type { Migration } from '../migrator'
 export const migration001: Migration = {
   id: 1,
   name: 'initial_schema',
-  up: (db) => {
-    db.exec(`
+  sql: `
       -- ------------------------------------------------------------------ users --
       -- Hosts and moderators. Guests are NOT users; see the guests table.
       CREATE TABLE IF NOT EXISTS users (
@@ -183,6 +182,5 @@ export const migration001: Migration = {
       );
 
       CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at);
-    `)
-  },
+  `,
 }
