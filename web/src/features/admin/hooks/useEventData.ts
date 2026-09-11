@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useApi } from '../../../app/ApiProvider'
+import { useApi } from '../../../app/useApi'
 import { useLoader, type LoaderState } from './useLoader'
 import type {
   EventDto,

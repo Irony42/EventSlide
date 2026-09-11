@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useApi } from '../../../app/ApiProvider'
+import { useApi } from '../../../app/useApi'
 import type { WallResponse } from '../../../lib/api/dto'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 

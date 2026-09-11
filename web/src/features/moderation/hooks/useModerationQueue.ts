@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useApi } from '../../../app/ApiProvider'
-import { useToast } from '../../../design-system/components/ToastProvider'
+import { useApi } from '../../../app/useApi'
+import { useToast } from '../../../design-system/components/useToast'
 import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'

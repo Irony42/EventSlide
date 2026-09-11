@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useApi } from '../../../app/ApiProvider'
+import { useApi } from '../../../app/useApi'
 import { ApiError } from '../../../lib/http'
 import { fr, messageForCode } from '../../../lib/i18n/fr'
 import { downscaleImage } from './downscaleImage'

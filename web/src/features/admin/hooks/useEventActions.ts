@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useApi } from '../../../app/ApiProvider'
+import { useApi } from '../../../app/useApi'
 import { useAction, type ActionState } from './useAction'
 import type { CreateEventInput } from '../../../lib/api/client'
 import type { EventDto, EventSettingsDto, EventStatus, ModeratorDto } from '../../../lib/api/dto'

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useApi } from '../../../app/ApiProvider'
+import { useApi } from '../../../app/useApi'
 import { errorMessage } from '../errorMessage'
 
 /**

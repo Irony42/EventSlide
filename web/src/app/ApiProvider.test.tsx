@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { ApiProvider, useApi } from './ApiProvider'
+import { ApiProvider } from './ApiProvider'
+import { useApi } from './useApi'
 import { fakeApi } from '../testing/renderWithProviders'
 
 const Probe = () => {

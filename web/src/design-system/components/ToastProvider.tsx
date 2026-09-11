@@ -1,28 +1,7 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Toast, type ToastAction, type ToastTone } from './Toast'
+import { ToastContext, type ToastApi, type ToastOptions } from './toastContext'
 import styles from './ToastProvider.module.css'
-
-export interface ToastOptions {
-  readonly tone?: ToastTone
-  /** `0` pins the toast until it is dismissed by hand. */
-  readonly durationMs?: number
-  readonly action?: ToastAction
-}
-
-export interface ToastApi {
-  /** Returns the toast's id, so a caller can retract its own message early. */
-  show(message: string, options?: ToastOptions): string
-  dismiss(id: string): void
-}
 
 interface ToastRecord {
   readonly id: string
@@ -42,8 +21,6 @@ const DEFAULT_DURATION_MS = 4_000
  * keyboard shortcuts altogether.
  */
 const UNDO_DURATION_MS = 9_000
-
-const ToastContext = createContext<ToastApi | null>(null)
 
 export interface ToastProviderProps {
   readonly children: ReactNode
@@ -153,12 +130,4 @@ export function ToastProvider({ children }: ToastProviderProps) {
       </div>
     </ToastContext.Provider>
   )
-}
-
-export function useToast(): ToastApi {
-  const api = useContext(ToastContext)
-  if (api === null) {
-    throw new Error('useToast must be used inside a <ToastProvider>. Mount one at the app root.')
-  }
-  return api
 }

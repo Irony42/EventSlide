@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Button } from './Button'
-import { ToastProvider, useToast, type ToastOptions } from './ToastProvider'
+import { ToastProvider } from './ToastProvider'
+import type { ToastOptions } from './toastContext'
+import { useToast } from './useToast'
 import { fr } from '../../lib/i18n/fr'
 
 interface HarnessProps {

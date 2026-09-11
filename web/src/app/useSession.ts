@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useApi } from './ApiProvider'
+import { useApi } from './useApi'
 import type { SessionResponse } from '../lib/api/dto'
 
 export interface SessionState {
