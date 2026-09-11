@@ -4,12 +4,24 @@ Layers, the request pipeline, the ports, the domain model, the schema, the realt
 design. Companions: [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md) (rules),
 [docs/API.md](API.md) (the HTTP contract), `.claude/skills/` (recipes).
 
-> **Status.** The 2.0 design on branch `deuxpointzero`. The 1.0 implementation
+> **Status.** The 2.0 implementation on branch `deuxpointzero`. The 1.0 implementation
 > (`src/index.ts`, `src/database.ts`, `src/routes/`, `src/frontend/`) was removed in
-> `fa6e9bd` and remains on `main`. The toolchain that enforces this architecture —
-> `eslint.config.js`, the tsconfig projects, `vitest.config.ts`,
-> `playwright.config.ts` — is in place; the `src/**` tree it governs is being built out
-> module by module. Mechanisms not yet landed are marked **[planned]**.
+> `fa6e9bd` and remains on `main`. The `src/**` tree this document describes is
+> **complete**: the domain, the ports and use cases, every adapter, the HTTP layer and
+> the composition root all exist, and so does the toolchain that enforces the boundaries
+> — `eslint.config.js`, the tsconfig projects, `vitest.config.ts`,
+> `playwright.config.ts`.
+>
+> Complete is not the same as green. `npm run test:coverage` passes — 175 files, 3691
+> tests, every per-layer gate met — but `npm run test:e2e` has **seven product-side
+> failures**, identical on both Chromium projects: four on the wall and the keyboard join
+> flow, one on moderation undo, one on the guest-upload smoke journey, and one on a
+> security control — the pixel-budget refusal answers `image.corrupt` instead of
+> `image.tooManyPixels` (§3, step 18). Read a claim here as describing the code, not as
+> describing a passing suite.
+>
+> Mechanisms described here but not yet wired are marked **[planned]**. There are
+> exactly two: the retention purge job (§5) and readiness draining on shutdown (§8).
 
 ---
 
@@ -57,10 +69,16 @@ web/src ──HTTP──► src/interface/http ──► src/application ──�
 | -------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `src/domain`         | `src/domain` only                                 | everything else, `zod` and `node:crypto` included                                          |
 | `src/application`    | `src/domain`, `src/application`                   | `express`, `better-sqlite3`, `fs`, `sharp`, `react`, `src/infrastructure`, `src/interface` |
-| `src/infrastructure` | `src/domain`, `src/application/ports`, npm        | `src/interface`, `src/main`, `src/application/usecases`                                    |
-| `src/interface/http` | `src/domain`, `src/application`, `express`, `zod` | `src/infrastructure` — it receives adapters as `deps`                                      |
+| `src/infrastructure` | `src/domain`, `src/application/ports`, npm        | `src/interface`, `src/main`, `web` — and by convention `src/application/usecases`          |
+| `src/interface/http` | `src/domain`, `src/application`, `express`, `zod` | `src/infrastructure`, `src/main` — it receives adapters as `deps`                          |
 | `src/main`           | everything                                        | —                                                                                          |
 | `web/src`            | `web/src`                                         | any `src/**` module; the wire types are duplicated as DTOs on purpose                      |
+
+One entry in that table is weaker than the others: an adapter reaching into
+`src/application/usecases` is forbidden by convention but **not** by the lint block below,
+which bans only `interface`, `main` and `web` from `src/infrastructure`. Nothing under
+`src/infrastructure` imports a use case today; if one ever does, review is the only thing
+standing in the way, so add the pattern rather than argue about it.
 
 ### Enforcement 1 — eslint, one block per layer
 
