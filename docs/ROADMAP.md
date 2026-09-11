@@ -9,6 +9,12 @@ against that, not against a feature checklist.
 Each item carries an honest **effort** (S ≤ 2 days, M ≤ 1 week, L ≤ 3 weeks, XL beyond)
 and the **risk** that makes it harder than it looks.
 
+> **Audited against the code.** This document was written before most of the
+> implementation landed, so an end-to-end pass checked every "already exists" claim and
+> every item listed as future. Three had shipped and are marked **Shipped** below rather
+> than quietly deleted — a roadmap that silently drops what got built teaches nobody
+> anything. Everything else still reads as future, and still reads as sensible.
+
 ---
 
 ## 0. What 2.0 already fixes
