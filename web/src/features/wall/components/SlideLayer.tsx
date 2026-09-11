@@ -79,6 +79,15 @@ export function SlideLayer({
             // because base.css collapses animation *duration* under reduced motion and
             // a 0.01ms `scale(1.08)` with `both` snaps to the zoomed frame and stays.
             data-motion={reducedMotion ? 'still' : 'kenburns'}
+            // Which photo this layer is holding, named on the element itself.
+            //
+            // The position is derived from the playlist and never stored, so without
+            // this there is nothing outside React that can answer "what is on screen
+            // right now" — and that is the question two projectors in one room are
+            // compared on, and the one a wall that has silently stopped advancing
+            // answers wrongly. It names the photo, never the slot: the slot is
+            // permanent and the photo is what changes.
+            {...(showsItem && item !== null ? { 'data-photo-id': item.id } : {})}
             {...(isFront && showsItem ? { 'data-testid': 'wall-slide' } : {})}
             // The outgoing copy is announced by nothing: it is the same photo the front
             // layer already named, on its way out.

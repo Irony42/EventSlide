@@ -287,6 +287,45 @@ describe('WallPage', () => {
     expect(within(slide).getByText('La première danse')).toBeVisible()
   })
 
+  it('names the photo on screen, so the slide the room is looking at can be identified', async () => {
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    const slide = await screen.findByTestId('wall-slide')
+
+    // The position is derived from the playlist and stored nowhere, so this attribute is
+    // the only account of it: it is what two projectors in one room are compared on.
+    expect(slide).toHaveAttribute('data-photo-id', 'photo-1')
+  })
+
+  it('does not hand the screen to a newly published photo while the room is mid-slide', async () => {
+    // The photo a guest just sent arrives at the head of the playlist, and the head is
+    // where a wall that has not changed slide yet was sitting. The room was looking at
+    // something; publishing must not take it away — the fresh photo comes round next.
+    const onScreen = aWallItem({ id: 'photo-1', caption: 'Les confettis' })
+    const alsoPublished = aWallItem({ id: 'photo-2', caption: 'Le gâteau' })
+    const api = fakeApi({
+      wall: wallSequence(
+        aPopulatedWall({ items: [onScreen, alsoPublished] }),
+        aPopulatedWall({
+          revision: 'rev-2',
+          items: [
+            aWallItem({ id: 'photo-3', caption: 'La première danse' }),
+            onScreen,
+            alsoPublished,
+          ],
+        }),
+      ),
+    })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    expect(await screen.findByTestId('wall-slide')).toHaveAttribute('data-photo-id', 'photo-1')
+
+    await streamSignals('photo.moderated')
+
+    expect(screen.getByTestId('wall-slide')).toHaveAttribute('data-photo-id', 'photo-1')
+  })
+
   it('leaves the wall alone when a refetch comes back on the same revision', async () => {
     /**
      * The revision is the whole mechanism. A signal fires for anything happening at the

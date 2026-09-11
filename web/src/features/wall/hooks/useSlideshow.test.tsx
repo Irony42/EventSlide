@@ -122,6 +122,43 @@ describe('useSlideshow', () => {
     expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
   })
 
+  it('keeps the first photo on screen when the playlist grows before any slide change', () => {
+    // The same 1.0 defect, one frame later: a wall that has not changed slide yet has
+    // no stored index to be shifted, but it had no anchor either, so the newest photo
+    // arriving at the head of the playlist took the screen from whatever the room was
+    // looking at. A guest publishing during a speech must not move the wall.
+    const confettis = aPhoto('a', 'Les confettis')
+    const gateau = aPhoto('b', 'Le gâteau')
+    const { rerender } = renderProbe({ items: [confettis, gateau] })
+
+    expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
+
+    rerender(<Probe items={[aPhoto('c', 'La première danse'), confettis, gateau]} />)
+
+    expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
+    // Adopting the photo already on screen is not a slide change, so the two crossfade
+    // layers stay where they are rather than dissolving one photo into itself.
+    expect(screen.getByText('génération 0')).toBeInTheDocument()
+  })
+
+  it('holds the photo it fell back to when the playlist grows again', () => {
+    // Falling back to the newest is only half the rule. Without re-anchoring there, the
+    // wall is back to naming a photo that is gone — and the next publication moves it.
+    const confettis = aPhoto('a', 'Les confettis')
+    const gateau = aPhoto('b', 'Le gâteau')
+    const { rerender } = renderProbe({ items: [confettis, gateau] })
+
+    tick(INTERVAL_MS)
+    expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
+
+    // The host hides the photo on screen, then a guest publishes a newer one.
+    rerender(<Probe items={[confettis]} />)
+    expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
+    rerender(<Probe items={[aPhoto('c', 'La première danse'), confettis]} />)
+
+    expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
+  })
+
   it('falls back to the newest photo when the one on screen is taken down', () => {
     const confettis = aPhoto('a', 'Les confettis')
     const gateau = aPhoto('b', 'Le gâteau')
@@ -219,10 +256,10 @@ describe('useSlideshow', () => {
     step('suivante')
     step('suivante')
 
-    // The first step adopts the photo the cursor had not named yet. Every step after it
-    // is standing still, and counting that as a change would swap the two crossfade
-    // layers with nothing to put in the incoming one.
-    expect(screen.getByText('génération 1')).toBeInTheDocument()
+    // The cursor already names the only photo there is, so every one of those steps is
+    // standing still. Counting one as a change would swap the two crossfade layers with
+    // nothing to put in the incoming one.
+    expect(screen.getByText('génération 0')).toBeInTheDocument()
     expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
   })
 

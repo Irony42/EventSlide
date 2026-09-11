@@ -101,7 +101,12 @@ function MosaicLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
           <figure
             key={slot}
             className={`${styles['tile']} ${styles[`slot${slot}`]}`}
-            {...(item === undefined ? {} : { 'data-testid': 'wall-slide' })}
+            // The photo this tile is holding. Same reason as the spotlight's: the tile
+            // a mosaic gives a photo is derived from the index alone, and this is what
+            // lets two projectors be shown to agree tile for tile.
+            {...(item === undefined
+              ? {}
+              : { 'data-testid': 'wall-slide', 'data-photo-id': item.id })}
           >
             {item === undefined ? null : (
               <img

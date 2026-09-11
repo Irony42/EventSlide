@@ -132,6 +132,61 @@ describe('SlideLayer', () => {
     expect(named[0]).toHaveAccessibleName(/Le gâteau/)
   })
 
+  it('names the photo it is showing, so the slide on screen can be identified', () => {
+    render(
+      <SlideLayer
+        current={confettis}
+        previous={null}
+        next={gateau}
+        kenBurnsDurationMs={KEN_BURNS_MS}
+        transitionMs={null}
+        generation={0}
+      />,
+    )
+
+    // The position is derived from the playlist and never stored, so the DOM is the only
+    // place the answer exists. It is how two projectors in one room are shown to agree,
+    // and how a wall that has quietly stopped advancing is caught.
+    expect(screen.getByTestId('wall-slide')).toHaveAttribute('data-photo-id', 'photo-1')
+  })
+
+  it('names the outgoing photo too, so the two halves of a dissolve are told apart', () => {
+    const { container } = render(
+      <SlideLayer
+        current={gateau}
+        previous={confettis}
+        next={confettis}
+        kenBurnsDurationMs={KEN_BURNS_MS}
+        transitionMs={null}
+        generation={1}
+      />,
+    )
+
+    // Mid-crossfade both photos are on screen. The slot is permanent and the photo is
+    // what changes, so each layer names the photo it holds rather than its slot.
+    const named = [...container.querySelectorAll('figure')].map((figure) =>
+      figure.getAttribute('data-photo-id'),
+    )
+    expect(named).toEqual(['photo-1', 'photo-2'])
+  })
+
+  it('names no photo on a layer that is holding none', () => {
+    const { container } = render(
+      <SlideLayer
+        current={confettis}
+        previous={null}
+        next={null}
+        kenBurnsDurationMs={KEN_BURNS_MS}
+        transitionMs={null}
+        generation={0}
+      />,
+    )
+
+    // The first slide of the evening: the outgoing layer is empty, and an attribute
+    // naming a photo it is not showing would make an empty layer look like a slide.
+    expect(container.querySelectorAll('[data-photo-id]')).toHaveLength(1)
+  })
+
   it('shows a finished still frame when the viewer asked for no motion', () => {
     prefersReducedMotion()
 

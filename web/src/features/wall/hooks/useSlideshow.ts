@@ -38,9 +38,10 @@ export interface Slideshow {
  *
  * 1.0 kept the position as an index in `sessionStorage`, so two projectors on the same
  * event disagreed, and every publication shifted the list under the index — the room
- * saw the picture jump. Here the cursor is the id of the photo on screen: when the
- * playlist grows the same photo keeps the screen, and when it leaves the playlist the
- * wall falls back to the newest.
+ * saw the picture jump. Here the cursor is the id of the photo on screen — from the
+ * first frame, not from the first slide change: when the playlist grows the same photo
+ * keeps the screen, and when it leaves the playlist the wall falls back to the newest
+ * and anchors itself there.
  */
 interface Cursor {
   readonly currentId: string | null
@@ -61,6 +62,10 @@ const neverHidden = (): boolean => false
 
 /** Positive modulo, so stepping back from the first photo lands on the last. */
 const wrap = (position: number, length: number): number => ((position % length) + length) % length
+
+/** Whether the playlist still holds the photo the cursor names. */
+const holds = (items: readonly WallItemDto[], id: string | null): boolean =>
+  id !== null && items.some((item) => item.id === id)
 
 export const useSlideshow = ({ items, intervalMs }: SlideshowOptions): Slideshow => {
   const [cursor, setCursor] = useState<Cursor>(INITIAL)
@@ -89,6 +94,28 @@ export const useSlideshow = ({ items, intervalMs }: SlideshowOptions): Slideshow
 
   const current = items[index] ?? null
   const next = items.length === 0 ? null : (items[wrap(index + 1, items.length)] ?? null)
+
+  /**
+   * The cursor adopts the photo on screen the moment there is one.
+   *
+   * `index` answers 0 whenever the cursor names no photo the playlist still holds — on
+   * the very first frame, and again after the photo it named was taken down — and slot
+   * 0 is the *newest* photo, which moves under the wall every time the host publishes
+   * one. So a wall that had not changed slide yet was still positioned by index after
+   * all, and a guest's upload took the screen away from whatever the room was looking
+   * at: the 1.0 defect, one frame later than 1.0 had it.
+   *
+   * Adopting is not advancing. The generation is untouched, because nothing moved on
+   * screen and bumping it would dissolve a photo into itself across the two layers.
+   *
+   * Adjusted during render rather than in an effect: React's own guidance for "adjust
+   * state when a prop changes" is this comparison, it converges on the next render —
+   * the adopted id is the one `index` just resolved — and `react-hooks/set-state-in-effect`
+   * rejects the effect form.
+   */
+  if (current !== null && !holds(items, cursor.currentId)) {
+    setCursor({ ...cursor, currentId: current.id })
+  }
 
   const advance = useCallback(
     (step = 1) => {

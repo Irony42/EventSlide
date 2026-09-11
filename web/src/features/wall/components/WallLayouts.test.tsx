@@ -94,6 +94,26 @@ describe('WallLayouts', () => {
     ])
   })
 
+  it('names the photo in every mosaic tile, so two projectors can be compared tile by tile', () => {
+    const items = somePhotos(8)
+
+    render(
+      <WallLayouts
+        layout="mosaic"
+        items={items}
+        slideshow={aSlideshow({ current: items[6] ?? null, index: 6 })}
+        kenBurnsDurationMs={KEN_BURNS_MS}
+        transitionMs={null}
+      />,
+    )
+
+    // Each tile's photo is derived from the index alone. Naming it is what turns that
+    // claim into something observable from outside React.
+    expect(
+      screen.getAllByTestId('wall-slide').map((tile) => tile.getAttribute('data-photo-id')),
+    ).toEqual(['photo-6', 'photo-1', 'photo-2', 'photo-3', 'photo-4', 'photo-5'])
+  })
+
   it('shows only the tiles it can fill when the playlist is shorter than the grid', () => {
     const items = somePhotos(3)
 
