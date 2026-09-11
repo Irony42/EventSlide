@@ -5,11 +5,10 @@ be slow**. Companion to [CLAUDE.md](../CLAUDE.md) §5 (the summary) and
 `.claude/skills/eventslide-testing/` (the step-by-step recipe). This document is the
 deep version: mechanics, rationale, and the failure it prevents.
 
-> **Status.** Rings 1–4 are in place and green; the lint rules, scripts and coverage
-> gates named below all exist. Ring 5 is landing with the feature surfaces, and ring 6
-> is written but cannot pass until the web app is built — a Playwright suite with no
-> server to run against is a specification, not a passing test, and it is committed as
-> the former.
+> **Status.** All six rings are in place and green. `npm run verify` passes — lint, the
+> four typecheck projects, 3844 vitest tests, every coverage gate, and the build — and
+> `npm run test:e2e` passes 43 Playwright tests across three browser contexts, with the
+> four `@visual` snapshots green under `npm run test:e2e:visual`.
 
 ---
 
@@ -123,6 +122,65 @@ tenant's bytes fails a ring-2 test instead of surfacing at someone's wedding.
   stubs lie.
 
 ---
+
+## 3b. The wire contract has two parties, so something has to compare them
+
+Every response shape is declared **twice**: `src/interface/http/presenters/dto.ts` for
+the server and `web/src/lib/api/dto.ts` for the client. The client asserts its declared
+shape onto whatever JSON arrives, so when the two disagree both sides still typecheck
+and nothing fails until a person reads the result.
+
+That is not hypothetical. The server sent
+`{id, status, thumbUrl, displayUrl, hasCaption, createdAt}` for a moderation row while
+the client read `width`, `height`, `caption`, `authorName` and `byteSize` as well.
+Every moderation card in a real event rendered **"par undefined"** and
+**"undefined × undefined pixels"** — to hosts, in production, with a fully green suite
+behind it. It was caught by an end-to-end test looking at rendered French text, which is
+the most expensive place in the pyramid to find a missing field.
+
+`src/interface/http/presenters/dtoContract.test.ts` is the cheap place. It parses both
+declarations with the TypeScript compiler API and compares them field by field, in
+about 300 ms, naming the field that drifted. Four rules:
+
+| Rule                                          | Why                                                                                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Every client shape pairs with a server one    | an unpaired shape is silently skipped by everything below                                                                       |
+| The server sends every field the client reads | the direction that renders `undefined` to a user, and the one that shipped                                                      |
+| The server sends nothing the client ignores   | an unread field is a missed feature or dead weight; `UNREAD_BY_CLIENT` records the ones that are deliberate, with a reason each |
+| Paired fields agree on type                   | catches `string` where the client expects `string \| null`                                                                      |
+
+Pairing is by convention — the client drops the `Dto` suffix on envelopes and keeps it
+on nested items — with a short `RENAMES` map for the places the two sides chose
+different words. A rename is exactly how the moderation drift hid, so keep that map
+small and read it when it grows.
+
+There is a fifth rule with no client side: **no server DTO may go unreferenced**. A
+declaration nobody uses is a declaration nobody maintains, and that is how two
+near-identical moderation rows came to exist with the client paired against the wrong
+one.
+
+**Why source text and not a shared type.** Sharing one declaration is the obvious
+alternative and is deliberately unavailable: `web` and `src` are separate tsconfig
+projects, and the architecture rule forbids `web` importing from `src`. Trading an
+enforced boundary for a de-duplicated type is a bad deal, so the duplication stays and
+this test carries its cost.
+
+**What it does not catch**, stated plainly because a guard with unknown blind spots is
+trusted too much:
+
+- **A presenter that declares a field and never populates it.** The types agree while
+  the value is `null` at runtime — which is exactly how the wall's hardcoded
+  `authorName: null` survived, since the declaration was right all along. Ring 4 and
+  ring 6 cover that.
+- **Semantic drift.** `createdAt: string` on both sides says nothing about ISO-8601
+  versus epoch milliseconds.
+- **Route-level drift.** Nothing here checks that an endpoint returns the DTO the
+  client's method expects; that pairing lives in `client.ts` and `routes/*.ts`.
+
+A related habit worth keeping: prefer `sendJson<SomeResponseDto>(...)` over bare
+`sendJson(...)` when the handler builds an object literal. Without the type parameter
+nothing ties the response to its DTO, which is how `GuestListResponseDto` came to be
+declared, correct, and referenced by nothing.
 
 ## 4. Shared port contract suites
 

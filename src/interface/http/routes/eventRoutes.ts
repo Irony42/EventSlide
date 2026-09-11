@@ -17,6 +17,7 @@ import {
   toModeratorDto,
   toModeratorInviteDto,
 } from '../presenters/presenters'
+import type { GuestListResponseDto } from '../presenters/dto'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   createEventBody,
@@ -298,7 +299,7 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
       })
 
       return sendResult(res, result, (response, { guests, activeCount }) =>
-        sendJson(response, {
+        sendJson<GuestListResponseDto>(response, {
           // Revoked guests are included: a removal the host cannot see afterwards
           // looks like a button that did nothing. The count is presence, and excludes
           // them.

@@ -99,12 +99,6 @@ export interface ModerationPhotoDto {
   readonly createdAt: string
 }
 
-export interface ModerationQueueResponseDto {
-  readonly items: readonly ModerationPhotoDto[]
-  readonly pendingCount: number
-  readonly nextCursor: string | null
-}
-
 export interface BulkModerationResponseDto {
   readonly applied: readonly string[]
   readonly skipped: readonly string[]
