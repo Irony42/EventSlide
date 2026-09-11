@@ -264,7 +264,7 @@ export const fr = {
     selfDeleteGrace: 'Délai de suppression',
     selfDeleteGraceHint: 'Pendant ce délai, un invité peut retirer lui-même sa photo.',
     graceNone: 'Aucun délai',
-    graceSeconds: (seconds: number) => `${seconds} secondes`,
+    graceSeconds: (seconds: number) => (seconds === 1 ? '1 seconde' : `${seconds} secondes`),
     graceMinutes: (minutes: number) => (minutes === 1 ? '1 minute' : `${minutes} minutes`),
     graceHours: (hours: number) => (hours === 1 ? '1 heure' : `${hours} heures`),
     maxPhotosPerGuest: 'Photos par invité',
@@ -398,6 +398,39 @@ export const fr = {
 
     'reaction.rateLimited': 'Doucement — attendez un instant avant de réagir à nouveau.',
     'rate.limited': 'Trop de tentatives. Patientez un instant.',
+
+    /* ---- Codes docs/API.md documents that had no copy of their own yet. Each one
+            reached a guest as the generic `unknown` sentence, which told them nothing
+            about a refusal the host had deliberately configured. ---- */
+    'event.captionsNotAllowed': 'Les légendes ne sont pas activées pour cette galerie.',
+    'event.reactionsDisabled': 'Les réactions ne sont pas activées pour cette galerie.',
+    'event.guestSelfDeleteDisabled':
+      'L’organisateur ne permet pas aux invités de supprimer leurs photos.',
+    'photo.captionEditForbidden': 'Cette légende ne peut plus être modifiée.',
+    'photo.deleteForbidden': 'Vous ne pouvez plus supprimer cette photo vous-même.',
+    'reaction.alreadyExists': 'Vous avez déjà réagi ainsi à cette photo.',
+    'reaction.notPublished': 'Cette photo n’est pas encore à l’écran.',
+    'reaction.notFound': 'Cette réaction n’existe plus.',
+    'upload.noFiles': 'Aucune photo n’a été reçue. Sélectionnez-en une puis réessayez.',
+    'upload.unexpectedField': 'Cet envoi n’a pas pu être lu. Réessayez.',
+    // The page's CSRF cookie is gone or stale — a tab left open all evening, or a
+    // reverse proxy that dropped it. Reloading re-issues it, so that is the advice.
+    'request.csrfMissing': 'Cette page a expiré. Rechargez-la puis réessayez.',
+    'request.csrfMismatch': 'Cette page a expiré. Rechargez-la puis réessayez.',
+
+    /* ---- Codes the use cases actually answer with, which docs/API.md either names
+            differently or does not list. `event.photoLimitReached` is the important
+            one: the doc calls the per-guest cap `photo.tooManyForGuest`, the server
+            sends `event.photoLimitReached`, so the only refusal a host deliberately
+            configured reached the guest as the generic sentence. Both spellings are
+            kept until the contract picks one. ---- */
+    'event.photoLimitReached': 'Vous avez atteint le nombre de photos autorisé.',
+    'photo.pixelBudgetExceeded': 'Cette photo est trop grande. Réduisez-la puis réessayez.',
+    'upload.rejected': 'Cet envoi n’a pas pu être lu. Réessayez.',
+    'event.notModeratable': 'Cet évènement est archivé : les décisions ne s’appliquent plus.',
+    'membership.lastOwner': 'Un évènement doit garder au moins un propriétaire.',
+    'membership.notFound': 'Cette personne ne modère pas cet évènement.',
+    'guest.notFound': 'Cet invité n’apparaît plus dans la liste. Actualisez la page.',
   },
 
   /**
@@ -438,7 +471,13 @@ export type Translations = typeof fr
  * generic sentence.
  */
 export const messageForCode = (code: string | undefined): string => {
-  if (code === undefined) return fr.errors.unknown
-  const table: Record<string, string> = fr.errors
-  return table[code] ?? fr.errors.unknown
+  const table: Record<string, string | undefined> = fr.errors
+  /**
+   * `Object.hasOwn` rather than a bare lookup. `code` is a string chosen by whatever
+   * answered the request — the server, or a proxy in front of it — so a body carrying
+   * `{"error":{"code":"constructor"}}` would otherwise resolve to `Object` itself and
+   * hand a guest a function where a sentence belongs.
+   */
+  const message = code !== undefined && Object.hasOwn(fr.errors, code) ? table[code] : undefined
+  return message ?? fr.errors.unknown
 }

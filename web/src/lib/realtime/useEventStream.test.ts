@@ -134,6 +134,36 @@ describe('useEventStream', () => {
     expect(onSignal).not.toHaveBeenCalled()
   })
 
+  it('ignores a frame that carries no message at all', () => {
+    // A listener can be woken by a plain `Event` — a synthetic dispatch, or a frame
+    // shape a later browser introduces. There is no payload to act on, so there is no
+    // signal to deliver.
+    const onSignal = vi.fn()
+    renderHook(() => useEventStream({ url: URL_A, onSignal }))
+
+    act(() => void latest().dispatchEvent(new Event('change')))
+
+    expect(onSignal).not.toHaveBeenCalled()
+  })
+
+  it('ignores a frame whose data is not text, even when its text form would parse', () => {
+    // `JSON.parse` stringifies whatever it is handed, so a `data` that is not a string
+    // but whose text form happens to be a valid frame would otherwise be delivered as
+    // a signal. The frame contract is text; anything else is not a frame this build can
+    // read, and guessing at one is how a wall acts on a payload nobody sent.
+    const onSignal = vi.fn()
+    renderHook(() => useEventStream({ url: URL_A, onSignal }))
+
+    act(
+      () =>
+        void latest().dispatchEvent(
+          new MessageEvent('change', { data: [JSON.stringify({ type: 'photo.uploaded' })] }),
+        ),
+    )
+
+    expect(onSignal).not.toHaveBeenCalled()
+  })
+
   it('leaves a browser-managed retry alone, so Last-Event-ID is resent', () => {
     vi.useFakeTimers()
     const { result } = renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn() }))
@@ -223,6 +253,21 @@ describe('useEventStream', () => {
     act(() => latest().emitRefusal())
 
     unmount()
+    act(() => void vi.advanceTimersByTime(60_000))
+
+    expect(FakeEventSource.instances).toHaveLength(1)
+  })
+
+  it('does not reconnect on a refusal that arrives after the page has gone', () => {
+    // The console closes its stream as the host navigates away, and the pending error
+    // callback can still run afterwards. Scheduling a reconnect from it would leave a
+    // connection reopening against an unmounted screen for the rest of the evening.
+    vi.useFakeTimers()
+    const { unmount } = renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn() }))
+    const stream = latest()
+
+    unmount()
+    act(() => stream.emitRefusal())
     act(() => void vi.advanceTimersByTime(60_000))
 
     expect(FakeEventSource.instances).toHaveLength(1)

@@ -90,6 +90,21 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
   })
 
+  it('says something readable when the failure carries no error code at all', async () => {
+    // Anything that is not an `ApiError` is a bug in this build, and its message is an
+    // internal English string. Putting one on the login form would leave a host at a
+    // wedding reading a stack-trace fragment instead of a sentence.
+    const api = fakeApi({
+      login: vi.fn(() => Promise.reject(new TypeError('e.json is not a function'))),
+    })
+
+    renderLogin(api)
+    await signIn()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.unknown)
+    expect(screen.queryByText(/is not a function/)).toBeNull()
+  })
+
   it('returns the host to the page they were trying to reach', async () => {
     // RequireAuth records it in the navigation state, so a bookmarked console does not
     // become "click through the dashboard again" in the middle of an event.

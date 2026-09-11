@@ -1,4 +1,5 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,12 +32,16 @@ interface ProbeProps {
 }
 
 function Probe({ items, intervalMs = INTERVAL_MS }: ProbeProps) {
-  const { current, next, paused, advance, pause, resume } = useSlideshow({ items, intervalMs })
+  const { current, next, paused, generation, advance, pause, resume } = useSlideshow({
+    items,
+    intervalMs,
+  })
 
   return (
     <div>
       <p>à l’écran {current?.caption ?? 'rien'}</p>
       <p>ensuite {next?.caption ?? 'rien'}</p>
+      <p>génération {generation}</p>
       <p>{paused ? 'en pause' : 'en cours'}</p>
       <button onClick={() => advance(1)}>suivante</button>
       <button onClick={() => advance(-1)}>précédente</button>
@@ -46,11 +51,16 @@ function Probe({ items, intervalMs = INTERVAL_MS }: ProbeProps) {
   )
 }
 
-const renderProbe = (props: ProbeProps, route = '/e/mariage/display') => {
-  const wrapper = ({ children }: { readonly children: ReactNode }) => (
-    <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
-  )
-  return render(<Probe {...props} />, { wrapper })
+const wrapper = (route: string) =>
+  function Wrapper({ children }: { readonly children: ReactNode }) {
+    return <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+  }
+
+const renderProbe = (props: ProbeProps, route = '/e/mariage/display') =>
+  render(<Probe {...props} />, { wrapper: wrapper(route) })
+
+const step = (direction: 'suivante' | 'précédente') => {
+  fireEvent.click(screen.getByRole('button', { name: direction }))
 }
 
 const tick = (ms: number) =>
@@ -180,5 +190,134 @@ describe('useSlideshow', () => {
 
     expect(vi.getTimerCount()).toBe(0)
     expect(screen.getByText(/ensuite Les confettis/)).toBeInTheDocument()
+  })
+
+  it('has nothing to show and nothing to schedule for an empty playlist', () => {
+    // The first twenty minutes of the party, and the whole of a well-moderated start.
+    renderProbe({ items: [] })
+
+    expect(screen.getByText(/à l’écran rien/)).toBeInTheDocument()
+    expect(screen.getByText(/ensuite rien/)).toBeInTheDocument()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('stays where it is when the host steps an empty playlist', () => {
+    renderProbe({ items: [] })
+
+    step('suivante')
+
+    // A host pressing the arrow at an empty wall must get nothing, not a cursor
+    // pointing at a photo that does not exist.
+    expect(screen.getByText(/à l’écran rien/)).toBeInTheDocument()
+    expect(screen.getByText('génération 0')).toBeInTheDocument()
+  })
+
+  it('keeps the two layers in their slots when there is only one photo', () => {
+    renderProbe({ items: [aPhoto('a', 'Les confettis')] })
+
+    step('suivante')
+    step('suivante')
+    step('suivante')
+
+    // The first step adopts the photo the cursor had not named yet. Every step after it
+    // is standing still, and counting that as a change would swap the two crossfade
+    // layers with nothing to put in the incoming one.
+    expect(screen.getByText('génération 1')).toBeInTheDocument()
+    expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
+  })
+
+  it('steps from the photo actually on screen after the one it held was taken down', () => {
+    const confettis = aPhoto('a', 'Les confettis')
+    const gateau = aPhoto('b', 'Le gâteau')
+    const danse = aPhoto('c', 'La première danse')
+    const { rerender } = renderProbe({ items: [confettis, gateau, danse] })
+
+    tick(INTERVAL_MS)
+    expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
+    rerender(<Probe items={[confettis, danse]} />)
+
+    step('suivante')
+
+    // The cursor still names the photo the host hid. The arrow has to move relative to
+    // what the room is looking at, which is the photo the fallback put there.
+    expect(screen.getByText(/à l’écran La première danse/)).toBeInTheDocument()
+  })
+
+  it('keeps playing when the playlist shrinks under it while it runs', () => {
+    const confettis = aPhoto('a', 'Les confettis')
+    const gateau = aPhoto('b', 'Le gâteau')
+    const danse = aPhoto('c', 'La première danse')
+    const { rerender } = renderProbe({ items: [confettis, gateau, danse] })
+
+    tick(INTERVAL_MS)
+    tick(INTERVAL_MS)
+    expect(screen.getByText(/à l’écran La première danse/)).toBeInTheDocument()
+    rerender(<Probe items={[confettis, gateau]} />)
+
+    tick(INTERVAL_MS)
+
+    // A host refusing photos during the speeches is normal. The wall shortens its loop
+    // and carries on, rather than stopping on the last photo it knew about.
+    expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
+  })
+
+  it('starts a second wall without moving the one already playing', () => {
+    // 1.0 kept the index in `sessionStorage`, so a host who opened the wall on a second
+    // screen dragged the projector's slideshow back with them.
+    const items = [aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau')]
+    renderProbe({ items })
+    tick(INTERVAL_MS)
+
+    render(<Probe items={items} />, { wrapper: wrapper('/e/mariage/display') })
+
+    const onScreen = screen.getAllByText(/à l’écran/).map((line) => line.textContent)
+    expect(onScreen).toEqual(['à l’écran Le gâteau', 'à l’écran Les confettis'])
+  })
+
+  it('puts two walls on the same photo for the same playlist and the same elapsed time', () => {
+    const items = [aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau')]
+    render(
+      <div>
+        <Probe items={items} />
+        <Probe items={items} />
+      </div>,
+      { wrapper: wrapper('/e/mariage/display') },
+    )
+
+    tick(INTERVAL_MS)
+
+    // The position is derived from the playlist, so two projectors at one venue agree
+    // without sharing anything at all.
+    expect(screen.getAllByText(/à l’écran Le gâteau/)).toHaveLength(2)
+  })
+
+  it.each(['abc', '-250', '12,5'])(
+    'ignores an interval override of "%s" rather than reconfiguring the room’s screen',
+    (override) => {
+      renderProbe(
+        { items: [aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau')] },
+        `/e/mariage/display?e2e_interval=${encodeURIComponent(override)}`,
+      )
+
+      tick(INTERVAL_MS)
+
+      // A typo in a query string must not silently take the wall off the interval the
+      // host configured — nor stop it, which a clamp to zero would do.
+      expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
+    },
+  )
+
+  it('assumes the tab is visible when there is no document to ask', () => {
+    tabHidden = true
+
+    const html = renderToString(
+      <MemoryRouter initialEntries={['/e/mariage/display']}>
+        <Probe items={[aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau')]} />
+      </MemoryRouter>,
+    )
+
+    // A render with no browser behind it has no visibility to read, and reporting the
+    // wall as paused would put the "en pause" notice into the first frame the room sees.
+    expect(html).toContain('en cours')
   })
 })

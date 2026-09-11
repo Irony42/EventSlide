@@ -87,6 +87,30 @@ const wallSequence = (...responses: readonly WallResponse[]) => {
   })
 }
 
+/** Fails the given number of reads, then answers. */
+const wallAfterFailures = (failures: number, response: WallResponse) => {
+  let call = 0
+  return vi.fn(async (): Promise<WallResponse> => {
+    call += 1
+    if (call <= failures) throw ApiError.network()
+    return response
+  })
+}
+
+interface Pending {
+  readonly promise: Promise<WallResponse>
+  readonly arrives: (response: WallResponse) => void
+}
+
+/** A read the test decides the moment of, for the states that exist only while waiting. */
+const pendingWall = (): Pending => {
+  let arrives: (response: WallResponse) => void = () => undefined
+  const promise = new Promise<WallResponse>((resolve) => {
+    arrives = resolve
+  })
+  return { promise, arrives }
+}
+
 /**
  * Reduced motion, as the browser reports it.
  *
@@ -114,15 +138,36 @@ const prefersReducedMotion = (): void => {
 
 describe('WallPage', () => {
   const nativeEventSource = window.EventSource
+  /**
+   * The fullscreen API is stood in for by `web/src/testing/setup.ts`, so the originals
+   * are captured per test rather than at collection time — and restored, because one
+   * test below has to describe a browser that implements none of it.
+   */
+  let nativeRequestFullscreen: () => Promise<void>
+  let nativeExitFullscreen: () => Promise<void>
 
   beforeEach(() => {
     FakeEventSource.instances = []
     window.EventSource = FakeEventSource as unknown as typeof window.EventSource
+    nativeRequestFullscreen = document.documentElement.requestFullscreen
+    nativeExitFullscreen = document.exitFullscreen
   })
 
   afterEach(() => {
     window.EventSource = nativeEventSource
+    document.documentElement.requestFullscreen = nativeRequestFullscreen
+    document.exitFullscreen = nativeExitFullscreen
+    Reflect.deleteProperty(document, 'fullscreenElement')
+    vi.useRealTimers()
   })
+
+  /** jsdom tracks no fullscreen state, so the projector's is described here. */
+  const alreadyFullscreen = (): void => {
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      get: () => document.documentElement,
+    })
+  }
 
   it('waits with a spinner while the first playlist is on its way', () => {
     const api = fakeApi({ wall: vi.fn(() => new Promise<WallResponse>(() => {})) })
@@ -375,5 +420,224 @@ describe('WallPage', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.wall.dismissJoinCard }))
 
     expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+  })
+
+  it('says what to do next when the route carries no event at all', async () => {
+    // A mistyped display URL resolves to no slug. 1.0 left a spinner turning on the
+    // projector for the rest of the evening, which is the one thing the room must never
+    // be left looking at.
+    const api = fakeApi()
+
+    renderWithProviders(<WallPage />, { api })
+
+    const failure = await screen.findByRole('alert')
+    expect(failure).toHaveTextContent(fr.wall.errorTitle)
+    expect(failure).toHaveTextContent(fr.wall.errorHint)
+    expect(api.wall).not.toHaveBeenCalled()
+  })
+
+  it('still names the failure when it arrives with no error code', async () => {
+    // Anything the transport did not turn into an `ApiError` — a DNS failure, a proxy
+    // closing the socket — has no code to look a message up by.
+    const api = fakeApi({ wall: vi.fn(() => Promise.reject(new Error('socket hang up'))) })
+
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.wall.errorTitle)
+  })
+
+  it('retries at the host’s request when they walk over to the projector', async () => {
+    const wall = wallAfterFailures(1, aPopulatedWall())
+    renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+    await screen.findByRole('alert')
+
+    await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
+
+    // The wall retries on its own; this is for the host who came over rather than
+    // waiting for the next attempt, and it has to work without a page reload.
+    expect(await screen.findByTestId('wall-slide')).toBeVisible()
+  })
+
+  it('asks again by itself after a failed first read', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const wall = wallAfterFailures(1, aPopulatedWall())
+    renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+    await screen.findByRole('alert')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+
+    // Nobody is going to press anything: the projector is in a corner and the host is
+    // at the reception. A wall that failed its first read while the server restarted has
+    // to come back by itself.
+    expect(await screen.findByTestId('wall-slide')).toBeVisible()
+  })
+
+  it('puts the projector into fullscreen when the host presses F', async () => {
+    const request = vi.spyOn(document.documentElement, 'requestFullscreen')
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    await userEvent.keyboard('f')
+
+    // The browser API is the boundary here: asking for fullscreen is the whole of the
+    // observable effect, the same way a use-case call is for a screen that talks to the
+    // server.
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+
+  it('brings the projector back out of fullscreen when the host presses F again', async () => {
+    alreadyFullscreen()
+    const exit = vi.spyOn(document, 'exitFullscreen')
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    await userEvent.keyboard('f')
+
+    expect(exit).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the wall up when leaving fullscreen fails', async () => {
+    alreadyFullscreen()
+    vi.spyOn(document, 'exitFullscreen').mockRejectedValue(new Error('Not allowed'))
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    await userEvent.keyboard('f')
+
+    expect(screen.getByTestId('wall-slide')).toBeVisible()
+  })
+
+  it('ignores F for leaving fullscreen on a browser that cannot leave it', async () => {
+    alreadyFullscreen()
+    Reflect.deleteProperty(document, 'exitFullscreen')
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    await userEvent.keyboard('f')
+
+    // A kiosk browser can put a page into fullscreen and implement no way back out.
+    // Calling the method anyway would take the photos off the screen with a TypeError.
+    expect(screen.getByTestId('wall-slide')).toBeVisible()
+  })
+
+  it('keeps the wall up when the projector’s browser refuses fullscreen', async () => {
+    vi.spyOn(document.documentElement, 'requestFullscreen').mockRejectedValue(
+      new Error('Permission denied'),
+    )
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    await userEvent.keyboard('f')
+
+    // A projector browser may refuse without a user gesture it recognises. That is not
+    // worth taking the photos off the screen for, and an unhandled rejection would.
+    expect(screen.getByTestId('wall-slide')).toBeVisible()
+  })
+
+  it('ignores F on a browser that has no fullscreen at all', async () => {
+    Reflect.deleteProperty(document.documentElement, 'requestFullscreen')
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    await userEvent.keyboard('f')
+
+    // Some in-app and kiosk browsers implement none of it. Calling it anyway would take
+    // the whole wall down with a TypeError.
+    expect(screen.getByTestId('wall-slide')).toBeVisible()
+  })
+
+  it('puts the shortcuts panel away before it starts hiding the join reminder', async () => {
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+    await userEvent.keyboard('?')
+    await screen.findByRole('dialog')
+    // The host looks back at the photo, so the panel's close button no longer has the
+    // keyboard: Escape now reaches the wall itself.
+    await userEvent.click(screen.getByTestId('wall-slide'))
+
+    await userEvent.keyboard('{Escape}')
+
+    // One key, the obvious meaning: put away whatever is covering the photos — starting
+    // with the thing that covers most of them.
+    expect(screen.queryByText(fr.wall.shortcutsHint)).not.toBeInTheDocument()
+    expect(screen.getByText('H7K2QM')).toBeVisible()
+  })
+
+  it('closes the shortcuts panel from its own close button', async () => {
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+    await userEvent.keyboard('?')
+    await screen.findByRole('dialog')
+
+    await userEvent.click(screen.getByRole('button', { name: fr.ui.dialogClose }))
+
+    // The host who opened the panel with a key may well be holding a mouse by the time
+    // they want it gone, and the panel covers the photos while it is up.
+    expect(screen.queryByText(fr.wall.shortcutsHint)).not.toBeInTheDocument()
+  })
+
+  it('leaves the slideshow alone while the shortcuts panel has the keyboard', async () => {
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(3) })) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+    await userEvent.keyboard('?')
+    await screen.findByRole('dialog')
+
+    await userEvent.keyboard('{ArrowRight}')
+
+    // The panel's own controls own the arrows while it is open. Stepping the wall behind
+    // it would move the photo the host opened the panel to ask about.
+    expect(within(screen.getByTestId('wall-slide')).getByText('Photo 0')).toBeVisible()
+  })
+
+  it('shows the layout the host chose while the first playlist was still on its way', async () => {
+    const pending = pendingWall()
+    const api = fakeApi({ wall: vi.fn(() => pending.promise) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    await userEvent.keyboard('l')
+    await act(async () => {
+      pending.arrives(aPopulatedWall({ items: somePhotos(8) }))
+    })
+
+    // The host sets the wall up for a cocktail hour while the server is still answering.
+    // Losing that choice the moment the photos arrive would send them back to the
+    // keyboard in front of the room.
+    expect(await screen.findAllByTestId('wall-slide')).toHaveLength(6)
+  })
+
+  it('never confuses the zoom’s length with the slide’s', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const api = fakeApi({
+      wall: wallSequence(
+        aPopulatedWall({
+          items: somePhotos(3),
+          slideIntervalMs: 8_000,
+          kenBurnsDurationMs: 8_800,
+        }),
+      ),
+    })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    const slide = await screen.findByTestId('wall-slide')
+
+    // Both numbers come from one event setting in `src/domain/slideshow/`, where the
+    // zoom is the interval plus the crossfade; the wall's job is to keep them apart.
+    // Swapping them is what made 1.0's zoom outlive its slide and every photo jump.
+    expect(slide.style.getPropertyValue('--wall-kenburns-duration')).toBe('8800ms')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8_000)
+    })
+    expect(within(screen.getByTestId('wall-slide')).getByText('Photo 1')).toBeVisible()
   })
 })

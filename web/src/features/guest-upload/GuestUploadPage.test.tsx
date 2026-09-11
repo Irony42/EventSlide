@@ -331,4 +331,50 @@ describe('GuestUploadPage', () => {
     expect(screen.getByRole('heading', { name: fr.upload.notJoinedTitle })).toBeVisible()
     expect(screen.getByRole('link', { name: fr.upload.notJoinedAction })).toBeVisible()
   })
+
+  it('sends a visitor whose address carries no event back to the join screen', () => {
+    // `/e//upload`, or a link from an older build. Nothing is read from storage at all:
+    // there is no slug to look the session up under, and guessing one would be the 1.0
+    // QR bug again — a guest uploading to whichever event happened to be first.
+    havingJoined()
+
+    renderWithProviders(<GuestUploadPage />, { api: fakeApi(), route: '/e//upload' })
+
+    expect(screen.getByRole('heading', { name: fr.upload.notJoinedTitle })).toBeVisible()
+  })
+
+  it('leaves the photo in place when the guest cancels the confirmation', async () => {
+    havingJoined()
+    const api = fakeApi(withPhotos(aGuestPhoto({ id: 'photo-1', canDelete: true })))
+    renderUpload(api)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.upload.deleteOwnNumbered(1) }),
+    )
+    const dialog = await screen.findByRole('dialog', { name: fr.upload.deleteOwnConfirm })
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.app.cancel }))
+
+    expect(api.deleteMyPhoto).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog', { name: fr.upload.deleteOwnConfirm })).toBeNull()
+    expect(screen.getByText(fr.upload.statusPending)).toBeVisible()
+  })
+
+  it('shows how far a photo has got while it is going up', async () => {
+    // A guest on venue Wi-Fi waits up to a minute per photo. A bar that only appears
+    // once the upload is over tells them nothing at the moment they need it.
+    havingJoined()
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async (_slug: string, input) => {
+        input.onProgress?.({ loaded: 600_000, total: 1_000_000, percent: 60 })
+        return new Promise<UploadResponse>(() => {})
+      }),
+    })
+    renderUpload(api)
+    await pickPhotos(aPhotoFile('confettis.jpg'))
+
+    await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
+
+    const bar = await screen.findByRole('progressbar', { name: fr.upload.itemProgress(1) })
+    expect(bar).toHaveAttribute('aria-valuenow', '60')
+  })
 })

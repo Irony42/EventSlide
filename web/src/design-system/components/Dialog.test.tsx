@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
@@ -29,6 +29,29 @@ const Harness = ({ dismissible = true }: HarnessProps) => {
         dismissible={dismissible}
       >
         <TextInput aria-label="Motif" />
+      </Dialog>
+    </>
+  )
+}
+
+/** A harness whose initial focus target changes while the dialog is already open. */
+const MovingFocusHarness = () => {
+  const [isOpen, setOpen] = useState(false)
+  const [aim, setAim] = useState<'motif' | 'note'>('motif')
+  const motifRef = useRef<HTMLInputElement>(null)
+  const noteRef = useRef<HTMLInputElement>(null)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Ouvrir</Button>
+      <Dialog
+        open={isOpen}
+        title={TITLE}
+        onClose={() => setOpen(false)}
+        initialFocusRef={aim === 'motif' ? motifRef : noteRef}
+      >
+        <TextInput aria-label="Motif" ref={motifRef} />
+        <TextInput aria-label="Note" ref={noteRef} />
+        <Button onClick={() => setAim('note')}>Viser la note</Button>
       </Dialog>
     </>
   )
@@ -173,6 +196,36 @@ describe('Dialog', () => {
     expect(input).toHaveFocus()
   })
 
+  it('lets Tab move between its own controls without interfering', async () => {
+    render(<Harness />)
+
+    await open()
+    const close = screen.getByRole('button', { name: fr.ui.dialogClose })
+    const input = screen.getByLabelText('Motif')
+
+    close.focus()
+    await userEvent.tab()
+
+    // Only the two edges wrap. Taking over a Tab in the middle would stop a host moving
+    // through a form the normal way.
+    expect(input).toHaveFocus()
+  })
+
+  it('still remembers who opened it after its focus target moves', async () => {
+    render(<MovingFocusHarness />)
+    const trigger = screen.getByRole('button', { name: 'Ouvrir' })
+
+    await open()
+    await userEvent.click(screen.getByRole('button', { name: 'Viser la note' }))
+    expect(screen.getByLabelText('Note')).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+
+    // The opener is captured once, when the dialog actually opens. Capturing it again
+    // on every re-run would record a control inside the dialog, and closing would then
+    // hand focus to an element that no longer exists.
+    expect(trigger).toHaveFocus()
+  })
+
   it('honours an explicit initial focus', async () => {
     render(<InitialFocusHarness />)
 
@@ -196,5 +249,64 @@ describe('Dialog', () => {
     // A `<form method="dialog">` closes the element behind React's back; syncing here
     // is what stops the DOM and the state disagreeing.
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('answers the browser’s own dismiss gesture without closing behind React’s back', () => {
+    const onClose = vi.fn()
+    render(
+      <Dialog open title={TITLE} onClose={onClose}>
+        <p>Corps</p>
+      </Dialog>,
+    )
+    const dialog = screen.getByRole('dialog')
+
+    const notPrevented = fireEvent(dialog, new Event('cancel', { cancelable: true }))
+
+    // The native gesture is intercepted rather than allowed through: an element closed
+    // under an `open` prop is a dialog React can never reopen, because its state never
+    // learned it had gone.
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(notPrevented).toBe(false)
+    expect(dialog).toHaveAttribute('open')
+  })
+
+  it('does not echo a close back to the caller when React was the one that closed it', async () => {
+    const onClose = vi.fn()
+    const Controlled = ({ open: isOpen }: { readonly open: boolean }) => (
+      <Dialog open={isOpen} title={TITLE} onClose={onClose}>
+        <p>Corps</p>
+      </Dialog>
+    )
+    const { rerender } = render(<Controlled open />)
+
+    rerender(<Controlled open={false} />)
+
+    // Closing the element emits a native `close` event. Reporting that back would hand
+    // the caller a close it asked for — a loop for any parent that toggles on `onClose`.
+    // The listener exists only while `open` is true, which is why it can close over
+    // `open` instead of reading a ref written during render.
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.queryByText(TITLE)).toBeNull()
+  })
+
+  it('opens even when it holds nothing focusable', () => {
+    render(<Dialog open title={TITLE} onClose={vi.fn()} dismissible={false} />)
+
+    // With no focusable child and no fallback target, the open effect would call focus()
+    // on nothing and take the whole screen down with it.
+    expect(screen.getByText(TITLE)).toBeVisible()
+  })
+
+  it('leaves Tab alone when it holds nothing focusable', () => {
+    const onClose = vi.fn()
+    render(<Dialog open title={TITLE} onClose={onClose} dismissible={false} />)
+    const dialog = screen.getByRole('dialog')
+
+    fireEvent.keyDown(dialog, { key: 'Tab' })
+
+    // Nothing to wrap to, so the trap declines rather than guessing: the dialog stays
+    // open and the keypress is the browser's to answer.
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByText(TITLE)).toBeVisible()
   })
 })

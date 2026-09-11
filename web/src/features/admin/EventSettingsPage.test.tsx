@@ -165,4 +165,106 @@ describe('EventSettingsPage', () => {
 
     expect(await screen.findByLabelText(fr.admin.selfDeleteGrace)).toBeDisabled()
   })
+
+  it('shows the form what the server stored after a save, not what was typed', async () => {
+    // The draft is re-synced from the answer during render, against the settings object
+    // last synced from — deliberately not in an effect. An effect painted the previous
+    // event's settings for one frame after a save, which on a slow laptop reads as the
+    // save having been lost. The observable half of that is this: a value the host never
+    // touched, changed by the server as part of the save, is on screen straight after.
+    const api = fakeApi({
+      updateSettings: vi.fn(async () =>
+        anEventDto({ settings: eventSettings({ allowCaptions: false, retentionDays: 365 }) }),
+      ),
+    })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByLabelText(fr.admin.allowCaptions))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(await screen.findByText(fr.admin.settingsSaved)).toBeVisible()
+    expect(screen.getByLabelText(fr.admin.retention)).toHaveValue('365')
+    expect(screen.getByLabelText(fr.admin.allowCaptions)).not.toBeChecked()
+  })
+
+  it('saves the host’s choice about reactions', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.click(await screen.findByLabelText(fr.admin.allowReactions))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      'camille-et-sacha',
+      expect.objectContaining({ allowReactions: false, allowCaptions: true }),
+    )
+  })
+
+  it('saves the host’s choice about guests deleting their own photos', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.click(await screen.findByLabelText(fr.admin.allowGuestSelfDelete))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      'camille-et-sacha',
+      expect.objectContaining({ allowGuestSelfDelete: false }),
+    )
+  })
+
+  it('saves the grace delay as a number of seconds', async () => {
+    // The DTO carries seconds. A select value is a string, and sending "900" would be
+    // rejected by the server's schema rather than silently coerced.
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.selectOptions(await screen.findByLabelText(fr.admin.selfDeleteGrace), '900')
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      'camille-et-sacha',
+      expect.objectContaining({ guestSelfDeleteGraceSeconds: 900 }),
+    )
+  })
+
+  it('saves a per-guest photo limit as a number', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.selectOptions(await screen.findByLabelText(fr.admin.maxPhotosPerGuest), '25')
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      'camille-et-sacha',
+      expect.objectContaining({ maxPhotosPerGuest: 25 }),
+    )
+  })
+
+  it('shows the per-guest photo limit the server already holds', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () =>
+        anEventDto({ settings: eventSettings({ maxPhotosPerGuest: 50 }) }),
+      ),
+    })
+
+    renderPage(api)
+
+    expect(await screen.findByLabelText(fr.admin.maxPhotosPerGuest)).toHaveValue('50')
+  })
+
+  it('labels a grace delay under a minute in seconds', async () => {
+    // Seconds are not one of the offered delays, so this value can only have come from
+    // a seed or a later build. Labelling it "0,5 minutes" would be worse than keeping it.
+    const api = fakeApi({
+      getEvent: vi.fn(async () =>
+        anEventDto({ settings: eventSettings({ guestSelfDeleteGraceSeconds: 30 }) }),
+      ),
+    })
+
+    renderPage(api)
+
+    expect(await screen.findByLabelText(fr.admin.selfDeleteGrace)).toHaveValue('30')
+    expect(screen.getByRole('option', { name: fr.admin.graceSeconds(30) })).toBeInTheDocument()
+  })
 })

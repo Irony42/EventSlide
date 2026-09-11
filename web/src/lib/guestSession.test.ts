@@ -2,6 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readGuestSession, rememberGuestSession } from './guestSession'
 import { aPublicEvent } from '../testing/renderWithProviders'
 
+/**
+ * Taken from the builder rather than listed, so a field added to `PublicEventDto`
+ * arrives here with a row of its own: a field the upload screen starts reading but
+ * `isGuestSession` never checks is a field an older tab can leave undefined.
+ */
+const EVENT_FIELDS: readonly string[] = Object.keys(aPublicEvent())
+
 describe('guestSession', () => {
   beforeEach(() => {
     sessionStorage.clear()
@@ -32,6 +39,51 @@ describe('guestSession', () => {
     sessionStorage.setItem(
       'eventslide.guest.gala',
       JSON.stringify({ event: aPublicEvent({ slug: 'mariage' }), displayName: null }),
+    )
+
+    expect(readGuestSession('gala')).toBeNull()
+  })
+
+  it('refuses a stored value that is valid JSON but not a session', () => {
+    // `JSON.parse` is happy with `null` and with a bare number. Reading a field off
+    // either throws, and a guest whose tab holds a leftover from another product on the
+    // same origin must land on the join screen, not on a crashed upload page.
+    sessionStorage.setItem('eventslide.guest.gala', 'null')
+
+    expect(readGuestSession('gala')).toBeNull()
+  })
+
+  it('refuses an entry that carries no event at all, instead of throwing on the way out', () => {
+    // Read straight through, `parsed.event.slug` on a null event throws — and this is
+    // called while the upload screen renders, so the guest gets the crash boundary
+    // rather than the join screen and their photo is lost.
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({ event: null, displayName: null }),
+    )
+
+    expect(readGuestSession('gala')).toBeNull()
+  })
+
+  it.each(EVENT_FIELDS)(
+    'refuses an entry whose event is missing %s, rather than rendering half an event',
+    (field) => {
+      // Every field is one the upload screen reads without asking again: the name in
+      // the heading, `allowCaptions` to decide whether the caption box exists,
+      // `maxUploadBytes` to refuse a file before it leaves the phone. An entry written
+      // by an older build is missing whichever field that build did not have.
+      const event: Record<string, unknown> = { ...aPublicEvent({ slug: 'gala' }) }
+      delete event[field]
+      sessionStorage.setItem('eventslide.guest.gala', JSON.stringify({ event, displayName: null }))
+
+      expect(readGuestSession('gala')).toBeNull()
+    },
+  )
+
+  it('refuses an entry whose display name is neither text nor absent', () => {
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({ event: aPublicEvent({ slug: 'gala' }), displayName: 7 }),
     )
 
     expect(readGuestSession('gala')).toBeNull()

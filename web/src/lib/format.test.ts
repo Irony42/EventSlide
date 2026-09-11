@@ -8,7 +8,11 @@ const NARROW_NBSP = String.fromCodePoint(0x202f)
 
 describe('formatBytes', () => {
   it('reports a small count in octets, without a decimal', () => {
+    // Rounded, not just left alone: a byte count that arrives computed rather than
+    // counted — an average, a remaining-quota division — must not read "512,4 o",
+    // because a fraction of an octet is not a thing a host can act on.
     expect(formatBytes(512)).toBe(`512${NBSP}o`)
+    expect(formatBytes(512.4)).toBe(`512${NBSP}o`)
   })
 
   it('uses the French decimal comma', () => {

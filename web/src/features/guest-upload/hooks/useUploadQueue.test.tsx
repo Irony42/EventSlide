@@ -243,6 +243,22 @@ describe('useUploadQueue', () => {
     expect(revoke).toHaveBeenCalledWith(preview)
   })
 
+  it('takes a row back only once, however many times the guest taps', () => {
+    // A thumb on a phone double-taps, and the second tap can carry the id of a row
+    // that is already gone. Revoking its preview again would be revoking a URL the
+    // next selection may already have been handed.
+    const revoke = vi.spyOn(URL, 'revokeObjectURL')
+    const { result } = mount(fakeApi())
+    act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+    const id = result.current.items[0]?.id ?? ''
+    act(() => result.current.remove(id))
+
+    act(() => result.current.remove(id))
+
+    expect(result.current.items).toHaveLength(0)
+    expect(revoke).toHaveBeenCalledTimes(1)
+  })
+
   it('releases every preview when the screen goes away', () => {
     // Thirty photos selected is thirty full-resolution bitmaps pinned in memory.
     const revoke = vi.spyOn(URL, 'revokeObjectURL')
@@ -305,5 +321,225 @@ describe('useUploadQueue', () => {
     act(() => result.current.send(null))
 
     await waitFor(() => expect(onSettled).toHaveBeenCalledTimes(1))
+  })
+
+  it('reports each photo of a batch on its own, so one refusal does not take the rest', async () => {
+    // Eight photos on venue Wi-Fi: partial success is the normal outcome here, not an
+    // error. A batch that failed as a unit would make a guest re-send the seven that
+    // arrived to get the eighth through.
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async (_slug: string, input: UploadInput) =>
+        input.files[0]?.name === 'film.mov'
+          ? refused('image.unsupportedFormat')
+          : accepted(`photo-${input.files[0]?.name ?? ''}`),
+      ),
+    })
+    const { result } = mount(api)
+
+    act(() =>
+      result.current.add([aPhotoFile('un.jpg'), aPhotoFile('film.mov'), aPhotoFile('trois.jpg')]),
+    )
+    act(() => result.current.send(null))
+
+    await waitFor(() => expect(result.current.sending).toBe(false))
+    expect(result.current.items.map((item) => item.state)).toEqual(['done', 'failed', 'done'])
+  })
+
+  it('retries only the photo that failed', async () => {
+    const sent: string[] = []
+    let firstAttempt = true
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async (_slug: string, input: UploadInput) => {
+        const name = input.files[0]?.name ?? ''
+        sent.push(name)
+        if (name === 'deux.jpg' && firstAttempt) {
+          firstAttempt = false
+          throw ApiError.network()
+        }
+        return accepted(`photo-${name}`)
+      }),
+    })
+    const { result } = mount(api)
+    act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
+    act(() => result.current.send(null))
+    await waitFor(() => expect(result.current.items[1]?.state).toBe('failed'))
+
+    act(() => result.current.retry(result.current.items[1]?.id ?? ''))
+
+    await waitFor(() => expect(result.current.items[1]?.state).toBe('done'))
+    // The photo that arrived is not sent a second time: the server would answer
+    // `duplicate` and the guest would pay for the bytes twice.
+    expect(sent).toEqual(['un.jpg', 'deux.jpg', 'deux.jpg'])
+  })
+
+  it('tells a guest what to do when the event has run out of room', async () => {
+    // A quota is the one refusal a guest can act on, and only by telling somebody —
+    // so the sentence names the organiser instead of suggesting a retry.
+    const api = fakeApi({ uploadPhotos: vi.fn(async () => refused('event.quotaExceeded')) })
+    const { result } = mount(api)
+
+    act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+    act(() => result.current.send(null))
+
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
+    expect(result.current.items[0]?.error).toBe(fr.errors['event.quotaExceeded'])
+    expect(result.current.items[0]?.retryable).toBe(false)
+  })
+
+  it('keeps the photos still waiting to be sent when the guest picks more', async () => {
+    // Only what has arrived is cleared. A pending photo dropped here is a photo the
+    // guest selected and never sees again.
+    const gate = deferred()
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async () => {
+        await gate.promise
+        return accepted('photo-1')
+      }),
+    })
+    const { result } = mount(api)
+    act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
+    act(() => result.current.send(null))
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('uploading'))
+
+    act(() => result.current.add([aPhotoFile('trois.jpg')]))
+
+    expect(result.current.items.map((item) => item.file.name)).toEqual([
+      'un.jpg',
+      'deux.jpg',
+      'trois.jpg',
+    ])
+    act(() => gate.release())
+    await waitFor(() => expect(result.current.sending).toBe(false))
+  })
+
+  it('does not send a photo the guest removed while it was queued behind another', async () => {
+    const sent: string[] = []
+    const gate = deferred()
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async (_slug: string, input: UploadInput) => {
+        sent.push(input.files[0]?.name ?? '')
+        await gate.promise
+        return accepted('photo-1')
+      }),
+    })
+    const { result } = mount(api)
+    act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
+    act(() => result.current.send(null))
+    await waitFor(() => expect(sent).toEqual(['un.jpg']))
+
+    act(() => result.current.remove(result.current.items[1]?.id ?? ''))
+    act(() => gate.release())
+
+    await waitFor(() => expect(result.current.sending).toBe(false))
+    expect(sent).toEqual(['un.jpg'])
+  })
+
+  it('does not send a photo the guest removed while it was being shrunk', async () => {
+    const sent: string[] = []
+    const shrinking = deferred()
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async (_slug: string, input: UploadInput) => {
+        sent.push(input.files[0]?.name ?? '')
+        return accepted('photo-1')
+      }),
+    })
+    const { result } = mount(api, {
+      resize: async (file: File) => {
+        await shrinking.promise
+        return file
+      },
+    })
+    act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+    act(() => result.current.send(null))
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('preparing'))
+
+    act(() => result.current.remove(result.current.items[0]?.id ?? ''))
+    act(() => shrinking.release())
+
+    await waitFor(() => expect(result.current.sending).toBe(false))
+    expect(sent).toEqual([])
+  })
+
+  it('carries on with the batch when the guest cancels one upload mid-flight', async () => {
+    // The abort is the queue's own doing, so it is not a failure — and above all it
+    // must not stop the photos queued behind it.
+    const api = fakeApi({
+      uploadPhotos: vi.fn(
+        async (_slug: string, input: UploadInput) =>
+          new Promise<UploadResponse>((resolve, reject) => {
+            if (input.files[0]?.name !== 'un.jpg') {
+              resolve(accepted('photo-2'))
+              return
+            }
+            // The real transport rethrows the browser's `AbortError` untouched.
+            input.signal?.addEventListener('abort', () => {
+              reject(new DOMException('The user aborted a request.', 'AbortError'))
+            })
+          }),
+      ),
+    })
+    const { result } = mount(api)
+    act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
+    act(() => result.current.send(null))
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('uploading'))
+
+    act(() => result.current.remove(result.current.items[0]?.id ?? ''))
+
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('done'))
+    expect(result.current.items.map((item) => item.file.name)).toEqual(['deux.jpg'])
+  })
+
+  it('offers a retry when the server said nothing at all about the photo', async () => {
+    // A 200 with an empty `results` is a server this build does not understand. The
+    // photo is not lost: the row says so and the guest can press again.
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async (): Promise<UploadResponse> => ({ results: [] })),
+    })
+    const { result } = mount(api)
+
+    act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+    act(() => result.current.send(null))
+
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
+    expect(result.current.items[0]?.error).toBe(fr.errors.unknown)
+    expect(result.current.items[0]?.retryable).toBe(true)
+  })
+
+  it('says something in French when an upload fails for a reason with no error code', async () => {
+    // Anything that is not an `ApiError` is a bug in this build, and its message is an
+    // internal English string. A guest must never be shown one.
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async () => {
+        throw new TypeError('Cannot read properties of undefined')
+      }),
+    })
+    const { result } = mount(api)
+
+    act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+    act(() => result.current.send(null))
+
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
+    expect(result.current.items[0]?.error).toBe(fr.errors.unknown)
+  })
+
+  it('sends each photo once when a guest taps “Envoyer” twice', async () => {
+    // A thumb on a phone double-taps. Two runs over the same queue would upload every
+    // photo twice and make the server answer `duplicate` for half of them.
+    const gate = deferred()
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async () => {
+        await gate.promise
+        return accepted('photo-1')
+      }),
+    })
+    const { result } = mount(api)
+    act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
+
+    act(() => result.current.send(null))
+    act(() => result.current.send(null))
+    act(() => gate.release())
+
+    await waitFor(() => expect(result.current.sending).toBe(false))
+    expect(api.uploadPhotos).toHaveBeenCalledTimes(2)
   })
 })

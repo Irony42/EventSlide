@@ -497,6 +497,22 @@ describe('ModerationPage', () => {
     expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1', 'photo-2'], 'publish')
   })
 
+  it('selects nothing on Space with no photo under the keyboard', async () => {
+    // A host who has only scrolled has nothing focused. Space must not pick whichever
+    // photo happens to be first: the next P would then act on a tile they never looked
+    // at, which is how something unwanted reaches the projector.
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])) })
+    renderConsole(api)
+    await screen.findAllByTestId('moderation-card')
+
+    await userEvent.keyboard(' ')
+
+    expect(screen.queryByText(fr.moderation.selected(1))).toBeNull()
+    expect(
+      screen.getByRole('checkbox', { name: fr.moderation.selectPhoto('Léa') }),
+    ).not.toBeChecked()
+  })
+
   it('drops the selection on Escape', async () => {
     const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
     renderConsole(api)
@@ -527,6 +543,20 @@ describe('ModerationPage', () => {
 
     expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1'], 'publish')
     expect(await within(card).findByText(fr.moderation.statePublished)).toBeInTheDocument()
+  })
+
+  it('does nothing on Z when there is no decision to take back', async () => {
+    // Z is the one shortcut a host presses reflexively, including before they have
+    // decided anything. It must not re-send the last batch, and it must not claim an
+    // undo happened.
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+    renderConsole(api)
+    await screen.findByTestId('moderation-card')
+
+    await userEvent.keyboard('z')
+
+    expect(api.moderateBulk).not.toHaveBeenCalled()
+    expect(screen.queryByText(fr.moderation.undone)).toBeNull()
   })
 
   it('shows the keyboard shortcuts, because nobody guesses them', async () => {
@@ -632,6 +662,54 @@ describe('ModerationPage', () => {
     )
 
     expect(api.moderate).toHaveBeenCalledWith(SLUG, 'photo-1', 'hide')
+  })
+
+  it('walks back through the queue from the lightbox on the left arrow', async () => {
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])) })
+    renderConsole(api)
+    await screen.findAllByTestId('moderation-card')
+    await userEvent.click(screen.getByRole('button', { name: fr.moderation.enlargePhoto('Sacha') }))
+    const dialog = await screen.findByRole('dialog')
+
+    await userEvent.keyboard('{ArrowLeft}')
+
+    expect(
+      within(dialog).getByRole('heading', { name: fr.moderation.photoOf('Léa') }),
+    ).toBeInTheDocument()
+  })
+
+  it('refuses a photo from the lightbox', async () => {
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+    renderConsole(api)
+    await screen.findByTestId('moderation-card')
+    await userEvent.click(screen.getByRole('button', { name: fr.moderation.enlargePhoto('Léa') }))
+    const dialog = await screen.findByRole('dialog')
+
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: fr.moderation.rejectPhoto('Léa') }),
+    )
+
+    expect(api.moderate).toHaveBeenCalledWith(SLUG, 'photo-1', 'reject')
+  })
+
+  it('names an anonymous guest’s photo full size without inventing a name', async () => {
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => queueOf([lea({ authorName: null, caption: null })])),
+    })
+    renderConsole(api)
+    await screen.findByTestId('moderation-card')
+
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: fr.moderation.enlargePhoto(fr.moderation.anonymousInName),
+      }),
+    )
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(fr.moderation.byAnonymous)).toBeInTheDocument()
+    expect(
+      within(dialog).getByAltText(fr.moderation.photoAlt(fr.moderation.anonymousInName)),
+    ).toBeInTheDocument()
   })
 
   it('walks back up the queue on K, and decides nothing with no photo under it', async () => {

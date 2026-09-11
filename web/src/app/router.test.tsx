@@ -13,6 +13,17 @@ import type { SessionResponse } from '../lib/api/dto'
 
 const at = (route: string) => renderWithProviders(<AppRoutes />, { route })
 
+/** A host with a resolved session, which is what every `/admin/**` address needs. */
+const asHost = (route: string) => {
+  const api = fakeApi({
+    session: vi.fn(async (): Promise<SessionResponse> => ({
+      authenticated: true,
+      user: aSessionUser(),
+    })),
+  })
+  return renderWithProviders(<AppRoutes />, { api, route })
+}
+
 describe('AppRoutes', () => {
   it('opens on the guest join screen', async () => {
     at('/')
@@ -63,16 +74,30 @@ describe('AppRoutes', () => {
   })
 
   it('serves the moderation console to a signed-in host', async () => {
-    const api = fakeApi({
-      session: vi.fn(async (): Promise<SessionResponse> => ({
-        authenticated: true,
-        user: aSessionUser(),
-      })),
-    })
-
-    renderWithProviders(<AppRoutes />, { api, route: '/admin/events/mariage/moderation' })
+    asHost('/admin/events/mariage/moderation')
 
     expect(await screen.findByRole('heading', { name: fr.moderation.title })).toBeVisible()
+  })
+
+  /**
+   * One case per admin address.
+   *
+   * Every one of these is a separate lazily-loaded chunk declared in a block of
+   * near-identical `lazy()` calls, and the failure mode is a copy-paste: two addresses
+   * resolving to the same screen. Naming the heading each address must produce is what
+   * makes that a red test instead of a host wondering why "Nouvel évènement" opens the
+   * dashboard.
+   */
+  it.each([
+    ['/admin', fr.admin.events],
+    ['/admin/events/new', fr.admin.newEvent],
+    ['/admin/events/mariage', 'Camille & Sacha'],
+    ['/admin/events/mariage/settings', fr.admin.settings],
+    ['/admin/password', fr.auth.changePassword],
+  ])('serves %s to a signed-in host', async (route, heading) => {
+    asHost(route)
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeVisible()
   })
 
   it('answers an unknown address with a 404 rather than the guest upload page', async () => {

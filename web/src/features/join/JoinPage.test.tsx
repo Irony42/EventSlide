@@ -146,6 +146,36 @@ describe('JoinPage', () => {
     expect(screen.getByRole('heading', { name: fr.join.welcome('Kermesse') })).toBeVisible()
   })
 
+  it('hands a scanned guest who wants no name straight to the upload screen', async () => {
+    // The code has already resolved on mount, so there is nothing left to ask the
+    // server: a guest who chooses anonymity here should not pay a second round trip
+    // for it on venue Wi-Fi.
+    const api = fakeApi({
+      join: vi.fn(async () => aJoinResponse({ event: aPublicEvent({ name: 'Kermesse' }) })),
+    })
+    renderJoin('/join/H7K2QM', api)
+    await screen.findByRole('heading', { name: fr.join.welcome('Kermesse') })
+
+    await userEvent.click(screen.getByRole('button', { name: fr.join.anonymous }))
+
+    expect(api.join).toHaveBeenCalledTimes(1)
+    expect(await screen.findByRole('heading', { name: UPLOAD_SCREEN })).toBeVisible()
+  })
+
+  it('sends a code read wrong across a room to the server exactly as typed', async () => {
+    // The alphabet is Crockford base32: the server maps I and L to 1 and O to 0,
+    // because a guest reading a projected code from the back of a room types the glyph
+    // they see. Normalising or rejecting it here is how that mapping stops working.
+    const api = fakeApi()
+    renderJoin('/join', api)
+
+    await userEvent.type(screen.getByLabelText(fr.join.codeLabel), 'HOIK2L')
+    await userEvent.click(screen.getByRole('button', { name: fr.join.submit }))
+
+    expect(api.join).toHaveBeenCalledWith('HOIK2L', null)
+    expect(await screen.findByRole('heading', { name: UPLOAD_SCREEN })).toBeVisible()
+  })
+
   it('still says something useful when the failure is not one the server described', async () => {
     const api = fakeApi({
       join: vi.fn(async () => {

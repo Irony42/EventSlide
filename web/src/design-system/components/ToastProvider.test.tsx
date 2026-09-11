@@ -157,6 +157,54 @@ describe('ToastProvider', () => {
     expect(screen.getAllByText('Photo publiée.')).toHaveLength(2)
   })
 
+  it('can still be dismissed by hand once it has been pinned', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) })
+    renderHarness({ options: { durationMs: 0 } })
+
+    await user.click(trigger())
+    await user.click(screen.getByRole('button', { name: fr.ui.dismissNotification }))
+
+    // A pinned toast has no timer to cancel. If dismissing one that never had a timer
+    // were treated as unknown, the only message the host cannot wait out would also be
+    // the only one they cannot close.
+    expect(screen.queryByText('Photo publiée.')).toBeNull()
+  })
+
+  it('offers its retry inside the alert when the action failed', async () => {
+    const onAction = vi.fn()
+    renderHarness({
+      message: 'La photo n’a pas pu être publiée.',
+      options: { tone: 'danger', action: { label: fr.app.retry, onAction } },
+    })
+
+    await userEvent.click(trigger())
+
+    // A failure is announced by the assertive region; putting its retry anywhere else
+    // would tell the host something went wrong and not what to do about it.
+    const alert = screen.getByRole('alert')
+    const retry = screen.getByRole('button', { name: fr.app.retry })
+    expect(alert).toContainElement(retry)
+
+    await userEvent.click(retry)
+    expect(onAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('lets a failure be dismissed by hand', async () => {
+    renderHarness({
+      message: 'Connexion interrompue.',
+      options: { tone: 'danger' },
+    })
+
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('button', { name: fr.ui.dismissNotification }))
+
+    // The failures container is mounted only while it holds something, so dismissing
+    // the last one has to take the whole alert region away: an empty alert left behind
+    // would make `getByRole('alert')` ambiguous in every screen that renders the app.
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('refuses to be used outside a provider', () => {
     const failure = vi.spyOn(console, 'error').mockImplementation(() => {})
 

@@ -158,4 +158,32 @@ describe('ModeratorsPanel', () => {
     expect(api.revokeModerator).toHaveBeenCalledWith('camille-et-sacha', 'user-2')
     expect(await screen.findByText(fr.admin.moderatorRevoked)).toBeVisible()
   })
+
+  it('leaves the membership in place when the confirmation is cancelled', async () => {
+    const api = fakeApi({ listModerators: listOf(aModerator(), A_MODERATOR) })
+
+    renderPanel(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.revokeModerator }))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.cancel }))
+
+    expect(api.revokeModerator).not.toHaveBeenCalled()
+    expect(screen.queryByText(fr.admin.revokeModeratorTitle)).toBeNull()
+    expect(screen.getByText('moderateur@example.com')).toBeVisible()
+  })
+
+  it('reports a refused revoke instead of leaving the panel looking changed', async () => {
+    // The list is not refetched on a refusal, so the row the host tried to remove is
+    // still there — and they have to be told, or they believe it is gone.
+    const api = fakeApi({
+      listModerators: listOf(aModerator(), A_MODERATOR),
+      revokeModerator: vi.fn(() => Promise.reject(new ApiError(403, 'auth.forbidden'))),
+    })
+
+    renderPanel(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.revokeModerator }))
+    await userEvent.click(lastRevokeButton())
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['auth.forbidden'])
+    expect(screen.getByText('moderateur@example.com')).toBeVisible()
+  })
 })

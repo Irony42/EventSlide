@@ -238,10 +238,14 @@ const upload = <T>(
     if (handlers.signal) {
       const signal = handlers.signal
       if (signal.aborted) {
-        xhr.abort()
-      } else {
-        signal.addEventListener('abort', () => xhr.abort(), { once: true })
+        // Refused here rather than through `xhr.abort()`. Per the XHR specification
+        // `abort()` on a request that has not been sent fires no `abort` event and
+        // leaves the object OPENED, so the old form both failed to reject and then
+        // sent the photo anyway — the opposite of a cancellation.
+        reject(new DOMException('Upload aborted', 'AbortError'))
+        return
       }
+      signal.addEventListener('abort', () => xhr.abort(), { once: true })
     }
 
     xhr.send(form)

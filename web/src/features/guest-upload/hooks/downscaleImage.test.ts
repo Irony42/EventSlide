@@ -120,4 +120,51 @@ describe('downscaleImage', () => {
 
     expect(await downscaleImage(original)).toBe(original)
   })
+
+  it('keeps the original when the browser refuses to draw the bitmap', async () => {
+    // Safari throws here on a photo whose decoded surface exceeds its canvas budget.
+    // Rethrowing would lose the photo; the server re-encodes anyway.
+    stubDecoder(aBitmap(5000, 4000))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () =>
+        ({
+          drawImage: () => {
+            throw new Error('total canvas memory use exceeds the maximum limit')
+          },
+        }) as unknown as CanvasRenderingContext2D,
+    )
+    const original = aFileOf(6_000_000)
+
+    expect(await downscaleImage(original)).toBe(original)
+  })
+
+  it('releases the decoded bitmap even when the re-encode throws', async () => {
+    // A 12 MP photo decodes to a 48 MB surface, and a guest sending thirty of them
+    // would hold all thirty until the garbage collector noticed.
+    const close = vi.fn()
+    stubDecoder({ width: 5000, height: 4000, close })
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () =>
+        ({
+          drawImage: () => {
+            throw new Error('total canvas memory use exceeds the maximum limit')
+          },
+        }) as unknown as CanvasRenderingContext2D,
+    )
+
+    await downscaleImage(aFileOf(6_000_000))
+
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('names the shrunken photo .jpg even when the original had no extension', async () => {
+    // Some Android share sheets hand over a file with no extension at all. Uploading
+    // it as `photo` would leave the server guessing from bytes alone.
+    stubDecoder(aBitmap(5000, 4000))
+    stubCanvas(new Blob([new Uint8Array(900_000)]))
+
+    const result = await downscaleImage(aFileOf(6_000_000, 'IMG_4821'))
+
+    expect(result.name).toBe('IMG_4821.jpg')
+  })
 })

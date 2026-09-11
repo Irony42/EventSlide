@@ -17,14 +17,15 @@ const NO_BREAK_SPACE = String.fromCodePoint(0x00a0)
 const STEP = 1000
 const UNITS = ['o', 'ko', 'Mo', 'Go', 'To'] as const
 
-const lastUnitIndex = UNITS.length - 1
-
 /**
- * `UNITS` is a tuple and the loops below keep the index inside it, but
- * `noUncheckedIndexedAccess` does not know that. Octets are the floor, so they are the
- * fallback: a literal index into the tuple is the one form that types as a string.
+ * Octets, then the prefixes a count can be promoted into.
+ *
+ * Destructured rather than indexed: the promotion below walks the prefixes themselves,
+ * so the unit is bound by the iteration and there is no index for
+ * `noUncheckedIndexedAccess` to type as possibly-undefined. The earlier form needed a
+ * `?? UNITS[0]` fallback no input could ever reach.
  */
-const unitAt = (index: number): string => UNITS[index] ?? UNITS[0]
+const [OCTETS, ...LARGER_UNITS] = UNITS
 
 export const formatBytes = (bytes: number): string => {
   // A negative or non-finite count is a server bug, and "-2 Mo" would send a host
@@ -32,25 +33,25 @@ export const formatBytes = (bytes: number): string => {
   const safe = Number.isFinite(bytes) && bytes > 0 ? bytes : 0
 
   let value = safe
-  let index = 0
-  while (index < lastUnitIndex && value >= STEP) {
-    value /= STEP
-    index += 1
-  }
+  let unit: string = OCTETS
+  let promoted = false
 
-  // Round, then carry: 999 950 octets would otherwise print as "1000 ko", a figure the
-  // reader has to convert in their head.
-  if (index < lastUnitIndex && Number(value.toFixed(1)) >= STEP) {
+  for (const larger of LARGER_UNITS) {
+    // Rounded before comparing, so the figure that will be *printed* decides: 999 950
+    // octets is 999,95 ko, which prints as "1000 ko" — a figure the reader has to
+    // convert in their head — and carries to "1 Mo" instead.
+    if (Number(value.toFixed(promoted ? 1 : 0)) < STEP) break
     value /= STEP
-    index += 1
+    unit = larger
+    promoted = true
   }
 
   const formatted = value.toLocaleString('fr-FR', {
     // Octets are whole things; a fraction of one is noise.
-    maximumFractionDigits: index === 0 ? 0 : 1,
+    maximumFractionDigits: promoted ? 1 : 0,
   })
 
-  return `${formatted}${NO_BREAK_SPACE}${unitAt(index)}`
+  return `${formatted}${NO_BREAK_SPACE}${unit}`
 }
 
 /**

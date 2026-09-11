@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, type Mock } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useModerationShortcuts, type ModerationShortcutHandlers } from './useModerationShortcuts'
 
@@ -135,6 +135,39 @@ describe('useModerationShortcuts', () => {
 
     expect(handlers.onToggleSelect).not.toHaveBeenCalled()
     expect(checkbox).toBeChecked()
+  })
+
+  it('stays out of the way in a rich-text field', async () => {
+    // Same defect as the caption field, one element away: `contenteditable` is not an
+    // input, so a check on tag names alone would publish four photos while a host
+    // types the word "photo".
+    const handlers = makeHandlers()
+    render(<Harness handlers={handlers} />)
+    const editable = document.createElement('div')
+    editable.setAttribute('contenteditable', 'true')
+    // jsdom parses the attribute but implements none of the editing host behind it, so
+    // `isContentEditable` is always false there. Standing the property up by hand is
+    // the same category of shim as the `IntersectionObserver` and `EventSource` stubs
+    // in testing/setup.ts: a browser API jsdom does not have, and no application code.
+    Object.defineProperty(editable, 'isContentEditable', { configurable: true, value: true })
+    document.body.append(editable)
+
+    fireEvent.keyDown(editable, { key: 'p' })
+
+    expect(handlers.onPublish).not.toHaveBeenCalled()
+    editable.remove()
+  })
+
+  it('still works when the keystroke belongs to no element at all', async () => {
+    // A key pressed with nothing in the page focused is delivered to the document,
+    // which is an `EventTarget` and not an `HTMLElement`. That is the ordinary state of
+    // a console the host has only scrolled.
+    const handlers = makeHandlers()
+    render(<Harness handlers={handlers} />)
+
+    fireEvent.keyDown(document, { key: 'p' })
+
+    expect(handlers.onPublish).toHaveBeenCalledTimes(1)
   })
 
   it('does nothing for a key it does not own', async () => {

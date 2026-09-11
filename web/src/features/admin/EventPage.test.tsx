@@ -225,4 +225,79 @@ describe('EventPage', () => {
 
     expect(print).toHaveBeenCalledTimes(1)
   })
+
+  it('offers a draft event the action that opens the doors', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ status: 'draft' })),
+      setEventStatus: vi.fn(async () => anEventDto({ status: 'live' })),
+    })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.goLive }))
+
+    expect(api.setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'live')
+    expect(await screen.findByText(fr.admin.statusLive)).toBeVisible()
+  })
+
+  it('keeps the event as it was when the server refuses a change of state', async () => {
+    // The badge is what a host checks before telling the room the wall is open. It
+    // must never show a state the server did not record.
+    const api = fakeApi({
+      setEventStatus: vi.fn(() => Promise.reject(new ApiError(409, 'event.illegalTransition'))),
+    })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['event.illegalTransition'])
+    expect(screen.getByText(fr.admin.statusLive)).toBeVisible()
+  })
+
+  it('keeps the old join code when the server refuses to change it', async () => {
+    // The printed cards on the tables still carry the old code. Showing a new one that
+    // was never recorded would send every guest to a code that does not resolve.
+    const api = fakeApi({
+      rotateJoinCode: vi.fn(() => Promise.reject(new ApiError(403, 'auth.forbidden'))),
+    })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.rotateJoinCode }))
+    await userEvent.click(inDialog(fr.admin.rotateJoinCode))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['auth.forbidden'])
+    expect(screen.getAllByText('H7K2QM').length).toBeGreaterThan(0)
+  })
+
+  it('leaves the album alone when the purge dialog is cancelled', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.purge }))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.cancel }))
+
+    expect(api.purgeEvent).not.toHaveBeenCalled()
+    expect(screen.queryByText(fr.admin.purgeWarning)).toBeNull()
+  })
+
+  it('shows how many photos are waiting for a decision', async () => {
+    // The one number a host glances at between courses, so it is on the event page as
+    // well as in the console.
+    const api = fakeApi({ getEvent: vi.fn(async () => anEventDto({ pendingCount: 3 })) })
+
+    renderPage(api)
+
+    expect(await screen.findByText(fr.moderation.pending(3))).toBeVisible()
+  })
+
+  it('says something readable when the event could not be loaded for a reason with no code', async () => {
+    // Anything that is not an `ApiError` is a bug in this build, and its message is an
+    // internal English string. A host must never be shown one.
+    const getEvent = vi.fn(async () => anEventDto())
+    getEvent.mockRejectedValueOnce(new TypeError('Cannot read properties of undefined'))
+
+    renderPage(fakeApi({ getEvent }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.unknown)
+    expect(screen.queryByText(/Cannot read properties/)).toBeNull()
+  })
 })

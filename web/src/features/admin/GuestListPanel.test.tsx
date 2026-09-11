@@ -155,4 +155,19 @@ describe('GuestListPanel', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['auth.forbidden'])
   })
+
+  it('says the date is unknown rather than printing an unreadable one', async () => {
+    // The value crosses a trust boundary like any other server field. 1.0 rendered
+    // `Invalid Date` in this column for every guest seeded by an older build.
+    const api = fakeApi({
+      listGuests: vi.fn(async () => ({
+        items: [aGuest({ lastSeenAt: 'bientôt' })],
+        activeCount: 1,
+      })),
+    })
+
+    renderPanel(api)
+
+    expect(await screen.findByText(fr.admin.lastSeen(fr.admin.dateUnknown))).toBeVisible()
+  })
 })
