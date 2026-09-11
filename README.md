@@ -73,6 +73,10 @@ npm run build
 npm start
 ```
 
+To look around before there is a real event, `npm run db:seed:demo` creates one with
+a handful of photos in each moderation state, so the admin console and the wall both
+have something to show.
+
 </details>
 
 ## On the night
@@ -121,7 +125,13 @@ npm run verify:full    # the above plus the Playwright journeys
 
 ## Licence
 
-GPL-3.0, as declared in `package.json`.
+GPL-3.0, as declared in `package.json` — but the full licence text is **not yet in the
+repository**. Until a `LICENSE` file lands, the declaration is a statement of intent
+rather than a grant anyone can rely on, so add it before distributing this:
+
+```bash
+curl -o LICENSE https://www.gnu.org/licenses/gpl-3.0.txt
+```
 
 The repository has never carried the licence text itself. Add it before any release:
 

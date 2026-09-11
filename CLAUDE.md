@@ -11,11 +11,11 @@ EventSlide is a self-hosted **live photo wall for events** (weddings, parties, c
 
 Three audiences, three completely different needs:
 
-| Audience | Surface | Non-negotiable |
-| --- | --- | --- |
-| **Guest** | `/join/:code`, `/e/:slug/upload` | Zero friction. No account, no app, one thumb, bad venue Wi-Fi. |
-| **Host / moderator** | `/admin/**` | Control. Nothing reaches the screen unless they allow it. |
-| **The room** | `/e/:slug/display` | Beautiful. Runs unattended for 8 hours on a projector. |
+| Audience             | Surface                          | Non-negotiable                                                 |
+| -------------------- | -------------------------------- | -------------------------------------------------------------- |
+| **Guest**            | `/join/:code`, `/e/:slug/upload` | Zero friction. No account, no app, one thumb, bad venue Wi-Fi. |
+| **Host / moderator** | `/admin/**`                      | Control. Nothing reaches the screen unless they allow it.      |
+| **The room**         | `/e/:slug/display`               | Beautiful. Runs unattended for 8 hours on a projector.         |
 
 Every change must state which of the three it serves. A change that makes the guest
 flow slower to serve an admin convenience is a regression.
@@ -131,14 +131,14 @@ Six rings, each with a different job. Full detail:
 [docs/TESTING.md](docs/TESTING.md), `.claude/skills/eventslide-testing/` and
 `.claude/skills/eventslide-e2e/`.
 
-| Ring | Location | Doubles | Speed |
-| --- | --- | --- | --- |
-| 1 Domain unit | `src/domain/**/*.test.ts` | none needed — it is pure | microseconds |
-| 2 Use case | `src/application/**/*.test.ts` | in-memory fakes from `src/application/testing/` | sub-ms |
-| 3 Adapter integration | `src/infrastructure/**/*.test.ts` | real SQLite `:memory:`, real temp dirs | ms |
-| 4 HTTP contract | `src/interface/http/**/*.test.ts` | supertest against `buildServer()` | ms |
-| 5 Component | `web/src/**/*.test.tsx` | Testing Library + fake transport | ms |
-| 6 End-to-end | `tests/e2e/**/*.spec.ts` | none — real server, real SQLite, real browsers | seconds |
+| Ring                  | Location                          | Doubles                                         | Speed        |
+| --------------------- | --------------------------------- | ----------------------------------------------- | ------------ |
+| 1 Domain unit         | `src/domain/**/*.test.ts`         | none needed — it is pure                        | microseconds |
+| 2 Use case            | `src/application/**/*.test.ts`    | in-memory fakes from `src/application/testing/` | sub-ms       |
+| 3 Adapter integration | `src/infrastructure/**/*.test.ts` | real SQLite `:memory:`, real temp dirs          | ms           |
+| 4 HTTP contract       | `src/interface/http/**/*.test.ts` | supertest against `buildServer()`               | ms           |
+| 5 Component           | `web/src/**/*.test.tsx`           | Testing Library + fake transport                | ms           |
+| 6 End-to-end          | `tests/e2e/**/*.spec.ts`          | none — real server, real SQLite, real browsers  | seconds      |
 
 Rules:
 
@@ -152,7 +152,7 @@ Rules:
 - **Time and randomness are injected.** `Clock` and `IdGenerator` are ports. A test
   that depends on `Date.now()` is a flaky test.
 - **Security invariants get named tests.** Tenant isolation, authz on every route,
-  magic-byte rejection, EXIF stripping, quota enforcement — at ring 4 *and* ring 6.
+  magic-byte rejection, EXIF stripping, quota enforcement — at ring 4 _and_ ring 6.
 - **E2E covers journeys, not units.** A ring-6 test earns its seconds only by crossing
   surfaces (guest phone → host laptop → projector) or by exercising something only real
   infrastructure can break: EXIF rotation through `sharp`, SSE propagation, a real
@@ -207,7 +207,7 @@ npm run dev:web
 
 npm run verify         # the gate: lint + typecheck + coverage + build
 npm run lint           # eslint, includes the architecture boundary rules
-npm run typecheck      # all three tsconfig projects
+npm run typecheck      # all four tsconfig projects: domain, server, web, tools
 npm run build          # web bundle + API to dist/
 npm start              # run the built server
 
