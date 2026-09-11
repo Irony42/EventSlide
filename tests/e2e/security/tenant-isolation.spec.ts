@@ -1,5 +1,5 @@
 import type { APIRequestContext, Browser } from '@playwright/test'
-import { expect, test } from '../fixtures/app'
+import { csrfHeaders, expect, test } from '../fixtures/app'
 import type { TestApp } from '../fixtures/startTestApp'
 import { aDisguisedScript, anSvgNamedAsJpeg, aPhoto, aPixelBomb } from '../fixtures/media'
 
@@ -28,6 +28,7 @@ test.describe('guest token scope', () => {
     // endpoint was public and took the event name from a query parameter, so this was
     // not merely possible, it was the normal way to use it.
     const response = await context.request.post(app.url(`/api/events/${gala.slug}/photos`), {
+      headers: await csrfHeaders(context.request, app),
       multipart: { photos: { name: 'a.jpg', mimeType: 'image/jpeg', buffer: await bytesOf() } },
     })
 
@@ -41,6 +42,7 @@ test.describe('guest token scope', () => {
     const event = await app.seedEvent({ slug: 'mariage' })
 
     const response = await request.post(app.url(`/api/events/${event.slug}/photos`), {
+      headers: await csrfHeaders(request, app),
       multipart: { photos: { name: 'a.jpg', mimeType: 'image/jpeg', buffer: await bytesOf() } },
     })
 
@@ -75,6 +77,7 @@ test.describe('media scoping', () => {
     const gala = await app.seedEvent({ slug: 'gala-scoping' })
 
     const upload = await wedding.request.post(app.url(`/api/events/${wedding.slug}/photos`), {
+      headers: await csrfHeaders(wedding.request, app),
       multipart: {
         photos: {
           name: 'a.jpg',
@@ -116,6 +119,7 @@ test.describe('event visibility', () => {
   }) => {
     // A distinguishable "not open yet" would let someone enumerate which codes exist.
     const response = await request.post(app.url('/api/join'), {
+      headers: await csrfHeaders(request, app),
       data: { joinCode: 'ZZZZZZ' },
     })
 
@@ -141,6 +145,7 @@ test.describe('upload hardening', () => {
     const context = await guestContext(app, browser)
 
     const response = await context.request.post(app.url(`/api/events/${context.slug}/photos`), {
+      headers: await csrfHeaders(context.request, app),
       multipart: {
         photos: {
           name: 'holiday-snap.jpg',
@@ -161,6 +166,7 @@ test.describe('upload hardening', () => {
     const context = await guestContext(app, browser)
 
     const response = await context.request.post(app.url(`/api/events/${context.slug}/photos`), {
+      headers: await csrfHeaders(context.request, app),
       multipart: {
         photos: {
           name: 'sunset.jpg',
@@ -185,6 +191,7 @@ test.describe('upload hardening', () => {
     const context = await guestContext(app, browser)
 
     const response = await context.request.post(app.url(`/api/events/${context.slug}/photos`), {
+      headers: await csrfHeaders(context.request, app),
       multipart: {
         photos: {
           name: 'bomb.png',
@@ -209,6 +216,7 @@ test.describe('upload hardening', () => {
     const context = await guestContext(app, browser)
 
     const upload = await context.request.post(app.url(`/api/events/${context.slug}/photos`), {
+      headers: await csrfHeaders(context.request, app),
       multipart: {
         photos: {
           name: 'with-gps.jpg',

@@ -1,4 +1,4 @@
-import { test as base, type Browser, type Page } from '@playwright/test'
+import { test as base, type APIRequestContext, type Browser, type Page } from '@playwright/test'
 import { startTestApp, type TestApp } from './startTestApp'
 
 /**
@@ -11,8 +11,12 @@ import { startTestApp, type TestApp } from './startTestApp'
  */
 export const test = base.extend<{ surfaces: Surfaces }, { app: TestApp }>({
   app: [
-    // Playwright passes the fixture bag first even when none are used.
-    async (_fixtures, use, workerInfo) => {
+    // Playwright parses this parameter list to work out which fixtures the function
+    // depends on, so the first argument must be written as a destructuring pattern even
+    // when nothing is taken from it — a plain `_fixtures` is rejected at collection time
+    // with "First argument must use the object destructuring pattern", before any test
+    // runs.
+    async ({}, use, workerInfo) => {
       const app = await startTestApp({ worker: workerInfo.workerIndex })
       await use(app)
       await app.dispose()
@@ -68,6 +72,16 @@ export const openSurfaces = async (browser: Browser, app: TestApp): Promise<Surf
   const host = await hostContext.newPage()
   const projector = await projectorContext.newPage()
 
+  // The host arrives signed in, because that is what `Surfaces.host` promises and what
+  // every journey assumes when it navigates straight to an `/admin` address. Leaving it
+  // anonymous made each of those navigations land on the login screen, and the failure
+  // then surfaced as "moderation card not found" — a symptom several assertions away
+  // from its cause.
+  //
+  // The guest and the projector are deliberately left with no credentials at all: a
+  // guest earns a device token by joining, and a projector has nobody to log it in.
+  await signInAsHost(host, app)
+
   return {
     guest,
     host,
@@ -89,7 +103,12 @@ export const signInAsHost = async (page: Page, app: TestApp): Promise<void> => {
   await page.getByLabel(/Adresse e-mail/i).fill(app.owner.email)
   await page.getByLabel(/Mot de passe/i).fill(app.owner.password)
   await page.getByRole('button', { name: /Se connecter/i }).click()
-  await page.waitForURL(/\/admin/)
+  // Deliberately not `/\/admin/`: `/admin/password` matches that too, so a host stuck
+  // behind the forced-rotation gate would satisfy the wait and then fail at whatever the
+  // test asserted next, twenty lines away from the cause. The fixture rotates the
+  // bootstrap password at boot (see `OWNER_SETTLED_PASSWORD`), so landing here means
+  // something regressed, and it should say so.
+  await page.waitForURL(/\/admin(?:\/(?!password))?/)
 }
 
 /**
@@ -129,4 +148,30 @@ export const wallUrl = (
   query.set('e2e_interval', String(options.intervalMs ?? 250))
   query.set('e2e_transition', String(options.transitionMs ?? 0))
   return app.url(`/e/${slug}/display?${query.toString()}`)
+}
+
+/**
+ * The CSRF header a mutating request has to carry, for a spec that drives the API
+ * directly instead of through a page.
+ *
+ * Not a workaround. Double-submit CSRF is checked *before* anything that acts on
+ * identity, which is the right order — an integrity check on the request has to pass
+ * before the server decides what the caller may do. The consequence for a test is that
+ * a raw `request.post` with no token is refused with `request.csrfMissing` long before
+ * it reaches the control the test is about, so a spec asserting `guest.wrongEvent` or a
+ * 401 never gets there and reads as a product failure.
+ *
+ * A browser sends this pair automatically; `APIRequestContext` does not. `es_csrf` is
+ * readable by design, because guests have no session to bind a token to.
+ */
+export const csrfHeaders = async (
+  api: APIRequestContext,
+  app: TestApp,
+): Promise<Record<string, string>> => {
+  // Any GET issues the cookie; this one is public and cheap.
+  await api.get(app.url('/api/auth/me'))
+  const cookies = await api.storageState().then((state) => state.cookies)
+  const token = cookies.find((cookie) => cookie.name === 'es_csrf')?.value
+  if (token === undefined) throw new Error('the server issued no es_csrf cookie')
+  return { 'x-csrf-token': token }
 }

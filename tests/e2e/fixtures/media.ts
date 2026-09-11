@@ -86,7 +86,16 @@ export const jpegWithLocation = async (label = 'with-gps'): Promise<string> =>
  * mid-test-run during development.
  */
 export const aDisguisedScript = async (): Promise<string> => {
-  const payload = `<${'?'}php ${'system'}(${'$_GET'}["cmd"]); ${'?'}>`
+  // Assembling the fragments kept the *source file* out of quarantine, but this fixture
+  // then writes the reassembled bytes to a real path on disk, and that file is what got
+  // quarantined instead — Playwright failed with `UNKNOWN: unknown error, open
+  // 'holiday-snap.jpg'` because the scanner had removed it between write and upload.
+  //
+  // The control under test is magic-byte sniffing: ingest must refuse anything whose
+  // leading bytes are not a known image format, whatever the extension and whatever
+  // `Content-Type` the client claims. A shell script proves that exactly as well as a
+  // web shell does, and no scanner objects to it.
+  const payload = '#!/bin/sh\necho "not a photograph"\n'
   return write('holiday-snap.jpg', Buffer.from(payload, 'utf8'))
 }
 
@@ -101,18 +110,58 @@ export const anSvgNamedAsJpeg = async (): Promise<string> =>
  * A file that is small on the wire and enormous once decoded.
  *
  * The pixel budget is judged from the header, so ingest must refuse this without ever
- * allocating the bitmap. A flat-colour PNG of this size compresses to a few hundred
- * kilobytes and decodes to gigabytes.
+ * allocating the bitmap.
+ *
+ * Hand-built rather than produced by `sharp`, for the reason the test exists: asking
+ * `sharp` to *create* a 20000×20000 surface trips its own guard and fails the fixture
+ * with `Input image exceeds pixel limit` before the server is ever involved. The header
+ * is the whole payload anyway — a decoder that reads `IHDR` and allocates
+ * `width * height` has already lost, so declaring the dimensions is precisely the
+ * attack, and this keeps the fixture a few hundred bytes instead of a few hundred
+ * kilobytes.
  */
-export const aPixelBomb = async (edge = 20_000): Promise<string> =>
-  write(
+export const aPixelBomb = async (edge = 20_000): Promise<string> => {
+  const crcTable = Array.from({ length: 256 }, (_, index) => {
+    let c = index
+    for (let bit = 0; bit < 8; bit += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    return c >>> 0
+  })
+
+  const crc32 = (bytes: Buffer): number => {
+    let c = 0xffffffff
+    for (const byte of bytes) c = (crcTable[(c ^ byte) & 0xff] as number) ^ (c >>> 8)
+    return (c ^ 0xffffffff) >>> 0
+  }
+
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    const checksum = Buffer.alloc(4)
+    checksum.writeUInt32BE(crc32(body))
+    return Buffer.concat([length, body, checksum])
+  }
+
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(edge, 0)
+  ihdr.writeUInt32BE(edge, 4)
+  ihdr[8] = 8 // bit depth
+  ihdr[9] = 2 // truecolour
+  // compression, filter, interlace all 0.
+
+  return write(
     'bomb.png',
-    await sharp({
-      create: { width: edge, height: edge, channels: 3, background: '#000000' },
-    })
-      .png({ compressionLevel: 9 })
-      .toBuffer(),
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      chunk('IHDR', ihdr),
+      // A single empty data chunk: enough to be a structurally valid PNG, nowhere near
+      // enough to fill the canvas the header promises. Refusal must come from the
+      // header, so the body never needs to be plausible.
+      chunk('IDAT', Buffer.from([0x78, 0x9c, 0x03, 0x00, 0x00, 0x00, 0x00, 0x01])),
+      chunk('IEND', Buffer.alloc(0)),
+    ]),
   )
+}
 
 /** Larger than the configured per-file byte limit, but a genuine photo. */
 export const anOversizedPhoto = async (): Promise<string> =>
