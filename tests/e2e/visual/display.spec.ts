@@ -14,6 +14,15 @@ import { aPhoto } from '../fixtures/media'
  * Only `chromium-desktop` runs these. Font rasterisation differs between engines, so
  * three browsers would mean three snapshot sets and three ways to be flaky for no extra
  * information.
+ *
+ * None of these pass `layout` to `wallUrl`. The display URL's `?layout=` is dead: the
+ * server accepts it on `GET /api/events/:slug/wall` (`wallQuery` in
+ * `src/interface/http/schemas/requestSchemas.ts`), but `api.wall()` sends no query and
+ * no browser-side hook reads it, so the projector always starts on the event's stored
+ * layout — `spotlight` by default. Passing it made the mosaic test snapshot the
+ * spotlight for four baselines running. Until the parameter is wired end to end, the
+ * only real way to reach another layout is the host's own `L` shortcut, which is what
+ * the mosaic test uses.
  */
 
 test.describe('the projected wall @visual', () => {
@@ -89,10 +98,8 @@ test.describe('the projected wall @visual', () => {
     const event = await seedAlbum(app, surfaces, 'spotlight')
     const { projector } = surfaces
 
-    await projector.goto(
-      wallUrl(app, event.slug, { layout: 'spotlight', intervalMs: 600_000, transitionMs: 0 }),
-    )
-    await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
 
     // A very long interval, so the wall is not mid-advance when the shot is taken.
     await expect(projector).toHaveScreenshot('wall-spotlight.png', { animations: 'disabled' })
@@ -102,10 +109,15 @@ test.describe('the projected wall @visual', () => {
     const event = await seedAlbum(app, surfaces, 'mosaique')
     const { projector } = surfaces
 
-    await projector.goto(
-      wallUrl(app, event.slug, { layout: 'mosaic', intervalMs: 600_000, transitionMs: 0 }),
-    )
-    await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+
+    // `L` is the host's layout shortcut, and the only route to the mosaic there is.
+    // Asserting six tiles before the shot is what keeps this test honest: a spotlight
+    // has one, so a silent fall back to it fails here rather than in a snapshot diff
+    // nobody reads.
+    await projector.keyboard.press('l')
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(6)
 
     await expect(projector).toHaveScreenshot('wall-mosaic.png', { animations: 'disabled' })
   })
@@ -122,10 +134,8 @@ test.describe('the projected wall @visual', () => {
       reducedMotion: 'reduce',
     })
     const page = await context.newPage()
-    await page.goto(
-      wallUrl(app, event.slug, { layout: 'spotlight', intervalMs: 600_000, transitionMs: 0 }),
-    )
-    await expect(page.getByTestId('wall-slide').first()).toBeVisible()
+    await page.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
+    await expect(page.getByTestId('wall-slide')).toHaveCount(1)
 
     await expect(page).toHaveScreenshot('wall-spotlight-reduced-motion.png', {
       animations: 'disabled',
