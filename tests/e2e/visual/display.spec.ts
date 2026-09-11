@@ -15,14 +15,15 @@ import { aPhoto } from '../fixtures/media'
  * three browsers would mean three snapshot sets and three ways to be flaky for no extra
  * information.
  *
- * None of these pass `layout` to `wallUrl`. The display URL's `?layout=` is dead: the
- * server accepts it on `GET /api/events/:slug/wall` (`wallQuery` in
- * `src/interface/http/schemas/requestSchemas.ts`), but `api.wall()` sends no query and
- * no browser-side hook reads it, so the projector always starts on the event's stored
- * layout — `spotlight` by default. Passing it made the mosaic test snapshot the
- * spotlight for four baselines running. Until the parameter is wired end to end, the
- * only real way to reach another layout is the host's own `L` shortcut, which is what
- * the mosaic test uses.
+ * The display URL's `?layout=` now selects the layout, read in the browser by
+ * `web/src/features/wall/hooks/useLayoutParam.ts`; the server no longer accepts a
+ * layout at all. These tests still reach the mosaic with the host's `L` shortcut
+ * instead, because a baseline is only worth what the assertion in front of it is worth:
+ * `?layout=` was dead for four baseline generations and every one of them quietly
+ * photographed the spotlight. Counting the tiles before the shot is what caught that,
+ * so the count stays and the route to the layout stays the one a person takes. That the
+ * URL reaches the same place is proved without a snapshot in
+ * `tests/e2e/journeys/display-wall.spec.ts`.
  */
 
 test.describe('the projected wall @visual', () => {
@@ -121,10 +122,9 @@ test.describe('the projected wall @visual', () => {
     await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
     await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
 
-    // `L` is the host's layout shortcut, and the only route to the mosaic there is.
-    // Asserting six tiles before the shot is what keeps this test honest: a spotlight
-    // has one, so a silent fall back to it fails here rather than in a snapshot diff
-    // nobody reads.
+    // `L` is the host's layout shortcut. Asserting six tiles before the shot is what
+    // keeps this test honest: a spotlight has one, so a silent fall back to it fails
+    // here rather than in a snapshot diff nobody reads.
     await projector.keyboard.press('l')
     await expect(projector.getByTestId('wall-slide')).toHaveCount(6)
 

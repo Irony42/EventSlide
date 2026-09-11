@@ -242,10 +242,14 @@ which is allowed.
 Only what a guest may know before joining. The owner, the quota, the counts and the
 settings that are none of their business are absent.
 
-**Errors** — `404 event.notFound` for an unknown code **and** for an event that is
-`draft`, `closed` or `archived`. Deliberately indistinguishable: a distinguishable
-"not open yet" would let someone enumerate which codes exist.
-`400 joinCode.wrongLength`, `400 joinCode.malformed`, `400 displayName.tooLong`,
+**Errors** — `404 event.notFound` for an unknown code, for an event that is `draft`,
+`closed` or `archived`, **and** for a request whose `es_guest` cookie names a guest of
+this event the host has revoked. All deliberately indistinguishable: a distinguishable
+"not open yet" would let someone enumerate which codes exist, and a distinguishable
+"you were removed" would make the front door the place that tells an ejected guest so.
+The revoked case sets no cookie and creates no guest — that refusal is what keeps a
+revocation from being undone by re-scanning the QR code on the table (`docs/SECURITY.md`
+§11). `400 joinCode.wrongLength`, `400 joinCode.malformed`, `400 displayName.tooLong`,
 `429 rate.limited`.
 
 ### `GET /api/events/:slug/wall`
@@ -253,16 +257,19 @@ settings that are none of their business are absent.
 The projected wall. Public read of **published** photos only — the read path is
 structurally incapable of returning a pending photo.
 
-Query: `layout` ∈ `spotlight | mosaic | polaroid | filmstrip`, optional; absent takes the
-domain's default. It changes one response, never a stored setting — there is no
-persisted per-event layout today.
+**No query parameter this endpoint acts on.** In particular there is no `layout`: the
+layout a room sees is a presentation choice belonging to the screen showing it, not a
+property of the event, so it is chosen in the browser and this endpoint neither accepts
+nor stores one. The `layout` in the response is the domain's default, which is what the
+display starts on unless that browser says otherwise (see below).
 
-The query schema is `.strict()` like every other, so **any other query parameter is a
-`400 request.invalid`**. That matters more here than anywhere else: this is the URL a
-projector is left on for eight hours, and a tracking parameter appended by whatever
-pasted the link turns the wall into an error page. Two further parameters,
-`e2e_interval` and `e2e_transition`, are accepted by the schema and read by nothing — see
-§9.
+The query schema is `.strict()` like every other, so **any parameter other than the two
+e2e hooks below is a `400 request.invalid`**. That matters more here than anywhere else:
+this is the URL a projector is left on for eight hours, and a tracking parameter appended
+by whatever pasted the link turns the wall into an error page. The exceptions are
+`e2e_interval` and `e2e_transition`, which the schema still accepts and nothing on the
+server reads — they are honoured in the browser, and only when the server was started
+with `E2E_HOOKS=1`. See §9.
 
 **200**
 
@@ -293,6 +300,16 @@ pasted the link turns the wall into an error page. Two further parameters,
 `revision` is an order-sensitive fingerprint of `items`. The client refetches when an
 SSE signal arrives and compares revisions to decide whether the playlist actually
 changed — which is what stops the wall jumping on every unrelated event.
+
+`layout` is where a wall **starts**, not where it stays, and from there on it is a
+client-side concern. The projector reads `?layout=` off its own _display_ URL —
+`/e/:slug/display?layout=mosaic`, which is what a kiosk's autostart line can hold — and
+the host's `L` key cycles the same thing at the screen; both live in the browser
+(`web/src/features/wall/hooks/useLayoutParam.ts`) and neither is sent here. Names are
+`spotlight | mosaic | polaroid | filmstrip`, and an unknown or malformed one is ignored
+in favour of this response's value rather than raising anything: a projector rendering
+nothing for eight hours is the one failure this screen may not have. `polaroid` and
+`filmstrip` are in the contract and render as their nearest built layout in 2.0.
 
 `joinCode` is present because the wall is also the invitation: it shows the code and a
 QR while it is empty, and keeps a small corner reminder afterwards, so a guest arriving
@@ -792,8 +809,9 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 `400 eventSettings.graceSecondsInvalid`, `400 eventSettings.retentionDaysInvalid`,
 `400 eventSettings.maxPhotosPerGuestInvalid`.
 
-There is no per-event wall `layout` here. The wall's layout is a per-request query
-parameter (§2) and nothing persists it.
+There is no per-event wall `layout` here, and no API accepts one anywhere: the layout is
+chosen at the screen — `?layout=` on the display URL, or the host's `L` key — and
+nothing persists it (§2).
 
 ### `POST /api/events/:slug/status`
 
@@ -886,6 +904,13 @@ expect it to change the answer. See §9.
 No body. **204**, and idempotent: this button is pressed on a phone in front of a
 projector and will be double-tapped, so the entity keeps the first timestamp.
 **Errors** — `404 guest.notFound`, which is also the answer for a guest of another event.
+
+Revoking cuts the device off in both directions: the token it holds answers
+`403 guest.revoked` on every guest route, and `POST /api/join` refuses that same device
+a fresh identity with the ordinary `404 event.notFound`. It binds the **device**, not the
+person — a guest who clears their cookies is a new guest with the code still printed on
+the table — so pair it with a join-code rotation against somebody determined.
+`docs/SECURITY.md` §11 has the full statement of the limit.
 
 ### `GET /api/events/:slug/moderators`
 
@@ -1184,9 +1209,9 @@ one: this queue is deliberately not cursor-paged, so the field should not be acc
 
 ### 9.5 The wall's e2e timing hooks are accepted and read by nothing — **stale code**
 
-`wallQuery` (`requestSchemas.ts:202`) accepts `e2e_interval` and `e2e_transition`, and
+`wallQuery` (`requestSchemas.ts:209`) accepts `e2e_interval` and `e2e_transition`, and
 its own comment says the route honours them under `E2E_HOOKS=1`. The route
-(`publicRoutes.ts:159`) passes `slideIntervalMs: null` unconditionally and reads neither;
+(`publicRoutes.ts:178`) passes `slideIntervalMs: null` unconditionally and reads neither;
 the real overrides live client-side in
 `web/src/features/wall/hooks/useTimingOverrides.ts`. The comment describes a design that
 is not there, and `HttpConfig.e2eHooks` is plumbed to this and used by nothing.

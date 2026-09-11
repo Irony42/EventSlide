@@ -11,6 +11,7 @@ import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallLayouts } from './components/WallLayouts'
 import { WallOverlay } from './components/WallOverlay'
+import { useLayoutParam } from './hooks/useLayoutParam'
 import { useSlideshow } from './hooks/useSlideshow'
 import { useTimingOverrides } from './hooks/useTimingOverrides'
 import { useWallKeyboard } from './hooks/useWallKeyboard'
@@ -23,9 +24,11 @@ const NO_ITEMS: readonly WallItemDto[] = []
 /**
  * What the `L` key walks through: the layouts this build actually renders.
  *
- * The host's real choice lives in event settings and arrives in the wall response.
- * This is the on-the-spot override for somebody standing at the projector who wants
- * the room to see more photos at once during the cocktail hour.
+ * Where a wall starts arrives in the wall response — the domain's default, since no
+ * layout is persisted per event. This is the on-the-spot change for somebody standing
+ * at the projector who wants the room to see more photos at once during the cocktail
+ * hour, and `?layout=` on the display URL is the same change made in advance, for a
+ * projector nobody is standing at.
  */
 const LAYOUT_CYCLE: readonly WallLayout[] = ['spotlight', 'mosaic']
 
@@ -86,9 +89,11 @@ const toggleFullscreen = (): void => {
  * The projected wall.
  *
  * Full-bleed and fixed, so the photo reaches the physical edge while every piece of
- * text stays inside the 4% overscan inset. It composes and owns no rules: the
- * interval, the Ken Burns duration, the layout and the playlist window are all
- * decisions the server has already made.
+ * text stays inside the 4% overscan inset. It composes and owns no rules: the interval,
+ * the Ken Burns duration and the playlist window are all decisions the server has
+ * already made. The layout is the one thing this screen decides for itself — from its
+ * own URL, or from the host's `L` key — because it is what the room looks like and not
+ * what the event is.
  *
  * The states in order of how often a room actually sees them: empty (the first twenty
  * minutes of the party, and the whole of a well-moderated evening's start), populated,
@@ -101,10 +106,17 @@ export function WallPage() {
 
   const { wall, loading, error, offline, reactionPulse, refresh } = useWallPlaylist(eventSlug)
   const { transitionMs } = useTimingOverrides()
+  const urlLayout = useLayoutParam()
 
   const items = wall?.items ?? NO_ITEMS
   const slideshow = useSlideshow({ items, intervalMs: wall?.slideIntervalMs ?? 0 })
 
+  /**
+   * Three sources, in the order a room means them: the key somebody just pressed, then
+   * the display URL the projector was launched on, then the layout the wall response
+   * carries. Derived rather than seeded into the state, so `L` is still the only thing
+   * that writes here and there is no copy of the URL to fall out of date.
+   */
   const [layoutOverride, setLayoutOverride] = useState<WallLayout | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
   const [joinCardDismissed, setJoinCardDismissed] = useState(false)
@@ -117,7 +129,9 @@ export function WallPage() {
     onStep: (step) => slideshow.advance(step),
     onToggleFullscreen: toggleFullscreen,
     onCycleLayout: () =>
-      setLayoutOverride((current) => nextLayout(current ?? serverLayout ?? 'spotlight')),
+      setLayoutOverride((current) =>
+        nextLayout(current ?? urlLayout ?? serverLayout ?? 'spotlight'),
+      ),
     onToggleHelp: () => setHelpOpen((open) => !open),
     onDismiss: () => {
       // One key, the obvious meaning: put away whatever is covering the photos.
@@ -163,7 +177,7 @@ export function WallPage() {
         <WallEmptyState eventName={wall.event.name} joinCode={joinCode} />
       ) : (
         <WallLayouts
-          layout={layoutOverride ?? wall.layout}
+          layout={layoutOverride ?? urlLayout ?? wall.layout}
           items={items}
           slideshow={slideshow}
           kenBurnsDurationMs={wall.kenBurnsDurationMs}

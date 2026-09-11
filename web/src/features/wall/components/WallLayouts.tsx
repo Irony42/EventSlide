@@ -18,7 +18,12 @@ interface LayoutViewProps {
 }
 
 export interface WallLayoutsProps extends LayoutViewProps {
-  /** The host's choice, from the wall response. */
+  /**
+   * The layout to render, already resolved by `WallPage`. In order of precedence: the
+   * `L` key's local override, then the display URL's `?layout=`, then the wall
+   * response's default. Not "the host's choice" — there is no per-event layout setting;
+   * the layout belongs to the screen, not to the event.
+   */
   readonly layout: WallLayout
 }
 

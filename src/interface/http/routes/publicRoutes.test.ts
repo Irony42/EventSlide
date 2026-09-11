@@ -15,6 +15,7 @@ import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepos
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import { aGuest, aPhoto, anEvent, atPlus } from '../../../application/testing/builders'
 import type { Photo } from '../../../domain/photos/photo'
+import { asEventId } from '../../../domain/shared/ids'
 import { CROSSFADE_MS } from '../../../domain/slideshow/kenBurns'
 import { buildPlaylist, type Playlist } from '../../../domain/slideshow/playlist'
 import { wallLayoutSpec } from '../../../domain/slideshow/wallLayout'
@@ -236,6 +237,27 @@ describe('POST /api/join', () => {
     expect(response.status).toBe(404)
     expect(response.body.error.code).toBe('event.notFound')
     expect(setCookies(response.headers['set-cookie'])).toEqual([])
+  })
+
+  it('answers that same 404 to a device the host revoked, and issues it no cookie', async () => {
+    // The re-scan a revocation has to survive: the QR code is printed on every table, so
+    // a fresh identity here would put the guest back on the wall within seconds. The
+    // answer is the unknown-code one — the guest reading it has just been ejected in
+    // front of a room, and the front door is not where that gets explained.
+    const { subject } = world()
+    subject.guests.seed(aGuest({ id: 'guest-9', eventId: WEDDING, revokedAt: subject.clock.now() }))
+    const revokedToken = subject.issueGuestToken(WEDDING, 'guest-9')
+
+    const response = await request(subject.app)
+      .post('/api/join')
+      .set('Cookie', `${GUEST_COOKIE}=${revokedToken}`)
+      .send({ joinCode: 'H7K2QM' })
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
+    // No fresh credential on the way out, and nothing that names the guest row either.
+    expect(setCookies(response.headers['set-cookie'])).toEqual([])
+    expect(await subject.guests.list(asEventId(WEDDING))).toHaveLength(1)
   })
 
   it.each([
@@ -618,16 +640,6 @@ describe('GET /api/events/:eventSlug/wall', () => {
     expect(after.body.revision).not.toBe(before.body.revision)
   })
 
-  it('honours the layout the projector asks for', async () => {
-    const { subject, photos } = world()
-    seedWall(photos)
-
-    const response = await request(subject.app).get('/api/events/mariage/wall?layout=mosaic')
-
-    expect(response.status).toBe(200)
-    expect(response.body.layout).toBe('mosaic')
-  })
-
   it('sends Cache-Control: no-store, because a cached playlist is a wall that stopped', async () => {
     const { subject, photos } = world()
     seedWall(photos)
@@ -657,7 +669,13 @@ describe('GET /api/events/:eventSlug/wall', () => {
     expect(response.body.kenBurnsDurationMs).toBe(8_800)
   })
 
+  // A layout is refused like any other parameter this contract does not have, valid
+  // name or not: the layout a room sees belongs to the screen showing it. The display
+  // URL's `?layout=` is read in the browser (`useLayoutParam`) and the host's `L` key
+  // changes the same thing, so a layout reaching the API could only be the server
+  // holding one client's view state for the length of a request.
   it.each([
+    { what: 'a layout this build renders', query: 'layout=mosaic' },
     { what: 'a layout that does not exist', query: 'layout=neon' },
     { what: 'a timing value outside the parsed bounds', query: 'e2e_interval=1' },
     { what: 'a parameter this contract does not have', query: 'windowSize=9000' },

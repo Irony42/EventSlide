@@ -51,6 +51,13 @@ export const createApi = (transport: Transport) => ({
   join: (joinCode: string, displayName: string | null): Promise<JoinResponse> =>
     transport.post('/api/join', { joinCode, displayName }),
 
+  /**
+   * No query string, on purpose. The display URL's `?layout=` and its `e2e_*` timing
+   * hooks are read in the browser (`web/src/features/wall/hooks/`) because they are
+   * one screen's presentation choices; forwarding them would ask the server to hold
+   * this client's view state for the length of a request, and `wallQuery` is `.strict()`
+   * so it answers `400 request.invalid` rather than pretend to.
+   */
   wall: (slug: string, signal?: AbortSignal): Promise<WallResponse> =>
     transport.get(`/api/events/${encode(slug)}/wall`, undefined, signal),
 

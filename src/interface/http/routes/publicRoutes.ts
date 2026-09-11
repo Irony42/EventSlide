@@ -141,29 +141,40 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
    * deliberate, because "nothing appears in front of the room without a host saying so"
    * is worth two independent gates rather than one.
    *
-   * The playlist and its timings are presented exactly as the domain computed them.
-   * `slideIntervalMs` and `kenBurnsDurationMs` are one value and its derivation
-   * (`interval + CROSSFADE_MS`), so a route that set either of them — from a query
-   * parameter, a test hook, or anything else — would make the 1.0 defect representable
-   * again: a zoom out of step with the slide, snapping in front of the room. The
-   * projector's own timing hooks are read from the display URL by
-   * `web/src/features/wall/hooks/useTimingOverrides.ts`, where they change one browser
-   * and never the API's answer.
+   * The playlist, its timings and its layout are presented exactly as the domain
+   * computed them. `slideIntervalMs` and `kenBurnsDurationMs` are one value and its
+   * derivation (`interval + CROSSFADE_MS`), so a route that set either of them — from a
+   * query parameter, a test hook, or anything else — would make the 1.0 defect
+   * representable again: a zoom out of step with the slide, snapping in front of the
+   * room.
+   *
+   * The layout is the same shape of decision and is settled the same way. It is a
+   * presentation choice belonging to one screen, so it is read from the *display* URL
+   * by `web/src/features/wall/hooks/useLayoutParam.ts` and cycled by the host's `L`
+   * key, alongside the timing hooks in `useTimingOverrides.ts` — all of them changing
+   * one browser and never the API's answer. Nothing here parses a layout, and
+   * `wallQuery` being `.strict()` means one sent anyway is a `400` rather than a
+   * setting the server pretends to hold for the length of a request.
+   *
+   * The parse still runs with its result unused: a query string this contract does not
+   * have is refused before the read path, which is what keeps a tracking parameter
+   * appended to the projector's link from being quietly honoured.
    */
   router.get(
     '/events/:eventSlug/wall',
     resolvePublicEvent(deps),
     withPublicEvent(async (event, req, res) => {
-      const query = wallQuery.parse(req.query)
+      wallQuery.parse(req.query)
 
       const result = await usecases.getWallPlaylist({
         // The canonical `Slug` off the resolved event rather than one re-derived from the
         // URL: a handler never repeats the lookup, and never scopes a read by an id it
         // parsed out of the path itself.
         slug: event.slug,
-        layout: query.layout ?? null,
-        // Neither the timing a room sees nor the size of the query a passer-by can
-        // provoke is the caller's decision. `null` on each takes the domain's default.
+        // Neither the layout a room sees, nor the timing, nor the size of the query a
+        // passer-by can provoke is the caller's decision. `null` on each takes the
+        // domain's default.
+        layout: null,
         slideIntervalMs: null,
         windowSize: null,
       })

@@ -342,9 +342,12 @@ restyling the hover colour itself.
 
 ## 9. Wall layouts
 
-Chosen by the host in event settings. Playlist and layout rules are pure code in
+Chosen at the screen, not on the event — there is no per-event layout setting. The
+projector's URL selects one (`/e/:slug/display?layout=mosaic`, for a kiosk nobody will
+touch) and the `L` key cycles from wherever that left it; absent both, the wall starts on
+the domain's default. Playlist and layout rules are pure code in
 `src/domain/slideshow/`; the renderer is one component per layout under
-`web/src/features/display/`.
+`web/src/features/wall/components/`.
 
 | Layout                             | Crop behaviour                                                                                                                                                                                      | Caption treatment                                                                                                                                       | Choose it when                                                                                                                                                            |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

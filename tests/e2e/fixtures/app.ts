@@ -168,11 +168,16 @@ export const joinAsGuest = async (
 }
 
 /**
- * Query hooks that make the wall testable without waiting ten real seconds a slide.
+ * The display URL a projector is left on, with the query a test needs on it.
  *
- * Only honoured when the server was started with `E2E_HOOKS=1`, and the config module
- * refuses to boot production with that flag set — so this cannot leak into a real
- * deployment.
+ * The two timing hooks make the wall assertable without waiting ten real seconds a
+ * slide. They are only honoured when the server was started with `E2E_HOOKS=1`, and the
+ * config module refuses to boot production with that flag set — so they cannot leak
+ * into a real deployment.
+ *
+ * `layout` is not a test hook: it is the product's own way of pointing a kiosk at a
+ * layout, read in the browser by `web/src/features/wall/hooks/useLayoutParam.ts` and
+ * sent to no API. An unknown value is ignored there, which is why a spec may pass one.
  */
 export const wallUrl = (
   app: TestApp,

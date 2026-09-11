@@ -503,26 +503,52 @@ already-issued guest tokens.** To cut off guests who already joined, revoke them
 close the event, which stops uploads outright. Anything already uploaded is sitting in
 the moderation queue; nothing published itself.
 
-> **(defect) — revocation on its own does not hold.** Revoking marks
-> the guest's row, and `requireGuest` then refuses that token with `403 guest.revoked`
-> — so the cut-off is real for the token the guest is holding. But `joinEvent`
-> deliberately lets a revoked guest fall through to a **new** row (see the comment at
-> `src/application/usecases/guests/joinEvent.ts`, which reasons that the front door
-> should not become the place that explains why somebody is not welcome). The guest
-> re-scans the QR code that is printed on every table, gets a fresh unrevoked identity,
-> and is uploading again inside a few seconds.
->
-> The reasoning about disclosure is sound — a join endpoint that explained a refusal
-> would be an oracle — but refusing and explaining are separable, and as it stands
-> `revokeGuest.ts`'s own docstring ("a revocation that did not actually stop the next
-> upload would be the worst possible outcome for a host standing in front of a
-> projector") describes what currently happens.
->
-> **Until it is fixed, revocation must be paired with a join-code rotation** to
-> actually stop a determined guest: revoke, then `POST /api/events/:slug/join-code` and
-> reprint. Rotation is what denies them the new identity. Note this inconveniences
-> every guest who has not joined yet, which is exactly why revocation alone was meant
-> to be the targeted control.
+### Revoking a guest
+
+Revocation is the targeted control, and it holds on its own against the phone in the
+room. Two gates, and the second is what makes the first worth pressing:
+
+| Gate                                           | Where                                                                         | Answer                                                           |
+| ---------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| The token the guest is holding stops granting  | `requireGuest` (middleware) and `authenticateGuest` (use case), independently | `403 guest.revoked` on upload, delete, caption, reaction         |
+| The device cannot re-join for a fresh identity | `joinEvent` (`src/application/usecases/guests/joinEvent.ts`)                  | `404 event.notFound`, no guest row, no cookie, no `guest.joined` |
+
+`joinEvent` reads the device token the phone presents, and a token naming a **revoked
+guest of this event** refuses the join instead of falling through to a new row. Without
+that second gate the first was decorative: the QR code is printed on every table, so a
+revoked guest re-scanned it, was handed a fresh unrevoked identity, and was uploading
+again inside a few seconds — exactly what `revokeGuest.ts`'s docstring ("a revocation
+that did not actually stop the next upload would be the worst possible outcome for a
+host standing in front of a projector") exists to prevent.
+
+**The refusal explains nothing, deliberately.** It is the same `404 event.notFound` an
+unknown code gets, byte for byte, and the guest reads the same French line a rotated code
+produces. Refusing and explaining are separable, and the person reading this answer is a
+guest who has just been ejected, standing in a room full of people: a distinct
+`guest.revoked` here would buy a host marginally easier debugging — the moderation
+console already shows the revoked row, and the revoked guest's own upload attempts
+already answer `guest.revoked` — at the price of confirming, on a screen someone may be
+reading over their shoulder, that they were specifically cut off. The check runs before
+the display name is parsed, so the refusal does not vary with what was typed alongside
+it. Revocation is scoped to the event that issued the token, like every other guest rule
+here: being removed from the gala is not a ban from the wedding.
+
+**The residual limit, stated plainly: this stops the re-scan, not the determined
+evader.** Revocation is tied to the device token in the cookie, so a guest who clears
+cookies, opens a private window, or borrows another phone arrives as a new device and
+therefore a new guest with the code still printed on the table. That is inherent to
+anonymous, account-free identity and is the accepted risk in §12 ("Guest identity is a
+device cookie, not a person"). The host's mental model should be **"revoking stops them
+until they work at it"**. Against somebody willing to work at it, pair revocation with a
+join-code rotation — revoke, then `POST /api/events/:slug/join-code` and reprint — or
+close the event. Rotation denies a new identity to everybody, including the guests who
+have not joined yet, which is why revocation and not rotation is the first thing to reach
+for.
+
+Covered at ring 2 (`joinEvent.test.ts`, "a phone the host revoked": the refusal, its
+indistinguishability from an unknown code, no new row, no announcement, and the ordinary
+and cross-event paths still working) and at ring 4 (`publicRoutes.test.ts`: the same 404
+with no `Set-Cookie` and no second guest row).
 
 ## 12. Accepted risks
 
@@ -530,9 +556,9 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 
 | Risk                                                                | Why it is accepted                                                                                                                                                                                                                                                    | Partial mitigation                                                                                                                                                                      |
 | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A guest with the join code can upload anything                      | that is the product; the alternative is per-guest accounts, which kills the zero-friction requirement. **Note this currently subsumes revocation** — see the defect in §11, where a revoked guest re-joins with the same code and gets a fresh identity               | moderation before projection, per-guest rate limit, host can revoke a guest                                                                                                             |
+| A guest with the join code can upload anything                      | that is the product; the alternative is per-guest accounts, which kills the zero-friction requirement                                                                                                                                                                 | moderation before projection, per-guest rate limit, host can revoke a guest — and a revoked device is refused at the join endpoint too, so the code alone no longer undoes it (§11)     |
 | A leaked display URL exposes published photos **and the join code** | the wall doubles as the invitation — the empty state exists to tell the room how to join, and someone arriving at 23:00 has only the screen to read. Withholding the code there would break the product to protect what the QR code on every table already gives away | only `published` photos are ever served; the host can rotate the join code, which invalidates it immediately; display access can require the join code for private events **(planned)** |
-| Guest identity is a device cookie, not a person                     | anonymity is a feature; a cleared cookie means a new guest, and a shared phone means a shared identity                                                                                                                                                                | grace-window deletion is deliberately short, so a mis-attributed identity has a narrow blast radius                                                                                     |
+| Guest identity is a device cookie, not a person                     | anonymity is a feature; a cleared cookie means a new guest, and a shared phone means a shared identity. This is also the ceiling on revocation (§11): it refuses the revoked **device**, so clearing cookies or borrowing a phone is a new guest with the same code   | grace-window deletion is deliberately short, so a mis-attributed identity has a narrow blast radius; revocation stops the re-scan, and a join-code rotation is what stops the evader    |
 | Captions and display names are guest-supplied text on a 3 m screen  | pre-moderating text as well as photos would slow the wall to uselessness                                                                                                                                                                                              | length-bounded, control characters stripped in the domain, rendered as text (React escapes; no `dangerouslySetInnerHTML` anywhere), and the host can hide any photo instantly           |
 | Rate-limit state is in-process in the first cut                     | a restart resets buckets                                                                                                                                                                                                                                              | quota is transactional and survives restarts; SQLite-backed limiter store is **(planned)**                                                                                              |
 | Self-hosted operators own their own patching, TLS, and backups      | there is no hosted control plane to push a fix from                                                                                                                                                                                                                   | pinned dependencies, published advisories, and boot-time config refusal so a misconfigured instance never starts quietly                                                                |

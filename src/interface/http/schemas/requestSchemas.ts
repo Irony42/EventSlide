@@ -198,10 +198,16 @@ export const guestListQuery = z
  * wait ten real seconds per slide. Only honoured when the server was started with
  * `E2E_HOOKS=1`; the route drops them otherwise, and the config module refuses to boot
  * production with that flag set.
+ *
+ * There is deliberately no `layout` here. The wall's layout is a presentation choice
+ * made at the screen — the host's `L` shortcut and `?layout=` on the *display* URL,
+ * both read in the browser by `web/src/features/wall/` — so accepting one on a read
+ * endpoint would only have the server hold the client's own view state for the length
+ * of one request. `.strict()` therefore answers `400 request.invalid` for it, which is
+ * the same answer every other unknown parameter gets.
  */
 export const wallQuery = z
   .object({
-    layout: z.enum(['spotlight', 'mosaic', 'polaroid', 'filmstrip']).optional(),
     e2e_interval: z.coerce.number().int().min(50).max(600_000).optional(),
     e2e_transition: z.coerce.number().int().min(0).max(10_000).optional(),
   })

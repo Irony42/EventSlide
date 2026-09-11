@@ -39,6 +39,29 @@ import type { IdGenerator } from '../../ports/idGenerator'
  * which they may delete a photo they regret, and their share of `maxPhotosPerGuest` —
  * and left the host counting one person twice in a guest list that is meant to read as
  * "who is in the room".
+ *
+ * ## A revoked device does not get a second identity
+ *
+ * The same rule read from the other side: one phone is one guest, so a phone whose guest
+ * the host revoked is a revoked guest here too, not a stranger. Letting it fall through
+ * to a fresh row made revocation decorative — the QR code is printed on every table, so
+ * the guest re-scanned it and was uploading again within seconds, which is exactly the
+ * outcome `revokeGuest` exists to prevent.
+ *
+ * The refusal says nothing. A join that presents a revoked device token is answered with
+ * the **same** `event.notFound` an unknown code gets, so the front door never becomes the
+ * place that explains why somebody is not welcome: the person reading that answer is a
+ * guest who has just been ejected, standing in a room full of people, and "Ce code ne
+ * correspond à aucune galerie ouverte" is both what a rotated code says and all they need
+ * to stop trying. A distinct `guest.revoked` here would buy a host slightly easier
+ * debugging — the moderation console already shows the revoked row — at the price of
+ * confirming to a guest, in front of the room, that they were specifically cut off.
+ *
+ * Know what this does **not** close. Revocation is tied to the device token in the
+ * cookie, so a guest who clears cookies, opens a private window, or borrows another phone
+ * is a new device and therefore a new guest. That is inherent to anonymous, account-free
+ * identity (`docs/SECURITY.md` §12) and pairing revocation with a join-code rotation
+ * remains the thorough answer; what is closed here is the trivial re-scan.
  */
 
 export interface JoinEventInput {
@@ -49,7 +72,8 @@ export interface JoinEventInput {
   /**
    * The device token this phone already holds, verbatim from its cookie. Absent on a
    * first join, and untrusted: it is verified here, and honoured only when it names
-   * *this* event and a guest row that still exists and is still allowed in.
+   * *this* event and a guest row that still exists. One that names a guest the host
+   * revoked is neither honoured nor ignored — it refuses the join.
    */
   readonly deviceToken?: string
 }
@@ -75,6 +99,23 @@ export interface JoinEventDeps {
 
 export type JoinEvent = (input: JoinEventInput) => Promise<Result<JoinEventOutput, DomainError>>
 
+/**
+ * What the device token a request presented amounts to at this event.
+ *
+ * Three cases rather than `Guest | null`, because the two ways of holding no usable
+ * identity call for opposite answers. A token that names nothing this event knows is an
+ * ordinary first join; a token that names a guest the host revoked is a refusal, and
+ * collapsing them into one `null` is precisely how revocation used to be undone by the
+ * QR code on the table.
+ */
+type PresentedDevice =
+  /** Absent, unreadable, issued for another event, or naming a row that is gone. */
+  | { readonly kind: 'unknown' }
+  /** A guest of this event who is still allowed in. */
+  | { readonly kind: 'known'; readonly guest: Guest }
+  /** A guest of this event the host cut off. */
+  | { readonly kind: 'revoked' }
+
 export const makeJoinEvent = ({
   events,
   guests,
@@ -84,35 +125,35 @@ export const makeJoinEvent = ({
   bus,
 }: JoinEventDeps): JoinEvent => {
   /**
-   * The guest a presented device token already stands for at this event, or `null` when
-   * the request has no usable identity yet.
+   * What the device token a request presented stands for at this event.
    *
-   * Every reason to answer `null` ends the same way — a new guest — so none of them is
-   * reported: a stranger posting a guessed token learns nothing beyond what an empty
+   * Every reason to answer `unknown` ends the same way — a new guest — so none of them
+   * is reported: a stranger posting a guessed token learns nothing beyond what an empty
    * cookie jar would have told them. The event scope is the load-bearing check. A token
    * issued for the gala must not reach a wedding guest row, which is the same rule the
    * guest middleware enforces as `guest.wrongEvent`; here there is no principal to
-   * refuse, so the token is simply not this device's identity at this event.
+   * refuse, so the token is simply not this device's identity at this event — and that
+   * scoping is what keeps a guest revoked at one party welcome at the next.
    *
-   * A revoked guest falls through to a new row, exactly as before: revocation is a
-   * question about the token the host cut off, and answering it here would turn the
-   * front door into the place that explains why somebody is not welcome.
+   * `revoked` is answered only for a guest of **this** event, because only a token this
+   * event issued names one. The caller decides what to say about it; this function still
+   * reports nothing.
    */
-  const deviceGuest = async (
+  const presentedDevice = async (
     eventId: EventId,
     presented: string | undefined,
     now: Date,
-  ): Promise<Guest | null> => {
-    if (presented === undefined) return null
+  ): Promise<PresentedDevice> => {
+    if (presented === undefined) return { kind: 'unknown' }
 
     const claims = tokens.verify(presented, now)
-    if (!claims.ok || claims.value.eventId !== eventId) return null
+    if (!claims.ok || claims.value.eventId !== eventId) return { kind: 'unknown' }
 
     // The row may be gone — the event was purged and recreated — and a signed token
     // outliving its guest grants nothing.
     const guest = await guests.findById(eventId, claims.value.guestId)
-    if (guest === null || guest.isRevoked()) return null
-    return guest
+    if (guest === null) return { kind: 'unknown' }
+    return guest.isRevoked() ? { kind: 'revoked' } : { kind: 'known', guest }
   }
 
   return async (input) => {
@@ -131,7 +172,16 @@ export const makeJoinEvent = ({
     }
 
     const now = clock.now()
-    const device = await deviceGuest(event.id, input.deviceToken, now)
+    const device = await presentedDevice(event.id, input.deviceToken, now)
+
+    // The host already cut this device off, and the QR code is printed on every table:
+    // minting a fresh identity here is what made revocation decorative. Refused with the
+    // unknown-code answer, and refused *before* the name is parsed, so the front door
+    // neither explains the refusal nor grades what was typed alongside it.
+    if (device.kind === 'revoked') {
+      return err(DomainError.notFound('event.notFound'))
+    }
+    const returning = device.kind === 'known' ? device.guest : null
 
     // Chained rather than narrowed twice: neither `Guest.create` nor a rename of a
     // guest already known to be active can fail today, and an `if` on a `Result` that
@@ -139,7 +189,7 @@ export const makeJoinEvent = ({
     // future rule out of the entity unchanged. Chaining also means a rejected name
     // consumes no guest id.
     const joined = flatMap(DisplayName.createOptional(input.displayName), (displayName) => {
-      if (device === null) {
+      if (returning === null) {
         return Guest.create({ eventId: event.id, displayName }, ids.guestId(), now)
       }
       // No name in the request means the guest did not say, not that they want the
@@ -147,7 +197,7 @@ export const makeJoinEvent = ({
       // on its own to resolve the event, so reading silence as "anonymous" would
       // un-sign a returning guest's photos without anybody asking for it. Going
       // anonymous on purpose is a rename.
-      return displayName === null ? ok(device) : device.rename(displayName)
+      return displayName === null ? ok(returning) : returning.rename(displayName)
     })
     if (!joined.ok) return joined
 

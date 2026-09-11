@@ -317,8 +317,10 @@ describe('moderationQueueQuery', () => {
 })
 
 describe('wallQuery', () => {
-  it('accepts a layout override', () => {
-    expect(wallQuery.safeParse({ layout: 'mosaic' }).success).toBe(true)
+  it('rejects a layout, which is the projector’s own choice and not the server’s', () => {
+    // Accepting one would have the server hold a single screen's presentation state for
+    // the length of a request. The display URL's `?layout=` is read in the browser.
+    expect(wallQuery.safeParse({ layout: 'mosaic' }).success).toBe(false)
   })
 
   it('accepts the e2e timing hooks, which the route only honours when enabled', () => {

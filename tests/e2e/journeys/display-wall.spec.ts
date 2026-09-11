@@ -163,6 +163,32 @@ test('a guest photo is never cropped in the spotlight layout', async ({ app, sur
   expect(fit).toBe('contain')
 })
 
+test('the display URL picks the layout, for a projector nobody will touch', async ({
+  app,
+  surfaces,
+}) => {
+  // A kiosk autostarts one URL and is then left alone for eight hours, so `?layout=` is
+  // the `L` key for that machine. Three published photos, because the count is what
+  // tells the layouts apart: the mosaic gives each photo a tile, the spotlight shows
+  // one photo at a time.
+  const event = await anEventWithPublishedPhotos(app, surfaces, 3, 'disposition')
+  const { projector } = surfaces
+
+  await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic' }))
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(3)
+
+  // A layout nobody implements, as a typo in a kiosk config would leave it. The room
+  // gets the layout the wall response carries — never a blank screen.
+  await projector.goto(wallUrl(app, event.slug, { layout: 'neon' }))
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+
+  // And the host who does walk up carries on from where the URL put the wall.
+  await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic' }))
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(3)
+  await projector.keyboard.press('l')
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+})
+
 test('the wall keeps playing when the connection drops', async ({ app, surfaces }) => {
   // Never a blank screen and never a spinner over the room's photos: the host is not
   // at the laptop, and a wall that gave up would stay given up until morning.

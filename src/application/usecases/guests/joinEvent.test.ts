@@ -402,14 +402,124 @@ describe('joinEvent', () => {
 
       expect(result.ok && result.value.guestId).toBe(asGuestId('guest-1'))
     })
+  })
 
-    it('leaves a guest the host revoked revoked, rather than reviving their row', async () => {
-      guests.seed(aGuest({ id: 'guest-9', eventId: WEDDING, revokedAt: AT }))
-      const deviceToken = deviceTokenFor(WEDDING, asGuestId('guest-9'))
+  // ------------------------------------------------------------- a revoked phone --
+
+  /**
+   * A host revoking a disruptive guest has to stop the next upload, and the QR code is
+   * printed on every table: a re-scan that minted a fresh unrevoked identity made the
+   * whole control decorative, and the guest was uploading again within seconds.
+   *
+   * The refusal explains nothing. The person reading it is a guest who has just been
+   * ejected, standing in a room full of people, so the answer is the one an unknown code
+   * gets — indistinguishable from a rotated code, and enough to stop them trying.
+   */
+  describe('a phone the host revoked', () => {
+    const aRevokedPhone = (eventId: EventId = WEDDING): string => {
+      guests.seed(aGuest({ id: 'guest-9', eventId, displayName: 'Léa', revokedAt: AT }))
+      return deviceTokenFor(eventId, asGuestId('guest-9'))
+    }
+
+    it('refuses a re-scan from a device the host cut off', async () => {
+      const deviceToken = aRevokedPhone()
+
+      const result = await join({ joinCode: WEDDING_CODE, deviceToken })
+
+      expect(result.ok).toBe(false)
+    })
+
+    it('answers a revoked device exactly as an unknown code, explaining nothing', async () => {
+      // The whole error, not just its code: a status or a `details` bag that differed
+      // would still make the front door the place that tells a guest they were ejected.
+      const deviceToken = aRevokedPhone()
+
+      const revoked = await join({ joinCode: WEDDING_CODE, deviceToken })
+      const stranger = await join({ joinCode: 'Z9Z9Z9' })
+
+      expect(!revoked.ok && revoked.error).toEqual(!stranger.ok && stranger.error)
+      expect(!revoked.ok && revoked.error.code).toBe('event.notFound')
+    })
+
+    it('mints no new guest for a device the host cut off', async () => {
+      // The defect itself: a second row, unrevoked, and the next upload goes through.
+      const deviceToken = aRevokedPhone()
+
+      await join({ joinCode: WEDDING_CODE, deviceToken })
+
+      expect((await guests.list(WEDDING)).map((guest) => guest.id)).toEqual([asGuestId('guest-9')])
+    })
+
+    it('spends no guest id on a device it turned away', async () => {
+      const deviceToken = aRevokedPhone()
+      await join({ joinCode: WEDDING_CODE, deviceToken })
+
+      const next = await join({ joinCode: WEDDING_CODE })
+
+      expect(next.ok && next.value.guestId).toBe(asGuestId('guest-1'))
+    })
+
+    it('leaves the revoked guest revoked rather than reviving their row', async () => {
+      const deviceToken = aRevokedPhone()
+
+      await join({ joinCode: WEDDING_CODE, displayName: 'Sacha', deviceToken })
+
+      const guest = await guests.findById(WEDDING, asGuestId('guest-9'))
+      expect([guest?.isRevoked(), guest?.label()]).toEqual([true, 'Léa'])
+    })
+
+    it('announces nothing, so the host sees no arrival for a guest they removed', async () => {
+      const deviceToken = aRevokedPhone()
+
+      await join({ joinCode: WEDDING_CODE, deviceToken })
+
+      expect(bus.published).toEqual([])
+    })
+
+    it('refuses before grading the name, so the refusal reads the same whatever was typed', async () => {
+      // `displayName.tooLong` here would confirm the code resolved to a real event and
+      // that the request got past the door — which is what this refusal must not say.
+      const deviceToken = aRevokedPhone()
+
+      const result = await join({
+        joinCode: WEDDING_CODE,
+        displayName: 'Léa'.repeat(20),
+        deviceToken,
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.notFound')
+    })
+
+    it('turns away only the revoked device, not everyone still holding a printed card', async () => {
+      // The refusal is about one device, never about the event: a revocation that closed
+      // the front door would be a worse outage than the defect it replaced.
+      aRevokedPhone()
+
+      const result = await join({ joinCode: WEDDING_CODE, displayName: 'Sacha' })
+
+      expect(result.ok && result.value.guestId).toBe(asGuestId('guest-1'))
+    })
+
+    it('lets a phone revoked at another event join this one', async () => {
+      // Revocation is scoped to the event that issued the token, like every other guest
+      // rule here. Being thrown out of the gala is not a ban from the wedding.
+      const deviceToken = aRevokedPhone(GALA)
 
       const result = await join({ joinCode: WEDDING_CODE, deviceToken })
 
       expect(result.ok && result.value.guestId).toBe(asGuestId('guest-1'))
+    })
+
+    it('still lets the phone it already knows back in, so a re-join is unaffected', async () => {
+      // The ordinary path, asserted next to the refusal: one phone is one guest, and the
+      // fix must not cost a returning guest the row their photos are filed under.
+      aRevokedPhone()
+      const first = await join({ joinCode: WEDDING_CODE, displayName: 'Sacha' })
+      if (!first.ok) throw new Error(`the arrange join failed: ${first.error.code}`)
+
+      const again = await join({ joinCode: WEDDING_CODE, deviceToken: first.value.token })
+
+      expect(again.ok && again.value.guestId).toBe(asGuestId('guest-1'))
     })
   })
 })

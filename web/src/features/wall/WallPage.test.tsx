@@ -428,6 +428,51 @@ describe('WallPage', () => {
     expect(screen.getAllByText('Léa')).toHaveLength(6)
   })
 
+  /**
+   * `?layout=` on the display URL: the `L` key for a projector nobody is standing at.
+   *
+   * A kiosk's autostart line is the only thing that touches that machine all evening,
+   * so the layout a room is set up for has to be expressible there. It is a choice
+   * belonging to one screen — the server is neither told about it nor asked for it.
+   */
+  it('starts on the layout the display URL asks for, with nobody there to press L', async () => {
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(8) })) })
+    renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=mosaic`, path: PATH })
+
+    expect(await screen.findAllByTestId('wall-slide')).toHaveLength(6)
+    // The wall asked for the playlist and nothing else: the layout never left the browser.
+    expect(api.wall).toHaveBeenCalledWith('camille-et-sacha', expect.anything())
+  })
+
+  it.each([
+    { what: 'a layout that does not exist', query: 'layout=neon' },
+    { what: 'an empty value', query: 'layout=' },
+    { what: 'a value that is not a layout name at all', query: 'layout=%7B%7D' },
+  ])('keeps showing the wall’s own layout when the URL carries $what', async ({ query }) => {
+    // The one screen in the product that must never go blank, running unattended for
+    // eight hours. A typo in a kiosk config falls back to the layout the response
+    // carries; it does not take the room's screen down or render nothing.
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(8) })) })
+    renderWithProviders(<WallPage />, { api, route: `${ROUTE}?${query}`, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    expect(screen.getAllByTestId('wall-slide')).toHaveLength(1)
+    expect(within(screen.getByTestId('wall-slide')).getByText('Photo 0')).toBeVisible()
+  })
+
+  it('cycles with L from wherever the URL put the wall', async () => {
+    // The host who does walk up to a projector started on the mosaic must not have to
+    // press `L` three times to get anywhere: the key continues from what is on screen.
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(8) })) })
+    renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=mosaic`, path: PATH })
+    expect(await screen.findAllByTestId('wall-slide')).toHaveLength(6)
+
+    await userEvent.keyboard('l')
+
+    expect(screen.getAllByTestId('wall-slide')).toHaveLength(1)
+    expect(within(screen.getByTestId('wall-slide')).getByText('Photo 0')).toBeVisible()
+  })
+
   it('explains its keyboard shortcuts when the host presses the question mark', async () => {
     const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
