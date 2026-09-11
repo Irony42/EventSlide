@@ -65,7 +65,7 @@ export const moderationRoutes = ({ usecases }: HttpDeps): Router => {
       const result = await usecases.moderatePhoto({
         eventSlug: params.eventSlug,
         photoId: params.photoId,
-        actor: req.actor,          // set by authn middleware, typed in types.ts
+        actor: req.actor, // set by authn middleware, typed in types.ts
         status: body.status,
       })
 
@@ -85,13 +85,13 @@ export const moderationRoutes = ({ usecases }: HttpDeps): Router => {
 
 ## 3. Authorization — declare it, per route
 
-| Middleware | Grants |
-| --- | --- |
-| `requireRole('owner')` | event owner only |
-| `requireRole('moderator')` | owner or moderator of **that** event |
-| `requireGuest()` | a valid HMAC device token scoped to **that** event |
-| `requireGuestOwnsPhoto()` | guest token + photo authored by that token, inside the grace window |
-| *(none)* | genuinely public — join lookup, health |
+| Middleware                 | Grants                                                              |
+| -------------------------- | ------------------------------------------------------------------- |
+| `requireRole('owner')`     | event owner only                                                    |
+| `requireRole('moderator')` | owner or moderator of **that** event                                |
+| `requireGuest()`           | a valid HMAC device token scoped to **that** event                  |
+| `requireGuestOwnsPhoto()`  | guest token + photo authored by that token, inside the grace window |
+| _(none)_                   | genuinely public — join lookup, health                              |
 
 There is no ambient "logged in means allowed". `requireRole` resolves the event from
 `:eventSlug` and checks membership **of that event**. A route with no explicit
@@ -139,7 +139,7 @@ export interface PhotoDto {
   readonly fullUrl: string
 }
 
-export const toPhotoDto = (photo: Photo, event: Event): PhotoDto => ({ /* … */ })
+export const toPhotoDto = (photo: Photo, event: Event): PhotoDto => ({/* … */})
 ```
 
 The wire format is a **contract**. Returning the entity means every internal field

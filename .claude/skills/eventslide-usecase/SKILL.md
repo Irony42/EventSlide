@@ -33,9 +33,12 @@ export interface PublishPhotoDeps {
   readonly clock: Clock
 }
 
-export type PublishPhoto = (input: PublishPhotoInput) => Promise<Result<void, DomainError>>
+export type PublishPhoto = (
+  input: PublishPhotoInput,
+) => Promise<Result<void, DomainError>>
 
-export const makePublishPhoto = ({ photos, bus, clock }: PublishPhotoDeps): PublishPhoto =>
+export const makePublishPhoto =
+  ({ photos, bus, clock }: PublishPhotoDeps): PublishPhoto =>
   async ({ eventId, photoId }) => {
     // Scoped read: passing eventId is what makes cross-tenant access impossible.
     const photo = await photos.findById(eventId, photoId)
@@ -187,7 +190,10 @@ describe('publishPhoto', () => {
   it('publishes a pending photo and announces it', async () => {
     photos.seed(aPhoto({ id: 'p1', eventId: 'wedding', status: 'pending' }))
 
-    const result = await publishPhoto({ eventId: asEventId('wedding'), photoId: asPhotoId('p1') })
+    const result = await publishPhoto({
+      eventId: asEventId('wedding'),
+      photoId: asPhotoId('p1'),
+    })
 
     expect(result.ok).toBe(true)
     const stored = await photos.findById(asEventId('wedding'), asPhotoId('p1'))
@@ -200,16 +206,24 @@ describe('publishPhoto', () => {
   it('cannot publish a photo that belongs to another event', async () => {
     photos.seed(aPhoto({ id: 'p1', eventId: 'other-wedding', status: 'pending' }))
 
-    const result = await publishPhoto({ eventId: asEventId('wedding'), photoId: asPhotoId('p1') })
+    const result = await publishPhoto({
+      eventId: asEventId('wedding'),
+      photoId: asPhotoId('p1'),
+    })
 
     expect(!result.ok && result.error.code).toBe('photo.notFound')
     expect(bus.published).toEqual([])
   })
 
   it('does not announce anything when the transition is refused', async () => {
-    photos.seed(aPhoto({ id: 'p1', eventId: 'wedding', status: 'rejected', lockedByHost: true }))
+    photos.seed(
+      aPhoto({ id: 'p1', eventId: 'wedding', status: 'rejected', lockedByHost: true }),
+    )
 
-    const result = await publishPhoto({ eventId: asEventId('wedding'), photoId: asPhotoId('p1') })
+    const result = await publishPhoto({
+      eventId: asEventId('wedding'),
+      photoId: asPhotoId('p1'),
+    })
 
     expect(result.ok).toBe(false)
     expect(bus.published).toEqual([])

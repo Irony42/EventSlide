@@ -14,15 +14,15 @@ rule is hard to test, it is in the wrong layer.
 
 ## Decide where it goes
 
-| The rule… | Belongs in |
-| --- | --- |
-| is true regardless of storage or transport | `src/domain` |
-| orchestrates several domain objects and needs I/O | `src/application/usecases` |
-| is about HTTP shapes, status codes, or cookies | `src/interface/http` |
-| is about how something looks | `web/src/design-system` or the feature folder |
+| The rule…                                         | Belongs in                                    |
+| ------------------------------------------------- | --------------------------------------------- |
+| is true regardless of storage or transport        | `src/domain`                                  |
+| orchestrates several domain objects and needs I/O | `src/application/usecases`                    |
+| is about HTTP shapes, status codes, or cookies    | `src/interface/http`                          |
+| is about how something looks                      | `web/src/design-system` or the feature folder |
 
-Litmus test: *could this rule be wrong in a way a customer would notice, with no
-network and no disk involved?* If yes, it is domain.
+Litmus test: _could this rule be wrong in a way a customer would notice, with no
+network and no disk involved?_ If yes, it is domain.
 
 ## Value objects: parse, don't validate
 
@@ -41,7 +41,9 @@ export class Caption {
 
   static create(raw: string): Result<Caption, DomainError> {
     // eslint-disable-next-line no-control-regex -- stripping C0/C1 is the point
-    const cleaned = raw.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, ' ').trim()
+    const cleaned = raw
+      .replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, ' ')
+      .trim()
     if (cleaned.length === 0) return err(DomainError.invalid('caption.empty'))
     if (cleaned.length > MAX_LENGTH) {
       return err(DomainError.invalid('caption.tooLong', { max: MAX_LENGTH }))
@@ -125,8 +127,8 @@ static create(input: NewPhoto, id: PhotoId, now: Date): Result<Photo, DomainErro
 ```ts
 // src/domain/shared/result.ts
 export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E }
-export const ok  = <T>(value: T): Result<T, never>  => ({ ok: true,  value })
-export const err = <E>(error: E): Result<never, E>  => ({ ok: false, error })
+export const ok = <T>(value: T): Result<T, never> => ({ ok: true, value })
+export const err = <E>(error: E): Result<never, E> => ({ ok: false, error })
 ```
 
 Narrow with `if (!result.ok) return result`. Do not `!`-assert `result.value`.

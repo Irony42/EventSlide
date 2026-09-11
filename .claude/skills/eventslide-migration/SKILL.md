@@ -89,7 +89,7 @@ from backup if you truly need to go back.
 - Primary keys are application-generated opaque ids (`TEXT`), never `AUTOINCREMENT` —
   ids appear in URLs and must not enumerate.
 - Every event-scoped table carries `event_id TEXT NOT NULL REFERENCES events(id) ON
-  DELETE CASCADE`. That cascade is what makes "delete this event and everything in it"
+DELETE CASCADE`. That cascade is what makes "delete this event and everything in it"
   correct and atomic.
 - Every event-scoped table has an index **leading with `event_id`**, because every
   query filters on it:
@@ -106,7 +106,7 @@ from backup if you truly need to go back.
   ```
   The last one makes a double-tapped upload a no-op instead of a duplicate slide.
 - Use `CHECK` constraints for closed enums (`status IN ('pending','published',
-  'rejected','hidden')`). The domain validates too — defence in depth, and it documents
+'rejected','hidden')`). The domain validates too — defence in depth, and it documents
   the column.
 
 ## Repository and tests
@@ -121,7 +121,7 @@ A schema change is not done until:
 
 ```ts
 it('adds the perceptual hash column and its partial index', () => {
-  const db = migratedDatabase()          // in-memory, all migrations applied
+  const db = migratedDatabase() // in-memory, all migrations applied
   const columns = db.prepare(`PRAGMA table_info(photos)`).all()
   expect(columns.map((c) => c.name)).toContain('perceptual_hash')
 

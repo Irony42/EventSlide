@@ -1,6 +1,12 @@
 node_modules
 dist
+
+# `coverage` alone did not match `coverage-guests/`, a scratch report directory that a
+# `--coverage.reportsDirectory` override produced and a `git add -A` then committed. The
+# glob covers any such variant; CI's `prettier --check .` is what noticed, by refusing to
+# format the JSON inside it.
 coverage
+coverage-*/
 
 # Runtime state. An event's photos and database belong to the operator, never to git.
 #

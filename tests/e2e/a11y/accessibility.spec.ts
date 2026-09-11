@@ -101,6 +101,7 @@ test.describe('the guest surface', () => {
   test('the skip link is the first stop and leads to the main content', async ({
     app,
     surfaces,
+    browserName,
   }) => {
     // It is in the tab order of every surface, so it is the first thing a keyboard user
     // meets — and the easiest thing to break without anyone noticing, because it is
@@ -109,7 +110,18 @@ test.describe('the guest surface', () => {
     await surfaces.guest.goto(app.url('/join'))
 
     const skip = surfaces.guest.getByRole('link', { name: fr.shell.skipToContent })
-    await surfaces.guest.keyboard.press('Tab')
+
+    // Reaching it by `Tab` is asserted everywhere except WebKit, where Safari leaves
+    // links out of the sequential focus order unless the user turns on Full Keyboard
+    // Access. That is a browser default, not a defect here: the sibling test that tabs
+    // into the join *field* passes on WebKit, because form controls are focusable there
+    // either way. Skipping the whole test would be the lazy read — everything below this
+    // line is engine-independent and is the half most likely to break.
+    if (browserName === 'webkit') {
+      await skip.focus()
+    } else {
+      await surfaces.guest.keyboard.press('Tab')
+    }
     await expect(skip).toBeFocused()
 
     // Parked off-screen with a transform and slid back on focus (AppShell.module.css).

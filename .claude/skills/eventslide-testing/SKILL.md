@@ -9,14 +9,14 @@ Six rings. Each answers a question the others cannot. Putting a test in the wron
 is the most common quality mistake in this repo: it makes the suite slow, flaky, and
 still full of holes.
 
-| Ring | Location | Question it answers | Doubles | Runtime |
-| --- | --- | --- | --- | --- |
-| 1 Domain unit | `src/domain/**/*.test.ts` | is the rule correct? | none — pure code | µs |
-| 2 Use case | `src/application/**/*.test.ts` | is the orchestration correct? | in-memory fakes | <1 ms |
-| 3 Adapter | `src/infrastructure/**/*.test.ts` | does the adapter honour the port? | real SQLite `:memory:`, temp dirs | ms |
-| 4 HTTP contract | `src/interface/http/**/*.test.ts` | is the wire contract and authz right? | supertest + fakes | ms |
-| 5 Component | `web/src/**/*.test.tsx` | does the UI behave? | Testing Library + fake transport | ms |
-| 6 E2E | `tests/e2e/**/*.spec.ts` | does the journey work for real? | none — real everything | seconds |
+| Ring            | Location                          | Question it answers                   | Doubles                           | Runtime |
+| --------------- | --------------------------------- | ------------------------------------- | --------------------------------- | ------- |
+| 1 Domain unit   | `src/domain/**/*.test.ts`         | is the rule correct?                  | none — pure code                  | µs      |
+| 2 Use case      | `src/application/**/*.test.ts`    | is the orchestration correct?         | in-memory fakes                   | <1 ms   |
+| 3 Adapter       | `src/infrastructure/**/*.test.ts` | does the adapter honour the port?     | real SQLite `:memory:`, temp dirs | ms      |
+| 4 HTTP contract | `src/interface/http/**/*.test.ts` | is the wire contract and authz right? | supertest + fakes                 | ms      |
+| 5 Component     | `web/src/**/*.test.tsx`           | does the UI behave?                   | Testing Library + fake transport  | ms      |
+| 6 E2E           | `tests/e2e/**/*.spec.ts`          | does the journey work for real?       | none — real everything            | seconds |
 
 Choosing:
 
@@ -35,18 +35,18 @@ the leak. Regression tests go in the cheapest ring that would have caught it.
 
 `src/application/testing/` contains real in-memory implementations of every port:
 
-| Fake | Behaviour that matters |
-| --- | --- |
-| `FakeEventRepository` | slug and join-code uniqueness enforced, as in SQLite |
-| `FakePhotoRepository` | keyed by `${eventId}:${photoId}` — a cross-event read genuinely misses |
-| `FakeGuestRepository` | tokens scoped to one event |
-| `FakeUserRepository` | per-event role membership |
-| `InMemoryMediaStore` | byte buffers, `put`/`get`/`delete`, reports sizes |
-| `FakeImageProcessor` | deterministic metadata, simulates rotation and failure |
-| `FakeClock` | `now()`, `advance(ms)` |
-| `SequentialIdGenerator` | `id-1`, `id-2`, … — readable assertions |
-| `RecordingEventBus` | `published: DomainEvent[]` |
-| `FakePasswordHasher` | `hash:<password>`, fast, no bcrypt cost in tests |
+| Fake                    | Behaviour that matters                                                 |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `FakeEventRepository`   | slug and join-code uniqueness enforced, as in SQLite                   |
+| `FakePhotoRepository`   | keyed by `${eventId}:${photoId}` — a cross-event read genuinely misses |
+| `FakeGuestRepository`   | tokens scoped to one event                                             |
+| `FakeUserRepository`    | per-event role membership                                              |
+| `InMemoryMediaStore`    | byte buffers, `put`/`get`/`delete`, reports sizes                      |
+| `FakeImageProcessor`    | deterministic metadata, simulates rotation and failure                 |
+| `FakeClock`             | `now()`, `advance(ms)`                                                 |
+| `SequentialIdGenerator` | `id-1`, `id-2`, … — readable assertions                                |
+| `RecordingEventBus`     | `published: DomainEvent[]`                                             |
+| `FakePasswordHasher`    | `hash:<password>`, fast, no bcrypt cost in tests                       |
 
 Why this instead of `vi.mock`:
 
@@ -71,18 +71,30 @@ export const photoRepositoryContract = (
   makeSubject: () => Promise<{ repo: PhotoRepository; dispose?: () => Promise<void> }>,
 ) => {
   describe(`PhotoRepository contract: ${name}`, () => {
-    it('returns null for a photo that belongs to another event', async () => { /* … */ })
-    it('lists newest first', async () => { /* … */ })
-    it('filters by status', async () => { /* … */ })
-    it('sums bytes for one event only', async () => { /* … */ })
-    it('is idempotent on delete', async () => { /* … */ })
+    it('returns null for a photo that belongs to another event', async () => {
+      /* … */
+    })
+    it('lists newest first', async () => {
+      /* … */
+    })
+    it('filters by status', async () => {
+      /* … */
+    })
+    it('sums bytes for one event only', async () => {
+      /* … */
+    })
+    it('is idempotent on delete', async () => {
+      /* … */
+    })
   })
 }
 ```
 
 ```ts
 // src/infrastructure/db/sqlitePhotoRepository.test.ts
-photoRepositoryContract('sqlite', async () => { /* migrated :memory: db */ })
+photoRepositoryContract('sqlite', async () => {
+  /* migrated :memory: db */
+})
 
 // src/application/testing/fakePhotoRepository.test.ts
 photoRepositoryContract('fake', async () => ({ repo: new FakePhotoRepository() }))
@@ -154,13 +166,13 @@ These have their own dedicated tests and are never folded into a happy path:
 
 `vitest.config.ts`, enforced in CI:
 
-| Scope | Statements | Branches |
-| --- | --- | --- |
-| `src/domain/**` | 100% | 100% |
-| `src/application/**` | 100% | 100% |
-| `src/infrastructure/**` | 90% | 85% |
-| `src/interface/**` | 95% | 90% |
-| `web/src/**` | 85% | 80% |
+| Scope                   | Statements | Branches |
+| ----------------------- | ---------- | -------- |
+| `src/domain/**`         | 100%       | 100%     |
+| `src/application/**`    | 100%       | 100%     |
+| `src/infrastructure/**` | 90%        | 85%      |
+| `src/interface/**`      | 95%        | 90%      |
+| `web/src/**`            | 85%        | 80%      |
 
 Domain and application are at 100% because they are pure or fake-driven — there is no
 excuse, and the gate catches the rule you forgot to handle. Adapters are lower on
@@ -185,17 +197,17 @@ npm run verify                  # lint + typecheck + coverage + build
 
 ## Anti-patterns, all of which have bitten this project
 
-| Don't | Do |
-| --- | --- |
-| `vi.mock('../../database')` | inject a fake repository |
-| assert a spy was called | assert the resulting state |
+| Don't                                                | Do                                                   |
+| ---------------------------------------------------- | ---------------------------------------------------- |
+| `vi.mock('../../database')`                          | inject a fake repository                             |
+| assert a spy was called                              | assert the resulting state                           |
 | `expect(res.body.message).toBe('Photo introuvable')` | `expect(res.body.error.code).toBe('photo.notFound')` |
-| `await page.waitForTimeout(2000)` | an auto-retrying assertion |
-| one test asserting eight things | one test per rule |
-| a test that only runs after another | `beforeEach` builds the world |
-| `as any` to satisfy a type | build the real object with a builder |
-| `it.skip` a red test | fix it, or delete it and say why |
-| a snapshot of a whole component tree | assert the specific text or role |
+| `await page.waitForTimeout(2000)`                    | an auto-retrying assertion                           |
+| one test asserting eight things                      | one test per rule                                    |
+| a test that only runs after another                  | `beforeEach` builds the world                        |
+| `as any` to satisfy a type                           | build the real object with a builder                 |
+| `it.skip` a red test                                 | fix it, or delete it and say why                     |
+| a snapshot of a whole component tree                 | assert the specific text or role                     |
 
 ## Checklist
 

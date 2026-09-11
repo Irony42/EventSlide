@@ -63,7 +63,7 @@ export const test = base.extend<{ app: TestApp }>({
       // media root — so workers cannot see each other's photos.
       const app = await startTestApp({ worker: workerInfo.workerIndex })
       await use(app)
-      await app.dispose()   // closes the server, removes the DB and media dir
+      await app.dispose() // closes the server, removes the DB and media dir
     },
     { scope: 'worker' },
   ],
@@ -94,7 +94,10 @@ import { test, expect } from '../fixtures/app'
 import { openSurfaces } from '../fixtures/surfaces'
 import { jpegWithOrientation } from '../fixtures/media'
 
-test('a photo uploaded on a phone reaches the wall once the host approves it @smoke', async ({ app, browser }) => {
+test('a photo uploaded on a phone reaches the wall once the host approves it @smoke', async ({
+  app,
+  browser,
+}) => {
   const { guest, host, projector } = await openSurfaces(browser, app)
   const event = await app.seedEvent({ slug: 'mariage', name: 'Camille & Sacha' })
 
@@ -178,7 +181,10 @@ These are the tests that justify the suite existing.
 
 ```ts
 // tests/e2e/security/guest-token-scope.spec.ts
-test('a guest token from one event cannot upload to another', async ({ app, browser }) => {
+test('a guest token from one event cannot upload to another', async ({
+  app,
+  browser,
+}) => {
   const wedding = await app.seedEvent({ slug: 'mariage' })
   const gala = await app.seedEvent({ slug: 'gala' })
 
@@ -189,9 +195,14 @@ test('a guest token from one event cannot upload to another', async ({ app, brow
   await page.getByRole('button', { name: 'Rejoindre' }).click()
 
   // Same cookie jar, different event: the request must be refused server-side.
-  const response = await context.request.post(app.url(`/api/events/${gala.slug}/photos`), {
-    multipart: { photos: { name: 'a.jpg', mimeType: 'image/jpeg', buffer: await tinyJpeg() } },
-  })
+  const response = await context.request.post(
+    app.url(`/api/events/${gala.slug}/photos`),
+    {
+      multipart: {
+        photos: { name: 'a.jpg', mimeType: 'image/jpeg', buffer: await tinyJpeg() },
+      },
+    },
+  )
   expect(response.status()).toBe(403)
 })
 ```
@@ -206,13 +217,20 @@ someone else's photo; media URLs from event A returning 404 for a session on eve
 ```ts
 import AxeBuilder from '@axe-core/playwright'
 
-for (const path of ['/join/DEMO123', '/e/demo/upload', '/admin', '/admin/events/demo/moderation']) {
+for (const path of [
+  '/join/DEMO123',
+  '/e/demo/upload',
+  '/admin',
+  '/admin/events/demo/moderation',
+]) {
   test(`${path} has no serious accessibility violation`, async ({ app, page }) => {
     await page.goto(app.url(path))
     const { violations } = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa'])
       .analyze()
-    expect(violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''))).toEqual([])
+    expect(
+      violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? '')),
+    ).toEqual([])
   })
 }
 ```
@@ -222,7 +240,7 @@ but must still be keyboard-operable.
 
 ## Visual regression
 
-Only the display wall, where "looks right" *is* the requirement.
+Only the display wall, where "looks right" _is_ the requirement.
 
 ```ts
 test('mosaic layout renders as designed', async ({ app, page }) => {

@@ -7,11 +7,11 @@ description: Recipe for building React UI in web/src — design tokens, the prim
 
 Three surfaces with genuinely different constraints. Know which one you are in.
 
-| Surface | Viewport | Environment | Priority |
-| --- | --- | --- | --- |
-| **Guest** | 360–430 px, one thumb | congested venue Wi-Fi, 4G, sunlight | speed, thumb reach, forgiving errors |
-| **Host** | laptop, mouse + keyboard | quick glances during an event | density, keyboard shortcuts, undo |
-| **Room** | 1080p–4K, 3–10 m away | unattended for hours, no input | beauty, legibility, zero jank |
+| Surface   | Viewport                 | Environment                         | Priority                             |
+| --------- | ------------------------ | ----------------------------------- | ------------------------------------ |
+| **Guest** | 360–430 px, one thumb    | congested venue Wi-Fi, 4G, sunlight | speed, thumb reach, forgiving errors |
+| **Host**  | laptop, mouse + keyboard | quick glances during an event       | density, keyboard shortcuts, undo    |
+| **Room**  | 1080p–4K, 3–10 m away    | unattended for hours, no input      | beauty, legibility, zero jank        |
 
 A control that is comfortable on a laptop is often unusable at arm's length on a
 phone. Design for the surface, not for the average.
@@ -22,42 +22,55 @@ phone. Design for the surface, not for the average.
 /* web/src/design-system/tokens.css — excerpt */
 :root {
   /* Ink & surface — dark by default; the room is dark and phones are held in it */
-  --surface-base:      oklch(16% 0.02 265);
-  --surface-raised:    oklch(21% 0.025 265);
-  --surface-overlay:   oklch(26% 0.03 265);
-  --border-subtle:     oklch(30% 0.02 265);
-  --text-primary:      oklch(97% 0.005 265);
-  --text-secondary:    oklch(78% 0.015 265);
-  --text-muted:        oklch(62% 0.02 265);
+  --surface-base: oklch(16% 0.02 265);
+  --surface-raised: oklch(21% 0.025 265);
+  --surface-overlay: oklch(26% 0.03 265);
+  --border-subtle: oklch(30% 0.02 265);
+  --text-primary: oklch(97% 0.005 265);
+  --text-secondary: oklch(78% 0.015 265);
+  --text-muted: oklch(62% 0.02 265);
 
   /* Accent — one hue, used sparingly, reserved for the primary action */
-  --accent:            oklch(72% 0.17 305);
-  --accent-strong:     oklch(64% 0.19 305);
-  --accent-contrast:   oklch(18% 0.02 305);
+  --accent: oklch(72% 0.17 305);
+  --accent-strong: oklch(64% 0.19 305);
+  --accent-contrast: oklch(18% 0.02 305);
 
   /* Semantic */
-  --success:           oklch(76% 0.16 155);
-  --danger:            oklch(68% 0.19 22);
-  --warning:           oklch(82% 0.15 85);
+  --success: oklch(76% 0.16 155);
+  --danger: oklch(68% 0.19 22);
+  --warning: oklch(82% 0.15 85);
 
   /* Space — 4 px base, no in-between values */
-  --space-1: 0.25rem; --space-2: 0.5rem;  --space-3: 0.75rem; --space-4: 1rem;
-  --space-5: 1.5rem;  --space-6: 2rem;    --space-8: 3rem;    --space-10: 4rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+  --space-10: 4rem;
 
   /* Type — fluid, so the projector and the phone both read well */
-  --text-xs: 0.75rem; --text-sm: 0.875rem; --text-base: 1rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
   --text-lg: clamp(1.125rem, 0.4vw + 1rem, 1.25rem);
   --text-xl: clamp(1.5rem, 1vw + 1.2rem, 2rem);
   --text-display: clamp(2rem, 3vw + 1rem, 4rem);
 
-  --radius-sm: 0.375rem; --radius-md: 0.75rem; --radius-lg: 1.25rem; --radius-full: 999px;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.25rem;
+  --radius-full: 999px;
 
   --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
   --shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.45);
   --shadow-lg: 0 24px 60px -12px oklch(0% 0 0 / 0.55);
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --duration-fast: 140ms; --duration-base: 240ms; --duration-slow: 520ms;
+  --duration-fast: 140ms;
+  --duration-base: 240ms;
+  --duration-slow: 520ms;
 
   /* Thumb targets. 44 px is the floor, not the aspiration. */
   --touch-min: 2.75rem;
@@ -70,7 +83,7 @@ Rules:
   `color: #38bdf8` fails review. `color: var(--accent)` is the only form.
 - No inline `style={{ … }}` for anything static. Inline style is for a computed
   value only (a progress width, a grid position, a transform).
-- Add a token when a genuinely new *role* appears, not a new shade. If two tokens
+- Add a token when a genuinely new _role_ appears, not a new shade. If two tokens
   would always be the same colour, you need one token.
 - `oklch` throughout: perceptually uniform lightness, so `--text-secondary` has the
   same apparent contrast against every surface.
@@ -210,7 +223,9 @@ describe('GuestUploadPage', () => {
 
     await userEvent.upload(
       screen.getByLabelText(/Ajouter des photos/),
-      new File([new Uint8Array([0xff, 0xd8, 0xff])], 'confettis.jpg', { type: 'image/jpeg' }),
+      new File([new Uint8Array([0xff, 0xd8, 0xff])], 'confettis.jpg', {
+        type: 'image/jpeg',
+      }),
     )
     await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
 
@@ -220,7 +235,9 @@ describe('GuestUploadPage', () => {
   })
 
   it('offers a retry when the network drops mid-upload, without losing the file', async () => {
-    const transport = fakeTransport({ uploadPhotos: () => Promise.reject(new Error('offline')) })
+    const transport = fakeTransport({
+      uploadPhotos: () => Promise.reject(new Error('offline')),
+    })
     renderWithProviders(<GuestUploadPage slug="mariage" />, { transport })
 
     await userEvent.upload(screen.getByLabelText(/Ajouter des photos/), aJpegFile())

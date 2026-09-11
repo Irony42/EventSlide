@@ -16,15 +16,15 @@ Maintained by hand. An undocumented endpoint is an incomplete one — see
 
 ## 1. Conventions
 
-|                 |                                                                       |
-| --------------- | --------------------------------------------------------------------- |
-| Base path       | `/api`                                                                |
-| Encoding        | JSON, UTF-8. Uploads are `multipart/form-data`.                       |
-| Timestamps      | ISO-8601 UTC strings, e.g. `2026-06-20T21:04:11.031Z`                 |
-| Ids             | Opaque UUIDv4 strings. Never assume order or meaning.                 |
-| Empty success   | `204 No Content` with no body                                         |
-| Path parameter  | Written `:slug` here; the Express router spells it `:eventSlug`       |
-| JSON body limit | 64 KB. Over it: `413 request.tooLarge`. Uploads go through multer.    |
+|                 |                                                                    |
+| --------------- | ------------------------------------------------------------------ |
+| Base path       | `/api`                                                             |
+| Encoding        | JSON, UTF-8. Uploads are `multipart/form-data`.                    |
+| Timestamps      | ISO-8601 UTC strings, e.g. `2026-06-20T21:04:11.031Z`              |
+| Ids             | Opaque UUIDv4 strings. Never assume order or meaning.              |
+| Empty success   | `204 No Content` with no body                                      |
+| Path parameter  | Written `:slug` here; the Express router spells it `:eventSlug`    |
+| JSON body limit | 64 KB. Over it: `413 request.tooLarge`. Uploads go through multer. |
 
 ### Request validation
 
@@ -42,7 +42,13 @@ contract:
   the values:
 
   ```json
-  { "error": { "code": "request.invalid", "message": "…", "details": { "fields": "joinCode" } } }
+  {
+    "error": {
+      "code": "request.invalid",
+      "message": "…",
+      "details": { "fields": "joinCode" }
+    }
+  }
   ```
 
   The per-field codes documented under each endpoint (`joinCode.wrongLength`,
@@ -99,19 +105,19 @@ These are not attached to one endpoint and every client must handle them. Each h
 French copy in `web/src/lib/i18n/fr.ts`; a code with none renders the generic fallback
 sentence to a guest, which is why the two lists are kept in step.
 
-| Code                     | Status | When                                                             |
-| ------------------------ | ------ | ---------------------------------------------------------------- |
-| `request.invalid`        | 400    | Any zod failure: wrong type, out of bounds, unexpected field      |
-| `request.tooLarge`       | 413    | A JSON body over 64 KB                                            |
-| `request.csrfMissing`    | 403    | No `es_csrf` cookie, or no `X-CSRF-Token` header                  |
-| `request.csrfMismatch`   | 403    | The header does not equal the cookie                              |
-| `auth.required`          | 401    | A route needs a principal and there is none                       |
-| `auth.forbidden`         | 403    | In scope for the event, but the role is too weak                  |
-| `guestToken.expired`     | 401    | The device token is past its 36 hours                             |
-| `guestToken.badSignature`| 401    | The device token does not verify                                  |
-| `guestToken.malformed`   | 401    | The token is unreadable, or its guest row no longer exists        |
-| `route.notFound`         | 404    | No such `/api` endpoint — answered in the API's own error shape   |
-| `server.unexpected`      | 500    | A bug. `details.requestId` matches the `X-Request-Id` header      |
+| Code                      | Status | When                                                            |
+| ------------------------- | ------ | --------------------------------------------------------------- |
+| `request.invalid`         | 400    | Any zod failure: wrong type, out of bounds, unexpected field    |
+| `request.tooLarge`        | 413    | A JSON body over 64 KB                                          |
+| `request.csrfMissing`     | 403    | No `es_csrf` cookie, or no `X-CSRF-Token` header                |
+| `request.csrfMismatch`    | 403    | The header does not equal the cookie                            |
+| `auth.required`           | 401    | A route needs a principal and there is none                     |
+| `auth.forbidden`          | 403    | In scope for the event, but the role is too weak                |
+| `guestToken.expired`      | 401    | The device token is past its 36 hours                           |
+| `guestToken.badSignature` | 401    | The device token does not verify                                |
+| `guestToken.malformed`    | 401    | The token is unreadable, or its guest row no longer exists      |
+| `route.notFound`          | 404    | No such `/api` endpoint — answered in the API's own error shape |
+| `server.unexpected`       | 500    | A bug. `details.requestId` matches the `X-Request-Id` header    |
 
 ### Principals
 
@@ -146,12 +152,12 @@ no cookie jar.
 
 Per minute, configurable, `429` with `Retry-After` when exceeded.
 
-| Endpoint                                      | Default | Bucket                         | Code                  |
-| --------------------------------------------- | ------- | ------------------------------ | --------------------- |
-| `POST /api/join`                              | 20      | client IP                      | `rate.limited`        |
-| `POST /api/auth/login`                        | 10      | client IP                      | `rate.limited`        |
-| `POST /api/events/:slug/photos`               | 12      | client IP **and** event        | `rate.limited`        |
-| `POST /api/events/:slug/photos/:id/reactions` | 30      | client IP **and** event        | `reaction.rateLimited`|
+| Endpoint                                      | Default | Bucket                  | Code                   |
+| --------------------------------------------- | ------- | ----------------------- | ---------------------- |
+| `POST /api/join`                              | 20      | client IP               | `rate.limited`         |
+| `POST /api/auth/login`                        | 10      | client IP               | `rate.limited`         |
+| `POST /api/events/:slug/photos`               | 12      | client IP **and** event | `rate.limited`         |
+| `POST /api/events/:slug/photos/:id/reactions` | 30      | client IP **and** event | `reaction.rateLimited` |
 
 The two guest write endpoints key on IP **and** event on purpose: a whole table of
 guests shares one access point and therefore one public IP, so a per-IP-only limit would
@@ -339,15 +345,15 @@ same photo twice on the wall.
 The `code` on a `rejected` entry is **per file** and never becomes the response's own
 status. These are the ones a guest can provoke:
 
-| Per-file `code`               | Why                                                     |
-| ----------------------------- | ------------------------------------------------------- |
-| `image.unsupportedFormat`     | The magic bytes are not JPEG, PNG, HEIC or WebP         |
-| `image.corrupt`               | The header will not decode                              |
-| `image.animated`              | An animated image; the wall is stills                   |
-| `image.renderFailed`          | `sharp` could not re-encode it                          |
-| `image.tooManyPixels`         | Refused by the processor's own pixel ceiling            |
-| `photo.pixelBudgetExceeded`   | Refused by the configured budget, from the header alone |
-| `event.quotaExceeded`         | This file would overrun the event's byte quota          |
+| Per-file `code`             | Why                                                     |
+| --------------------------- | ------------------------------------------------------- |
+| `image.unsupportedFormat`   | The magic bytes are not JPEG, PNG, HEIC or WebP         |
+| `image.corrupt`             | The header will not decode                              |
+| `image.animated`            | An animated image; the wall is stills                   |
+| `image.renderFailed`        | `sharp` could not re-encode it                          |
+| `image.tooManyPixels`       | Refused by the processor's own pixel ceiling            |
+| `photo.pixelBudgetExceeded` | Refused by the configured budget, from the header alone |
+| `event.quotaExceeded`       | This file would overrun the event's byte quota          |
 
 `event.quotaExceeded` is on that list and **not** in the whole-request list below: the
 quota is charged file by file as the batch is written, so a guest sending five photos
@@ -611,27 +617,27 @@ deleted underneath it and never that the caller guessed wrong.
 `:slug` scopes the role check: `requireRole('moderator')` means _moderator of this
 event_, never "is logged in".
 
-| Method   | Path                                       | Role      | OK  |                                               |
-| -------- | ------------------------------------------ | --------- | --- | --------------------------------------------- |
-| `GET`    | `/api/events`                              | any       | 200 | Dashboard summaries                           |
-| `POST`   | `/api/events`                              | any       | 201 | Create; the creator becomes owner             |
-| `GET`    | `/api/events/:slug`                        | moderator | 200 | Full event including settings                 |
-| `PATCH`  | `/api/events/:slug`                        | owner     | 200 | Rename; answers the full event                |
-| `PATCH`  | `/api/events/:slug/settings`               | owner     | 200 | Settings; answers the full event              |
-| `POST`   | `/api/events/:slug/status`                 | owner     | 200 | `{ "status": "live" }`; answers the full event|
-| `POST`   | `/api/events/:slug/join-code`              | owner     | 200 | Rotate; answers the full event, new code      |
-| `DELETE` | `/api/events/:slug`                        | owner     | 204 | Purge: media first, then rows                 |
-| `GET`    | `/api/events/:slug/photos`                 | moderator | 200 | Paginated, filterable                         |
-| `GET`    | `/api/events/:slug/moderation`             | moderator | 200 | Queue + `pendingCount`                        |
-| `PATCH`  | `/api/events/:slug/photos/:photoId/status` | moderator | 204 | `{ "decision": "publish" }`                   |
-| `POST`   | `/api/events/:slug/moderation/bulk`        | moderator | 200 | `{ "photoIds": [...], "decision": "reject" }` |
-| `DELETE` | `/api/events/:slug/photos/:photoId`        | moderator | 204 | Delete any photo                              |
-| `GET`    | `/api/events/:slug/guests`                 | moderator | 200 | Guest list + active count                     |
-| `POST`   | `/api/events/:slug/guests/:guestId/revoke` | moderator | 204 | Remove a disruptive guest; idempotent         |
-| `GET`    | `/api/events/:slug/moderators`             | owner     | 200 | Memberships                                   |
-| `POST`   | `/api/events/:slug/moderators`             | owner     | 201 | Invite; **address _and_ temporary password**  |
-| `DELETE` | `/api/events/:slug/moderators/:userId`     | owner     | 204 | Revoke; never the last owner                  |
-| `GET`    | `/api/events/:slug/top-photos`             | moderator | 200 | Photo of the night                            |
+| Method   | Path                                       | Role      | OK  |                                                |
+| -------- | ------------------------------------------ | --------- | --- | ---------------------------------------------- |
+| `GET`    | `/api/events`                              | any       | 200 | Dashboard summaries                            |
+| `POST`   | `/api/events`                              | any       | 201 | Create; the creator becomes owner              |
+| `GET`    | `/api/events/:slug`                        | moderator | 200 | Full event including settings                  |
+| `PATCH`  | `/api/events/:slug`                        | owner     | 200 | Rename; answers the full event                 |
+| `PATCH`  | `/api/events/:slug/settings`               | owner     | 200 | Settings; answers the full event               |
+| `POST`   | `/api/events/:slug/status`                 | owner     | 200 | `{ "status": "live" }`; answers the full event |
+| `POST`   | `/api/events/:slug/join-code`              | owner     | 200 | Rotate; answers the full event, new code       |
+| `DELETE` | `/api/events/:slug`                        | owner     | 204 | Purge: media first, then rows                  |
+| `GET`    | `/api/events/:slug/photos`                 | moderator | 200 | Paginated, filterable                          |
+| `GET`    | `/api/events/:slug/moderation`             | moderator | 200 | Queue + `pendingCount`                         |
+| `PATCH`  | `/api/events/:slug/photos/:photoId/status` | moderator | 204 | `{ "decision": "publish" }`                    |
+| `POST`   | `/api/events/:slug/moderation/bulk`        | moderator | 200 | `{ "photoIds": [...], "decision": "reject" }`  |
+| `DELETE` | `/api/events/:slug/photos/:photoId`        | moderator | 204 | Delete any photo                               |
+| `GET`    | `/api/events/:slug/guests`                 | moderator | 200 | Guest list + active count                      |
+| `POST`   | `/api/events/:slug/guests/:guestId/revoke` | moderator | 204 | Remove a disruptive guest; idempotent          |
+| `GET`    | `/api/events/:slug/moderators`             | owner     | 200 | Memberships                                    |
+| `POST`   | `/api/events/:slug/moderators`             | owner     | 201 | Invite; **address _and_ temporary password**   |
+| `DELETE` | `/api/events/:slug/moderators/:userId`     | owner     | 204 | Revoke; never the last owner                   |
+| `GET`    | `/api/events/:slug/top-photos`             | moderator | 200 | Photo of the night                             |
 
 Four routes answer the **whole event** rather than `204`, and that is worth stating
 because it is not obvious from the verb: rename, settings, status and join-code rotation
@@ -645,19 +651,19 @@ a caller with no membership of it; `403 auth.forbidden` — `details.required` n
 `owner` or `moderator` — for a moderator on an owner-only route. Beyond the
 cross-cutting codes in §1:
 
-| Code                        | Status | Where                                                           |
-| --------------------------- | ------ | --------------------------------------------------------------- |
-| `event.slugTaken`           | 409    | Create, when the slug is in use                                  |
-| `event.immutable`           | 409    | Rename or settings on an `archived` event                        |
-| `event.illegalTransition`   | 409    | A status change the lifecycle does not allow                     |
-| `event.notModeratable`      | 409    | A single or bulk decision on an `archived` event                 |
-| `photo.illegalTransition`   | 409    | A decision the photo's status machine does not allow             |
-| `guest.notFound`            | 404    | Revoking a guest id that is not in this event                    |
-| `membership.alreadyExists`  | 409    | Inviting someone who already moderates this event                |
-| `membership.notFound`       | 404    | Revoking a membership that is not there                          |
-| `membership.lastOwner`      | 409    | Revoking the only remaining owner                                |
-| `event.joinCodeExhausted`   | 500    | Rotation could not find a free code — a bug, not a client error  |
-| `event.mediaPurgeFailed`    | 500    | A purge that could not remove the bytes; rows are left alone     |
+| Code                       | Status | Where                                                           |
+| -------------------------- | ------ | --------------------------------------------------------------- |
+| `event.slugTaken`          | 409    | Create, when the slug is in use                                 |
+| `event.immutable`          | 409    | Rename or settings on an `archived` event                       |
+| `event.illegalTransition`  | 409    | A status change the lifecycle does not allow                    |
+| `event.notModeratable`     | 409    | A single or bulk decision on an `archived` event                |
+| `photo.illegalTransition`  | 409    | A decision the photo's status machine does not allow            |
+| `guest.notFound`           | 404    | Revoking a guest id that is not in this event                   |
+| `membership.alreadyExists` | 409    | Inviting someone who already moderates this event               |
+| `membership.notFound`      | 404    | Revoking a membership that is not there                         |
+| `membership.lastOwner`     | 409    | Revoking the only remaining owner                               |
+| `event.joinCodeExhausted`  | 500    | Rotation could not find a free code — a bug, not a client error |
+| `event.mediaPurgeFailed`   | 500    | A purge that could not remove the bytes; rows are left alone    |
 
 ### `GET /api/events`
 
@@ -772,15 +778,15 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 }
 ```
 
-| Field                         | Accepted                                  |
-| ----------------------------- | ----------------------------------------- |
-| `moderation`                  | `manual` \| `auto`                        |
-| `allowCaptions`               | boolean                                   |
-| `allowReactions`              | boolean                                   |
-| `allowGuestSelfDelete`        | boolean                                   |
-| `guestSelfDeleteGraceSeconds` | integer 0..86400                          |
-| `retentionDays`               | integer 1..3650, or `null` for "keep"     |
-| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"  |
+| Field                         | Accepted                                 |
+| ----------------------------- | ---------------------------------------- |
+| `moderation`                  | `manual` \| `auto`                       |
+| `allowCaptions`               | boolean                                  |
+| `allowReactions`              | boolean                                  |
+| `allowGuestSelfDelete`        | boolean                                  |
+| `guestSelfDeleteGraceSeconds` | integer 0..86400                         |
+| `retentionDays`               | integer 1..3650, or `null` for "keep"    |
+| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap" |
 
 **200** with the event. **Errors** — `409 event.immutable`,
 `400 eventSettings.graceSecondsInvalid`, `400 eventSettings.retentionDaysInvalid`,
@@ -1214,16 +1220,16 @@ Each renders the generic "Une erreur est survenue" sentence, which tells the rea
 nothing about a refusal they could act on. Reachable through a route, in rough order of
 how likely anyone is to hit them:
 
-| Code                       | Reached by                                                    |
-| -------------------------- | ------------------------------------------------------------- |
-| `request.tooLarge`         | Any JSON body over 64 KB — a 200-id bulk action is close       |
-| `route.notFound`           | Any mistyped `/api` path                                       |
-| `photo.mediaMissing`       | A photo row whose bytes are gone                               |
-| `eventName.malformed`      | An event name with no letter or digit in it                    |
-| `email.containsWhitespace` | A pasted address with a stray space, on the invitation form    |
-| `email.empty`              | A whitespace-only address on the same form                     |
-| `upload.rejected`          | Multer's remaining refusals on an upload                       |
-| `service.notReady`         | Only a probe sees this one; listed for completeness            |
+| Code                       | Reached by                                                  |
+| -------------------------- | ----------------------------------------------------------- |
+| `request.tooLarge`         | Any JSON body over 64 KB — a 200-id bulk action is close    |
+| `route.notFound`           | Any mistyped `/api` path                                    |
+| `photo.mediaMissing`       | A photo row whose bytes are gone                            |
+| `eventName.malformed`      | An event name with no letter or digit in it                 |
+| `email.containsWhitespace` | A pasted address with a stray space, on the invitation form |
+| `email.empty`              | A whitespace-only address on the same form                  |
+| `upload.rejected`          | Multer's remaining refusals on an upload                    |
+| `service.notReady`         | Only a probe sees this one; listed for completeness         |
 
 `server.unexpected` deliberately has none: it falls through to the generic sentence,
 which is the correct copy for a bug.
