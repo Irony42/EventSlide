@@ -16,6 +16,7 @@ export const test = base.extend<{ surfaces: Surfaces }, { app: TestApp }>({
     // when nothing is taken from it — a plain `_fixtures` is rejected at collection time
     // with "First argument must use the object destructuring pattern", before any test
     // runs.
+    // eslint-disable-next-line no-empty-pattern -- Playwright's API requires it, see above.
     async ({}, use, workerInfo) => {
       const app = await startTestApp({ worker: workerInfo.workerIndex })
       await use(app)
