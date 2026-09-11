@@ -9,11 +9,11 @@
   --surface-scrim: oklch(0% 0 0 / 0.55); /* behind wall captions, over photos */
   /* ---- Borders ---- */
   --border-subtle: oklch(30% 0.02 265); /* default hairline */
-  --border-strong: oklch(44% 0.02 265); /* input rest state, focused card */
+  --border-strong: oklch(54% 0.02 265); /* input rest state, focused card */
   /* ---- Text ---- */
   --text-primary: oklch(97% 0.005 265);
   --text-secondary: oklch(78% 0.015 265);
-  --text-muted: oklch(62% 0.02 265);
+  --text-muted: oklch(64% 0.02 265);
 
   /* ---- Accent. One hue. Reserved for the primary action and nothing else. ---- */
   --accent: oklch(72% 0.17 305);

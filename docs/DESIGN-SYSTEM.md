@@ -5,8 +5,10 @@ Companion recipe: `.claude/skills/eventslide-ui-component/SKILL.md`. Binding rul
 [CLAUDE.md](../CLAUDE.md) §3.2 and [AGENTS.md](../AGENTS.md) constraint 2.
 
 > **Status.** The 1.0 frontend (`src/frontend`, `public/app.css`) was removed in
-> `fa6e9bd`. This is the specification `web/src/design-system/` must satisfy; items
-> marked **(aspirational)** are designed but not yet written on this branch.
+> `fa6e9bd`. Everything below is implemented: `web/src/design-system/` holds the tokens
+> and the primitives, and all four surfaces are built on them. The contrast targets in
+> §8 are enforced by a test rather than asserted here — see the end of that section,
+> including the one pair that does not meet its target and why.
 
 ---
 
@@ -46,11 +48,11 @@ token exactly.
   --surface-scrim: oklch(0% 0 0 / 0.55); /* behind wall captions, over photos */
   /* ---- Borders ---- */
   --border-subtle: oklch(30% 0.02 265); /* default hairline */
-  --border-strong: oklch(44% 0.02 265); /* input rest state, focused card */
+  --border-strong: oklch(54% 0.02 265); /* input rest state, focused card */
   /* ---- Text ---- */
   --text-primary: oklch(97% 0.005 265);
   --text-secondary: oklch(78% 0.015 265);
-  --text-muted: oklch(62% 0.02 265);
+  --text-muted: oklch(64% 0.02 265);
 
   /* ---- Accent. One hue. Reserved for the primary action and nothing else. ---- */
   --accent: oklch(72% 0.17 305);
@@ -319,9 +321,22 @@ advances — content never depends on motion. This is the only permitted `!impor
 | Keyboard                        | Full journey reachable by `Tab`; skip link to main content; `Escape` closes every Dialog; moderation supports arrow-key navigation between tiles plus single-key approve/reject.                                                                                                                                                         |
 | Language                        | `<html lang="fr">`. 1.0 shipped `lang="en"` with a French UI, so screen readers read French copy with an English voice.                                                                                                                                                                                                                  |
 
-Verification **(aspirational)**: `web/src/design-system/tokens.contrast.test.ts` (ring 5)
-computes every text-on-surface pair from the `oklch` values and fails below the targets
-above; `tests/e2e` runs an axe pass per surface (ring 6).
+Verification: `web/src/design-system/tokens.contrast.test.ts` (ring 5) parses `oklch`
+values straight out of `tokens.css`, converts through Oklab to linear sRGB, and fails
+below the targets above; `tests/e2e/a11y/accessibility.spec.ts` runs an axe pass per
+surface (ring 6).
+
+Writing it immediately found three violations, which is the argument for having it:
+`--text-muted` measured 4.27:1 on `--surface-overlay` against its own 4.5 target, and
+`--border-strong` measured 2.5:1 on `--surface-base` — below WCAG 1.4.11's 3:1 floor for
+a UI component's boundary, which matters because an input at rest _is_ its border.
+`--text-muted` moved to 64% and `--border-strong` to 54%.
+
+The third is recorded rather than fixed: `--accent-contrast` reaches only 5.16:1 on
+`--accent-strong`, the hover state, against 7:1 at rest. It is not fixable by darkening
+the foreground — `--accent-strong` sits at 64% lightness, so even pure black on it
+measures 5.74:1 — so the test holds that pair to AA's 4.5 and closing the gap would mean
+restyling the hover colour itself.
 
 ---
 
