@@ -282,6 +282,25 @@ describe('POST /api/join', () => {
     expect(claims.ok && claims.value.eventId).toBe(WEDDING)
   })
 
+  it('keeps a phone that joins again on the guest its own cookie already names', async () => {
+    // The plumbing the use case's idempotence rests on: the handler forwards the cookie
+    // the phone presented, unparsed and unauthorized. Without it, a guest who reloads
+    // the join page — which re-submits the code on its own — walks away as a second,
+    // anonymous guest, and the name they then type lands on a row their photos are not
+    // filed under.
+    const { subject } = world()
+    const first = await request(subject.app).post('/api/join').send({ joinCode: 'H7K2QM' })
+    const held = cookieValue(guestCookie(first.headers['set-cookie']))
+
+    const again = await request(subject.app)
+      .post('/api/join')
+      .set('Cookie', `${GUEST_COOKIE}=${held}`)
+      .send({ joinCode: 'H7K2QM', displayName: 'Léa' })
+
+    expect(again.body.guestId).toBe('guest-1')
+    expect(again.body.displayName).toBe('Léa')
+  })
+
   it('tells a guest nothing beyond the name and what they may do', async () => {
     const { subject } = world()
 

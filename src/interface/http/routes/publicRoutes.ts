@@ -76,19 +76,27 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
   const router = Router()
 
   /**
-   * `POST /join` — resolve a join code, create a guest, set the device cookie.
+   * `POST /join` — resolve a join code, identify the device, set the device cookie.
    *
    * Deliberately public: this has to work for a stranger holding nothing but a printed
    * card, so there is no principal to authorize. The rate limiter is what stands in for
    * one — this is the endpoint an attacker would enumerate, and a join is a
    * once-per-guest action, so the limit is generous for real use and hostile to a
    * script.
+   *
+   * The cookie already on the phone is read but never trusted: it is forwarded verbatim
+   * and the use case decides whether it names a guest of *this* event, which is what
+   * makes a second join from one device the same guest rather than a twin. No
+   * authorization middleware stands in front, and there must not be one — a guest with
+   * no cookie, an expired one, or one from another event is the ordinary case here, not
+   * a 401.
    */
   router.post(
     '/join',
     joinLimiter(deps.config.rateLimits.joinPerMinute),
     asyncHandler(async (req, res) => {
       const body = joinBody.parse(req.body)
+      const presented: unknown = req.cookies?.[GUEST_COOKIE]
 
       const result = await usecases.joinEvent({
         joinCode: body.joinCode,
@@ -96,6 +104,9 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
         // those are different types, and the use case already treats an absent name,
         // `null` and a blank string alike — anonymity is a supported choice.
         ...(body.displayName === undefined ? {} : { displayName: body.displayName }),
+        ...(typeof presented === 'string' && presented.length > 0
+          ? { deviceToken: presented }
+          : {}),
       })
 
       sendResult(res, result, (response, joined) => {
