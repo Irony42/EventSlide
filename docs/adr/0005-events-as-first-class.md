@@ -66,7 +66,7 @@ Identity splits into three values with three jobs:
 | `slug`      | lowercase `[a-z0-9-]{3,48}`          | `/e/:slug/upload`, `/e/:slug/display`    | yes, by the host |
 | `join_code` | uppercase, no `I`/`L`/`O`/`U`        | `/join/:code`, printed on the QR card    | yes, rotatable   |
 
-- `Slug.create` (`src/domain/events/slug.ts`) normalises, then rejects the reserved first
+- `Slug.create` (`src/domain/shared/slug.ts`) normalises, then rejects the reserved first
   segments `admin`, `api`, `join`, `e`, `assets`, `health`: slugs share a URL namespace
   with those routes, so the rejection belongs in the value object.
 - The join-code alphabet drops `I`/`L`/`O`/`U` because guests read the code off a card in

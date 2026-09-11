@@ -34,16 +34,16 @@ The adversary at an event is almost never a professional. It is a guest with a p
 ten minutes, and no accountability. The model is built around that, plus one anonymous
 internet scanner.
 
-| #   | Adversary / event                                                                | Asset at risk                                           | Control                                                                                                                                                                                                                                  | Where                                                                                              |
-| --- | -------------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| T1  | Bored guest with the QR code, poking at URLs                                     | other events' photos, moderation actions, host accounts | guest token grants **upload + own-photo delete on one event** and nothing else; every admin route behind `requireRole`; ids are opaque, non-enumerable `TEXT`                                                                            | `src/interface/http/middleware/authz.ts`, `src/infrastructure/db/migrations/001_initial_schema.ts` |
-| T2  | Screenshot of the join link shared outside the venue (WhatsApp, X)               | uninvited uploads, quota burn, junk on the wall         | join code is rotatable (`POST /api/events/:eventSlug/join-code`), event has `status` the host can set to closed, upload limiter keyed by IP **and** event, per-event byte quota, moderation is on by default                             | `src/domain/events/`, `src/application/usecases/events/rotateJoinCode.ts`                          |
-| T3  | Guest uploading something offensive, in front of 200 people                      | the room, the host's reputation                         | **nothing reaches the projector unpublished.** `photos.status` starts `pending`; the wall renders only `published`; the host can flip a live photo to `hidden` and the SSE invalidation drops it from every projector within one refetch | `src/domain/photos/photoStatus.ts`, `src/interface/http/routes/streamRoutes.ts`                    |
+| #   | Adversary / event                                                                | Asset at risk                                           | Control                                                                                                                                                                                                                                              | Where                                                                                              |
+| --- | -------------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| T1  | Bored guest with the QR code, poking at URLs                                     | other events' photos, moderation actions, host accounts | guest token grants **upload + own-photo delete on one event** and nothing else; every admin route behind `requireRole`; ids are opaque, non-enumerable `TEXT`                                                                                        | `src/interface/http/middleware/authz.ts`, `src/infrastructure/db/migrations/001_initial_schema.ts` |
+| T2  | Screenshot of the join link shared outside the venue (WhatsApp, X)               | uninvited uploads, quota burn, junk on the wall         | join code is rotatable (`POST /api/events/:eventSlug/join-code`), event has `status` the host can set to closed, upload limiter keyed by IP **and** event, per-event byte quota, moderation is on by default                                         | `src/domain/events/`, `src/application/usecases/events/rotateJoinCode.ts`                          |
+| T3  | Guest uploading something offensive, in front of 200 people                      | the room, the host's reputation                         | **nothing reaches the projector unpublished.** `photos.status` starts `pending`; the wall renders only `published`; the host can flip a live photo to `hidden` and the SSE invalidation drops it from every projector within one refetch             | `src/domain/photos/photoStatus.ts`, `src/interface/http/routes/streamRoutes.ts`                    |
 | T4  | Scanner finds the upload endpoint and fills the disk                             | availability of the whole box, every other event on it  | upload requires a valid event-scoped token (there is **no** unauthenticated upload path in 2.0), byte and file-count limits at multer, a limiter keyed by IP **and** event, per-event `quota_bytes` that refuses a file rather than filling the disk | `src/interface/http/middleware/rateLimit.ts`, `src/application/usecases/photos/uploadPhotos.ts`    |
-| T5  | Curious guest reading another event's photos                                     | confidentiality across tenants on one host              | **every** repository method takes `eventId`; media served by a controller that resolves the event from the path and 404s across events; named isolation tests at rings 3, 4 and 6                                                        | §3                                                                                                 |
-| T6  | Passive privacy exposure: GPS of a private home in EXIF                          | guests' home addresses, device serials, timestamps      | EXIF is stripped on ingest by re-encoding; orientation is baked in first; raw bytes never reach the media root                                                                                                                           | §4                                                                                                 |
-| T7  | Attacker on the venue Wi-Fi reading traffic                                      | session cookie, guest token, photos in flight           | HTTPS terminated in front of the app, `Secure` cookies in production, HSTS, `upgrade-insecure-requests`                                                                                                                                  | §11                                                                                                |
-| T8  | Malicious file dressed as a photo (renamed `.php`, `.svg`, polyglot, pixel bomb) | RCE via a served payload, CPU/RAM exhaustion in `sharp` | magic bytes decide the type, dimension probe before decode, everything re-encoded to a known format, media never served from a static handler                                                                                            | §4                                                                                                 |
+| T5  | Curious guest reading another event's photos                                     | confidentiality across tenants on one host              | **every** repository method takes `eventId`; media served by a controller that resolves the event from the path and 404s across events; named isolation tests at rings 3, 4 and 6                                                                    | §3                                                                                                 |
+| T6  | Passive privacy exposure: GPS of a private home in EXIF                          | guests' home addresses, device serials, timestamps      | EXIF is stripped on ingest by re-encoding; orientation is baked in first; raw bytes never reach the media root                                                                                                                                       | §4                                                                                                 |
+| T7  | Attacker on the venue Wi-Fi reading traffic                                      | session cookie, guest token, photos in flight           | HTTPS terminated in front of the app, `Secure` cookies in production, HSTS, `upgrade-insecure-requests`                                                                                                                                              | §11                                                                                                |
+| T8  | Malicious file dressed as a photo (renamed `.php`, `.svg`, polyglot, pixel bomb) | RCE via a served payload, CPU/RAM exhaustion in `sharp` | magic bytes decide the type, dimension probe before decode, everything re-encoded to a known format, media never served from a static handler                                                                                                        | §4                                                                                                 |
 
 **Explicitly out of scope.** A guest you invited is inside the trust boundary for
 uploading; 200 people on one Wi-Fi doing the intended thing is a capacity question, not
@@ -90,15 +90,15 @@ Three details that are load-bearing rather than incidental:
   claiming to come from the future is not clock skew — it is a token that would outlive
   its window.
 
-| Rule                                                           | Reason                                                                               |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| The event id, claim `e`, is inside the signed payload           | the token is a capability for **one** event; there is no "guest of the server"       |
-| Signature compared with `crypto.timingSafeEqual`               | a byte-by-byte early return is a signature oracle                                    |
-| The MAC is compared **before** the payload is parsed           | an attacker must not reach the JSON parser, or the id lookups behind it, with bytes they forged |
-| `v1` prefix on the wire                                        | the format can change without a flag day; unknown versions are rejected, not guessed |
-| The guest id, claim `g`, resolved against `guests` after the signature check | a purely stateless token cannot be revoked                             |
-| Issued-at, claim `i`, is epoch milliseconds compared against a `now` the caller passes in from the injected `Clock` | keeps expiry testable (`FakeClock.advance`) with no `Date.now()` inside the adapter |
-| Secret separate from `SESSION_SECRET`, and at least 32 characters | a leaked guest secret must not forge host sessions, and the adapter throws on a short one rather than signing with it |
+| Rule                                                                                                                | Reason                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| The event id, claim `e`, is inside the signed payload                                                               | the token is a capability for **one** event; there is no "guest of the server"                                        |
+| Signature compared with `crypto.timingSafeEqual`                                                                    | a byte-by-byte early return is a signature oracle                                                                     |
+| The MAC is compared **before** the payload is parsed                                                                | an attacker must not reach the JSON parser, or the id lookups behind it, with bytes they forged                       |
+| `v1` prefix on the wire                                                                                             | the format can change without a flag day; unknown versions are rejected, not guessed                                  |
+| The guest id, claim `g`, resolved against `guests` after the signature check                                        | a purely stateless token cannot be revoked                                                                            |
+| Issued-at, claim `i`, is epoch milliseconds compared against a `now` the caller passes in from the injected `Clock` | keeps expiry testable (`FakeClock.advance`) with no `Date.now()` inside the adapter                                   |
+| Secret separate from `SESSION_SECRET`, and at least 32 characters                                                   | a leaked guest secret must not forge host sessions, and the adapter throws on a short one rather than signing with it |
 
 The claims are the one-letter `e` / `g` / `i` above, not `eid` / `gid`. The cookie
 travels on every request from a phone on venue Wi-Fi, and the payload is base64url of
@@ -114,11 +114,11 @@ phone should re-join rather than be told it is forbidden forever.
 
 ### Cookie flags
 
-| Cookie       | Purpose                  | Flags                                                                                |
-| ------------ | ------------------------ | ------------------------------------------------------------------------------------ |
+| Cookie       | Purpose                  | Flags                                                                                     |
+| ------------ | ------------------------ | ----------------------------------------------------------------------------------------- |
 | `es_session` | host/moderator session   | `HttpOnly; SameSite=Lax; Secure` (prod); `Path=/`; `Max-Age` 12 h; host-only, no `Domain` |
-| `es_guest`   | guest device token       | `HttpOnly; SameSite=Lax; Secure` (prod); `Path=/`; `Max-Age` 36 h = the token's own TTL |
-| `es_csrf`    | double-submit CSRF value | **not** `HttpOnly` (the app must read it); `SameSite=Lax; Secure` (prod); `Path=/`    |
+| `es_guest`   | guest device token       | `HttpOnly; SameSite=Lax; Secure` (prod); `Path=/`; `Max-Age` 36 h = the token's own TTL   |
+| `es_csrf`    | double-submit CSRF value | **not** `HttpOnly` (the app must read it); `SameSite=Lax; Secure` (prod); `Path=/`        |
 
 `es_session`, not `connect.sid`: no reason to advertise the stack. The name is a single
 exported constant (`SESSION_COOKIE` in `src/interface/http/routes/authRoutes.ts`) because
@@ -153,15 +153,15 @@ and the entity do.
 
 Everything in `src/interface/http/middleware/authz.ts`:
 
-| Middleware                         | Grants                                                                                |
-| ---------------------------------- | ------------------------------------------------------------------------------------- |
-| `attachUser()`                     | nothing. Reads the session into a principal — identity, never permission              |
-| `requireUser`                      | any authenticated user, for the two routes that are not event-scoped                  |
-| `requireRole('owner', deps)`       | event owner only                                                                      |
-| `requireRole('moderator', deps)`   | owner or moderator of **that** event                                                  |
-| `requireGuest(deps)`               | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked |
-| `resolvePublicEvent(deps)`         | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone |
-| _(none)_                           | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` |
+| Middleware                       | Grants                                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `attachUser()`                   | nothing. Reads the session into a principal — identity, never permission                                                              |
+| `requireUser`                    | any authenticated user, for the two routes that are not event-scoped                                                                  |
+| `requireRole('owner', deps)`     | event owner only                                                                                                                      |
+| `requireRole('moderator', deps)` | owner or moderator of **that** event                                                                                                  |
+| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                         |
+| `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                     |
+| _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` |
 
 There is no `requireGuestOwnsPhoto`. Ownership is not a middleware question: the rule is
 their photo, their window, and a status still off the wall, and all three live on the
@@ -171,7 +171,7 @@ answered the first part would leave the other two to be restated somewhere.
 `requireRole` resolves the event from `:eventSlug` and checks membership **of that
 event**. A moderator of `gala` asking about `mariage` is **404, not 403**: a 403 would
 confirm the event exists and turn the endpoint into an enumeration oracle for other
-people's weddings. 403 `auth.forbidden` is reserved for a caller who *is* a member of the
+people's weddings. 403 `auth.forbidden` is reserved for a caller who _is_ a member of the
 event and merely lacks the role — there it is honest and reveals nothing they did not
 already know. An unauthenticated caller is 401 before the event is looked up at all, so
 an anonymous request cannot be used to discover which slugs are on the box.
@@ -211,20 +211,19 @@ Status codes come from the kind of `DomainError` raised, mapped in one table in
 so no upload failure can answer with one. Every code below is the literal string the
 client receives and maps to French in `web/src/lib/i18n/fr.ts`.
 
-| #   | Step                                                                                                                                                     | Where                                                    | Failure                                                        |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
-| 1   | Rate-limit before anything else: a flood is dropped before it costs a token verification and two repository reads                                        | `middleware/rateLimit.ts`                                | 429 `rate.limited`                                             |
-| 2   | Authorize: `requireGuest(deps)`, which runs **before** multer, so no byte of the body is parsed for a caller who has no standing                        | `middleware/authz.ts`                                    | 401 `auth.required`, 403 `guest.wrongEvent` / `guest.revoked`   |
-| 3   | `multer` into **memory**, byte limit `MAX_UPLOAD_BYTES` (default 25 000 000) per file. No `fileFilter`: it could only read `file.mimetype`, which is the client's own string and the exact 1.0 defect | `routes/guestRoutes.ts`                                  | 413 `upload.tooLarge`                                          |
-| 4   | File count limit `MAX_FILES_PER_UPLOAD` (default 20), text-field ceiling `fields: 4`, and one accepted field name (`photos`)                             | same                                                     | 400 `upload.tooManyFiles` / `upload.unexpectedField`; an empty multipart is 400 `upload.noFiles` |
-| 5   | Magic-byte identification — JPEG, PNG, GIF, WebP, and HEIC/AVIF `ftyp` brands. An allow-list: an unrecognised signature is rejected, never "probably fine" | `src/infrastructure/media/magicBytes.ts` (no dependency) | 400 `image.unsupportedFormat`, with `identifySuspicious`'s guess (`svg`, `php`, `elf`, …) in `details.detected` for the log |
-| 6   | `sharp` **metadata probe** before decode: `width × height ≤ MAX_IMAGE_PIXELS` (default 50 000 000), each side inside `Dimensions`' 1…60 000, `pages ≤ 1`  | `src/infrastructure/media/sharpImageProcessor.ts`        | 413 `image.tooManyPixels`; 400 `dimensions.tooLarge` / `dimensions.tooSmall` / `dimensions.notInteger`; 400 `image.animated`; 400 `image.corrupt` when the header will not parse |
-| 6b  | `limitInputPixels` raised on the `sharp` input so step 6 is the gate that decides — **(defect)**, see below                                               | same                                                     | intended 413 `image.tooManyPixels`; actually 400 `image.corrupt` |
-| 7   | Re-encode **three variants**, each `.rotate()` → `.resize({ fit: 'inside', withoutEnlargement: true })` → JPEG: `original` at `Dimensions.maxEdge` q92, `display` 2560 px q82, `thumb` 480 px q72. Metadata is **not** carried over | same                                                     | 400 `image.renderFailed`, with the first 200 characters of the cause in `details.reason` |
-| 8   | SHA-256 of the **re-encoded `display` bytes** → `content_hash`                                                                                            | `src/infrastructure/crypto/sha256ContentHasher.ts`       | 500 `photo.hashFailed`                                          |
-| 9   | Write each variant: a unique temp name in the same directory, then an atomic `rename`                                                                     | `src/infrastructure/media/fsMediaStore.ts`               | 500 `photo.mediaWriteFailed`; every hash this request wrote is unlinked |
-| 10  | Per-guest cap `settings.maxPhotosPerGuest`, then the byte quota per file, accumulating across the batch so ten files that each fit cannot collectively overrun it | `uploadPhotos.ts`                                        | 413 `event.photoLimitReached` / `event.quotaExceeded`           |
-| 11  | `photos.saveMany(created)` — the whole batch in **one** transaction, after every byte is on disk                                                          | `src/infrastructure/db/sqlitePhotoRepository.ts`         | 500 `photo.saveFailed`; the media this request wrote is unlinked |
+| #   | Step                                                                                                                                                                                                                                         | Where                                                    | Failure                                                                                                                                                                          |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Rate-limit before anything else: a flood is dropped before it costs a token verification and two repository reads                                                                                                                            | `middleware/rateLimit.ts`                                | 429 `rate.limited`                                                                                                                                                               |
+| 2   | Authorize: `requireGuest(deps)`, which runs **before** multer, so no byte of the body is parsed for a caller who has no standing                                                                                                             | `middleware/authz.ts`                                    | 401 `auth.required`, 403 `guest.wrongEvent` / `guest.revoked`                                                                                                                    |
+| 3   | `multer` into **memory**, byte limit `MAX_UPLOAD_BYTES` (default 25 000 000) per file. No `fileFilter`: it could only read `file.mimetype`, which is the client's own string and the exact 1.0 defect                                        | `routes/guestRoutes.ts`                                  | 413 `upload.tooLarge`                                                                                                                                                            |
+| 4   | File count limit `MAX_FILES_PER_UPLOAD` (default 20), text-field ceiling `fields: 4`, and one accepted field name (`photos`)                                                                                                                 | same                                                     | 400 `upload.tooManyFiles` / `upload.unexpectedField`; an empty multipart is 400 `upload.noFiles`                                                                                 |
+| 5   | Magic-byte identification — JPEG, PNG, GIF, WebP, and HEIC/AVIF `ftyp` brands. An allow-list: an unrecognised signature is rejected, never "probably fine"                                                                                   | `src/infrastructure/media/magicBytes.ts` (no dependency) | 400 `image.unsupportedFormat`, with `identifySuspicious`'s guess (`svg`, `php`, `elf`, …) in `details.detected` for the log                                                      |
+| 6   | `sharp` **metadata probe** before decode, with `limitInputPixels: false` on the input so this check is the gate that decides: `width × height ≤ MAX_IMAGE_PIXELS` (default 50 000 000), each side inside `Dimensions`' 1…60 000, `pages ≤ 1` | `src/infrastructure/media/sharpImageProcessor.ts`        | 413 `image.tooManyPixels`; 400 `dimensions.tooLarge` / `dimensions.tooSmall` / `dimensions.notInteger`; 400 `image.animated`; 400 `image.corrupt` when the header will not parse |
+| 7   | Re-encode **three variants**, each `.rotate()` → `.resize({ fit: 'inside', withoutEnlargement: true })` → JPEG: `original` at `Dimensions.maxEdge` q92, `display` 2560 px q82, `thumb` 480 px q72. Metadata is **not** carried over          | same                                                     | 400 `image.renderFailed`, with the first 200 characters of the cause in `details.reason`                                                                                         |
+| 8   | SHA-256 of the **re-encoded `display` bytes** → `content_hash`                                                                                                                                                                               | `src/infrastructure/crypto/sha256ContentHasher.ts`       | 500 `photo.hashFailed`                                                                                                                                                           |
+| 9   | Write each variant: a unique temp name in the same directory, then an atomic `rename`                                                                                                                                                        | `src/infrastructure/media/fsMediaStore.ts`               | 500 `photo.mediaWriteFailed`; every hash this request wrote is unlinked                                                                                                          |
+| 10  | Per-guest cap `settings.maxPhotosPerGuest`, then the byte quota per file, accumulating across the batch so ten files that each fit cannot collectively overrun it                                                                            | `uploadPhotos.ts`                                        | 413 `event.photoLimitReached` / `event.quotaExceeded`                                                                                                                            |
+| 11  | `photos.saveMany(created)` — the whole batch in **one** transaction, after every byte is on disk                                                                                                                                             | `src/infrastructure/db/sqlitePhotoRepository.ts`         | 500 `photo.saveFailed`; the media this request wrote is unlinked                                                                                                                 |
 
 Steps 5 to 11 run **per file**, and a refusal is recorded against that file's index
 rather than failing the request: the response is `201` with one outcome per submitted
@@ -239,22 +238,27 @@ costs, and the pipeline re-encodes every byte it accepts anyway, so a disk-backe
 would write a file and read it straight back — then need cleanup on every exit path,
 which is precisely where 1.0 leaked.
 
-**(defect) — `limitInputPixels` is not set, and the pixel budget is unreachable above
-268 MP.** `probe()` calls `sharp(bytes, { failOn: 'error', animated: false }).metadata()`
-with no `limitInputPixels`, so `sharp`'s own default of `0x3FFF ** 2` = 268 402 689 px
-applies. `metadata()` honours that limit and throws `Input image exceeds pixel limit`,
-which the adapter's `catch` reports as `400 image.corrupt`. The consequence is exact: an
-image between `MAX_IMAGE_PIXELS` and 268 MP is refused correctly as
-`413 image.tooManyPixels`, and anything **larger** — a 20 000 × 20 000 PNG at 400 MP, the
-decompression bomb this gate exists for — is misreported as a corrupt file. The
-application's configured budget is therefore bypassed for exactly the inputs it was
-written to refuse, the operator's log says "abîmée" rather than "trop grande", and
-raising `MAX_IMAGE_PIXELS` above 268 MP has no effect at all. The fix is
-`limitInputPixels: false` on the input options so the application's own check in step 6
-is the one that decides. Confirmed by an e2e case; the doc keeps describing the intended
-control until the adapter does.
-
 Details that are load-bearing:
+
+- **`limitInputPixels` is deliberately off on the probe, and this is not an oversight to
+  correct.** `sharp`'s own default is `0x3FFF ** 2` = 268 402 689 px and `metadata()`
+  honours it, throwing `Input image exceeds pixel limit` _instead of returning a header_.
+  While it was left at the default, the adapter's `catch` turned that into
+  `400 image.corrupt`, so an image between `MAX_IMAGE_PIXELS` and 268 MP was refused
+  correctly while anything **larger** — a 20 000 × 20 000 PNG at 400 MP, the
+  decompression bomb this gate exists for — was misreported as a broken file: the
+  configured budget was bypassed for exactly the inputs it was written to refuse, the
+  guest read "abîmée" rather than "trop grande", and raising `MAX_IMAGE_PIXELS` past
+  268 MP did nothing at all. Turning `sharp`'s limit off is safe **only because what
+  replaces it is stricter and runs earlier**: `metadata()` allocates nothing for a
+  header — the bomb's entire payload is a 65-byte `IHDR` — and `Dimensions`' 60 000 px edge cap and the
+  `MAX_IMAGE_PIXELS` comparison both act on the declared numbers before any `resize` or
+  `toBuffer` exists. Step 7 is a separate `sharp` instance that really does decode, so
+  it keeps a ceiling — `MAX_IMAGE_PIXELS` itself rather than `sharp`'s unrelated
+  default, which is what stops the same wrong-reason failure reappearing one step later
+  as `image.renderFailed`. Ring 3 pins both halves: the bomb must answer
+  `image.tooManyPixels`, and a genuinely unparsable header must still answer
+  `image.corrupt`.
 
 - **Client MIME type and filename are ignored entirely.** 1.0's `fileFilter` trusted
   `file.mimetype.startsWith('image/')`, which the client chooses. Magic bytes decide;

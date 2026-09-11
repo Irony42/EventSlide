@@ -77,7 +77,7 @@ Record<EventId, Role> }` — never the user row and never the hash.
 
 Issued by `joinEvent` _(planned,_ `src/application/usecases/guests/joinEvent.ts`_)_
 when a valid join code is presented, signed through a `TokenService` port implemented
-by `src/infrastructure/crypto/hmacTokenService.ts`.
+by `src/infrastructure/crypto/hmacGuestTokenService.ts`.
 
 | Property  | Value                                                                     | Why                                                                                                                                          |
 | --------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -51,19 +51,19 @@ write-file → verify → insert with the insert atomic.
 
 Use **`better-sqlite3`** as the only database driver.
 
-| Capability used                                                  | Where                                        |
-| ---------------------------------------------------------------- | -------------------------------------------- |
-| Synchronous API                                                  | all repositories in `src/infrastructure/db/` |
-| `db.transaction(fn)` — real, re-entrant, rolled back on throw    | ingest, bulk moderation, event deletion      |
-| Prepared statements cached per repository instance               | `src/infrastructure/db/photoRepository.ts`   |
-| `PRAGMA journal_mode = WAL`, `foreign_keys = ON`, `busy_timeout` | `src/infrastructure/db/connection.ts`        |
-| `new Database(':memory:')`                                       | rings 3 and 4 (CLAUDE.md §5)                 |
+| Capability used                                                  | Where                                            |
+| ---------------------------------------------------------------- | ------------------------------------------------ |
+| Synchronous API                                                  | all repositories in `src/infrastructure/db/`     |
+| `db.transaction(fn)` — real, re-entrant, rolled back on throw    | ingest, bulk moderation, event deletion          |
+| Prepared statements cached per repository instance               | `src/infrastructure/db/sqlitePhotoRepository.ts` |
+| `PRAGMA journal_mode = WAL`, `foreign_keys = ON`, `busy_timeout` | `src/infrastructure/db/connection.ts`            |
+| `new Database(':memory:')`                                       | rings 3 and 4 (CLAUDE.md §5)                     |
 
 The transaction wrapper is what removes the 1.0 defect class — one call site, all rows
 or none:
 
 ```ts
-// src/infrastructure/db/photoRepository.ts
+// src/infrastructure/db/sqlitePhotoRepository.ts
 const insertMany = db.transaction((photos: readonly PhotoRow[]) => {
   for (const p of photos) insertPhoto.run(p) // insertPhoto is prepared once
 })

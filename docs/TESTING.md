@@ -343,7 +343,7 @@ Each has its own `it`, named after the attack it refuses.
 | ------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------- |
 | Every event-scoped repository method misses across events                       | 3          | contract suites, run for SQLite and the fake                                              |
 | Every event-scoped route refuses another event's data                           | 4          | `src/interface/http/**/*.test.ts`                                                         |
-| A guest token grants upload to exactly one event and nothing else               | 4, 6       | route tests + `tests/e2e/security/guest-token-scope.spec.ts`                              |
+| A guest token grants upload to exactly one event and nothing else               | 4, 6       | route tests + `tests/e2e/security/tenant-isolation.spec.ts`                               |
 | A moderator of event A is refused (403) on event B                              | 4, 6       | route tests + `tests/e2e/security/tenant-isolation.spec.ts`                               |
 | A guest cannot delete someone else's photo, nor their own past the grace window | 2, 4       | use case + route tests                                                                    |
 | Magic bytes reject a renamed `.php`, an `.svg`, and a JPEG/HTML polyglot        | 3, 4, 6    | `src/infrastructure/media/magicBytes.test.ts` + upload route + `upload-hardening.spec.ts` |
