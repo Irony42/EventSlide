@@ -20,15 +20,21 @@ export interface WallEmptyStateProps {
 export function WallEmptyState({ eventName, joinCode }: WallEmptyStateProps) {
   return (
     <section className={styles['empty']} data-testid="wall-empty">
-      <div className={styles['copy']}>
+      <div className={styles['copy']} data-testid="wall-empty-copy">
         <p className={styles['prompt']}>{fr.wall.joinPrompt}</p>
         <h1 className={styles['name']}>{eventName}</h1>
         <p className={styles['title']}>{fr.wall.empty}</p>
         {joinCode === null ? null : <p className={styles['hint']}>{fr.wall.emptyHint}</p>}
       </div>
 
+      {/*
+        `wall-join` exists so the visual suite can mask this block whole: the QR image
+        and the characters beneath it both derive from the join code, which is random
+        per event, so a baseline that photographs them only ever matches the run that
+        produced it.
+      */}
       {joinCode === null ? null : (
-        <div className={styles['join']}>
+        <div className={styles['join']} data-testid="wall-join">
           <JoinQr url={joinUrlFor(joinCode)} size="lg" />
           <p className={styles['codeLabel']}>{fr.wall.codeLabel}</p>
           <p className={styles['code']}>{joinCode}</p>

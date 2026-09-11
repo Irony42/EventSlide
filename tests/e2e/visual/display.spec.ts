@@ -85,11 +85,20 @@ test.describe('the projected wall @visual', () => {
     await projector.goto(wallUrl(app, event.slug, { transitionMs: 0 }))
     await expect(projector.getByTestId('wall-empty')).toBeVisible()
 
-    // The QR code encodes the join code, which differs per run, so it is masked —
-    // otherwise every run would be a diff. Its presence and position are still
-    // asserted by the surrounding layout.
-    await expect(projector).toHaveScreenshot('wall-empty.png', {
-      mask: [projector.getByTestId('wall-empty').locator('svg')],
+    // Snapshotting the copy, not the page, and masking is not enough to get there.
+    //
+    // The join code is random per event, and `.join` is a content-sized grid, so a code
+    // of wide characters makes that block wider and pushes its flex sibling across the
+    // screen. Masking the block hides its pixels but not the shift it caused, which is
+    // why a full-page baseline here failed intermittently — sometimes 3% of pixels,
+    // sometimes 5%, depending on which six characters the server generated.
+    //
+    // An element screenshot clips to the element, so the copy's own typography and
+    // spacing are captured regardless of where the sibling pushed it. That is what this
+    // test is for: a caption gone unreadable, a heading that stopped fitting. The join
+    // block's presence is asserted structurally just above, and the code's value is
+    // covered by the journeys, which read it off this screen and join with it.
+    await expect(projector.getByTestId('wall-empty-copy')).toHaveScreenshot('wall-empty.png', {
       animations: 'disabled',
     })
   })
