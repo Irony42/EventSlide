@@ -499,9 +499,30 @@ soon as an owner exists. Password rules live in `src/domain/users/`, not the con
 resolving immediately, and the join link is a server-resolved path (`/join/:code`), so
 there is no stale query parameter to mislead anyone the way 1.0's `?partyname=` /
 `?party` mismatch did. Know the limit: **rotation stops new joins, it does not revoke
-already-issued guest tokens.** To cut off guests who already joined, revoke them (the
-`gid` lookup then fails) or close the event, which stops uploads outright. Anything
-already uploaded is sitting in the moderation queue; nothing published itself.
+already-issued guest tokens.** To cut off guests who already joined, revoke them or
+close the event, which stops uploads outright. Anything already uploaded is sitting in
+the moderation queue; nothing published itself.
+
+> **(defect) — revocation on its own does not hold.** Revoking marks
+> the guest's row, and `requireGuest` then refuses that token with `403 guest.revoked`
+> — so the cut-off is real for the token the guest is holding. But `joinEvent`
+> deliberately lets a revoked guest fall through to a **new** row (see the comment at
+> `src/application/usecases/guests/joinEvent.ts`, which reasons that the front door
+> should not become the place that explains why somebody is not welcome). The guest
+> re-scans the QR code that is printed on every table, gets a fresh unrevoked identity,
+> and is uploading again inside a few seconds.
+>
+> The reasoning about disclosure is sound — a join endpoint that explained a refusal
+> would be an oracle — but refusing and explaining are separable, and as it stands
+> `revokeGuest.ts`'s own docstring ("a revocation that did not actually stop the next
+> upload would be the worst possible outcome for a host standing in front of a
+> projector") describes what currently happens.
+>
+> **Until it is fixed, revocation must be paired with a join-code rotation** to
+> actually stop a determined guest: revoke, then `POST /api/events/:slug/join-code` and
+> reprint. Rotation is what denies them the new identity. Note this inconveniences
+> every guest who has not joined yet, which is exactly why revocation alone was meant
+> to be the targeted control.
 
 ## 12. Accepted risks
 
@@ -509,7 +530,7 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 
 | Risk                                                                | Why it is accepted                                                                                                                                                                                                                                                    | Partial mitigation                                                                                                                                                                      |
 | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A guest with the join code can upload anything                      | that is the product; the alternative is per-guest accounts, which kills the zero-friction requirement                                                                                                                                                                 | moderation before projection, per-guest rate limit, host can revoke a guest                                                                                                             |
+| A guest with the join code can upload anything                      | that is the product; the alternative is per-guest accounts, which kills the zero-friction requirement. **Note this currently subsumes revocation** — see the defect in §11, where a revoked guest re-joins with the same code and gets a fresh identity               | moderation before projection, per-guest rate limit, host can revoke a guest                                                                                                             |
 | A leaked display URL exposes published photos **and the join code** | the wall doubles as the invitation — the empty state exists to tell the room how to join, and someone arriving at 23:00 has only the screen to read. Withholding the code there would break the product to protect what the QR code on every table already gives away | only `published` photos are ever served; the host can rotate the join code, which invalidates it immediately; display access can require the join code for private events **(planned)** |
 | Guest identity is a device cookie, not a person                     | anonymity is a feature; a cleared cookie means a new guest, and a shared phone means a shared identity                                                                                                                                                                | grace-window deletion is deliberately short, so a mis-attributed identity has a narrow blast radius                                                                                     |
 | Captions and display names are guest-supplied text on a 3 m screen  | pre-moderating text as well as photos would slow the wall to uselessness                                                                                                                                                                                              | length-bounded, control characters stripped in the domain, rendered as text (React escapes; no `dangerouslySetInnerHTML` anywhere), and the host can hide any photo instantly           |
