@@ -91,6 +91,15 @@
   overflow: hidden;
 }
 
+/* "Sans légende", in the same slot as a caption so tiles keep one height and the host
+   can tell "no text" apart from "the text has not loaded". */
+.captionEmpty {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .author {
   font-size: var(--text-sm);
   color: var(--text-secondary);

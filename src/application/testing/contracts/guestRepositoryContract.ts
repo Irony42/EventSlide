@@ -112,6 +112,92 @@ export const guestRepositoryContract = (
       expect(await repo.findById(WEDDING, asGuestId('guest-lea'))).toBeNull()
     })
 
+    // ----------------------------------------------------------- name batch --
+
+    it('answers a batch with the name of each guest asked for', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: 'Léa' }))
+      await repo.save(aGuest({ id: 'guest-sacha', eventId: WEDDING, displayName: 'Sacha' }))
+
+      const names = await repo.findNamesByIds(WEDDING, [
+        asGuestId('guest-lea'),
+        asGuestId('guest-sacha'),
+      ])
+
+      // As a plain object: the port promises a lookup, not an order, and asserting one
+      // would hold a SQL adapter to whatever `IN` happened to return.
+      expect(Object.fromEntries(names)).toEqual({ 'guest-lea': 'Léa', 'guest-sacha': 'Sacha' })
+    })
+
+    it('omits a guest who stayed anonymous, so no caller invents a name for them', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: null }))
+
+      const names = await repo.findNamesByIds(WEDDING, [asGuestId('guest-lea')])
+
+      expect(names.has(asGuestId('guest-lea'))).toBe(false)
+    })
+
+    it('carries an accented name through the batch unchanged', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: 'Zoé Müller' }))
+
+      const names = await repo.findNamesByIds(WEDDING, [asGuestId('guest-lea')])
+
+      expect(names.get(asGuestId('guest-lea'))).toBe('Zoé Müller')
+    })
+
+    it('never returns the name of a guest at another event', async () => {
+      // The wall is public. A batch that reached across events would put one party's
+      // guest list on another party's projector.
+      await repo.save(aGuest({ id: 'guest-sam', eventId: GALA, displayName: 'Sam' }))
+
+      const names = await repo.findNamesByIds(WEDDING, [asGuestId('guest-sam')])
+
+      expect([...names]).toEqual([])
+    })
+
+    it('omits a guest id nothing holds instead of failing the whole batch', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: 'Léa' }))
+
+      const names = await repo.findNamesByIds(WEDDING, [
+        asGuestId('guest-lea'),
+        asGuestId('guest-gone'),
+      ])
+
+      expect([...names]).toEqual([['guest-lea', 'Léa']])
+    })
+
+    it('answers an empty request with an empty result', async () => {
+      expect([...(await repo.findNamesByIds(WEDDING, []))]).toEqual([])
+    })
+
+    it('tolerates the same guest id repeated, because many slides share one sender', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: 'Léa' }))
+
+      const names = await repo.findNamesByIds(WEDDING, [
+        asGuestId('guest-lea'),
+        asGuestId('guest-lea'),
+      ])
+
+      expect([...names]).toEqual([['guest-lea', 'Léa']])
+    })
+
+    it('still names a revoked guest, whose photos the host may have left published', async () => {
+      // Revocation stops the device token granting anything. It is not a retraction of
+      // the photos already on the wall — those are the host's to hide — and a slide that
+      // silently lost its credit would look like a bug to the room.
+      await repo.save(
+        aGuest({
+          id: 'guest-lea',
+          eventId: WEDDING,
+          displayName: 'Léa',
+          revokedAt: atPlus(1_000),
+        }),
+      )
+
+      const names = await repo.findNamesByIds(WEDDING, [asGuestId('guest-lea')])
+
+      expect(names.get(asGuestId('guest-lea'))).toBe('Léa')
+    })
+
     // --------------------------------------------------------------- listing --
 
     it('lists the most recently seen guest first', async () => {

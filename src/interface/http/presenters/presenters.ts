@@ -184,34 +184,42 @@ export const toSessionUserDto = (user: User): SessionUserDto => ({
 // Imported here rather than folded into the statement list at the top of the file, so
 // that five route modules being written against this file at the same time merge
 // cleanly. Type-only, so nothing is added to the bundle.
-import type { QueueItem } from '../../../domain/moderation/moderationQueue'
+import type { ModerationQueueRow } from '../../../application/usecases/moderation/getModerationQueue'
 import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
 import type { ModerationQueueItemDto, TopPhotoDto } from './dto'
 
 export interface ModerationQueueItemDtoInput {
-  readonly item: QueueItem
+  readonly row: ModerationQueueRow
   readonly slug: string
 }
 
 /**
  * One queue row.
  *
- * Takes the domain's `QueueItem` rather than a `Photo`, because that is what
- * `getModerationQueue` returns: the four columns every queue rule needs, projected out
- * of the `(event_id, status, created_at DESC)` index. The image URLs are derived from
- * the id and the slug — the same builder the wall and the printed card use — so the
- * grid renders from the projection alone.
+ * Takes the use case's `ModerationQueueRow` rather than a `Photo`: the console's read
+ * model is assembled by `getModerationQueue`, which resolves the sender's name in one
+ * batched read. A presenter that reached for a repository to fill `authorName` would be
+ * a controller doing a second read — and the field that was left `null` instead is what
+ * the console rendered as "par undefined".
+ *
+ * The image URLs are still derived from the id and the slug, by the same builder the
+ * wall and the printed card use, so the grid renders without a second read. `hasCaption`
+ * does not cross: the row carries the caption itself, and a client can see for itself
+ * whether there is one.
  */
 export const toModerationQueueItemDto = ({
-  item,
+  row,
   slug,
 }: ModerationQueueItemDtoInput): ModerationQueueItemDto => ({
-  id: item.id,
-  status: item.status,
-  thumbUrl: mediaUrl(slug, item.id, 'thumb'),
-  displayUrl: mediaUrl(slug, item.id, 'display'),
-  hasCaption: item.hasCaption,
-  createdAt: iso(item.createdAt),
+  id: row.id,
+  status: row.status,
+  thumbUrl: mediaUrl(slug, row.id, 'thumb'),
+  displayUrl: mediaUrl(slug, row.id, 'display'),
+  width: row.width,
+  height: row.height,
+  caption: row.caption,
+  authorName: row.authorName,
+  createdAt: iso(row.createdAt),
 })
 
 export interface TopPhotoDtoInput {
@@ -355,24 +363,30 @@ import type { WallItemDto, WallResponseDto } from './dto'
 /**
  * One slide.
  *
- * `authorName` is `null` because the wall's read model carries no guest identity:
- * `getWallPlaylist` returns published photos and their playlist, and resolving an author
- * would mean either a second repository read from a controller — the one thing a
- * controller may not do — or a use case that returns names it does not have today. The
- * field stays on the wire because docs/API.md declares it nullable, so filling it later
- * is an addition rather than a breaking change.
+ * `authorName` is the name the guest typed at `/join` for exactly this purpose, and it
+ * arrives from the use case: `getWallPlaylist` carries `authorNames` in its view, so this
+ * presenter joins a map it was handed rather than the controller performing a second
+ * repository read — the one thing a controller may not do.
  *
- * Note what is absent: no status, no byte size, no content hash, no storage key. The
- * projector is a public client, and a wall item is the least it needs to render a slide.
+ * It is `null` whenever there is nobody to name: a guest who stayed anonymous, a photo
+ * the host uploaded from the venue's own camera, or a guest row that is gone. The wall
+ * then shows no credit at all rather than a stand-in, because "Invité" is French UI copy
+ * and lives in `web/src/lib/i18n/fr.ts` — the same line `Guest.label()` draws. The
+ * projector's alt text still says the photo came from a guest; the scrim carries no name.
+ *
+ * Note what is absent, and note that the author's *name* is the only thing that was
+ * added: no status, no byte size, no content hash, no storage key, and no guest id. The
+ * projector is a public client in a room of strangers, and a wall item is the least it
+ * needs to render a slide.
  */
-const toWallItemDto = (photo: Photo, slug: string): WallItemDto => ({
+const toWallItemDto = (photo: Photo, slug: string, authorName: string | null): WallItemDto => ({
   id: photo.id,
   displayUrl: mediaUrl(slug, photo.id, 'display'),
   thumbUrl: mediaUrl(slug, photo.id, 'thumb'),
   width: photo.dimensions.width,
   height: photo.dimensions.height,
   caption: photo.caption?.value ?? null,
-  authorName: null,
+  authorName,
   createdAt: iso(photo.createdAt),
 })
 
@@ -406,7 +420,9 @@ export const toWallResponseDto = (view: WallPlaylistView): WallResponseDto => {
       // A playlist id with no photo behind it is not reachable through the use case, which
       // builds both from one read. Skipping rather than emitting a placeholder keeps the
       // failure mode "one slide short" instead of a hole the projector has to render.
-      return photo === undefined ? [] : [toWallItemDto(photo, slug)]
+      return photo === undefined
+        ? []
+        : [toWallItemDto(photo, slug, view.authorNames.get(id) ?? null)]
     }),
     slideIntervalMs: view.slideIntervalMs,
     kenBurnsDurationMs: view.kenBurnsDurationMs,

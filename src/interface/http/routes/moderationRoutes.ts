@@ -125,7 +125,7 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
       noStore(res)
       sendResult(res, result, (response, view) =>
         sendJson<ModerationQueuePageDto>(response, {
-          items: view.items.map((item) => toModerationQueueItemDto({ item, slug })),
+          items: view.items.map((row) => toModerationQueueItemDto({ row, slug })),
           pendingCount: view.pendingCount,
           // The queue is not cursor-paged, and cannot be: the domain orders the whole
           // filtered set *before* applying the limit, precisely so the oldest pending

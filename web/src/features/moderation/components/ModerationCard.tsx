@@ -115,7 +115,16 @@ export function ModerationCard({
       </button>
 
       <div className={styles['meta']}>
-        {photo.caption === null ? null : <p className={styles['caption']}>{photo.caption}</p>}
+        {/*
+          Always a line, even with no caption. A tile that simply omits it reads the
+          same as one whose caption failed to arrive — and the host is deciding whether
+          this text goes on a wall in front of the room.
+        */}
+        {photo.caption === null ? (
+          <p className={styles['captionEmpty']}>{fr.moderation.noCaption}</p>
+        ) : (
+          <p className={styles['caption']}>{photo.caption}</p>
+        )}
         <p className={styles['author']}>{authorLine}</p>
         <p className={styles['dimensions']}>
           {fr.moderation.dimensions(photo.width, photo.height)}

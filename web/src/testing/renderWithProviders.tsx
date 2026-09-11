@@ -97,7 +97,6 @@ export const aModerationPhoto = (
   height: 1707,
   caption: null,
   authorName: 'Léa',
-  byteSize: 2_400_000,
   createdAt: CREATED_AT,
   ...overrides,
 })

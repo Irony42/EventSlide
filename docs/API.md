@@ -188,6 +188,13 @@ QR while it is empty, and keeps a small corner reminder afterwards, so a guest a
 late can join from the screen alone. It is the only host-side value the wall carries,
 and it is exactly the value already printed on the tables.
 
+`authorName` is the name the guest typed at `POST /api/join` — the one thing they
+supplied for exactly this purpose — and it is `null` whenever there is nobody to name: an
+anonymous guest, or a photo the host uploaded from the venue's own camera. `null` means
+**show no credit**, never a stand-in; "Invité" is French UI copy and belongs to the
+client. Nothing else about the guest crosses: no guest id, no presence, no photo count.
+The name is resolved event-scoped, like every other read here.
+
 **Errors** — `404 event.notFound` when the event does not exist or is `draft` or
 `archived`. A `closed` event still serves its wall: the projector is usually still on
 while people say goodbye.
@@ -466,6 +473,58 @@ previews with — a second implementation in the client is how "the slug I saw i
 slug I got" happens. **201** with the full event including its join code.
 
 **Errors** — `409 event.slugTaken`, `400 eventName.*`, `400 slug.*`.
+
+### `GET /api/events/:slug/moderation`
+
+The console's one read: one tab of the queue, plus the badge.
+
+Query: `status` ∈ `pending | published | rejected | hidden | all` (default `pending`),
+`limit` 1..200 (default 60).
+
+**200**
+
+```json
+{
+  "items": [
+    {
+      "id": "…",
+      "status": "pending",
+      "thumbUrl": "/api/events/camille-et-sacha/photos/…/thumb",
+      "displayUrl": "/api/events/camille-et-sacha/photos/…/display",
+      "width": 2560,
+      "height": 1707,
+      "caption": "Les confettis",
+      "authorName": "Léa",
+      "createdAt": "2026-06-20T21:04:11.031Z"
+    }
+  ],
+  "pendingCount": 12,
+  "nextCursor": null
+}
+```
+
+A row carries the **caption itself**, not a flag saying one exists. The host is deciding
+whether that text is projected at the size of the room, and a badge is exactly what does
+not let them read it. `authorName` is the sender's display name, resolved server-side in
+one batched read, and `null` for a guest who stayed anonymous or for a host's own
+upload — the client picks the French for an unattributed photo, and the server never
+invents a name. `width` and `height` are the intrinsic size, so the grid is laid out
+before the thumbnails arrive.
+
+A moderation row may say more than a wall item, because a moderator is not the room. It
+still carries no content hash, no storage key, no path — and no byte size, because
+nothing renders one.
+
+`pendingCount` is across the whole event rather than the page in hand: a badge that
+shrank to the page size the moment a `limit` was applied would under-report the work
+left. `nextCursor` is always `null`, and this queue is deliberately not cursor-paged —
+the ordering is applied to the whole filtered set _before_ `limit`, so the oldest pending
+photo cannot be pushed off the page by newer arrivals. The pending tab is oldest first
+for the same reason; every other tab is newest first, because there the host is looking
+at what just happened.
+
+`Cache-Control: no-store`. This is the one surface that shows photos the host has not
+approved.
 
 ### `POST /api/events/:slug/moderation/bulk`
 

@@ -238,7 +238,49 @@ describe('SqliteGuestRepository', () => {
     await expect(repo.findById(WEDDING, asGuestId('guest-corrupt'))).rejects.toThrow()
   })
 
+  // ---------------------------------------------------------------- name batch --
+
+  it('answers a batch wider than one IN list, so a busy wall is not a parameter error', async () => {
+    // SQLite caps the bound parameters of a statement — 999 on older builds — so a wall
+    // whose window grows past that would fail outright rather than slowly. The adapter
+    // chunks; this is the test that fails if someone removes the chunking as ceremony.
+    const ids = Array.from({ length: 450 }, (_, index) => `guest-${index}`)
+    for (const [index, id] of ids.entries()) {
+      await repo.save(aGuest({ id, eventId: WEDDING, displayName: `Invité ${index}` }))
+    }
+
+    const names = await repo.findNamesByIds(WEDDING, ids.map(asGuestId))
+
+    expect(names.size).toBe(450)
+    expect(names.get(asGuestId('guest-449'))).toBe('Invité 449')
+  })
+
+  it('refuses to hydrate a batched name the domain rejects, exactly as findById does', async () => {
+    db.prepare<[string, string]>(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
+            VALUES ('guest-corrupt', 'evt-wedding', '', ?, ?)`,
+    ).run(AT.toISOString(), AT.toISOString())
+
+    await expect(repo.findNamesByIds(WEDDING, [asGuestId('guest-corrupt')])).rejects.toThrow()
+  })
+
   // -------------------------------------------------------------- access shape --
+
+  it('reads a batch of names in one statement, never one per slide', async () => {
+    // The wall is the surface that has to stay smooth for eight hours, and a playlist is
+    // many photos by few guests. One statement for the batch is the whole point of the
+    // method existing; the projection is names only, so no correlated photo count rides
+    // along on a public read.
+    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: 'Léa' }))
+    await repo.save(aGuest({ id: 'guest-sacha', eventId: WEDDING, displayName: 'Sacha' }))
+    const log = withQueryLog(db)
+
+    await new SqliteGuestRepository(log.db).findNamesByIds(WEDDING, [LEA, asGuestId('guest-sacha')])
+
+    const sql = onlyQuery(log.prepared)
+    expect(sql).toContain('event_id = ?')
+    expect(sql).not.toContain('COUNT(')
+  })
 
   it('serves the presence count from the event and last-seen index', async () => {
     const log = withQueryLog(db)

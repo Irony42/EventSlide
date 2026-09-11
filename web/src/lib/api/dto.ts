@@ -82,21 +82,37 @@ export interface GuestPhotoDto {
   readonly canDelete: boolean
 }
 
+/**
+ * One row of `GET /api/events/:slug/moderation`.
+ *
+ * The server declares the same bytes as `ModerationQueueItemDto` in
+ * `src/interface/http/presenters/dto.ts`, and docs/API.md §6 specifies them. Keep the
+ * three in step: nothing validates this shape at runtime — the transport asserts it
+ * onto whatever JSON arrives — so a field this interface claims and the server does not
+ * send is `undefined` on screen while both sides typecheck. That is exactly how the
+ * moderation card came to read "par undefined" to a host mid-event.
+ *
+ * `byteSize` was on this row and is gone: no surface renders it, and a field nobody
+ * shows is one more thing for the two declarations to disagree about.
+ */
 export interface ModerationPhotoDto {
   readonly id: string
   readonly status: PhotoStatus
   readonly thumbUrl: string
   readonly displayUrl: string
+  /** Intrinsic size: the grid is laid out before the thumbnails arrive. */
   readonly width: number
   readonly height: number
+  /** The text that would be projected with the photo. The host reads it before deciding. */
   readonly caption: string | null
+  /** `null` for a guest who chose not to give a name, which is a supported choice. */
   readonly authorName: string | null
-  readonly byteSize: number
   readonly createdAt: string
 }
 
 export interface ModerationQueueResponse {
   readonly items: readonly ModerationPhotoDto[]
+  /** Across the whole event, not the page in hand. */
   readonly pendingCount: number
   readonly nextCursor: string | null
 }

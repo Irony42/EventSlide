@@ -167,6 +167,12 @@ export const fr = {
     decisionFailed: 'La décision n’a pas pu être enregistrée. Réessayez.',
     undoFailed: 'L’annulation n’a pas pu être enregistrée. Réessayez.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
+    /**
+     * Said out loud rather than left blank. A card with no caption line at all is
+     * indistinguishable from one whose caption failed to arrive, and the host is about
+     * to decide what gets projected with that photo.
+     */
+    noCaption: 'Sans légende',
   },
 
   wall: {

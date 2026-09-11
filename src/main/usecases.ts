@@ -230,6 +230,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   getModerationQueue: makeGetModerationQueue({
     events: adapters.events,
     photos: adapters.photos,
+    guests: adapters.guests,
     memberships: adapters.memberships,
   }),
   moderatePhoto: makeModeratePhoto({
@@ -248,7 +249,11 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   }),
 
   // -------------------------------------------------------------- slideshow --
-  getWallPlaylist: makeGetWallPlaylist({ events: adapters.events, photos: adapters.photos }),
+  getWallPlaylist: makeGetWallPlaylist({
+    events: adapters.events,
+    photos: adapters.photos,
+    guests: adapters.guests,
+  }),
 
   // -------------------------------------------------------------- reactions --
   reactToPhoto: makeReactToPhoto({

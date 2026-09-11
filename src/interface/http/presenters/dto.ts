@@ -191,25 +191,34 @@ export interface TopPhotoDto {
 // ------------------------------------------- moderation routes (additive) --
 
 /**
- * One row of the moderation queue.
+ * One row of the moderation queue, as `web/src/lib/api/dto.ts` declares it and
+ * docs/API.md §6 specifies it. The two declarations describe the same bytes.
  *
- * Deliberately **not** a {@link ModerationPhotoDto}. `getModerationQueue` returns the
- * domain's four-column `QueueItem` projection — id, status, arrival, whether the guest
- * attached text — because the host works through hundreds of rows on a laptop while
- * more arrive over SSE, and not one queue rule needs a photo's dimensions, bytes or
- * author. The two image URLs are derived from the id and the slug, so the grid still
- * renders without a second read.
+ * This row once carried the domain's four-column `QueueItem` projection and a
+ * `hasCaption` boolean, on the argument that a caption "has to be read before
+ * publishing" — which is the argument *against* a boolean: a badge saying text exists
+ * is precisely what does not let the host read it. The moderator's job is to decide
+ * what goes on a wall in front of a room, and the caption, the sender and the photo's
+ * proportions are what that decision is made of. The console rendered all three from a
+ * row that carried none of them, so a host moderating a real event read "par undefined"
+ * and "undefined × undefined pixels" on every card.
+ *
+ * Note what is still absent. This row goes to a moderator rather than to the room, so
+ * it may say more than a {@link WallItemDto} — but no content hash, storage key or
+ * absolute path appears here, and `byteSize` is not on it because nothing renders it.
  */
 export interface ModerationQueueItemDto {
   readonly id: string
   readonly status: PhotoStatus
   readonly thumbUrl: string
   readonly displayUrl: string
-  /**
-   * A caption is projected at the size of the room and has to be read before
-   * publishing, so the row carries the badge rather than the text.
-   */
-  readonly hasCaption: boolean
+  /** Intrinsic size, so the grid does not reflow as thumbnails arrive over venue Wi-Fi. */
+  readonly width: number
+  readonly height: number
+  /** The text that would be projected with the photo, not a badge saying there is one. */
+  readonly caption: string | null
+  /** `null` for an anonymous guest or a host's own upload; the client words that. */
+  readonly authorName: string | null
   readonly createdAt: string
 }
 

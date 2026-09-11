@@ -28,6 +28,40 @@ interface CountRow {
   readonly total: number
 }
 
+/** Just the two columns a credit needs. See {@link SELECT_GUEST_NAMES}. */
+interface GuestNameRow {
+  readonly id: string
+  readonly display_name: string | null
+}
+
+const placeholders = (count: number): string => new Array(count).fill('?').join(', ')
+
+/**
+ * How many ids go into one `IN` list.
+ *
+ * SQLite caps the bound parameters of a statement, and older builds cap it at 999 — the
+ * wall reads up to 500 photos, so a single batch is within reach today and would stop
+ * being so the moment that window grows. Chunking costs one extra statement per 200
+ * guests and removes the failure mode entirely; each chunk is still one index seek per
+ * id rather than a scan.
+ */
+const NAME_BATCH_SIZE = 200
+
+/**
+ * Names only, for the wall's credit line.
+ *
+ * Deliberately not `SELECT_GUEST`: that projection derives `photo_count` with a
+ * correlated subquery per row, which a public projector has no use for and should not
+ * provoke. `event_id` leads the predicate for the usual reason — a guest id learned at
+ * one party must not resolve a name at another.
+ */
+const SELECT_GUEST_NAMES = (count: number): string => `
+  SELECT id, display_name
+    FROM guests
+   WHERE event_id = ?
+     AND id IN (${placeholders(count)})
+`
+
 /**
  * `Guest.photoCount` is a projection, not stored state.
  *
@@ -143,6 +177,39 @@ export class SqliteGuestRepository implements GuestRepository {
       .get(eventId, guestId)
 
     return row === undefined ? null : toGuest(row)
+  }
+
+  async findNamesByIds(
+    eventId: EventId,
+    guestIds: readonly GuestId[],
+  ): Promise<ReadonlyMap<GuestId, string>> {
+    const names = new Map<GuestId, string>()
+
+    // `id IN ()` is not valid SQL, and a wall playing nothing but the host's own photos
+    // must not prepare a statement at all.
+    if (guestIds.length === 0) return names
+
+    // A playlist is many photos by few guests, so the same id arrives repeatedly. Asking
+    // for it once keeps the bound-parameter count proportional to the guests in the room
+    // rather than to the slides on the screen.
+    const unique = [...new Set(guestIds)]
+
+    for (let from = 0; from < unique.length; from += NAME_BATCH_SIZE) {
+      const chunk = unique.slice(from, from + NAME_BATCH_SIZE)
+      const rows = this.db
+        .prepare<string[], GuestNameRow>(SELECT_GUEST_NAMES(chunk.length))
+        .all(eventId, ...chunk)
+
+      for (const row of rows) {
+        // Parsed rather than passed through: a stored name the domain refuses is a
+        // corrupt row here exactly as it is in `findById`, and failing loudly beats
+        // putting an unnormalised name on a projector.
+        const name = toDisplayName(row.display_name)
+        if (name !== null) names.set(asGuestId(row.id), name.value)
+      }
+    }
+
+    return names
   }
 
   async list(eventId: EventId): Promise<readonly Guest[]> {

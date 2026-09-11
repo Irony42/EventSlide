@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeGetModerationQueue, type GetModerationQueue } from './getModerationQueue'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
-import { anEvent, aPhoto, atPlus, AT } from '../../testing/builders'
+import { anEvent, aGuest, aPhoto, atPlus, AT } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 
@@ -18,18 +19,30 @@ const MINUTE = 60_000
 describe('getModerationQueue', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository
+  let guests: FakeGuestRepository
   let memberships: FakeMembershipRepository
   let getModerationQueue: GetModerationQueue
 
   beforeEach(() => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
+    guests = new FakeGuestRepository()
     memberships = new FakeMembershipRepository()
-    getModerationQueue = makeGetModerationQueue({ events, photos, memberships })
+    getModerationQueue = makeGetModerationQueue({ events, photos, guests, memberships })
 
     events.seed(anEvent({ id: 'event-1' }))
     memberships.seed({ eventId: EVENT, userId: MODERATOR, role: 'moderator', grantedAt: AT })
   })
+
+  /** The whole queue for the pending tab, with the domain's own default order. */
+  const pendingQueue = () =>
+    getModerationQueue({
+      eventId: EVENT,
+      filter: 'pending',
+      order: null,
+      limit: null,
+      actor: moderator,
+    })
 
   /** Three arrivals a minute apart, so an ordering assertion cannot pass by accident. */
   const seedThreePending = (): void => {
@@ -162,6 +175,151 @@ describe('getModerationQueue', () => {
     })
 
     expect(result.ok && result.value.items.map((item) => item.hasCaption)).toEqual([true])
+  })
+
+  // ------------------------------------------------------- what the card renders --
+
+  it('carries the caption text, because a badge is not something a host can read', async () => {
+    photos.seed(
+      aPhoto({ id: 'photo-1', eventId: 'event-1', status: 'pending', caption: 'Les confettis' }),
+    )
+
+    const result = await pendingQueue()
+
+    expect(result.ok && result.value.items.map((item) => item.caption)).toEqual(['Les confettis'])
+  })
+
+  it('leaves the caption null when the guest attached none', async () => {
+    photos.seed(aPhoto({ id: 'photo-1', eventId: 'event-1', status: 'pending', caption: null }))
+
+    const result = await pendingQueue()
+
+    expect(result.ok && result.value.items.map((item) => item.caption)).toEqual([null])
+  })
+
+  it('carries the photo dimensions, so the grid is laid out before the thumbnails arrive', async () => {
+    photos.seed(
+      aPhoto({ id: 'photo-1', eventId: 'event-1', status: 'pending', width: 2560, height: 1707 }),
+    )
+
+    const result = await pendingQueue()
+
+    expect(result.ok && result.value.items.map((item) => [item.width, item.height])).toEqual([
+      [2560, 1707],
+    ])
+  })
+
+  it('names the guest who sent the photo', async () => {
+    guests.seed(aGuest({ id: 'guest-lea', eventId: 'event-1', displayName: 'Léa' }))
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'pending',
+        author: { kind: 'guest', id: 'guest-lea' },
+      }),
+    )
+
+    const result = await pendingQueue()
+
+    expect(result.ok && result.value.items.map((item) => item.authorName)).toEqual(['Léa'])
+  })
+
+  it('leaves the name null for a guest who stayed anonymous, instead of inventing one', async () => {
+    // "Invité anonyme" is French UI copy. It belongs to the client, which is free to
+    // word it differently on the console and on the wall.
+    guests.seed(aGuest({ id: 'guest-lea', eventId: 'event-1', displayName: null }))
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'pending',
+        author: { kind: 'guest', id: 'guest-lea' },
+      }),
+    )
+
+    const result = await pendingQueue()
+
+    expect(result.ok && result.value.items.map((item) => item.authorName)).toEqual([null])
+  })
+
+  it('leaves the name null for a photo the host uploaded themselves', async () => {
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'pending',
+        author: { kind: 'host', id: 'user-2' },
+      }),
+    )
+
+    const result = await pendingQueue()
+
+    expect(result.ok && result.value.items.map((item) => item.authorName)).toEqual([null])
+  })
+
+  it('never names a guest of another event, even when the photo names their id', async () => {
+    // The name read is scoped by event like every other read. A guest row that belongs
+    // to another party must not surface on this host's console.
+    guests.seed(aGuest({ id: 'guest-sam', eventId: 'event-2', displayName: 'Sam' }))
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'pending',
+        author: { kind: 'guest', id: 'guest-sam' },
+      }),
+    )
+
+    const result = await pendingQueue()
+
+    expect(result.ok && result.value.items.map((item) => item.authorName)).toEqual([null])
+  })
+
+  it('reads every sender in one batched call, never one per photo', async () => {
+    // The console refetches on every arriving photo, all evening. A `findById` per row
+    // would be an N+1 on the laptop with the least time to spare — so the property is
+    // asserted, not left to a comment. The spy wraps the real fake and changes nothing.
+    guests.seed(
+      aGuest({ id: 'guest-lea', eventId: 'event-1', displayName: 'Léa' }),
+      aGuest({ id: 'guest-nils', eventId: 'event-1', displayName: 'Nils' }),
+    )
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'pending',
+        author: { kind: 'guest', id: 'guest-lea' },
+      }),
+      aPhoto({
+        id: 'photo-2',
+        eventId: 'event-1',
+        status: 'pending',
+        createdAt: atPlus(MINUTE),
+        author: { kind: 'guest', id: 'guest-lea' },
+      }),
+      aPhoto({
+        id: 'photo-3',
+        eventId: 'event-1',
+        status: 'pending',
+        createdAt: atPlus(2 * MINUTE),
+        author: { kind: 'guest', id: 'guest-nils' },
+      }),
+    )
+    const lookup = vi.spyOn(guests, 'findNamesByIds')
+
+    const result = await pendingQueue()
+
+    expect(result.ok && result.value.items.map((item) => item.authorName)).toEqual([
+      'Léa',
+      'Léa',
+      'Nils',
+    ])
+    expect(lookup).toHaveBeenCalledTimes(1)
+    const call = lookup.mock.calls[0]
+    expect(call?.[0]).toBe(EVENT)
+    // Distinct senders, not one entry per photo: a queue is many photos by few guests.
+    expect([...(call?.[1] ?? [])].sort()).toEqual(['guest-lea', 'guest-nils'])
   })
 
   it('refuses a page size the console could not render', async () => {

@@ -56,10 +56,20 @@ export interface BulkPartition {
 export const defaultOrderFor = (filter: QueueFilter): QueueOrder =>
   filter === 'pending' ? 'oldestFirst' : 'newestFirst'
 
-export const filterQueue = (
-  items: readonly QueueItem[],
+/**
+ * Generic over the row, not over the rule.
+ *
+ * The rules below read the four columns of {@link QueueItem} and nothing else, but a
+ * caller assembling a read model has more on each row — the moderation console carries
+ * the caption text and the sender's name, because a host decides what goes on a wall in
+ * front of a room. Handing those rows back unchanged is what lets a caller order once;
+ * narrowing them to `QueueItem` here would force a second lookup by id after the sort,
+ * and a lookup has a miss case that this join does not.
+ */
+export const filterQueue = <T extends QueueItem>(
+  items: readonly T[],
   filter: QueueFilter,
-): readonly QueueItem[] => {
+): readonly T[] => {
   if (filter === 'all') return items
   return items.filter((item) => item.status === filter)
 }
@@ -74,10 +84,10 @@ export const filterQueue = (
  * laptops. There is no equal case to model: an id is unique within an event, so the
  * same id twice would be a corrupt read rather than an ordering question.
  */
-export const orderQueue = (
-  items: readonly QueueItem[],
+export const orderQueue = <T extends QueueItem>(
+  items: readonly T[],
   order: QueueOrder,
-): readonly QueueItem[] => {
+): readonly T[] => {
   const direction = order === 'oldestFirst' ? 1 : -1
   return [...items].sort((left, right) => {
     const byArrival = left.createdAt.getTime() - right.createdAt.getTime()
@@ -86,10 +96,10 @@ export const orderQueue = (
   })
 }
 
-export const buildQueue = (
-  items: readonly QueueItem[],
+export const buildQueue = <T extends QueueItem>(
+  items: readonly T[],
   { filter, order, limit }: QueueRequest,
-): Result<readonly QueueItem[], DomainError> => {
+): Result<readonly T[], DomainError> => {
   // A page size of zero renders an empty console that looks like a lost queue, and a
   // fractional one silently truncates in `slice`. Both mean a caller built the query
   // wrong, so they are refused rather than interpreted.

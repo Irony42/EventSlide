@@ -10,9 +10,11 @@ import {
   type WallLayoutSpec,
 } from '../../../domain/slideshow/wallLayout'
 import { DomainError } from '../../../domain/shared/errors'
+import type { GuestId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Slug } from '../../../domain/shared/slug'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { GuestRepository } from '../../ports/guestRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 
 /**
@@ -64,6 +66,7 @@ export interface GetWallPlaylistInput {
 export interface GetWallPlaylistDeps {
   readonly events: EventRepository
   readonly photos: PhotoRepository
+  readonly guests: GuestRepository
 }
 
 export interface WallPlaylistView {
@@ -71,6 +74,20 @@ export interface WallPlaylistView {
   readonly playlist: Playlist
   /** The published photos behind `playlist.items`, so the caller needs no second read. */
   readonly photos: readonly Photo[]
+  /**
+   * Who to credit, by photo id — the guest's own display name, resolved here so that no
+   * controller has to read a repository to present a slide.
+   *
+   * A photo is **absent** when there is nobody to name: its sender stayed anonymous, the
+   * host uploaded it from the venue's own camera, or the guest row is gone. The wall then
+   * shows no credit rather than a fallback, because the fallback ("Invité") is French UI
+   * copy and belongs in `web/src/lib/i18n/` — the same decision `Guest.label()` already
+   * makes, and the reason this map holds no nulls.
+   *
+   * Names are resolved for the playlist window only. Reading the whole candidate list
+   * would credit slides the room will never see.
+   */
+  readonly authorNames: ReadonlyMap<PhotoId, string>
   readonly slideIntervalMs: number
   /**
    * Derived from the interval, never configured beside it. 1.0 shipped a 20s zoom
@@ -85,8 +102,43 @@ export type GetWallPlaylist = (
   input: GetWallPlaylistInput,
 ) => Promise<Result<WallPlaylistView, DomainError>>
 
+/**
+ * The credit under each slide, resolved in **one** repository read.
+ *
+ * A playlist is many photos by few guests, so the shape that matters is batch-then-join:
+ * collect the distinct senders of the photos actually on the wall, ask once, and map the
+ * answer back onto photo ids. A `findById` inside the loop would be an N+1 on the one
+ * surface that has to stay smooth for eight hours — and it is the wall, so the read is
+ * scoped by `eventId` before anything else.
+ *
+ * Host-uploaded photos never enter the lookup: there is no guest behind them, and the
+ * venue's own camera roll is not attributed to anyone on the screen.
+ */
+const resolveAuthorNames = async (
+  guests: GuestRepository,
+  eventId: Event['id'],
+  onWall: readonly Photo[],
+): Promise<ReadonlyMap<PhotoId, string>> => {
+  const senders = new Map<PhotoId, GuestId>()
+  for (const photo of onWall) {
+    if (photo.author.kind === 'guest') senders.set(photo.id, photo.author.guestId)
+  }
+
+  const names = await guests.findNamesByIds(eventId, [...new Set(senders.values())])
+
+  const byPhoto = new Map<PhotoId, string>()
+  for (const [photoId, guestId] of senders) {
+    const name = names.get(guestId)
+    // Absent means "nobody to name" — anonymous, unknown, or another event's row. The
+    // slide simply carries no credit; see `WallPlaylistView.authorNames`.
+    if (name !== undefined) byPhoto.set(photoId, name)
+  }
+
+  return byPhoto
+}
+
 export const makeGetWallPlaylist =
-  ({ events, photos }: GetWallPlaylistDeps): GetWallPlaylist =>
+  ({ events, photos, guests }: GetWallPlaylistDeps): GetWallPlaylist =>
   async ({ slug, layout, slideIntervalMs, windowSize }) => {
     const event = await events.findBySlug(slug)
     // An event that does not serve its wall is answered exactly as one that does not
@@ -112,10 +164,20 @@ export const makeGetWallPlaylist =
 
     const chosenLayout = layout ?? DEFAULT_LAYOUT
 
+    // Last, and only once the request is known to be answerable: a refused interval or
+    // an impossible window must not have cost a second query first.
+    const inPlaylist = new Set<PhotoId>(playlist.value.items)
+    const authorNames = await resolveAuthorNames(
+      guests,
+      event.id,
+      page.items.filter((photo) => inPlaylist.has(photo.id)),
+    )
+
     return ok({
       event,
       playlist: playlist.value,
       photos: page.items,
+      authorNames,
       slideIntervalMs: interval.value.ms,
       kenBurnsDurationMs: kenBurnsDurationMs(interval.value),
       layout: chosenLayout,

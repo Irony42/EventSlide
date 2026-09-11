@@ -8,7 +8,14 @@ import { sendNoContent } from '../presenters/send'
 import type { HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
 import type { MediaMetadata, MediaStore } from '../../../application/ports/mediaStore'
-import { AT, anEvent, aPhoto, aReaction, atPlus } from '../../../application/testing/builders'
+import {
+  AT,
+  aGuest,
+  anEvent,
+  aPhoto,
+  aReaction,
+  atPlus,
+} from '../../../application/testing/builders'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { makeGetModerationQueue } from '../../../application/usecases/moderation/getModerationQueue'
@@ -115,7 +122,7 @@ const notWired = async () => err(DomainError.unexpected('test.useCaseNotWired'))
  * using that harness, and each needs a different half of this list to be real.
  */
 const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): HttpUseCases => {
-  const { events, memberships, bus, clock } = deps
+  const { events, guests, memberships, bus, clock } = deps
   return {
     authenticateUser: notWired,
     changePassword: notWired,
@@ -140,7 +147,7 @@ const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): Ht
     setPhotoCaption: notWired,
     getPhotoMedia: notWired,
     exportAlbum: notWired,
-    getModerationQueue: makeGetModerationQueue({ events, photos, memberships }),
+    getModerationQueue: makeGetModerationQueue({ events, photos, guests, memberships }),
     moderatePhoto: makeModeratePhoto({ events, photos, memberships, bus, clock }),
     moderatePhotosBulk: makeModeratePhotosBulk({ events, photos, memberships, bus, clock }),
     getWallPlaylist: notWired,
@@ -189,6 +196,10 @@ const world = (): World => {
     { eventId: asEventId(WEDDING), userId: asUserId(MODERATOR), role: 'moderator', grantedAt: AT },
     { eventId: asEventId(GALA), userId: asUserId(GALA_OWNER), role: 'owner', grantedAt: AT },
   )
+  // Every wedding photo below is `aPhoto`'s default sender, so the console's rows have
+  // a name to carry. A row is what the host judges a photo by: who sent it, and the
+  // caption that would go on the wall with it.
+  harness.guests.seed(aGuest({ id: GUEST, eventId: WEDDING, displayName: 'Léa' }))
   photos.seed(
     aPhoto({
       id: P.olderPending,
@@ -262,7 +273,11 @@ describe('GET /api/events/:eventSlug/moderation', () => {
     expect(response.body.nextCursor).toBeNull()
   })
 
-  it('presents a row with its media links and a caption badge, never the caption text', async () => {
+  it('presents exactly the row the console renders: media links, caption, sender, size', async () => {
+    // `toEqual` on the whole object, deliberately: a missing field and an extra one are
+    // both contract breaks. The console rendered "par undefined" and "undefined ×
+    // undefined pixels" for a release because this assertion described a thinner row
+    // than the card did, and nothing compared the two.
     const agent = await signedIn(subject, 'moderator')
 
     const response = await agent.get('/api/events/mariage/moderation')
@@ -272,9 +287,48 @@ describe('GET /api/events/:eventSlug/moderation', () => {
       status: 'pending',
       thumbUrl: `/api/events/mariage/photos/${P.olderPending}/thumb`,
       displayUrl: `/api/events/mariage/photos/${P.olderPending}/display`,
-      hasCaption: true,
+      width: 4032,
+      height: 3024,
+      caption: 'Les confettis',
+      authorName: 'Léa',
       createdAt: AT.toISOString(),
     })
+  })
+
+  it('carries the caption text itself, because the host reads it before publishing it', async () => {
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get('/api/events/mariage/moderation')
+
+    expect(response.body.items.map((item: { caption: string | null }) => item.caption)).toEqual([
+      'Les confettis',
+      null,
+    ])
+  })
+
+  it('leaves the sender null for a guest who stayed anonymous, rather than inventing a name', async () => {
+    // The French for an unattributed photo is the client's ("Invité anonyme"). A server
+    // that chose it here would have two clients disagreeing about the wording.
+    subject.guests.seed(aGuest({ id: GUEST, eventId: WEDDING, displayName: null }))
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get('/api/events/mariage/moderation')
+
+    expect(
+      response.body.items.map((item: { authorName: string | null }) => item.authorName),
+    ).toEqual([null, null])
+  })
+
+  it('never says where a photo is stored, even to a moderator', async () => {
+    // A moderation row may say more than a wall item — a moderator is not the room —
+    // but a storage key, a content hash or a path is nobody's business on the wire.
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get('/api/events/mariage/moderation')
+
+    for (const leak of ['contentHash', 'storageKey', 'path', 'byteSize', 'eventId']) {
+      expect(response.body.items[0]).not.toHaveProperty(leak)
+    }
   })
 
   it('serves the album view when asked for every status, newest first', async () => {

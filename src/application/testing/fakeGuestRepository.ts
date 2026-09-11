@@ -42,6 +42,28 @@ export class FakeGuestRepository implements GuestRepository {
     return this.rows.get(key(eventId, guestId)) ?? null
   }
 
+  /**
+   * The batched name lookup, scoped by the same composite key as {@link findById}.
+   *
+   * Going through `Guest.label()` rather than reading `displayName` is deliberate: the
+   * domain decides what a guest with no name projects as, and it decides `null` — so a
+   * fake that invented "Invité" here would let a wall test pass against a rule the
+   * product does not have.
+   */
+  async findNamesByIds(
+    eventId: EventId,
+    guestIds: readonly GuestId[],
+  ): Promise<ReadonlyMap<GuestId, string>> {
+    const names = new Map<GuestId, string>()
+
+    for (const guestId of guestIds) {
+      const label = this.rows.get(key(eventId, guestId))?.label() ?? null
+      if (label !== null) names.set(guestId, label)
+    }
+
+    return names
+  }
+
   async list(eventId: EventId): Promise<readonly Guest[]> {
     return [...this.rows.values()]
       .filter((guest) => guest.eventId === eventId)

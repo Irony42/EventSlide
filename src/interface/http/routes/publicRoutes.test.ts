@@ -13,7 +13,7 @@ import {
 } from '../../../application/usecases/slideshow/getWallPlaylist'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
-import { aPhoto, anEvent, atPlus } from '../../../application/testing/builders'
+import { aGuest, aPhoto, anEvent, atPlus } from '../../../application/testing/builders'
 import type { Photo } from '../../../domain/photos/photo'
 import { CROSSFADE_MS } from '../../../domain/slideshow/kenBurns'
 import { buildPlaylist, type Playlist } from '../../../domain/slideshow/playlist'
@@ -74,7 +74,11 @@ const world = (config: Partial<HttpConfig> = {}): World => {
               clock: deps.clock,
               bus: deps.bus,
             }),
-            getWallPlaylist: makeGetWallPlaylist({ events: deps.events, photos }),
+            getWallPlaylist: makeGetWallPlaylist({
+              events: deps.events,
+              photos,
+              guests: deps.guests,
+            }),
           },
         }),
       )
@@ -453,6 +457,125 @@ describe('GET /api/events/:eventSlug/wall', () => {
     expect(response.body.items).not.toContainEqual(expect.objectContaining({ id: 'photo-6' }))
   })
 
+  it('credits the guest who sent each photo, which is what the upload page promised', async () => {
+    // docs/API.md line 171 declares `"authorName": "Léa"` here, the upload page tells the
+    // guest their photos appear under the name they gave, and the slide has a line for
+    // it. The name is resolved by the use case — the controller performs no second read.
+    const { subject, photos } = world()
+    subject.guests.seed(
+      aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: 'Léa' }),
+      aGuest({ id: 'guest-sacha', eventId: WEDDING, displayName: 'Sacha' }),
+    )
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: WEDDING,
+        status: 'published',
+        createdAt: atPlus(1_000),
+        caption: 'Les confettis',
+        author: { kind: 'guest', id: 'guest-lea' },
+      }),
+      aPhoto({
+        id: 'photo-2',
+        eventId: WEDDING,
+        status: 'published',
+        createdAt: atPlus(2_000),
+        author: { kind: 'guest', id: 'guest-sacha' },
+      }),
+    )
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.items).toEqual([
+      expect.objectContaining({ id: 'photo-2', authorName: 'Sacha' }),
+      expect.objectContaining({ id: 'photo-1', caption: 'Les confettis', authorName: 'Léa' }),
+    ])
+  })
+
+  it('sends an accented name across the wire exactly as it was typed', async () => {
+    const { subject, photos } = world()
+    subject.guests.seed(aGuest({ id: 'guest-zoe', eventId: WEDDING, displayName: 'Zoé Müller' }))
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: WEDDING,
+        status: 'published',
+        author: { kind: 'guest', id: 'guest-zoe' },
+      }),
+    )
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.items[0].authorName).toBe('Zoé Müller')
+  })
+
+  it('sends null for an anonymous guest, so the wall shows no credit at all', async () => {
+    // Not "Invité": the fallback is French UI copy and lives in web/src/lib/i18n/, and a
+    // guest who declined to give a name has not asked to be labelled in front of a room.
+    const { subject, photos } = world()
+    subject.guests.seed(aGuest({ id: 'guest-timide', eventId: WEDDING, displayName: null }))
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: WEDDING,
+        status: 'published',
+        author: { kind: 'guest', id: 'guest-timide' },
+      }),
+    )
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.items).toEqual([expect.objectContaining({ id: 'photo-1' })])
+    expect(response.body.items[0].authorName).toBeNull()
+  })
+
+  it('never puts another event guest name on this wall', async () => {
+    // The wall is public and unauthenticated. A name lookup that was not event-scoped
+    // would read one party's guest list onto another party's projector.
+    const { subject, photos } = world()
+    subject.guests.seed(aGuest({ id: 'guest-sam', eventId: GALA, displayName: 'Sam' }))
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: WEDDING,
+        status: 'published',
+        author: { kind: 'guest', id: 'guest-sam' },
+      }),
+    )
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.items[0].authorName).toBeNull()
+  })
+
+  it('carries the name and nothing else about the guest who sent it', async () => {
+    // A projector stands in a room of strangers. The first name is what the guest typed
+    // for exactly this purpose; their id, their presence and their photo count are not.
+    const { subject, photos } = world()
+    subject.guests.seed(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: 'Léa' }))
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: WEDDING,
+        status: 'published',
+        author: { kind: 'guest', id: 'guest-lea' },
+      }),
+    )
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(Object.keys(response.body.items[0]).sort()).toEqual([
+      'authorName',
+      'caption',
+      'createdAt',
+      'displayUrl',
+      'height',
+      'id',
+      'thumbUrl',
+      'width',
+    ])
+  })
+
   it('still serves a closed event, because the projector is usually still on', async () => {
     const { subject, photos } = world()
     seedWall(photos)
@@ -622,6 +745,7 @@ describe('toWallResponseDto', () => {
       event: anEvent({ slug: 'mariage' }),
       playlist: playlistOf([shown, vanished]),
       photos: [shown],
+      authorNames: new Map(),
       slideIntervalMs: 8_000,
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',

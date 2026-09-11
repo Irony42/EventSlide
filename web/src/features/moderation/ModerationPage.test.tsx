@@ -149,6 +149,40 @@ describe('ModerationPage', () => {
     expect(image).toHaveAttribute('height', '1707')
   })
 
+  it('reads every field of a row as French copy, never as the word undefined', async () => {
+    // The regression this protects: the queue row the server sent carried neither the
+    // caption, nor the sender, nor the dimensions, while this type claimed all three —
+    // so a host moderating a real event read "par undefined" and "undefined × undefined
+    // pixels" on every card, and both sides typechecked. The card is asserted field by
+    // field here, and `undefined` is checked for by name, because a value that reaches
+    // the screen as the string "undefined" is the shape this defect takes.
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () =>
+        queueOf([lea({ caption: 'Les confettis', authorName: 'Léa', width: 2560, height: 1707 })]),
+      ),
+    })
+    renderConsole(api)
+
+    const card = await screen.findByTestId('moderation-card')
+
+    expect(within(card).getByText('Les confettis')).toBeInTheDocument()
+    expect(within(card).getByText(fr.moderation.by('Léa'))).toBeInTheDocument()
+    expect(within(card).getByText(fr.moderation.dimensions(2560, 1707))).toBeInTheDocument()
+    expect(card).not.toHaveTextContent('undefined')
+  })
+
+  it('says a photo carries no caption instead of leaving the line out', async () => {
+    // An absent line reads exactly like a caption that failed to arrive, and the host is
+    // about to decide whether that text goes on a wall in front of the room.
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([sacha()])) })
+    renderConsole(api)
+
+    const card = await screen.findByTestId('moderation-card')
+
+    expect(within(card).getByText(fr.moderation.noCaption)).toBeInTheDocument()
+    expect(card).not.toHaveTextContent('undefined')
+  })
+
   it('names every decision after the photo it acts on', async () => {
     // A screen-reader user working a queue of a hundred has to know which photo a
     // button belongs to. 1.0 shipped four unlabelled icon buttons per tile.
