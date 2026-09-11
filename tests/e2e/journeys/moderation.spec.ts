@@ -1,6 +1,7 @@
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { aPhoto } from '../fixtures/media'
 import { joinAndUpload } from '../fixtures/guest'
+import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
  * The host's evening: a queue that fills over SSE, decisions taken by keyboard, and an
@@ -56,23 +57,110 @@ test('a refused photo never reaches the projector', async ({ app, surfaces }) =>
   await expect(projector.getByTestId('wall-slide')).toHaveCount(0)
 })
 
-test('undo restores a photo refused by mistake', async ({ app, surfaces }) => {
-  // A bulk reject fired by accident is the scenario this exists for. Without an undo
-  // the only recovery is finding the photo in a filtered list.
-  const { guest, host } = surfaces
+test('undo puts a published photo the host then refused back on the wall', async ({
+  app,
+  surfaces,
+}) => {
+  // A reject fired by accident on a photo already on the wall is the scenario undo
+  // exists for: the previous status was `published`, so "put that back" has exactly one
+  // meaning and the console can act on it.
+  //
+  // The affordance is an action carried by the decision's own toast, not a button that
+  // lives on the screen — see `undoToastRef` in `useModerationQueue` — so it is reached
+  // by its label rather than by a place in the layout.
+  const { guest, host, projector } = surfaces
   const event = await app.seedEvent({ slug: 'anniversaire' })
 
+  await projector.goto(wallUrl(app, event.slug))
   await signInAsHost(host, app)
   await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  // "Toutes" rather than the default "En attente": the photo changes status three times
+  // here, and a filtered queue would drop the card out of the grid between them, leaving
+  // the test asserting on a card's absence instead of on the status it now holds.
+  await host.getByRole('button', { name: fr.moderation.filterAll, exact: true }).click()
+
   await joinAndUpload(guest, app, event.joinCode, { displayName: 'Léa' })
 
   const card = host.getByTestId('moderation-card').first()
-  await expect(card).toBeVisible()
-  await card.getByRole('button', { name: /Refuser/i }).click()
+  await expect(card).toHaveAttribute('data-status', 'pending')
 
-  await host.getByRole('button', { name: /Annuler/i }).click()
+  // Matched on the verb alone. A decision button's accessible name is the verb plus the
+  // photo's author, and the queue endpoint sends `authorName: null` for every photo
+  // (`moderationRoutes.ts`, the `listEventPhotos` response), so naming the guest here
+  // would pin a separate defect onto a test about undo.
+  await card.getByRole('button', { name: fr.moderation.publish }).click()
+  await expect(card).toHaveAttribute('data-status', 'published')
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
 
-  await expect(host.getByTestId('moderation-card').first()).toBeVisible()
+  await card.getByRole('button', { name: fr.moderation.reject }).click()
+  await expect(card).toHaveAttribute('data-status', 'rejected')
+  await expect(projector.getByTestId('wall-empty')).toBeVisible()
+
+  await host.getByRole('button', { name: fr.moderation.undo, exact: true }).click()
+
+  await expect(host.getByText(fr.moderation.undone)).toBeVisible()
+  await expect(card).toHaveAttribute('data-status', 'published')
+
+  // The assertion that actually pins the behaviour, and the one the title claims.
+  //
+  // `data-status` above is the console's *optimistic* status: undo writes the remembered
+  // previous status into the grid before the request resolves, so that attribute reads
+  // `published` even if the undo sent the wrong verb and the server stored something
+  // else. The projector has no such opinion — it renders what the server published — so
+  // an undo restoring `hidden` instead of `published` leaves the wall empty here and
+  // fails, which is exactly the mistake the optimistic assertion cannot see.
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+  await expect(projector.getByTestId('wall-empty')).toBeHidden()
+})
+
+test('no undo is offered for a photo refused while it was still pending', async ({
+  app,
+  surfaces,
+}) => {
+  // The deliberate gap in `RESTORING_DECISION`, asserted where a host would meet it.
+  //
+  // No decision verb produces `pending`, so a photo refused while it was awaiting one
+  // has no status the console can put it back into. Offering "annuler" anyway would
+  // mean guessing, and the only guess available — `publish` — throws a photo nobody
+  // approved onto the projector, which is the one thing a host is promised cannot
+  // happen. So the offer is withheld, and its absence is the safety property.
+  const { guest, host } = surfaces
+  const event = await app.seedEvent({ slug: 'anniversaire-pending' })
+
+  await signInAsHost(host, app)
+  await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  await host.getByRole('button', { name: fr.moderation.filterAll, exact: true }).click()
+
+  await joinAndUpload(guest, app, event.joinCode, { displayName: 'Léa' })
+
+  const card = host.getByTestId('moderation-card').first()
+  await expect(card).toHaveAttribute('data-status', 'pending')
+
+  await card.getByRole('button', { name: fr.moderation.reject }).click()
+
+  // The outcome is announced first, so the absence below is a decision that completed
+  // without an undo rather than one that had not been announced yet — a bare
+  // `toHaveCount(0)` would pass against a page that simply had not rendered anything.
+  const notice = host.getByText(fr.moderation.refused(1))
+  await expect(notice).toBeVisible()
+  await expect(card).toHaveAttribute('data-status', 'rejected')
+
+  // Bounded far inside the announcement's own life, and *not* left on the default
+  // expect timeout.
+  //
+  // An undo offer is carried by its toast, and `ToastProvider` holds a toast carrying an
+  // action for UNDO_DURATION_MS (9s) against 4s for a plain notice. The default expect
+  // timeout is 10s — longer than both — so a `toHaveCount(0)` that simply waited would
+  // go green the moment the toast expired, whether or not an undo had been offered. It
+  // does: injecting `pending: 'publish'` into `RESTORING_DECISION` offers the undo this
+  // test exists to forbid, and the unbounded version still passed.
+  await expect(host.getByRole('button', { name: fr.moderation.undo, exact: true })).toHaveCount(0, {
+    timeout: 1_000,
+  })
+
+  // And the announcement was still on screen for all of it, so the absence above was
+  // observed against a rendered toast rather than against one that had come and gone.
+  await expect(notice).toBeVisible()
 })
 
 test('the keyboard alone gets through the queue', async ({ app, surfaces }) => {

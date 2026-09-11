@@ -52,6 +52,28 @@ export interface Surfaces {
   dispose(): Promise<void>
 }
 
+/**
+ * Whether a rejected `context.close()` is Playwright tidying its own recordings rather
+ * than anything to do with this suite.
+ *
+ * `trace`/`video: 'retain-on-failure'` means a *passing* test's recordings are deleted
+ * as its contexts close, and on Windows that cleanup intermittently loses a race with
+ * itself: `browserContext.close` rejects with
+ * `ENOENT ... .playwright-artifacts-N/traces/<id>-recordingN.trace` after the context is
+ * already gone. It lands on whichever test happens to be closing at the time — a
+ * different one on every run — so a suite whose assertions all passed goes red on a test
+ * that did nothing wrong, and the reported failure count stops meaning anything. It
+ * surfaced here only as the suite got greener: a failing test keeps its recordings, so
+ * there is nothing to race over.
+ *
+ * Narrow on purpose. A recording that could not be deleted is not worth a red suite; any
+ * other close failure still is, including one that leaves a browser behind.
+ */
+const isArtifactCleanupFailure = (cause: unknown): boolean =>
+  cause instanceof Error &&
+  cause.message.includes('ENOENT') &&
+  cause.message.includes('playwright-artifacts')
+
 export const openSurfaces = async (browser: Browser, app: TestApp): Promise<Surfaces> => {
   const guestContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -88,7 +110,20 @@ export const openSurfaces = async (browser: Browser, app: TestApp): Promise<Surf
     host,
     projector,
     dispose: async () => {
-      await Promise.all([guestContext.close(), hostContext.close(), projectorContext.close()])
+      // `allSettled`, so one surface failing to close still closes the other two rather
+      // than leaving them open for the rest of the worker's life.
+      const outcomes = await Promise.allSettled([
+        guestContext.close(),
+        hostContext.close(),
+        projectorContext.close(),
+      ])
+
+      for (const outcome of outcomes) {
+        if (outcome.status !== 'rejected') continue
+        const cause: unknown = outcome.reason
+        if (isArtifactCleanupFailure(cause)) continue
+        throw cause
+      }
     },
   }
 }

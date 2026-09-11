@@ -1,6 +1,8 @@
 import AxeBuilder from '@axe-core/playwright'
+import type { Locator, Page } from '@playwright/test'
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
+import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
  * Accessibility, asserted rather than assumed.
@@ -21,6 +23,30 @@ const seriousOnly = (violations: readonly { readonly impact?: string | null }[])
 
 const scan = async (page: Parameters<typeof joinAndUpload>[0]) =>
   new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+
+/** Enough presses to cross any of these screens, few enough that a trap still fails. */
+const TAB_LIMIT = 15
+
+/**
+ * Presses Tab until `target` holds the browser's focus.
+ *
+ * Tabbing *to* a control rather than counting presses to it is the point: a fixed count
+ * asserts the shell's tab order, not the guest's ability to reach the field, and it is
+ * wrong in both directions — the skip link is legitimately the first stop today, and a
+ * page that later autofocused the field would break the same count by being better. The
+ * bound keeps an unreachable control a failure rather than a hang, and returning zero
+ * for something already focused means autofocus would satisfy this unchanged.
+ */
+const tabTo = async (page: Page, target: Locator): Promise<number> => {
+  const holdsFocus = () => target.evaluate((node) => node === document.activeElement)
+
+  if (await holdsFocus()) return 0
+  for (let presses = 1; presses <= TAB_LIMIT; presses += 1) {
+    await page.keyboard.press('Tab')
+    if (await holdsFocus()) return presses
+  }
+  throw new Error(`no Tab stop reached the control within ${TAB_LIMIT} presses`)
+}
 
 test.describe('the guest surface', () => {
   test('the join page has no serious violation @smoke', async ({ app, surfaces }) => {
@@ -58,13 +84,49 @@ test.describe('the guest surface', () => {
     const event = await app.seedEvent({ slug: 'kermesse' })
     await surfaces.guest.goto(app.url('/join'))
 
-    await surfaces.guest.keyboard.press('Tab')
+    // Reached by tabbing, not by a count: `/join` does not autofocus the code field, and
+    // the first stop is the skip link, which is correct practice and covered below.
+    const code = surfaces.guest.getByLabel(fr.join.codeLabel)
+    await tabTo(surfaces.guest, code)
+    await expect(code).toBeFocused()
+
     await surfaces.guest.keyboard.type(event.joinCode)
     // Enter in a text field submits the form it belongs to. A guest who reaches for
     // the on-screen keyboard's return key must not be stuck.
     await surfaces.guest.keyboard.press('Enter')
 
     await expect(surfaces.guest).toHaveURL(/\/e\/[^/]+\/upload/)
+  })
+
+  test('the skip link is the first stop and leads to the main content', async ({
+    app,
+    surfaces,
+  }) => {
+    // It is in the tab order of every surface, so it is the first thing a keyboard user
+    // meets — and the easiest thing to break without anyone noticing, because it is
+    // invisible until it is focused. Both halves are asserted: that focus reveals it,
+    // and that it points at a landmark that exists.
+    await surfaces.guest.goto(app.url('/join'))
+
+    const skip = surfaces.guest.getByRole('link', { name: fr.shell.skipToContent })
+    await surfaces.guest.keyboard.press('Tab')
+    await expect(skip).toBeFocused()
+
+    // Parked off-screen with a transform and slid back on focus (AppShell.module.css).
+    // A skip link that stays off-screen while focused is one a sighted keyboard user
+    // cannot follow, and `toBeVisible` alone would not notice — polled because the slide
+    // back is a transition.
+    await expect.poll(async () => (await skip.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(0)
+
+    const href = await skip.getAttribute('href')
+    expect(href).toMatch(/^#\S+$/)
+
+    await surfaces.guest.keyboard.press('Enter')
+    await expect.poll(() => new URL(surfaces.guest.url()).hash).toBe(href)
+
+    // The target has to be the main landmark itself. A skip link whose fragment names an
+    // id nothing carries any more still changes the URL and still does nothing at all.
+    await expect(surfaces.guest.locator(`main[id="${(href ?? '#').slice(1)}"]`)).toHaveCount(1)
   })
 
   test('the focus ring is visible on the field a guest is typing in', async ({ app, surfaces }) => {
