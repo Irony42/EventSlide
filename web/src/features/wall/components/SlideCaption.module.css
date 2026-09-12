@@ -24,6 +24,46 @@
   padding: var(--space-2) var(--space-3);
 }
 
+/**
+ * Under one half of the split — in flow, in the row the pane reserves for it.
+ *
+ * `position: static` is the whole point and was the bug: `.caption` is absolute, a
+ * `<figure>` with no `position` of its own is not a containing block, and two absolute
+ * captions in a two-column grid therefore both resolved against the stage. They rendered
+ * as one full-width box at the very bottom of the screen, printed over each other and
+ * past the overscan inset, while the `1fr auto` row reserved for them stayed empty.
+ * Measured in Chromium at 1920x1080: both at left 16 / right 1904, bottom edge y=1064,
+ * against a safe area ending at 1037.
+ */
+.pane {
+  position: static;
+  z-index: auto;
+  justify-items: center;
+  text-align: center;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  padding: var(--space-2) var(--space-4);
+}
+
+/**
+ * The polaroid's bottom mat.
+ *
+ * The only caption in the product that is not over a photo, so it is the only one
+ * without a scrim: it is written on the print's paper, which is opaque and light, and a
+ * dark band across the bottom of a white mat would read as a printing fault rather than
+ * as a caption. `position: static` because the mat is already a grid row reserved for
+ * it — nothing is being overlaid.
+ */
+.print {
+  position: static;
+  z-index: auto;
+  background: none;
+  padding: 0;
+  justify-items: center;
+  text-align: center;
+  min-inline-size: 0;
+}
+
 .text {
   font-size: var(--text-xl);
   line-height: var(--leading-snug);
@@ -48,4 +88,36 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* One line under a split pane: the pane below the photo is short, and two wrapped lines
+   there push the photo up rather than the text down. */
+.pane .text {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+/* Ink on paper. The mat is the one light ground on the wall, so the dark-surface text
+   tokens would be invisible on it — hence tokens of its own (DESIGN-SYSTEM.md §2). */
+.print .text {
+  color: var(--text-print);
+}
+
+/**
+ * The credit, quieter by ink rather than by opacity.
+ *
+ * `opacity: 0.75` was here and it was a contrast bug the token test could not see: the
+ * ratios in `tokens.contrast.test.ts` are computed between two declared colours, and a
+ * composite against the paper is neither of them. Measured in Chromium it rendered at
+ * 5.6:1 — the only text on the wall under §8's 7:1 bar, on the layout whose whole point
+ * is that the caption is legible on the print. A second declared ink is a role the light
+ * ground genuinely has (the mat needs a primary and a secondary exactly as the dark
+ * surfaces do), and it is a number the test can measure.
+ */
+.print .author {
+  color: var(--text-print-secondary);
+  /* The shared `.author` rule leans on weight to sit apart from the caption, which works
+     on a scrim where both are light on dark. On paper it fought the lighter ink and won:
+     the credit rendered as the heaviest thing on the print. Ink alone here. */
+  font-weight: 400;
 }

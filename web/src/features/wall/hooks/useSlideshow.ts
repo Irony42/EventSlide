@@ -20,6 +20,22 @@ export interface Slideshow {
   readonly previous: WallItemDto | null
   readonly index: number
   /**
+   * How long the photo on screen will stay there, in milliseconds — the server's
+   * interval unless the e2e hook overrode it.
+   *
+   * Exposed because a layout that animates *across* a slide has to time itself from the
+   * same number the slide clock uses. The filmstrip's drift is the case: a drift with
+   * its own duration is 1.0's Ken Burns bug in a second place, so there is one value
+   * here and no second opinion anywhere else.
+   *
+   * `0` means **this photo is not going anywhere**, and that has to cover every reason:
+   * a one-photo playlist, an interval of zero, and a wall that is paused — by the host's
+   * space bar or by a hidden tab. Leaving `paused` out of it was a real defect: the
+   * slide timer stopped and the filmstrip went on drifting to the end of its travel,
+   * then held there for as long as the wall stayed paused.
+   */
+  readonly intervalMs: number
+  /**
    * How many times the wall has changed photo. Monotonic, so the renderer can hand its
    * two recycled layers a stable slot each (`generation % 2`) instead of reordering
    * them — moving a DOM node restarts its CSS animation, which would jerk the outgoing
@@ -175,6 +191,11 @@ export const useSlideshow = ({ items, intervalMs }: SlideshowOptions): Slideshow
     next,
     previous: cursor.previous,
     index,
+    // Exactly the condition the slide timer below arms itself on, and for the same
+    // reason: a layout timing itself off the server's number would drift apart from the
+    // wall under the e2e hooks, and one that ignored `paused` would go on animating
+    // after the host had stopped the show.
+    intervalMs: !paused && canAdvance ? effectiveIntervalMs : 0,
     generation: cursor.generation,
     paused,
     pause,

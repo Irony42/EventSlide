@@ -244,10 +244,10 @@ product, and today they do.
 Constraint: contrast is validated server-side against the token contract, so a host
 cannot choose a palette that makes captions unreadable at ten metres.
 
-### 2.3 More wall layouts (P2, effort M, risk: low)
+### 2.3 More wall layouts — **Shipped**
 
-`spotlight` and `mosaic` ship in 2.0. The layout registry is already a closed union with
-a per-layout spec, so each addition is contained:
+`spotlight` and `mosaic` shipped in 2.0. The layout registry was already a closed union
+with a per-layout spec, and each addition was contained exactly as predicted:
 
 | Layout      | What it is for                                                                                                         |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -255,6 +255,53 @@ a per-layout spec, so each addition is contained:
 | `filmstrip` | A slow horizontal drift. Good for a cocktail hour where nobody is watching continuously.                               |
 | `collage`   | New photos compose into a growing grid that fills over the evening. The room watches it fill, which is its own reward. |
 | `split`     | Two photos side by side, pairing an old upload with a new one.                                                         |
+
+What landed, and the three decisions that were not obvious from the paragraph above:
+
+- **The drift needed a number the wall already had.** The filmstrip is the only
+  animation on the projector that runs for a whole slide, which makes it the one place
+  1.0's Ken Burns defect could come back — an animation with a duration of its own
+  standing next to a slide interval. `useSlideshow` now reports the interval its own
+  clock is running on, and the drift is timed from that; there is no second setting left
+  to fall out of step with the first. The track is also keyed on the playlist position,
+  so the movement restarts at the instant the content changes rather than drifting out
+  of phase with it over eight hours.
+- **"Fills over the evening" became "fills over the first twelve slides."** The collage
+  grows from one cell to twelve and then recycles a cell in turn. A grid that genuinely
+  grew for eight hours would end the night at a photo per few hundred pixels, which is
+  the point at which a face stops being a face from five metres — so the growth is the
+  first minutes of the evening, and the ceiling is the renderer's `COLLAGE_CELLS`, which
+  mirrors `wallLayoutSpec('collage').slotCount` and cannot be joined to it: the import
+  boundary keeps the domain out of `web/`, so the number is pinned twice and the two can
+  drift. **The fill is per-screen and does not synchronise.** It comes from the count of
+  slides that browser has shown, so a kiosk that reloads at 23:00 drops back to one cell
+  and takes twelve slides to refill. Which photo sits in which cell is derived from the
+  playlist position alone, so two screens on the same index compose the same grid — but
+  nothing in this build gives two screens a shared cursor in the first place: trap 7
+  removed `sessionStorage`, and `useSlideshow` still adopts the newest photo on its own
+  first frame. Synchronised projectors would need a cursor on the wire, which is not
+  this item.
+- **The polaroid needed the palette's first light ground.** `--surface-print`,
+  `--text-print` and `--text-print-secondary`, for paper and for the two weights of
+  pencil on it. It is the one caption in the product that is ink on a material rather
+  than light over a photograph, and both inks are held to the wall's 7:1 contrast bar by
+  `tokens.contrast.test.ts`. The credit was briefly `opacity: 0.75` over the mat instead,
+  which measured 5.6:1 and which that test was structurally unable to see — so it now
+  also refuses any `opacity` on caption text, because a ratio between two declared
+  colours says nothing about a composite.
+- **The wall had a corner it had never told anyone about.** The join card is the default
+  state, bottom-right, and the two new layouts that centre a caption in the bottom band
+  printed the guest's words under it — cut mid-word, and photographed as correct by the
+  first baselines. The wall now declares the corner (`--wall-chrome-inline-end`, from the
+  card's own `--wall-join-card` width) and `polaroid` and `split` lay out inside what is
+  left. The card yields rather than the caption, because a caption is content and a card
+  is chrome; and because the card is dismissible, the width comes back with one Escape
+  rather than being a standing tax. Details and the measurements in DESIGN-SYSTEM.md §9.
+
+Under `prefers-reduced-motion`, the polaroid's landing and the filmstrip's drift are
+declined outright in JavaScript; the collage's cell arrival ends at the cell's resting
+state, so the `base.css` collapse lands exactly where the animation would have. `L` walks
+all six layouts and wraps — 2.0's two first, so the first press still lands on the mosaic.
 
 ### 2.4 Guestbook messages (P2, effort S, risk: low)
 

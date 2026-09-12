@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 // `import.meta.url` is not a `file:` URL and `fileURLToPath` throws. This also keeps the
 // test reading the same file the bundle does.
 import TOKENS from './tokens.css?raw'
+// The wall's caption styles, for the one failure mode a colour pair cannot express.
+import CAPTIONS from '../features/wall/components/SlideCaption.module.css?raw'
 
 /**
  * The contrast targets in docs/DESIGN-SYSTEM.md §8, checked against the tokens.
@@ -145,6 +147,38 @@ describe('token contrast', () => {
       expect(contrast(token(status), token('--surface-raised'))).toBeGreaterThanOrEqual(4.5)
     },
   )
+
+  it.each(['--text-print', '--text-print-secondary'] as const)(
+    '%s reaches 7:1 on --surface-print, the polaroid mat',
+    (ink) => {
+      // The only light ground in the palette, and it is on the wall — so both inks are
+      // held to the wall's bar (§8: anything projected clears 7:1 regardless of size)
+      // rather than to body text's. A caption written on a print is read from the same
+      // five metres as a caption on a scrim, and so is the credit under it.
+      expect(contrast(token(ink), token('--surface-print'))).toBeGreaterThanOrEqual(7)
+    },
+  )
+
+  /**
+   * The gap every ratio above is blind to.
+   *
+   * Contrast here is computed between two *declared* colours. Text at `opacity: 0.75`
+   * renders as neither of them — it renders as a composite against whatever is behind
+   * it — so a caption can pass every assertion in this file and still be unreadable.
+   * That is not hypothetical: the polaroid credit shipped at `opacity: 0.75` over
+   * `--surface-print` and measured 5.6:1 in Chromium while `--text-print` measured 11.8.
+   *
+   * So the wall's captions may not dilute their ink. A quieter credit is a second
+   * declared token, which is a number this file can see.
+   */
+  it('no wall caption dilutes its ink with opacity, which no ratio here could see', () => {
+    // Comments stripped first, or the paragraph above this rule fails it by describing
+    // the very declaration it forbids.
+    const rules = CAPTIONS.replace(/\/\*[\s\S]*?\*\//g, '')
+    const declarations = [...rules.matchAll(/opacity\s*:\s*([\d.]+)/g)].map(([, value]) => value)
+
+    expect(declarations).toEqual([])
+  })
 
   it.each(SURFACES)('--border-strong stays visible against %s', (surface) => {
     // An input's rest state is a border and nothing else. WCAG 1.4.11 puts the floor for

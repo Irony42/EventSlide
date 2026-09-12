@@ -12,6 +12,39 @@
   inset: 0;
   overflow: hidden;
   background: var(--surface-base);
+
+  /**
+   * How much of the end edge is spoken for by chrome.
+   *
+   * The join card sits in the bottom-right corner and is the wall's default state — a
+   * host has to dismiss it — so any layout that puts *centred* text in the bottom band
+   * printed the guest's own words underneath it. Measured on a 1920x1080 projector: the
+   * polaroid's third caption lost 362px of its box and the split's right caption lost
+   * 42px, both cut mid-word, and the baseline recorded the clipping as correct.
+   *
+   * Reserving here rather than moving the captions is which of the two yields: a caption
+   * is the guest's words under the guest's photo, and the card is chrome (§1). Nothing is
+   * reserved permanently — the card is dismissible, and the reservation goes with it.
+   *
+   * Layouts whose text cannot reach the corner ignore this. The mosaic's in-tile credit
+   * is left-aligned at the start of its tile — measured at x 985 against a card at 1448 —
+   * so only the empty end of its scrim passes behind the card, exactly as the photo under
+   * it already does.
+   */
+  --wall-chrome-inline-end: 0px;
+}
+
+/**
+ * The card, plus a gutter wide enough for a layout that leans.
+ *
+ * `--space-6` rather than the `--space-5` this first used, because a polaroid is rotated
+ * and `overflow: hidden` clips to the padding box, not the content box: a tilted print
+ * renders up to 3px past where the reservation puts it, measured, and a ±4° tilt on a
+ * taller mat reaches further. The gutter absorbs the lean instead of the pile needing a
+ * second number of its own.
+ */
+.wall[data-wall-chrome='corner'] {
+  --wall-chrome-inline-end: calc(var(--wall-join-card) + var(--space-6));
 }
 
 .centre {

@@ -6,7 +6,17 @@ const SLOT_COUNTS: [WallLayout, number][] = [
   ['mosaic', 6],
   ['polaroid', 3],
   ['filmstrip', 5],
+  ['collage', 12],
+  ['split', 2],
 ]
+
+/**
+ * Twelve photos on a 1080p frame is about 480x270 each before the gap, which is the
+ * point at which a face stops being a face from five metres. It is also the ceiling on
+ * how many `<img>` elements a layout may hold at once, and that is what keeps an
+ * eight-hour run's node count flat.
+ */
+const MAX_SLOTS = 12
 
 describe('isWallLayout', () => {
   it.each([...WALL_LAYOUTS])('accepts %s, which a host can pick', (layout) => {
@@ -31,16 +41,29 @@ describe('wallLayoutSpec', () => {
     expect(wallLayoutSpec(layout).slotCount).toBe(slotCount)
   })
 
-  it('never crops in any layout but the single-photo one', () => {
+  it('crops only where a slot is too small to hold a phone photo whole', () => {
     const uncropped = WALL_LAYOUTS.filter((layout) => !wallLayoutSpec(layout).crops)
 
-    expect(uncropped).toEqual(['spotlight'])
+    // A full screen and a half screen are both bigger than the photo a phone took, so
+    // neither has to cut anybody's head off to fill its slot. Everything below that
+    // tessellates, and a host picking one of those is picking the trade.
+    expect(uncropped).toEqual(['spotlight', 'split'])
   })
 
   it('hides captions in the layouts too small to read them across the room', () => {
     const captioned = WALL_LAYOUTS.filter((layout) => wallLayoutSpec(layout).showsCaption)
 
-    expect(captioned).toEqual(['spotlight', 'polaroid'])
+    expect(captioned).toEqual(['spotlight', 'polaroid', 'split'])
+  })
+
+  it.each([...WALL_LAYOUTS])('keeps %s within the number of photos a room can read', (layout) => {
+    // The spec is also the cap on how many <img> elements the layout may hold, so this
+    // is the line between "a busy wall" and a projector whose node count grows over an
+    // evening until the venue's mini PC drops frames.
+    const { slotCount } = wallLayoutSpec(layout)
+
+    expect(slotCount).toBeGreaterThanOrEqual(1)
+    expect(slotCount).toBeLessThanOrEqual(MAX_SLOTS)
   })
 
   it.each([...WALL_LAYOUTS])('credits the author in %s exactly when it shows a caption', (l) => {

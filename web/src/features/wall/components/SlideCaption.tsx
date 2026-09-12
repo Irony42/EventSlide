@@ -1,11 +1,17 @@
 import styles from './SlideCaption.module.css'
 
-export type SlideCaptionVariant = 'spotlight' | 'tile'
+export type SlideCaptionVariant = 'spotlight' | 'tile' | 'pane' | 'print'
 
 export interface SlideCaptionProps {
   readonly caption: string | null
   readonly authorName: string | null
-  /** `spotlight` sits in the projector safe area; `tile` sits inside its own tile. */
+  /**
+   * `spotlight` sits in the projector safe area; `tile` sits inside its own tile;
+   * `pane` is a split half, where one ellipsised line under the photo is what the
+   * design system asks for; `print` is the polaroid's bottom mat — the one place a
+   * caption is ink on paper rather than light text on a scrim, because it sits on the
+   * print and not on the photograph.
+   */
   readonly variant?: SlideCaptionVariant
 }
 

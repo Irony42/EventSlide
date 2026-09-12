@@ -32,16 +32,25 @@ interface ProbeProps {
 }
 
 function Probe({ items, intervalMs = INTERVAL_MS }: ProbeProps) {
-  const { current, next, paused, generation, advance, pause, resume } = useSlideshow({
-    items,
-    intervalMs,
-  })
+  const {
+    current,
+    next,
+    paused,
+    generation,
+    advance,
+    pause,
+    resume,
+    // What the slide clock is actually running on, which is what a layout animating
+    // across a slide has to time itself from.
+    intervalMs: cadenceMs,
+  } = useSlideshow({ items, intervalMs })
 
   return (
     <div>
       <p>à l’écran {current?.caption ?? 'rien'}</p>
       <p>ensuite {next?.caption ?? 'rien'}</p>
       <p>génération {generation}</p>
+      <p>cadence {cadenceMs}</p>
       <p>{paused ? 'en pause' : 'en cours'}</p>
       <button onClick={() => advance(1)}>suivante</button>
       <button onClick={() => advance(-1)}>précédente</button>
@@ -206,6 +215,74 @@ describe('useSlideshow', () => {
     tick(250)
 
     expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
+  })
+
+  /**
+   * The one number a layout may time an animation from.
+   *
+   * 1.0 configured the Ken Burns duration beside the slide interval and shipped a 20s
+   * zoom against a 10s slide, so every image snapped back mid-slide. The filmstrip's
+   * drift is the same shape of animation — it runs for a whole slide — so it reads the
+   * interval the slide clock above is genuinely using rather than the one the server
+   * proposed, and there is no second setting left to fall out of step with the first.
+   */
+  it('reports the interval its own clock is running on', () => {
+    renderProbe({ items: [aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau')] })
+
+    expect(screen.getByText(/cadence 8000/)).toBeInTheDocument()
+  })
+
+  it('reports the e2e override, not the interval the server proposed', () => {
+    renderProbe(
+      { items: [aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau')] },
+      '/e/mariage/display?e2e_interval=250',
+    )
+
+    // A layout timing itself off the server's number would drift apart from the wall
+    // under the e2e hooks — which is exactly where nobody would notice.
+    expect(screen.getByText(/cadence 250/)).toBeInTheDocument()
+  })
+
+  it('reports no cadence at all when nothing is going to advance', () => {
+    renderProbe({ items: [aPhoto('a', 'Les confettis')] })
+
+    // A one-photo wall is a still frame, not a slideshow running very slowly. An
+    // animation given a duration here would finish its travel and freeze mid-move.
+    expect(screen.getByText(/cadence 0/)).toBeInTheDocument()
+  })
+
+  it('reports no cadence while the wall is paused', () => {
+    renderProbe({ items: [aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau')] })
+
+    fireEvent.click(screen.getByRole('button', { name: 'pause' }))
+
+    // The host holds a photo for a speech. This reported the full interval while the
+    // slide timer was cleared, so the filmstrip went on drifting to the end of its
+    // travel and stayed there for as long as the wall was paused — a tenth of the screen
+    // black, in front of the room, during the speech somebody paused the wall for.
+    expect(screen.getByText(/cadence 0/)).toBeInTheDocument()
+  })
+
+  it('reports the cadence again once the wall is resumed', () => {
+    renderProbe({ items: [aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau')] })
+    fireEvent.click(screen.getByRole('button', { name: 'pause' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'reprendre' }))
+
+    expect(screen.getByText(/cadence 8000/)).toBeInTheDocument()
+  })
+
+  it('reports no cadence while the projector tab is hidden', () => {
+    renderProbe({ items: [aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau')] })
+
+    tabHidden = true
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    // Same rule, the other way a wall stops: a minimised projector must not be running
+    // an animation nobody is watching, and must not come back part-way through one.
+    expect(screen.getByText(/cadence 0/)).toBeInTheDocument()
   })
 
   it('leaves no timer behind when the wall is unmounted', () => {

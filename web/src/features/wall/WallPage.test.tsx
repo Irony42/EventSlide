@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
-import type { WallItemDto, WallResponse } from '../../lib/api/dto'
+import type { WallItemDto, WallLayout, WallResponse } from '../../lib/api/dto'
 import {
   aWallItem,
   aWallResponse,
@@ -50,6 +50,19 @@ const theStream = (): FakeEventSource => {
   const instance = FakeEventSource.instances.at(-1)
   if (instance === undefined) throw new Error('the wall opened no stream')
   return instance
+}
+
+/**
+ * The wall element, which names the layout the room is looking at.
+ *
+ * It has no accessible identity — a projector has no user to announce anything to — so
+ * the attribute is the only handle, and it is the same one the end-to-end visual suite
+ * uses to prove it photographed the layout it asked for.
+ */
+const theWall = (): HTMLElement => {
+  const wall = document.querySelector('[data-wall-layout]')
+  if (!(wall instanceof HTMLElement)) throw new Error('the wall named no layout')
+  return wall
 }
 
 const streamOpens = async (): Promise<void> => {
@@ -462,16 +475,73 @@ describe('WallPage', () => {
 
   it('cycles with L from wherever the URL put the wall', async () => {
     // The host who does walk up to a projector started on the mosaic must not have to
-    // press `L` three times to get anywhere: the key continues from what is on screen.
+    // press `L` five times to get anywhere: the key continues from what is on screen.
     const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(8) })) })
     renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=mosaic`, path: PATH })
     expect(await screen.findAllByTestId('wall-slide')).toHaveLength(6)
 
     await userEvent.keyboard('l')
 
-    expect(screen.getAllByTestId('wall-slide')).toHaveLength(1)
-    expect(within(screen.getByTestId('wall-slide')).getByText('Photo 0')).toBeVisible()
+    expect(theWall()).toHaveAttribute('data-wall-layout', 'polaroid')
   })
+
+  /**
+   * Which layout the room is actually looking at, named on the wall element.
+   *
+   * The layout is chosen in three places — a key, a URL, the wall response — and stored
+   * in none of them, so without this attribute there is nothing outside React that can
+   * answer the question. It is the question a second projector is compared on, and the
+   * one a wall that quietly fell back to the spotlight answers wrongly: for four
+   * baseline generations the visual suite photographed a spotlight while believing it
+   * had a mosaic, and a tile count was what eventually caught it.
+   */
+  it('names the layout on the wall itself, so a screen can be checked from outside React', async () => {
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(8) })) })
+    renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=filmstrip`, path: PATH })
+    await screen.findAllByTestId('wall-slide')
+
+    expect(theWall()).toHaveAttribute('data-wall-layout', 'filmstrip')
+  })
+
+  it('walks through every built layout and comes back to where it started', async () => {
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(20) })) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    const visited: (string | null)[] = [theWall().getAttribute('data-wall-layout')]
+    for (let press = 0; press < 6; press += 1) {
+      await userEvent.keyboard('l')
+      visited.push(theWall().getAttribute('data-wall-layout'))
+    }
+
+    // The two layouts 2.0 shipped, then the four 2.3 added — not sorted by slot count,
+    // so that the first press still lands where every host's hand expects it. What this
+    // protects is the wrap: the seventh press comes home rather than stranding somebody
+    // on a layout they cannot get out of.
+    expect(visited).toEqual([
+      'spotlight',
+      'mosaic',
+      'polaroid',
+      'filmstrip',
+      'collage',
+      'split',
+      'spotlight',
+    ])
+  })
+
+  it.each<WallLayout>(['polaroid', 'filmstrip', 'collage', 'split'])(
+    'renders %s itself rather than falling back to the layout nearest to it',
+    async (layout) => {
+      // Every name in the contract is now built. A layout that silently rendered its
+      // neighbour would still show photographs, which is exactly why it went unnoticed
+      // for four baseline generations when `?layout=` was dead.
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(20) })) })
+      renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=${layout}`, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', layout)
+    },
+  )
 
   it('explains its keyboard shortcuts when the host presses the question mark', async () => {
     const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
@@ -494,6 +564,53 @@ describe('WallPage', () => {
     await userEvent.keyboard('{Escape}')
 
     expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+  })
+
+  /**
+   * The corner the invitation occupies, declared so layouts can lay out around it.
+   *
+   * The join card is the wall's default state and sits bottom-right. Layouts that centre
+   * a caption in the bottom band printed the guest's own words underneath it: measured on
+   * a 1920x1080 projector, the polaroid's third caption lost 362px of its box and the
+   * split's right caption 42px, both cut mid-word. A caption is content and the card is
+   * chrome, so the card is what the wall reserves around — and because the card is
+   * dismissible, the reservation is given back with it rather than being a standing tax
+   * on a layout's width.
+   *
+   * The reservation itself is CSS; what is asserted here is the decision that drives it,
+   * which is the half that can silently stop happening. The pixels are the visual suite's.
+   */
+  it('tells its layouts the corner is spoken for while the invitation is up', async () => {
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    expect(theWall()).toHaveAttribute('data-wall-chrome', 'corner')
+  })
+
+  it('gives the corner back to the layout when the host puts the invitation away', async () => {
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    await userEvent.keyboard('{Escape}')
+
+    // A host who wants the full width of a split or a polaroid presses one key for it.
+    expect(theWall()).not.toHaveAttribute('data-wall-chrome')
+  })
+
+  it('reserves nothing on a wall with no join code to show', async () => {
+    // `aWallResponse` carries no `joinCode`, which is the shape a server build that does
+    // not present one sends. Spelling it as `joinCode: undefined` would not compile:
+    // `exactOptionalPropertyTypes` distinguishes an absent key from an undefined one, and
+    // the DTO declares the field absent rather than nullable.
+    const api = fakeApi({ wall: wallSequence(aWallResponse({ items: [aWallItem()] })) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+
+    // A server build that does not present the code leaves the corner free, and a layout
+    // that narrowed itself for a card nobody can see would be giving up width for nothing.
+    expect(theWall()).not.toHaveAttribute('data-wall-chrome')
   })
 
   it('lets a host dismiss the join reminder with the button as well', async () => {

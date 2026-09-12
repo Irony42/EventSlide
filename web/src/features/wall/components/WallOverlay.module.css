@@ -7,8 +7,18 @@
  * Only properties `Card` does not set are declared here. Overriding a primitive's own
  * layout from a feature module would make the result depend on stylesheet order.
  */
+/**
+ * The width is declared rather than taken from the content, and that is the whole reason
+ * a layout can get out of its way.
+ *
+ * A content-sized card has no footprint anything else can reserve: `--wall-chrome-inline-end`
+ * in `WallPage.module.css` is computed from this token, so the card and the layouts agree
+ * on one number instead of the layouts guessing. The content — a QR, a six-character code
+ * and one line of prompt — is fixed, so there is nothing here that wants to grow.
+ */
 .overlay {
   position: absolute;
+  inline-size: var(--wall-join-card);
   inset-inline-end: var(--wall-safe);
   inset-block-end: var(--wall-safe);
   z-index: var(--z-wall-caption);
