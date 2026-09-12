@@ -292,6 +292,18 @@ export default tseslint.config(
     },
   },
 
+  /* ----------------------------------------------------- service worker -- */
+  {
+    // A worker has no `window`, no `document` and no `localStorage`, and saying so
+    // here is what turns "that global does not exist at runtime" into a lint error
+    // rather than a blank screen on a guest's phone. The type side of the same
+    // boundary is tsconfig.sw.json.
+    files: ['web/sw/**/*.ts'],
+    languageOptions: {
+      globals: { ...globals.serviceworker },
+    },
+  },
+
   /* --------------------------------------------------- tests: relax a little -- */
   {
     files: ['**/*.test.{ts,tsx}', 'tests/**/*.ts', '**/testing/**/*.{ts,tsx}'],

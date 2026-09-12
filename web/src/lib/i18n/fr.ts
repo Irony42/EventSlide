@@ -93,6 +93,28 @@ export const fr = {
     notJoinedHint: 'Scannez à nouveau le QR code, ou saisissez le code de la soirée.',
     notJoinedAction: 'Saisir le code',
 
+    /* ---- Added by the offline outbox. Keep additions inside this block. ---- */
+
+    /**
+     * The state a saturated venue Wi-Fi produces, said as reassurance rather than as an
+     * error. A guest told "Échec" sends the photo again; a guest told it is on its way
+     * puts the phone back in their pocket, which is the entire point of the feature.
+     */
+    itemQueued: 'En attente du réseau',
+    /**
+     * Said for every photo the outbox gave up on — out of time, past the per-event
+     * limit, or refused by the server on its merits. Deliberately one sentence for all
+     * three: the guest's next move is identical, and three shades of "it did not go"
+     * would only make them read more.
+     */
+    itemExpiredHint: 'Cette photo n’a pas pu être envoyée. Renvoyez-la si vous l’avez encore.',
+    offlineTitle: (count: number) =>
+      count === 1 ? '1 photo attend le réseau' : `${count} photos attendent le réseau`,
+    offlineHint:
+      'Elles sont enregistrées sur votre téléphone et partiront dès que la connexion revient. Vous pouvez fermer cette page.',
+    offlineSending: 'Envoi des photos en attente…',
+    offlineRetry: 'Envoyer maintenant',
+
     /* -------------------------- end guest surface --------------------------- */
   },
 

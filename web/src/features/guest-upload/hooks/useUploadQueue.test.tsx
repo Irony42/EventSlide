@@ -5,6 +5,7 @@ import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
 import { fakeApi } from '../../../testing/renderWithProviders'
 import { useUploadQueue } from './useUploadQueue'
+import type { UploadOutbox } from './useUploadQueue'
 import type { ReactNode } from 'react'
 import type { Api, UploadInput } from '../../../lib/api/client'
 import type { UploadResponse } from '../../../lib/api/dto'
@@ -44,6 +45,7 @@ const deferred = () => {
 interface MountOptions {
   readonly resize?: (file: File) => Promise<File>
   readonly onSettled?: () => void
+  readonly outbox?: UploadOutbox
 }
 
 const mount = (api: Api, options: MountOptions = {}) => {
@@ -60,6 +62,7 @@ const mount = (api: Api, options: MountOptions = {}) => {
         slug: SLUG,
         resize,
         ...(options.onSettled ? { onSettled: options.onSettled } : {}),
+        ...(options.outbox ? { outbox: options.outbox } : {}),
       }),
     { wrapper },
   )
@@ -541,5 +544,227 @@ describe('useUploadQueue', () => {
 
     await waitFor(() => expect(result.current.sending).toBe(false))
     expect(api.uploadPhotos).toHaveBeenCalledTimes(2)
+  })
+
+  /**
+   * The offline outbox, from the queue's side.
+   *
+   * The queue's job here is narrow and worth stating: hand a photo over when the
+   * network — not the server — refused it, and never claim a delivery the outbox did
+   * not accept.
+   */
+  describe('with an outbox', () => {
+    const anOutbox = (overrides: Partial<UploadOutbox> = {}): UploadOutbox => ({
+      ready: true,
+      enqueue: vi.fn(async () => 'entry-1'),
+      discard: vi.fn(async () => undefined),
+      ...overrides,
+    })
+
+    it('keeps a photo the connection dropped instead of reporting a failure', async () => {
+      // The heart of it. A row saying "Échec" with a button only helps a guest who is
+      // still looking at their phone, and at 21:30 at a wedding they are not.
+      const outbox = anOutbox()
+      const api = fakeApi({
+        uploadPhotos: vi.fn(async () => {
+          throw ApiError.network()
+        }),
+      })
+      const { result } = mount(api, { outbox })
+
+      act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+      act(() => result.current.send('Les confettis'))
+
+      await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
+      expect(result.current.items[0]?.error).toBeNull()
+      expect(result.current.items[0]?.outboxId).toBe('entry-1')
+      expect(outbox.enqueue).toHaveBeenCalledWith(expect.any(File), 'Les confettis')
+    })
+
+    it('keeps a photo a server that could not answer would have taken', async () => {
+      const outbox = anOutbox()
+      const api = fakeApi({
+        uploadPhotos: vi.fn(async () => {
+          throw new ApiError(503, 'unknown')
+        }),
+      })
+      const { result } = mount(api, { outbox })
+
+      act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+      act(() => result.current.send(null))
+
+      await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
+    })
+
+    it('reports a photo the server refused on its merits, and stores nothing', async () => {
+      // An unsupported format fails identically on the tenth attempt. Queueing it would
+      // spend the guest's battery proving that.
+      const outbox = anOutbox()
+      const api = fakeApi({
+        uploadPhotos: vi.fn(async () => refused('image.unsupportedFormat')),
+      })
+      const { result } = mount(api, { outbox })
+
+      act(() => result.current.add([aPhotoFile('document.pdf')]))
+      act(() => result.current.send(null))
+
+      await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
+      expect(outbox.enqueue).not.toHaveBeenCalled()
+    })
+
+    it('does not even try the network when the browser knows it is offline', async () => {
+      // Watching a progress bar fail is worse than being told the truth immediately.
+      const outbox = anOutbox()
+      const api = fakeApi()
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+      const { result } = mount(api, { outbox })
+
+      act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+      act(() => result.current.send(null))
+
+      await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
+      expect(api.uploadPhotos).not.toHaveBeenCalled()
+    })
+
+    it('reports the failure when the outbox will not take the photo', async () => {
+      // A browser at its storage quota. A row that says "en attente du réseau" when
+      // nothing is holding the bytes is the one lie this surface must not tell.
+      const outbox = anOutbox({ enqueue: vi.fn(async () => null) })
+      const api = fakeApi({
+        uploadPhotos: vi.fn(async () => {
+          throw ApiError.network()
+        }),
+      })
+      const { result } = mount(api, { outbox })
+
+      act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+      act(() => result.current.send(null))
+
+      await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
+      expect(result.current.items[0]?.retryable).toBe(true)
+    })
+
+    it('reports the failure when the kill switch left no outbox to use', async () => {
+      const outbox = anOutbox({ ready: false })
+      const api = fakeApi({
+        uploadPhotos: vi.fn(async () => {
+          throw ApiError.network()
+        }),
+      })
+      const { result } = mount(api, { outbox })
+
+      act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+      act(() => result.current.send(null))
+
+      await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
+      expect(outbox.enqueue).not.toHaveBeenCalled()
+    })
+  })
+
+  /**
+   * Reconciling the rows with a drain that happened after the fact — possibly minutes
+   * later, possibly while the guest was on another screen.
+   */
+  describe('settle', () => {
+    const queueOne = async (result: { current: ReturnType<typeof useUploadQueue> }) => {
+      act(() => result.current.add([aPhotoFile('confettis.jpg')]))
+      act(() => result.current.send(null))
+      await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
+    }
+
+    const offlineApi = () =>
+      fakeApi({
+        uploadPhotos: vi.fn(async () => {
+          throw ApiError.network()
+        }),
+      })
+
+    it('marks the rows a drain delivered as sent', async () => {
+      const outbox: UploadOutbox = {
+        ready: true,
+        enqueue: vi.fn(async () => 'entry-1'),
+        discard: vi.fn(async () => undefined),
+      }
+      const { result } = mount(offlineApi(), { outbox })
+      await queueOne(result)
+
+      act(() =>
+        result.current.settle({
+          sent: ['entry-1'],
+          discarded: [],
+          remaining: 0,
+          retryAfterMs: null,
+        }),
+      )
+
+      expect(result.current.items[0]?.state).toBe('done')
+      expect(result.current.items[0]?.progress).toBe(100)
+      expect(result.current.items[0]?.outboxId).toBeNull()
+    })
+
+    it('leaves alone a row the drain did not reach', async () => {
+      // The outbox may hold photos from an earlier visit that no row here represents.
+      // Settling by count instead of by id would mark the wrong one "Envoyée".
+      const outbox: UploadOutbox = {
+        ready: true,
+        enqueue: vi.fn(async () => 'entry-1'),
+        discard: vi.fn(async () => undefined),
+      }
+      const { result } = mount(offlineApi(), { outbox })
+      await queueOne(result)
+
+      act(() =>
+        result.current.settle({
+          sent: ['entry-from-yesterday'],
+          discarded: [],
+          remaining: 1,
+          retryAfterMs: 1_000,
+        }),
+      )
+
+      expect(result.current.items[0]?.state).toBe('queued')
+    })
+
+    it('says so, and offers no retry, when the outbox gave a photo up', async () => {
+      // Expired, out of attempts, or refused on its merits. A retry button would be
+      // dishonest for the third case and pointless for the first two.
+      const outbox: UploadOutbox = {
+        ready: true,
+        enqueue: vi.fn(async () => 'entry-1'),
+        discard: vi.fn(async () => undefined),
+      }
+      const { result } = mount(offlineApi(), { outbox })
+      await queueOne(result)
+
+      act(() =>
+        result.current.settle({
+          sent: [],
+          discarded: ['entry-1'],
+          remaining: 0,
+          retryAfterMs: null,
+        }),
+      )
+
+      expect(result.current.items[0]?.state).toBe('failed')
+      expect(result.current.items[0]?.error).toBe(fr.upload.itemExpiredHint)
+      expect(result.current.items[0]?.retryable).toBe(false)
+    })
+
+    it('forgets the stored bytes when a guest takes a queued row back', async () => {
+      // Removing only the row would leave the photo on the device, and it would appear
+      // on the wall ten minutes later with nothing on screen to explain it.
+      const outbox: UploadOutbox = {
+        ready: true,
+        enqueue: vi.fn(async () => 'entry-1'),
+        discard: vi.fn(async () => undefined),
+      }
+      const { result } = mount(offlineApi(), { outbox })
+      await queueOne(result)
+
+      act(() => result.current.remove(result.current.items[0]?.id ?? ''))
+
+      expect(outbox.discard).toHaveBeenCalledWith('entry-1')
+      expect(result.current.items).toHaveLength(0)
+    })
   })
 })

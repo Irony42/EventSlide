@@ -214,7 +214,7 @@ npm run dev:web
 
 npm run verify         # the gate: lint + typecheck + coverage + build
 npm run lint           # eslint, includes the architecture boundary rules
-npm run typecheck      # all four tsconfig projects: domain, server, web, tools
+npm run typecheck      # all five tsconfig projects: domain, server, web, sw, tools
 npm run build          # web bundle + API to dist/
 npm start              # run the built server
 

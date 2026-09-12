@@ -122,11 +122,18 @@ _unwritable_, because the ambient types are not there to compile against.
 | `tsconfig.base.json`   | —                                                                         | shared strictness only         | — (extended by all below)                                                 |
 | `tsconfig.domain.json` | `src/domain`                                                              | `lib: ["ES2023"]`, `types: []` | `process`, `Buffer`, `document`, `require` — no Node or DOM globals exist |
 | `tsconfig.server.json` | `src/**` incl. colocated tests                                            | `types: ["node"]`, no DOM      | any DOM reference; `document` in a use case fails to compile              |
-| `tsconfig.web.json`    | `web/**`                                                                  | `lib: [… "DOM"]`               | Node globals; `verbatimModuleSyntax` also forbids CJS interop shortcuts   |
+| `tsconfig.web.json`    | `web/**` minus `web/sw`                                                   | `lib: [… "DOM"]`               | Node globals; `verbatimModuleSyntax` also forbids CJS interop shortcuts   |
+| `tsconfig.sw.json`     | `web/sw/serviceWorker.ts` and what it imports                             | `lib: [… "WebWorker"]`         | `window`, `document`, `localStorage` — a worker has none of them          |
 | `tsconfig.tools.json`  | `tests/**`, `scripts/**`, the root `vitest`/`playwright`/`eslint` configs | DOM + `types: ["node"]`        | build and e2e config leaking into shipped code                            |
 | `tsconfig.build.json`  | `src/**` minus tests and doubles                                          | emits to `dist/server`         | shipping a fake or a test harness in the build output                     |
 
-`npm run typecheck` runs domain, server, web and tools. `types: []` on the domain project
+`npm run typecheck` runs domain, server, web, sw and tools. The service worker is its
+own project rather than part of `web` because the two `lib`s are genuinely
+incompatible: `WebWorker` and `DOM` declare the same globals (`self`, `location`,
+`fetch`) with different types, so one program cannot hold both. Splitting them is also
+what makes the boundary real — the worker in `web/sw/` cannot reach for `document` by
+accident, and the modules it shares with the page (`web/src/lib/offline/`) are
+type-checked twice, once under each set of globals. `types: []` on the domain project
 is the strongest guard in the repo: `Date.now()` still compiles (it is ECMAScript, and
 lint bans it separately) but `process.env`, Node's `crypto.randomUUID()` and `fs` do not
 exist at all — there is nothing to import. The base config also carries

@@ -542,6 +542,7 @@ chase one by testing accessors.
 | `npm run test:e2e`                              | Playwright, all projects; before opening a PR that touches a flow                        |
 | `npm run test:e2e:ui`                           | Playwright UI mode, for debugging a failing journey step by step                         |
 | `npm run test:e2e -- --project=chromium-mobile` | guest-surface work only; skips the desktop projects                                      |
+| `npm run test:e2e:offline`                      | the offline upload queue only — its own project, see below                               |
 | `npm run test:e2e -- --grep @smoke`             | the subset CI runs on every push                                                         |
 | `npm run test:e2e:update-snapshots`             | after an **intentional** wall-layout change; review the diff                             |
 | `npm run verify`                                | lint + typecheck + `test:coverage` + build — the gate before committing                  |

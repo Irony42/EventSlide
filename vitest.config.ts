@@ -61,6 +61,10 @@ export default defineConfig({
         'src/application/testing/**',
         'src/interface/http/testing/**',
         'web/src/testing/**',
+        // Any `testing/` folder, not just the top-level one: a port's contract suite
+        // lives beside the port it describes (web/src/lib/offline/testing/), exactly as
+        // src/application/testing/contracts/ does on the server side.
+        'web/src/**/testing/**',
         // Composition root and bootstrap: wiring with no branches worth asserting.
         // Covered end to end by the Playwright suite instead.
         'src/main/**',
