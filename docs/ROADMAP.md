@@ -174,11 +174,48 @@ Spanish, German and Italian are a mechanical addition, chosen from `Accept-Langu
 a manual override. International weddings are common and a guest who cannot read the
 upload button does not upload.
 
-### 1.6 Spoken captions (P3, effort S, risk: low)
+### 1.6 Spoken captions — **Considered and declined**
 
 The Web Speech API for the caption field. Typing on a phone in a dark room with a drink
 in hand is the reason most photos arrive without a caption, and captions are what make
-the wall feel like the room rather than a screensaver.
+the wall feel like the room rather than a screensaver. The problem is real and the entry
+below is kept so nobody proposes it a third time without knowing what it costs.
+
+It was built, and it worked. It is not being shipped, for one reason: **`SpeechRecognition`
+is not an on-device API in the browsers that have it.** Chrome streams the captured audio
+to Google's recognition service and Safari to Apple's, over their own connections. No
+header and no setting this application controls keeps that audio local, or in the EU, or
+out of a third party's logs.
+
+That is irreconcilable with the posture the rest of this product is built on. There is no
+CDN here; the fonts are self-hosted **specifically** to deny Google a log of every guest's
+IP address ([SECURITY.md §8](SECURITY.md)); EXIF is stripped on ingest so a guest's phone
+does not hand over the venue's GPS coordinates. A guest at somebody else's wedding did not
+choose this software and often does not know it exists, which raises the bar rather than
+lowering it. Shipping a button that sends their voice — and the conversation of everyone
+standing near them — to Google would undo in one feature what several others exist to
+protect.
+
+The implementation answered every objection it could. It told the guest where the audio
+was going before they pressed rather than after, it kept typing unchanged and always
+available, and the operator could switch it off in one line. None of that changes what
+happens when a guest does press it.
+
+What would change the decision: an on-device recognition engine the browser exposes
+without a network round trip. Chrome has shipped on-device speech in other surfaces and
+the Web Speech API may follow. Until then the honest answer is that this product cannot
+offer dictation without breaking a promise it makes everywhere else, and a caption typed
+with one thumb is a smaller loss than that.
+
+The two things the attempt did turn up are worth keeping either way:
+
+- `Permissions-Policy` sends `microphone=()`, and an **empty allowlist disables a feature
+  for the document itself**, not only for embedded frames. Anything reaching for the
+  microphone or the camera here will hit that first, with `service-not-allowed` and no
+  prompt, and no clue as to why.
+- A single `SpeechRecognition` object reused across sessions delivers a dead session's
+  `aborted`/`end` pair to the next session's handlers. Whoever tries this next: build one
+  per session and detach its handlers before aborting.
 
 ---
 
