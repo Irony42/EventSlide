@@ -210,9 +210,16 @@ jobs:
         if: env.COMPARABLE == '1'
         run: |
           shots='tests/e2e/__screenshots__'
-          rendered="$(find "$shots" -type f -name '*.png' 2>/dev/null | wc -l | tr -d '[:space:]')"
-          expected="$(git ls-tree -r --name-only "$BASE_SHA" -- "$shots" | grep -c '\.png$' || true)"
-          echo "rendered $rendered baseline image(s); the merge base carries $expected"
+          # Counted for the one project the visual suite runs, not across the whole
+          # tree. `test:e2e:visual` pins --project=chromium-desktop, so a baseline
+          # committed for any other project can never be rendered here — and comparing
+          # against it reports a broken harness on a pull request that broke nothing.
+          # Not hypothetical: four chromium-mobile baselines reached main from a local
+          # run, and the next pull request failed this step because of them.
+          project="$shots/chromium-desktop"
+          rendered="$(find "$project" -type f -name '*.png' 2>/dev/null | wc -l | tr -d '[:space:]')"
+          expected="$(git ls-tree -r --name-only "$BASE_SHA" -- "$project" | grep -c '\.png$' || true)"
+          echo "rendered $rendered chromium-desktop baseline image(s); the merge base carries $expected"
           if [ "$rendered" -eq 0 ] || [ "$rendered" -lt "$expected" ]; then
             echo "::error::The merge base rendered $rendered of $expected baselines. That is a broken visual harness, not a regression in this pull request — read the step above before touching the wall."
             exit 1
