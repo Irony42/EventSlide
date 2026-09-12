@@ -71,6 +71,19 @@ describe('npm run backup', () => {
     expect(await stat(join(archive, 'manifest.json'))).toBeTruthy()
   })
 
+  it('does not hand the operator --force on the happy path', async () => {
+    // --force turns off the refusal to overwrite an existing installation, which is the
+    // only guard a restore has. Printing it on every successful backup makes it the
+    // line people paste, including on the day the target was not supposed to be
+    // occupied. What --force costs is said in words instead, after the command.
+    const { code, out } = await capture(() => run(['--to', archive, ...where()]))
+
+    expect(code).toBe(0)
+    expect(out).toContain(`npm run restore -- ${archive}`)
+    expect(out).not.toMatch(/npm run restore -- .*--force/)
+    expect(out).toContain('destroys what is there')
+  })
+
   it('exits non-zero and names the damage when --verify finds a broken archive', async () => {
     expect((await capture(() => run(['--to', archive, ...where()]))).code).toBe(0)
     const photo = join(archive, 'media', 'an-event', 'thumb', 'aa', `${'a'.repeat(64)}.jpg`)

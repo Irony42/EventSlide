@@ -658,8 +658,13 @@ restore otherwise succeeds and the server then will not start.
 **What it does not cover, stated plainly**, because a backup check that oversells itself
 is worse than none:
 
-- **Tampering.** The checksums are unkeyed, so anyone who can edit the archive can
-  recompute them. This detects damage, not an adversary.
+- **Tampering with the contents.** The checksums are unkeyed, so anyone who can edit the
+  archive can recompute them — the digest over the entry list included. This detects
+  damage, not an adversary. The one thing it does refuse is where a manifest _points_:
+  an entry path and the database filename are constrained when the manifest is parsed
+  (no `..`, no absolute or drive-relative path, no backslash, no control character), so
+  an archive cannot name a location outside itself and make the restore write there.
+  That is a containment rule, not authentication — see the accepted risk in §12.
 - **A faithful copy of already-wrong data.** `integrity_check` proves the B-trees are
   sound, not that the album is the one you remember.
 - **Rot after the check.** A verified archive is a statement about one moment; re-verify
@@ -677,6 +682,20 @@ database goes in via a temporary sibling and a rename, so an interrupted restore
 the previous one where it was. It warns when a `-wal` or `-shm` is present, which
 usually means a server is still running: stop it first, because replacing the file
 underneath a live process leaves the wall serving neither database.
+
+**The media half has one window, and it is named rather than hidden.** The media root is
+replaced in place — copying several gigabytes twice to buy atomicity is not a price a
+self-hosted box can pay — so between the first file and the last, the target holds
+neither the old media nor all of the new. Verification runs in full before anything is
+destroyed, so that window is only ever entered on an archive already proven complete. If
+a copy is cut short anyway — the USB stick goes, the disk fills — the error names the
+archive, says the target is now incomplete, and says the thing that is actually
+actionable at 2am: **once the cause is fixed, re-running the same restore with `--force`
+finishes the job.** The copy is idempotent, so nothing is lost while the archive is still
+readable. The caveat is not pedantry: that holds for a transient failure — a disconnected
+drive, a momentarily full disk — and not for a deterministic one, such as a target
+filesystem that cannot hold a name or a permission the operator does not have. A failure
+that repeats is a property of the target, not of the archive.
 
 **Treat the archive as you treat the database.** It contains every password hash, every
 session row and every photograph — `chmod 0600` on the files, `0700` on the directory,
@@ -700,6 +719,7 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 | Captions and display names are guest-supplied text on a 3 m screen  | pre-moderating text as well as photos would slow the wall to uselessness                                                                                                                                                                                              | length-bounded, control characters stripped in the domain, rendered as text (React escapes; no `dangerouslySetInnerHTML` anywhere), and the host can hide any photo instantly           |
 | Rate-limit state is in-process in the first cut                     | a restart resets buckets                                                                                                                                                                                                                                              | quota is transactional and survives restarts; SQLite-backed limiter store is **(planned)**                                                                                              |
 | Self-hosted operators own their own patching, TLS, and backups      | there is no hosted control plane to push a fix from                                                                                                                                                                                                                   | pinned dependencies, published advisories, and boot-time config refusal so a misconfigured instance never starts quietly                                                                |
+| A backup archive is untrusted input with unauthenticated checksums  | signing needs a key, and a key kept beside the archive signs nothing; a self-hosted operator has nowhere to put one that a machine restoring after a total loss can still reach. An archive stays usable by whoever holds it, which is what an attacker uses          | paths are constrained at the parse, so an archive no longer chooses where the restore writes; contents are another matter, so restore only from a copy you control (§11)                |
 | A malicious host can read every photo in their own event            | they organised the event; the data is theirs                                                                                                                                                                                                                          | per-event roles limit _moderators_ to their own events                                                                                                                                  |
 
 ## 13. Reporting a vulnerability

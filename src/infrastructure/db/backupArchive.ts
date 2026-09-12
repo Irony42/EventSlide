@@ -93,9 +93,98 @@ export class BackupError extends Error {
   }
 }
 
+/**
+ * True of a C0 control character anywhere in the string.
+ *
+ * `\0` is the one that matters: Node throws `must be a string without null bytes` from
+ * inside `fs`, so without this a hostile manifest surfaces as a stack trace rather than
+ * as one sentence naming the manifest. The rest of the range goes with it because a
+ * newline in a path makes every line of output below it a lie.
+ *
+ * A loop rather than a regex: matching that range needs a `\uXXXX` escape in this file,
+ * and an escape for a control character has a way of arriving as the control character
+ * itself. A comparison on the code unit needs nothing written down.
+ */
+const hasControlCharacter = (value: string): boolean => {
+  for (let index = 0; index < value.length; index += 1) {
+    if (value.charCodeAt(index) < 0x20) return true
+  }
+  return false
+}
+
+/**
+ * Is this a path that could have come out of `toPosix(walkFiles(...))`?
+ *
+ * `entry.path` is the only string in an archive that becomes a **location** on the
+ * restoring machine, and an archive is precisely the thing that travels — USB stick,
+ * NAS, object storage, a handover between host and client. `restore` exists to read a
+ * file that came from somewhere else, so the manifest is untrusted input in the sense
+ * of rule 3 in `CLAUDE.md`, and the parse is where that gets settled.
+ *
+ * The rule **rejects rather than normalises**, deliberately. Normalising answers the
+ * wrong question: the value of a backup is that it is exactly what was captured, and a
+ * path that needed normalising was not written by this tool. What is refused, and why
+ * each one is a location and not a filename:
+ *
+ * - `..` — the traversal itself. `.` and the empty segment come with it: they are what
+ *   `/etc/x`, `a//b` and a trailing `/` leave behind, and `path.join` folds them away
+ *   silently, so accepting them would mean accepting a path whose meaning changes
+ *   between the manifest and the disk.
+ * - `\` — the separator on Windows and the prefix of a UNC share. `a\..\..\x` is a
+ *   traversal there and an odd but legal filename on Linux; neither is something
+ *   `toPosix` produces.
+ * - `:` — a drive (`C:/x`) and, worse, a drive-relative path (`C:x`), which resolves
+ *   against a per-drive working directory rather than the root; also the NTFS alternate
+ *   data stream separator, which hides bytes behind a legitimate-looking name.
+ * - control characters — see `hasControlCharacter`.
+ *
+ * This is the parse-side gate, which is what makes one change protect both `verify` and
+ * `restore`: every reader goes through `readManifest`. `resolveInside` is the
+ * write-side gate.
+ */
+const isContainedPath = (value: string): boolean => {
+  if (hasControlCharacter(value)) return false
+  if (value.includes('\\') || value.includes(':')) return false
+  return value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+}
+
+const CONTAINED_PATH_MESSAGE =
+  'must stay inside the archive: a relative path with "/" separators, no "." or ".." or ' +
+  'empty segment, no drive letter, no backslash, no control character'
+
+/** A path in a manifest that this build will turn into a location on disk. */
+const containedPath = z.string().min(1).refine(isContainedPath, {
+  message: CONTAINED_PATH_MESSAGE,
+})
+
+/**
+ * The write-side half of the containment rule, and deliberately redundant.
+ *
+ * `entrySchema` has already refused anything that could get here, so in the current
+ * call graph this never throws — that is the point of having it. The two gates fail for
+ * different reasons: the schema is a statement about a manifest, this is a statement
+ * about a filesystem, and a future caller of `restoreBackup` is not obliged to have
+ * parsed anything. The cost of being wrong once is an arbitrary file write with the
+ * privileges of whoever runs the restore, which is a cheap thing to pay twice for.
+ *
+ * `startsWith(base + sep)` rather than `startsWith(base)`: without the separator,
+ * `<root>-old/x` reads as inside `<root>`.
+ */
+export const resolveInside = (root: string, relative: string): string => {
+  const base = resolve(root)
+  const candidate = resolve(base, relative)
+  if (!candidate.startsWith(base + sep)) {
+    throw new BackupError(
+      `Refusing to touch ${candidate}: it must stay inside ${base}. The manifest names ` +
+        `a path that leaves it.`,
+    )
+  }
+  return candidate
+}
+
 const entrySchema = z.object({
-  /** Relative to `<archive>/media`, always with `/` separators. */
-  path: z.string().min(1),
+  /** Relative to `<archive>/media`, always with `/` separators — and enforced, see above. */
+  path: containedPath,
   bytes: z.number().int().nonnegative(),
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
 })
@@ -106,7 +195,10 @@ const manifestSchema = z.object({
   appVersion: z.string(),
   source: z.object({ databasePath: z.string(), mediaRoot: z.string() }),
   database: z.object({
-    file: z.string(),
+    // The same rule as a media entry, for the same reason: this is joined onto the
+    // archive root to find the snapshot. It is always `database.sqlite` in an archive
+    // this build wrote, but nothing about reading one guarantees that.
+    file: containedPath,
     bytes: z.number().int().nonnegative(),
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
     integrityCheck: z.string(),
@@ -457,6 +549,15 @@ export const createBackup = async ({
   let mediaBytes = 0
   for (const file of files) {
     const posix = toPosix(file.relative)
+    if (!isContainedPath(posix)) {
+      // A name the manifest format cannot carry: a backslash or a colon in a filename,
+      // which POSIX allows and this archive's `/`-separated paths cannot express. Named
+      // and left behind, like a staging file, rather than copied — copying it would
+      // produce an archive that this build's own reader then refuses, and a backup that
+      // reports failure after writing every byte is the worst of both outcomes.
+      skipped.push(`${posix}: the name cannot be written as an archive path`)
+      continue
+    }
     const copied = await streamThroughSha256(file.absolute, join(archive, MEDIA_DIR, file.relative))
     entries.push({ path: posix, bytes: copied.bytes, sha256: copied.sha256 })
     mediaBytes += copied.bytes
@@ -583,8 +684,14 @@ export const readManifest = async (archive: string): Promise<BackupManifest> => 
  * What it does not catch, stated plainly because a backup check that oversells itself
  * is worse than none:
  *
- * - **Tampering.** The checksums are unkeyed. Anyone who can edit the archive can
- *   recompute them. This detects damage, not an adversary.
+ * - **Tampering with contents.** The checksums are unkeyed. Anyone who can edit the
+ *   archive can recompute them, entry digest included, so this detects damage and not
+ *   an adversary. The exception is the one that mattered: where a manifest *points*.
+ *   `entry.path` and `database.file` are constrained at the parse (`isContainedPath`),
+ *   so a manifest can no longer name a location outside the archive — a restore that
+ *   overwrites the compiled server was the difference between a useless backup and code
+ *   execution. Substituting the bytes of any file *inside* the archive remains entirely
+ *   possible, and the database is one of those files.
  * - **A faithful copy of already-wrong data.** `integrity_check` proves the B-trees
  *   are sound, not that a photo row points at the caption a guest actually wrote.
  * - **Rot after the check.** A verified archive is a statement about one moment. Files
@@ -807,6 +914,46 @@ export interface RestoreResult {
 }
 
 /**
+ * The one window in this product where an interrupted operation leaves an operator with
+ * neither the data from before nor complete data from after, said out loud.
+ *
+ * The window is deliberate and stays: the media root is replaced in place because
+ * copying several gigabytes twice to get atomicity is not a price a self-hosted box can
+ * pay, and the archive has been proven complete before anything is destroyed. What was
+ * missing was not a smaller window but a legible one. "The restore is incomplete" on
+ * its own sends somebody looking for a recovery procedure that does not exist; the
+ * facts that matter are that **nothing is lost while the archive is readable** and that
+ * **the same command finishes the job** — true, because a restore verifies the archive
+ * again and rewrites both halves from scratch every time, and because the media copy is
+ * therefore idempotent.
+ *
+ * `--force` is named because it is now required and was not before: the target holds a
+ * partial installation, so the refusal in `restoreBackup` would otherwise stop the
+ * re-run that fixes it.
+ */
+const incompleteRestore = (
+  archiveRoot: string,
+  target: RestoreTarget,
+  entry: ManifestEntry,
+  reason: string,
+  written: number,
+  total: number,
+): BackupError =>
+  new BackupError(
+    `media/${entry.path} could not be restored: ${reason}.\n` +
+      `  archive   ${archiveRoot}\n` +
+      `  database  ${target.databasePath}  (already replaced from the archive)\n` +
+      `  media     ${target.mediaRoot}  (${written} of ${total} file(s) written)\n` +
+      `The target is now incomplete: the restored database, part of the restored media, ` +
+      `and nothing of what was there before.\n` +
+      `Nothing is lost while that archive is readable. Once the cause is fixed — space, ` +
+      `permissions, a disconnected drive — re-run the same restore with --force, which ` +
+      `the target now needs because it is no longer empty: the copy is idempotent, so a ` +
+      `second run rewrites both halves and costs only time. A failure that repeats is a ` +
+      `property of the target, not of the archive.`,
+  )
+
+/**
  * Writes an archive over a database and a media root.
  *
  * Destructive by definition, so the order is: verify everything, refuse if the target
@@ -855,6 +1002,20 @@ export const restoreBackup = async ({
   }
   const manifest = report.manifest
 
+  // Every media path is turned into a location here, before a single byte is written,
+  // so that the second containment gate refuses a manifest while the installation is
+  // still whole. `entrySchema` has already refused anything that could fail this; a
+  // belt that only fastens halfway through the operation is not a belt. See
+  // `resolveInside`.
+  const copies = manifest.media.entries.map((entry) => {
+    const relative = fromPosix(entry.path)
+    return {
+      entry,
+      from: resolveInside(join(root, MEDIA_DIR), relative),
+      to: resolveInside(target.mediaRoot, relative),
+    }
+  })
+
   // ------------------------------------------------------------- database --
   const staged = `${target.databasePath}.restoring`
   await rm(staged, { force: true })
@@ -881,17 +1042,21 @@ export const restoreBackup = async ({
   await mkdir(target.mediaRoot, { recursive: true })
 
   let written = 0
-  for (const entry of manifest.media.entries) {
-    const relative = fromPosix(entry.path)
-    const restored = await streamThroughSha256(
-      join(root, MEDIA_DIR, relative),
-      join(target.mediaRoot, relative),
-    )
-    if (restored.sha256 !== entry.sha256) {
-      throw new BackupError(
-        `media/${entry.path} changed while it was being copied out of the archive. The ` +
-          `restore is incomplete: re-run it once the archive is on stable storage.`,
-      )
+  for (const { entry, from, to } of copies) {
+    let failure: string | null = null
+    try {
+      const restored = await streamThroughSha256(from, to)
+      if (restored.sha256 !== entry.sha256) {
+        failure = 'it changed while it was being copied out of the archive'
+      }
+    } catch (cause) {
+      // A read that failed, a disk that filled, an archive that was unplugged. Every
+      // one of them lands here rather than propagating raw, because by this point the
+      // operator needs the state of their installation explained, not an errno.
+      failure = messageOf(cause)
+    }
+    if (failure !== null) {
+      throw incompleteRestore(root, target, entry, failure, written, copies.length)
     }
     written += 1
   }

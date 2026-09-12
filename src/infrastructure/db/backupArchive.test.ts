@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -13,9 +13,11 @@ import {
   MANIFEST_FILE,
   MEDIA_DIR,
   readManifest,
+  resolveInside,
   restoreBackup,
   verifyBackup,
   type BackupManifest,
+  type ManifestEntry,
 } from './backupArchive'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrations } from './migrations'
@@ -864,5 +866,260 @@ describe('backup and restore', () => {
       expect((await verifyBackup(second, { deep: true, migrations })).ok).toBe(true)
       expect(contentHash).toHaveLength(64)
     })
+
+    /**
+     * The window where an interrupted restore leaves neither the old data nor complete
+     * new data. It is bounded by design and stays that way — the archive is verified in
+     * full before anything is destroyed — so what is under test is the message, which is
+     * the whole of the mitigation.
+     *
+     * `onProgress` is the seam. Its last line lands immediately before the media loop,
+     * which makes "the archive went away mid-copy" deterministic rather than a race.
+     */
+    const BEFORE_THE_MEDIA_LOOP = 'media file(s) to'
+
+    const restoreWhileTheArchiveIsDisturbed = async (disturb: () => void): Promise<string> => {
+      const failure = await restoreBackup({
+        archive,
+        databasePath,
+        mediaRoot,
+        force: true,
+        migrations,
+        onProgress: (line) => {
+          if (line.includes(BEFORE_THE_MEDIA_LOOP)) disturb()
+        },
+      }).then(
+        () => null,
+        (error: unknown) => (error instanceof Error ? error.message : String(error)),
+      )
+      expect(failure).not.toBeNull()
+      return failure ?? ''
+    }
+
+    it('names the archive and says a re-run finishes the job when the copy is cut short', async () => {
+      const { contentHash } = await seedAnEvening()
+      await backup()
+
+      // The USB stick is unplugged between the verification and the copy.
+      const message = await restoreWhileTheArchiveIsDisturbed(() => {
+        rmSync(join(archive, MEDIA_DIR), { recursive: true, force: true })
+      })
+
+      expect(message).toContain(archive)
+      expect(message).toContain('incomplete')
+      expect(message).toMatch(/0 of 3 file\(s\)/)
+      // The three things an operator reading this at 2am needs: that nothing is lost,
+      // that the same command finishes it — with --force, the target no longer being
+      // empty — and that this holds *once the cause is fixed*. Saying "incomplete"
+      // without the first two sends someone looking for a recovery procedure that does
+      // not exist; saying them without the third promises that a re-run always works,
+      // which is true of a disconnected drive and false of a permission they do not have.
+      expect(message).toMatch(/re-run the same restore/i)
+      expect(message).toMatch(/once the cause is fixed/i)
+      expect(message).toContain('--force')
+      // The window is real, and the message is honest about it rather than reassuring:
+      // the photo that was in the media root a moment ago is already gone, and what is
+      // at its path now is the empty stub of a copy that was cut off.
+      const displayed = join(
+        mediaRoot,
+        EVENT,
+        'display',
+        contentHash.slice(0, 2),
+        `${contentHash}.jpg`,
+      )
+      expect(await readFile(displayed, 'utf8').catch(() => '')).toBe('')
+    })
+
+    it('says the same when a file changes under it after the deep check passed', async () => {
+      const { contentHash } = await seedAnEvening()
+      await backup()
+      const thumb = join(
+        archive,
+        MEDIA_DIR,
+        EVENT,
+        'thumb',
+        contentHash.slice(0, 2),
+        `${contentHash}.jpg`,
+      )
+
+      const message = await restoreWhileTheArchiveIsDisturbed(() => {
+        // Same length, different bytes: the corruption a size check cannot see, landing
+        // after the deep verification that would have caught it.
+        writeFileSync(thumb, 'x'.repeat(readFileSync(thumb).length))
+      })
+
+      expect(message).toContain('changed while it was being copied')
+      expect(message).toContain('incomplete')
+      // `thumb` sorts after `display` and `original`, so two files are already in place.
+      expect(message).toMatch(/2 of 3 file\(s\)/)
+    })
+  })
+
+  // ------------------------------------------------------------ hostile input --
+
+  /**
+   * An archive is the one artefact of this product that travels: USB stick, NAS, object
+   * storage, a handover between the host and the client. `restore` exists to read a
+   * file that came from somewhere else, which makes the manifest untrusted input — and
+   * `entry.path` is the only string in it that becomes a *location* on the restoring
+   * machine.
+   *
+   * Same family as the hostile payloads in `tests/e2e/fixtures/media.ts` — the pixel
+   * bomb, the SVG renamed `.jpg`, the disguised script — one layer down.
+   */
+  describe('a hostile manifest', () => {
+    const PAYLOAD = 'console.log("owned")'
+    const THE_REAL_THING = 'the compiled server'
+
+    /** `digestOfEntries`, recomputed the way an attacker would: the checksums are unkeyed. */
+    const digestOf = (entries: readonly ManifestEntry[]): string => {
+      const hash = createHash('sha256')
+      for (const line of entries.map((e) => `${e.path}|${e.bytes}|${e.sha256}`).sort()) {
+        hash.update(`${line}\n`)
+      }
+      return hash.digest('hex')
+    }
+
+    /**
+     * Writes a manifest carrying one extra media entry, re-sealed so that every
+     * self-check in the archive agrees with it.
+     *
+     * That is the half that made this serious: the integrity machinery cooperates.
+     * Anyone who can edit an archive can recompute an unkeyed checksum, so a hostile
+     * manifest caught by the entry digest would have proved nothing about the path rule.
+     */
+    const sealHostileEntry = async (pristine: BackupManifest, path: string): Promise<void> => {
+      const entries: ManifestEntry[] = [
+        ...pristine.media.entries,
+        { path, bytes: Buffer.byteLength(PAYLOAD), sha256: hashOf(PAYLOAD) },
+      ]
+      await writeFile(
+        join(archive, MANIFEST_FILE),
+        JSON.stringify(
+          {
+            ...pristine,
+            counts: { ...pristine.counts, mediaFiles: entries.length },
+            media: { ...pristine.media, entries, entriesDigest: digestOf(entries) },
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      )
+    }
+
+    it('cannot make the restore write outside the media root', async () => {
+      await seedAnEvening()
+      await backup()
+      const pristine = await readManifest(archive)
+
+      // The victim: the compiled server, one directory up from the media root.
+      const victim = join(root, 'app', 'index.js')
+      await mkdir(join(root, 'app'), { recursive: true })
+      await writeFile(victim, THE_REAL_THING)
+
+      // The payload travels inside the archive, at the place `<archive>/media/../app`
+      // resolves to — which is why verification used to find it, check its size and its
+      // sha256, and pronounce the archive sound.
+      await mkdir(join(archive, 'app'), { recursive: true })
+      await writeFile(join(archive, 'app', 'index.js'), PAYLOAD)
+      await sealHostileEntry(pristine, '../app/index.js')
+
+      await expect(verify()).rejects.toThrow(/must stay inside the archive/)
+      await expect(restore({ force: true })).rejects.toThrow(/must stay inside the archive/)
+
+      expect(await readFile(victim, 'utf8')).toBe(THE_REAL_THING)
+    })
+
+    it('refuses every shape of path this tool would never have written', async () => {
+      await seedAnEvening()
+      await backup()
+      const pristine = await readManifest(archive)
+
+      const hostile: readonly (readonly [string, string])[] = [
+        ['a parent segment', '../outside.jpg'],
+        ['a parent segment in the middle', 'an-event/../../outside.jpg'],
+        ['an absolute POSIX path', '/etc/cron.d/eventslide'],
+        ['a Windows drive', 'C:/Windows/System32/drivers/etc/hosts'],
+        ['a drive-relative path, which resolves per drive', 'C:outside.jpg'],
+        ['a UNC share', '//attacker/share/outside.jpg'],
+        ['a backslash, which is the separator on Windows', 'an-event\\..\\..\\outside.jpg'],
+        ['an NTFS alternate data stream', 'an-event/thumb/aa/photo.jpg:evil'],
+        ['an empty segment', 'an-event//outside.jpg'],
+        ['a bare dot segment', 'an-event/./outside.jpg'],
+        ['a trailing separator', 'an-event/thumb/'],
+        // A `\0` written as an escape would be a literal control byte in this file, so
+        // it is built from its code point. Without the rule, Node throws `must be a
+        // string without null bytes` from inside `fs` and a hostile manifest becomes a
+        // stack trace instead of one sentence.
+        ['a control character', `an-event/thumb/aa/photo${String.fromCodePoint(0)}.jpg`],
+      ]
+
+      for (const [what, path] of hostile) {
+        await sealHostileEntry(pristine, path)
+        const refusal = await readManifest(archive).then(
+          () => null,
+          (error: unknown) => (error instanceof Error ? error.message : String(error)),
+        )
+        expect(refusal, `${what}: ${JSON.stringify(path)} was accepted`).toContain(
+          'must stay inside the archive',
+        )
+      }
+    })
+
+    it('refuses a database file that points outside the archive', async () => {
+      await seedAnEvening()
+      await backup()
+      const pristine = await readManifest(archive)
+      await writeFile(
+        join(archive, MANIFEST_FILE),
+        JSON.stringify({
+          ...pristine,
+          database: { ...pristine.database, file: '../../../etc/shadow' },
+        }),
+        'utf8',
+      )
+
+      // Not a write escape — the restore stages the database at a path of its own — but
+      // it is the same string reaching `join` unchecked, and verification would have
+      // opened whatever it found at the other end of it.
+      await expect(verify()).rejects.toThrow(/must stay inside the archive/)
+    })
+
+    it('refuses at the write too, for a path that never reached the schema', async () => {
+      // The second gate, unreachable through the first by construction: `restoreBackup`
+      // only ever sees entries `readManifest` has parsed. It is asserted directly
+      // because a gate that exists in case the other one is wrong cannot be reached by
+      // being right, and because the next caller of this module is not obliged to parse.
+      expect(() => resolveInside(mediaRoot, join('..', 'outside.jpg'))).toThrow(BackupError)
+      expect(() => resolveInside(mediaRoot, join('..', 'outside.jpg'))).toThrow(/must stay inside/)
+      // The reason the check compares against the root *plus a separator*: a sibling
+      // whose name merely starts with the root's would otherwise read as inside it.
+      expect(() => resolveInside(mediaRoot, join('..', 'media-old', 'x.jpg'))).toThrow(BackupError)
+      // And the ordinary case still resolves to where the media store would put it.
+      expect(resolveInside(mediaRoot, join(EVENT, 'thumb', 'aa', 'x.jpg'))).toBe(
+        join(mediaRoot, EVENT, 'thumb', 'aa', 'x.jpg'),
+      )
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'leaves behind a media file whose name cannot be written as an archive path',
+      async () => {
+        // POSIX allows a backslash in a filename and this archive format cannot express
+        // one, because its paths are `/`-separated. Skipped and named, the way a staging
+        // file is: copying it would produce an archive whose manifest this build then
+        // refuses to read, which is a backup that fails after writing every byte.
+        // Windows cannot hold such a name at all, so there is nothing to test there.
+        await seedAnEvening()
+        await mkdir(join(mediaRoot, 'junk'), { recursive: true })
+        await writeFile(join(mediaRoot, 'junk', 'a\\..\\..\\escape.jpg'), 'not ours')
+
+        const { manifest } = await backup()
+
+        expect(manifest.skipped.join('\n')).toContain('cannot be written as an archive path')
+        expect(manifest.media.entries.map((entry) => entry.path)).toHaveLength(3)
+        expect((await verify()).ok).toBe(true)
+      },
+    )
   })
 })

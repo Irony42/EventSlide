@@ -176,8 +176,17 @@ const runBackup = async (argv: readonly string[]): Promise<number> => {
   printReport(report, archive)
   if (!report.ok) return 1
 
+  // Without `--force`, deliberately. It is the flag that switches off the refusal to
+  // overwrite an existing installation, and a happy path that prints it teaches every
+  // operator to paste it — including on the day the target was not supposed to be
+  // occupied and the refusal was the thing that would have saved them. The command
+  // below is the one that is right nearly every time; the sentence after it is for the
+  // other times, which is the order those two facts should be met in.
   console.log(
-    `\nCopy it off this machine. Restore with:\n` + `  npm run restore -- ${archive} --force`,
+    `\nCopy it off this machine. Restore with:\n` +
+      `  npm run restore -- ${archive}\n` +
+      `\nThat refuses to run if the target already holds a database or any media.\n` +
+      `Adding --force is what gets past the refusal, and it destroys what is there.`,
   )
   return 0
 }
