@@ -21,17 +21,19 @@ export const MAX_AGE_MS = 12 * 60 * 60 * 1000
 /**
  * How many deferred attempts an entry gets.
  *
- * A runaway backstop, not the delivery bound — {@link MAX_AGE_MS} is the bound, and
- * this number is deliberately far too large to be reached by an ordinary bad evening.
+ * A runaway backstop, not the delivery bound — {@link MAX_AGE_MS} is the bound.
  *
  * It was twelve, and twelve was wrong in a way that only showed up once the drain
  * retried on a timer rather than only on an `online` event: a guest on a saturated
  * access point burns an attempt every minute, so a twelve-attempt ceiling threw their
  * photo away after quarter of an hour of exactly the conditions this feature exists
- * for. Whichever of the two limits is reached first still drops the entry; this one is
- * now the one that effectively never is.
+ * for. Two hundred was then wrong for the same reason with the arithmetic done once
+ * instead of not at all: the backoff caps at a minute, so two hundred attempts is under
+ * four hours, and a wedding's bad window is 19:00 to 23:00. Twelve hours at one attempt
+ * a minute is seven hundred and twenty, so this is set above that and the age limit is
+ * the one that is ever actually reached.
  */
-export const MAX_ATTEMPTS = 200
+export const MAX_ATTEMPTS = 1_000
 
 /**
  * How many photos one event may hold on a device.
@@ -116,5 +118,54 @@ export const dueInMs = (entry: OutboxEntry, now: number, leaseMs = CLAIM_LEASE_M
  *
  * `429` is deliberately not queued: the guest is standing there pressing the button,
  * the limit is per minute, and "réessayez dans un instant" is the honest answer.
+ *
+ * **This is not the drain's question.** See {@link isTerminal}, and do not reuse this
+ * one there — the two look alike and the consequences are opposite.
  */
 export const shouldQueue = (status: number): boolean => status === 0 || status >= 500
+
+/**
+ * The refusals that mean these bytes will never be accepted, whoever asks and however
+ * long they wait.
+ *
+ * An allow-list, and the default is deliberately the other way: anything not named here
+ * is kept. That asymmetry is the whole point of the function. For the foreground the
+ * cost of guessing wrong is a sentence on a screen; for the drain, "this is not worth
+ * keeping" means `store.remove()` and the photo is gone off the guest's device with
+ * nothing left to try.
+ *
+ * It is an allow-list because this was originally {@link shouldQueue} reused, which
+ * answers "is this worth storing?" and quite reasonably says no to `429`. In the drain
+ * that reading deletes: `UPLOAD_RATE_LIMIT_PER_MINUTE` defaults to twelve, keyed per
+ * client and event, so one venue behind one NAT reconnecting at 22:10 pushes every
+ * phone past the limit — and every queued photo on all of them would have been thrown
+ * away, in a single pass, by the feature whose entire job is not to lose them.
+ *
+ * `guest.wrongEvent` is pointedly absent: a guest who scans the after-party's QR code
+ * overwrites their device token, and the wedding's queue must survive that rather than
+ * be deleted by it. `event.quotaExceeded` is absent too — a host can raise a quota, and
+ * the twelve-hour expiry is a kinder bound than deletion on the first refusal.
+ */
+const TERMINAL_CODES: ReadonlySet<string> = new Set([
+  // The server looked at these bytes and will not take them.
+  'image.unsupportedFormat',
+  'image.corrupt',
+  'image.tooManyPixels',
+  'image.animated',
+  'image.renderFailed',
+  'photo.pixelBudgetExceeded',
+  'upload.rejected',
+  'upload.tooLarge',
+  'upload.tooManyFiles',
+  'upload.unexpectedField',
+  'upload.noFiles',
+  // The caption travelling with them is not something a later attempt improves.
+  'caption.tooLong',
+  'caption.empty',
+  // The request itself is malformed; the same request is malformed tomorrow.
+  'request.invalid',
+  // The host took this guest's access away. It does not come back.
+  'guest.revoked',
+])
+
+export const isTerminal = (code: string): boolean => TERMINAL_CODES.has(code)

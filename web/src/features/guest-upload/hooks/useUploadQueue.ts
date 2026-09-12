@@ -185,6 +185,12 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
    * Returns whether the outbox took it. It can refuse — the kill switch is off, the
    * store never opened, the browser is at its storage quota — and the caller must then
    * report the failure rather than promise a delivery nobody is left to make.
+   *
+   * One known limit, left in rather than papered over: a batch holds the `ready` it saw
+   * when the guest pressed "Envoyer". A batch begun in the fraction of a second before
+   * the database finishes opening therefore behaves as it did before the outbox existed
+   * — an honest "Échec" with a retry button, not a silent loss. Reading through a ref
+   * would close that window and is what `react-hooks/immutability` forbids here.
    */
   const storeForLater = useCallback(
     async (id: string, file: File): Promise<boolean> => {

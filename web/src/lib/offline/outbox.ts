@@ -84,9 +84,22 @@ export interface NewOutboxEntry {
  * The port. One IndexedDB adapter, one in-memory fake, one shared contract suite —
  * the same arrangement `src/application/ports/` uses on the server side.
  */
+/**
+ * What an append did — including what it had to throw away to make room.
+ *
+ * `evicted` is the reason this is not just an `OutboxEntry`. The per-event cap drops
+ * the oldest photos silently otherwise, and "silently" here means a row on the upload
+ * screen still reading "En attente du réseau" for the rest of the evening for bytes that
+ * no longer exist. A queue may drop a photo; it may not lie about having it.
+ */
+export interface OutboxAddition {
+  readonly entry: OutboxEntry
+  readonly evicted: readonly string[]
+}
+
 export interface OutboxStore {
-  /** Appends a photo. Returns the stored entry, id and timestamps included. */
-  add(entry: NewOutboxEntry, now: number): Promise<OutboxEntry>
+  /** Appends a photo, evicting the oldest if the event is over its cap. */
+  add(entry: NewOutboxEntry, now: number): Promise<OutboxAddition>
   /** Everything held for one event, oldest first. Never another event's photos. */
   list(slug: string): Promise<readonly OutboxEntry[]>
   /**

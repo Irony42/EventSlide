@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { drainOutbox } from './drainOutbox'
 import { MemoryOutbox } from './memoryOutbox'
 import { CLAIM_LEASE_MS, MAX_AGE_MS, MAX_ATTEMPTS } from './outboxPolicy'
-import { anEntry, t } from './outboxStoreContract'
+import { anEntry, t } from './testing/outboxStoreContract'
 import type { OutboxSendOutcome, OutboxSender } from './outbox'
 
 /**
@@ -20,7 +20,7 @@ const deferred = (): OutboxSendOutcome => ({ kind: 'deferred' })
 const fill = async (store: MemoryOutbox, names: readonly string[]) => {
   const ids: string[] = []
   for (const [index, fileName] of names.entries()) {
-    ids.push((await store.add(anEntry({ slug: SLUG, fileName }), t + index)).id)
+    ids.push((await store.add(anEntry({ slug: SLUG, fileName }), t + index)).entry.id)
   }
   return ids
 }
@@ -273,6 +273,23 @@ describe('drainOutbox', () => {
       const report = await drain(store, async () => deferred())
 
       expect(report.retryAfterMs).toBeGreaterThanOrEqual(1_000)
+    })
+
+    it('makes the photos behind a deferral wait as long as it does', async () => {
+      // They were reported as due now, which collapsed the whole answer to the floor
+      // whenever more than one photo was queued: a guest with five photos on a dead
+      // network drained once a second, burning attempts and radio and doing the exact
+      // opposite of what this field exists for.
+      const store = new MemoryOutbox()
+      await fill(store, ['un.jpg'])
+      const alone = await drain(store, async () => deferred())
+
+      const crowded = new MemoryOutbox()
+      await fill(crowded, ['un.jpg', 'deux.jpg', 'trois.jpg'])
+      const together = await drain(crowded, async () => deferred())
+
+      expect(together.retryAfterMs).toBe(alone.retryAfterMs)
+      expect(together.remaining).toBe(3)
     })
   })
 })

@@ -26,22 +26,25 @@ if (container === null) {
 /**
  * The upload worker, or its removal.
  *
- * Only in a production bundle: `/sw.js` is emitted by `web/vite.sw.config.ts` during
- * `npm run build`, so the dev server has nothing to serve and a registration there
- * would fail on every reload. The end-to-end suite runs against the built client, so it
- * exercises the real thing rather than a branch nothing takes.
+ * The switch is read on every build, and only the *registration* is gated on a
+ * production bundle. `/sw.js` is emitted by `web/vite.sw.config.ts` during
+ * `npm run build`, so the dev server has nothing to serve and registering there would
+ * fail on every reload — but `?offline=off` still has to work in development, because
+ * the queue itself runs there (over the in-memory fallback) and a developer holding a
+ * misbehaving build is exactly who needs to turn it off.
  *
  * The "off" path is not a no-op, and that is the point of having it: it unregisters a
  * worker already installed on the guest's phone and deletes the photos it was holding.
  * A kill switch that only stopped new installations would leave the bad build running
  * on exactly the devices it was breaking.
+ *
+ * The end-to-end suite runs against the built client, so it exercises the real
+ * registration rather than a branch nothing takes.
  */
-if (import.meta.env.PROD) {
-  if (resolveOfflineQueue(window.location.search)) {
-    void registerUploadWorker()
-  } else {
-    void removeUploadWorker()
-  }
+if (resolveOfflineQueue(window.location.search)) {
+  if (import.meta.env.PROD) void registerUploadWorker()
+} else {
+  void removeUploadWorker()
 }
 
 createRoot(container).render(

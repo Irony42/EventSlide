@@ -134,7 +134,7 @@ describe('useOutbox', () => {
     mount(fakeApi({ uploadPhotos: vi.fn(async () => accepted()) }), { store, onDrained })
 
     await waitFor(() => expect(onDrained).toHaveBeenCalled())
-    expect(onDrained.mock.calls[0]?.[0]?.sent).toEqual([stored.id])
+    expect(onDrained.mock.calls[0]?.[0]?.sent).toEqual([stored.entry.id])
   })
 
   it('keeps a photo the network refused, and says how many are waiting', async () => {
@@ -260,6 +260,57 @@ describe('useOutbox', () => {
       })
 
       expect(uploadPhotos.mock.calls.length).toBeGreaterThan(1)
+      expect(result.current.waiting).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('says which photos the per-event cap had to drop', async () => {
+    // Reported through the same channel a drain uses, because the screen's response is
+    // the same: those rows must stop claiming to be waiting for the network.
+    const store = new MemoryOutbox()
+    const onDrained = vi.fn()
+    const { result } = mount(fakeApi(), { store, onDrained })
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    vi.spyOn(store, 'add').mockResolvedValue({
+      entry: { ...(await seed(store)).entry, id: 'kept' },
+      evicted: ['trop-vieille'],
+    })
+
+    await act(async () => {
+      await result.current.enqueue(aPhotoFile(), null)
+    })
+
+    expect(onDrained).toHaveBeenCalledWith(
+      expect.objectContaining({ sent: [], discarded: ['trop-vieille'] }),
+    )
+  })
+
+  it('arms another attempt when the drain itself failed', async () => {
+    // Only the store can throw here, and before this the timer was simply never
+    // re-armed: the queue froze for the rest of the visit and the badge kept a stale
+    // count, which is a far worse answer than trying again in a minute.
+    const store = new MemoryOutbox()
+    await seed(store)
+    const list = vi.spyOn(store, 'list')
+    list.mockRejectedValueOnce(new Error('the database went away'))
+
+    vi.useFakeTimers()
+    try {
+      const uploadPhotos = vi.fn(async () => accepted())
+      const { result } = mount(fakeApi({ uploadPhotos }), { store })
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100)
+      })
+      expect(uploadPhotos).not.toHaveBeenCalled()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(61_000)
+      })
+
+      expect(uploadPhotos).toHaveBeenCalled()
       expect(result.current.waiting).toBe(0)
     } finally {
       vi.useRealTimers()

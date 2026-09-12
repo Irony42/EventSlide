@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { afterEach, beforeEach } from 'vitest'
 import { IDBFactory } from 'fake-indexeddb'
 import { IndexedDbOutbox, deleteOutboxDb } from './indexedDbOutbox'
-import { outboxStoreContract } from './outboxStoreContract'
+import { outboxStoreContract } from './testing/outboxStoreContract'
 
 /**
  * The real adapter, against a real IndexedDB implementation.

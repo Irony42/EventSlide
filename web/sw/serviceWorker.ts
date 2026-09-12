@@ -1,7 +1,7 @@
 import { drainOutbox } from '../src/lib/offline/drainOutbox'
+import { fetchOutboxSender } from '../src/lib/offline/fetchSender'
 import { IndexedDbOutbox } from '../src/lib/offline/indexedDbOutbox'
-import { shouldQueue } from '../src/lib/offline/outboxPolicy'
-import type { OutboxEntry, OutboxSendOutcome, OutboxStore } from '../src/lib/offline/outbox'
+import type { OutboxStore } from '../src/lib/offline/outbox'
 
 /**
  * The upload worker.
@@ -12,11 +12,15 @@ import type { OutboxEntry, OutboxSendOutcome, OutboxStore } from '../src/lib/off
  * every page load behind this lifecycle, and lifecycle bugs are exactly what makes
  * shipping a service worker frightening.
  *
- * It is built as its own bundle (`web/vite.sw.config.ts` to `dist/client/sw.js`) and
- * type-checked as its own program (`tsconfig.sw.json`), because a worker global scope
- * and a DOM global scope cannot coexist in one TypeScript program. It shares the outbox
- * modules with the page by import, which is what keeps the two drains honest: one store
- * schema, one claim, one set of rules.
+ * It is deliberately thin, and that is a testing decision rather than a taste one. This
+ * file is built as its own bundle (`web/vite.sw.config.ts` to `dist/client/sw.js`) and
+ * belongs to no vitest project, so anything written here is invisible to the coverage
+ * report — not a low number, *absent*, which is the one way a gap stays hidden. The
+ * store, the drain and the sender are all ordinary `web/src` modules with ring-5 tests;
+ * what is left below is wiring, and the end-to-end suite covers that.
+ *
+ * It is type-checked as its own program (`tsconfig.sw.json`) because a worker global
+ * scope and a DOM global scope cannot coexist in one TypeScript program.
  */
 
 /**
@@ -31,7 +35,6 @@ const OUTBOX_SYNC_TAG = 'eventslide-outbox'
 const KILL_MESSAGE = 'eventslide:kill'
 
 const CSRF_COOKIE = 'es_csrf'
-const CSRF_HEADER = 'x-csrf-token'
 
 /** `sync` is a Background Sync addition TypeScript's worker library does not declare. */
 interface SyncEvent extends ExtendableEvent {
@@ -39,123 +42,67 @@ interface SyncEvent extends ExtendableEvent {
 }
 
 /**
- * `self` inside a service worker really is a `ServiceWorkerGlobalScope`, but the
- * worker library types it as the base `WorkerGlobalScope` — the same declaration
- * serves dedicated and shared workers — so this narrowing is unavoidable. It is the one
- * cast in the file, it is to a real interface rather than to `any`, and it is wrong
- * only if this bundle is loaded as something other than a service worker.
+ * `self` inside a service worker really is a `ServiceWorkerGlobalScope`, but the worker
+ * library types it as the base `WorkerGlobalScope` — the same declaration serves
+ * dedicated and shared workers — so this narrowing is unavoidable. It is the one cast in
+ * the file, it is to a real interface rather than to `any`, and it is wrong only if this
+ * bundle is loaded as something other than a service worker.
  */
 const worker = self as unknown as ServiceWorkerGlobalScope
 
 /**
- * The live CSRF token, or the one captured when the photo was queued.
+ * The live CSRF token.
  *
  * A worker has no `document.cookie`. `cookieStore` is the worker-side reader and exists
  * in every browser that implements Background Sync, so on the path this worker is woken
- * for, the live value is there. The stored token is the fallback, and it is sound for
- * the reason spelled out on `OutboxEntry.csrfToken`: the token rotates on a login and a
- * logout, and a guest does neither.
+ * for, the live value is there. `null` falls back to the token captured beside the photo
+ * — see `OutboxEntry.csrfToken` for why that is sound for a guest.
  */
-const csrfToken = async (entry: OutboxEntry): Promise<string | null> => {
-  // Typed as always present, actually shipped by Chromium alone. WebKit reaches this
-  // line only if it ever gains Background Sync without gaining `cookieStore`.
+const readCookieStoreCsrf = async (): Promise<string | null> => {
+  // Typed as always present, actually shipped by Chromium alone.
   const store: CookieStore | undefined = worker.cookieStore
-  if (store !== undefined) {
-    try {
-      const value = (await store.get(CSRF_COOKIE))?.value
-      if (value !== undefined) return value
-    } catch {
-      // Fall through to the captured token.
-    }
-  }
-  return entry.csrfToken
-}
-
-/** What the upload endpoint answers, as much of it as the worker reads. */
-interface UploadResultBody {
-  readonly results?: readonly {
-    readonly status?: string
-    readonly photoId?: string
-    readonly code?: string
-  }[]
-  readonly error?: { readonly code?: string }
-}
-
-const parseBody = async (response: Response): Promise<UploadResultBody> => {
+  if (store === undefined) return null
   try {
-    return (await response.json()) as UploadResultBody
+    return (await store.get(CSRF_COOKIE))?.value ?? null
   } catch {
-    // A proxy error page, or a truncated response. The status is what decides.
-    return {}
+    return null
   }
 }
 
 /**
- * The worker's half of the drain, over bare `fetch`.
+ * Drains every event this device is holding photos for.
  *
- * The page's half (`web/src/lib/offline/apiSender.ts`) goes through the ordinary
- * transport; this one cannot, because that module is built for a document. Both produce
- * the same three outcomes, which is the contract `drainOutbox` is written against.
+ * Resolves only when nothing is left. Rejecting while entries remain is what makes the
+ * browser re-fire the tag later: a sync handler that resolves is a sync the browser
+ * considers done, so a worker that swallowed "still offline" would give a guest who
+ * closed the tab exactly one attempt and no more.
  */
-const send = async (entry: OutboxEntry): Promise<OutboxSendOutcome> => {
-  const form = new FormData()
-  form.append('photos', new File([entry.bytes], entry.fileName, { type: entry.fileType }))
-  if (entry.caption !== null && entry.caption !== '') form.append('caption', entry.caption)
-
-  const token = await csrfToken(entry)
-  const headers: Record<string, string> = { accept: 'application/json' }
-  if (token !== null) headers[CSRF_HEADER] = token
-
-  let response: Response
-  try {
-    response = await fetch(`/api/events/${encodeURIComponent(entry.slug)}/photos`, {
-      method: 'POST',
-      body: form,
-      headers,
-      // The guest's device token lives in an HttpOnly cookie, and the request is worth
-      // nothing without it.
-      credentials: 'same-origin',
-    })
-  } catch {
-    // Still no network. The ordinary case for a worker woken optimistically.
-    return { kind: 'deferred' }
-  }
-
-  const body = await parseBody(response)
-
-  if (!response.ok) {
-    return shouldQueue(response.status)
-      ? { kind: 'deferred' }
-      : { kind: 'rejected', code: body.error?.code ?? 'unknown' }
-  }
-
-  const outcome = body.results?.[0]
-  if (outcome === undefined) return { kind: 'deferred' }
-  if (outcome.status === 'rejected') return { kind: 'rejected', code: outcome.code ?? 'unknown' }
-  return {
-    kind: 'sent',
-    photoId: outcome.photoId ?? null,
-    duplicate: outcome.status === 'duplicate',
-  }
-}
-
-/** Drains every event this device is holding photos for. */
 const drainEverything = async (): Promise<void> => {
   let store: OutboxStore
   try {
     store = await IndexedDbOutbox.open()
   } catch {
-    // No database, nothing to send. Throwing here would have the browser retry the tag
-    // forever on a phone that can never satisfy it.
+    // No database, so nothing to send and nothing to retry. Resolving here is right:
+    // rejecting would have the browser retry a tag this phone can never satisfy.
     return
   }
 
+  let held = 0
   try {
+    const send = fetchOutboxSender({
+      fetch: (...args) => fetch(...args),
+      readCsrf: readCookieStoreCsrf,
+    })
     for (const slug of await store.slugs()) {
-      await drainOutbox({ store, slug, send, now: () => Date.now() })
+      const report = await drainOutbox({ store, slug, send, now: () => Date.now() })
+      held += report.remaining
     }
   } finally {
     store.close()
+  }
+
+  if (held > 0) {
+    throw new Error(`${held} photo(s) still waiting; ask the browser to try again later`)
   }
 }
 
@@ -174,7 +121,7 @@ worker.addEventListener('sync', (event) => {
   const sync = event as SyncEvent
   if (sync.tag !== OUTBOX_SYNC_TAG) return
   // `waitUntil` keeps the worker alive through the upload and tells the browser to
-  // retry the tag if this rejects.
+  // retry the tag if this rejects — which `drainEverything` does on purpose.
   sync.waitUntil(drainEverything())
 })
 

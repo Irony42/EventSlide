@@ -88,7 +88,16 @@ export const drainOutbox = async ({
   const sent: string[] = []
   const discarded: string[] = []
   let remaining = 0
-  let stopped = false
+  /**
+   * How long the photo that stopped this drain is waiting, or `null` while nothing has.
+   *
+   * Everything behind it inherits that wait rather than reporting zero. Reporting zero
+   * looks harmless and is not: `soonest` would collapse to the floor whenever more than
+   * one photo was queued, so a guest with five photos on a dead network drained once a
+   * second — burning attempts and radio, and doing the precise opposite of the "one
+   * timer, no polling" reasoning this field exists for.
+   */
+  let stoppedFor: number | null = null
   /** The soonest any entry left behind becomes actionable. */
   let soonest = Number.POSITIVE_INFINITY
   const keep = (waitMs: number): void => {
@@ -97,10 +106,10 @@ export const drainOutbox = async ({
   }
 
   for (const entry of entries) {
-    if (stopped) {
-      // Behind a photo the network would not take. It is due now; what it is waiting
-      // for is the one in front of it.
-      keep(0)
+    if (stoppedFor !== null) {
+      // Behind a photo the network would not take. What it is waiting for is the one in
+      // front of it, so it waits exactly as long.
+      keep(stoppedFor)
       continue
     }
 
@@ -117,7 +126,10 @@ export const drainOutbox = async ({
     // Somebody else is on it, or the backoff has not elapsed. Either way this drain
     // leaves it alone and reports when it will be worth another look.
     if (isLeased(entry, at, effectiveLease) || !isDue(entry, at)) {
-      keep(dueInMs(entry, at, effectiveLease))
+      // The wait is reported against the real lease, not the reclaiming one: this drain
+      // chose to ignore a lease, which is no reason to tell the screen that everybody
+      // else may too.
+      keep(dueInMs(entry, at, leaseMs))
       continue
     }
 
@@ -147,9 +159,11 @@ export const drainOutbox = async ({
 
     await store.release(claimed.id, now())
     // The attempt this drain just spent is what sets the next wait.
-    keep(backoffMs(claimed.attempts + 1))
-    // The network is down. Everything after this would fail the same way.
-    stopped = true
+    const wait = backoffMs(claimed.attempts + 1)
+    keep(wait)
+    // The network is down. Everything after this would fail the same way, and waits on
+    // this photo rather than on one of its own.
+    stoppedFor = wait
   }
 
   return {

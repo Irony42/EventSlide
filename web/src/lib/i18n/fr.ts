@@ -101,8 +101,13 @@ export const fr = {
      * puts the phone back in their pocket, which is the entire point of the feature.
      */
     itemQueued: 'En attente du réseau',
-    itemExpiredHint:
-      'Cette photo n’a pas pu être envoyée à temps. Réessayez si vous l’avez encore.',
+    /**
+     * Said for every photo the outbox gave up on — out of time, past the per-event
+     * limit, or refused by the server on its merits. Deliberately one sentence for all
+     * three: the guest's next move is identical, and three shades of "it did not go"
+     * would only make them read more.
+     */
+    itemExpiredHint: 'Cette photo n’a pas pu être envoyée. Renvoyez-la si vous l’avez encore.',
     offlineTitle: (count: number) =>
       count === 1 ? '1 photo attend le réseau' : `${count} photos attendent le réseau`,
     offlineHint:

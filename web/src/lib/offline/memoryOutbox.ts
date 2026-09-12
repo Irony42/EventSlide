@@ -1,6 +1,6 @@
 import { newOutboxId } from './outboxId'
 import { MAX_ENTRIES_PER_EVENT } from './outboxPolicy'
-import type { NewOutboxEntry, OutboxEntry, OutboxStore } from './outbox'
+import type { NewOutboxEntry, OutboxAddition, OutboxEntry, OutboxStore } from './outbox'
 
 /**
  * A real in-memory `OutboxStore`, not a stub.
@@ -8,7 +8,7 @@ import type { NewOutboxEntry, OutboxEntry, OutboxStore } from './outbox'
  * It enforces what the IndexedDB adapter enforces — per-event scoping, insertion
  * order, the entry cap, an exclusive claim — so a test driven by it exercises the
  * same rules production does. The two are held together by the shared contract suite
- * in `outboxStoreContract.ts`; that is the whole reason this is a behaving fake and
+ * in `testing/outboxStoreContract.ts`; that is the whole reason this is a behaving fake and
  * not a `vi.fn()`.
  *
  * It is also the production fallback. A browser in private mode can refuse to open a
@@ -18,7 +18,7 @@ import type { NewOutboxEntry, OutboxEntry, OutboxStore } from './outbox'
 export class MemoryOutbox implements OutboxStore {
   private entries: OutboxEntry[] = []
 
-  async add(entry: NewOutboxEntry, now: number): Promise<OutboxEntry> {
+  async add(entry: NewOutboxEntry, now: number): Promise<OutboxAddition> {
     const stored: OutboxEntry = {
       id: newOutboxId(),
       slug: entry.slug,
@@ -33,12 +33,16 @@ export class MemoryOutbox implements OutboxStore {
       csrfToken: entry.csrfToken,
     }
     this.entries.push(stored)
-    this.evictOverflow(entry.slug)
-    return stored
+    return { entry: stored, evicted: this.evictOverflow(entry.slug) }
   }
 
   async list(slug: string): Promise<readonly OutboxEntry[]> {
-    return this.entries.filter((candidate) => candidate.slug === slug)
+    // Sorted, not merely filtered. The adapter cannot return insertion order — an
+    // IndexedDB index orders by its key — so it sorts by arrival, and a fake that
+    // disagreed would hide an ordering regression from every test that drives it.
+    return this.entries
+      .filter((candidate) => candidate.slug === slug)
+      .sort((left, right) => left.enqueuedAt - right.enqueuedAt)
   }
 
   async slugs(): Promise<readonly string[]> {
@@ -82,11 +86,14 @@ export class MemoryOutbox implements OutboxStore {
   }
 
   /** Oldest first, matching the adapter: the cap drops what has waited longest. */
-  private evictOverflow(slug: string): void {
-    const mine = this.entries.filter((candidate) => candidate.slug === slug)
+  private evictOverflow(slug: string): readonly string[] {
+    const mine = this.entries
+      .filter((candidate) => candidate.slug === slug)
+      .sort((left, right) => left.enqueuedAt - right.enqueuedAt)
     const excess = mine.length - MAX_ENTRIES_PER_EVENT
-    if (excess <= 0) return
+    if (excess <= 0) return []
     const doomed = new Set(mine.slice(0, excess).map((candidate) => candidate.id))
     this.entries = this.entries.filter((candidate) => !doomed.has(candidate.id))
+    return [...doomed]
   }
 }

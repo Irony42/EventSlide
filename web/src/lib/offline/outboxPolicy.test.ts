@@ -9,6 +9,7 @@ import {
   isExhausted,
   isLeased,
   isSpent,
+  isTerminal,
   shouldQueue,
 } from './outboxPolicy'
 import type { OutboxEntry } from './outbox'
@@ -105,6 +106,61 @@ describe('backoff', () => {
 
     expect(isDue(entry, t + backoffMs(3) - 1)).toBe(false)
     expect(isDue(entry, t + backoffMs(3))).toBe(true)
+  })
+})
+
+describe('MAX_ATTEMPTS', () => {
+  it('is above what twelve hours of minute-apart retries can reach', () => {
+    // The age limit is meant to be the one that ever fires. Two hundred was not: with
+    // the backoff capped at a minute it is under four hours, and a wedding's bad window
+    // is 19:00 to 23:00. The arithmetic is the assertion.
+    const attemptsInTwelveHours = MAX_AGE_MS / backoffMs(MAX_ATTEMPTS)
+
+    expect(MAX_ATTEMPTS).toBeGreaterThan(attemptsInTwelveHours)
+  })
+})
+
+/**
+ * The drain's question, and the one that deletes photos when it is answered wrongly.
+ *
+ * Every case here is really "does this photo survive?", because `isTerminal` returning
+ * true means `store.remove()` and there is nothing left to try.
+ */
+describe('isTerminal', () => {
+  it('gives up on bytes the server looked at and refused', () => {
+    expect(isTerminal('image.unsupportedFormat')).toBe(true)
+    expect(isTerminal('image.tooManyPixels')).toBe(true)
+    expect(isTerminal('upload.tooLarge')).toBe(true)
+  })
+
+  it('gives up when the host has taken the guest’s access away', () => {
+    expect(isTerminal('guest.revoked')).toBe(true)
+  })
+
+  it('does not give up on a rate limit', () => {
+    // The limit defaults to twelve a minute keyed per client and event, so one venue
+    // behind one NAT reconnecting pushes every phone past it at once. Treating that as
+    // terminal deletes the evening's photos from every device in the room.
+    expect(isTerminal('rate.limited')).toBe(false)
+  })
+
+  it('does not give up because the device token now belongs to another event', () => {
+    // A guest who scans the after-party's QR code overwrites their one token. The
+    // wedding's queue has to survive that, not be deleted by it.
+    expect(isTerminal('guest.wrongEvent')).toBe(false)
+  })
+
+  it('does not give up because the gallery is momentarily full', () => {
+    // A host can raise a quota. The twelve-hour expiry is a kinder bound than deleting
+    // on the first refusal.
+    expect(isTerminal('event.quotaExceeded')).toBe(false)
+  })
+
+  it('keeps a photo refused with a code this build has never heard of', () => {
+    // The default is the whole point. A newer server growing a code must not become a
+    // silent data-loss bug on every phone running an older build.
+    expect(isTerminal('event.somethingNew')).toBe(false)
+    expect(isTerminal('')).toBe(false)
   })
 })
 

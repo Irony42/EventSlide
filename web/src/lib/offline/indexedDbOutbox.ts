@@ -1,6 +1,6 @@
 import { newOutboxId } from './outboxId'
 import { MAX_ENTRIES_PER_EVENT } from './outboxPolicy'
-import type { NewOutboxEntry, OutboxEntry, OutboxStore } from './outbox'
+import type { NewOutboxEntry, OutboxAddition, OutboxEntry, OutboxStore } from './outbox'
 
 /**
  * The `OutboxStore` that survives the tab closing.
@@ -73,7 +73,7 @@ export class IndexedDbOutbox implements OutboxStore {
     return new IndexedDbOutbox(await openOutboxDb())
   }
 
-  async add(entry: NewOutboxEntry, now: number): Promise<OutboxEntry> {
+  async add(entry: NewOutboxEntry, now: number): Promise<OutboxAddition> {
     const stored: OutboxEntry = {
       id: newOutboxId(),
       slug: entry.slug,
@@ -92,8 +92,7 @@ export class IndexedDbOutbox implements OutboxStore {
     tx.objectStore(STORE).add(stored)
     await committed(tx)
 
-    await this.evictOverflow(entry.slug)
-    return stored
+    return { entry: stored, evicted: await this.evictOverflow(entry.slug) }
   }
 
   async list(slug: string): Promise<readonly OutboxEntry[]> {
@@ -182,11 +181,13 @@ export class IndexedDbOutbox implements OutboxStore {
   }
 
   /** Drops the oldest entries once one event holds more than the cap allows. */
-  private async evictOverflow(slug: string): Promise<void> {
+  private async evictOverflow(slug: string): Promise<readonly string[]> {
     const mine = await this.list(slug)
     const excess = mine.length - MAX_ENTRIES_PER_EVENT
-    if (excess <= 0) return
-    for (const entry of mine.slice(0, excess)) await this.remove(entry.id)
+    if (excess <= 0) return []
+    const doomed = mine.slice(0, excess)
+    for (const entry of doomed) await this.remove(entry.id)
+    return doomed.map((entry) => entry.id)
   }
 }
 

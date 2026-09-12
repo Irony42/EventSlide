@@ -23,6 +23,16 @@ import type { OutboxStore } from '../../../lib/offline/outbox'
  * Sync covers the case where there is no tab at all.
  */
 
+/**
+ * How long to wait after a drain that threw rather than reported.
+ *
+ * Only the store can throw here — the sender maps every network and server failure to
+ * an outcome — so this is the "the database is unhappy" path. A minute is long enough
+ * not to hammer it and short enough that a guest who backgrounds and returns finds the
+ * queue moving again.
+ */
+const RETRY_AFTER_FAILURE_MS = 60_000
+
 export interface UseOutboxOptions {
   readonly slug: string
   /**
@@ -101,8 +111,21 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
   const store = useRef<OutboxStore | null>(null)
   /** One drain at a time. Two overlapping ones would fight over the same claims. */
   const running = useRef(false)
-  /** Set on unmount: a resolved promise must not write into a screen that is gone. */
-  const dropped = useRef(false)
+  /**
+   * Which run of the opening effect is the live one.
+   *
+   * A boolean cannot say this, and a boolean is what was here. The effect set it to
+   * `false` on entry and its cleanup set it to `true`; React runs cleanup *then* the
+   * next effect, so a previous run's `await open()` resumed to find the flag reset,
+   * assigned its database over the live one and leaked the handle. StrictMode makes
+   * that every mount in development, and a held-open connection is not merely untidy:
+   * `deleteDatabase` blocks on it, and `deleteOutboxDb` resolves on `blocked` — so the
+   * kill switch reported success while the photos stayed on the device.
+   *
+   * A counter makes "am I still the current run?" answerable, which is the actual
+   * question.
+   */
+  const generation = useRef(0)
   /**
    * The one pending follow-up drain.
    *
@@ -126,7 +149,7 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       clearTimeout(retry.current)
       retry.current = null
     }
-    if (afterMs === null || dropped.current) return
+    if (afterMs === null || store.current === null) return
     retry.current = setTimeout(() => {
       retry.current = null
       void drainRef.current()
@@ -137,7 +160,9 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
     const opened = store.current
     if (opened === null) return
     const held = await opened.list(slug)
-    if (!dropped.current) setWaiting(held.length)
+    // Guarded on the store rather than on a flag: the cleanup nulls it, so a promise
+    // resolving into an unmounted screen has nothing to write about.
+    if (store.current === opened) setWaiting(held.length)
   }, [slug])
 
   const drainNow = useCallback(
@@ -151,7 +176,7 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       // network.
       if (!navigator.onLine) return
       running.current = true
-      if (!dropped.current) setDraining(true)
+      setDraining(true)
       try {
         const report = await drainOutbox({
           store: opened,
@@ -160,16 +185,25 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
           now,
           reclaim,
         })
-        if (!dropped.current) setWaiting(report.remaining)
+        if (store.current !== opened) return
+        setWaiting(report.remaining)
         // Only when something actually moved: refreshing "Vos envois" after a drain that
         // sent nothing would put a spinner on the screen every time a guest walks past a
         // dead access point.
         if (report.sent.length > 0 || report.discarded.length > 0)
           latest.current.onDrained?.(report)
         schedule(report.retryAfterMs)
+      } catch (cause) {
+        // Nothing in the drain is expected to throw — the sender maps every failure to
+        // an outcome — so reaching here means the store itself failed, most likely a
+        // transaction against a database that has since been closed. Without this the
+        // timer was never re-armed and the queue froze for the rest of the visit, which
+        // is a far worse answer than trying again in a minute.
+        console.warn('the outbox drain failed; it will be retried', cause)
+        if (store.current === opened) schedule(RETRY_AFTER_FAILURE_MS)
       } finally {
         running.current = false
-        if (!dropped.current) setDraining(false)
+        setDraining(false)
       }
     },
     [api, now, schedule, slug],
@@ -180,41 +214,62 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
   }, [drainNow])
 
   useEffect(() => {
-    dropped.current = false
+    generation.current += 1
+    const mine = generation.current
 
     if (!isOfflineQueueEnabled()) {
       // The switch is off. No store is opened, so `enqueue` refuses and the upload
       // screen reports failures exactly as it did before this feature existed.
-      return () => {
-        dropped.current = true
-      }
+      return
     }
 
     void (async () => {
-      const opened = await open.current()
-      if (dropped.current) {
+      let opened: OutboxStore
+      try {
+        opened = await open.current()
+      } catch (cause) {
+        // `openOutbox` has its own fallback and does not reject, so this is a caller
+        // that injected something stricter. Without the catch the rejection escaped the
+        // effect entirely and the screen was left with no store and no explanation.
+        console.warn('the outbox could not be opened', cause)
+        return
+      }
+
+      // Superseded while the database was opening — a StrictMode remount, or a slug
+      // change. Closing it here is what keeps `deleteDatabase` from blocking on a
+      // handle nobody is left holding.
+      if (generation.current !== mine) {
         opened.close()
         return
       }
       store.current = opened
       setReady(true)
-      await count()
-      // A guest arriving with photos from a previous visit is the whole point: they
-      // closed the tab in the car park and the photos go up when they walk back in.
-      //
-      // Reclaiming, because a claim found at this moment was left by a service worker
-      // the browser killed, or by a tab that is gone. See `DrainOptions.reclaim`.
-      await drainNow(true)
+
+      try {
+        await count()
+        // A guest arriving with photos from a previous visit is the whole point: they
+        // closed the tab in the car park and the photos go up when they walk back in.
+        //
+        // Reclaiming, because a claim found at this moment was left by a service worker
+        // the browser killed, or by a tab that is gone. See `DrainOptions.reclaim`.
+        await drainNow(true)
+      } catch (cause) {
+        // A database that answered the open and then failed the first read. Arming the
+        // retry rather than giving up is what stops one bad moment at mount from
+        // freezing the queue for the whole visit.
+        console.warn('the outbox could not be read on arrival; it will be retried', cause)
+        schedule(RETRY_AFTER_FAILURE_MS)
+      }
     })()
 
     return () => {
-      dropped.current = true
+      generation.current += 1
       if (retry.current !== null) clearTimeout(retry.current)
       retry.current = null
       store.current?.close()
       store.current = null
     }
-  }, [count, drainNow])
+  }, [count, drainNow, schedule])
 
   useEffect(() => {
     const retry = () => {
@@ -242,7 +297,7 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
         // Read here rather than in the store, so the one place that touches a `File` is
         // the one place that has one: the store's contract is bytes.
         const bytes = await file.arrayBuffer()
-        const stored = await opened.add(
+        const added = await opened.add(
           {
             slug,
             bytes,
@@ -255,7 +310,19 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
           },
           now(),
         )
-        id = stored.id
+        id = added.entry.id
+        if (added.evicted.length > 0) {
+          // The per-event cap just dropped the oldest photos to make room. Reported
+          // through the same channel a drain uses, because the screen's response is the
+          // same one: those rows have to stop claiming they are waiting for the network
+          // when the bytes behind them are gone.
+          latest.current.onDrained?.({
+            sent: [],
+            discarded: added.evicted,
+            remaining: 0,
+            retryAfterMs: null,
+          })
+        }
       } catch (cause) {
         // A storage quota refusal, most likely. The caller reports the failure, and a
         // photo the guest can still see and retry beats one the app claims it kept.

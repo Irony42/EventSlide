@@ -4,7 +4,10 @@
  */
 .notice {
   display: flex;
-  align-items: flex-start;
+  /* Centred rather than top-aligned, so the glyph lines up with the first line of text
+     without a hand-tuned nudge. The nudge was `margin-block-start: 0.15em`, which was
+     the only untokenised spacing value in the whole web tree. */
+  align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
   border: 1px solid var(--border-subtle);
@@ -18,7 +21,6 @@
   display: inline-flex;
   flex: none;
   color: var(--warning);
-  margin-block-start: 0.15em;
 }
 
 .body {

@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_ENTRIES_PER_EVENT } from './outboxPolicy'
-import type { NewOutboxEntry, OutboxStore } from './outbox'
+import { MAX_ENTRIES_PER_EVENT } from '../outboxPolicy'
+import type { NewOutboxEntry, OutboxStore } from '../outbox'
 
 /**
  * One suite, run against both implementations.
+ *
+ * In a `testing/` folder, matching `src/application/testing/` on the server side: it
+ * imports `vitest` at module scope, so it must not sit on a production path, and the
+ * coverage config excludes every `testing` folder under `web/src` for the same reason
+ * it excludes the server's fakes — a harness counted as covered code only inflates the number.
  *
  * The in-memory store is not a stub sitting beside the real one: it is what the upload
  * screen falls back to on a phone whose browser refuses a database, and it is what
@@ -32,7 +37,7 @@ export const outboxStoreContract = (
     it('gives back what it was handed, with an id and the time it arrived', async () => {
       const store = await makeSubject()
 
-      const stored = await store.add(anEntry({ caption: 'Les confettis' }), t)
+      const { entry: stored } = await store.add(anEntry({ caption: 'Les confettis' }), t)
 
       expect(stored.id).not.toBe('')
       expect(stored.enqueuedAt).toBe(t)
@@ -58,8 +63,8 @@ export const outboxStoreContract = (
 
     it('lists oldest first, whatever order the ids came out in', async () => {
       const store = await makeSubject()
-      const first = await store.add(anEntry({ fileName: 'un.jpg' }), t)
-      const second = await store.add(anEntry({ fileName: 'deux.jpg' }), t + 1_000)
+      const { entry: first } = await store.add(anEntry({ fileName: 'un.jpg' }), t)
+      const { entry: second } = await store.add(anEntry({ fileName: 'deux.jpg' }), t + 1_000)
 
       const held = await store.list('camille-et-sacha')
 
@@ -80,7 +85,7 @@ export const outboxStoreContract = (
       // The page and a Background Sync can both be draining. Without this, both see an
       // unclaimed entry and the guest pays twice for one photo.
       const store = await makeSubject()
-      const stored = await store.add(anEntry(), t)
+      const { entry: stored } = await store.add(anEntry(), t)
 
       expect(await store.claim(stored.id, t, 60_000)).not.toBeNull()
       expect(await store.claim(stored.id, t + 59_999, 60_000)).toBeNull()
@@ -89,7 +94,7 @@ export const outboxStoreContract = (
     it('lets the next drain take an entry whose lease has run out', async () => {
       // A worker killed mid-upload must not strand the photo for the evening.
       const store = await makeSubject()
-      const stored = await store.add(anEntry(), t)
+      const { entry: stored } = await store.add(anEntry(), t)
       await store.claim(stored.id, t, 60_000)
 
       expect(await store.claim(stored.id, t + 60_000, 60_000)).not.toBeNull()
@@ -103,7 +108,7 @@ export const outboxStoreContract = (
 
     it('counts the attempt when an entry is released', async () => {
       const store = await makeSubject()
-      const stored = await store.add(anEntry(), t)
+      const { entry: stored } = await store.add(anEntry(), t)
       await store.claim(stored.id, t, 60_000)
 
       await store.release(stored.id, t + 500)
@@ -122,7 +127,7 @@ export const outboxStoreContract = (
       // holding it. These were the same field, and a deferred photo was unreachable for
       // two minutes because of it.
       const store = await makeSubject()
-      const stored = await store.add(anEntry(), t)
+      const { entry: stored } = await store.add(anEntry(), t)
       await store.claim(stored.id, t, 60_000)
       await store.release(stored.id, t + 500)
 
@@ -138,7 +143,7 @@ export const outboxStoreContract = (
 
     it('forgets one entry without touching the others', async () => {
       const store = await makeSubject()
-      const doomed = await store.add(anEntry({ fileName: 'un.jpg' }), t)
+      const { entry: doomed } = await store.add(anEntry({ fileName: 'un.jpg' }), t)
       await store.add(anEntry({ fileName: 'deux.jpg' }), t + 1)
 
       await store.remove(doomed.id)
@@ -158,6 +163,43 @@ export const outboxStoreContract = (
       expect(await store.list('gala')).toHaveLength(1)
     })
 
+    it('lists oldest first even when photos arrive out of order', async () => {
+      // The adapter cannot return insertion order — an IndexedDB index orders by its
+      // key — so it sorts by arrival. A fake that returned insertion order agreed with
+      // it only while every test happened to add in ascending time, and every hook test
+      // drives the fake.
+      const store = await makeSubject()
+      await store.add(anEntry({ fileName: 'tard.jpg' }), t + 1_000)
+      await store.add(anEntry({ fileName: 'tot.jpg' }), t)
+
+      const held = await store.list('camille-et-sacha')
+
+      expect(held.map((entry) => entry.fileName)).toEqual(['tot.jpg', 'tard.jpg'])
+    })
+
+    it('says which photos it had to drop to make room', async () => {
+      // Silently is how a row on the upload screen goes on reading "En attente du
+      // réseau" all evening for bytes that no longer exist. A queue may drop a photo;
+      // it may not lie about holding it.
+      const store = await makeSubject()
+      const doomed: string[] = []
+      for (let index = 0; index < MAX_ENTRIES_PER_EVENT; index += 1) {
+        doomed.push(
+          (await store.add(anEntry({ fileName: `photo-${index}.jpg` }), t + index)).entry.id,
+        )
+      }
+
+      const added = await store.add(anEntry({ fileName: 'une-de-trop.jpg' }), t + 1_000)
+
+      expect(added.evicted).toEqual([doomed[0]])
+    })
+
+    it('says nothing was dropped when there was room', async () => {
+      const store = await makeSubject()
+
+      expect((await store.add(anEntry(), t)).evicted).toEqual([])
+    })
+
     it('drops the oldest photo once one event is over the cap', async () => {
       // A phone's storage quota is not the guest's problem to manage, and a write that
       // fails silently at the browser's own limit is far worse than a documented cap.
@@ -175,7 +217,7 @@ export const outboxStoreContract = (
     it('keeps the bytes, not just a description of them', async () => {
       // The whole feature is worthless if what comes back out cannot be uploaded.
       const store = await makeSubject()
-      const stored = await store.add(anEntry(), t)
+      const { entry: stored } = await store.add(anEntry(), t)
 
       const [held] = await store.list('camille-et-sacha')
       expect(held?.id).toBe(stored.id)

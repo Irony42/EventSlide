@@ -1,5 +1,5 @@
 import { ApiError } from '../http'
-import { shouldQueue } from './outboxPolicy'
+import { outcomeForFailure, outcomeForResults } from './sendOutcome'
 import type { Api } from '../api/client'
 import type { OutboxEntry, OutboxSendOutcome, OutboxSender } from './outbox'
 
@@ -10,6 +10,8 @@ import type { OutboxEntry, OutboxSendOutcome, OutboxSender } from './outbox'
  * a queued photo and a live one cross identical code — CSRF header, credentials,
  * multipart field name and all. A second upload path would be a second place for the
  * wire contract to drift.
+ *
+ * What the answer *means* is decided in `sendOutcome.ts`, shared with the worker.
  */
 
 /** Rebuilds the `File` the transport expects from the bytes the store kept. */
@@ -23,25 +25,11 @@ export const apiOutboxSender = (api: Api): OutboxSender => {
         files: [fileFor(entry)],
         caption: entry.caption,
       })
-
-      const outcome = response.results[0]
-      // A 2xx carrying no result is a server this build does not understand. Deferring
-      // rather than discarding keeps the photo; the attempt cap stops it looping.
-      if (outcome === undefined) return { kind: 'deferred' }
-      if (outcome.status === 'rejected') return { kind: 'rejected', code: outcome.code }
-      return {
-        kind: 'sent',
-        photoId: outcome.photoId,
-        duplicate: outcome.status === 'duplicate',
-      }
+      return outcomeForResults(response.results)
     } catch (cause) {
-      if (cause instanceof ApiError) {
-        return shouldQueue(cause.status)
-          ? { kind: 'deferred' }
-          : { kind: 'rejected', code: cause.code }
-      }
-      // Anything else — an aborted request, a transport that threw — is not evidence
-      // the server refused the photo, so the photo is kept.
+      if (cause instanceof ApiError) return outcomeForFailure(cause.status, cause.code)
+      // An aborted request, a transport that threw: not evidence the server refused the
+      // photo, so the photo is kept.
       return { kind: 'deferred' }
     }
   }
