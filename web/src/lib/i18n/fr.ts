@@ -15,6 +15,8 @@
  * next rather than what went wrong internally.
  */
 
+import type { WallLayout } from '../api/dto'
+
 export const fr = {
   app: {
     name: 'EventSlide',
@@ -239,6 +241,27 @@ export const fr = {
     shortcuts: 'Raccourcis clavier',
     shortcutsHint:
       'Espace met en pause, les flèches changent de photo, F passe en plein écran, L change la disposition.',
+
+    /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
+    /**
+     * The dispositions, named for the one person who ever reads them: the host standing
+     * at the projector with the shortcuts dialog open. Nothing here is projected — the
+     * room sees photographs, not the name of the grid they are in — so these are working
+     * words a French-speaking host would use, not translations of the code's names.
+     *
+     * `satisfies Record<WallLayout, string>` is the same guard `useLayoutParam` uses: a
+     * layout added to the contract fails to compile here until it is named, and a name
+     * that is not a layout is rejected as an excess property.
+     */
+    layoutNames: {
+      spotlight: 'Plein écran',
+      mosaic: 'Mosaïque',
+      polaroid: 'Polaroïd',
+      filmstrip: 'Pellicule',
+      collage: 'Collage',
+      split: 'Côte à côte',
+    } satisfies Record<WallLayout, string>,
+    layoutOrder: (names: readonly string[]) => `Dispositions, dans l’ordre : ${names.join(', ')}.`,
   },
 
   admin: {

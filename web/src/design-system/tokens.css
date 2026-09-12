@@ -7,6 +7,12 @@
   --surface-raised: oklch(21% 0.025 265); /* Card, toolbar, moderation tile */
   --surface-overlay: oklch(26% 0.03 265); /* Dialog, Toast, popover */
   --surface-scrim: oklch(0% 0 0 / 0.55); /* behind wall captions, over photos */
+  /* ---- Print. A material, not a panel: the paper the polaroid layout mounts a photo
+         on. It is the one light ground in a dark palette, so it gets its own ink token
+         rather than borrowing a text colour that was chosen against a dark surface. ---- */
+  --surface-print: oklch(95% 0.012 85); /* polaroid mat, warm white */
+  --text-print: oklch(30% 0.02 85); /* the caption written on the mat */
+  --text-print-secondary: oklch(40% 0.02 85); /* the credit under it */
   /* ---- Borders ---- */
   --border-subtle: oklch(30% 0.02 265); /* default hairline */
   --border-strong: oklch(54% 0.02 265); /* input rest state, focused card */
@@ -75,6 +81,7 @@
   --container-guest: 30rem; /* single column, phone-first */
   --container-host: 78rem; /* moderation console, admin */
   --wall-safe: 4%; /* projector overscan inset */
+  --wall-join-card: 26rem; /* the corner invitation: declared, so layouts can reserve it */
   --z-wall-caption: 10;
   --z-dialog: 50;
   --z-toast: 60;

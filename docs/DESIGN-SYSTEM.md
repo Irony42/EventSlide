@@ -46,6 +46,12 @@ token exactly.
   --surface-raised: oklch(21% 0.025 265); /* Card, toolbar, moderation tile */
   --surface-overlay: oklch(26% 0.03 265); /* Dialog, Toast, popover */
   --surface-scrim: oklch(0% 0 0 / 0.55); /* behind wall captions, over photos */
+  /* ---- Print. A material, not a panel: the paper the polaroid layout mounts a photo
+         on. It is the one light ground in a dark palette, so it gets its own ink token
+         rather than borrowing a text colour chosen against a dark surface. ---- */
+  --surface-print: oklch(95% 0.012 85); /* polaroid mat, warm white */
+  --text-print: oklch(30% 0.02 85); /* the caption written on the mat */
+  --text-print-secondary: oklch(40% 0.02 85); /* the credit under it */
   /* ---- Borders ---- */
   --border-subtle: oklch(30% 0.02 265); /* default hairline */
   --border-strong: oklch(54% 0.02 265); /* input rest state, focused card */
@@ -114,6 +120,7 @@ token exactly.
   --container-guest: 30rem; /* single column, phone-first */
   --container-host: 78rem; /* moderation console, admin */
   --wall-safe: 4%; /* projector overscan inset */
+  --wall-join-card: 26rem; /* the corner invitation: declared, so layouts can reserve it */
   --z-wall-caption: 10;
   --z-dialog: 50;
   --z-toast: 60;
@@ -131,8 +138,13 @@ Rules for changing this file:
   `--accent` at `64%` instead of `72%`.
 - No `!important` (one exception, §7), no `:root` overrides in a feature folder, no
   second token file.
-- Exactly two custom properties are set from JavaScript, because they are **computed**:
-  `--kenburns-duration` (§7) and `--progress-value`. Everything else is static CSS.
+- The only custom properties set from JavaScript are the ones that are genuinely
+  **computed**, and every one of them is a duration, a position or an angle — never a
+  colour, a size or a spacing. Today: `--progress-value`, and on the wall
+  `--wall-kenburns-duration` (§7), `--wall-transition`, `--wall-drift-duration` (the
+  filmstrip's travel, timed from the slide interval) and `--wall-tilt` (a polaroid's
+  angle, derived from the photo id so two projectors agree). Everything else is static
+  CSS.
 
 ---
 
@@ -253,12 +265,12 @@ layout allowed to crop (§9).
 
 ## 7. Motion
 
-| What                             | Token                                             | Property                             |
-| -------------------------------- | ------------------------------------------------- | ------------------------------------ |
-| Press / focus feedback           | `--duration-fast`, `--ease-out`                   | `opacity`, `transform: scale()`      |
-| Dialog, Toast, tile state change | `--duration-base`, `--ease-out`                   | `opacity`, `transform: translateY()` |
-| Wall crossfade                   | `--duration-slow`, `--ease-in-out`                | `opacity` only                       |
-| Ken Burns                        | `--kenburns-duration` (computed), `--ease-linear` | `transform: scale()` + `translate()` |
+| What                             | Token                                                  | Property                             |
+| -------------------------------- | ------------------------------------------------------ | ------------------------------------ |
+| Press / focus feedback           | `--duration-fast`, `--ease-out`                        | `opacity`, `transform: scale()`      |
+| Dialog, Toast, tile state change | `--duration-base`, `--ease-out`                        | `opacity`, `transform: translateY()` |
+| Wall crossfade                   | `--duration-slow`, `--ease-in-out`                     | `opacity` only                       |
+| Ken Burns                        | `--wall-kenburns-duration` (computed), `--ease-linear` | `transform: scale()` + `translate()` |
 
 Rules:
 
@@ -278,9 +290,12 @@ crossfade, and reaches CSS as a runtime custom property:
 
 ```tsx
 // computed value -> the one legitimate use of an inline style
-<div className={styles.slide} style={{ '--kenburns-duration': `${durationMs}ms` }} />
+<div
+  className={styles.slide}
+  style={{ '--wall-kenburns-duration': `${durationMs}ms` }}
+/>
 // Slide.module.css:
-// .slide { animation: kenburns var(--kenburns-duration) var(--ease-linear) both; }
+// .slide { animation: ken-burns var(--wall-kenburns-duration) var(--ease-linear) both; }
 ```
 
 A literal duration on a wall animation is a bug, not a style choice.
@@ -349,16 +364,66 @@ the domain's default. Playlist and layout rules are pure code in
 `src/domain/slideshow/`; the renderer is one component per layout under
 `web/src/features/wall/components/`.
 
-| Layout                             | Crop behaviour                                                                                                                                                                                      | Caption treatment                                                                                                                                       | Choose it when                                                                                                                                                            |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fullscreen Ken Burns** (default) | `object-fit: contain` on `--surface-base`. Never crops. Slow scale + pan derived from the slide interval.                                                                                           | Bottom-left, inside `--wall-safe`, `--text-xl` on `--surface-scrim`, author name at `--text-lg` in `--text-secondary`. Hidden when there is no caption. | One screen, seated audience, photos arriving steadily. The safe default: it respects every aspect ratio, portrait phone shots included.                                   |
-| **Mosaic**                         | `object-fit: cover` — the one layout where cropping is accepted, because tiles must tessellate. Faces are not detected; keep tile aspect ratios near 4:3 and 1:1 to limit damage.                   | Caption on hover is useless here (no pointer): show author only, `--text-lg`, in-tile bottom strip on `--surface-scrim`.                                | A busy cocktail hour with a high arrival rate — many photos visible at once, each one on screen longer than a single slide would allow.                                   |
-| **Polaroid pile**                  | `cover` inside a fixed 4:5 frame with a `var(--space-3)` white mat and `--shadow-md`; new photos land on top with a small rotation (± 4°, deterministic from the photo id so two projectors agree). | Handwritten-feel caption inside the bottom mat, `--text-lg`, truncated to two lines.                                                                    | Weddings and small parties where the physical-photo metaphor lands, and where arrival rate is low enough that a landing animation reads as an event rather than as noise. |
-| **Split**                          | Two panes, each `contain`. Panes advance alternately so one half is always stable.                                                                                                                  | Caption under each pane, `--text-xl`, one line, ellipsis.                                                                                               | Ultra-wide screens (21:9, or two projectors edge-blended) where a single `contain` photo would leave two enormous black bars.                                             |
+| Layout                             | Crop behaviour                                                                                                                                                                               | Caption treatment                                                                                                                                                                                                                              | Choose it when                                                                                                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fullscreen Ken Burns** (default) | `object-fit: contain` on `--surface-base`. Never crops. Slow scale + pan derived from the slide interval.                                                                                    | Bottom-left, inside `--wall-safe`, `--text-xl` on `--surface-scrim`, author name at `--text-lg` in `--text-secondary`. Hidden when there is no caption.                                                                                        | One screen, seated audience, photos arriving steadily. The safe default: it respects every aspect ratio, portrait phone shots included.                                   |
+| **Mosaic**                         | `object-fit: cover` — cropping is accepted, because tiles must tessellate. Faces are not detected; keep tile aspect ratios near 4:3 and 1:1 to limit damage.                                 | Caption on hover is useless here (no pointer): show author only, `--text-lg`, in-tile bottom strip on `--surface-scrim`.                                                                                                                       | A busy cocktail hour with a high arrival rate — many photos visible at once, each one on screen longer than a single slide would allow.                                   |
+| **Polaroid pile**                  | `cover` inside a fixed 4:5 frame with a `var(--space-3)` white mat and `--shadow-lg`; new photos land with a small rotation (± 4°, deterministic from the photo id so two projectors agree). | Caption inside the bottom mat, `--text-xl` in `--text-print`, credit in `--text-print-secondary`, truncated to two lines. The one caption on paper rather than on a scrim — and never diluted with `opacity`, which no contrast ratio can see. | Weddings and small parties where the physical-photo metaphor lands, and where arrival rate is low enough that a landing animation reads as an event rather than as noise. |
+| **Filmstrip**                      | `cover` inside a 4:3 frame. Five frames across a band, plus one waiting off the right edge; the track travels exactly one frame per slide, timed from the slide interval.                    | None. A drifting caption is unreadable, and text that moves is the thing this layout is trying not to be.                                                                                                                                      | A cocktail hour where nobody is watching continuously — there is no moment to miss, because the strip is always mid-move.                                                 |
+| **Collage**                        | `cover` on a fixed 4x3 of equal cells, filled in DOM order. Starts on one photo and gains a cell per slide, to a ceiling of twelve; it then recycles a cell in turn.                         | None: at twelve cells a caption is a smudge.                                                                                                                                                                                                   | The start of an evening, or a room that will watch the wall compose itself. It is the one layout that deliberately shows less than it could at first.                     |
+| **Split**                          | Two panes, each `contain`. Panes advance alternately so one half is always stable, and the left one reaches half a playlist back for an older upload.                                        | Caption under each pane, `--text-xl`, one line, ellipsis.                                                                                                                                                                                      | Ultra-wide screens (21:9, or two projectors edge-blended) where a single `contain` photo would leave two enormous black bars.                                             |
 
-All four: the playlist window is capped and `<img>` elements are recycled so an 8-hour
-run does not grow, and position is derived from the playlist, never from
-`sessionStorage` (1.0 stored it per browser, so two projectors disagreed).
+All six: the playlist window is capped and elements are recycled so an 8-hour run does
+not grow — every layout's element count is bounded by its `slotCount` in
+`src/domain/slideshow/wallLayout.ts`, mirrored as a constant in `WallLayouts.tsx` because
+the import boundary forbids joining them — and position is derived from the playlist,
+never from `sessionStorage` (1.0 stored it per browser, so two projectors disagreed).
+Position, not composition: the collage's _fill_ is per-screen and resets on a reload, and
+no wall carries a cursor on the wire, so two projectors are only in step when they are on
+the same index.
+
+Three layouts animate beyond the crossfade, and they are not handled the same way (§7).
+The polaroid's landing and the filmstrip's drift are **declined in JavaScript**: the drift
+must be, because its end frame is `translateX(-20%)` and the `base.css` collapse would
+strand the band there, and the landing is because relying on a global `!important`
+collapse is relying on a keyframe's end frame happening to be the resting state — true
+today, one edit from false. The collage's cell arrival is the third, and it ends at the
+cell's resting state, so the collapse lands exactly where the animation would have.
+
+The drift is the only animation on the wall that runs for a whole slide, so it is timed
+from the slideshow's own interval — the same rule Ken Burns follows, for the same reason
+— and that interval is `0` whenever the wall is not advancing, paused included, so a held
+wall stops moving rather than finishing its travel.
+
+The layout is named on the wall element as `data-wall-layout`, which is how the visual
+suite proves it photographed the layout it asked for. A slot count cannot: a filmstrip
+and a mosaic can both be holding six photos.
+
+### The reserved corner
+
+The join card sits bottom-right and is the wall's **default** state — a host has to
+dismiss it. Every layout that centres a caption in the bottom band therefore printed the
+guest's own words underneath it. Measured on a 1920×1080 projector: the polaroid's third
+caption lost 362px of its box and the split's right caption 42px, both cut mid-word.
+
+The card yields, not the caption. A caption is the guest's words under the guest's photo;
+the card is chrome, and §1 says chrome recedes. So the wall **declares** the corner and
+the layouts lay out inside what is left:
+
+- `--wall-join-card` is the card's declared width. A content-sized card has no footprint
+  anything can reserve, which is why it is a token rather than whatever the QR measures.
+- `.wall` publishes `--wall-chrome-inline-end`: `0px` normally, and the card plus a
+  `--space-6` gutter while `data-wall-chrome="corner"` is set. The gutter is `--space-6`
+  and not `--space-5` because a polaroid is rotated and `overflow: hidden` clips to the
+  padding box, so a tilted print renders past where the reservation puts it.
+- `polaroid` and `split` add it to their `padding-inline-end`. Nothing is given up
+  permanently: dismissing the card removes the attribute and the width comes straight
+  back, which is one Escape away.
+
+Layouts whose text cannot reach the corner ignore all of this. The mosaic's in-tile credit
+is left-aligned at the start of its tile — measured at x 985 against a card at x 1448 — so
+only the empty end of its scrim passes behind the card, exactly as the photo under it
+already does. The filmstrip and the collage show no captions at all.
 
 ---
 
@@ -395,7 +460,7 @@ run does not grow, and position is derived from the playlist, never from
 | Add Bootstrap or any CSS framework                                                 | 1.0 pulled `bootstrap@5.3.3` from jsDelivr in `index.html` and then fought it with 186 lines of `!important` overrides in `public/app.css`. The primitives in §5 are smaller than the overrides were. |
 | Load anything from a CDN — `<script>`, `<link>`, a font, an icon set               | The `helmet` CSP forbids it and a venue's Wi-Fi will drop it mid-event. Bundle it.                                                                                                                    |
 | Write utility-class soup (`className="d-flex flex-wrap gap-2 mb-3 p-3 rounded-3"`) | Real 1.0 line. Layout intent becomes unreadable and untestable; use `Stack`, `Grid`, and a CSS Module.                                                                                                |
-| Use `style={{ … }}` for a static value                                             | Real 1.0 line: `style={{ background: 'rgba(0,0,0,0.2)' }}`. Inline style is only for a computed value — `--progress-value`, `--kenburns-duration`, a grid position, a transform.                      |
+| Use `style={{ … }}` for a static value                                             | Real 1.0 line: `style={{ background: 'rgba(0,0,0,0.2)' }}`. Inline style is only for a computed value — `--progress-value`, `--wall-kenburns-duration`, a grid position, a transform.                 |
 | Add a fourth bespoke button                                                        | `Button` has four variants and three sizes. If your action does not fit, the action is wrong or the variant belongs in `Button`.                                                                      |
 | Add a shade that duplicates an existing role                                       | `#cbd5e1`, `#e2e8f0`, `#94a3b8` and `#f8fafc` all coexisted in 1.0 as "light text". Three text tokens is the whole budget.                                                                            |
 | Ship a screen without empty, loading and error states                              | They are the states people actually hit at an event, and 1.0 shipped none of them.                                                                                                                    |

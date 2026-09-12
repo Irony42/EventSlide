@@ -24,6 +24,13 @@ import { aPhoto } from '../fixtures/media'
  * so the count stays and the route to the layout stays the one a person takes. That the
  * URL reaches the same place is proved without a snapshot in
  * `tests/e2e/journeys/display-wall.spec.ts`.
+ *
+ * The four layouts added in roadmap 2.3 are reached by `?layout=`, because `L` would
+ * mean four keystrokes and a test that fails on the cycle order rather than on the
+ * layout. They are guarded the same way and then some: `data-wall-layout` on the wall
+ * element says which layout is up, which a slot count cannot — a filmstrip and a mosaic
+ * can both be holding six photos, and a fall back between them would have photographed
+ * exactly as well as the `?layout=` generations did.
  */
 
 test.describe('the projected wall @visual', () => {
@@ -129,6 +136,103 @@ test.describe('the projected wall @visual', () => {
     await expect(projector.getByTestId('wall-slide')).toHaveCount(6)
 
     await expect(projector).toHaveScreenshot('wall-mosaic.png', { animations: 'disabled' })
+  })
+
+  /**
+   * The four layouts of roadmap 2.3, each reached by the URL a kiosk would be launched
+   * on and each checked by name before the shutter.
+   *
+   * The album is six photos, which is deliberately more than the polaroid and the split
+   * show and fewer than the collage can hold: what each layout does with a playlist that
+   * does not match its grid is precisely what a snapshot is for here.
+   */
+  const LAYOUTS = [
+    { layout: 'polaroid', slug: 'polaroid', slides: 3, file: 'wall-polaroid.png' },
+    { layout: 'filmstrip', slug: 'pellicule', slides: 6, file: 'wall-filmstrip.png' },
+    { layout: 'split', slug: 'cote-a-cote', slides: 2, file: 'wall-split.png' },
+  ] as const
+
+  for (const { layout, slug, slides, file } of LAYOUTS) {
+    test(`the ${layout} layout`, async ({ app, surfaces }) => {
+      const event = await seedAlbum(app, surfaces, slug)
+      const { projector } = surfaces
+
+      await projector.goto(
+        wallUrl(app, event.slug, { layout, intervalMs: 600_000, transitionMs: 0 }),
+      )
+
+      // Named, then counted. A slot count alone cannot tell a filmstrip from a mosaic —
+      // both can be holding six photos — and a silent fall back between two layouts
+      // photographs exactly as convincingly as the right one.
+      await expect(projector.locator('[data-wall-layout]')).toHaveAttribute(
+        'data-wall-layout',
+        layout,
+      )
+      await expect(projector.getByTestId('wall-slide')).toHaveCount(slides)
+
+      await expect(projector).toHaveScreenshot(file, { animations: 'disabled' })
+    })
+  }
+
+  test('the collage layout, once it has filled', async ({ app, surfaces }) => {
+    // The collage is the one layout whose composition is a function of how long the
+    // screen has been on: it starts on one photo and gains a cell per slide. A snapshot
+    // of its first frame would photograph a single tile and tell nobody anything.
+    //
+    // The wall is driven by the arrow key rather than by a fast interval, so the shot is
+    // taken at a known slide instead of at whichever one the clock happened to be on.
+    // A 250ms interval would have filled the grid too, and produced a different baseline
+    // on every run.
+    const event = await seedAlbum(app, surfaces, 'collage')
+    const { projector } = surfaces
+
+    await projector.goto(
+      wallUrl(app, event.slug, { layout: 'collage', intervalMs: 600_000, transitionMs: 0 }),
+    )
+    await expect(projector.locator('[data-wall-layout]')).toHaveAttribute(
+      'data-wall-layout',
+      'collage',
+    )
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+
+    for (let slide = 0; slide < 5; slide += 1) {
+      await projector.keyboard.press('ArrowRight')
+    }
+
+    // Six photos in the album, so the grid tops out at six cells rather than at twelve:
+    // repeating a face to fill the other six is the one thing it must not do.
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(6)
+
+    await expect(projector).toHaveScreenshot('wall-collage.png', { animations: 'disabled' })
+  })
+
+  test('the filmstrip does not drift for a viewer who asked for no motion', async ({
+    app,
+    surfaces,
+    browser,
+  }) => {
+    // The drift runs for the whole length of a slide and crosses four metres of wall, so
+    // it is the worst vestibular case the product has. Under the preference the band has
+    // to be a finished composition standing still, not the first frame of a movement
+    // that never completes.
+    const event = await seedAlbum(app, surfaces, 'pellicule-sobre')
+
+    const context = await browser.newContext({
+      viewport: { width: 1920, height: 1080 },
+      baseURL: app.baseUrl,
+      reducedMotion: 'reduce',
+    })
+    const page = await context.newPage()
+    await page.goto(
+      wallUrl(app, event.slug, { layout: 'filmstrip', intervalMs: 600_000, transitionMs: 0 }),
+    )
+    await expect(page.getByTestId('wall-slide')).toHaveCount(6)
+
+    await expect(page).toHaveScreenshot('wall-filmstrip-reduced-motion.png', {
+      animations: 'disabled',
+    })
+
+    await context.close()
   })
 
   test('the spotlight layout under reduced motion', async ({ app, surfaces, browser }) => {

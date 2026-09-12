@@ -1,4 +1,12 @@
 /**
+ * Every layout is a single absolutely-positioned stage over the wall's black ground,
+ * with the projector overscan inset applied to whatever carries meaning. Only `opacity`
+ * and `transform` are ever animated (DESIGN-SYSTEM.md §7): the wall runs for eight hours
+ * on whatever mini PC the venue owns, and a property that forces layout every frame is a
+ * stutter the whole room sees.
+ */
+
+/**
  * A fixed 4x3 grid of six named areas.
  *
  * Named areas rather than an auto-placed flow: the geometry has to be deterministic so
@@ -70,4 +78,305 @@
   to {
     opacity: 1;
   }
+}
+
+/* ---------------------------------------------------------------------------------- */
+
+/**
+ * Polaroid: three prints on the dark ground.
+ *
+ * Fixed columns rather than a pile with `position: absolute`, because a pile has to
+ * overlap and an overlapped print is a guest's photo with a corner missing. Three equal
+ * columns, each print turned a few degrees, reads as handmade without hiding anything.
+ */
+.polaroid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--wall-safe);
+  /* The pile shares the wall with the invitation. Each print's caption is centred in its
+     own mat, so the third one ran under the join card and was cut mid-word — measured at
+     362px of overlap. The row lays out inside what the corner leaves free instead, and
+     gets the space back the moment the card is dismissed. */
+  padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
+  background: var(--surface-base);
+  /* A print is as tall as its photo plus its caption, and a guest who writes two long
+     lines makes it taller. The stage clips rather than letting a mat run off the screen,
+     which on a projector means off the wall and into the room. */
+  overflow: hidden;
+}
+
+/**
+ * The print itself: paper with a mat, and a wider one at the foot, which is what makes a
+ * polaroid read as a polaroid rather than as a white border.
+ *
+ * The tilt is a static transform computed from the photo id in `WallLayouts.tsx`, so two
+ * projectors turn the same print the same way. It is composition rather than motion and
+ * survives `prefers-reduced-motion`; the landing below does not.
+ */
+.print {
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-5);
+  border-radius: var(--radius-sm);
+  background: var(--surface-print);
+  box-shadow: var(--shadow-lg);
+  transform: rotate(var(--wall-tilt, 0deg));
+  /* The mat must not be squeezed out by a caption: the photo gives way, not the paper. */
+  min-inline-size: 0;
+}
+
+/* A 4:5 window, the print's own aspect ratio. The photo fills it, which is the crop the
+   metaphor costs — a print is a fixed piece of paper. */
+.printWindow {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--radius-sm);
+  background: var(--surface-base);
+}
+
+.printImage {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/**
+ * The landing.
+ *
+ * Declared from the attribute rather than left to the reduced-motion rule in `base.css`,
+ * which collapses duration and would snap a `both` keyframe to its end frame. It is
+ * shorter than `--duration-slow`, which is itself far shorter than the two-second
+ * minimum slide, so a print can never still be landing when the next one arrives.
+ */
+.polaroid[data-motion='landing'] .print {
+  animation: print-lands var(--wall-transition, var(--duration-slow)) var(--ease-out) both;
+  will-change: transform, opacity;
+}
+
+@keyframes print-lands {
+  from {
+    opacity: 0;
+    transform: rotate(var(--wall-tilt, 0deg)) translate3d(0, -4%, 0) scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(var(--wall-tilt, 0deg)) translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* ---------------------------------------------------------------------------------- */
+
+/**
+ * Filmstrip: a band of frames drifting sideways.
+ *
+ * `--filmstrip-frames` is a count, not a design value, and it appears in three places
+ * that have to agree — the frame's width, the distance the track travels, and
+ * `FILMSTRIP_FRAMES` in `WallLayouts.tsx`. Keeping it as one custom property is what
+ * stops the strip drifting by something other than exactly one frame, which would show
+ * as the band creeping out of alignment over an evening.
+ */
+.filmstrip {
+  --filmstrip-frames: 5;
+
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  overflow: hidden;
+  padding-block: var(--wall-safe);
+  background: var(--surface-base);
+}
+
+.track {
+  display: flex;
+  /* Frames size themselves from their own aspect ratio; stretching them to the line
+     would hand the band whatever height the tallest photo happened to have. */
+  align-items: center;
+  inline-size: 100%;
+}
+
+/**
+ * A full strip overflows to the right, and only to the right.
+ *
+ * `center` was here, with a comment claiming the centring was moot once the strip
+ * overflows. It is not: a centred flex container splits its overflow across *both*
+ * edges, so the sixth frame hung 192px past the right edge and the first hung 192px past
+ * the left. One frame of drift then left the right edge empty from 1728 to 1920 —
+ * a tenth of the screen going black at the end of every slide, about 3 600 times over an
+ * evening. It also meant the band was four whole frames and two halves rather than the
+ * five-plus-one this layout claims.
+ *
+ * Anchored at the start, the six frames span 0..2304 on a 1920 screen and the drift ends
+ * at -384..1920. Every phase in between is fully covered.
+ */
+.track[data-strip='scrolling'] {
+  justify-content: flex-start;
+}
+
+/* A playlist too short to fill the strip sits in the middle of the screen instead of
+   hugging the left edge. Nothing overflows here, so there is nothing to split. */
+.track[data-strip='short'] {
+  justify-content: center;
+}
+
+/**
+ * The frame carries the geometry; the image fills it. The mosaic tile's shape, and for
+ * the same reason.
+ *
+ * The window is square because the band has to survive both orientations: a phone's
+ * portrait shot and a camera's landscape one are cropped by the same amount, which is
+ * the fairest crop available to a layout that is allowed to crop at all. One fifth of
+ * the screen wide makes it a little over a third of the screen tall — a band, not a
+ * stripe, and readable while nobody is really looking.
+ *
+ * `aspect-ratio` belongs here and not on the `<img>`. It was on the image, and it was
+ * inert: the reset in `base.css` sets `max-width` but never `height: auto`, so the
+ * `height` attribute the renderer puts on every photo survived as the used block size
+ * and `aspect-ratio` only sizes an axis that is `auto`. Every frame took its photo's
+ * intrinsic pixel height instead — measured at 900, 1200 and 1600px on a 1080 screen,
+ * so the band ran off the top and bottom of the wall and each frame was a different
+ * height. The image below therefore states `block-size` outright.
+ */
+.frame {
+  flex: 0 0 calc(100% / var(--filmstrip-frames));
+  aspect-ratio: 1 / 1;
+  margin: 0;
+  padding-inline: var(--space-2);
+  min-inline-size: 0;
+}
+
+.frameImage {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+/**
+ * One frame's worth of travel per slide.
+ *
+ * `--wall-drift-duration` is the slideshow's own interval, handed down from
+ * `useSlideshow`, so the drift and the slide clock are the same number: an animation
+ * with a duration of its own beside a slide interval is precisely the 1.0 Ken Burns bug.
+ * `linear` because a drift that eases is a drift the eye notices, which is the opposite
+ * of what this layout is for.
+ */
+.track[data-motion='drift'] {
+  animation: strip-drift var(--wall-drift-duration) var(--ease-linear) both;
+  will-change: transform;
+}
+
+@keyframes strip-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(calc(-100% / var(--filmstrip-frames)), 0, 0);
+  }
+}
+
+/* ---------------------------------------------------------------------------------- */
+
+/**
+ * Collage: a grid that grows.
+ *
+ * Auto-placed in DOM order across a fixed 4x3, so a cell keeps its position for the
+ * whole evening and the growth appends rather than reflows. `align-content: start` is
+ * what makes a half-full grid read as a composition in progress instead of as a grid
+ * with holes in the middle of it.
+ */
+.collage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: calc((100% - var(--space-2) * 2) / 3);
+  gap: var(--space-2);
+  align-content: start;
+  padding: var(--wall-safe);
+  background: var(--surface-base);
+}
+
+.cell {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  animation: cell-arrives var(--wall-transition, var(--duration-slow)) var(--ease-out) both;
+  will-change: opacity, transform;
+}
+
+@keyframes cell-arrives {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---------------------------------------------------------------------------------- */
+
+/**
+ * Split: two panes, each letterboxed.
+ *
+ * `contain` on both halves, because half an ultra-wide screen is still bigger than
+ * anything a phone took — the promise that nobody's head is cut off does not stop at the
+ * spotlight. The caption sits in its own row under the photo rather than over it, so a
+ * pane is a photo and a line of text, not a photo with a band across it.
+ */
+.split {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+  padding: var(--wall-safe);
+  /* Both panes narrow together, so the pair stays a pair. Centring each caption under its
+     own pane put the right one under the join card, cut mid-word — measured at 42px of
+     overlap on a 1920 screen. This layout is for ultra-wide walls, where the same card is
+     a much smaller share of the width, and on any wall a host who wants the full pair
+     presses Escape and the reservation goes with the card. */
+  padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
+  background: var(--surface-base);
+}
+
+.pane {
+  margin: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: var(--space-3);
+  justify-items: center;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+.paneWindow {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+/* The element's own geometry carries the photo's aspect ratio, as in `SlideLayer`: a
+   portrait phone shot is a portrait box centred in its half, never a filled frame. */
+.paneImage {
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  inline-size: auto;
+  block-size: auto;
+  object-fit: contain;
+  animation: tile-in var(--wall-transition, var(--duration-slow)) var(--ease-in-out) both;
+  will-change: opacity;
 }

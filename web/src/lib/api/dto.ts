@@ -11,7 +11,7 @@ export type PhotoStatus = 'pending' | 'published' | 'rejected' | 'hidden'
 export type EventStatus = 'draft' | 'live' | 'closed' | 'archived'
 export type ModerationDecision = 'publish' | 'reject' | 'hide'
 export type ReactionKind = 'love' | 'laugh' | 'wow' | 'cheers' | 'clap'
-export type WallLayout = 'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip'
+export type WallLayout = 'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'collage' | 'split'
 export type MediaVariant = 'thumb' | 'display' | 'original'
 export type EventRole = 'owner' | 'moderator'
 

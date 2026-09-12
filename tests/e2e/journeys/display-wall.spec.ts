@@ -168,25 +168,31 @@ test('the display URL picks the layout, for a projector nobody will touch', asyn
   surfaces,
 }) => {
   // A kiosk autostarts one URL and is then left alone for eight hours, so `?layout=` is
-  // the `L` key for that machine. Three published photos, because the count is what
-  // tells the layouts apart: the mosaic gives each photo a tile, the spotlight shows
-  // one photo at a time.
+  // the `L` key for that machine. Three published photos, and the wall names the layout
+  // it settled on in `data-wall-layout`: a slot count alone cannot tell six layouts
+  // apart — a filmstrip and a mosaic can both be holding six photos — and a silent fall
+  // back between two of them shows the room photographs either way, which is how
+  // `?layout=` stayed dead for four baseline generations without anybody noticing.
   const event = await anEventWithPublishedPhotos(app, surfaces, 3, 'disposition')
   const { projector } = surfaces
+  const wall = projector.locator('[data-wall-layout]')
 
   await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic' }))
+  await expect(wall).toHaveAttribute('data-wall-layout', 'mosaic')
   await expect(projector.getByTestId('wall-slide')).toHaveCount(3)
 
   // A layout nobody implements, as a typo in a kiosk config would leave it. The room
   // gets the layout the wall response carries — never a blank screen.
   await projector.goto(wallUrl(app, event.slug, { layout: 'neon' }))
+  await expect(wall).toHaveAttribute('data-wall-layout', 'spotlight')
   await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
 
-  // And the host who does walk up carries on from where the URL put the wall.
+  // And the host who does walk up carries on from where the URL put the wall, rather
+  // than from the start of the cycle.
   await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic' }))
-  await expect(projector.getByTestId('wall-slide')).toHaveCount(3)
+  await expect(wall).toHaveAttribute('data-wall-layout', 'mosaic')
   await projector.keyboard.press('l')
-  await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+  await expect(wall).toHaveAttribute('data-wall-layout', 'polaroid')
 })
 
 test('the wall keeps playing when the connection drops', async ({ app, surfaces }) => {
@@ -208,24 +214,51 @@ test('the wall keeps playing when the connection drops', async ({ app, surfaces 
   await expect(projector.getByTestId('wall-empty')).toHaveCount(0)
 })
 
+/** The two timings the wall response carries, narrowed rather than cast to `any`. */
+const wallTimings = (body: unknown): { slideIntervalMs: number; kenBurnsDurationMs: number } => {
+  if (typeof body !== 'object' || body === null) throw new Error('the wall answered no object')
+  const { slideIntervalMs, kenBurnsDurationMs } = body as Record<string, unknown>
+  if (typeof slideIntervalMs !== 'number' || typeof kenBurnsDurationMs !== 'number') {
+    throw new Error('the wall answered no timings')
+  }
+  return { slideIntervalMs, kenBurnsDurationMs }
+}
+
 test('the Ken Burns duration comes from the server, not a constant', async ({ app, surfaces }) => {
   // 1.0 ran a 20s zoom against a 10s slide, so every image visibly snapped back. The
-  // duration is derived from the interval and handed to the client.
+  // duration is derived from the interval in `src/domain/slideshow/` and handed to the
+  // client, and this is the only end-to-end guard for that (trap 6).
+  //
+  // It had never run. The assertion below read `--kenburns-duration`; the property the
+  // wall sets is `--wall-kenburns-duration`, so the value was always the empty string
+  // and the `test.skip()` that used to stand here fired on every single execution, in
+  // CI included. A guard that can quietly excuse itself is not a guard, so the empty
+  // string is now a failure, and the numbers are compared against the response that
+  // produced them rather than against a literal typed into this file.
   const event = await anEventWithPublishedPhotos(app, surfaces, 1, 'kenburns')
   const { projector } = surfaces
 
-  await projector.goto(wallUrl(app, event.slug, { intervalMs: 4_000, transitionMs: 0 }))
+  const answered = projector.waitForResponse((response) =>
+    response.url().includes(`/api/events/${event.slug}/wall`),
+  )
+  await projector.goto(wallUrl(app, event.slug, { transitionMs: 0 }))
+  const { slideIntervalMs, kenBurnsDurationMs } = wallTimings(await (await answered).json())
+
   const slide = projector.getByTestId('wall-slide').first()
   await expect(slide).toBeVisible()
 
   const duration = await slide.evaluate((node) =>
-    getComputedStyle(node).getPropertyValue('--kenburns-duration').trim(),
+    getComputedStyle(node).getPropertyValue('--wall-kenburns-duration').trim(),
   )
-  test.skip(duration === '', 'the wall does not expose the duration as a custom property')
+  expect(duration).not.toBe('')
 
   const ms = duration.endsWith('ms')
     ? Number.parseFloat(duration)
     : Number.parseFloat(duration) * 1000
-  // Never shorter than the slide, or the zoom finishes early and the image snaps.
-  expect(ms).toBeGreaterThanOrEqual(4_000)
+  // The element carries the server's number, not one the stylesheet invented.
+  expect(ms).toBe(kenBurnsDurationMs)
+  // And that number outlasts the slide, which is the whole of trap 6: a zoom that
+  // finishes first leaves the last of every photo frozen, and one that is restarted
+  // part-way is the 1.0 snap.
+  expect(ms).toBeGreaterThan(slideIntervalMs)
 })

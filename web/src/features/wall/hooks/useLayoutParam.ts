@@ -18,6 +18,8 @@ const LAYOUT_NAMES: Readonly<Record<WallLayout, true>> = {
   mosaic: true,
   polaroid: true,
   filmstrip: true,
+  collage: true,
+  split: true,
 }
 
 const isWallLayout = (value: string): value is WallLayout => Object.hasOwn(LAYOUT_NAMES, value)

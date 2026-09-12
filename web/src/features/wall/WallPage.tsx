@@ -22,15 +22,32 @@ import styles from './WallPage.module.css'
 const NO_ITEMS: readonly WallItemDto[] = []
 
 /**
- * What the `L` key walks through: the layouts this build actually renders.
+ * What the `L` key walks through: every layout this build renders.
  *
  * Where a wall starts arrives in the wall response — the domain's default, since no
  * layout is persisted per event. This is the on-the-spot change for somebody standing
  * at the projector who wants the room to see more photos at once during the cocktail
  * hour, and `?layout=` on the display URL is the same change made in advance, for a
  * projector nobody is standing at.
+ *
+ * The order is the two layouts 2.0 shipped, then the four 2.3 added. It is not sorted by
+ * anything — by slot count it would read 1, 6, 3, 5, 12, 2 — and the reason it is not is
+ * that the first press has always landed on the mosaic, in every host's hands and in the
+ * visual suite. Re-sorting the cycle to make a comment true would move that for no gain.
+ * The help dialog reads the order off this array, so a layout added here cannot fall out
+ * of the copy that names it.
  */
-const LAYOUT_CYCLE: readonly WallLayout[] = ['spotlight', 'mosaic']
+const LAYOUT_CYCLE: readonly WallLayout[] = [
+  'spotlight',
+  'mosaic',
+  'polaroid',
+  'filmstrip',
+  'collage',
+  'split',
+]
+
+/** The French names of the cycle, in cycle order. Built once; nothing here changes. */
+const LAYOUT_ORDER_HINT = fr.wall.layoutOrder(LAYOUT_CYCLE.map((name) => fr.wall.layoutNames[name]))
 
 const nextLayout = (current: WallLayout): WallLayout => {
   const at = LAYOUT_CYCLE.indexOf(current)
@@ -124,6 +141,16 @@ export function WallPage() {
   const serverLayout = wall?.layout
   const closeHelp = useCallback(() => setHelpOpen(false), [])
 
+  /**
+   * What the room is looking at, named on the wall element itself.
+   *
+   * The layout is chosen in three places and stored in none of them, so without this
+   * there is nothing outside React that can answer "which layout is this projector
+   * showing" — and that is the question a second projector is compared on, and the one a
+   * wall that quietly fell back to the spotlight answers wrongly.
+   */
+  const layout = layoutOverride ?? urlLayout ?? serverLayout ?? null
+
   useWallKeyboard({
     onTogglePause: () => (slideshow.paused ? slideshow.resume() : slideshow.pause()),
     onStep: (step) => slideshow.advance(step),
@@ -147,7 +174,15 @@ export function WallPage() {
   const showsOverlay = joinCode !== null && !joinCardDismissed && items.length > 0
 
   return (
-    <div className={styles['wall']}>
+    <div
+      className={styles['wall']}
+      data-wall-layout={layout ?? undefined}
+      // The bottom-right corner is spoken for while the invitation is up, and a layout
+      // that would otherwise centre a caption under it lays out inside what is left.
+      // The card is chrome and the caption is the guest's words, so the card is what the
+      // wall reserves around rather than what it prints over.
+      data-wall-chrome={showsOverlay ? 'corner' : undefined}
+    >
       {/* One region for the whole concern, mounted once — never one per notice. */}
       <div className={styles['notices']} aria-live="polite">
         {offline ? <WallNotice tone="warning" text={fr.wall.offline} delayed /> : null}
@@ -177,7 +212,7 @@ export function WallPage() {
         <WallEmptyState eventName={wall.event.name} joinCode={joinCode} />
       ) : (
         <WallLayouts
-          layout={layoutOverride ?? urlLayout ?? wall.layout}
+          layout={layout ?? wall.layout}
           items={items}
           slideshow={slideshow}
           kenBurnsDurationMs={wall.kenBurnsDurationMs}
@@ -194,7 +229,9 @@ export function WallPage() {
       <Dialog
         open={helpOpen}
         title={fr.wall.shortcuts}
-        description={fr.wall.shortcutsHint}
+        // Six layouts is more than a host can hold in their head at a projector, so the
+        // one screen that explains `L` names what it walks through.
+        description={`${fr.wall.shortcutsHint} ${LAYOUT_ORDER_HINT}`}
         onClose={closeHelp}
       />
     </div>

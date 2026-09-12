@@ -312,10 +312,11 @@ client-side concern. The projector reads `?layout=` off its own _display_ URL â€
 `/e/:slug/display?layout=mosaic`, which is what a kiosk's autostart line can hold â€” and
 the host's `L` key cycles the same thing at the screen; both live in the browser
 (`web/src/features/wall/hooks/useLayoutParam.ts`) and neither is sent here. Names are
-`spotlight | mosaic | polaroid | filmstrip`, and an unknown or malformed one is ignored
-in favour of this response's value rather than raising anything: a projector rendering
-nothing for eight hours is the one failure this screen may not have. `polaroid` and
-`filmstrip` are in the contract and render as their nearest built layout in 2.0.
+`spotlight | mosaic | polaroid | filmstrip | collage | split`, and an unknown or
+malformed one is ignored in favour of this response's value rather than raising
+anything: a projector rendering nothing for eight hours is the one failure this screen
+may not have. All six render themselves; none falls back to a neighbour. `L` walks them
+in the order above and wraps.
 
 `joinCode` is present because the wall is also the invitation: it shows the code and a
 QR while it is empty, and keeps a small corner reminder afterwards, so a guest arriving
