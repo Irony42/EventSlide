@@ -6,6 +6,7 @@ import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
 import { aModerationPhoto, fakeApi } from '../../../testing/renderWithProviders'
 import { useModerationQueue } from './useModerationQueue'
+import type { ModerationQueueOptions } from './useModerationQueue'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
 import type {
@@ -68,16 +69,19 @@ const deferred = <T,>() => {
   return { promise, settle: (value: T) => settle(value), fail: (cause: unknown) => fail(cause) }
 }
 
-const mountFor = (api: Api, slug: string | undefined) => {
+const mountFor = (api: Api, slug: string | undefined, options: ModerationQueueOptions = {}) => {
   const wrapper = ({ children }: { readonly children: ReactNode }) => (
     <ApiProvider api={api}>
       <ToastProvider>{children}</ToastProvider>
     </ApiProvider>
   )
-  return renderHook(() => useModerationQueue(slug), { wrapper })
+  return renderHook(() => useModerationQueue(slug, options), { wrapper })
 }
 
 const mount = (api: Api) => mountFor(api, SLUG)
+
+/** The phone console's queue: the one caller that asks for a publish to be reversible. */
+const mountWithUndoOfPublish = (api: Api) => mountFor(api, SLUG, { undoOfPublish: 'hide' })
 
 /** `/admin/events//moderation`, or a route pattern that stopped carrying the slug. */
 const mountWithoutEvent = (api: Api) => mountFor(api, undefined)
@@ -150,6 +154,74 @@ describe('useModerationQueue', () => {
     })
 
     expect(api.moderateBulk).not.toHaveBeenCalled()
+  })
+
+  it('offers no undo for a publish, unless the caller asked for one', async () => {
+    /**
+     * The invariant the phone console's `undoOfPublish` option must not have broken.
+     *
+     * A photo that was awaiting a decision has no status any verb puts it back into, so
+     * the desktop console offers nothing — and it must keep offering nothing by default,
+     * because the tempting substitute for a *refusal* is `publish`, which would project
+     * a photo the host has just turned down. The option is opt-in for exactly that
+     * reason, and a default that quietly acquired an undo is the shape that regression
+     * would take.
+     */
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })])),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.decide('photo-1', 'publish')
+    })
+
+    expect(api.moderate).toHaveBeenCalledWith(SLUG, 'photo-1', 'publish')
+    expect(result.current.canUndo).toBe(false)
+  })
+
+  it('offers an undo for a publish when the caller supplies the decision to use', async () => {
+    // The phone console's side of the same rule: it has no grid to press "retirer de
+    // l'écran" on, so the offer exists there and is performed with `hide` — the one
+    // reversal that cannot put an unapproved photo on a screen.
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })])),
+      moderateBulk: vi.fn(async (): Promise<BulkModerationResponse> => ({
+        applied: ['photo-1'],
+        skipped: [],
+      })),
+    })
+    const { result } = mountWithUndoOfPublish(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.decide('photo-1', 'publish')
+    })
+    expect(result.current.canUndo).toBe(true)
+
+    await act(async () => {
+      await result.current.undo()
+    })
+
+    expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1'], 'hide')
+    // Never `publish` on a refusal, whatever the option says: the dangerous direction
+    // stays closed.
+    expect(result.current.canUndo).toBe(false)
+  })
+
+  it('offers no undo for a refusal even when the caller asked for one', async () => {
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })])),
+    })
+    const { result } = mountWithUndoOfPublish(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.decide('photo-1', 'reject')
+    })
+
+    expect(result.current.canUndo).toBe(false)
   })
 
   it('does not decide a photo a second moderator has already dealt with', async () => {

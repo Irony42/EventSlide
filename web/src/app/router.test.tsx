@@ -93,6 +93,10 @@ describe('AppRoutes', () => {
     ['/admin/events/new', fr.admin.newEvent],
     ['/admin/events/mariage', 'Camille & Sacha'],
     ['/admin/events/mariage/settings', fr.admin.settings],
+    // The phone console is a second address over the same queue, so its heading is
+    // deliberately not the console's — two addresses that render the same title are
+    // exactly the copy-paste this table exists to catch.
+    ['/admin/events/mariage/moderation/mobile', fr.mobileModeration.title],
     ['/admin/password', fr.auth.changePassword],
   ])('serves %s to a signed-in host', async (route, heading) => {
     asHost(route)

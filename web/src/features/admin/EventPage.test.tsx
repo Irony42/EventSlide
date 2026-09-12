@@ -82,6 +82,12 @@ describe('EventPage', () => {
       'href',
       '/admin/events/camille-et-sacha/moderation',
     )
+    // The phone console. Reachable from here or not at all: the host who wants it has
+    // walked away from the laptop, and an address they have to type is one nobody uses.
+    expect(screen.getByRole('link', { name: fr.mobileModeration.title })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/moderation/mobile',
+    )
     expect(screen.getByRole('link', { name: fr.admin.settings })).toHaveAttribute(
       'href',
       '/admin/events/camille-et-sacha/settings',
@@ -164,6 +170,9 @@ describe('EventPage', () => {
     expect(screen.queryByRole('button', { name: fr.admin.archiveEvent })).toBeNull()
     expect(screen.queryByRole('link', { name: fr.admin.openWall })).toBeNull()
     expect(screen.queryByRole('link', { name: fr.admin.openModeration })).toBeNull()
+    // Both consoles, or neither: an archived event takes no decisions, and a second
+    // address into the same queue would be a second way to find that out the hard way.
+    expect(screen.queryByRole('link', { name: fr.mobileModeration.title })).toBeNull()
     // The code cannot be rotated on an immutable event, so the button is not offered.
     expect(screen.queryByRole('button', { name: fr.admin.rotateJoinCode })).toBeNull()
   })

@@ -1,0 +1,99 @@
+/**
+ * One column, phone width, whatever the screen.
+ *
+ * The shell gives this route the host container (78 rem), which is right for the grid
+ * console and wrong for this one: a card stretched across a laptop would be a phone
+ * screen nobody can reach the bottom of. The measure is capped here instead, so the
+ * surface is the same shape wherever it is opened — including on the desktop, where a
+ * host previews it before walking away from the machine.
+ *
+ * `min-block-size: 100%` is what lets `margin-block-start: auto` on the action bar push
+ * the buttons to the bottom of a short screen instead of leaving them mid-page.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-block-size: 100%;
+  max-inline-size: var(--container-guest);
+  margin-inline: auto;
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.intro {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* The photo takes the room that is left, and stays vertically centred while it does. */
+.stage {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+}
+
+.staleError {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--danger);
+  background: var(--surface-raised);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+}
+
+/**
+ * The thumb zone.
+ *
+ * Sticky rather than fixed: it is the last child, so it already paints over anything
+ * that scrolls under it without a z-index, and it stays inside the shell's bottom
+ * padding — which is what keeps it clear of the iOS home indicator.
+ */
+.actions {
+  position: sticky;
+  inset-block-end: 0;
+  margin-block-start: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block: var(--space-4);
+  background: var(--surface-base);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+/* Refuse on the left, publish on the right: the same way round as the swipe. */
+.decisions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+/* `--text-muted` is only allowed from `--text-sm` up — docs/DESIGN-SYSTEM.md section 8. */
+.undoHint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+}

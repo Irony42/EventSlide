@@ -292,7 +292,7 @@ announce something, and hosts currently do it by shouting.
 
 ## 3. Host control
 
-### 3.1 Moderation on a phone (P1, effort M, risk: low)
+### 3.1 Moderation on a phone — **Shipped**
 
 The host is not at the laptop. They are at a table, standing, holding a phone. The
 moderation console is built for a keyboard, and no amount of responsive CSS makes a
@@ -300,6 +300,43 @@ dense grid workable one-handed.
 
 A separate mobile surface: one photo at a time, swipe right to publish and left to
 refuse, undo always reachable. Reuses every use case; it is a view, not a feature.
+
+What landed, at `/admin/events/:slug/moderation/mobile`, reached from the event page:
+
+- **No server code at all.** No endpoint, no use case, no migration. The screen is a
+  second view over `useModerationQueue` — same fetch, same SSE channel, same decisions —
+  which is what the entry meant by "a view, not a feature", and it is worth saying twice
+  because a mobile surface is exactly the kind of thing that grows its own API.
+- **The gesture is arithmetic, not a library.** `web/src/features/moderation/swipe/`
+  holds a pure reading of a drag — how far commits, when the direction is announced,
+  what taking it back means — tested without a DOM; `hooks/useSwipeDecision.ts` feeds it
+  pointer events. There is no CDN and no new runtime dependency on a host's phone.
+- **Every decision is also a button.** A swipe-only console is unusable with a screen
+  reader and unusable one-handed by somebody with limited mobility, so the gesture is a
+  shortcut over the same two controls, and the e2e measures their touch targets on a
+  real phone viewport.
+
+**Where it does not match the entry above, and why.** "Undo always reachable" is not
+literally deliverable on this surface without server work the entry forbids. A photo
+awaiting a decision has no status any verb puts it back into — `pending` is not a
+moderation outcome — so `useModerationQueue` offered nothing after a decision on a fresh
+photo, and a persistent "annuler" would have been a permanently disabled button. What
+shipped instead is one opt-in option, `useModerationQueue(slug, { undoOfPublish: 'hide' })`,
+passed by the phone console and by nothing else:
+
+- **A publication can be taken back**, with `hide`. The photo leaves the wall, which is
+  what the host meant, and lands in "Retirées" rather than back in the queue — so the
+  console says "retirée de l'écran" rather than claiming a decision was cancelled.
+- **A refusal cannot**, here or anywhere. The only verb that would reverse it is
+  `publish`, on a photo the host has just turned down, which would put it on a screen in
+  front of the room with nobody's approval behind it. `src/domain/moderation/
+moderationDecision.ts` refuses the same inference, and this agrees with it.
+
+The desktop console keeps the old behaviour exactly, and a regression test pins it: with
+no options, publishing a pending photo still offers no undo. Restoring a photo to
+`pending` — a true undo, and the only one that would satisfy the entry as written —
+needs the server to record where a decision came from, which is a use case and a
+migration, so it belongs in its own roadmap item rather than in this one.
 
 ### 3.2 Pre-sorted moderation queue (P2, effort L, risk: medium)
 

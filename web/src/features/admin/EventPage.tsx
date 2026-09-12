@@ -122,9 +122,23 @@ export function EventPage() {
                 </Link>
               ) : null}
               {allowsModeration(event.status) ? (
-                <Link className={styles['link']} to={`/admin/events/${event.slug}/moderation`}>
-                  {fr.admin.openModeration}
-                </Link>
+                <>
+                  <Link className={styles['link']} to={`/admin/events/${event.slug}/moderation`}>
+                    {fr.admin.openModeration}
+                  </Link>
+                  {/*
+                    The same queue, one photo at a time. It lives here rather than only
+                    on the console because the host who needs it has already walked away
+                    from the laptop: this page is what they reach on a phone, and an
+                    address they would otherwise have to type is an address nobody uses.
+                  */}
+                  <Link
+                    className={styles['link']}
+                    to={`/admin/events/${event.slug}/moderation/mobile`}
+                  >
+                    {fr.mobileModeration.title}
+                  </Link>
+                </>
               ) : null}
               <Link className={styles['link']} to={`/admin/events/${event.slug}/settings`}>
                 {fr.admin.settings}
