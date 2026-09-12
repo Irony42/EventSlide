@@ -211,3 +211,75 @@ describe('the real schema', () => {
     closeDatabase(db)
   })
 })
+
+describe('migration 002, the scheduled opening and closing', () => {
+  const columnNames = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
+
+  /** An event as 001 alone could hold it: a start date for the dashboard, nothing more. */
+  const seedPreSchedule = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'hote@example.test', 'hash:x', '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at, starts_at, closed_at)
+            VALUES ('e1', 'u1', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'live',
+                    '{"moderation":"manual"}', 1000, '2026-06-20T09:00:00.000Z',
+                    '2026-06-20T17:00:00.000Z', NULL)`,
+    ).run()
+  }
+
+  it('adds the two schedule columns and the notice column beside them', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'events')).toEqual(
+      expect.arrayContaining(['scheduled_open_at', 'scheduled_close_at', 'schedule_discarded_at']),
+    )
+    closeDatabase(db)
+  })
+
+  it('indexes the sweep, which is the one query in the product not scoped to an event', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(indexNames(db)).toEqual(
+      expect.arrayContaining(['idx_events_scheduled_open', 'idx_events_scheduled_close']),
+    )
+    closeDatabase(db)
+  })
+
+  it('keeps an event that existed before the schedule did, and leaves it unscheduled', () => {
+    // The upgrade path, on somebody's wedding album. A `starts_at` this migration
+    // deliberately does not touch must come through untouched, and the event must not
+    // acquire a timer nobody asked for.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 2),
+    )
+    seedPreSchedule(db)
+
+    migrate(db, migrations)
+
+    expect(
+      db
+        .prepare(
+          `SELECT name, status, starts_at, scheduled_open_at, scheduled_close_at,
+                  schedule_discarded_at
+             FROM events WHERE id = 'e1'`,
+        )
+        .get(),
+    ).toEqual({
+      name: 'Camille & Sacha',
+      status: 'live',
+      starts_at: '2026-06-20T17:00:00.000Z',
+      scheduled_open_at: null,
+      scheduled_close_at: null,
+      schedule_discarded_at: null,
+    })
+    closeDatabase(db)
+  })
+})

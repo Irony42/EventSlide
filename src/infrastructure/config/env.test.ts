@@ -82,6 +82,7 @@ describe('loadConfig', () => {
         },
         guests: { selfDeleteGraceMs: 900_000 },
         retention: { sweepIntervalMs: 3_600_000 },
+        schedule: { sweepIntervalMs: 300_000 },
         rateLimits: {
           uploadPerMinute: 12,
           joinPerMinute: 20,
@@ -600,6 +601,61 @@ describe('loadConfig', () => {
     it('names the variable and both accepted shapes when it refuses', () => {
       // The operator reading this is looking at a boot that exited 78 an hour before the
       // guests arrive. The message has to say what to type.
+      const issues = refusalIssues({ [NAME]: 'yes' })
+      const issue = issues.find((candidate) => candidate.startsWith(`${NAME}: `)) ?? ''
+
+      expect(issue).toContain('1 to 1440')
+      expect(issue).toContain("'off'")
+    })
+  })
+
+  describe('the scheduling sweep interval', () => {
+    const NAME = 'SCHEDULE_SWEEP_INTERVAL_MINUTES'
+
+    it('sweeps every five minutes with nothing configured', () => {
+      // The lag a guest can see: an event scheduled for 18:00 opens somewhere in
+      // 18:00-18:05, and anyone scanning the QR code before it does is told the party
+      // has not started. A default of off would ship the same lie retention told before
+      // it had a trigger — two fields the host can set and nothing that acts on them.
+      expect(loadConfig({}).schedule.sweepIntervalMs).toBe(300_000)
+      expect(loadConfig(aProductionEnv()).schedule.sweepIntervalMs).toBe(300_000)
+    })
+
+    it('never sweeps under NODE_ENV=test unless asked', () => {
+      // A sweep firing between two steps of a journey would open — or close — the event
+      // the spec is asserting on, on a timer nothing in the test can see.
+      expect(loadConfig({ NODE_ENV: 'test' }).schedule.sweepIntervalMs).toBeNull()
+    })
+
+    it('converts the configured interval from minutes to milliseconds', () => {
+      expect(loadConfig({ [NAME]: '15' }).schedule.sweepIntervalMs).toBe(900_000)
+    })
+
+    it("turns the sweep off for the word 'off', which is the only way to turn it off", () => {
+      expect(loadConfig({ [NAME]: 'off' }).schedule.sweepIntervalMs).toBeNull()
+    })
+
+    it('leaves the retention sweep alone, because they are two separate decisions', () => {
+      const config = loadConfig({ [NAME]: 'off' })
+
+      expect(config.retention.sweepIntervalMs).toBe(3_600_000)
+    })
+
+    it.each(['0', '', '  ', '-1', '1.5', 'never', 'OFF', '1441'])(
+      'refuses %p rather than silently never opening anything again',
+      (value) => {
+        const issues = refusalIssues({ [NAME]: value })
+
+        expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+      },
+    )
+
+    it('accepts the boundaries', () => {
+      expect(loadConfig({ [NAME]: '1' }).schedule.sweepIntervalMs).toBe(60_000)
+      expect(loadConfig({ [NAME]: '1440' }).schedule.sweepIntervalMs).toBe(86_400_000)
+    })
+
+    it('names the variable and both accepted shapes when it refuses', () => {
       const issues = refusalIssues({ [NAME]: 'yes' })
       const issue = issues.find((candidate) => candidate.startsWith(`${NAME}: `)) ?? ''
 

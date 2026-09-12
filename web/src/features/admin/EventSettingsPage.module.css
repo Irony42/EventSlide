@@ -29,6 +29,20 @@
   font-size: var(--text-sm);
 }
 
+/* The schedule block, which is a second form rather than one more setting. */
+.sectionTitle {
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--border-subtle);
+  font-size: var(--text-lg);
+}
+
+.sectionHint {
+  margin-block-start: calc(var(--space-5) * -1 + var(--space-2));
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+}
+
 .choice {
   display: flex;
   align-items: center;

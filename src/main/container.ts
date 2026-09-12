@@ -31,6 +31,7 @@ import type { HttpConfig, HttpDeps } from '../interface/http/types'
 import type { PresenterContext } from '../interface/http/presenters/presenters'
 import { buildUseCases, type Adapters, type UseCases } from './usecases'
 import { createRetentionSweeper, type RetentionSweeper } from './retentionSweeper'
+import { createScheduleSweeper, type ScheduleSweeper } from './scheduleSweeper'
 
 /**
  * The composition root. **The only file in the codebase that constructs an adapter.**
@@ -53,6 +54,13 @@ export interface Container {
    * turned the automatic sweep off and a cron running `npm run purge` owns the schedule.
    */
   readonly retention: RetentionSweeper | null
+  /**
+   * The timer that opens and closes events on their schedule. Built here and started by
+   * `index.ts`, exactly like `retention` above. `null` when an operator has turned the
+   * automatic sweep off, in which case the two fields stay settable and visible and
+   * nothing ever acts on them.
+   */
+  readonly schedule: ScheduleSweeper | null
   dispose(): Promise<void>
 }
 
@@ -158,6 +166,31 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     })
   }
 
+  // -------------------------------------------------------------- scheduling --
+
+  /**
+   * The same arrangement for "opens at 18:00, closes at 02:00": on by default, because
+   * a scheduled opening that nothing opens is worse than no field at all.
+   */
+  const schedule =
+    config.schedule.sweepIntervalMs === null
+      ? null
+      : createScheduleSweeper({
+          apply: usecases.applyEventSchedules,
+          logger,
+          clock: adapters.clock,
+          intervalMs: config.schedule.sweepIntervalMs,
+        })
+
+  if (schedule === null) {
+    // Info, not a warning: it is a configured choice, and it is the default under
+    // NODE_ENV=test. An operator reading a boot log still has to be able to see that
+    // nothing in this process will ever act on a scheduled opening or closing.
+    logger.info('automatic scheduled open and close is off', {
+      detail: 'an event opens and closes only when a host presses the button',
+    })
+  }
+
   // ------------------------------------------------------------- first run --
 
   await bootstrapFirstOwner(config, usecases, logger)
@@ -225,11 +258,13 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     usecases,
     db,
     retention,
+    schedule,
     dispose: async () => {
       // First: a sweep that started after the database was closed would log a failure
       // for every expired event and delete none of them. An already-running one is
       // abandoned rather than awaited — see the reasoning in `retentionSweeper.stop`.
       retention?.stop()
+      schedule?.stop()
       sessionStore.close()
       bus.close()
       // Last, and synchronous: it checkpoints the WAL so the `.sqlite` file is

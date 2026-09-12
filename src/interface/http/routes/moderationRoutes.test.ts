@@ -134,6 +134,7 @@ const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): Ht
     updateEventSettings: notWired,
     rotateJoinCode: notWired,
     changeEventStatus: notWired,
+    scheduleEvent: notWired,
     purgeEvent: notWired,
     joinEvent: notWired,
     authenticateGuest: notWired,

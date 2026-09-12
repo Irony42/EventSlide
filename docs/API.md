@@ -649,6 +649,7 @@ event_, never "is logged in".
 | `PATCH`  | `/api/events/:slug`                        | owner     | 200 | Rename; answers the full event                 |
 | `PATCH`  | `/api/events/:slug/settings`               | owner     | 200 | Settings; answers the full event               |
 | `POST`   | `/api/events/:slug/status`                 | owner     | 200 | `{ "status": "live" }`; answers the full event |
+| `PATCH`  | `/api/events/:slug/schedule`               | owner     | 200 | Scheduled open/close; answers the full event   |
 | `POST`   | `/api/events/:slug/join-code`              | owner     | 200 | Rotate; answers the full event, new code       |
 | `DELETE` | `/api/events/:slug`                        | owner     | 204 | Purge: media first, then rows                  |
 | `GET`    | `/api/events/:slug/photos`                 | moderator | 200 | Paginated, filterable                          |
@@ -663,10 +664,11 @@ event_, never "is logged in".
 | `DELETE` | `/api/events/:slug/moderators/:userId`     | owner     | 204 | Revoke; never the last owner                   |
 | `GET`    | `/api/events/:slug/top-photos`             | moderator | 200 | Photo of the night                             |
 
-Four routes answer the **whole event** rather than `204`, and that is worth stating
-because it is not obvious from the verb: rename, settings, status and join-code rotation
-all end in the same `EventDto` that `GET /api/events/:slug` returns, so a console never
-has to refetch to redraw a header, a QR code or a settings form after saving it.
+Five routes answer the **whole event** rather than `204`, and that is worth stating
+because it is not obvious from the verb: rename, settings, status, schedule and
+join-code rotation all end in the same `EventDto` that `GET /api/events/:slug` returns,
+so a console never has to refetch to redraw a header, a QR code or a settings form after
+saving it.
 
 ### Errors across this section
 
@@ -678,8 +680,10 @@ cross-cutting codes in §1:
 | Code                       | Status | Where                                                           |
 | -------------------------- | ------ | --------------------------------------------------------------- |
 | `event.slugTaken`          | 409    | Create, when the slug is in use                                 |
-| `event.immutable`          | 409    | Rename or settings on an `archived` event                       |
+| `event.immutable`          | 409    | Rename, settings or schedule on an `archived` event             |
 | `event.illegalTransition`  | 409    | A status change the lifecycle does not allow                    |
+| `event.scheduleInPast`     | 400    | A scheduled instant whose minute has already gone by            |
+| `event.scheduleOutOfOrder` | 400    | A scheduled closing at or before the scheduled opening          |
 | `event.notModeratable`     | 409    | A single or bulk decision on an `archived` event                |
 | `photo.illegalTransition`  | 409    | A decision the photo's status machine does not allow            |
 | `guest.notFound`           | 404    | Revoking a guest id that is not in this event                   |
@@ -764,9 +768,19 @@ The shape every route in the table that answers `200` returns.
   },
   "startsAt": null,
   "closedAt": null,
+  "scheduledOpenAt": null,
+  "scheduledCloseAt": null,
+  "scheduleDiscardedAt": null,
   "role": "owner"
 }
 ```
+
+`startsAt` and `scheduledOpenAt` are **not** the same field and neither is derived from
+the other. `startsAt` is the printed start of the party, set when the event is created,
+shown on the dashboard, and read by no rule. `scheduledOpenAt` and `scheduledCloseAt`
+are the automatic lifecycle: the server opens and closes the event when they pass. An
+event with a `startsAt` and no `scheduledOpenAt` opens when the host presses the button,
+which is what every event created before this field existed still does.
 
 `joinUrl` is built server-side from `PUBLIC_URL` so the QR code and the printed card
 cannot disagree — 1.0's central defect was exactly two client-side spellings of one link.
@@ -830,6 +844,91 @@ nothing persists it (§2).
 aggregate's table, not a check in the handler, so the console and the projector cannot
 hold two ideas of what `archived` means. **200** with the event.
 **Errors** — `409 event.illegalTransition`.
+
+### `PATCH /api/events/:slug/schedule`
+
+```json
+{
+  "scheduledOpenAt": "2026-06-20T16:00:00.000Z",
+  "scheduledCloseAt": "2026-06-21T00:00:00.000Z"
+}
+```
+
+When the event opens and closes by itself. **Both keys are required**, and either may be
+`null` — which is the one shape in this section that is not a partial update, and it is
+deliberate: these two fields are read together on one form, and "open at 18:00" with
+`scheduledCloseAt` absent could mean either "leave the closing alone" or "there is no
+closing". `null` says "the host does this one by hand" with no second spelling.
+
+**200** with the event. **Errors** — `409 event.immutable` on an archived event,
+`400 event.scheduleInPast` for an instant that has already gone by,
+`400 event.scheduleOutOfOrder` when the closing is at or before the opening,
+`400 request.invalid` for a timestamp that is not ISO-8601 **with an offset**.
+
+`event.scheduleInvalid` also exists in the domain, for an instant that is not a readable
+date at all. **No request can produce it**: this route parses with zod first, so a
+malformed timestamp is `400 request.invalid` before the aggregate sees it. It is a
+defensive guard on the entity, kept because a domain factory does not trust its caller,
+and it is listed here so its absence from a client's error handling is a decision rather
+than an oversight.
+
+**An instant that has already gone by is refused when it is set.** This is the most
+likely mistake with this endpoint, not a corner case: it is 21:30, the party is running,
+the host arms the closing, picks `02:00` and leaves the date on today. Accepting it would
+end the evening within one sweep. The comparison is made **to the minute** — the minute
+in progress is accepted, the one before it is not — so a client that sends the current
+minute a few seconds after it began is not refused for being correct.
+
+This does not contradict the missed-window behaviour below. That rule is about an instant
+that _aged_ past while nothing was running; a stored instant is never re-validated. The
+guard runs once, against the clock at the moment of the request.
+
+**Timezone.** What is stored and what is sent are **instants**, in ISO-8601 with an
+offset — `Z` or any other, so `2026-06-20T18:00:00+02:00` is accepted and normalised to
+UTC on the way out. There is no per-event timezone and no wall-clock string on the wire: a
+value such as `2026-06-20T18:00:00` with no offset is a `400`, because the server does not
+know what time it is at the venue and must not guess. The admin console resolves the
+host's local 18:00 against the **browser's** timezone before sending, and renders it back
+the same way — the host's laptop is at the party, so 18:00 means 18:00 where the party is.
+A host configuring an event from another timezone is setting their own local time, and
+does the arithmetic themselves.
+
+Two consequences of having no per-event timezone, stated so a client author is not
+surprised by them. On the night the clocks go forward, a local time that does not exist
+(02:30, where 02:00 becomes 03:00) resolves an hour later than it reads; on the night they
+go back, a local time that happens twice resolves to the **first** occurrence. The console
+does no special-casing, and an API client resolving its own wall-clock times will meet the
+same two cases. The console's field also offers minutes only, so an instant set through
+this endpoint with seconds on it reads back into that form truncated, and re-saving from
+the form sends the truncated value.
+
+**What the sweep does with them.** A background job (`SCHEDULE_SWEEP_INTERVAL_MINUTES`,
+five minutes by default, `off` to disable) opens the events whose `scheduledOpenAt` has
+passed and closes the ones whose `scheduledCloseAt` has passed. Three properties are part
+of the contract:
+
+- **The instants are deadlines, not appointments.** If the server was down at 18:00 the
+  event opens at the next sweep, not never. The comparison is `now >= instant`.
+- **The transitions are the ordinary ones.** A scheduled open is refused for exactly the
+  reasons a manual one is — an `archived` event does not reopen because a timestamp
+  passed — and the refused instant is then discarded rather than retried forever.
+- **It is idempotent, and it consumes what it acts on.** An instant that has been acted
+  on is cleared, so both fields read back as `null` afterwards and a second sweep changes
+  nothing. A closing starts the retention clock exactly as a manual one does; it deletes
+  no photos.
+
+A refused instant is cleared like an applied one — retrying an impossible transition
+every few minutes forever is worse — and `scheduleDiscardedAt` on the event records when
+that happened. It is the only trace that the host's schedule ever existed, since the two
+fields read back empty; the console renders it as a notice, and saving any schedule, the
+empty one included, clears it.
+
+**Turning the sweep off does not pause the schedule, it stops applying it.** While
+`SCHEDULE_SWEEP_INTERVAL_MINUTES=off`, instants keep being accepted and stored and nothing
+acts on them, so they accumulate in the past. The first sweep after it is turned back on
+applies the whole backlog in one pass, by the rules above — which includes reopening a
+`closed` event that is still carrying a stale opening, and clearing its `closedAt` with
+it. Clear the schedules of any affected event before re-enabling it.
 
 ### `POST /api/events/:slug/join-code`
 

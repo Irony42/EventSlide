@@ -100,6 +100,16 @@ Two settings worth a thought before you start:
   guests is kept without you remembering. `npm run purge:dry-run` lists what the next
   sweep would remove, `npm run purge` does it now, and
   `RETENTION_SWEEP_INTERVAL_MINUTES=off` hands the schedule to your own cron.
+- **Opening and closing on their own.** The settings page takes an opening time and a
+  closing time; leave either empty and you do that one yourself. The times are read on
+  your own computer's clock, so 18:00 means 18:00 where the party is. If the server was
+  off at 18:00 the event still opens at the next check — a missed window is honoured,
+  not skipped — and closing an event stops uploads without deleting anything. A time you
+  have already passed is refused when you set it, so check the date before you save "close
+  at 02:00" at half past nine. `SCHEDULE_SWEEP_INTERVAL_MINUTES=off` stops the server
+  applying schedules; it does not stop you setting them, so they pile up while it is off
+  and the first check after you turn it back on applies them all at once — clear them
+  first if any event has one.
 
 ## Backups
 

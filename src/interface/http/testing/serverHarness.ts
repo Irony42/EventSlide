@@ -49,6 +49,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   updateEventSettings: notWired('updateEventSettings'),
   rotateJoinCode: notWired('rotateJoinCode'),
   changeEventStatus: notWired('changeEventStatus'),
+  scheduleEvent: notWired('scheduleEvent'),
   purgeEvent: notWired('purgeEvent'),
 
   joinEvent: notWired('joinEvent'),

@@ -42,39 +42,67 @@ const secret = (name: string) =>
     })
 
 /**
- * How often the in-process retention sweep runs, in minutes — or the word `off`.
+ * How often one of the in-process sweeps runs, in minutes — or the word `off`.
  *
- * **`0` is deliberately not the way to disable it.** Every other numeric setting here
+ * **`0` is deliberately not the way to disable one.** Every other numeric setting here
  * goes through `z.coerce.number()`, and `Number('')` is `0`: a compose file with a
  * dangling `RETENTION_SWEEP_INTERVAL_MINUTES=`, a templated value that rendered empty,
  * a truncated secret manager entry would all silently switch off a deletion the host
  * promised their guests — the one failure mode nobody would notice, because its symptom
  * is that nothing happens. So the empty string and `0` are refusals that name the
- * variable at boot, and turning retention off takes a word somebody had to mean.
+ * variable at boot, and turning a sweep off takes a word somebody had to mean.
  *
  * Bounded at a day at the top, like the other numeric settings: a sweep that runs less
- * often than the coarsest retention period anyone sets in days is indistinguishable
- * from one that is off, and should be written as `off`.
+ * often than the thing it acts on is indistinguishable from one that is off, and should
+ * be written as `off`.
+ *
+ * Shared by both sweeps rather than written twice. The rule here is subtle enough —
+ * `Number('')` is the whole reason for it — that two copies would be two chances to
+ * lose it.
  */
-const RETENTION_SWEEP_OFF = 'off'
-const RETENTION_SWEEP_MAX_MINUTES = 1_440
+const SWEEP_OFF = 'off'
+const SWEEP_MAX_MINUTES = 1_440
 
-const retentionSweepInterval = z
-  .string()
-  .trim()
-  .refine(
-    (value) =>
-      value === RETENTION_SWEEP_OFF ||
-      (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= RETENTION_SWEEP_MAX_MINUTES),
-    {
-      message: `RETENTION_SWEEP_INTERVAL_MINUTES must be a whole number of minutes from 1 to ${RETENTION_SWEEP_MAX_MINUTES}, or the word '${RETENTION_SWEEP_OFF}' to stop honouring retention automatically`,
-    },
-  )
-  // `null` is "never", and it is only ever reached through that word.
-  .transform((value): number | null => (value === RETENTION_SWEEP_OFF ? null : Number(value)))
+const sweepInterval = (name: string, consequence: string) =>
+  z
+    .string()
+    .trim()
+    .refine(
+      (value) =>
+        value === SWEEP_OFF ||
+        (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= SWEEP_MAX_MINUTES),
+      {
+        message: `${name} must be a whole number of minutes from 1 to ${SWEEP_MAX_MINUTES}, or the word '${SWEEP_OFF}' ${consequence}`,
+      },
+    )
+    // `null` is "never", and it is only ever reached through that word.
+    .transform((value): number | null => (value === SWEEP_OFF ? null : Number(value)))
+
+const retentionSweepInterval = sweepInterval(
+  'RETENTION_SWEEP_INTERVAL_MINUTES',
+  'to stop honouring retention automatically',
+)
+
+/**
+ * The scheduling sweep. Five minutes, because this one's lag is visible in the room:
+ * an event scheduled for 18:00 opens somewhere in 18:00–18:05, and a guest scanning the
+ * QR code in that window is told the party has not started. Retention can afford an
+ * hour; a door cannot.
+ *
+ * Shorter would buy very little — the work is one indexed query against a handful of
+ * rows — but the instants a host types are minutes, not seconds, and a sweep that fires
+ * twelve times an hour is already inside the granularity of the thing it acts on.
+ */
+const scheduleSweepInterval = sweepInterval(
+  'SCHEDULE_SWEEP_INTERVAL_MINUTES',
+  'to stop opening and closing events automatically',
+)
 
 /** Hourly. Retention is measured in days, so this is about bounding lag, not precision. */
 const DEFAULT_RETENTION_SWEEP_MINUTES = 60
+
+/** See {@link scheduleSweepInterval}: the worst case a guest can be told "not yet". */
+const DEFAULT_SCHEDULE_SWEEP_MINUTES = 5
 
 /**
  * The public origin. `z.string().url()` alone accepts any parseable URL, including
@@ -162,6 +190,13 @@ const schema = z
      * firing inside the end-to-end suite would delete a fixture's event mid-journey.
      */
     RETENTION_SWEEP_INTERVAL_MINUTES: retentionSweepInterval.optional(),
+
+    /**
+     * Optional for the same reason as the line above: under `NODE_ENV=test` the default
+     * has to be off. A sweep firing mid-journey would open — or close — the event a
+     * Playwright spec is asserting on, on a timer nothing in the test can see.
+     */
+    SCHEDULE_SWEEP_INTERVAL_MINUTES: scheduleSweepInterval.optional(),
 
     GUEST_SELF_DELETE_GRACE_SECONDS: positiveInt(900, 86_400),
     UPLOAD_RATE_LIMIT_PER_MINUTE: positiveInt(12, 600),
@@ -288,6 +323,16 @@ export interface AppConfig {
     readonly sweepIntervalMs: number | null
   }
 
+  readonly schedule: {
+    /**
+     * How often `src/main` opens the events that were due to open and closes the ones
+     * that were due to close. `null` means never: the two fields stay settable and
+     * visible, and nothing ever acts on them — which is the right answer under
+     * `NODE_ENV=test`, and a deliberate choice anywhere else.
+     */
+    readonly sweepIntervalMs: number | null
+  }
+
   readonly rateLimits: {
     readonly uploadPerMinute: number
     readonly joinPerMinute: number
@@ -353,6 +398,14 @@ export const loadConfig = (source: Record<string, string | undefined> = process.
         : DEFAULT_RETENTION_SWEEP_MINUTES
       : raw.RETENTION_SWEEP_INTERVAL_MINUTES
 
+  /** Same shape, same reasoning, for the sweep that opens and closes events. */
+  const scheduleSweepMinutes =
+    raw.SCHEDULE_SWEEP_INTERVAL_MINUTES === undefined
+      ? raw.NODE_ENV === 'test'
+        ? null
+        : DEFAULT_SCHEDULE_SWEEP_MINUTES
+      : raw.SCHEDULE_SWEEP_INTERVAL_MINUTES
+
   return {
     env: raw.NODE_ENV,
     isProduction,
@@ -392,6 +445,10 @@ export const loadConfig = (source: Record<string, string | undefined> = process.
 
     retention: {
       sweepIntervalMs: sweepMinutes === null ? null : sweepMinutes * 60_000,
+    },
+
+    schedule: {
+      sweepIntervalMs: scheduleSweepMinutes === null ? null : scheduleSweepMinutes * 60_000,
     },
 
     rateLimits: {

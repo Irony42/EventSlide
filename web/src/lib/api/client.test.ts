@@ -216,6 +216,16 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.setEventStatus(SLUG, 'live'),
   },
   {
+    name: 'setSchedule',
+    verb: 'patch',
+    path: `/api/events/${SLUG}/schedule`,
+    invoke: (client) =>
+      client.setSchedule(SLUG, {
+        scheduledOpenAt: '2026-06-20T16:00:00.000Z',
+        scheduledCloseAt: null,
+      }),
+  },
+  {
     name: 'rotateJoinCode',
     verb: 'post',
     path: `/api/events/${SLUG}/join-code`,

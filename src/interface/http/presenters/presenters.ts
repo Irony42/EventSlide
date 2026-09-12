@@ -120,6 +120,9 @@ export const toEventDto = (
   settings: toEventSettingsDto(event.settings),
   startsAt: isoOrNull(event.startsAt),
   closedAt: isoOrNull(event.closedAt),
+  scheduledOpenAt: isoOrNull(event.scheduledOpenAt),
+  scheduledCloseAt: isoOrNull(event.scheduledCloseAt),
+  scheduleDiscardedAt: isoOrNull(event.scheduleDiscardedAt),
   role,
 })
 

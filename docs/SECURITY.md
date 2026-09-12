@@ -453,18 +453,19 @@ asked you to remove is not a deletion.
 `src/infrastructure/config/env.ts` is the **only** file that reads `process.env`: parsed
 once with zod at startup, exported as a frozen typed object.
 
-| Variable                           | Required              | Default                                | Effect                                        |
-| ---------------------------------- | --------------------- | -------------------------------------- | --------------------------------------------- |
-| `SESSION_SECRET`                   | **yes in production** | none                                   | signs `es_sid`                                |
-| `GUEST_TOKEN_SECRET`               | **yes in production** | none                                   | HMAC key for guest tokens                     |
-| `NODE_ENV`                         | no                    | `development`                          | gates `Secure` cookies, HSTS, strict CSP      |
-| `PUBLIC_URL`                       | yes in production     | none                                   | join links, QR codes, `Origin` check          |
-| `DATABASE_PATH` / `MEDIA_ROOT`     | no                    | `data/eventslide.sqlite`, `data/media` | see file permissions in §11                   |
-| `TRUST_PROXY`                      | no                    | `false`                                | see §11 — wrong values break rate limiting    |
-| `UPLOAD_MAX_BYTES`                 | no                    | `12582912`                             | multer limit                                  |
-| `EVENT_DEFAULT_QUOTA_BYTES`        | no                    | `5368709120`                           | new events' `quota_bytes`                     |
-| `PORT` / `LOG_LEVEL`               | no                    | `4300`, `info`                         |                                               |
-| `RETENTION_SWEEP_INTERVAL_MINUTES` | no                    | `60`, and `off` under `NODE_ENV=test`  | how often expired events are deleted; see §11 |
+| Variable                           | Required              | Default                                | Effect                                                                 |
+| ---------------------------------- | --------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
+| `SESSION_SECRET`                   | **yes in production** | none                                   | signs `es_sid`                                                         |
+| `GUEST_TOKEN_SECRET`               | **yes in production** | none                                   | HMAC key for guest tokens                                              |
+| `NODE_ENV`                         | no                    | `development`                          | gates `Secure` cookies, HSTS, strict CSP                               |
+| `PUBLIC_URL`                       | yes in production     | none                                   | join links, QR codes, `Origin` check                                   |
+| `DATABASE_PATH` / `MEDIA_ROOT`     | no                    | `data/eventslide.sqlite`, `data/media` | see file permissions in §11                                            |
+| `TRUST_PROXY`                      | no                    | `false`                                | see §11 — wrong values break rate limiting                             |
+| `UPLOAD_MAX_BYTES`                 | no                    | `12582912`                             | multer limit                                                           |
+| `EVENT_DEFAULT_QUOTA_BYTES`        | no                    | `5368709120`                           | new events' `quota_bytes`                                              |
+| `PORT` / `LOG_LEVEL`               | no                    | `4300`, `info`                         |                                                                        |
+| `RETENTION_SWEEP_INTERVAL_MINUTES` | no                    | `60`, and `off` under `NODE_ENV=test`  | how often expired events are deleted; see §11                          |
+| `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                    | `5`, and `off` under `NODE_ENV=test`   | how often scheduled openings and closings are applied; deletes nothing |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,

@@ -1,0 +1,20 @@
+.input {
+  inline-size: 100%;
+  min-height: var(--touch-min);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  /* The native picker inherits the page font on every engine that renders one. */
+  font: inherit;
+}
+
+.input:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--danger);
+}

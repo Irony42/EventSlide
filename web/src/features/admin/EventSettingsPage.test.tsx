@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EventSettingsPage } from './EventSettingsPage'
+import { toLocalInput } from './eventSchedule'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
@@ -12,6 +13,30 @@ import {
 } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
 import type { EventDto } from '../../lib/api/dto'
+
+/**
+ * A read whose completion the test decides.
+ *
+ * The resolver is captured and settled inside this object's own methods rather than in
+ * the test body, because TypeScript's control-flow analysis narrows a `let` assigned
+ * only inside a callback to `null` at every later use in the same scope.
+ */
+const deferredEvent = () => {
+  let release: ((event: EventDto) => void) | null = null
+  return {
+    promise: (): Promise<EventDto> =>
+      new Promise<EventDto>((resolve) => {
+        release = resolve
+      }),
+    /** `false` until the page has actually asked, which is what `waitFor` polls on. */
+    settle: (value: EventDto): boolean => {
+      if (release === null) return false
+      release(value)
+      release = null
+      return true
+    },
+  }
+}
 
 const renderPage = (api: Api) =>
   renderWithProviders(<EventSettingsPage />, {
@@ -266,5 +291,209 @@ describe('EventSettingsPage', () => {
 
     expect(await screen.findByLabelText(fr.admin.selfDeleteGrace)).toHaveValue('30')
     expect(screen.getByRole('option', { name: fr.admin.graceSeconds(30) })).toBeInTheDocument()
+  })
+
+  /**
+   * The host's half of "opens at 18:00, closes at 02:00" (docs/ROADMAP.md §3.4).
+   *
+   * Every instant here goes through `toLocalInput`, never through a hardcoded local
+   * string: the fields hold wall-clock time in the runner's own zone, and an expectation
+   * of `18:00` would pass in Paris and fail in CI.
+   */
+  describe('the scheduled opening and closing', () => {
+    const OPENS_AT = '2026-06-20T16:00:00.000Z'
+    const CLOSES_AT = '2026-06-21T00:00:00.000Z'
+
+    const openField = () => screen.getByLabelText(new RegExp(fr.admin.scheduleOpenAt))
+    const closeField = () => screen.getByLabelText(new RegExp(fr.admin.scheduleCloseAt))
+    const saveButton = () => screen.getByRole('button', { name: fr.admin.scheduleSave })
+
+    it('shows the schedule the server holds, on the clock the host is looking at', async () => {
+      const api = fakeApi({
+        getEvent: vi.fn(async () =>
+          anEventDto({ scheduledOpenAt: OPENS_AT, scheduledCloseAt: CLOSES_AT }),
+        ),
+      })
+
+      renderPage(api)
+
+      expect(await screen.findByRole('heading', { name: fr.admin.schedule })).toBeVisible()
+      expect(openField()).toHaveValue(toLocalInput(OPENS_AT))
+      expect(closeField()).toHaveValue(toLocalInput(CLOSES_AT))
+    })
+
+    it('says plainly when nothing is scheduled, so an empty field is not ambiguous', async () => {
+      renderPage(fakeApi())
+
+      expect(await screen.findByText(fr.admin.scheduleNone)).toBeVisible()
+      expect(openField()).toHaveValue('')
+    })
+
+    it('summarises what is armed on the server, not what is typed in the fields', async () => {
+      const api = fakeApi({
+        getEvent: vi.fn(async () => anEventDto({ scheduledOpenAt: OPENS_AT })),
+      })
+
+      renderPage(api)
+
+      // Only the opening is set, so the host is told they still close it themselves.
+      expect(await screen.findByText(/Vous clôturerez vous-même/)).toBeVisible()
+    })
+
+    it('sends both instants when the host saves', async () => {
+      const api = fakeApi()
+      renderPage(api)
+
+      fireEvent.change(await screen.findByLabelText(new RegExp(fr.admin.scheduleOpenAt)), {
+        target: { value: toLocalInput(OPENS_AT) },
+      })
+      fireEvent.change(closeField(), { target: { value: toLocalInput(CLOSES_AT) } })
+      await userEvent.click(saveButton())
+
+      expect(api.setSchedule).toHaveBeenCalledWith('camille-et-sacha', {
+        scheduledOpenAt: OPENS_AT,
+        scheduledCloseAt: CLOSES_AT,
+      })
+    })
+
+    it('sends null for a field the host emptied, which turns that half off', async () => {
+      const api = fakeApi({
+        getEvent: vi.fn(async () =>
+          anEventDto({ scheduledOpenAt: OPENS_AT, scheduledCloseAt: CLOSES_AT }),
+        ),
+      })
+      renderPage(api)
+
+      fireEvent.change(await screen.findByLabelText(new RegExp(fr.admin.scheduleCloseAt)), {
+        target: { value: '' },
+      })
+      await userEvent.click(saveButton())
+
+      expect(api.setSchedule).toHaveBeenCalledWith('camille-et-sacha', {
+        scheduledOpenAt: OPENS_AT,
+        scheduledCloseAt: null,
+      })
+    })
+
+    it('does not touch the settings form when the schedule is saved', async () => {
+      const api = fakeApi()
+      renderPage(api)
+
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.scheduleSave }))
+
+      expect(api.updateSettings).not.toHaveBeenCalled()
+    })
+
+    it('shows the refusal when the closing comes before the opening', async () => {
+      const api = fakeApi({
+        setSchedule: vi.fn(async () => {
+          throw new ApiError(400, 'event.scheduleOutOfOrder')
+        }),
+      })
+      renderPage(api)
+
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.scheduleSave }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        fr.errors['event.scheduleOutOfOrder'],
+      )
+    })
+
+    it('cannot be armed on an archived event, which is read-only', async () => {
+      const api = fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'archived' })) })
+
+      renderPage(api)
+
+      expect(await screen.findByText(fr.admin.settingsReadOnly)).toBeVisible()
+      expect(openField()).toBeDisabled()
+      expect(saveButton()).toBeDisabled()
+    })
+
+    it('offers no minute earlier than now in the picker', async () => {
+      renderPage(fakeApi())
+
+      // A guide rather than the guard — the form is noValidate and the server refuses a
+      // past instant — but it is what keeps the commonest mistake off the first click.
+      await screen.findByRole('heading', { name: fr.admin.schedule })
+      expect(openField()).toHaveAttribute('min', expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/))
+      expect(closeField()).toHaveAttribute('min', expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/))
+    })
+
+    it('re-reads the event when a save is refused, so the form stops showing stale values', async () => {
+      // The refusal a stale form provokes is "that instant has already gone by", and
+      // the reason is usually that the sweep moved underneath a tab left open for
+      // hours. Showing the sentence without re-reading leaves the host arguing with
+      // values the server stopped holding.
+      const getEvent = vi.fn(async () => anEventDto())
+      const api = fakeApi({
+        getEvent,
+        setSchedule: vi.fn(async () => {
+          throw new ApiError(400, 'event.scheduleInPast')
+        }),
+      })
+      renderPage(api)
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.scheduleSave }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['event.scheduleInPast'])
+      expect(getEvent.mock.calls.length).toBeGreaterThan(1)
+    })
+
+    it('re-reads the event when the host comes back to the tab', async () => {
+      const getEvent = vi.fn(async () => anEventDto())
+      renderPage(fakeApi({ getEvent }))
+      await screen.findByRole('heading', { name: fr.admin.schedule })
+      const readsOnLoad = getEvent.mock.calls.length
+
+      fireEvent(document, new Event('visibilitychange'))
+
+      await waitFor(() => expect(getEvent.mock.calls.length).toBeGreaterThan(readsOnLoad))
+    })
+
+    it('does not blank the form to a spinner while it revalidates', async () => {
+      // Revalidating on focus would otherwise replace a form the host is typing in with
+      // a loading state for a round trip, every time they switch windows.
+      const pending = deferredEvent()
+      const getEvent = vi.fn(async () => anEventDto())
+      renderPage(fakeApi({ getEvent }))
+      await screen.findByRole('heading', { name: fr.admin.schedule })
+      getEvent.mockImplementationOnce(pending.promise)
+
+      fireEvent(window, new Event('focus'))
+
+      expect(screen.getByRole('heading', { name: fr.admin.schedule })).toBeVisible()
+      expect(screen.queryByText(fr.admin.eventLoading)).toBeNull()
+      await waitFor(() => expect(pending.settle(anEventDto())).toBe(true))
+    })
+
+    it('keeps what the host has typed when a background refresh changes nothing', async () => {
+      // The revalidation above must not be a way to lose an edit in progress. The draft
+      // is compared by value, so it is reset only when the server's answer really moved.
+      const api = fakeApi()
+      renderPage(api)
+      await userEvent.click(await screen.findByLabelText(fr.admin.moderationAuto))
+
+      fireEvent(window, new Event('focus'))
+
+      await waitFor(() => expect(screen.getByLabelText(fr.admin.moderationAuto)).toBeChecked())
+    })
+
+    it('says the sweep threw a schedule away, which is the only record that it existed', async () => {
+      const api = fakeApi({
+        getEvent: vi.fn(async () =>
+          anEventDto({ scheduleDiscardedAt: '2026-06-21T02:00:00.000Z' }),
+        ),
+      })
+
+      renderPage(api)
+
+      expect(await screen.findByText(/n’a pas pu s’appliquer/)).toBeVisible()
+    })
+
+    it('says nothing of the sort when no schedule was ever thrown away', async () => {
+      renderPage(fakeApi())
+
+      await screen.findByRole('heading', { name: fr.admin.schedule })
+      expect(screen.queryByText(/n’a pas pu s’appliquer/)).toBeNull()
+    })
   })
 })

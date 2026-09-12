@@ -11,6 +11,7 @@ import type { ListEventsForHost } from '../../application/usecases/events/listEv
 import type { PurgeEvent } from '../../application/usecases/events/purgeEvent'
 import type { ResolveJoinCode } from '../../application/usecases/events/resolveJoinCode'
 import type { RotateJoinCode } from '../../application/usecases/events/rotateJoinCode'
+import type { ScheduleEvent } from '../../application/usecases/events/scheduleEvent'
 import type { UpdateEventSettings } from '../../application/usecases/events/updateEventSettings'
 
 import type { AuthenticateGuest } from '../../application/usecases/guests/authenticateGuest'
@@ -46,8 +47,10 @@ import type { GetWallPlaylist } from '../../application/usecases/slideshow/getWa
  * the HTTP layer states its requirements and the container proves it satisfies them,
  * rather than the HTTP layer being shaped by whatever the container happens to build.
  *
- * `bootstrapOwner` and `purgeExpiredEvents` are deliberately absent: they are startup
- * and scheduled work, with no route, and listing them here would invite one.
+ * `bootstrapOwner`, `purgeExpiredEvents` and `applyEventSchedules` are deliberately
+ * absent: they are startup and scheduled work, with no route, and listing them here
+ * would invite one. `scheduleEvent` is the host-facing half of the last of those, and
+ * that one does have a route.
  */
 export interface HttpUseCases {
   // auth
@@ -63,6 +66,7 @@ export interface HttpUseCases {
   readonly updateEventSettings: UpdateEventSettings
   readonly rotateJoinCode: RotateJoinCode
   readonly changeEventStatus: ChangeEventStatus
+  readonly scheduleEvent: ScheduleEvent
   readonly purgeEvent: PurgeEvent
 
   // guests

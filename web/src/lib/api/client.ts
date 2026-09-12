@@ -38,6 +38,19 @@ export interface CreateEventInput {
   readonly quotaBytes?: number | null
 }
 
+/**
+ * The scheduled opening and closing, as ISO-8601 instants with an offset.
+ *
+ * Both halves travel every time, `null` meaning "the host does this one by hand".
+ * Nothing on the wire carries a wall-clock time or a timezone: the host picks a local
+ * time in a `datetime-local` field, the browser resolves it against its own zone — the
+ * laptop is at the venue — and only the instant is sent.
+ */
+export interface EventScheduleInput {
+  readonly scheduledOpenAt: string | null
+  readonly scheduledCloseAt: string | null
+}
+
 export interface UploadInput {
   readonly files: readonly File[]
   readonly caption?: string | null
@@ -166,6 +179,9 @@ export const createApi = (transport: Transport) => ({
 
   setEventStatus: (slug: string, status: EventStatus): Promise<EventDto> =>
     transport.post(`/api/events/${encode(slug)}/status`, { status }),
+
+  setSchedule: (slug: string, schedule: EventScheduleInput): Promise<EventDto> =>
+    transport.patch(`/api/events/${encode(slug)}/schedule`, schedule),
 
   rotateJoinCode: (slug: string): Promise<EventDto> =>
     transport.post(`/api/events/${encode(slug)}/join-code`),

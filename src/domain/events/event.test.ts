@@ -59,6 +59,9 @@ const anEvent = (overrides: Partial<EventProps> = {}): Event =>
     createdAt: CREATED_AT,
     startsAt: null,
     closedAt: null,
+    scheduledOpenAt: null,
+    scheduledCloseAt: null,
+    scheduleDiscardedAt: null,
     ...overrides,
   })
 
@@ -387,6 +390,381 @@ describe('Event identity', () => {
       createdAt: CREATED_AT,
       startsAt: null,
       closedAt: ENDED_AT,
+      scheduledOpenAt: null,
+      scheduledCloseAt: null,
+      scheduleDiscardedAt: null,
+    })
+  })
+})
+
+describe('Event schedule', () => {
+  /** 18:00 at the venue, resolved to an instant long before it reached the domain. */
+  const OPEN_AT = WENT_LIVE_AT
+  /** 02:00 the following morning. */
+  const CLOSE_AT = ENDED_AT
+  /** The sweep that should have run at 18:00 and did not, because the box was down. */
+  const SEVEN_MINUTES_LATE = new Date('2026-06-20T18:07:00.000Z')
+
+  /** When the host is at the settings form: the morning of, both instants still ahead. */
+  const ARMED_AT = CREATED_AT
+
+  const scheduled = (overrides: Partial<EventProps> = {}): Event =>
+    anEvent({ scheduledOpenAt: OPEN_AT, scheduledCloseAt: CLOSE_AT, ...overrides })
+
+  describe('reschedule', () => {
+    it('is empty on a new event, so nothing moves on its own until a host asks for it', () => {
+      const event = unwrap(Event.create(newEvent({ startsAt: STARTS_AT }), EVENT_ID, CREATED_AT))
+
+      expect(event.scheduledOpenAt).toBeNull()
+      expect(event.scheduledCloseAt).toBeNull()
+    })
+
+    it('keeps the two instants the host chose', () => {
+      const event = unwrap(
+        anEvent().reschedule({ scheduledOpenAt: OPEN_AT, scheduledCloseAt: CLOSE_AT }, ARMED_AT),
+      )
+
+      expect(event.scheduledOpenAt).toBe(OPEN_AT)
+      expect(event.scheduledCloseAt).toBe(CLOSE_AT)
+    })
+
+    it('accepts an opening with no closing, for a host who will close it themselves', () => {
+      const event = unwrap(
+        anEvent().reschedule({ scheduledOpenAt: OPEN_AT, scheduledCloseAt: null }, ARMED_AT),
+      )
+
+      expect(event.scheduledOpenAt).toBe(OPEN_AT)
+      expect(event.scheduledCloseAt).toBeNull()
+    })
+
+    it('accepts a closing with no opening, for a host who opens the doors by hand', () => {
+      const event = unwrap(
+        anEvent().reschedule({ scheduledOpenAt: null, scheduledCloseAt: CLOSE_AT }, ARMED_AT),
+      )
+
+      expect(event.scheduledOpenAt).toBeNull()
+      expect(event.scheduledCloseAt).toBe(CLOSE_AT)
+    })
+
+    it('clears both halves, which is how a host turns the schedule off', () => {
+      const event = unwrap(
+        scheduled().reschedule({ scheduledOpenAt: null, scheduledCloseAt: null }, ARMED_AT),
+      )
+
+      expect(event.scheduledOpenAt).toBeNull()
+      expect(event.scheduledCloseAt).toBeNull()
+    })
+
+    it('refuses a closing before the opening', () => {
+      const result = anEvent().reschedule(
+        { scheduledOpenAt: CLOSE_AT, scheduledCloseAt: OPEN_AT },
+        ARMED_AT,
+      )
+
+      expect(!result.ok && result.error.code).toBe('event.scheduleOutOfOrder')
+    })
+
+    it('refuses a closing at the same instant as the opening', () => {
+      const result = anEvent().reschedule(
+        { scheduledOpenAt: OPEN_AT, scheduledCloseAt: OPEN_AT },
+        ARMED_AT,
+      )
+
+      expect(!result.ok && result.error.code).toBe('event.scheduleOutOfOrder')
+    })
+
+    it('refuses an unreadable opening rather than storing an invalid date', () => {
+      const result = anEvent().reschedule(
+        { scheduledOpenAt: new Date('pas une date'), scheduledCloseAt: null },
+        ARMED_AT,
+      )
+
+      expect(!result.ok && result.error.code).toBe('event.scheduleInvalid')
+    })
+
+    it('refuses an unreadable closing even when the opening is fine', () => {
+      const result = anEvent().reschedule(
+        { scheduledOpenAt: OPEN_AT, scheduledCloseAt: new Date('pas une date') },
+        ARMED_AT,
+      )
+
+      expect(!result.ok && result.error.code).toBe('event.scheduleInvalid')
+    })
+
+    it('refuses to arm a timer on an archived event', () => {
+      const result = anEvent({ status: 'archived' }).reschedule(
+        { scheduledOpenAt: OPEN_AT, scheduledCloseAt: CLOSE_AT },
+        ARMED_AT,
+      )
+
+      expect(!result.ok && result.error.code).toBe('event.immutable')
+    })
+  })
+
+  /**
+   * The likeliest host error with this feature, and the one every layer used to accept:
+   * it is 21:30, the party is running, the host arms the closing and picks 02:00 with
+   * today's date still in the field.
+   */
+  describe('an instant that has already gone by', () => {
+    const HALF_PAST_NINE = new Date('2026-06-20T21:30:00.000Z')
+    /** 02:00 **today**, which is what the date picker offers before it is advanced. */
+    const TWO_AM_TODAY = new Date('2026-06-20T02:00:00.000Z')
+
+    it('refuses a closing the host meant for tomorrow morning', () => {
+      const result = anEvent({ status: 'live' }).reschedule(
+        { scheduledOpenAt: null, scheduledCloseAt: TWO_AM_TODAY },
+        HALF_PAST_NINE,
+      )
+
+      expect(!result.ok && result.error.code).toBe('event.scheduleInPast')
+    })
+
+    it('refuses an opening in the past, which would let guests in before the host meant to', () => {
+      const result = anEvent().reschedule(
+        { scheduledOpenAt: TWO_AM_TODAY, scheduledCloseAt: null },
+        HALF_PAST_NINE,
+      )
+
+      expect(!result.ok && result.error.code).toBe('event.scheduleInPast')
+    })
+
+    it('reports it as a parse failure, so the API answers 400', () => {
+      const result = anEvent({ status: 'live' }).reschedule(
+        { scheduledOpenAt: null, scheduledCloseAt: TWO_AM_TODAY },
+        HALF_PAST_NINE,
+      )
+
+      expect(!result.ok && result.error.kind).toBe('invalid')
+    })
+
+    it('accepts the minute the host is standing in', () => {
+      // Judged to the minute: they picked 21:30 at 21:29:55 and the request landed at
+      // 21:30:40. Refusing that would be an error message for a correct instruction.
+      const result = anEvent({ status: 'live' }).reschedule(
+        { scheduledOpenAt: null, scheduledCloseAt: HALF_PAST_NINE },
+        new Date('2026-06-20T21:30:40.000Z'),
+      )
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('refuses the minute before that one', () => {
+      const result = anEvent({ status: 'live' }).reschedule(
+        { scheduledOpenAt: null, scheduledCloseAt: new Date('2026-06-20T21:29:00.000Z') },
+        new Date('2026-06-20T21:30:40.000Z'),
+      )
+
+      expect(!result.ok && result.error.code).toBe('event.scheduleInPast')
+    })
+
+    it('still lets a stored instant age past, which is what a missed window is', () => {
+      // The guard judges once, when the host sets it. Nothing re-validates a stored
+      // instant, so an 18:00 opening the server slept through is still due at 18:07.
+      const armed = unwrap(
+        anEvent().reschedule({ scheduledOpenAt: OPEN_AT, scheduledCloseAt: null }, ARMED_AT),
+      )
+
+      expect(armed.applySchedule(SEVEN_MINUTES_LATE).applied).toEqual(['open'])
+    })
+  })
+
+  describe('what is due', () => {
+    it('has nothing due when no schedule was ever set', () => {
+      expect(anEvent().hasDueSchedule(CLOSE_AT)).toBe(false)
+    })
+
+    it('is not due before the instant', () => {
+      expect(scheduled().isDueToOpen(STARTS_AT)).toBe(false)
+      expect(scheduled().isDueToClose(OPEN_AT)).toBe(false)
+    })
+
+    it('is due at the instant itself', () => {
+      expect(scheduled().isDueToOpen(OPEN_AT)).toBe(true)
+      expect(scheduled().isDueToClose(CLOSE_AT)).toBe(true)
+    })
+
+    it('is still due long after a missed instant, because a deadline does not expire', () => {
+      expect(scheduled().isDueToOpen(SEVEN_MINUTES_LATE)).toBe(true)
+    })
+
+    it('has something due as soon as either half has passed', () => {
+      const openOnly = anEvent({ scheduledOpenAt: OPEN_AT })
+      const closeOnly = anEvent({ scheduledCloseAt: CLOSE_AT })
+
+      expect(openOnly.hasDueSchedule(OPEN_AT)).toBe(true)
+      expect(closeOnly.hasDueSchedule(CLOSE_AT)).toBe(true)
+      expect(closeOnly.hasDueSchedule(OPEN_AT)).toBe(false)
+    })
+  })
+
+  describe('applySchedule', () => {
+    it('changes nothing while both instants are still ahead', () => {
+      const outcome = scheduled().applySchedule(STARTS_AT)
+
+      expect(outcome.applied).toEqual([])
+      expect(outcome.refused).toEqual([])
+      expect(outcome.event.status).toBe('draft')
+      expect(outcome.event.scheduledOpenAt).toBe(OPEN_AT)
+    })
+
+    it('opens the doors when the opening instant has passed', () => {
+      const outcome = scheduled().applySchedule(OPEN_AT)
+
+      expect(outcome.applied).toEqual(['open'])
+      expect(outcome.event.status).toBe('live')
+    })
+
+    it('opens an event whose instant was missed while the server was down', () => {
+      // The reason this is a sweep and not a timer per event: nobody was listening at
+      // 18:00, and the party must still be open when something next looks at 18:07.
+      const outcome = scheduled().applySchedule(SEVEN_MINUTES_LATE)
+
+      expect(outcome.applied).toEqual(['open'])
+      expect(outcome.event.status).toBe('live')
+    })
+
+    it('spends the opening instant and leaves the closing one alone', () => {
+      const outcome = scheduled().applySchedule(OPEN_AT)
+
+      expect(outcome.event.scheduledOpenAt).toBeNull()
+      expect(outcome.event.scheduledCloseAt).toBe(CLOSE_AT)
+    })
+
+    it('closes the event when the closing instant has passed', () => {
+      const event = anEvent({ status: 'live', scheduledCloseAt: CLOSE_AT })
+
+      const outcome = event.applySchedule(CLOSE_AT)
+
+      expect(outcome.applied).toEqual(['close'])
+      expect(outcome.event.status).toBe('closed')
+      expect(outcome.event.scheduledCloseAt).toBeNull()
+    })
+
+    it('starts the retention clock at the moment the sweep closed it', () => {
+      const event = anEvent({ status: 'live', scheduledCloseAt: CLOSE_AT })
+
+      const outcome = event.applySchedule(REALLY_ENDED_AT)
+
+      expect(outcome.event.closedAt).toBe(REALLY_ENDED_AT)
+    })
+
+    it('catches up on a whole evening in one pass and lands closed, not open', () => {
+      // The box was off from before the party until after it. Opening an event that
+      // finished two hours ago and leaving it open is worse than never opening it.
+      const outcome = scheduled().applySchedule(REALLY_ENDED_AT)
+
+      expect(outcome.applied).toEqual(['open', 'close'])
+      expect(outcome.event.status).toBe('closed')
+      expect(outcome.event.scheduledOpenAt).toBeNull()
+      expect(outcome.event.scheduledCloseAt).toBeNull()
+    })
+
+    it('does not reopen an archived event because a timestamp passed', () => {
+      const event = anEvent({ status: 'archived', scheduledOpenAt: OPEN_AT })
+
+      const outcome = event.applySchedule(OPEN_AT)
+
+      expect(outcome.applied).toEqual([])
+      expect(outcome.refused).toEqual(['open'])
+      expect(outcome.event.status).toBe('archived')
+    })
+
+    it('drops a schedule the lifecycle will never accept instead of retrying it forever', () => {
+      const event = anEvent({ status: 'archived', scheduledOpenAt: OPEN_AT })
+
+      const outcome = event.applySchedule(OPEN_AT)
+
+      expect(outcome.event.scheduledOpenAt).toBeNull()
+    })
+
+    it('refuses to close an event that never opened, because draft has no way there', () => {
+      const event = anEvent({ status: 'draft', scheduledCloseAt: CLOSE_AT })
+
+      const outcome = event.applySchedule(CLOSE_AT)
+
+      expect(outcome.refused).toEqual(['close'])
+      expect(outcome.event.status).toBe('draft')
+    })
+
+    it('reports an already-live event as opened rather than dropping the instant', () => {
+      const event = anEvent({ status: 'live', scheduledOpenAt: OPEN_AT })
+
+      const outcome = event.applySchedule(OPEN_AT)
+
+      expect(outcome.applied).toEqual(['open'])
+      expect(outcome.event.status).toBe('live')
+    })
+
+    it('changes nothing the second time it runs', () => {
+      const once = scheduled().applySchedule(REALLY_ENDED_AT)
+
+      const twice = once.event.applySchedule(REALLY_ENDED_AT)
+
+      expect(twice.applied).toEqual([])
+      expect(twice.refused).toEqual([])
+      expect(twice.event.toProps()).toEqual(once.event.toProps())
+    })
+  })
+
+  /**
+   * Discarding a refused instant is right — retrying an impossible transition every few
+   * minutes forever is worse — but it deletes something the host typed while they are
+   * not looking, so it has to leave a mark they can read.
+   */
+  describe('a schedule the lifecycle threw away', () => {
+    it('records when it happened, so the host is not left with an unexplained blank', () => {
+      const event = anEvent({ status: 'archived', scheduledOpenAt: OPEN_AT })
+
+      const outcome = event.applySchedule(SEVEN_MINUTES_LATE)
+
+      expect(outcome.event.scheduleDiscardedAt).toBe(SEVEN_MINUTES_LATE)
+    })
+
+    it('records the close a draft event could never have honoured', () => {
+      const event = anEvent({ status: 'draft', scheduledCloseAt: CLOSE_AT })
+
+      const outcome = event.applySchedule(REALLY_ENDED_AT)
+
+      expect(outcome.event.scheduleDiscardedAt).toBe(REALLY_ENDED_AT)
+    })
+
+    it('leaves no mark when every due instant was honoured', () => {
+      const outcome = scheduled().applySchedule(REALLY_ENDED_AT)
+
+      expect(outcome.event.scheduleDiscardedAt).toBeNull()
+    })
+
+    it('is cleared when the host saves a schedule, which is them answering the notice', () => {
+      const discarded = anEvent({ status: 'live', scheduleDiscardedAt: SEVEN_MINUTES_LATE })
+
+      const rearmed = unwrap(
+        discarded.reschedule({ scheduledOpenAt: null, scheduledCloseAt: CLOSE_AT }, ARMED_AT),
+      )
+
+      expect(rearmed.scheduleDiscardedAt).toBeNull()
+    })
+
+    it('is cleared by saving an empty schedule, so the notice can be dismissed', () => {
+      const discarded = anEvent({ status: 'live', scheduleDiscardedAt: SEVEN_MINUTES_LATE })
+
+      const cleared = unwrap(
+        discarded.reschedule({ scheduledOpenAt: null, scheduledCloseAt: null }, ARMED_AT),
+      )
+
+      expect(cleared.scheduleDiscardedAt).toBeNull()
+    })
+
+    it('survives a refusal, so a rejected save does not swallow the notice', () => {
+      const discarded = anEvent({ status: 'live', scheduleDiscardedAt: SEVEN_MINUTES_LATE })
+
+      const refused = discarded.reschedule(
+        { scheduledOpenAt: CLOSE_AT, scheduledCloseAt: OPEN_AT },
+        ARMED_AT,
+      )
+
+      expect(refused.ok).toBe(false)
+      expect(discarded.scheduleDiscardedAt).toBe(SEVEN_MINUTES_LATE)
     })
   })
 })

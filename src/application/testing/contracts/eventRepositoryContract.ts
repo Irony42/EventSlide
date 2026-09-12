@@ -364,5 +364,86 @@ export const eventRepositoryContract = (
 
       expect(await repo.listDueForPurge(atPlus(DAY * 3_650))).toEqual([])
     })
+
+    // -------------------------------------------------------------- scheduling --
+
+    it('round-trips a scheduled opening and closing', async () => {
+      await repo.save(
+        anEvent({
+          id: 'evt-1',
+          status: 'draft',
+          scheduledOpenAt: atPlus(DAY),
+          scheduledCloseAt: atPlus(DAY * 2),
+        }),
+      )
+
+      const stored = await repo.findById(asEventId('evt-1'))
+
+      expect(stored?.scheduledOpenAt?.toISOString()).toBe(atPlus(DAY).toISOString())
+      expect(stored?.scheduledCloseAt?.toISOString()).toBe(atPlus(DAY * 2).toISOString())
+    })
+
+    it('round-trips an unscheduled event as three nulls', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+
+      const stored = await repo.findById(asEventId('evt-1'))
+
+      expect(stored?.scheduledOpenAt).toBeNull()
+      expect(stored?.scheduledCloseAt).toBeNull()
+      expect(stored?.scheduleDiscardedAt).toBeNull()
+    })
+
+    it('round-trips the notice that a schedule was thrown away', async () => {
+      // It survives a restart or it is not a notice: the sweep that discarded the
+      // instant ran while nobody was looking, and the host reads this hours later.
+      await repo.save(anEvent({ id: 'evt-1', scheduleDiscardedAt: atPlus(DAY) }))
+
+      const stored = await repo.findById(asEventId('evt-1'))
+
+      expect(stored?.scheduleDiscardedAt?.toISOString()).toBe(atPlus(DAY).toISOString())
+    })
+
+    it('lists an event whose opening instant has passed', async () => {
+      await repo.save(anEvent({ id: 'evt-1', status: 'draft', scheduledOpenAt: atPlus(DAY) }))
+
+      const due = await repo.listDueForSchedule(atPlus(DAY))
+
+      expect(due.map((event) => event.id)).toEqual(['evt-1'])
+    })
+
+    it('lists an event whose opening was missed hours ago, not only one due this minute', async () => {
+      await repo.save(anEvent({ id: 'evt-1', status: 'draft', scheduledOpenAt: atPlus(DAY) }))
+
+      const due = await repo.listDueForSchedule(atPlus(DAY * 3))
+
+      expect(due.map((event) => event.id)).toEqual(['evt-1'])
+    })
+
+    it('lists an event whose closing instant has passed', async () => {
+      await repo.save(anEvent({ id: 'evt-1', status: 'live', scheduledCloseAt: atPlus(DAY) }))
+
+      const due = await repo.listDueForSchedule(atPlus(DAY * 2))
+
+      expect(due.map((event) => event.id)).toEqual(['evt-1'])
+    })
+
+    it('excludes an event whose instants are both still ahead', async () => {
+      await repo.save(
+        anEvent({
+          id: 'evt-1',
+          status: 'draft',
+          scheduledOpenAt: atPlus(DAY),
+          scheduledCloseAt: atPlus(DAY * 2),
+        }),
+      )
+
+      expect(await repo.listDueForSchedule(AT)).toEqual([])
+    })
+
+    it('excludes an event with no schedule at all', async () => {
+      await repo.save(anEvent({ id: 'evt-1', status: 'draft' }))
+
+      expect(await repo.listDueForSchedule(atPlus(DAY * 3_650))).toEqual([])
+    })
   })
 }

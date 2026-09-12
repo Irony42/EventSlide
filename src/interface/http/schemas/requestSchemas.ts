@@ -144,6 +144,37 @@ export const eventStatusBody = z
   })
   .strict()
 
+/**
+ * The scheduled opening and closing, as **instants**.
+ *
+ * Both keys are required and nullable, which is not the partial-update shape
+ * `updateSettingsBody` uses directly above. The difference is deliberate: this is one
+ * form with two fields that are read together, and "open at 18:00" with `closesAt`
+ * absent is ambiguous in a way the settings form's fields are not — it could mean
+ * "leave the closing alone" or "there is no closing". Sending both every time makes the
+ * host's screen and the stored row the same thing, and `null` says "I will do this one
+ * myself" without a second spelling.
+ *
+ * **`{ offset: true }` is load-bearing.** Bare `z.string().datetime()` accepts `Z` and
+ * *rejects* every other offset, so `2026-06-20T18:00:00+02:00` — a perfectly ordinary
+ * instant, and what a third-party client in Paris would naturally send — was answered
+ * `400 request.invalid` while this comment and docs/API.md both promised it worked. With
+ * the option on, any RFC-3339 offset is accepted and a string with **no** offset still is
+ * not, which is the rule that matters: the server does not know what time it is at the
+ * venue and must not guess at a wall-clock string.
+ *
+ * The browser resolves the host's local 18:00 to an instant before sending. Whether the
+ * closing comes after the opening, and whether either has already gone by, are
+ * `Event.reschedule`'s rules and not a `z.refine` — the second one needs the clock, which
+ * is a port.
+ */
+export const eventScheduleBody = z
+  .object({
+    scheduledOpenAt: z.string().datetime({ offset: true }).nullable(),
+    scheduledCloseAt: z.string().datetime({ offset: true }).nullable(),
+  })
+  .strict()
+
 export const inviteModeratorBody = z
   .object({
     email: z.string().min(1).max(254),
