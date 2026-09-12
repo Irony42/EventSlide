@@ -39,8 +39,20 @@ ENV NODE_ENV=production \
 
 # `dumb-init` so SIGTERM reaches Node as pid 1 and the graceful shutdown actually runs:
 # without it the WAL is not checkpointed and in-flight uploads are cut off.
+#
+# `ffmpeg` for short video clips. Distribution packages rather than a bundled build:
+# `ffmpeg-static` and `ffprobe-static` are **devDependencies**, so `npm ci` alone gives a
+# developer a runnable ring-3 suite on Windows and macOS while `npm prune --omit=dev`
+# above keeps ninety megabytes of binaries out of this image. Debian's build carries
+# libx264 and the native AAC encoder, which is exactly what the boot-time capability
+# check asks for — by name, never by version.
+#
+# A box without it still works: the check fails, the transcoder becomes a Null Object,
+# clip uploads are refused with a named code, and photos are untouched. `/api/ready`
+# reports it as a detail and deliberately does not fail, because a photo wall with no
+# video still serves the room.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends dumb-init \
+ && apt-get install -y --no-install-recommends dumb-init ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=production-deps /app/node_modules ./node_modules

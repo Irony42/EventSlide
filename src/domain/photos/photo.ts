@@ -1,9 +1,12 @@
+import type { ClipDuration } from '../clips/clipDuration'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 import type { EventId, GuestId, PhotoId, UserId } from '../shared/ids'
 import type { Caption } from './caption'
 import type { ContentHash } from './contentHash'
 import type { Dimensions } from './dimensions'
+import type { MediaKind } from './mediaKind'
+import { VARIANTS_BY_KIND, type MediaVariant, type ServedVariant } from './mediaVariant'
 import { canTransition, type PhotoStatus } from './photoStatus'
 
 /** Who sent the photo. Hosts can upload too — the venue's own camera roll. */
@@ -27,6 +30,35 @@ export type PhotoActor =
   | { readonly kind: 'guest'; readonly guestId: GuestId }
   | { readonly kind: 'host'; readonly userId: UserId }
 
+/**
+ * What this row *is*, and the extra facts that follow from it.
+ *
+ * A discriminated union rather than three nullable columns hanging off every photo: a
+ * still has no duration and no poster, and `duration: null` on ten thousand rows is a
+ * field every reader has to remember cannot be trusted. Here the compiler carries it —
+ * `photo.facet.duration` does not exist until `facet.kind` has been narrowed.
+ *
+ * `kind` is consulted where a **rule** differs and nowhere else; everything mechanical
+ * about a clip is a lookup indexed by it (see `mediaVariant.ts`).
+ */
+export type PhotoFacet =
+  | { readonly kind: 'photo' }
+  | {
+      readonly kind: 'clip'
+      readonly duration: ClipDuration
+      /**
+       * The digest of the still frame. A clip has **two** hashes: `contentHash`
+       * addresses the mp4, this addresses the poster JPEG, and each names its own bytes.
+       * Neither is the hash of what the guest uploaded — that one lives on the
+       * `ClipJob`, is the job's idempotency key, and never enters
+       * `photos (event_id, content_hash)`.
+       */
+      readonly posterHash: ContentHash
+    }
+
+/** The facet of an ordinary still. A constant, because it carries nothing. */
+export const STILL: PhotoFacet = { kind: 'photo' }
+
 export interface PhotoProps {
   readonly id: PhotoId
   readonly eventId: EventId
@@ -38,6 +70,7 @@ export interface PhotoProps {
   readonly caption: Caption | null
   readonly createdAt: Date
   readonly review: PhotoReview | null
+  readonly facet: PhotoFacet
 }
 
 export interface NewPhoto {
@@ -47,6 +80,8 @@ export interface NewPhoto {
   readonly dimensions: Dimensions
   readonly byteSize: number
   readonly caption: Caption | null
+  /** Omitted for the overwhelmingly common case, which is a photograph. */
+  readonly facet?: PhotoFacet
 }
 
 /**
@@ -80,6 +115,7 @@ export class Photo {
         caption: input.caption,
         createdAt: now,
         review: null,
+        facet: input.facet ?? STILL,
       }),
     )
   }
@@ -132,6 +168,54 @@ export class Photo {
 
   get review(): PhotoReview | null {
     return this.props.review
+  }
+
+  get facet(): PhotoFacet {
+    return this.props.facet
+  }
+
+  get kind(): MediaKind {
+    return this.props.facet.kind
+  }
+
+  /**
+   * Which rendition this row actually has.
+   *
+   * A lookup, so asking a photograph for a `video` misses on the **row** rather than on
+   * the disk: the media use case answers `photo.notFound` instead of reaching the store,
+   * failing to stat a file, and reporting `photo.mediaMissing` — which is the code that
+   * means "a row points at bytes that are gone", a genuine corruption worth an operator's
+   * attention. Two different conditions must not produce the same log line.
+   */
+  hasVariant(variant: ServedVariant): boolean {
+    return VARIANTS_BY_KIND[this.props.facet.kind].includes(variant)
+  }
+
+  /**
+   * The digest the bytes of this rendition are stored under.
+   *
+   * Every rendition of a still shares the photo's own hash. A clip's poster is a
+   * different file with a different digest, so it is addressed by its own — which keeps
+   * the media store's one invariant intact: the name of a file is the hash of that file.
+   */
+  hashFor(variant: MediaVariant): ContentHash {
+    const facet = this.props.facet
+    return facet.kind === 'clip' && variant === 'poster'
+      ? facet.posterHash
+      : this.props.contentHash
+  }
+
+  /**
+   * Every digest this row owns, so deleting it removes every byte it put on the disk.
+   *
+   * A still owns one; a clip owns the mp4's and the poster's. The staged source is not
+   * here: it belongs to the `ClipJob`, and it is gone before this row exists.
+   */
+  get storageHashes(): readonly ContentHash[] {
+    const facet = this.props.facet
+    return facet.kind === 'clip'
+      ? [this.props.contentHash, facet.posterHash]
+      : [this.props.contentHash]
   }
 
   // ---------------------------------------------------------------- moderation --

@@ -3,16 +3,17 @@ import { mkdir, rename, rm, stat, unlink, writeFile, readFile, readdir } from 'n
 import { join, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type {
+  ByteRange,
   MediaMetadata,
   MediaStore,
   MediaVariant,
 } from '../../application/ports/mediaStore'
-import { MEDIA_VARIANTS } from '../../application/ports/mediaStore'
+import { ALL_MEDIA_VARIANTS } from '../../application/ports/mediaStore'
 import type { ContentHash } from '../../domain/photos/contentHash'
 import type { EventId } from '../../domain/shared/ids'
 
 /**
- * Photos on the local filesystem, laid out as:
+ * Media on the local filesystem, laid out as:
  *
  *     <root>/<eventId>/<variant>/<ab>/<contentHash>.<ext>
  *
@@ -28,13 +29,35 @@ import type { EventId } from '../../domain/shared/ids'
  *    conference with four thousand photos across three variants gets there.
  */
 
+/**
+ * The declared type of each rendition, indexed rather than assumed.
+ *
+ * This table used to be three entries all reading `image/jpeg`, with the extension a
+ * single `const EXTENSION = 'jpg'` beside it — which was true while every byte in the
+ * store was a JPEG and became a bug the moment one of them was not. A clip served
+ * through that store would have reached the projector labelled `image/jpeg` inside a
+ * file called `.jpg`, and with `X-Content-Type-Options: nosniff` on every media response
+ * the browser would have believed the label and rendered nothing.
+ */
 const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
   original: 'image/jpeg',
   display: 'image/jpeg',
   thumb: 'image/jpeg',
+  video: 'video/mp4',
+  poster: 'image/jpeg',
+  // Never served (`source` is outside `SERVED_VARIANTS`), so the honest answer is "some
+  // bytes" rather than a type that would invite something to open them.
+  source: 'application/octet-stream',
 }
 
-const EXTENSION = 'jpg'
+const EXTENSION: Readonly<Record<MediaVariant, string>> = {
+  original: 'jpg',
+  display: 'jpg',
+  thumb: 'jpg',
+  video: 'mp4',
+  poster: 'jpg',
+  source: 'bin',
+}
 
 /** UUIDs from the id generator; anything else is a bug upstream, not user input. */
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
@@ -65,7 +88,7 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
 
     const shard = hash.value.slice(0, 2)
     const candidate = resolve(
-      join(absoluteRoot, eventId, variant, shard, `${hash.value}.${EXTENSION}`),
+      join(absoluteRoot, eventId, variant, shard, `${hash.value}.${EXTENSION[variant]}`),
     )
     if (candidate !== absoluteRoot && !candidate.startsWith(absoluteRoot + sep)) {
       throw new Error('media store refused a path outside its root')
@@ -159,17 +182,32 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
       }
     },
 
-    openRead: async (eventId, hash, variant): Promise<AsyncIterable<Uint8Array> | null> => {
+    openRead: async (
+      eventId,
+      hash,
+      variant,
+      range?: ByteRange,
+    ): Promise<AsyncIterable<Uint8Array> | null> => {
       const target = pathFor(eventId, hash, variant)
+      let size: number
       try {
         // Stat first: `createReadStream` reports a missing file asynchronously, on the
         // stream, by which point the HTTP layer has already committed to a 200.
-        await stat(target)
+        size = (await stat(target)).size
       } catch (error) {
         if (isMissing(error)) return null
         throw error
       }
-      return createReadStream(target)
+
+      if (range === undefined) return createReadStream(target)
+
+      // A range the object cannot satisfy answers `null`, exactly as a missing object
+      // does: `createReadStream` with a start past the end yields an empty stream under
+      // a `206` claiming a length nobody will ever receive, and a player waits on it.
+      if (range.start >= size || range.end < range.start) return null
+
+      // Inclusive at both ends, which is what `Range` means and what this option takes.
+      return createReadStream(target, { start: range.start, end: Math.min(range.end, size - 1) })
     },
 
     read: async (eventId, hash, variant): Promise<Uint8Array | null> => {
@@ -183,7 +221,10 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
 
     delete: async (eventId, hash): Promise<void> => {
       await Promise.all(
-        MEDIA_VARIANTS.map((variant) =>
+        // Every rendition, not the ones a photograph happens to have: a caller holding a
+        // digest does not have to know whether it addresses a still, a clip's mp4 or a
+        // staged upload, and the extra unlinks miss silently by contract.
+        ALL_MEDIA_VARIANTS.map((variant) =>
           unlink(pathFor(eventId, hash, variant)).catch((error: unknown) => {
             // Idempotent by contract: deleting a photo whose thumb was never generated
             // must succeed.

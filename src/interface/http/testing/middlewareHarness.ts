@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import cookieParser from 'cookie-parser'
 import express, { type Express, type RequestHandler } from 'express'
 import session from 'express-session'
@@ -38,6 +40,10 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   secureCookie: false,
   e2eHooks: false,
   uploads: { maxBytes: 25_000_000, maxFiles: 20 },
+  // A clip carries its own limit and its own temp directory. The photo path's ceiling
+  // feeds a per-request heap calculation the deployment's memory limit was reasoned
+  // against, so the two deliberately do not share one number.
+  clips: { maxBytes: 80_000_000, uploadTempDir: join(tmpdir(), 'eventslide-test-clips') },
   rateLimits: {
     uploadPerMinute: 12,
     joinPerMinute: 20,

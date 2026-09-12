@@ -28,21 +28,24 @@ export class RecordingEventBus implements EventBus {
 
   private readonly listeners = new Map<EventId, Set<Listener>>()
 
+  /** Subscribers that hear every event, as the clip worker does in production. */
+  private readonly globalListeners = new Set<Listener>()
+
   /** One number per delivered announcement, shared by every subscriber of it. */
   private lastSequence = 0
 
   publish(event: DomainEvent): void {
     this.published.push(event)
 
-    const subscribers = this.listeners.get(event.eventId)
-    if (subscribers === undefined || subscribers.size === 0) return
+    // A copy: an SSE connection closing mid-broadcast unsubscribes itself from inside
+    // its own callback, and mutating the set while iterating would skip a subscriber.
+    const subscribers = [...(this.listeners.get(event.eventId) ?? []), ...this.globalListeners]
+    if (subscribers.length === 0) return
 
     this.lastSequence += 1
     const delivery: Delivery = { sequence: this.lastSequence }
 
-    // A copy: an SSE connection closing mid-broadcast unsubscribes itself from inside
-    // its own callback, and mutating the set while iterating would skip a subscriber.
-    for (const listener of [...subscribers]) {
+    for (const listener of subscribers) {
       try {
         listener(event, delivery)
       } catch (cause) {
@@ -75,6 +78,21 @@ export class RecordingEventBus implements EventBus {
     })
   }
 
+  /**
+   * Every event's activity, as the clip worker subscribes in production. Always accepts,
+   * for the same reason `subscribe` does.
+   */
+  subscribeAll(listener: Listener): Unsubscribe {
+    this.globalListeners.add(listener)
+
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      this.globalListeners.delete(listener)
+    }
+  }
+
   /** Only what was recorded for one event, for a test asserting isolation. */
   publishedFor(eventId: EventId): readonly DomainEvent[] {
     return this.published.filter((event) => event.eventId === eventId)
@@ -85,6 +103,11 @@ export class RecordingEventBus implements EventBus {
     let total = 0
     for (const subscribers of this.listeners.values()) total += subscribers.size
     return total
+  }
+
+  /** How many listeners are hearing every event. */
+  globalSubscriberCount(): number {
+    return this.globalListeners.size
   }
 
   /**

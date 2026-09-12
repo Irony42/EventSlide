@@ -1,4 +1,5 @@
 import type { ImageFormat } from '../../application/ports/imageProcessor'
+import type { ClipContainer } from '../../application/ports/videoTranscoder'
 
 /**
  * Identifies an upload by what its bytes actually are.
@@ -74,6 +75,63 @@ export const detectImageFormat = (bytes: Uint8Array): ImageFormat | null => {
     const brand = asciiAt(bytes, 8, 4).toLowerCase()
     if (AVIF_BRANDS.has(brand)) return 'avif'
     if (HEIF_BRANDS.has(brand)) return 'heif'
+  }
+
+  return null
+}
+
+/**
+ * ISO base media brands that mean **video**, read from the same `ftyp` box at offset 4.
+ *
+ * The overlap with the image brands above is the whole difficulty: HEIC, AVIF, MP4, MOV
+ * and 3GP are all the same container format, distinguished only by a four-character
+ * brand. The two sets must stay disjoint, or a guest's iPhone photo is queued for a
+ * transcode and a clip is handed to `sharp`.
+ *
+ * `qt  ` carries a trailing space and that is not a typo: QuickTime's brand is padded to
+ * four characters, and an iPhone recording `.MOV` writes exactly that.
+ */
+const MP4_BRANDS = new Set([
+  'isom',
+  'iso2',
+  'iso4',
+  'iso5',
+  'iso6',
+  'mp41',
+  'mp42',
+  'avc1',
+  'mp4v',
+  'm4v ',
+  'dash',
+  // QuickTime, which is what a `.MOV` straight off an iPhone is.
+  'qt  ',
+  // 3GPP / 3GPP2, still what a cheap Android handset records.
+  '3gp4',
+  '3gp5',
+  '3gp6',
+  '3g2a',
+])
+
+/**
+ * Which container these bytes are, from the signature alone.
+ *
+ * The cheap gate on the upload path: no subprocess, no decode, a handful of bytes read.
+ * It is deliberately **not** `detectImageFormat` with more rows — the two answer
+ * different questions and feed different pipelines, and folding them together is how a
+ * clip would end up at `sharp(...)`.
+ *
+ * Note where `ftyp` lives: **offset 4**, not 0. Everything else in this module matches at
+ * offset zero, which is why the ISO base media checks are the only ones here that take an
+ * offset at all.
+ */
+export const detectVideoContainer = (bytes: Uint8Array): ClipContainer | null => {
+  // Matroska and WebM share the EBML header; the doctype that separates them sits
+  // further in, and both are one demuxer to ffmpeg, so there is nothing to tell apart.
+  if (startsWith(bytes, [0x1a, 0x45, 0xdf, 0xa3])) return 'matroska'
+
+  if (asciiAt(bytes, 4, 4) === 'ftyp') {
+    const brand = asciiAt(bytes, 8, 4).toLowerCase()
+    if (MP4_BRANDS.has(brand)) return 'mp4'
   }
 
   return null

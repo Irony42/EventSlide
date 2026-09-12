@@ -10,6 +10,7 @@ import {
   type MediaMetadata,
   type MediaStore,
   type MediaVariant,
+  type PhotoVariant,
 } from '../../ports/mediaStore'
 import { anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -17,7 +18,7 @@ import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { makeExportAlbum, type ExportAlbum } from './exportAlbum'
 
 /** One byte per unit of length, so a test can tell the variants apart by size. */
-const BYTES_PER_VARIANT: Readonly<Record<MediaVariant, number>> = {
+const BYTES_PER_VARIANT: Readonly<Record<PhotoVariant, number>> = {
   original: 9,
   display: 3,
   thumb: 1,

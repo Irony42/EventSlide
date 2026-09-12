@@ -12,7 +12,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
 import type { Logger } from '../../ports/logger'
-import { MEDIA_VARIANTS, type MediaStore, type MediaVariant } from '../../ports/mediaStore'
+import { MEDIA_VARIANTS, type MediaStore, type PhotoVariant } from '../../ports/mediaStore'
 import type {
   PhotoAdmission,
   PhotoRefusal,
@@ -106,7 +106,7 @@ export type UploadPhotos = (
  * survive ingest, and a host's album never carries the GPS coordinates of a guest's
  * home. Its box is the domain's maximum edge, so it re-encodes without downscaling.
  */
-export const VARIANT_SPECS: Readonly<Record<MediaVariant, RenderSpec>> = {
+export const VARIANT_SPECS: Readonly<Record<PhotoVariant, RenderSpec>> = {
   original: {
     maxWidth: Dimensions.maxEdge,
     maxHeight: Dimensions.maxEdge,
@@ -117,7 +117,7 @@ export const VARIANT_SPECS: Readonly<Record<MediaVariant, RenderSpec>> = {
   thumb: { maxWidth: 480, maxHeight: 480, quality: 72, format: 'jpeg' },
 }
 
-type RenderedVariants = Readonly<Record<MediaVariant, RenderedImage>>
+type RenderedVariants = Readonly<Record<PhotoVariant, RenderedImage>>
 
 /**
  * All three variants, or the first reason none of them can be stored.
@@ -412,7 +412,11 @@ export const makeUploadPhotos = ({
       // another guest — whose row now holds this hash. Deleting then would leave *their*
       // slide pointing at nothing, so the file goes only if nothing points at it.
       if ((await photos.findByContentHash(eventId, photo.contentHash)) === null) {
-        await media.delete(eventId, photo.contentHash)
+        // `storageHashes` rather than `contentHash`: this path only ever holds still
+        // photographs, where the two are the same one digest, but a delete that names
+        // the row rather than one of its fields does not have to be revisited the day it
+        // is reached with something that owns two.
+        for (const hash of photo.storageHashes) await media.delete(eventId, hash)
       }
     }
 

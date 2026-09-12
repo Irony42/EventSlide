@@ -415,6 +415,11 @@ describe('GET /api/events/:eventSlug/wall', () => {
         caption: null,
         authorName: null,
         createdAt: atPlus(2_000).toISOString(),
+        // The clip facet on a photograph: `null` rather than absent, so a client never
+        // tests for a missing key before deciding what to render.
+        kind: 'photo',
+        videoUrl: null,
+        durationMs: null,
       },
       {
         id: 'photo-1',
@@ -425,6 +430,9 @@ describe('GET /api/events/:eventSlug/wall', () => {
         caption: 'Les confettis',
         authorName: null,
         createdAt: atPlus(1_000).toISOString(),
+        kind: 'photo',
+        videoUrl: null,
+        durationMs: null,
       },
     ])
   })
@@ -591,9 +599,15 @@ describe('GET /api/events/:eventSlug/wall', () => {
       'caption',
       'createdAt',
       'displayUrl',
+      // The clip facet. It is on every wall item, `null` on a photograph, because the
+      // projector has to decide between an `<img>` and a `<video>` before it renders —
+      // and a key that is sometimes absent is a key every client tests for.
+      'durationMs',
       'height',
       'id',
+      'kind',
       'thumbUrl',
+      'videoUrl',
       'width',
     ])
   })

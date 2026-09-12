@@ -147,6 +147,8 @@ const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): Ht
     deletePhoto: makeDeletePhoto({ events, photos, media, bus, clock }),
     setPhotoCaption: notWired,
     getPhotoMedia: notWired,
+    uploadClip: notWired,
+    getClipJob: notWired,
     exportAlbum: notWired,
     getModerationQueue: makeGetModerationQueue({ events, photos, guests, memberships }),
     moderatePhoto: makeModeratePhoto({ events, photos, memberships, bus, clock }),
@@ -293,6 +295,11 @@ describe('GET /api/events/:eventSlug/moderation', () => {
       caption: 'Les confettis',
       authorName: 'Léa',
       createdAt: AT.toISOString(),
+      // The clip facet, on a row a host is about to decide about. `videoUrl` is what
+      // lets the console play a clip instead of judging it from a still frame.
+      kind: 'photo',
+      videoUrl: null,
+      durationMs: null,
     })
   })
 
@@ -460,6 +467,9 @@ describe('GET /api/events/:eventSlug/photos', () => {
       authorName: null,
       byteSize: 2_400_000,
       createdAt: atPlus(1_000).toISOString(),
+      kind: 'photo',
+      videoUrl: null,
+      durationMs: null,
     })
   })
 

@@ -80,6 +80,20 @@ describe('loadConfig', () => {
           maxPixels: 50_000_000,
           defaultEventQuotaBytes: 5_000_000_000,
         },
+        clips: {
+          maxBytes: 80_000_000,
+          maxDurationMs: 15_000,
+          maxQueuedClips: 20,
+          maxHeight: 720,
+          ffmpegPath: null,
+          ffprobePath: null,
+          // `PATH` and `PATHEXT` are carried as values because this module is the only
+          // one allowed to read the environment at all, and the binary resolver needs
+          // them: `spawn` is never given a shell, so Node does not apply `PATHEXT` and a
+          // bare `ffmpeg` fails where `ffmpeg.exe` is on the path. An empty source object
+          // therefore means "search nowhere", which is exactly what it should mean.
+          executableSearch: { path: '', extensions: '' },
+        },
         guests: { selfDeleteGraceMs: 900_000 },
         retention: { sweepIntervalMs: 3_600_000 },
         schedule: { sweepIntervalMs: 300_000 },

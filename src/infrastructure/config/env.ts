@@ -186,6 +186,64 @@ const schema = z
     DEFAULT_EVENT_QUOTA_BYTES: positiveInt(5_000_000_000),
 
     /**
+     * Clips have their own byte limit, deliberately separate from `MAX_UPLOAD_BYTES`.
+     *
+     * Raising the photo limit would raise the per-request heap ceiling that
+     * `guestRoutes.ts` derives from it, and `compose.yaml`'s memory limit was reasoned
+     * against that number. A clip does not need the same budget anyway: it goes to disk
+     * rather than to the heap, one file per request, and fifteen seconds off a phone is
+     * 20 to 60 MB.
+     */
+    MAX_CLIP_BYTES: positiveInt(80_000_000),
+    /**
+     * The duration cap, enforced twice — refused at the probe and passed to the encoder
+     * as a hard bound, because a truncated container's header is a claim by the file.
+     * Bounded at two minutes so that no configuration turns the wall into a cinema.
+     */
+    MAX_CLIP_SECONDS: positiveInt(15, 120),
+    /**
+     * How many clips may be waiting or transcoding across the whole box before an upload
+     * is answered `429 clip.queueFull`. Process-wide, because one worker drains the queue
+     * for every event and the wait a guest experiences is the global one.
+     */
+    MAX_QUEUED_CLIPS: positiveInt(20, 500),
+    /** The projected height of a clip. 720p reads well at 3 m and encodes quickly. */
+    CLIP_MAX_HEIGHT: positiveInt(720, 2_160),
+    /**
+     * The decompression-bomb control for video, judged from the header before a frame is
+     * decoded — the exact counterpart of MAX_IMAGE_PIXELS.
+     *
+     * CLIP_MAX_HEIGHT is not one: it scales the *output*, and the filter that does it
+     * runs after the decoder has already allocated the frame. The default admits 8K UHD
+     * (7680x4320, 33 MP) and refuses the 16000x16000 container that is 380 MB a frame.
+     */
+    MAX_CLIP_PIXELS: positiveInt(33_177_600),
+
+    /**
+     * Where the encoder is, when it is not simply on `PATH`.
+     *
+     * A configured path that does not exist is a refusal rather than a fallback: an
+     * operator who set this wanted that build, and quietly using another one is how a
+     * deployment ends up encoding with something nobody chose.
+     */
+    FFMPEG_PATH: z.preprocess(blankAsAbsent, z.string().optional()),
+    FFPROBE_PATH: z.preprocess(blankAsAbsent, z.string().optional()),
+
+    /**
+     * `PATH` and `PATHEXT`, read here because this is the only module allowed to read
+     * the environment at all — and then handed to the binary resolver as a value.
+     *
+     * The resolver needs them because `spawn` is never given `shell: true` (that is
+     * CVE-2024-27980 on Windows), and without a shell Node does not apply `PATHEXT`, so
+     * a bare `ffmpeg` fails on a machine where `ffmpeg.exe` is sitting on the path.
+     * Carrying them as configuration also lets a test hand the resolver an empty search
+     * path and exercise the "no encoder anywhere" branch without depending on the
+     * machine running the suite.
+     */
+    PATH: z.string().default(''),
+    PATHEXT: z.string().default(''),
+
+    /**
      * Left optional so the default can depend on NODE_ENV, below: a background sweep
      * firing inside the end-to-end suite would delete a fixture's event mid-journey.
      */
@@ -307,6 +365,21 @@ export interface AppConfig {
     readonly maxFiles: number
     readonly maxPixels: number
     readonly defaultEventQuotaBytes: number
+  }
+
+  readonly clips: {
+    readonly maxBytes: number
+    readonly maxDurationMs: number
+    readonly maxQueuedClips: number
+    readonly maxHeight: number
+    readonly maxPixels: number
+    readonly ffmpegPath: string | null
+    readonly ffprobePath: string | null
+    /** `PATH` and `PATHEXT` as values; see the schema for why they are carried at all. */
+    readonly executableSearch: {
+      readonly path: string
+      readonly extensions: string
+    }
   }
 
   readonly guests: {
@@ -437,6 +510,17 @@ export const loadConfig = (source: Record<string, string | undefined> = process.
       maxFiles: raw.MAX_FILES_PER_UPLOAD,
       maxPixels: raw.MAX_IMAGE_PIXELS,
       defaultEventQuotaBytes: raw.DEFAULT_EVENT_QUOTA_BYTES,
+    },
+
+    clips: {
+      maxBytes: raw.MAX_CLIP_BYTES,
+      maxDurationMs: raw.MAX_CLIP_SECONDS * 1000,
+      maxQueuedClips: raw.MAX_QUEUED_CLIPS,
+      maxHeight: raw.CLIP_MAX_HEIGHT,
+      maxPixels: raw.MAX_CLIP_PIXELS,
+      ffmpegPath: raw.FFMPEG_PATH ?? null,
+      ffprobePath: raw.FFPROBE_PATH ?? null,
+      executableSearch: { path: raw.PATH, extensions: raw.PATHEXT },
     },
 
     guests: {

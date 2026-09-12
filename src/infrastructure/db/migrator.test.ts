@@ -162,6 +162,7 @@ describe('the real schema', () => {
     migrate(db, migrations)
 
     expect(tableNames(db)).toEqual([
+      'clip_jobs',
       'event_memberships',
       'events',
       'guests',

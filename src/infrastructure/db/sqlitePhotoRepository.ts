@@ -7,10 +7,18 @@ import type {
   PhotoStatusCounts,
 } from '../../application/ports/photoRepository'
 import { allowsAnotherPhoto, fitsInQuota, remainingQuota } from '../../domain/events/quota'
+import { ClipDuration } from '../../domain/clips/clipDuration'
 import { Caption } from '../../domain/photos/caption'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Dimensions } from '../../domain/photos/dimensions'
-import { Photo, type PhotoAuthor, type PhotoReview } from '../../domain/photos/photo'
+import type { MediaKind } from '../../domain/photos/mediaKind'
+import {
+  Photo,
+  STILL,
+  type PhotoAuthor,
+  type PhotoFacet,
+  type PhotoReview,
+} from '../../domain/photos/photo'
 import { canTransition, type PhotoStatus } from '../../domain/photos/photoStatus'
 import type { DomainError } from '../../domain/shared/errors'
 import {
@@ -50,18 +58,21 @@ import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
 const PHOTO_COLUMNS = `
   id, event_id, author_guest_id, author_user_id, status, content_hash,
   width, height, byte_size, caption, created_at,
-  review_kind, reviewed_at, reviewed_by_user_id
+  review_kind, reviewed_at, reviewed_by_user_id,
+  media_kind, duration_ms, poster_hash
 `
 
 const INSERT_PHOTO = `
   INSERT INTO photos (
     id, event_id, author_guest_id, author_user_id, status, content_hash,
     width, height, byte_size, caption, created_at,
-    review_kind, reviewed_at, reviewed_by_user_id
+    review_kind, reviewed_at, reviewed_by_user_id,
+    media_kind, duration_ms, poster_hash
   ) VALUES (
     @id, @event_id, @author_guest_id, @author_user_id, @status, @content_hash,
     @width, @height, @byte_size, @caption, @created_at,
-    @review_kind, @reviewed_at, @reviewed_by_user_id
+    @review_kind, @reviewed_at, @reviewed_by_user_id,
+    @media_kind, @duration_ms, @poster_hash
   )
 `
 
@@ -69,8 +80,26 @@ const INSERT_PHOTO = `
  * The two totals the event's limits are judged against. Declared beside the insert
  * because `saveManyWithinLimits` runs all three in one transaction, and it is that
  * pairing — not the queries themselves — that enforces the quota.
+ *
+ * **The sum spans two tables, and it has to.** A clip's upload is staged on the disk the
+ * quota exists to protect from the moment it is accepted, and it has no `photos` row
+ * until the transcode succeeds — so counting `photos` alone would under-report an event
+ * by the whole contents of the queue, for the whole time the queue is draining, and
+ * `MediaStore.usedBytes` would disagree with the database by exactly that amount. The
+ * media store's contract says that difference means a leak worth logging, so it must not
+ * be produced routinely by a feature working correctly.
+ *
+ * The overlap is in the conservative direction and lasts one transaction: a clip's output
+ * row is inserted while its job is still `running`, so for that instant the event is
+ * charged for both the source and the result. It refuses at the very edge of a full quota
+ * rather than over-filling a disk, which is the direction to err in.
  */
-const SUM_EVENT_BYTES = `SELECT SUM(byte_size) AS value FROM photos WHERE event_id = ?`
+const SUM_EVENT_BYTES = `
+  SELECT (SELECT COALESCE(SUM(byte_size), 0) FROM photos WHERE event_id = :eventId)
+       + (SELECT COALESCE(SUM(source_byte_size), 0)
+            FROM clip_jobs
+           WHERE event_id = :eventId AND status IN ('queued', 'running')) AS value
+`
 
 const COUNT_BY_AUTHOR = `
   SELECT COUNT(*) AS value FROM photos WHERE event_id = ? AND author_guest_id = ?
@@ -93,7 +122,10 @@ const UPDATE_PHOTO = `
          created_at          = @created_at,
          review_kind         = @review_kind,
          reviewed_at         = @reviewed_at,
-         reviewed_by_user_id = @reviewed_by_user_id
+         reviewed_by_user_id = @reviewed_by_user_id,
+         media_kind          = @media_kind,
+         duration_ms         = @duration_ms,
+         poster_hash         = @poster_hash
    WHERE id = @id AND event_id = @event_id
 `
 
@@ -113,6 +145,10 @@ interface PhotoRow {
   readonly review_kind: 'host' | 'automatic' | null
   readonly reviewed_at: string | null
   readonly reviewed_by_user_id: string | null
+  /** Narrowed by the `CHECK` on the column; the mapper still refuses anything else. */
+  readonly media_kind: string
+  readonly duration_ms: number | null
+  readonly poster_hash: string | null
 }
 
 /** Named parameters, so one object binds both the insert and the update. */
@@ -131,6 +167,9 @@ interface PhotoBindings {
   readonly review_kind: string | null
   readonly reviewed_at: string | null
   readonly reviewed_by_user_id: string | null
+  readonly media_kind: MediaKind
+  readonly duration_ms: number | null
+  readonly poster_hash: string | null
 }
 
 const EMPTY_PAGE: PhotoPage = { items: [], nextCursor: null }
@@ -199,10 +238,56 @@ const reviewColumns = (
   return { kind: 'automatic', at: toIsoText(review.at), userId: null }
 }
 
+/**
+ * The clip facet, or the absence of one.
+ *
+ * A row that carries one half of a clip and not the other is a corrupt database — the
+ * coherence rule cannot be a `CHECK` on this table, because SQLite's `ADD COLUMN` cannot
+ * add one and rebuilding `photos` would copy every album that has ever run this schema
+ * (migration 003 says so). So it is refused here, loudly, naming the row. The failure
+ * mode this replaces is a clip reaching the projector with no duration, which the wall
+ * would render as a slide that never advances.
+ */
+const toFacet = (row: PhotoRow): PhotoFacet => {
+  if (row.media_kind === 'photo') {
+    if (row.duration_ms !== null || row.poster_hash !== null) {
+      throw corruptRow(row.id, 'is a photograph carrying a clip duration or poster')
+    }
+    return STILL
+  }
+  if (row.media_kind !== 'clip') {
+    throw corruptRow(row.id, `has an unknown media_kind (${row.media_kind})`)
+  }
+  if (row.duration_ms === null || row.poster_hash === null) {
+    throw corruptRow(row.id, 'is a clip with no duration or no poster')
+  }
+  return {
+    kind: 'clip',
+    // The cap is deployment configuration and this row was admitted under whatever it
+    // was at the time, so the stored value is its own ceiling: re-validating against
+    // today's `MAX_CLIP_SECONDS` would make lowering the setting corrupt an existing
+    // album rather than apply to the next upload.
+    duration: trusted(ClipDuration.create(row.duration_ms, row.duration_ms), row.id, 'duration_ms'),
+    posterHash: trusted(ContentHash.create(row.poster_hash), row.id, 'poster_hash'),
+  }
+}
+
+const facetColumns = (
+  facet: PhotoFacet,
+): {
+  readonly kind: MediaKind
+  readonly durationMs: number | null
+  readonly posterHash: string | null
+} =>
+  facet.kind === 'clip'
+    ? { kind: 'clip', durationMs: facet.duration.ms, posterHash: facet.posterHash.value }
+    : { kind: 'photo', durationMs: null, posterHash: null }
+
 const toBindings = (photo: Photo): PhotoBindings => {
   const props = photo.toProps()
   const author = authorColumns(props.author)
   const review = reviewColumns(props.review)
+  const facet = facetColumns(props.facet)
 
   return {
     id: props.id,
@@ -219,6 +304,9 @@ const toBindings = (photo: Photo): PhotoBindings => {
     review_kind: review.kind,
     reviewed_at: review.at,
     reviewed_by_user_id: review.userId,
+    media_kind: facet.kind,
+    duration_ms: facet.durationMs,
+    poster_hash: facet.posterHash,
   }
 }
 
@@ -234,6 +322,7 @@ const toPhoto = (row: PhotoRow): Photo =>
     caption: row.caption === null ? null : trusted(Caption.create(row.caption), row.id, 'caption'),
     createdAt: fromIsoText(row.created_at),
     review: toReview(row),
+    facet: toFacet(row),
   })
 
 /**
@@ -407,7 +496,9 @@ export class SqlitePhotoRepository implements PhotoRepository {
    * occupies the disk it was written to.
    */
   async totalBytes(eventId: EventId): Promise<number> {
-    return aggregate(this.db.prepare<[string], AggregateRow>(SUM_EVENT_BYTES).get(eventId))
+    return aggregate(
+      this.db.prepare<{ readonly eventId: string }, AggregateRow>(SUM_EVENT_BYTES).get({ eventId }),
+    )
   }
 
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
@@ -468,12 +559,12 @@ export class SqlitePhotoRepository implements PhotoRepository {
     limits: PhotoAdmissionLimits,
   ): Promise<readonly PhotoAdmission[]> {
     const insert = this.db.prepare<PhotoBindings>(INSERT_PHOTO)
-    const sumBytes = this.db.prepare<[string], AggregateRow>(SUM_EVENT_BYTES)
+    const sumBytes = this.db.prepare<{ readonly eventId: string }, AggregateRow>(SUM_EVENT_BYTES)
     const countAuthored = this.db.prepare<[string, string], AggregateRow>(COUNT_BY_AUTHOR)
 
     return this.db
       .transaction((): readonly PhotoAdmission[] => {
-        let usedBytes = aggregate(sumBytes.get(eventId))
+        let usedBytes = aggregate(sumBytes.get({ eventId }))
         /** One `COUNT` per author, then kept in step with what this batch inserts. */
         const authored = new Map<string, number>()
         const alreadyBy = (guestId: GuestId): number => {

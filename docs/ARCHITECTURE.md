@@ -25,6 +25,13 @@ design. Companions: [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md) (rul
 > interval and `container.ts` builds it. The scheduled open and close (§5) arrived the
 > same way and is wired the same way, in `src/main/scheduleSweeper.ts`. Readiness
 > draining on shutdown (§8) is still planned.
+>
+> **Short video clips (roadmap 1.4) are here on the server and nowhere else.** Upload,
+> the queue, the transcode, storage, the byte quota, moderation and delivery are all
+> implemented and tested (§3.1); `web/src` has not been taught to send or render one, so
+> the fields those surfaces will read are on the wire and unconsumed. That gap is
+> recorded where it can be checked rather than only here: `UNREAD_BY_CLIENT` in
+> `dtoContract.test.ts` and `NO_CLIENT_CALLER` in `requestContract.test.ts` both name it.
 
 ---
 
@@ -226,6 +233,85 @@ leaks one file until the next restart rather than forever.
 
 ---
 
+## 3.1 The same request for a clip, and why it is not the same shape
+
+`POST /api/events/mariage/clips` — one video file, a guest device token. Everything
+about it that differs from §3 differs for a reason, and the reasons are worth more than
+the sequence.
+
+**The expensive half happens after the response.** Transcoding fifteen seconds of 4K HEVC
+is seconds of a core. Inline, it would hold a phone on a spinner over venue Wi-Fi, occupy
+a request slot, and — twelve at a time behind the upload limiter — take the wall down
+with it. So the request does the cheap, decisive work and hands the rest to a queue.
+
+**A clip that is still transcoding has no `photos` row at all.** That is the design
+decision the rest follows from. The alternative — a fifth `PhotoStatus` — widens
+`isPhotoStatus`, `PhotoStatusCounts` and the queue filter, forces a column into four
+exhaustive `Record<PhotoStatus, …>` tables, and makes "transcoding" something a moderator
+can select as a decision. Here the pending work is a **separate aggregate** in its own
+table, and "a half-encoded clip reached the projector" is not a case the wall filters
+out; it is a state nobody can write down.
+
+**A finished clip is a facet of `Photo`, not a parallel aggregate.** Same status machine,
+same ownership rules, same quota line, same cascade. `PhotoProps.facet` is a discriminated
+union carrying the duration and the poster's digest, `kind` is consulted only where a
+_rule_ genuinely differs, and everything mechanical — which renditions exist, which digest
+addresses which file, which URL a row's thumbnail is — is a `Record<MediaKind, …>` lookup
+rather than an `if`. Domain and application are gated at 100% branches, so a conditional
+costs a photo test **and** a clip test at every call site, for the life of the project.
+
+### On the request
+
+| #   | File                                                           | What happens here                                                                                                                                                                                                                                                                    |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `interface/http/routes/clipRoutes.ts`                          | Its own router, its own `multer`, its own byte limit. **Disk storage**, under `MEDIA_ROOT/.uploads` — a clip must not sit in the heap for the minute it takes to arrive, and `MAX_UPLOAD_BYTES` cannot be reused because `guestRoutes.ts` derives a per-request heap ceiling from it |
+| 2   | `application/ports/videoTranscoder.ts` → `media/magicBytes.ts` | `identify(bytes)` — the **signature**, `ftyp` at offset 4 or an EBML header. Starts no process, so a renamed PDF is refused before a byte reaches the media store. The only call on this port that runs on a request                                                                 |
+| 3   | `domain/clips/clipQueue.ts`                                    | Backpressure: **429 `clip.queueFull` with `Retry-After`**, never the quota's 413 for a condition that clears in ninety seconds                                                                                                                                                       |
+| 4   | `usecases/clips/uploadClip.ts` + `photoRepository.totalBytes`  | The byte quota — counting the sources already staged in the queue as well as the album, because both are on the disk the quota protects                                                                                                                                              |
+| 5   | `ports/mediaStore.ts`                                          | The upload written as the `source` variant, which is inside the media store (so the event's purge and the reconciliation figure reach it) and outside `SERVED_VARIANTS` (so nothing can hand it back)                                                                                |
+| 6   | `domain/clips/clipJob.ts` → `db/sqliteClipJobRepository.ts`    | The job row, **after** the bytes. `photoId` is minted here, before any transcode: that is what makes a crash mid-pipeline a lookup rather than a duplicate                                                                                                                           |
+| 7   | `realtime/inMemoryEventBus.ts`                                 | `clip.queued`. This is what wakes the worker; without it a clip uploaded at 22:03 waits for a tick sized for an idle evening                                                                                                                                                         |
+| 8   | `clipRoutes.ts`                                                | **202**, carrying the job to watch and the id of the row it will become. The multer temp file is unlinked before the response and again in a `finally`                                                                                                                               |
+
+### In the worker
+
+`src/main/clipWorker.ts` follows `retentionSweeper.ts`'s shape — a module of its own with
+`start`/`stop`/`runOnce`, an injected clock and logger, an overlap guard and an `unref`'d
+timer — and diverges on three points, each about a guest standing in a room: it is woken
+by a **fact on the bus** as well as by a tick, it **drains** rather than making one pass,
+and its **first pass is immediate**, because that first pass is also crash recovery.
+
+**Every decision is somewhere else.** `src/main/**` is excluded from coverage, so the
+retry ladder (`domain/clips/clipFailure.ts`), the error classification, the admission rule
+and the status machine all live where they can be tested at 100% branches. The worker
+owns a loop, a timer and a guard.
+
+| #   | File                                   | What happens here                                                                                                                                                      |
+| --- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `db/sqliteClipJobRepository.ts`        | `claimNext` — the read and the `running` write in **one** transaction. Two processes during a rolling restart would otherwise both encode to one output path           |
+| 2   | `usecases/clips/transcodeNextClip.ts`  | If a `photos` row already exists under the job's id, a previous attempt died after the insert: finish the bookkeeping, encode nothing                                  |
+| 3   | `media/ffmpegVideoTranscoder.ts`       | `probe` — pinned demuxer, `-protocol_whitelist file`, bounded `-probesize`. The duration cap is applied to the header **and** again to the encoder                     |
+| 4   | same                                   | `transcode` — H.264/AAC, 8-bit 4:2:0, every other stream dropped, `-t` and `-fs` bounding the output, a wall-clock **and** a stall bound escalating to SIGKILL         |
+| 5   | same                                   | The poster frame, cut from the **output** — by then the bytes are ones this process wrote                                                                              |
+| 6   | `ports/mediaStore.ts`                  | The mp4 under its own digest, the poster under **its** own. A clip owns two hashes, and the store's invariant is that a file's name is that file's hash                |
+| 7   | `photoRepository.saveManyWithinLimits` | The row, through the only insert that counts the quota inside its own transaction — the same path a photo takes                                                        |
+| 8   | `transcodeNextClip.ts`                 | The job marked `done`, and only then the guest's upload deleted. While it was `running` its bytes still counted, which is what kept the database and the disk agreeing |
+| 9   | `realtime/inMemoryEventBus.ts`         | `photo.uploaded`, exactly as ingest publishes it. From here a clip is indistinguishable from a photograph to the moderation console                                    |
+
+### Failure unwinding
+
+| Fails at                   | Already done           | Unwound how                                                                                         |
+| -------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------- |
+| signature, quota, queue    | a multer temp file     | unlinked; nothing written to the store, no row                                                      |
+| the job insert             | the source staged      | `media.delete` on the source hash, then `500 clip.stageFailed`                                      |
+| probe or encode, transient | the source staged      | the job returns to `queued` with a backoff; the source is **kept**, because a retry needs it        |
+| probe or encode, permanent | the source staged      | the job is `failed`, the source removed, `clip.failed` announced so the guest stops waiting         |
+| media write                | part of the output     | both output digests deleted, treated as transient                                                   |
+| the row insert             | mp4 and poster stored  | both deleted; a quota refusal here is **permanent**, because it was decided against committed state |
+| a crash, anywhere          | anything up to the row | the row is `running` at the next boot, recovered to `queued`, and the id makes the retry idempotent |
+
+---
+
 ## 4. Ports catalogue
 
 A port is an interface in `src/application/ports/`, expressed in domain types, with one
@@ -233,22 +319,24 @@ production adapter and one in-memory fake. Both are verified against the **same*
 suite in `src/application/testing/contracts/` — that is what keeps the fakes honest.
 Adding a port method means adding a contract case.
 
-| Port                 | Responsibility                                                                                                                   | Production adapter                         | Test fake                                                                                     |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `EventRepository`    | Events by id / slug / join code; slug and join-code uniqueness; the two sweep listings (`listDueForPurge`, `listDueForSchedule`) | `db/sqliteEventRepository.ts`              | `FakeEventRepository` (enforces the same uniqueness)                                          |
-| `PhotoRepository`    | Event-scoped CRUD, status filters, `countBytes`, `findByContentHash`                                                             | `db/sqlitePhotoRepository.ts`              | `FakePhotoRepository` (keyed `${eventId}:${photoId}`, so a cross-event read genuinely misses) |
-| `GuestRepository`    | Event-scoped device identity and display name                                                                                    | `db/sqliteGuestRepository.ts`              | `FakeGuestRepository`                                                                         |
-| `UserRepository`     | Host/moderator accounts and per-event role membership                                                                            | `db/sqliteUserRepository.ts`               | `FakeUserRepository`                                                                          |
-| `ReactionRepository` | Event-scoped reactions, one per guest per photo                                                                                  | `db/sqliteReactionRepository.ts`           | `FakeReactionRepository`                                                                      |
-| `MediaStore`         | `put`/`get`/`delete`/`stat` of content-addressed bytes                                                                           | `media/filesystemMediaStore.ts`            | `InMemoryMediaStore` (byte buffers, reports sizes)                                            |
-| `ImageProcessor`     | `probe` (magic bytes + dimensions), `transcode` (rotate → strip → resize)                                                        | `media/sharpImageProcessor.ts`             | `FakeImageProcessor` (deterministic metadata, simulates rotation and failure)                 |
-| `PasswordHasher`     | Hash and verify host credentials                                                                                                 | `crypto/bcryptPasswordHasher.ts`, cost 12  | `FakePasswordHasher` (`hash:<password>` — no bcrypt cost in tests)                            |
-| `TokenService`       | Sign and verify event-scoped guest device tokens                                                                                 | `crypto/hmacTokenService.ts`, HMAC-SHA-256 | `FakeTokenService` (`token:<eventId>:<guestId>`)                                              |
-| `IdGenerator`        | Opaque, non-enumerable application ids                                                                                           | `crypto/cryptoIdGenerator.ts`              | `SequentialIdGenerator` (`id-1`, `id-2` — readable assertions)                                |
-| `Clock`              | `now(): Date`                                                                                                                    | `time/systemClock.ts`                      | `FakeClock` (`advance(ms)`)                                                                   |
-| `EventBus`           | Publish/subscribe domain events in-process                                                                                       | `realtime/inMemoryEventBus.ts`             | `RecordingEventBus` (`published: DomainEvent[]`)                                              |
-| `Logger`             | Structured logging with `requestId`                                                                                              | `logging/pinoLogger.ts`                    | `CapturingLogger` (assert a warning was emitted, never a message string)                      |
-| `ArchiveBuilder`     | Stream an event's album as a zip                                                                                                 | `archive/archiverAlbumArchiver.ts`         | `FakeArchiveBuilder` (records the entries requested)                                          |
+| Port                 | Responsibility                                                                                                                   | Production adapter                                                                               | Test fake                                                                                     |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `EventRepository`    | Events by id / slug / join code; slug and join-code uniqueness; the two sweep listings (`listDueForPurge`, `listDueForSchedule`) | `db/sqliteEventRepository.ts`                                                                    | `FakeEventRepository` (enforces the same uniqueness)                                          |
+| `PhotoRepository`    | Event-scoped CRUD, status filters, `countBytes`, `findByContentHash`                                                             | `db/sqlitePhotoRepository.ts`                                                                    | `FakePhotoRepository` (keyed `${eventId}:${photoId}`, so a cross-event read genuinely misses) |
+| `GuestRepository`    | Event-scoped device identity and display name                                                                                    | `db/sqliteGuestRepository.ts`                                                                    | `FakeGuestRepository`                                                                         |
+| `UserRepository`     | Host/moderator accounts and per-event role membership                                                                            | `db/sqliteUserRepository.ts`                                                                     | `FakeUserRepository`                                                                          |
+| `ReactionRepository` | Event-scoped reactions, one per guest per photo                                                                                  | `db/sqliteReactionRepository.ts`                                                                 | `FakeReactionRepository`                                                                      |
+| `MediaStore`         | `put`/`get`/`delete`/`stat` of content-addressed bytes                                                                           | `media/filesystemMediaStore.ts`                                                                  | `InMemoryMediaStore` (byte buffers, reports sizes)                                            |
+| `ImageProcessor`     | `probe` (magic bytes + dimensions), `transcode` (rotate → strip → resize)                                                        | `media/sharpImageProcessor.ts`                                                                   | `FakeImageProcessor` (deterministic metadata, simulates rotation and failure)                 |
+| `VideoTranscoder`    | `identify` (signature, no subprocess), `probe` (ffprobe, rotation applied), `transcode` (H.264/AAC + a poster frame)             | `media/ffmpegVideoTranscoder.ts`, or `media/nullVideoTranscoder.ts` where the box has no encoder | `FakeVideoTranscoder` (really scales, really bounds the duration, really drops to even edges) |
+| `ClipJobRepository`  | The transcode queue: event-scoped reads, an **atomic** `claimNext`, crash recovery, and the staged bytes the quota counts        | `db/sqliteClipJobRepository.ts`                                                                  | `FakeClipJobRepository` (keyed `${eventId}:${clipJobId}`)                                     |
+| `PasswordHasher`     | Hash and verify host credentials                                                                                                 | `crypto/bcryptPasswordHasher.ts`, cost 12                                                        | `FakePasswordHasher` (`hash:<password>` — no bcrypt cost in tests)                            |
+| `TokenService`       | Sign and verify event-scoped guest device tokens                                                                                 | `crypto/hmacTokenService.ts`, HMAC-SHA-256                                                       | `FakeTokenService` (`token:<eventId>:<guestId>`)                                              |
+| `IdGenerator`        | Opaque, non-enumerable application ids                                                                                           | `crypto/cryptoIdGenerator.ts`                                                                    | `SequentialIdGenerator` (`id-1`, `id-2` — readable assertions)                                |
+| `Clock`              | `now(): Date`                                                                                                                    | `time/systemClock.ts`                                                                            | `FakeClock` (`advance(ms)`)                                                                   |
+| `EventBus`           | Publish/subscribe domain events in-process                                                                                       | `realtime/inMemoryEventBus.ts`                                                                   | `RecordingEventBus` (`published: DomainEvent[]`)                                              |
+| `Logger`             | Structured logging with `requestId`                                                                                              | `logging/pinoLogger.ts`                                                                          | `CapturingLogger` (assert a warning was emitted, never a message string)                      |
+| `ArchiveBuilder`     | Stream an event's album as a zip                                                                                                 | `archive/archiverAlbumArchiver.ts`                                                               | `FakeArchiveBuilder` (records the entries requested)                                          |
 
 Port design rules: **no storage vocabulary** — no `WHERE`, no row types, no `Statement`;
 an interface that mentions SQLite is not a port. **`eventId` comes first** on every
@@ -274,23 +362,27 @@ accident. Error codes (`photo.notFound`, `event.quotaExceeded`) are stable machi
 strings; the French wording is chosen in `web/src/lib/i18n/`, which is also why tests
 assert on codes and never on messages.
 
-| Kind   | Type                         | Lives in                               | Invariant it owns                                                                                  |
-| ------ | ---------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Entity | `Event`                      | `events/event.ts`                      | Lifecycle transitions, `acceptsUploads(now)`, settings coherence, the scheduled open/close         |
-| Entity | `Photo`                      | `photos/photo.ts`                      | Status transitions, ownership, immutable dimensions                                                |
-| Entity | `Guest`                      | `guests/guest.ts`                      | Belongs to exactly one event; display-name rules                                                   |
-| Entity | `User` + `Membership`        | `users/`                               | A role is always _per event_; there is no global admin                                             |
-| Entity | `Reaction`                   | `reactions/reaction.ts`                | One reaction per guest per photo; emoji from a closed set                                          |
-| VO     | `EventSlug`                  | `events/eventSlug.ts`                  | `^[a-z0-9][a-z0-9-]{1,62}$`, stored already-lowercased                                             |
-| VO     | `JoinCode`                   | `events/joinCode.ts`                   | Fixed length, uppercase, alphabet excludes `0/O` and `1/I` — it is read aloud and typed on a phone |
-| VO     | `Caption`                    | `photos/caption.ts`                    | Trimmed, ≤ 140 chars, C0/C1 control characters stripped                                            |
-| VO     | `DisplayName`                | `guests/displayName.ts`                | 1–40 chars, trimmed, no control characters                                                         |
-| VO     | `ContentHash`                | `photos/contentHash.ts`                | 64 lowercase hex characters                                                                        |
-| VO     | `ImageDimensions`            | `photos/imageDimensions.ts`            | Both edges positive, `width * height` under the pixel ceiling                                      |
-| VO     | `QuotaBytes` + `remaining()` | `events/quota.ts`                      | Non-negative; a quota decision is arithmetic, not a query                                          |
-| VO     | `EventSettings`              | `events/eventSettings.ts`              | Slide interval, layout, moderation mode, reactions on/off                                          |
-| Type   | `Result`, `DomainError`      | `shared/result.ts`, `shared/errors.ts` | Error **kind** (→ HTTP status) and stable machine `code`                                           |
-| Type   | Branded ids                  | `shared/ids.ts`                        | `EventId`, `PhotoId`, `GuestId`, `UserId` are not interchangeable at compile time                  |
+| Kind   | Type                         | Lives in                                        | Invariant it owns                                                                                  |
+| ------ | ---------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Entity | `Event`                      | `events/event.ts`                               | Lifecycle transitions, `acceptsUploads(now)`, settings coherence, the scheduled open/close         |
+| Entity | `Photo`                      | `photos/photo.ts`                               | Status transitions, ownership, immutable dimensions                                                |
+| Entity | `Guest`                      | `guests/guest.ts`                               | Belongs to exactly one event; display-name rules                                                   |
+| Entity | `User` + `Membership`        | `users/`                                        | A role is always _per event_; there is no global admin                                             |
+| Entity | `Reaction`                   | `reactions/reaction.ts`                         | One reaction per guest per photo; emoji from a closed set                                          |
+| Entity | `ClipJob`                    | `clips/clipJob.ts`                              | The queue's own state machine, the attempt count, and the `photoId` fixed at staging               |
+| VO     | `ClipDuration`               | `clips/clipDuration.ts`                         | 1 s to the configured cap; a duration the container did not declare is refused, never defaulted    |
+| Type   | `PhotoFacet`                 | `photos/photo.ts`                               | `photo`, or `clip` carrying a duration and a poster digest — the compiler holds the difference     |
+| Type   | `MediaKind`, `MediaVariant`  | `photos/mediaKind.ts`, `photos/mediaVariant.ts` | Which renditions exist per kind, and which of them may ever be served                              |
+| VO     | `EventSlug`                  | `events/eventSlug.ts`                           | `^[a-z0-9][a-z0-9-]{1,62}$`, stored already-lowercased                                             |
+| VO     | `JoinCode`                   | `events/joinCode.ts`                            | Fixed length, uppercase, alphabet excludes `0/O` and `1/I` — it is read aloud and typed on a phone |
+| VO     | `Caption`                    | `photos/caption.ts`                             | Trimmed, ≤ 140 chars, C0/C1 control characters stripped                                            |
+| VO     | `DisplayName`                | `guests/displayName.ts`                         | 1–40 chars, trimmed, no control characters                                                         |
+| VO     | `ContentHash`                | `photos/contentHash.ts`                         | 64 lowercase hex characters                                                                        |
+| VO     | `ImageDimensions`            | `photos/imageDimensions.ts`                     | Both edges positive, `width * height` under the pixel ceiling                                      |
+| VO     | `QuotaBytes` + `remaining()` | `events/quota.ts`                               | Non-negative; a quota decision is arithmetic, not a query                                          |
+| VO     | `EventSettings`              | `events/eventSettings.ts`                       | Slide interval, layout, moderation mode, reactions on/off                                          |
+| Type   | `Result`, `DomainError`      | `shared/result.ts`, `shared/errors.ts`          | Error **kind** (→ HTTP status) and stable machine `code`                                           |
+| Type   | Branded ids                  | `shared/ids.ts`                                 | `EventId`, `PhotoId`, `GuestId`, `UserId` are not interchangeable at compile time                  |
 
 ### Photo status machine
 
@@ -316,6 +408,27 @@ operation, not a status.
 | `domain/photos/photoStatus.ts`                 | `canTransition(from, to)` table                         | The rule itself, 100% branch-covered                                                       |
 | `application/usecases/photos/moderatePhoto.ts` | delegates to `photo.publish(...)`, never re-implements  | Orchestration plus the `eventId`-scoped read that makes cross-tenant moderation impossible |
 | `photos.status` `CHECK` constraint             | `status IN ('pending','published','rejected','hidden')` | Defence in depth against a hand-written migration or a `sqlite3` shell session             |
+
+### The clip job machine, and why it is not part of the one above
+
+```
+queued ──claim──► running ──succeed──► done
+   ▲                 │
+   └─fail(transient)─┤
+   └─recover─────────┘
+                     └─fail(permanent, or attempts spent)──► failed
+```
+
+| Rule                                | Where                    | Why it is there and not in `PhotoStatus`                                                                  |
+| ----------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| A self-transition is **refused**    | `clips/clipJobStatus.ts` | A double-clicked _Publier_ is harmless; a second claim of a running job is two encoders on one path       |
+| `attempts` increments on **claim**  | `clips/clipJob.ts`       | A clip that takes the process down with it must still spend an attempt, or it is claimed at every boot    |
+| What comes back, and after how long | `clips/clipFailure.ts`   | The split is "could a second attempt answer differently", not severity. An unknown code is transient      |
+| A `running` row at boot goes back   | `ClipJob.recover`        | It can mean nothing else: one worker, concurrency 1. Immediately, with no backoff — the guest waited once |
+| `done` and `failed` rows **stay**   | the schema               | A retried upload answers "already here", and it is the only thing a guest's phone can poll                |
+
+`done` and `failed` are terminal and nothing in the product reopens them; the rows go
+when the event does, by the same cascade as everything else.
 
 ### Event lifecycle
 
@@ -376,16 +489,32 @@ Conventions: `snake_case` plural tables; primary keys are application-generated 
 timestamps are ISO-8601 UTC `TEXT` (sorts lexicographically, readable in a dump, no
 timezone ambiguity); booleans `INTEGER 0/1`; closed enums get a `CHECK`.
 
-| Table               | Primary key            | Key columns                                                                                                                                                                            | Indexes                                                                                                                    |
-| ------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `events`            | `id TEXT`              | `slug`, `name`, `join_code`, `status`, `settings` (JSON `TEXT`), `quota_bytes INTEGER`, `created_at`, `updated_at`, `scheduled_open_at`, `scheduled_close_at`, `schedule_discarded_at` | `UNIQUE(slug)`, `UNIQUE(join_code)`, `(status, created_at DESC)`, partial `(scheduled_open_at)` and `(scheduled_close_at)` |
-| `users`             | `id TEXT`              | `email` (normalised lowercase), `password_hash`, `created_at`                                                                                                                          | `UNIQUE(email)`                                                                                                            |
-| `event_members`     | `(event_id, user_id)`  | `role TEXT CHECK (role IN ('host','moderator'))`, `created_at`                                                                                                                         | `(event_id, role)`, `(user_id)`                                                                                            |
-| `guests`            | `id TEXT`              | `event_id`, `display_name`, `token_hash`, `created_at`, `last_seen_at`                                                                                                                 | `(event_id, created_at DESC)`, `UNIQUE(event_id, token_hash)`                                                              |
-| `photos`            | `id TEXT`              | `event_id`, `guest_id`, `status CHECK (…)`, `content_hash`, `caption`, `width`, `height`, `byte_size`, `created_at`, `moderated_at`                                                    | `(event_id, status, created_at DESC)`, `UNIQUE(event_id, content_hash)`, `(event_id, guest_id, created_at DESC)`           |
-| `reactions`         | `(photo_id, guest_id)` | `event_id`, `emoji CHECK (…)`, `created_at`                                                                                                                                            | `(event_id, photo_id)`                                                                                                     |
-| `sessions`          | `sid TEXT`             | `expires_at`, `data TEXT`                                                                                                                                                              | `(expires_at)` for the sweeper                                                                                             |
-| `schema_migrations` | `id INTEGER`           | `name`, `checksum`, `applied_at`                                                                                                                                                       | —                                                                                                                          |
+| Table               | Primary key            | Key columns                                                                                                                                                                               | Indexes                                                                                                                                  |
+| ------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `events`            | `id TEXT`              | `slug`, `name`, `join_code`, `status`, `settings` (JSON `TEXT`), `quota_bytes INTEGER`, `created_at`, `updated_at`, `scheduled_open_at`, `scheduled_close_at`, `schedule_discarded_at`    | `UNIQUE(slug)`, `UNIQUE(join_code)`, `(status, created_at DESC)`, partial `(scheduled_open_at)` and `(scheduled_close_at)`               |
+| `users`             | `id TEXT`              | `email` (normalised lowercase), `password_hash`, `created_at`                                                                                                                             | `UNIQUE(email)`                                                                                                                          |
+| `event_members`     | `(event_id, user_id)`  | `role TEXT CHECK (role IN ('host','moderator'))`, `created_at`                                                                                                                            | `(event_id, role)`, `(user_id)`                                                                                                          |
+| `guests`            | `id TEXT`              | `event_id`, `display_name`, `token_hash`, `created_at`, `last_seen_at`                                                                                                                    | `(event_id, created_at DESC)`, `UNIQUE(event_id, token_hash)`                                                                            |
+| `photos`            | `id TEXT`              | `event_id`, `guest_id`, `status CHECK (…)`, `content_hash`, `caption`, `width`, `height`, `byte_size`, `created_at`, `moderated_at`, `media_kind CHECK (…)`, `duration_ms`, `poster_hash` | `(event_id, status, created_at DESC)`, `UNIQUE(event_id, content_hash)`, `(event_id, guest_id, created_at DESC)`                         |
+| `clip_jobs`         | `id TEXT`              | `event_id`, `photo_id`, author, `status CHECK (…)`, `source_hash`, `source_byte_size`, `caption`, `attempts`, `not_before`, `failure_code`                                                | `UNIQUE(event_id, source_hash)`, partial `(not_before, created_at, id) WHERE status='queued'`, partial `(status) WHERE status='running'` |
+| `reactions`         | `(photo_id, guest_id)` | `event_id`, `emoji CHECK (…)`, `created_at`                                                                                                                                               | `(event_id, photo_id)`                                                                                                                   |
+| `sessions`          | `sid TEXT`             | `expires_at`, `data TEXT`                                                                                                                                                                 | `(expires_at)` for the sweeper                                                                                                           |
+| `schema_migrations` | `id INTEGER`           | `name`, `checksum`, `applied_at`                                                                                                                                                          | —                                                                                                                                        |
+
+`clip_jobs` breaks one of those two rules on purpose, and it is the only table that does.
+Its claim index is **not** led by `event_id`, because the query it serves is the one read
+in the product that is not scoped to an event: one in-process worker drains the queue for
+every event on the box, so it asks "what, anywhere, is due" — the same shape as
+`listDueForPurge` and for the same reason. Everything a _request_ can reach is still
+scoped, and the port has no method that reaches a job without an event id except the two
+the worker uses.
+
+The other thing worth knowing about `clip_jobs` is that the byte quota reads it.
+`SUM(photos.byte_size)` alone under-reports an event by the whole contents of its queue —
+a staged clip is on the disk the quota exists to protect — and `MediaStore.usedBytes`
+would then disagree with the database by that amount, which the media store's contract
+says means a leak. So `SqlitePhotoRepository`'s total spans both tables, inside the same
+statement, inside the same transaction as the insert it guards.
 
 Two rules explain most of that index list. **Every event-scoped table carries**
 `event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE`. **Every event-scoped
@@ -500,6 +629,18 @@ export const buildContainer = async (env: NodeJS.ProcessEnv): Promise<Container>
   const hub = new SseHub({ bus, clock, logger }) // subscribes to the bus here
   const media = new FilesystemMediaStore(config.mediaRoot)
   const images = new SharpImageProcessor(config)
+  // Asked once, at boot, and never again. `-encoders` must list libx264 and aac **by
+  // name**: a distribution's patched build reports its own version, and one compiled
+  // without them reports a perfectly modern one right up until the first transcode
+  // fails. On failure: one log line, a Null Object in place of the encoder, clip
+  // uploads refused by name — and the boot continues, because a photo wall with no
+  // video still serves the room. `/api/ready` reports it and does not fail on it.
+  const video = (await probeFfmpegCapability(config)).available
+    ? createFfmpegVideoTranscoder({
+        paths,
+        scratchRoot: resolve(mediaRoot, '.scratch'),
+      })
+    : nullVideoTranscoder(detectVideoContainer)
   const tokens = new HmacTokenService(config.guestTokenSecret)
   const events = new SqliteEventRepository(db),
     photos = new SqlitePhotoRepository(db)
@@ -580,9 +721,20 @@ const schema = z.object({
   SESSION_SECRET: z.string().min(32), // no default, ever
   GUEST_TOKEN_SECRET: z.string().min(32), // no default, ever
   SESSION_COOKIE_SECURE: z.coerce.boolean().default(true),
-  MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(15_000_000),
-  MAX_UPLOAD_FILES: z.coerce.number().int().min(1).max(50).default(10),
+  MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(25_000_000),
+  MAX_FILES_PER_UPLOAD: z.coerce.number().int().min(1).max(100).default(20),
   MAX_IMAGE_PIXELS: z.coerce.number().int().positive().default(50_000_000),
+  // Clips carry their own limits. MAX_UPLOAD_BYTES cannot be reused: guestRoutes.ts
+  // derives a per-request heap ceiling from it and compose.yaml's memory limit was
+  // reasoned against that number.
+  MAX_CLIP_BYTES: …, // 80_000_000
+  MAX_CLIP_SECONDS: …, // 15, bounded at 120
+  MAX_QUEUED_CLIPS: …, // 20 — the backpressure depth, process-wide
+  CLIP_MAX_HEIGHT: …, // 720
+  // PATH and PATHEXT are parsed here and handed to the binary resolver as values,
+  // because `spawn` is never given a shell (CVE-2024-27980 on Windows) and without one
+  // Node does not apply PATHEXT — so a bare `ffmpeg` fails where `ffmpeg.exe` exists.
+  FFMPEG_PATH: …, FFPROBE_PATH: …, PATH: …, PATHEXT: …,
   TRUST_PROXY: z.coerce.boolean().default(false),
   // The two in-process sweeps. Both take a whole number of minutes **or the word
   // `off`** — never 0, because `Number('')` is 0 and a dangling `VAR=` in a compose

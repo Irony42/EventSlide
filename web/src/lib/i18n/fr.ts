@@ -556,6 +556,38 @@ export const fr = {
     'event.scheduleInPast':
       'Cette heure est déjà passée. Vérifiez la date : pour la fin de soirée, choisissez le lendemain.',
     'event.scheduleInvalid': 'Ces dates ne sont pas lisibles. Choisissez-les à nouveau.',
+
+    /* ---- Added by the short video clips (docs/ROADMAP.md 1.4). They live here and not
+            in a feature block because `messageForCode` resolves a server error code
+            against `fr.errors` and nothing else.
+
+            Two of them carry most of the weight. `clip.queueFull` must not read like
+            `event.quotaExceeded` — the gallery is not full, the machine is busy for a
+            minute — and `clip.transcoderUnavailable` must not read like
+            `clip.unsupportedFormat`: the file is fine, this server cannot process it,
+            and a guest told otherwise spends the evening trying other files. ---- */
+    'event.clipsNotAllowed': 'Les vidéos ne sont pas activées pour cette galerie.',
+    'clip.queueFull': 'Beaucoup de vidéos sont en cours de traitement. Réessayez dans une minute.',
+    'clip.transcoderUnavailable':
+      'Ce serveur ne peut pas traiter les vidéos. Prévenez l’organisateur.',
+    'clip.unsupportedFormat': 'Ce fichier n’est pas une vidéo. Formats acceptés : MP4, MOV, WebM.',
+    'clip.corrupt': 'Cette vidéo semble abîmée. Essayez-en une autre.',
+    'clip.noVideoStream': 'Ce fichier ne contient pas d’image. Essayez-en un autre.',
+    'clip.durationUnknown': 'La durée de cette vidéo est illisible. Essayez-en une autre.',
+    'clip.tooShort': 'Cette vidéo est trop courte.',
+    'clip.tooLong': 'Cette vidéo est trop longue. Filmez une séquence plus courte.',
+    'clip.transcodeFailed': 'Cette vidéo n’a pas pu être traitée. Essayez-en une autre.',
+    'clip.transcodeTimedOut': 'Cette vidéo est trop lourde à traiter. Essayez-en une autre.',
+    'clip.storageFailed': 'Cette vidéo n’a pas pu être enregistrée. Réessayez.',
+    'clip.sourceMissing': 'Cette vidéo n’est plus disponible. Envoyez-la à nouveau.',
+    'clip.stageFailed': 'Cette vidéo n’a pas pu être reçue. Réessayez.',
+    'clip.abandoned': 'Le traitement de cette vidéo a été interrompu. Envoyez-la à nouveau.',
+    'clip.sourceByteSizeInvalid': 'Ce fichier est vide. Choisissez-en un autre.',
+    'clipJob.notFound': 'Cette vidéo n’existe plus.',
+    // A player corrects itself from the `Content-Range` on the 416 and never shows this;
+    // it is here because every code the API can answer with has a sentence of its own,
+    // and a code with no copy renders as the generic one if anything ever does show it.
+    'photo.rangeNotSatisfiable': 'Cette partie du fichier n’existe pas.',
   },
 
   /**

@@ -159,6 +159,29 @@ const DOCUMENTED_CODES: readonly string[] = [
   'event.notModeratable',
   'photo.pixelBudgetExceeded',
   'upload.rejected',
+
+  // Short video clips (docs/API.md §3). A guest meets the first three on the upload
+  // itself; the rest arrive later as the `failureCode` of a clip the worker gave up on,
+  // which is the only thing that stops "en cours de traitement" showing for the rest of
+  // the evening.
+  'event.clipsNotAllowed',
+  'clip.queueFull',
+  'clip.unsupportedFormat',
+  'clip.sourceByteSizeInvalid',
+  'clip.stageFailed',
+  'clip.transcoderUnavailable',
+  'clip.corrupt',
+  'clip.noVideoStream',
+  'clip.durationUnknown',
+  'clip.tooShort',
+  'clip.tooLong',
+  'clip.transcodeFailed',
+  'clip.transcodeTimedOut',
+  'clip.storageFailed',
+  'clip.sourceMissing',
+  'clip.abandoned',
+  'clipJob.notFound',
+  'photo.rangeNotSatisfiable',
 ]
 
 describe('messageForCode', () => {

@@ -22,6 +22,19 @@ export interface HealthChecks {
   readonly databaseReady: () => Promise<boolean>
   /** Writes and removes a probe file, so a read-only volume is detected. */
   readonly mediaWritable: () => Promise<boolean>
+  /**
+   * Whether this box has an encoder that can produce a clip a browser will play.
+   *
+   * **Reported, never acted on.** It is deliberately not part of the ready/not-ready
+   * decision: a photo wall with no video still serves the room, and taking a venue's wall
+   * out of service over a missing codec would be a far worse outage than the one it
+   * reports. An operator reading `/api/ready` sees it beside `media`; an orchestrator
+   * reading the status code does not, which is the point.
+   *
+   * Decided once at boot rather than probed per request — starting a subprocess on a
+   * liveness path is how a readiness probe becomes the thing that takes a box down.
+   */
+  readonly videoTranscoding: () => 'ok' | 'unavailable'
 }
 
 export const healthRoutes = (checks: HealthChecks): Router => {
@@ -43,8 +56,11 @@ export const healthRoutes = (checks: HealthChecks): Router => {
         checks.mediaWritable().catch(() => false),
       ])
 
+      // Not in the conjunction below, on purpose: see `videoTranscoding`.
+      const video = checks.videoTranscoding()
+
       if (database && media) {
-        res.json({ status: 'ready', checks: { database: 'ok', media: 'ok' } })
+        res.json({ status: 'ready', checks: { database: 'ok', media: 'ok', video } })
         return
       }
 
@@ -57,6 +73,7 @@ export const healthRoutes = (checks: HealthChecks): Router => {
           details: {
             database: database ? 'ok' : 'unavailable',
             media: media ? 'ok' : 'unavailable',
+            video,
           },
         },
       })

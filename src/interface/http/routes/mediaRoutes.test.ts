@@ -6,6 +6,7 @@ import { GUEST_COOKIE } from '../middleware/authz'
 import type { ArchiveEntry, ArchiveWriter } from '../../../application/ports/archiveWriter'
 import {
   MEDIA_VARIANTS,
+  type ByteRange,
   type MediaMetadata,
   type MediaStore,
   type MediaVariant,
@@ -13,7 +14,14 @@ import {
 import { makeExportAlbum, type ExportAlbum } from '../../../application/usecases/photos/exportAlbum'
 import { makeGetPhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
-import { AT, aGuest, anEvent, aPhoto, type PhotoInput } from '../../../application/testing/builders'
+import {
+  AT,
+  aClip,
+  aGuest,
+  anEvent,
+  aPhoto,
+  type PhotoInput,
+} from '../../../application/testing/builders'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId, type EventId } from '../../../domain/shared/ids'
@@ -78,18 +86,35 @@ class InMemoryMediaStore implements MediaStore {
     variant: MediaVariant,
   ): Promise<MediaMetadata | null> {
     const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined ? null : { byteSize: bytes.length, contentType: 'image/jpeg' }
+    return bytes === undefined
+      ? null
+      : {
+          byteSize: bytes.length,
+          // Variant-aware, as the filesystem store is: serving a clip labelled
+          // `image/jpeg` under `nosniff` is a projector that renders nothing.
+          contentType: variant === 'video' ? 'video/mp4' : 'image/jpeg',
+        }
   }
 
   async openRead(
     eventId: EventId,
     hash: ContentHash,
     variant: MediaVariant,
+    range?: ByteRange,
   ): Promise<AsyncIterable<Uint8Array> | null> {
     const bytes = this.objects.get(this.key(eventId, hash, variant))
     if (bytes === undefined) return null
+
+    // A range the object cannot satisfy answers `null`, exactly as the filesystem store
+    // does — a `206` over an empty stream is a player waiting forever.
+    if (range !== undefined && (range.start >= bytes.length || range.end < range.start)) return null
+
+    const served =
+      range === undefined
+        ? bytes
+        : bytes.slice(range.start, Math.min(range.end, bytes.length - 1) + 1)
     return (async function* () {
-      yield bytes
+      yield served
     })()
   }
 
@@ -501,5 +526,152 @@ describe('GET /events/:eventSlug/album.zip', () => {
     const agent = await signedIn(world, 'host')
 
     await expect(agent.get('/events/mariage/album.zip').responseType('blob')).rejects.toThrow()
+  })
+})
+
+// ------------------------------------------------------------------- clips --
+
+/**
+ * A published clip in the wedding, with its two renditions on the disk.
+ *
+ * `MP4` is longer than a marker because these tests are about **byte ranges**, and a
+ * three-byte object cannot express a range that starts in the middle.
+ */
+const CLIP = '7c7c7c7c-7c7c-4c7c-8c7c-7c7c7c7c7c7c'
+const MP4 = Uint8Array.from({ length: 64 }, (_unused, index) => index)
+const POSTER = Uint8Array.of(0xff, 0xd8, 0xff, 0x01)
+
+const seedClip = async (world: World): Promise<void> => {
+  const clip = aClip({ id: CLIP, eventId: WEDDING, status: 'published', clip: {} })
+  world.photos.seed(clip)
+  await world.media.put(clip.eventId, clip.contentHash, 'video', MP4)
+  const facet = clip.facet
+  if (facet.kind !== 'clip') throw new Error('fixture is not a clip')
+  await world.media.put(clip.eventId, facet.posterHash, 'poster', POSTER)
+}
+
+describe('GET /events/:eventSlug/photos/:photoId/:variant — a clip', () => {
+  let world: World
+
+  beforeEach(async () => {
+    world = await buildWorld()
+    await seedClip(world)
+  })
+
+  it('serves the mp4 to the room, declared as video', () => {
+    // `fsMediaStore` used to hardcode `image/jpeg` for every variant. Under `nosniff`, a
+    // browser believes that label and renders nothing at all.
+    return getBytes(world, mediaPath(CLIP, 'video')).then((response) => {
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toContain('video/mp4')
+      expect([...response.body]).toEqual([...MP4])
+    })
+  })
+
+  it('advertises that it accepts ranges, which is how a player knows it can seek', async () => {
+    const response = await getBytes(world, mediaPath(CLIP, 'video'))
+
+    expect(response.headers['accept-ranges']).toBe('bytes')
+  })
+
+  it('answers a range with 206 and exactly those bytes', async () => {
+    // Safari will not begin playback at all against a handler that answers 200 to a
+    // range request. This is not an optimisation; it is whether a clip plays.
+    const response = await getBytes(world, mediaPath(CLIP, 'video')).set('Range', 'bytes=8-15')
+
+    expect(response.status).toBe(206)
+    expect(response.headers['content-range']).toBe('bytes 8-15/64')
+    expect(response.headers['content-length']).toBe('8')
+    expect([...response.body]).toEqual([8, 9, 10, 11, 12, 13, 14, 15])
+  })
+
+  it('answers an open-ended range, which is what a player opens with', async () => {
+    const response = await getBytes(world, mediaPath(CLIP, 'video')).set('Range', 'bytes=60-')
+
+    expect(response.status).toBe(206)
+    expect(response.headers['content-range']).toBe('bytes 60-63/64')
+    expect([...response.body]).toEqual([60, 61, 62, 63])
+  })
+
+  it('answers a suffix range, which is how Safari finds the index', async () => {
+    const response = await getBytes(world, mediaPath(CLIP, 'video')).set('Range', 'bytes=-4')
+
+    expect(response.status).toBe(206)
+    expect(response.headers['content-range']).toBe('bytes 60-63/64')
+  })
+
+  it('answers 416 with the real size for a range the file cannot satisfy', async () => {
+    // The size is what lets a player correct itself instead of retrying the same
+    // impossible range for the rest of the evening.
+    const response = await getJson(world, mediaPath(CLIP, 'video')).set('Range', 'bytes=999-')
+
+    expect(response.status).toBe(416)
+    expect(response.headers['content-range']).toBe('bytes */64')
+    expect(response.body.error.code).toBe('photo.rangeNotSatisfiable')
+  })
+
+  it('serves the whole object for a multi-range request rather than refusing it', async () => {
+    const response = await getBytes(world, mediaPath(CLIP, 'video')).set('Range', 'bytes=0-3,8-11')
+
+    expect(response.status).toBe(200)
+    expect(response.body.length).toBe(64)
+  })
+
+  it('serves the poster as an image, from its own digest', async () => {
+    // A clip has two hashes and the poster is addressed by its own: the media store's
+    // one invariant is that the name of a file is the hash of that file.
+    const response = await getBytes(world, mediaPath(CLIP, 'poster'))
+
+    expect(response.status).toBe(200)
+    expect(response.headers['content-type']).toContain('image/jpeg')
+    expect([...response.body]).toEqual([...POSTER])
+  })
+
+  it('answers 404 for a rendition a clip does not have', async () => {
+    // The miss is on the **row**, not on the disk: `photo.mediaMissing` is the code that
+    // means "a row points at bytes that are gone", which is a corruption worth an
+    // operator's attention, and a client asking a clip for a `display` is not that.
+    const response = await getJson(world, mediaPath(CLIP, 'display'))
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('photo.notFound')
+  })
+
+  it('answers 404 for a rendition a photograph does not have', async () => {
+    const response = await getJson(world, mediaPath(PUBLISHED, 'video'))
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('photo.notFound')
+  })
+
+  it('refuses to serve a guest’s un-stripped upload under any spelling', async () => {
+    // `source` is outside the served variants, so the route's own schema refuses it —
+    // and the use case takes a `ServedVariant`, so even a schema that admitted it would
+    // not compile. Those bytes still carry whatever the phone wrote, including location.
+    const response = await getJson(world, mediaPath(CLIP, 'source'))
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+  })
+
+  it('gives the two renditions different validators', async () => {
+    // The ETag keys on the digest *and* the variant, so nothing compares a poster's
+    // validator against an mp4's across two URLs of the same row.
+    const video = await getBytes(world, mediaPath(CLIP, 'video'))
+    const poster = await getBytes(world, mediaPath(CLIP, 'poster'))
+
+    expect(video.headers['etag']).not.toBe(poster.headers['etag'])
+  })
+
+  it('still answers 304 to a projector that already has the clip', async () => {
+    const first = await getBytes(world, mediaPath(CLIP, 'video'))
+
+    const second = await getJson(world, mediaPath(CLIP, 'video')).set(
+      'If-None-Match',
+      first.headers['etag'] ?? '',
+    )
+
+    expect(second.status).toBe(304)
+    expect(second.headers['accept-ranges']).toBe('bytes')
   })
 })

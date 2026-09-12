@@ -46,10 +46,16 @@ services:
     # and there is no reason for it to be able to write anywhere else.
     read_only: true
     tmpfs:
-      # Nothing stages an upload here. `src/interface/http/routes/guestRoutes.ts` uses
-      # `multer.memoryStorage()`, so every uploaded byte is a Buffer in the heap and
-      # never touches a filesystem — deliberately, because 1.0 leaked temporary files on
-      # the failure paths and the pipeline re-encodes everything anyway.
+      # Nothing stages an upload here, and that is still true of clips.
+      #
+      # `guestRoutes.ts` uses `multer.memoryStorage()`, so every uploaded photo byte is a
+      # Buffer in the heap and never touches a filesystem — deliberately, because 1.0
+      # leaked temporary files on the failure paths and the pipeline re-encodes
+      # everything anyway. A clip does stream to disk (`clipRoutes.ts`), and ffmpeg needs
+      # seekable scratch files on both sides of a transcode because `+faststart` rewrites
+      # the index at the end — but both go under **`MEDIA_ROOT`**, on the `/data` volume,
+      # never here. A 60 MB clip written to this tmpfs would be 60 MB charged to the same
+      # cgroup as the heap, which is the one thing disk storage was chosen to avoid.
       #
       # This mount exists only because `read_only: true` above makes the whole root
       # filesystem read-only, and a Node process with no writable temp directory fails
@@ -80,6 +86,13 @@ services:
           #           rejected from the header before it is decoded, but a legitimate
           #           50-megapixel photo still needs the room.
           #   ~100 MB Node, SQLite and the rest of the process.
+          #   ~150 MB one clip being transcoded. The queue runs at concurrency 1 for
+          #           every event on the box, so this is charged once however many are
+          #           waiting: the ffmpeg process itself, plus the one buffer of at most
+          #           MAX_CLIP_BYTES that the bytes-in/bytes-out port implies. The
+          #           uploaded clip is streamed to disk under MEDIA_ROOT, not buffered,
+          #           so MAX_CLIP_BYTES does **not** multiply by the requests in flight
+          #           the way MAX_UPLOAD_BYTES would.
           #
           # 1 GB therefore holds a couple of uploads in flight at once. The upload rate
           # limiter bounds requests per minute, not concurrency, so if you run a venue

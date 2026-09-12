@@ -697,6 +697,11 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       caption: null,
       createdAt: AT.toISOString(),
       canDelete: true,
+      // The clip facet, `null` on a photograph rather than absent, so no client has to
+      // test for a missing key before deciding what to render.
+      kind: 'photo',
+      videoUrl: null,
+      durationMs: null,
     })
   })
 

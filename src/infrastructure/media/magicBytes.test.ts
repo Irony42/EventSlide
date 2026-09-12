@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectImageFormat, identifySuspicious } from './magicBytes'
+import { detectImageFormat, detectVideoContainer, identifySuspicious } from './magicBytes'
 import { PAYLOADS, asBytes, withHeader } from './testPayloads'
 
 const ascii = (text: string): number[] => [...asBytes(text)]
@@ -144,5 +144,72 @@ describe('identifySuspicious', () => {
 
   it('says nothing about an empty buffer', () => {
     expect(identifySuspicious(new Uint8Array(0))).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------- video --
+
+/**
+ * The video signatures. They share the `ftyp` box with HEIC and AVIF above, which is the
+ * whole difficulty: a phone's photo and a phone's clip are the same container format,
+ * distinguished only by a four-character brand. The two sets must stay disjoint or a
+ * still is queued for a transcode and a clip is handed to `sharp`.
+ */
+const isoBox = (brand: string): Uint8Array =>
+  Uint8Array.from([
+    0x00,
+    0x00,
+    0x00,
+    0x18,
+    ...[...'ftyp'].map((character) => character.charCodeAt(0)),
+    ...[...brand].map((character) => character.charCodeAt(0)),
+    0x00,
+    0x00,
+    0x02,
+    0x00,
+  ])
+
+describe('detectVideoContainer', () => {
+  it.each(['isom', 'iso2', 'mp41', 'mp42', 'avc1', 'qt  ', '3gp4'])(
+    'recognises the %s brand as mp4',
+    (brand) => {
+      expect(detectVideoContainer(isoBox(brand))).toBe('mp4')
+    },
+  )
+
+  it('recognises a Matroska or WebM header', () => {
+    // One EBML header, one demuxer to ffmpeg, so there is nothing to tell apart.
+    expect(detectVideoContainer(Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3, 0x01, 0x02]))).toBe(
+      'matroska',
+    )
+  })
+
+  it.each(['heic', 'avif', 'mif1'])('does not treat the %s brand as a video', (brand) => {
+    // A phone's photograph. Queueing it for a transcode would refuse it thirty seconds
+    // later with a code that means something else entirely.
+    expect(detectVideoContainer(isoBox(brand))).toBeNull()
+  })
+
+  it('does not treat a JPEG as a video', () => {
+    expect(detectVideoContainer(Uint8Array.from([0xff, 0xd8, 0xff, 0xe0]))).toBeNull()
+  })
+
+  it('refuses bytes with no ftyp box at all', () => {
+    expect(detectVideoContainer(new TextEncoder().encode('%PDF-1.7 not a clip'))).toBeNull()
+  })
+
+  it('refuses a prefix too short to hold a brand', () => {
+    expect(detectVideoContainer(Uint8Array.from([0x00, 0x00]))).toBeNull()
+  })
+
+  it('does not confuse the two pipelines: no image brand is a video brand', () => {
+    for (const brand of ['heic', 'heix', 'avif', 'avis', 'mif1', 'msf1']) {
+      expect(detectVideoContainer(isoBox(brand))).toBeNull()
+      expect(detectImageFormat(isoBox(brand))).not.toBeNull()
+    }
+    for (const brand of ['isom', 'mp42', 'qt  ']) {
+      expect(detectImageFormat(isoBox(brand))).toBeNull()
+      expect(detectVideoContainer(isoBox(brand))).toBe('mp4')
+    }
   })
 })

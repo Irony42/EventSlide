@@ -1,3 +1,6 @@
+import { ClipJob } from '../../domain/clips/clipJob'
+import { ClipDuration } from '../../domain/clips/clipDuration'
+import type { ClipJobStatus } from '../../domain/clips/clipJobStatus'
 import { Event } from '../../domain/events/event'
 import { EventName } from '../../domain/events/eventName'
 import { EventSettings, type EventSettingsPatch } from '../../domain/events/eventSettings'
@@ -7,11 +10,23 @@ import { Guest } from '../../domain/guests/guest'
 import { Caption } from '../../domain/photos/caption'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Dimensions } from '../../domain/photos/dimensions'
-import { Photo, type PhotoAuthor, type PhotoReview } from '../../domain/photos/photo'
+import {
+  Photo,
+  type PhotoAuthor,
+  type PhotoFacet,
+  type PhotoReview,
+} from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import { Reaction } from '../../domain/reactions/reaction'
 import type { DomainError } from '../../domain/shared/errors'
-import { asEventId, asGuestId, asPhotoId, asReactionId, asUserId } from '../../domain/shared/ids'
+import {
+  asClipJobId,
+  asEventId,
+  asGuestId,
+  asPhotoId,
+  asReactionId,
+  asUserId,
+} from '../../domain/shared/ids'
 import { JoinCode } from '../../domain/shared/joinCode'
 import type { Result } from '../../domain/shared/result'
 import { Slug } from '../../domain/shared/slug'
@@ -163,6 +178,12 @@ export type ReviewInput =
   | { readonly kind: 'host'; readonly userId: string; readonly at?: Date }
   | { readonly kind: 'automatic'; readonly at?: Date }
 
+/** Present on a `PhotoInput` means the row is a clip; absent means a photograph. */
+export interface ClipFacetInput {
+  readonly durationMs?: number
+  readonly posterHash?: string
+}
+
 export interface PhotoInput {
   readonly id?: string
   readonly eventId?: string
@@ -175,7 +196,20 @@ export interface PhotoInput {
   readonly caption?: string | null
   readonly createdAt?: Date
   readonly review?: ReviewInput | null
+  /**
+   * Makes the row a clip. Absent is a photograph, which is what the overwhelming
+   * majority of tests are about — so a test that mentions this is a test about clips.
+   */
+  readonly clip?: ClipFacetInput
 }
+
+/**
+ * The cap a fixture's duration is judged against.
+ *
+ * Deliberately not `MAX_CLIP_SECONDS` from configuration: a builder is test
+ * infrastructure and must not change behaviour when a deployment lowers a setting.
+ */
+const FIXTURE_MAX_CLIP_MS = 15_000
 
 const toAuthor = (input: AuthorInput): PhotoAuthor =>
   input.kind === 'guest'
@@ -195,6 +229,20 @@ const toReview = (input: ReviewInput, fallbackAt: Date): PhotoReview =>
  * photo carrying no review is unreachable in production. Pass `review: null`
  * explicitly to build that state anyway when the point of the test is a corrupt row.
  */
+const toFacet = (id: string, clip: ClipFacetInput): PhotoFacet => ({
+  kind: 'clip',
+  duration: must(
+    ClipDuration.create(pick(clip.durationMs, 8_000), FIXTURE_MAX_CLIP_MS),
+    'aPhoto.duration',
+  ),
+  // Derived from the photo id, like the content hash beside it, and distinct from it:
+  // the poster is a different file and the store addresses it by its own digest.
+  posterHash: must(
+    ContentHash.create(pick(clip.posterHash, hexDigest(`${id}/poster`))),
+    'aPhoto.posterHash',
+  ),
+})
+
 export const aPhoto = (input: PhotoInput = {}): Photo => {
   const id = pick(input.id, 'photo-1')
   const status = pick(input.status, 'pending')
@@ -204,6 +252,9 @@ export const aPhoto = (input: PhotoInput = {}): Photo => {
   const created = must(
     Photo.create(
       {
+        // `exactOptionalPropertyTypes`: an absent key is "a photograph", and an explicit
+        // `undefined` would be a different thing to say.
+        ...(input.clip === undefined ? {} : { facet: toFacet(id, input.clip) }),
         eventId: asEventId(pick(input.eventId, 'event-1')),
         author: toAuthor(pick(input.author, { kind: 'guest', id: 'guest-1' })),
         contentHash: must(
@@ -228,6 +279,74 @@ export const aPhoto = (input: PhotoInput = {}): Photo => {
     ...created.toProps(),
     status,
     review: review === null ? null : toReview(review, createdAt),
+  })
+}
+
+/**
+ * A clip that has finished transcoding: a `Photo` whose facet carries a duration and a
+ * poster. Everything else about it is a photo, which is the point of the facet.
+ */
+export const aClip = (input: PhotoInput = {}): Photo =>
+  aPhoto({ ...input, clip: pick(input.clip, {}) })
+
+// ------------------------------------------------------------------ clip job --
+
+export interface ClipJobInput {
+  readonly id?: string
+  readonly eventId?: string
+  readonly photoId?: string
+  readonly author?: AuthorInput
+  readonly status?: ClipJobStatus
+  readonly sourceHash?: string
+  readonly sourceByteSize?: number
+  readonly caption?: string | null
+  readonly attempts?: number
+  readonly createdAt?: Date
+  readonly updatedAt?: Date
+  readonly notBefore?: Date
+  readonly failureCode?: string | null
+}
+
+/**
+ * A staged clip, `queued` and claimable by default — what an upload actually produces.
+ *
+ * `attempts` follows the status rather than defaulting to zero everywhere: a job that is
+ * `running` was claimed by somebody, and a fixture with `running` and zero attempts is a
+ * state the entity cannot reach, so a recovery test built on it would be proving
+ * something about a row production never writes.
+ */
+export const aClipJob = (input: ClipJobInput = {}): ClipJob => {
+  const id = pick(input.id, 'clip-job-1')
+  const status = pick(input.status, 'queued')
+  const createdAt = pick(input.createdAt, AT)
+  const caption = pick(input.caption, null)
+
+  const created = must(
+    ClipJob.create(
+      {
+        eventId: asEventId(pick(input.eventId, 'event-1')),
+        author: toAuthor(pick(input.author, { kind: 'guest', id: 'guest-1' })),
+        sourceHash: must(
+          ContentHash.create(pick(input.sourceHash, hexDigest(`${id}/source`))),
+          'aClipJob.sourceHash',
+        ),
+        sourceByteSize: pick(input.sourceByteSize, 8_000_000),
+        caption: caption === null ? null : must(Caption.create(caption), 'aClipJob.caption'),
+      },
+      asClipJobId(id),
+      asPhotoId(pick(input.photoId, `${id}-photo`)),
+      createdAt,
+    ),
+    'aClipJob',
+  )
+
+  return ClipJob.restore({
+    ...created.toProps(),
+    status,
+    attempts: pick(input.attempts, status === 'queued' ? 0 : 1),
+    updatedAt: pick(input.updatedAt, createdAt),
+    notBefore: pick(input.notBefore, createdAt),
+    failureCode: pick(input.failureCode, null),
   })
 }
 

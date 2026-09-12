@@ -7,6 +7,7 @@ import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
 import { attachUser } from './middleware/authz'
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
 import { authRoutes } from './routes/authRoutes'
+import { clipRoutes } from './routes/clipRoutes'
 import { eventRoutes } from './routes/eventRoutes'
 import { guestRoutes } from './routes/guestRoutes'
 import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
@@ -117,6 +118,18 @@ export const buildServer = ({
   app.use('/api', publicRoutes(routeDeps))
   app.use('/api', authRoutes(routeDeps))
   app.use('/api', guestRoutes(routeDeps))
+  // Its own router, its own multer, its own byte limit — see `clipRoutes.ts`. Mounted
+  // beside the guest routes rather than inside them so that neither upload path can
+  // inherit the other's parser by accident.
+  app.use(
+    '/api',
+    clipRoutes({
+      deps,
+      usecases,
+      uploadTempDir: config.clips.uploadTempDir,
+      maxClipBytes: config.clips.maxBytes,
+    }),
+  )
   app.use('/api', mediaRoutes(routeDeps))
   app.use('/api', moderationRoutes(routeDeps))
   app.use('/api', eventRoutes(routeDeps))

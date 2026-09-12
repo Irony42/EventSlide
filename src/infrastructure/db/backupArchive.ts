@@ -391,6 +391,10 @@ interface PhotoRow {
   readonly id: string
   readonly eventId: string
   readonly contentHash: string
+  /** `photo` or `clip`, which decides which renditions this row owns. */
+  readonly mediaKind: string
+  /** A clip's poster is a second file under a second digest; `null` on a photograph. */
+  readonly posterHash: string | null
 }
 
 interface LedgerRow {
@@ -399,9 +403,41 @@ interface LedgerRow {
   readonly checksum: string
 }
 
+/** Every rendition is a JPEG except the one that is an mp4, as `fsMediaStore` names it. */
+const MEDIA_EXTENSION: Readonly<Record<string, string>> = { video: 'mp4' }
+
 /** The path `fsMediaStore` lays an object down at, relative to the media root. */
 const mediaPathOf = (eventId: string, contentHash: string, variant: string): string =>
-  `${eventId}/${variant}/${contentHash.slice(0, 2)}/${contentHash}.jpg`
+  `${eventId}/${variant}/${contentHash.slice(0, 2)}/${contentHash}.${MEDIA_EXTENSION[variant] ?? 'jpg'}`
+
+/**
+ * Every file one row owns, as the media store laid it down.
+ *
+ * A photograph has three renditions under one digest; a clip has an mp4 under its own
+ * and a poster under a **second** one, because the store's invariant is that the name of
+ * a file is the hash of that file. Walking `MEDIA_VARIANTS` alone would have reported
+ * every clip in an album as three missing photo files while quietly not accounting for
+ * the two real ones — and a backup that silently omits a kind of content is precisely
+ * what the reconciliation below exists to make impossible.
+ */
+const expectedPathsOf = (
+  photo: PhotoRow,
+): readonly { readonly variant: string; readonly path: string }[] => {
+  if (photo.mediaKind !== 'clip') {
+    return MEDIA_VARIANTS.map((variant) => ({
+      variant,
+      path: mediaPathOf(photo.eventId, photo.contentHash, variant),
+    }))
+  }
+  // A clip row with no poster digest is a corrupt row; the repository refuses it on
+  // read. Here the archive is the last chance to notice, so it falls back to the
+  // video's digest and lets the missing-media list report what is not there.
+  const poster = photo.posterHash ?? photo.contentHash
+  return [
+    { variant: 'video', path: mediaPathOf(photo.eventId, photo.contentHash, 'video') },
+    { variant: 'poster', path: mediaPathOf(photo.eventId, poster, 'poster') },
+  ]
+}
 
 /**
  * Everything read out of the snapshot, in one open/close.
@@ -428,7 +464,11 @@ const readSnapshot = (
       .all() as LedgerRow[]
 
     const photos = db
-      .prepare('SELECT id, event_id AS eventId, content_hash AS contentHash FROM photos')
+      .prepare(
+        `SELECT id, event_id AS eventId, content_hash AS contentHash,
+                media_kind AS mediaKind, poster_hash AS posterHash
+           FROM photos`,
+      )
       .all() as PhotoRow[]
 
     return {
@@ -569,8 +609,7 @@ export const createBackup = async ({
   const missingMedia: BackupManifest['missingMedia'] = []
 
   for (const photo of snapshot.photos) {
-    for (const variant of MEDIA_VARIANTS) {
-      const path = mediaPathOf(photo.eventId, photo.contentHash, variant)
+    for (const { variant, path } of expectedPathsOf(photo)) {
       expected.add(path)
       if (!captured.has(path)) {
         missingMedia.push({

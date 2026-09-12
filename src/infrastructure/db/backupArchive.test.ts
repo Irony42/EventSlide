@@ -285,6 +285,40 @@ describe('backup and restore', () => {
       expect((await verify()).ok).toBe(true)
     })
 
+    it('captures both of a clip’s files, under both of its digests', async () => {
+      // A clip is a facet of a photo, and its two renditions are addressed by two
+      // different digests — the mp4 by the row's own and the poster by its second. A
+      // backup that walked the three photo variants would have reported the clip as
+      // three missing files and accounted for neither of the two it really has, which
+      // is a whole kind of content disappearing from the archive with nothing to say so.
+      const db = openLive()
+      insertOwner(db)
+      insertEvent(db)
+      insertGuest(db, 'guest-1')
+      const videoHash = hashOf('a-clip')
+      const posterHash = hashOf('a-clip-poster')
+      db.prepare(
+        `INSERT INTO photos (id, event_id, author_guest_id, status, content_hash,
+                             width, height, byte_size, created_at,
+                             media_kind, duration_ms, poster_hash)
+         VALUES ('clip-1', ?, 'guest-1', 'published', ?, 720, 1280, 4321,
+                 '2026-09-01T20:05:00.000Z', 'clip', 9000, ?)`,
+      ).run(EVENT, videoHash, posterHash)
+      db.close()
+
+      const videoDirectory = join(mediaRoot, EVENT, 'video', videoHash.slice(0, 2))
+      await mkdir(videoDirectory, { recursive: true })
+      await writeFile(join(videoDirectory, `${videoHash}.mp4`), 'mp4-bytes')
+      await writeMedia(EVENT, posterHash, 'poster', 'poster-bytes')
+
+      const { manifest } = await backup()
+
+      expect(manifest.missingMedia).toEqual([])
+      expect(manifest.counts.mediaFiles).toBe(2)
+      expect(manifest.unreferencedMediaFiles).toBe(0)
+      expect((await verify()).ok).toBe(true)
+    })
+
     it('leaves an upload still being staged out of the archive', async () => {
       await seedAnEvening()
       const directory = join(mediaRoot, EVENT, 'original', 'ff')

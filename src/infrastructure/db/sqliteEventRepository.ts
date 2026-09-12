@@ -120,6 +120,24 @@ const settingsInteger = (value: unknown, field: string): number => {
 const settingsNullableInteger = (value: unknown, field: string): number | null =>
   value === null ? null : settingsInteger(value, field)
 
+/**
+ * The one exception to "every field is required", and it is the exception a settings
+ * blob written as JSON always eventually needs.
+ *
+ * `allowClips` arrived with migration 003. Every event created before it has a
+ * `settings` blob with no such key, and there is no way to backfill one — the column is
+ * opaque JSON, so a migration would have to parse and rewrite every row of every album
+ * to add a field whose absence already means exactly the default. Refusing those rows
+ * would make the upgrade take down every existing wedding; silently defaulting a field a
+ * host *did* choose is the failure the strict reading above exists to prevent, and it
+ * cannot happen here because no host has ever chosen this one.
+ *
+ * A field added in a future migration belongs here too, with its own line saying which
+ * migration introduced it. A field that has always existed does not.
+ */
+const settingsBooleanAddedLater = (value: unknown, field: string, fallback: boolean): boolean =>
+  value === undefined ? fallback : settingsBoolean(value, field)
+
 const decodeJson = (raw: string): unknown => {
   try {
     return JSON.parse(raw)
@@ -146,6 +164,8 @@ const settingsOf = (raw: string): EventSettings => {
     moderation,
     allowCaptions: settingsBoolean(decoded['allowCaptions'], 'allowCaptions'),
     allowReactions: settingsBoolean(decoded['allowReactions'], 'allowReactions'),
+    // Added by migration 003; absent on every event created before it. See above.
+    allowClips: settingsBooleanAddedLater(decoded['allowClips'], 'allowClips', true),
     allowGuestSelfDelete: settingsBoolean(decoded['allowGuestSelfDelete'], 'allowGuestSelfDelete'),
     guestSelfDeleteGraceSeconds: settingsInteger(
       decoded['guestSelfDeleteGraceSeconds'],

@@ -133,6 +133,27 @@ const UNREAD_BY_CLIENT: Readonly<Record<string, readonly string[]>> = {
   // deliberately. It stays on the server's gallery row (`ModerationPhotoDto`) because
   // `GET /events/:slug/photos` has no client consumer at all today.
   ModerationPhotoDto: ['byteSize'],
+
+  /**
+   * The clip facet (docs/ROADMAP.md 1.4), on the three rows that can now be one.
+   *
+   * The decision, written down as this map asks: the **server spine** of clips landed
+   * first and deliberately alone — the guest, moderation and wall surfaces are a separate
+   * branch — so these fields are on the wire and nothing in `web/src` reads them yet.
+   * They are not dead weight: without them the client has no way to tell a clip from a
+   * photograph, no URL to play, and no duration to lay out.
+   *
+   * Every one of these rows still renders correctly on a client that ignores them:
+   * `thumbUrl` and `displayUrl` point at the clip's **poster**, so an untaught client
+   * shows a still frame rather than a broken image. **This is a temporary entry** and it
+   * goes when the web surfaces land.
+   */
+  WallItemDto: ['kind', 'videoUrl', 'durationMs'],
+  GuestPhotoDto: ['kind', 'videoUrl', 'durationMs'],
+  ModerationQueueItemDto: ['kind', 'videoUrl', 'durationMs'],
+  // The host's switch over video, for the same reason and with the same expiry: the
+  // settings form is on the web branch. The server reads it on every clip upload.
+  EventSettingsDto: ['allowClips'],
 }
 
 /** Every interface the client declares that names a shape the server also sends. */

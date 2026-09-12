@@ -157,6 +157,7 @@ Per minute, configurable, `429` with `Retry-After` when exceeded.
 | `POST /api/join`                              | 20      | client IP               | `rate.limited`         |
 | `POST /api/auth/login`                        | 10      | client IP               | `rate.limited`         |
 | `POST /api/events/:slug/photos`               | 12      | client IP **and** event | `rate.limited`         |
+| `POST /api/events/:slug/clips`                | 12      | client IP **and** event | `rate.limited`         |
 | `POST /api/events/:slug/photos/:id/reactions` | 30      | client IP **and** event | `reaction.rateLimited` |
 
 The two guest write endpoints key on IP **and** event on purpose: a whole table of
@@ -164,6 +165,12 @@ guests shares one access point and therefore one public IP, so a per-IP-only lim
 throttle the venue rather than an abuser, and a burst on one event must not close
 another event running on the same box. IPv6 addresses are collapsed to their /56 subnet,
 because a per-address limit on a /64 residential allocation is no limit at all.
+
+Photos and clips share **one** bucket, not two: a guest sending both is one guest, and
+two independent allowances would be twice the limit. Clips are additionally bounded by
+the depth of the transcode queue, which answers **429 `clip.queueFull` with a
+`Retry-After`** and deliberately never the quota's `413` — the gallery is not full, the
+machine is busy for a minute. See §3.
 
 Uploads are additionally bounded per event by a byte quota, which closes uploads rather
 than filling the disk.
@@ -195,7 +202,7 @@ read-only bind mount and a full disk as writable and then fails on the first upl
 **200**
 
 ```json
-{ "status": "ready", "checks": { "database": "ok", "media": "ok" } }
+{ "status": "ready", "checks": { "database": "ok", "media": "ok", "video": "ok" } }
 ```
 
 **503** `service.notReady` when either fails, with `details` naming which:
@@ -205,13 +212,19 @@ read-only bind mount and a full disk as writable and then fails on the first upl
   "error": {
     "code": "service.notReady",
     "message": "A dependency is unavailable",
-    "details": { "database": "ok", "media": "unavailable" }
+    "details": { "database": "ok", "media": "unavailable", "video": "ok" }
   }
 }
 ```
 
 503 rather than 500: this is a correct answer about an incorrect state, and an
 orchestrator distinguishes the two.
+
+`video` is `"ok"` or `"unavailable"` and is **reported, never acted on**: it appears in
+both bodies and takes no part in the ready/not-ready decision. A box with no video
+encoder still serves a photo wall, and taking a venue out of service over a missing codec
+would be a far worse outage than the one it reports — clip uploads are refused by name
+instead (§3). It is decided once at boot, so this route starts no subprocess of its own.
 
 ### `POST /api/join`
 
@@ -293,7 +306,10 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
       "height": 1707,
       "caption": "Les confettis",
       "authorName": "Léa",
-      "createdAt": "2026-06-20T21:04:11.031Z"
+      "createdAt": "2026-06-20T21:04:11.031Z",
+      "kind": "photo",
+      "videoUrl": null,
+      "durationMs": null
     }
   ],
   "slideIntervalMs": 8000,
@@ -416,7 +432,10 @@ moderation beats wondering whether the upload worked.
       "thumbUrl": "…",
       "caption": null,
       "createdAt": "…",
-      "canDelete": true
+      "canDelete": true,
+      "kind": "photo",
+      "videoUrl": null,
+      "durationMs": null
     }
   ]
 }
@@ -425,6 +444,82 @@ moderation beats wondering whether the upload worked.
 `canDelete` is computed server-side from the grace window, the current status **and the
 event's `allowGuestSelfDelete` switch**, so the client does not re-implement the rule and
 then disagree with the server: it is exactly what `DELETE` below would allow.
+
+`kind`, `videoUrl` and `durationMs` are the clip facet, present on every row of this
+shape and `null`-valued on a photograph rather than absent — so no client tests for a
+missing key. When `kind` is `"clip"`, **`thumbUrl` points at the poster frame**, which is
+what lets a client that has never heard of video render a still rather than a broken
+image; `videoUrl` is the mp4, and it is the URL that answers `Range` requests (§4).
+
+### `POST /api/events/:slug/clips`
+
+A short video clip. `multipart/form-data`, **exactly one** file under the field `clip`,
+optional `caption`. Guest token required.
+
+A separate route with its own `multer`, its own byte limit and its own storage, and none
+of that is incidental: the photo path's `MAX_UPLOAD_BYTES` feeds a per-request heap
+ceiling the deployment's memory limit was reasoned against, and a clip streams to **disk**
+rather than to the heap because the request that carries it is slow by nature.
+
+**202 Accepted** — and the status code is the contract. Nothing has been created that a
+moderator can see: **a clip that is still transcoding has no `photos` row at all**, which
+is what makes a half-encoded clip on the projector unrepresentable rather than filtered
+out. What comes back is the job to watch and the id of the row it will become.
+
+```json
+{
+  "clipJobId": "…",
+  "status": "queued",
+  "photoId": "…",
+  "failureCode": null
+}
+```
+
+`photoId` is fixed when the clip is staged, so a client can start watching for that row
+immediately; it names an existing photo only once `status` is `"done"`. A retried upload
+of the same bytes answers `202` with the **same** `clipJobId` rather than queueing a
+second transcode — the digest of the source is the job's idempotency key, which is what
+makes a dropped upload on venue Wi-Fi safe to repeat.
+
+| `status`  | Meaning                                                                |
+| --------- | ---------------------------------------------------------------------- |
+| `queued`  | Waiting for the worker. This is what a fresh upload answers            |
+| `running` | Being transcoded now                                                   |
+| `done`    | `photoId` exists, `pending` like any other upload until a host decides |
+| `failed`  | Given up on. `failureCode` says why, and the client words it in French |
+
+**Errors** — `400 clip.unsupportedFormat` when the bytes are not a container this server
+opens, decided from the **signature** before anything is written;
+`400 clip.sourceByteSizeInvalid` for an empty file; `400 upload.noFiles` when the request
+carries no `clip` part; `403 event.clipsNotAllowed` when the host turned video off for
+this event; `403 event.captionsNotAllowed`; `409 event.notAcceptingUploads`;
+`413 upload.tooLarge` past `MAX_CLIP_BYTES`; `413 event.quotaExceeded`;
+**`429 clip.queueFull` with `Retry-After`** when the box has more clips waiting than it
+will accept — a condition that clears in about a minute, and deliberately not the
+quota's `413`, which tells a guest the gallery is full and to go and find the organiser;
+`500 clip.stageFailed`; and `500 clip.transcoderUnavailable` when this deployment has no
+video encoder at all.
+
+### `GET /api/events/:slug/clips/:clipJobId`
+
+"Where is my clip?" — the one question a guest has during the window between the upload
+and the transcode, when `GET /photos/mine` has nothing to show them. Guest token
+required, and a guest may read only their **own** job.
+
+Answers the same body as the upload above. `Cache-Control: no-store`: this is the one
+view whose purpose is to change.
+
+**Errors** — `404 clipJob.notFound` for a job that does not exist, one in another event,
+**and one belonging to another guest**. Never `403`: a 403 would confirm that the id
+names a real clip, and these ids are handed out to phones.
+
+The `failureCode` on a `failed` job is one of `clip.unsupportedFormat`, `clip.corrupt`,
+`clip.noVideoStream`, `clip.durationUnknown`, `clip.tooShort`, `clip.tooLong`,
+`clip.transcodeFailed`, `clip.transcodeTimedOut`, `clip.storageFailed`,
+`clip.sourceMissing`, `clip.transcoderUnavailable`, `clip.abandoned`,
+`event.quotaExceeded` or `event.photoLimitReached`. Each has French copy, because a clip
+that silently stays "en cours" for the rest of the evening is the failure this endpoint
+exists to prevent.
 
 ### `DELETE /api/events/:slug/photos/:photoId`
 
@@ -499,17 +594,30 @@ and nothing else about reactions. `404 photo.notFound` for a photo outside this 
 
 ### `GET /api/events/:slug/photos/:photoId/:variant`
 
-`variant` ∈ `thumb | display | original`.
+`variant` ∈ `thumb | display | original` for a photograph, `video | poster` for a clip.
+
+Asking a row for a rendition its **kind** does not have is `404 photo.notFound` — the
+miss is on the row, not on the disk, because `photo.mediaMissing` is the code that means
+"a row points at bytes that are gone" and that is a corruption worth an operator's
+attention.
+
+There is deliberately no spelling that reaches a clip's **staged upload**. Those bytes
+still carry whatever the phone wrote into the container, including location; they are
+stored inside the media store so the event's purge reaches them, and they are outside the
+set of servable renditions entirely — the media use case's own parameter type excludes
+them, so no route can parse a value that would return one.
 
 Served by a controller, never `express.static`, so authorization and event scoping
 apply to every byte. 1.0 served media from a path built out of the session's `partyId`
 and the client's filename.
 
-| Caller           | May read                                           |
-| ---------------- | -------------------------------------------------- |
-| Public           | `thumb`, `display` of a **published** photo        |
-| Guest            | the above, plus any variant of **their own** photo |
-| Moderator, owner | any variant of any photo in that event             |
+| Caller           | May read                                                     |
+| ---------------- | ------------------------------------------------------------ |
+| Public           | `thumb`, `display`, `poster`, `video` of a **published** row |
+| Guest            | the above, plus any rendition of **their own** row           |
+| Moderator, owner | any rendition of any row in that event                       |
+
+`original` is the one rendition a non-moderator never receives, whatever the status.
 
 **The event must serve its wall, whoever is asking.** This route resolves the event
 through the same public gate the wall uses, so a `draft` or `archived` event serves no
@@ -527,10 +635,35 @@ in an `<img>`. Year-long caching is safe because the name is the content hash: d
 bytes are a different URL. `If-None-Match` is honoured and answers **304** with the
 validator still set, so a projector does not re-download a slide it showed an hour ago.
 
-**Errors** — `404 photo.notFound`, including for a photo in another event and for a
-variant the caller may not read. `404 photo.mediaMissing` when the row exists but its
-bytes do not — distinguishable in the logs from a scoping miss, and identical on the
-wire.
+#### Range requests
+
+`Accept-Ranges: bytes` is on **every** response from this route, and a `Range` header is
+honoured with a **206** carrying `Content-Range` and the length of the part.
+
+This is not an optimisation. A `<video>` element issues a range request before it will
+let anyone scrub, and Safari will not begin playback **at all** against a handler that
+answers `200` with the whole body — so a clip that is served without this simply does not
+play. The failure is invisible to CSP and to every test that does not actually send the
+header.
+
+| Request                           | Answer                                                                |
+| --------------------------------- | --------------------------------------------------------------------- |
+| no `Range`                        | `200`, whole body, `Content-Length` of the object                     |
+| `bytes=0-`, `bytes=200-499`, `-4` | `206`, `Content-Range: bytes <first>-<last>/<size>`                   |
+| a last byte past the end          | `206`, clamped to the end of the object, as RFC 9110 requires         |
+| a first byte past the end         | `416 photo.rangeNotSatisfiable` with `Content-Range: bytes */<size>`  |
+| a multi-range request             | `200`, the whole object — permitted, and what every player copes with |
+
+The `416` carries the real size, which is what lets a player correct itself instead of
+retrying the same impossible range for the rest of the evening. It is written at the
+route rather than through the error-kind table: `416` is a property of one representation
+and of the header that asked for it, not a class of business failure, and the taxonomy in
+§1 is worth keeping small enough to hold in your head.
+
+**Errors** — `404 photo.notFound`, including for a photo in another event, for a
+rendition the caller may not read, and for a rendition this row's kind does not have.
+`404 photo.mediaMissing` when the row exists but its bytes do not — distinguishable in
+the logs from a scoping miss, and identical on the wire.
 
 ### `GET /api/events/:slug/album.zip`
 
@@ -761,6 +894,7 @@ The shape every route in the table that answers `200` returns.
     "moderation": "manual",
     "allowCaptions": true,
     "allowReactions": true,
+    "allowClips": true,
     "allowGuestSelfDelete": true,
     "guestSelfDeleteGraceSeconds": 900,
     "retentionDays": 30,
@@ -809,6 +943,7 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
   "moderation": "manual",
   "allowCaptions": true,
   "allowReactions": true,
+  "allowClips": true,
   "allowGuestSelfDelete": true,
   "guestSelfDeleteGraceSeconds": 900,
   "retentionDays": 30,
@@ -821,6 +956,7 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 | `moderation`                  | `manual` \| `auto`                       |
 | `allowCaptions`               | boolean                                  |
 | `allowReactions`              | boolean                                  |
+| `allowClips`                  | boolean                                  |
 | `allowGuestSelfDelete`        | boolean                                  |
 | `guestSelfDeleteGraceSeconds` | integer 0..86400                         |
 | `retentionDays`               | integer 1..3650, or `null` for "keep"    |
@@ -1013,7 +1149,10 @@ Query: `status` ∈ `pending | published | rejected | hidden | all` (default `al
       "caption": "Les confettis",
       "authorName": null,
       "byteSize": 5412880,
-      "createdAt": "2026-06-20T21:04:11.031Z"
+      "createdAt": "2026-06-20T21:04:11.031Z",
+      "kind": "photo",
+      "videoUrl": null,
+      "durationMs": null
     }
   ],
   "nextCursor": null
@@ -1207,7 +1346,10 @@ for the reason `nextCursor` is always `null` below. The cursor-paged surface is
       "height": 1707,
       "caption": "Les confettis",
       "authorName": "Léa",
-      "createdAt": "2026-06-20T21:04:11.031Z"
+      "createdAt": "2026-06-20T21:04:11.031Z",
+      "kind": "photo",
+      "videoUrl": null,
+      "durationMs": null
     }
   ],
   "pendingCount": 12,

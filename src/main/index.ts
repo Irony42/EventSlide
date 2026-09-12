@@ -78,6 +78,11 @@ const bootstrap = async (): Promise<void> => {
   // Same reasoning, and the first sweep is likewise one interval away: a restart at
   // 18:02 must not decide the state of the evening before the shutdown handlers exist.
   container.schedule?.start()
+  // The exception to "one interval away", and deliberately so: this one's first pass is
+  // **immediate**, because it is also crash recovery. A clip left mid-transcode by a
+  // restart is invisible to everything until this puts it back, and a guest who is
+  // standing in the room has already waited once.
+  container.clipWorker.start()
 }
 
 /**

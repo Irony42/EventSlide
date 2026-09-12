@@ -14,8 +14,16 @@ import { SqliteGuestRepository } from '../infrastructure/db/sqliteGuestRepositor
 import { SqliteReactionRepository } from '../infrastructure/db/sqliteReactionRepository'
 import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { SqliteMembershipRepository } from '../infrastructure/db/sqliteMembershipRepository'
+import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepository'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
+import { probeFfmpegCapability } from '../infrastructure/media/ffmpegBinaries'
+import {
+  createFfmpegVideoTranscoder,
+  type FfmpegVideoTranscoder,
+} from '../infrastructure/media/ffmpegVideoTranscoder'
+import { nullVideoTranscoder } from '../infrastructure/media/nullVideoTranscoder'
+import { detectVideoContainer } from '../infrastructure/media/magicBytes'
 import { archiverWriter } from '../infrastructure/media/archiverWriter'
 import { createBcryptPasswordHasher } from '../infrastructure/crypto/bcryptPasswordHasher'
 import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestTokenService'
@@ -30,6 +38,8 @@ import { buildServer } from '../interface/http/server'
 import type { HttpConfig, HttpDeps } from '../interface/http/types'
 import type { PresenterContext } from '../interface/http/presenters/presenters'
 import { buildUseCases, type Adapters, type UseCases } from './usecases'
+import { createClipWorker, type ClipWorker } from './clipWorker'
+import { clipUploadTempDir } from '../interface/http/routes/clipRoutes'
 import { createRetentionSweeper, type RetentionSweeper } from './retentionSweeper'
 import { createScheduleSweeper, type ScheduleSweeper } from './scheduleSweeper'
 
@@ -61,10 +71,40 @@ export interface Container {
    * nothing ever acts on them.
    */
   readonly schedule: ScheduleSweeper | null
+  /**
+   * The transcode queue's drain loop, built here and started by `index.ts` like the two
+   * sweeps — except that this one's first pass is immediate, because it is also crash
+   * recovery. Never `null`: with no encoder on the box the worker still runs and every
+   * job it takes is refused with `clip.transcoderUnavailable`, which is what turns a
+   * queue of clips nobody can process into a queue that empties and tells the guests why.
+   */
+  readonly clipWorker: ClipWorker
   dispose(): Promise<void>
 }
 
 const VERSION = '2.0.0'
+
+/**
+ * How often the worker looks for a clip nobody announced.
+ *
+ * A drain normally starts from the bus, within milliseconds of the upload. This is the
+ * backstop for the announcement that was missed — a publish with no subscriber at that
+ * instant, a job put back by a retry's backoff — so it is measured in seconds rather
+ * than the minutes the sweeps use: a guest is watching.
+ */
+const CLIP_WORKER_INTERVAL_MS = 15_000
+
+/**
+ * The ceiling on one clip's output.
+ *
+ * Passed to the encoder as `-fs`, so a pathological source cannot fill a disk however
+ * long it claims to be. Generous against what 720p H.264 actually produces for fifteen
+ * seconds (two to four megabytes) because the bound is a backstop, not a target.
+ */
+const CLIP_MAX_OUTPUT_BYTES = 40_000_000
+
+/** The longest edge of the still frame the grid, the album and the wall render. */
+const CLIP_POSTER_MAX_EDGE = 640
 
 /** A minute is plenty for a reaction: the domain owns the arithmetic, this is the window. */
 const REACTION_WINDOW_MS = 60_000
@@ -82,6 +122,11 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   const mediaRoot = resolve(config.storage.mediaRoot)
   await mkdir(mediaRoot, { recursive: true })
+  // multer writes a clip here before it is staged, and the encoder writes its scratch
+  // files beside it. Both are under MEDIA_ROOT rather than os.tmpdir(), because the
+  // container runs read-only with a tmpfs charged to the same memory cgroup.
+  await mkdir(clipUploadTempDir(mediaRoot), { recursive: true })
+  await mkdir(resolve(mediaRoot, '.scratch'), { recursive: true })
 
   const db = openDatabase({ path: config.storage.databasePath })
 
@@ -102,6 +147,47 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // no business tearing the bus down.
   const bus = createInMemoryEventBus({ logger })
 
+  // ------------------------------------------------------------------- video --
+
+  /**
+   * Asked once, at boot, and never again.
+   *
+   * **It does not fail the boot and it does not fail `/api/ready`.** A photo wall with no
+   * video still serves the room, and taking a venue's wall out of service over a missing
+   * codec would be a far worse outage than the one it reports — so the answer is a
+   * readiness *detail* beside `mediaWritable`, one log line, and a Null Object in place
+   * of the encoder. Photo ingest never learns that any of this happened.
+   *
+   * The check is the encoder list, never a version string: a distribution's patched build
+   * reports its own version, and one compiled without the non-free encoders reports a
+   * perfectly modern one right up until the first transcode fails.
+   */
+  const capability = await probeFfmpegCapability({
+    ffmpegPath: config.clips.ffmpegPath ?? undefined,
+    ffprobePath: config.clips.ffprobePath ?? undefined,
+    search: config.clips.executableSearch,
+  })
+
+  const ffmpeg: FfmpegVideoTranscoder | null = capability.available
+    ? createFfmpegVideoTranscoder({
+        paths: capability.paths,
+        // Under MEDIA_ROOT, never os.tmpdir(): the container is read-only with a small
+        // tmpfs charged to the same memory cgroup as the process.
+        scratchRoot: resolve(mediaRoot, '.scratch'),
+      })
+    : null
+
+  if (ffmpeg === null) {
+    // Once, at `warn`: it is a degraded capability rather than a misconfiguration, and an
+    // operator who wanted video needs to be able to find out why they have none.
+    logger.warn('no usable video encoder; clip uploads will be refused', {
+      reason: capability.available ? '' : capability.reason,
+      detail: 'photo uploads are unaffected; install ffmpeg or set FFMPEG_PATH',
+    })
+  }
+
+  const videoTranscoder = ffmpeg ?? nullVideoTranscoder(detectVideoContainer)
+
   const adapters: Adapters = {
     clock: systemClock,
     /**
@@ -119,12 +205,14 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     bus,
     events: new SqliteEventRepository(db),
     photos: new SqlitePhotoRepository(db),
+    clips: new SqliteClipJobRepository(db),
     guests: new SqliteGuestRepository(db),
     reactions: new SqliteReactionRepository(db),
     users: new SqliteUserRepository(db),
     memberships: new SqliteMembershipRepository(db),
     media: createFsMediaStore({ root: mediaRoot }),
     imageProcessor: createSharpImageProcessor({ maxPixels: config.uploads.maxPixels }),
+    videoTranscoder,
     contentHasher: sha256ContentHasher,
     archive: archiverWriter,
     passwordHasher: createBcryptPasswordHasher({ cost: config.crypto.bcryptCost }),
@@ -135,6 +223,14 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     defaultEventQuotaBytes: config.uploads.defaultEventQuotaBytes,
     maxImagePixels: config.uploads.maxPixels,
     reactionBudget: { windowMs: REACTION_WINDOW_MS, maxPerWindow: REACTION_MAX_PER_WINDOW },
+    clips: {
+      maxQueuedClips: config.clips.maxQueuedClips,
+      maxHeight: config.clips.maxHeight,
+      maxDurationMs: config.clips.maxDurationMs,
+      maxOutputBytes: CLIP_MAX_OUTPUT_BYTES,
+      posterMaxEdge: CLIP_POSTER_MAX_EDGE,
+      maxPixels: config.clips.maxPixels,
+    },
   })
 
   // ------------------------------------------------------------- retention --
@@ -191,6 +287,26 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     })
   }
 
+  // ------------------------------------------------------------ transcoding --
+
+  /**
+   * Always built, even with no encoder on the box.
+   *
+   * A worker that did not run would leave every queued clip `queued` forever — charged
+   * to the event's quota, invisible to the guest who sent it, and waiting for a
+   * capability that will not appear before the next boot. Running it means each job is
+   * claimed, refused with `clip.transcoderUnavailable`, and the guest is told; the queue
+   * empties instead of silently filling.
+   */
+  const clipWorker = createClipWorker({
+    transcodeNext: usecases.transcodeNextClip,
+    recover: usecases.recoverClipJobs,
+    bus,
+    logger,
+    clock: adapters.clock,
+    intervalMs: CLIP_WORKER_INTERVAL_MS,
+  })
+
   // ------------------------------------------------------------- first run --
 
   await bootstrapFirstOwner(config, usecases, logger)
@@ -205,6 +321,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secureCookie: config.session.secureCookie,
     e2eHooks: config.e2eHooks,
     uploads: { maxBytes: config.uploads.maxBytes, maxFiles: config.uploads.maxFiles },
+    clips: {
+      maxBytes: config.clips.maxBytes,
+      uploadTempDir: clipUploadTempDir(mediaRoot),
+    },
     rateLimits: config.rateLimits,
   }
 
@@ -248,6 +368,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
         return true
       },
       mediaWritable: async () => probeWritable(mediaRoot),
+      // The boot answer, handed back unchanged. Never a fresh probe: starting a
+      // subprocess on a readiness path is how a probe becomes the thing that takes a
+      // box down.
+      videoTranscoding: () => (ffmpeg === null ? 'unavailable' : 'ok'),
     },
     ...(hasClient ? { clientDir } : {}),
   })
@@ -259,12 +383,19 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     db,
     retention,
     schedule,
+    clipWorker,
     dispose: async () => {
       // First: a sweep that started after the database was closed would log a failure
       // for every expired event and delete none of them. An already-running one is
       // abandoned rather than awaited — see the reasoning in `retentionSweeper.stop`.
       retention?.stop()
       schedule?.stop()
+      clipWorker.stop()
+      // **Then the encoder itself.** `stop()` above abandons the drain, which leaves the
+      // ffmpeg process it started running: a container stop orphans a child rather than
+      // stopping it, so a new container would start the same job while the old encoder
+      // holds a core for the rest of the evening.
+      ffmpeg?.close()
       sessionStore.close()
       bus.close()
       // Last, and synchronous: it checkpoints the WAL so the `.sqlite` file is

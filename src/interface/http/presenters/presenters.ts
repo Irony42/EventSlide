@@ -5,7 +5,8 @@ import type { Guest } from '../../../domain/guests/guest'
 import type { Photo } from '../../../domain/photos/photo'
 import type { User } from '../../../domain/users/user'
 import type { EventSummary } from '../../../application/ports/eventRepository'
-import type { MediaVariant } from '../../../application/ports/mediaStore'
+import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
+import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type {
   EventDto,
   EventSettingsDto,
@@ -42,6 +43,50 @@ export const mediaUrl = (slug: string, photoId: string, variant: MediaVariant): 
   `/api/events/${encodeURIComponent(slug)}/photos/${encodeURIComponent(photoId)}/${variant}`
 
 /**
+ * Which rendition each role resolves to, per kind.
+ *
+ * **A lookup, not an `if`.** Everything mechanical about a clip is indexed by its kind
+ * rather than branched on: domain and application are gated at 100% branches and this
+ * layer at 90%, so a conditional at every call site costs a photo test and a clip test
+ * for the rest of the project — and the table is what makes "a clip's thumbnail is its
+ * poster" a fact written in one place instead of a rule repeated in four presenters.
+ *
+ * The consequence is the useful one: a client that has never heard of video still gets a
+ * working `thumbUrl` and `displayUrl` for a clip, and renders a still frame rather than
+ * a broken image.
+ */
+const DISPLAY_VARIANT: Readonly<Record<MediaKind, ServedVariant>> = {
+  photo: 'display',
+  clip: 'poster',
+}
+
+const THUMB_VARIANT: Readonly<Record<MediaKind, ServedVariant>> = {
+  photo: 'thumb',
+  clip: 'poster',
+}
+
+/** `null` where there is nothing to play, so no client tests for a missing key. */
+const PLAYABLE_VARIANT: Readonly<Record<MediaKind, ServedVariant | null>> = {
+  photo: null,
+  clip: 'video',
+}
+
+/** The three fields a clip adds to every row that can be one. */
+export const toMediaFacetDto = (
+  photo: Photo,
+  slug: string,
+): { kind: MediaKind; videoUrl: string | null; durationMs: number | null } => {
+  const playable = PLAYABLE_VARIANT[photo.kind]
+  const facet = photo.facet
+
+  return {
+    kind: photo.kind,
+    videoUrl: playable === null ? null : mediaUrl(slug, photo.id, playable),
+    durationMs: facet.kind === 'clip' ? facet.duration.ms : null,
+  }
+}
+
+/**
  * The link behind the QR code.
  *
  * A path, not a query parameter. 1.0 put the event name in `?partyname=` on the QR
@@ -56,6 +101,7 @@ export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto =>
   moderation: settings.moderation,
   allowCaptions: settings.allowCaptions,
   allowReactions: settings.allowReactions,
+  allowClips: settings.allowClips,
   allowGuestSelfDelete: settings.allowGuestSelfDelete,
   guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
   retentionDays: settings.retentionDays,
@@ -136,10 +182,11 @@ export interface GuestPhotoDtoInput {
 export const toGuestPhotoDto = ({ photo, slug, canDelete }: GuestPhotoDtoInput): GuestPhotoDto => ({
   id: photo.id,
   status: photo.status,
-  thumbUrl: mediaUrl(slug, photo.id, 'thumb'),
+  thumbUrl: mediaUrl(slug, photo.id, THUMB_VARIANT[photo.kind]),
   caption: photo.caption?.value ?? null,
   createdAt: iso(photo.createdAt),
   canDelete,
+  ...toMediaFacetDto(photo, slug),
 })
 
 export interface ModerationPhotoDtoInput {
@@ -156,14 +203,15 @@ export const toModerationPhotoDto = ({
 }: ModerationPhotoDtoInput): ModerationPhotoDto => ({
   id: photo.id,
   status: photo.status,
-  thumbUrl: mediaUrl(slug, photo.id, 'thumb'),
-  displayUrl: mediaUrl(slug, photo.id, 'display'),
+  thumbUrl: mediaUrl(slug, photo.id, THUMB_VARIANT[photo.kind]),
+  displayUrl: mediaUrl(slug, photo.id, DISPLAY_VARIANT[photo.kind]),
   width: photo.dimensions.width,
   height: photo.dimensions.height,
   caption: photo.caption?.value ?? null,
   authorName,
   byteSize: photo.byteSize,
   createdAt: iso(photo.createdAt),
+  ...toMediaFacetDto(photo, slug),
 })
 
 export const toGuestDto = (guest: Guest): GuestDto => ({
@@ -188,8 +236,9 @@ export const toSessionUserDto = (user: User): SessionUserDto => ({
 // that five route modules being written against this file at the same time merge
 // cleanly. Type-only, so nothing is added to the bundle.
 import type { ModerationQueueRow } from '../../../application/usecases/moderation/getModerationQueue'
+import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
-import type { ModerationQueueItemDto, TopPhotoDto } from './dto'
+import type { ClipJobDto, ModerationQueueItemDto, TopPhotoDto } from './dto'
 
 export interface ModerationQueueItemDtoInput {
   readonly row: ModerationQueueRow
@@ -216,13 +265,39 @@ export const toModerationQueueItemDto = ({
 }: ModerationQueueItemDtoInput): ModerationQueueItemDto => ({
   id: row.id,
   status: row.status,
-  thumbUrl: mediaUrl(slug, row.id, 'thumb'),
-  displayUrl: mediaUrl(slug, row.id, 'display'),
+  thumbUrl: mediaUrl(slug, row.id, THUMB_VARIANT[row.kind]),
+  displayUrl: mediaUrl(slug, row.id, DISPLAY_VARIANT[row.kind]),
   width: row.width,
   height: row.height,
   caption: row.caption,
   authorName: row.authorName,
   createdAt: iso(row.createdAt),
+  kind: row.kind,
+  // From the row rather than from a `Photo`: this presenter is handed the use case's
+  // read model, and reaching for a repository here would be a controller doing a second
+  // read — the defect that put "par undefined" on a host's screen.
+  videoUrl: PLAYABLE_VARIANT[row.kind] === null ? null : mediaUrl(slug, row.id, 'video'),
+  durationMs: row.durationMs,
+})
+
+/**
+ * A clip that has no `photos` row yet, for the guest who is waiting for it.
+ *
+ * One presenter for two shapes — the upload's answer and the poll's — because they are
+ * the same fact at two moments, and two would drift. `duplicate` does not cross: a client
+ * acts on the status, and a second flag saying the same thing is a second thing to keep
+ * in step.
+ */
+export const toClipJobDto = (view: {
+  readonly clipJobId: string
+  readonly status: ClipJobStatus
+  readonly photoId: string
+  readonly failureCode: string | null
+}): ClipJobDto => ({
+  clipJobId: view.clipJobId,
+  status: view.status,
+  photoId: view.photoId,
+  failureCode: view.failureCode,
 })
 
 export interface TopPhotoDtoInput {
@@ -384,13 +459,14 @@ import type { WallItemDto, WallResponseDto } from './dto'
  */
 const toWallItemDto = (photo: Photo, slug: string, authorName: string | null): WallItemDto => ({
   id: photo.id,
-  displayUrl: mediaUrl(slug, photo.id, 'display'),
-  thumbUrl: mediaUrl(slug, photo.id, 'thumb'),
+  displayUrl: mediaUrl(slug, photo.id, DISPLAY_VARIANT[photo.kind]),
+  thumbUrl: mediaUrl(slug, photo.id, THUMB_VARIANT[photo.kind]),
   width: photo.dimensions.width,
   height: photo.dimensions.height,
   caption: photo.caption?.value ?? null,
   authorName,
   createdAt: iso(photo.createdAt),
+  ...toMediaFacetDto(photo, slug),
 })
 
 /**

@@ -67,7 +67,12 @@ export const makeDeletePhoto = ({
     // first would strand bytes nobody can name — neither this use case nor the
     // retention purge could ever find them again. A crash between the two leaves a row
     // whose file is gone, which the media endpoint already answers as a 404.
-    await media.delete(eventId, photo.contentHash)
+    //
+    // **Every digest the row owns, not just `contentHash`.** A clip owns two: the mp4
+    // under its own and the poster under a second, because the store's invariant is that
+    // a file's name is that file's hash. Deleting `contentHash` alone removed the video
+    // and left the poster behind on every guest self-delete and every host delete.
+    for (const hash of photo.storageHashes) await media.delete(eventId, hash)
     await photos.delete(eventId, photoId)
 
     bus.publish({ type: 'photo.deleted', eventId, photoId })

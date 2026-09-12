@@ -6,11 +6,12 @@ import { asEventId, asGuestId, asPhotoId, asUserId, type EventId } from '../../.
 import type { Result } from '../../../domain/shared/result'
 import {
   MEDIA_VARIANTS,
+  type ByteRange,
   type MediaMetadata,
   type MediaStore,
   type MediaVariant,
 } from '../../ports/mediaStore'
-import { aPhoto, type PhotoInput } from '../../testing/builders'
+import { aClip, aPhoto, type PhotoInput } from '../../testing/builders'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import {
   makeGetPhotoMedia,
@@ -64,12 +65,20 @@ class InMemoryMediaStore implements MediaStore {
     eventId: EventId,
     hash: ContentHash,
     variant: MediaVariant,
+    range?: ByteRange,
   ): Promise<AsyncIterable<Uint8Array> | null> {
     const key = this.key(eventId, hash, variant)
     const bytes = this.objects.get(key)
     if (bytes === undefined || this.unreadable.has(key)) return null
+    // A range outside the object answers `null`, as the filesystem store does: a `206`
+    // over an empty stream is a player waiting for bytes that will never come.
+    if (range !== undefined && (range.start >= bytes.length || range.end < range.start)) return null
+    const served =
+      range === undefined
+        ? bytes
+        : bytes.slice(range.start, Math.min(range.end, bytes.length - 1) + 1)
     return (async function* () {
-      yield bytes
+      yield served
     })()
   }
 
@@ -386,3 +395,106 @@ describe('getPhotoMedia', () => {
     expect(!result.ok && result.error.code).toBe('photo.mediaMissing')
   })
 })
+
+describe('getPhotoMedia: byte ranges', () => {
+  let photos: FakePhotoRepository
+  let media: InMemoryMediaStore
+  let getPhotoMedia: GetPhotoMedia
+
+  beforeEach(() => {
+    photos = new FakePhotoRepository()
+    media = new InMemoryMediaStore()
+    getPhotoMedia = makeGetPhotoMedia({ photos, media })
+  })
+
+  const seedClip = async (): Promise<void> => {
+    const clip = aClip({ id: 'photo-1', eventId: 'event-1', status: 'published' })
+    photos.seed(clip)
+    await media.put(clip.eventId, clip.contentHash, 'video', Uint8Array.of(0, 1, 2, 3, 4, 5))
+    const facet = clip.facet
+    if (facet.kind !== 'clip') throw new Error('fixture is not a clip')
+    await media.put(clip.eventId, facet.posterHash, 'poster', Uint8Array.of(9))
+  }
+
+  it('serves only the bytes a range asked for, and says which they were', async () => {
+    // A projector seeking through a clip must not make the box read the whole file per
+    // seek, which is why the range reaches the store rather than being sliced above it.
+    await seedClip()
+
+    const result = await getPhotoMedia({
+      eventId: EVENT,
+      photoId: PHOTO,
+      variant: 'video',
+      viewer: WALL,
+      range: { start: 2, end: 4 },
+    })
+
+    expect(result.ok && result.value.range).toEqual({ start: 2, end: 4 })
+    // The size of the **whole** object: a 206 declares the part's length itself and the
+    // whole one in `Content-Range`.
+    expect(result.ok && result.value.byteSize).toBe(6)
+    expect(result.ok && (await collect(result.value.bytes))).toEqual([2, 3, 4])
+  })
+
+  it('distinguishes a range outside the object from a file that is gone', async () => {
+    // Two different answers on the wire — 416 and 404 — so they must not share a code.
+    await seedClip()
+
+    const result = await getPhotoMedia({
+      eventId: EVENT,
+      photoId: PHOTO,
+      variant: 'video',
+      viewer: WALL,
+      range: { start: 99, end: 120 },
+    })
+
+    expect(!result.ok && result.error.code).toBe('photo.rangeNotSatisfiable')
+  })
+
+  it('reports no range at all when none was asked for', async () => {
+    await seedClip()
+
+    const result = await getPhotoMedia({
+      eventId: EVENT,
+      photoId: PHOTO,
+      variant: 'video',
+      viewer: WALL,
+    })
+
+    expect(result.ok && result.value.range).toBeNull()
+  })
+
+  it('addresses a clip’s poster by the poster’s own digest', async () => {
+    await seedClip()
+
+    const result = await getPhotoMedia({
+      eventId: EVENT,
+      photoId: PHOTO,
+      variant: 'poster',
+      viewer: WALL,
+    })
+
+    expect(result.ok && (await collect(result.value.bytes))).toEqual([9])
+  })
+
+  it('misses on the row for a rendition this kind does not have', async () => {
+    // `photo.mediaMissing` means "a row points at bytes that are gone" — a corruption
+    // worth an operator's attention. A client asking a clip for a `display` is not that.
+    await seedClip()
+
+    const result = await getPhotoMedia({
+      eventId: EVENT,
+      photoId: PHOTO,
+      variant: 'display',
+      viewer: WALL,
+    })
+
+    expect(!result.ok && result.error.code).toBe('photo.notFound')
+  })
+})
+
+const collect = async (chunks: AsyncIterable<Uint8Array>): Promise<number[]> => {
+  const out: number[] = []
+  for await (const chunk of chunks) out.push(...chunk)
+  return out
+}

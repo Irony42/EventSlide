@@ -1,92 +1,24 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { PhotoActor } from '../../../domain/photos/photo'
-import { asEventId, asGuestId, asPhotoId, asUserId, type EventId } from '../../../domain/shared/ids'
-import {
-  MEDIA_VARIANTS,
-  type MediaMetadata,
-  type MediaStore,
-  type MediaVariant,
-} from '../../ports/mediaStore'
-import { anEvent, aPhoto, type EventInput, type PhotoInput } from '../../testing/builders'
+import { asEventId, asGuestId, asPhotoId, asUserId} from '../../../domain/shared/ids'
+import { MEDIA_VARIANTS } from '../../ports/mediaStore'
+import { anEvent, aClip, aPhoto, type EventInput, type PhotoInput } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
+import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makeDeletePhoto, type DeletePhoto } from './deletePhoto'
 
-/** Byte buffers keyed by `(eventId, hash, variant)`, as the filesystem store is. */
-class InMemoryMediaStore implements MediaStore {
-  private readonly objects = new Map<string, Uint8Array>()
-
-  variantsOf(eventId: EventId, hash: ContentHash): readonly MediaVariant[] {
-    return MEDIA_VARIANTS.filter((variant) => this.objects.has(this.key(eventId, hash, variant)))
-  }
-
-  private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
-    return `${eventId}|${hash.value}|${variant}`
-  }
-
-  async put(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-    bytes: Uint8Array,
-  ): Promise<void> {
-    this.objects.set(this.key(eventId, hash, variant), bytes)
-  }
-
-  async exists(eventId: EventId, hash: ContentHash, variant: MediaVariant): Promise<boolean> {
-    return this.objects.has(this.key(eventId, hash, variant))
-  }
-
-  async stat(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<MediaMetadata | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined ? null : { byteSize: bytes.length, contentType: 'image/jpeg' }
-  }
-
-  async openRead(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<AsyncIterable<Uint8Array> | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    if (bytes === undefined) return null
-    return (async function* () {
-      yield bytes
-    })()
-  }
-
-  async read(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<Uint8Array | null> {
-    return this.objects.get(this.key(eventId, hash, variant)) ?? null
-  }
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    for (const variant of MEDIA_VARIANTS) this.objects.delete(this.key(eventId, hash, variant))
-  }
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    for (const key of [...this.objects.keys()]) {
-      if (key.startsWith(`${eventId}|`)) this.objects.delete(key)
-    }
-  }
-
-  async usedBytes(eventId: EventId): Promise<number> {
-    let total = 0
-    for (const [key, bytes] of this.objects) {
-      if (key.startsWith(`${eventId}|`)) total += bytes.length
-    }
-    return total
-  }
-}
+/**
+ * The shared in-memory store, not a local one.
+ *
+ * This file used to carry its own, and it deleted only the three photo renditions — so a
+ * clip's poster survived `delete` in the double while the filesystem adapter removed it,
+ * and the test that should have caught the production leak could not have. A fake that
+ * differs from the adapter on the operation under test is worse than no fake.
+ */
 
 const EVENT = asEventId('event-1')
 const PHOTO = asPhotoId('photo-1')
@@ -249,6 +181,25 @@ describe('deletePhoto', () => {
     await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: AUTHOR })
 
     expect(bus.published).toEqual([])
+  })
+
+  it('removes both of a clip’s files, not only the one the row is named after', async () => {
+    // A clip owns two digests — the mp4 under its own and the poster under a second —
+    // and deleting `contentHash` alone left the poster on the disk on every guest
+    // self-delete and every host delete. `Photo.storageHashes` exists for exactly this.
+    seedEvent()
+    const clip = aClip({ id: 'photo-1', eventId: 'event-1', status: 'pending' })
+    photos.seed(clip)
+    const facet = clip.facet
+    expect(facet.kind).toBe('clip')
+    if (facet.kind !== 'clip') return
+    await media.put(clip.eventId, clip.contentHash, 'video', Uint8Array.of(1, 2, 3))
+    await media.put(clip.eventId, facet.posterHash, 'poster', Uint8Array.of(4))
+
+    await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect(await media.usedBytes(EVENT)).toBe(0)
+    expect(await media.exists(EVENT, facet.posterHash, 'poster')).toBe(false)
   })
 
   it('removes the files as well as the row, so nothing is left on the disk', async () => {

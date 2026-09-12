@@ -147,7 +147,12 @@ describe('buildServer: liveness and readiness', () => {
     const response = await request(buildServerHarness().app).get('/api/ready')
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ status: 'ready', checks: { database: 'ok', media: 'ok' } })
+    expect(response.body).toEqual({
+      status: 'ready',
+      // `video` is reported and never acted on: a photo wall with no encoder still serves
+      // the room, so a missing codec must not take a venue's wall out of service.
+      checks: { database: 'ok', media: 'ok', video: 'ok' },
+    })
   })
 
   it('answers 503 naming the database when only the database is unavailable', async () => {
@@ -159,7 +164,11 @@ describe('buildServer: liveness and readiness', () => {
     const response = await request(subject.app).get('/api/ready')
 
     expect(response.status).toBe(503)
-    expect(response.body.error.details).toEqual({ database: 'unavailable', media: 'ok' })
+    expect(response.body.error.details).toEqual({
+      database: 'unavailable',
+      media: 'ok',
+      video: 'ok',
+    })
   })
 
   it('answers 503 naming the media root when only the media root is unavailable', async () => {
@@ -171,7 +180,11 @@ describe('buildServer: liveness and readiness', () => {
     const response = await request(subject.app).get('/api/ready')
 
     expect(response.status).toBe(503)
-    expect(response.body.error.details).toEqual({ database: 'ok', media: 'unavailable' })
+    expect(response.body.error.details).toEqual({
+      database: 'ok',
+      media: 'unavailable',
+      video: 'ok',
+    })
   })
 
   it('answers with service.notReady rather than a 500 when a dependency is down', async () => {

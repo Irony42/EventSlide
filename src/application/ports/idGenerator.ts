@@ -1,4 +1,11 @@
-import type { EventId, GuestId, PhotoId, ReactionId, UserId } from '../../domain/shared/ids'
+import type {
+  ClipJobId,
+  EventId,
+  GuestId,
+  PhotoId,
+  ReactionId,
+  UserId,
+} from '../../domain/shared/ids'
 
 /**
  * The only source of randomness in the application.
@@ -17,6 +24,11 @@ export interface IdGenerator {
   guestId(): GuestId
   userId(): UserId
   reactionId(): ReactionId
+  /**
+   * A queued transcode. Opaque for the same reason every other id is: a guest polls it
+   * from their phone, so it appears in a URL and must not enumerate the evening's clips.
+   */
+  clipJobId(): ClipJobId
 
   /** Cryptographically strong bytes. Used for join codes and guest device tokens. */
   bytes(count: number): Uint8Array
