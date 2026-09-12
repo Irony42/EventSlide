@@ -1,0 +1,16 @@
+/**
+ * Off screen, but really loaded.
+ *
+ * Full size rather than one pixel: a browser is free to decode only what it paints, so
+ * a shrunken preload would hand the crossfade an image it still has to decode. It is
+ * inert — no hit testing, no paint — and there is exactly one of it.
+ */
+.preload {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+  opacity: 0;
+  pointer-events: none;
+}

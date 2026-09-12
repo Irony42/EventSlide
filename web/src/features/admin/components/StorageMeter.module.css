@@ -1,0 +1,12 @@
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.figure {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  /* The figure ticks up as photos arrive; without this the digits reflow. */
+  font-variant-numeric: tabular-nums;
+}

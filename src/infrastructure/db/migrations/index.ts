@@ -1,0 +1,11 @@
+import type { Migration } from '../migrator'
+import { migration001 } from './001_initial_schema'
+
+/**
+ * The ordering contract, written out rather than globbed.
+ *
+ * A directory listing is not a guarantee: it changes with the filesystem, and a build
+ * step that bundles the server would not see the files at all. Adding a migration means
+ * adding a line here.
+ */
+export const migrations: readonly Migration[] = [migration001]

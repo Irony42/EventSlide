@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "eventslide-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--env-file=.env.demo", "dist/server/main/index.js"],
+      "port": 4300
+    }
+  ]
+}

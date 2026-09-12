@@ -1,0 +1,19 @@
+.select {
+  inline-size: 100%;
+  min-height: var(--touch-min);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.select:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.select[aria-invalid='true'] {
+  border-color: var(--danger);
+}

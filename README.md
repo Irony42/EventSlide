@@ -1,64 +1,163 @@
 # EventSlide
-### Capture, Share, Project: Bring your party to life with our instant photo sharing software
 
-EventSlide is a modern real-time photo sharing application for your events. Guests scan a QR Code, take a photo, and it is instantly displayed on the big screen after moderation.
+**A live photo wall for your event.** Guests scan a QR code, send photos from their
+phone with no account and no app, you approve them, and they appear on the projector
+within seconds.
 
-## Key Features
-- **Real-time (SSE)**: Instant photo display on the slideshow without reloading.
-- **Smart Optimization**: Automatic photo compression (via Sharp) to save storage and bandwidth.
-- **Full Moderation**: Admin gallery to validate or reject photos before projection.
-- **Visual Effects**: Smooth slideshow with fade transitions and Ken Burns effect (soft zoom).
-- **Simplified Access**: Integrated QR Code generator for guests.
-- **Multi-user**: Admin account management with secure sessions.
+Self-hosted. The photos stay on your machine.
 
-## Quick Installation
+> **2.0 is in progress on the `deuxpointzero` branch.** 1.0 is on `main`. This README
+> describes 2.0; the architecture and its reasoning are in [docs/](docs/).
 
-1. **Prerequisites**: Node.js 22.12+ (recommended).
-2. **Installation**:
-   ```bash
-   npm install
-   ```
-3. **Configuration**:
-   - Copy the example file: `cp .env.example .env`
-   - Set a strong `SESSION_SECRET`.
-   - (Optional) Place your SSL certificates in the `/ssl` folder for production.
-4. **Default Image**: Ensure you have a `public/default.jpg` image for the slideshow launch.
+---
 
-## Development and Production
+## Why
 
-### In Development
-Run the following two terminals to benefit from Hot Reload (Vite + Nodemon):
-- **Backend**: `npm run dev:back` (default port 4300)
-- **Frontend**: `npm run dev:front` (default port 5173)
+Every event photo-sharing tool asks one of two things: that your guests install an app,
+or that you hand a few hundred family photographs to a company you have never heard of.
 
-### In Production
-Generate the optimized build and start the server:
+EventSlide asks for neither. It runs on one machine — a laptop, a mini PC, a Raspberry
+Pi under the projector — and nothing leaves it.
+
+## What it does
+
+- **Guests join by scanning.** A QR code, a six-character code, a first name if they
+  feel like it. No account, no download, no email.
+- **Nothing reaches the screen without you.** Every photo waits in a moderation queue
+  until you approve it. Two hundred people are watching that screen; that is not a
+  setting to leave to chance.
+- **The wall is meant to be looked at.** Full-bleed photos with a slow zoom, a mosaic
+  layout, captions and the sender's name, a join code in the corner for whoever arrives
+  late.
+- **It survives the venue.** Uploads retry, the wall keeps playing when the network
+  drops, and it runs unattended for an eight-hour evening.
+- **Privacy is handled, not mentioned.** Location data and device identifiers are
+  stripped from every photo on arrival — a guest's camera records the coordinates of
+  wherever they are standing, and that is often somebody's home.
+- **The album is yours afterwards.** One ZIP, full resolution, and an automatic purge
+  when you choose one.
+
+## Install
+
 ```bash
-npm run build
-npm run start
+git clone https://github.com/Irony42/EventSlide.git
+cd EventSlide
+
+# Two secrets, and the address your guests' phones will reach.
+node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
+node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
+echo "PUBLIC_URL=http://192.168.1.20:4300" >> .env
+echo "BOOTSTRAP_OWNER_EMAIL=you@example.com" >> .env
+echo "BOOTSTRAP_OWNER_PASSWORD=choose-a-long-passphrase" >> .env
+
+docker compose up -d
 ```
 
-## Navigation
+Then open `PUBLIC_URL/login`.
 
-### Public
-- `/upload`: Upload interface for guests (mobile-optimized).
-- `/upload?partyname=MyEvent`: Direct link for a specific event.
+**`PUBLIC_URL` must be an address a phone on the venue Wi-Fi can actually reach** — the
+machine's LAN address or a domain, never `localhost`. It is what the QR code encodes,
+and a QR code pointing at `localhost` is the most common way a setup fails on the night.
+Test it by scanning your own QR code from your phone before the guests arrive.
 
-### Administration (Secure)
-- `/admin`: Main dashboard.
-- `/admin/moderation`: Photo queue (pending status by default).
-- `/admin/displayer`: The slideshow to project.
-- `/admin/qrcode`: QR Code generator for guests.
-- `/admin/users/new`: Create new moderator accounts.
+<details>
+<summary>Without Docker</summary>
 
-## Environment Variables
-- `PORT`: Server listening port (default: `4300`).
-- `SESSION_SECRET`: Session signing key (required).
-- `SESSION_COOKIE_SECURE`: `true` to enable the Secure flag (HTTPS required).
+Node 22.12 or later.
 
-### How to use
-- Open `/login`, log in with `admin` / `password`
-- Change your password
-- Open `/admin/displayer` in fullscreen on a video projector (pro-tip: press Enter to change the time between 2 photos)
-- Open `/admin/moderation` to allow/deny submitted pictures (green border = displayed, red border = hidden, red cross = delete)
-- Share the `/upload` page link with your guests
+```bash
+npm install
+cp .env.example .env      # then edit it
+npm run db:migrate
+npm run build
+npm start
+```
+
+To look around before there is a real event, `npm run db:seed:demo` creates one with
+a handful of photos in each moderation state, so the admin console and the wall both
+have something to show.
+
+</details>
+
+## On the night
+
+1. **Create the event** in `/admin` — a name is enough.
+2. **Print the QR code** from the event page and put it on the tables.
+3. **Open the wall** on the projector: the display page, fullscreen. It needs no
+   keyboard after that.
+4. **Keep the moderation queue open** on your laptop or phone. New photos arrive by
+   themselves; `J`/`K` to move, `P` to publish, `R` to refuse, `Z` to undo.
+5. **Afterwards**, download the album from the event page.
+
+Two settings worth a thought before you start:
+
+- **Moderation.** `Valider chaque photo` is the default and the right choice for
+  anything with colleagues or extended family in the room. `Publier automatiquement`
+  is for a small party among close friends, and the app will warn you.
+- **Retention.** Nothing is deleted unless you ask. If you set a retention period, the
+  album is purged that many days after the event closes — export it first. The server
+  checks every hour and deletes what is due, so the promise the setting makes to your
+  guests is kept without you remembering. `npm run purge:dry-run` lists what the next
+  sweep would remove, `npm run purge` does it now, and
+  `RETENTION_SWEEP_INTERVAL_MINUTES=off` hands the schedule to your own cron.
+
+## Backups
+
+Take one before the event and one the morning after. It is two commands, the server can
+stay up, and the second one is the half that matters.
+
+```bash
+npm run backup                           # -> ./backups/eventslide-<timestamp>/
+npm run backup -- --to /mnt/usb/mariage  # or somewhere that is not this machine
+
+npm run restore -- <archive> --dry-run   # rehearse: verify, print the plan, write nothing
+npm run restore -- <archive> --force     # --force is required to overwrite anything
+```
+
+The archive is a directory holding a consistent snapshot of the database, every photo,
+and a manifest of counts and checksums. `backup` re-reads everything it just wrote before
+it says OK, so an archive that exits 0 is one you have a reason to trust;
+`npm run backup:verify -- <archive>` re-checks an older one. `restore` verifies the whole
+archive before it touches anything and refuses to overwrite an installation that is still
+there unless you say `--force`, which tells you exactly what it is about to destroy.
+
+Copy the archive somewhere else, and keep your `.env` with it — the secrets are not in
+the archive, and restoring photos with new ones signs every host out. Details, and what
+the checks do and do not catch, are in
+[docs/SECURITY.md §11](docs/SECURITY.md#11-deployment-posture).
+
+## For contributors
+
+The interesting parts are documented rather than left to be inferred:
+
+|                                                |                                                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [CLAUDE.md](CLAUDE.md)                         | The rules, the layer boundaries, and the traps this codebase has already fallen into |
+| [AGENTS.md](AGENTS.md)                         | The same, for any AI coding agent                                                    |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)   | Layers, a guest upload traced file by file, the ports, the schema                    |
+| [docs/TESTING.md](docs/TESTING.md)             | Six test rings and which one a given test belongs in                                 |
+| [docs/SECURITY.md](docs/SECURITY.md)           | The threat model, written around who is actually in the room                         |
+| [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) | Tokens, primitives, and the accessibility contract                                   |
+| [docs/API.md](docs/API.md)                     | The HTTP contract                                                                    |
+| [docs/ROADMAP.md](docs/ROADMAP.md)             | What comes next, and what will never be built                                        |
+| [docs/adr/](docs/adr/)                         | Why the architecture is the way it is, including the alternatives that lost          |
+
+```bash
+npm run dev            # API on :4300, web on :5173
+npm run verify         # lint + typecheck + coverage + build — the gate
+npm run verify:full    # the above plus the Playwright journeys
+```
+
+`npm run lint` enforces the architecture, not just the formatting: a file in
+`src/domain` that imports Express fails the build. `src/domain` and
+`src/application` are held at 100% branch coverage.
+
+## Licence
+
+GNU General Public License v3.0. The full text is in [LICENSE](LICENSE), and
+`package.json` declares the same `GPL-3.0`, so the declaration and the grant now agree —
+for a self-hosted product whose whole argument is that the operator owns their own
+machine and their guests' photos, that is not administrative tidying.
+
+In short: run it, read it, change it, and pass it on — and if you distribute a modified
+version, ship the source under the same licence.

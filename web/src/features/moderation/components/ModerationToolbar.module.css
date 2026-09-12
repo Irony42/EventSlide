@@ -1,0 +1,59 @@
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  /* The count and the bulk actions stay reachable while a hundred tiles scroll under
+     them (DESIGN-SYSTEM.md section 6, host surface). */
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-wall-caption);
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* Reserved, so a count appearing in a live region does not nudge the buttons. */
+  min-height: var(--space-6);
+}
+
+.selection {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.shortcuts {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.shortcutsLabel {
+  font-weight: 650;
+  color: var(--text-secondary);
+}

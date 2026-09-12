@@ -1,0 +1,43 @@
+.burst {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* Nothing here is clickable, and the wall has no pointer anyway. */
+  pointer-events: none;
+  z-index: var(--z-wall-caption);
+}
+
+/**
+ * Lanes are laid out on the space scale rather than in percentages, so a heart is the
+ * same distance from the edge on a 1080p projector and on a 4K panel — and so no raw
+ * length appears outside tokens.css.
+ */
+.floater {
+  position: absolute;
+  inset-block-end: var(--wall-safe);
+  inset-inline-end: calc(var(--wall-safe) + var(--wall-lane) * var(--space-8));
+  color: var(--text-primary);
+  font-size: var(--text-xl);
+  /* Four crossfades long: a drift, not a pop. */
+  animation: drift-up calc(var(--duration-slow) * 4) var(--ease-out) both;
+  will-change: transform, opacity;
+}
+
+.glyph {
+  inline-size: 1em;
+  block-size: 1em;
+}
+
+@keyframes drift-up {
+  from {
+    opacity: 0;
+    transform: translateY(0) scale(0.8);
+  }
+  25% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(-4 * var(--space-10))) scale(1.2);
+  }
+}

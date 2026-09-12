@@ -5,30 +5,266 @@ on:
     branches: ['**']
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Deterministic secrets so the suites behave identically on every runner. These are
+  # test values; production secrets come from the deployment environment.
+  SESSION_SECRET: ci-session-secret-at-least-32-characters-long
+  GUEST_TOKEN_SECRET: ci-guest-token-secret-at-least-32-characters
+  E2E_HOOKS: '1'
+
 jobs:
   quality:
+    name: Lint, typecheck, unit and integration tests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
 
       - name: Lint
+        # Also enforces the architecture boundaries: a domain file importing Express
+        # fails here rather than in review.
         run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
 
       - name: Typecheck
         run: npm run typecheck
 
+      # No --passWithNoTests. 1.0's CI was green with zero test files; an empty suite
+      # must fail this job.
+      - name: Tests with coverage gates
+        run: npm run test:coverage
+
       - name: Build
         run: npm run build
 
-      - name: Test
-        run: npm run test:ci
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  e2e:
+    name: End-to-end (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        # firefox-desktop is `grep: /@smoke/` in playwright.config.ts, so it runs four
+        # specs rather than the full journey set — the comment there promises
+        # "cross-browser confidence without tripling every run" and this matrix is where
+        # that promise is either kept or empty. It was empty: the project existed and no
+        # job ever selected it.
+        project: [chromium-desktop, chromium-mobile, webkit-mobile, firefox-desktop]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Build
+        run: npm run build
+
+      - name: Run journeys
+        run: npm run test:e2e -- --project=${{ matrix.project }}
+
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  visual:
+    # The four baselines under tests/e2e/__screenshots__/ are the only assertion in the
+    # repository that the projected wall still *looks* right, and until now no job
+    # compared them: `npm run test:e2e` is `--grep-invert @visual`, and nothing ran
+    # `test:e2e:visual`. Three commits on this branch fixed snapshots that had been
+    # photographing the wrong thing, every one of them caught by hand.
+    #
+    # They were excluded for a real reason, not laziness. A baseline image is
+    # platform-specific — font rasterisation on the Windows workstation that generated
+    # these is not font rasterisation on an Ubuntu runner — and Playwright fails on a
+    # missing snapshot. Pointing a Linux job at the committed images would therefore be
+    # red on every pull request forever, regression or not, and a permanently-red job is
+    # a job people stop reading. That must not come back.
+    #
+    # So this job never compares against the committed images. It renders its own
+    # "before" from the pull request's merge base, on this runner, in this run, then
+    # renders the "after" from the head and compares the two. Both sides share one
+    # Chromium build, one font stack and one machine, so the only thing a diff can mean
+    # is that this pull request changed how the wall looks. Platform drift cannot make
+    # it red, and no baseline is ever missing because this job just made it.
+    #
+    # The committed images keep their job unchanged: they are the local loop, for
+    # `npm run test:e2e:visual` on the machine that generated them. See docs/TESTING.md.
+    name: Visual regression (wall)
+    # Only on a pull request, because the method is "compare against what you changed"
+    # and a plain branch push has no before. Absent is the right answer there — better
+    # than present and asserting nothing, which is the failure this job exists to undo.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Both sides of the comparison have to be checked out in turn.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Resolve the two commits to render
+        run: |
+          base="$(git merge-base '${{ github.event.pull_request.base.sha }}' '${{ github.event.pull_request.head.sha }}')"
+          {
+            echo "BASE_SHA=$base"
+            echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}"
+          } >> "$GITHUB_ENV"
+          echo "before: $base"
+          echo "after:  ${{ github.event.pull_request.head.sha }}"
+
+      # The whole method is "render the before, render the after, compare". That needs a
+      # before that can render — and the merge base of the 2.0 rewrite is a 1.0 commit
+      # with no Playwright suite and no `test:e2e:update-snapshots` script at all, so the
+      # job failed on `npm error Missing script` rather than on anything about the wall.
+      #
+      # Every later pull request has a base that carries both, so this is a guard for the
+      # first one rather than a permanent escape hatch. It reports loudly and skips,
+      # because the alternative — comparing the head against committed images rendered on
+      # a different operating system — is the permanently-red job this whole design
+      # exists to avoid.
+      - name: Can the merge base render a before?
+        run: |
+          if git cat-file -e "$BASE_SHA:package.json" 2>/dev/null &&
+             git show "$BASE_SHA:package.json" | grep -q '"test:e2e:update-snapshots"'; then
+            echo "COMPARABLE=1" >> "$GITHUB_ENV"
+          else
+            echo "COMPARABLE=0" >> "$GITHUB_ENV"
+            # One line: a workflow command with a newline in it is printed as plain text
+            # and never becomes an annotation.
+            echo "::warning::The merge base $BASE_SHA has no visual suite, so there is no before to compare against and this job is skipping. Expected for the first pull request of the 2.0 rewrite and for nothing else — on a later one it means the base is wrong or the script was renamed."
+          fi
+
+      # ------------------------------------------------------------------ before --
+      - name: Check out the merge base
+        if: env.COMPARABLE == '1'
+        run: git checkout --force --detach "$BASE_SHA"
+
+      - run: npm ci
+        if: env.COMPARABLE == '1'
+
+      # Only the engine the visual project uses. The other three would double the
+      # install for nothing.
+      - name: Install Chromium
+        if: env.COMPARABLE == '1'
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        if: env.COMPARABLE == '1'
+        run: npm run build
+
+      - name: Render the baselines from the merge base
+        if: env.COMPARABLE == '1'
+        # The committed images are deleted first so that every snapshot is *missing* and
+        # gets written fresh, rather than left in place by whichever update mode the
+        # installed Playwright defaults to. With an explicit `--update-snapshots` this
+        # exits 0 even on a runner with CI set — verified against Playwright 1.63.0,
+        # which is the version this repository pins.
+        run: |
+          rm -rf tests/e2e/__screenshots__
+          npm run test:e2e:update-snapshots
+
+      - name: Check the before is complete, and keep it out of the next checkout's way
+        if: env.COMPARABLE == '1'
+        run: |
+          shots='tests/e2e/__screenshots__'
+          rendered="$(find "$shots" -type f -name '*.png' 2>/dev/null | wc -l | tr -d '[:space:]')"
+          expected="$(git ls-tree -r --name-only "$BASE_SHA" -- "$shots" | grep -c '\.png$' || true)"
+          echo "rendered $rendered baseline image(s); the merge base carries $expected"
+          if [ "$rendered" -eq 0 ] || [ "$rendered" -lt "$expected" ]; then
+            echo "::error::The merge base rendered $rendered of $expected baselines. That is a broken visual harness, not a regression in this pull request — read the step above before touching the wall."
+            exit 1
+          fi
+          mv "$shots" "$RUNNER_TEMP/visual-baseline"
+
+      # ------------------------------------------------------------------- after --
+      - name: Check out the pull request head
+        if: env.COMPARABLE == '1'
+        run: git checkout --force --detach "$HEAD_SHA"
+
+      - run: npm ci
+        if: env.COMPARABLE == '1'
+
+      - name: Install Chromium
+        if: env.COMPARABLE == '1'
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        if: env.COMPARABLE == '1'
+        run: npm run build
+
+      - name: Compare the wall against the merge base
+        if: env.COMPARABLE == '1'
+        # Two passes, and the first one is not the gate.
+        #
+        # A visual test *added* by this pull request has no before — the merge base
+        # could not have rendered it. Playwright's answer to a missing snapshot is to
+        # write it and fail the test anyway, even with `--update-snapshots=missing` and
+        # even on CI (checked, Playwright 1.63.0: "A snapshot doesn't exist ... writing
+        # actual", 1 failed). Left alone that is a red for doing the right thing, which
+        # is how a job stops being read.
+        #
+        # So pass one writes only the snapshots that are absent — `missing` never
+        # rewrites one that exists, so every baseline the merge base rendered survives
+        # untouched — and its exit code is deliberately ignored. Pass two is the gate: a
+        # plain comparison where a pre-existing baseline still holds the merge base's
+        # pixels, so a regression fails, and a newly added test compares against its own
+        # first render, so it passes.
+        #
+        # The hole this could open — every baseline missing, pass two comparing the head
+        # against itself and asserting nothing — is the one the count guard above
+        # closes. That guard is what makes "missing" mean new rather than lost.
+        run: |
+          rm -rf tests/e2e/__screenshots__
+          cp -R "$RUNNER_TEMP/visual-baseline" tests/e2e/__screenshots__
+          npm run test:e2e:visual -- --update-snapshots=missing || true
+          npm run test:e2e:visual
+
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          # The diff images live in test-results/; they are the only useful output when
+          # this job is red, and reading them is the job.
+          name: playwright-report-visual
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

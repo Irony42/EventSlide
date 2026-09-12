@@ -1,0 +1,95 @@
+# EventSlide, self-hosted.
+#
+#   1. Generate two secrets:
+#        node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+#   2. Put them in a `.env` next to this file, along with PUBLIC_URL.
+#   3. docker compose up -d
+#
+# PUBLIC_URL must be the address a guest's phone can actually reach — the machine's LAN
+# address or a domain, never localhost. It is what the QR code encodes, and a QR code
+# pointing at localhost is the most common way a setup fails on the night.
+
+services:
+  eventslide:
+    build: .
+    image: eventslide:2.0.0
+    restart: unless-stopped
+    ports:
+      - '${PORT:-4300}:4300'
+    environment:
+      NODE_ENV: production
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL to the address guests will reach, e.g. https://photos.example.com}
+      SESSION_SECRET: ${SESSION_SECRET:?generate with node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"}
+      GUEST_TOKEN_SECRET: ${GUEST_TOKEN_SECRET:?generate a second, different secret the same way}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Number of reverse proxies in front of this container. Wrong values break
+      # per-IP rate limiting: too low and one guest's burst locks out the venue, too
+      # high and a client can spoof its address past the limit.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      DEFAULT_EVENT_QUOTA_BYTES: ${DEFAULT_EVENT_QUOTA_BYTES:-5000000000}
+      # Creates the first owner account on an empty database, then is ignored. There is
+      # no default admin password in 2.0.
+      #
+      # `:-` renders an empty string when you have not set one, and the server reads
+      # that as "not set" rather than as a password — which is why leaving both out is
+      # the supported way to create the owner from somewhere else. Set both or neither:
+      # half of a bootstrap creates nothing and is refused at boot. The password is held
+      # to the same policy as any account password, and a weak one stops the boot with a
+      # message naming this variable, instead of a log line nobody reads and a login
+      # form that will not let you in.
+      BOOTSTRAP_OWNER_EMAIL: ${BOOTSTRAP_OWNER_EMAIL:-}
+      BOOTSTRAP_OWNER_PASSWORD: ${BOOTSTRAP_OWNER_PASSWORD:-}
+    volumes:
+      # The database and every photo. Back up this one path.
+      - eventslide-data:/data
+    # A photo wall is not a target worth much, but the container writes only to /data
+    # and there is no reason for it to be able to write anywhere else.
+    read_only: true
+    tmpfs:
+      # Nothing stages an upload here. `src/interface/http/routes/guestRoutes.ts` uses
+      # `multer.memoryStorage()`, so every uploaded byte is a Buffer in the heap and
+      # never touches a filesystem — deliberately, because 1.0 leaked temporary files on
+      # the failure paths and the pipeline re-encodes everything anyway.
+      #
+      # This mount exists only because `read_only: true` above makes the whole root
+      # filesystem read-only, and a Node process with no writable temp directory fails
+      # in ways that are hard to read. It is a ceiling, not a reservation: an unused
+      # tmpfs costs nothing, and what it does cost is charged to the same cgroup as the
+      # heap, so it is not extra headroom on top of the limit below.
+      #
+      # **The number to size for uploads is `deploy.resources.limits.memory`, not this
+      # one**, and the arithmetic is written out beside it.
+      - /tmp:size=512m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          # What this number has to cover, in the order it is spent:
+          #
+          #   150 MB  one request's uploaded bytes. Multipart is buffered in the heap
+          #           (`multer.memoryStorage()`), and this is the aggregate bound
+          #           `guestRoutes.ts` enforces while the body is read. It is what makes
+          #           the figure knowable at all: multer bounds a file and a count but
+          #           never the total, so before that bound existed one request could
+          #           hold MAX_FILES_PER_UPLOAD x MAX_UPLOAD_BYTES — 20 x 25 MB = 500 MB
+          #           against this same 1 GB, and nothing refused it.
+          #   ~200 MB sharp decoding one accepted photo into three variants. A bomb is
+          #           rejected from the header before it is decoded, but a legitimate
+          #           50-megapixel photo still needs the room.
+          #   ~100 MB Node, SQLite and the rest of the process.
+          #
+          # 1 GB therefore holds a couple of uploads in flight at once. The upload rate
+          # limiter bounds requests per minute, not concurrency, so if you run a venue
+          # where many guests submit at the same second, raise this rather than assume
+          # the limiter spaced them out.
+          #
+          # Raising MAX_FILES_PER_UPLOAD no longer changes the first line. Raising
+          # MAX_UPLOAD_BYTES does — the per-request bound is never below one file you
+          # declared acceptable — so raise this with it, or leave it alone.
+          memory: 1g
+
+volumes:
+  eventslide-data:

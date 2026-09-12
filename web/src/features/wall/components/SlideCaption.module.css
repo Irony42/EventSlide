@@ -1,0 +1,51 @@
+.caption {
+  position: absolute;
+  z-index: var(--z-wall-caption);
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--surface-scrim);
+}
+
+/* Bottom-left, inside the 4% overscan inset: consumer projectors crop the outer few
+   percent of the frame, and a caption is the first thing to be eaten. */
+.spotlight {
+  inset-inline-start: var(--wall-safe);
+  inset-block-end: var(--wall-safe);
+  max-inline-size: var(--container-guest);
+}
+
+/* Inside a mosaic tile, which is already within the wall's safe area. */
+.tile {
+  inset-inline: var(--space-2);
+  inset-block-end: var(--space-2);
+  max-inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+}
+
+.text {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+  text-wrap: balance;
+  /* Two lines maximum. A guest who pastes a paragraph must not cover the photo it
+     belongs to, and the container already limits a line to about forty characters. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Quieter than the caption by colour and weight, not by size: shrinking the credit
+   below --text-xl would make it unreadable from the back of the room. */
+.author {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  font-weight: 500;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

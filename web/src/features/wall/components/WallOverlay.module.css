@@ -1,0 +1,36 @@
+/**
+ * Bottom-right, inside the overscan inset, opposite the caption.
+ *
+ * Inside `--wall-safe` on both axes so a projector that crops the frame does not eat
+ * the QR — a cropped QR is not a slightly worse QR, it is one that never scans.
+ *
+ * Only properties `Card` does not set are declared here. Overriding a primitive's own
+ * layout from a feature module would make the result depend on stylesheet order.
+ */
+.overlay {
+  position: absolute;
+  inset-inline-end: var(--wall-safe);
+  inset-block-end: var(--wall-safe);
+  z-index: var(--z-wall-caption);
+  align-items: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.prompt {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  color: var(--text-secondary);
+}
+
+.code {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

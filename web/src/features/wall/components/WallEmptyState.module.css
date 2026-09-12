@@ -1,0 +1,69 @@
+/**
+ * The invitation, centred, on the same black the photos will letterbox against.
+ *
+ * No gradient and no decoration: the wall's only real colour is a guest's photo, and
+ * anything added here would still be on screen once the photos arrive behind it.
+ */
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-10);
+  padding: var(--wall-safe);
+  background: var(--surface-base);
+}
+
+.copy {
+  display: grid;
+  gap: var(--space-4);
+  max-inline-size: var(--container-guest);
+}
+
+.prompt {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  color: var(--accent);
+}
+
+.name {
+  font-size: var(--text-display);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+
+.title {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}
+
+.hint {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+}
+
+.join {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+}
+
+.codeLabel {
+  margin-block-start: var(--space-2);
+  font-size: var(--text-xl);
+  color: var(--text-secondary);
+}
+
+/* The code is read out loud across a table and typed on a phone in the dark, so it
+   gets the display size and figures that do not reflow. */
+.code {
+  font-size: var(--text-display);
+  line-height: var(--leading-tight);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

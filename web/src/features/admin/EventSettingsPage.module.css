@@ -1,0 +1,97 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-inline-size: var(--container-guest);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0;
+  font-weight: 650;
+  font-size: var(--text-sm);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--touch-min);
+  cursor: pointer;
+}
+
+.radio {
+  accent-color: var(--accent);
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  flex: none;
+  cursor: pointer;
+}
+
+/**
+ * The one setting that can put something unwanted on a screen in front of two hundred
+ * people. It is styled as a warning rather than as a hint, and it is never the colour
+ * alone — the glyph and the sentence carry it.
+ */
+.warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.warningGlyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--warning);
+  margin-block-start: var(--space-1);
+}
+
+/* A refused save, which is a failure and not a caution. */
+.failure {
+  composes: warning;
+  border-color: var(--danger);
+}
+
+.failureGlyph {
+  composes: warningGlyph;
+  color: var(--danger);
+}
+
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}

@@ -1,0 +1,33 @@
+node_modules
+dist
+coverage
+playwright-report
+test-results
+blob-report
+
+# Runtime state belongs to the volume, never to an image layer.
+data
+media
+photos
+thumbnails
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+.env
+.env.*
+!.env.example
+
+.git
+.github
+.claude
+.vscode
+ssl
+
+# Documentation is worth reading in the repository, not shipping in a container.
+docs
+*.md
+!package.json
+
+tests/e2e/__screenshots__
+*.tsbuildinfo

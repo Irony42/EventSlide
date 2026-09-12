@@ -1,0 +1,34 @@
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-5);
+  text-align: center;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+}
+
+/* Dashed rather than solid: it reads as an outline waiting to be filled, not as a
+   panel that failed to load. */
+.icon {
+  display: inline-flex;
+  font-size: var(--text-xl);
+  color: var(--text-muted);
+}
+
+.title {
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+}
+
+.description {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  max-width: var(--container-guest);
+}
+
+.action {
+  margin-block-start: var(--space-2);
+}

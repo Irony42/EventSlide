@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>EventSlide</title>
+  <!--
+    A photo landing on top of the pile: the whole product in one mark.
+
+    Geometry only, no font and no raster, so it stays sharp on a retina tab strip and
+    as an installed app icon, and it costs one request that the CSP allows because it
+    is served from this origin.
+
+    The dark is the same literal as index.html's `theme-color`; the light is the sRGB
+    equivalent of --accent (oklch(72% 0.17 305)). They are literals only because a
+    standalone SVG and a webmanifest cannot read a CSS custom property; if a token
+    moves, these move with it. This file, manifest.webmanifest and index.html are the
+    only places in the web app where a raw colour is allowed.
+  -->
+  <rect width="32" height="32" rx="7" fill="#101725" />
+  <rect
+    x="8.5"
+    y="5.5"
+    width="17"
+    height="12"
+    rx="2.5"
+    fill="none"
+    stroke="#be86f9"
+    stroke-width="1.6"
+    opacity="0.45"
+  />
+  <rect x="5" y="11" width="22" height="16" rx="3" fill="#be86f9" />
+  <circle cx="10.5" cy="16" r="1.9" fill="#101725" />
+  <path d="M8 24.5l5.2-6 3.4 3.9 2.6-2.6 4.8 4.7z" fill="#101725" />
+</svg>

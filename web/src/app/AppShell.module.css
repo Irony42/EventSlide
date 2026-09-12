@@ -1,0 +1,68 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/**
+ * The skip link.
+ *
+ * Moved off-screen with a transform rather than hidden, so it keeps its place in the
+ * tab order and its size when it comes back — `display: none` would take it out of
+ * the accessibility tree, which defeats the point of having it.
+ */
+.skipLink {
+  position: fixed;
+  inset-inline-start: var(--space-3);
+  inset-block-start: var(--space-3);
+  z-index: var(--z-dialog);
+  padding: var(--space-2) var(--space-4);
+  min-height: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  text-decoration: none;
+  transform: translateY(-200%);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.skipLink:focus {
+  transform: translateY(0);
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  margin-inline: auto;
+  min-width: 0;
+}
+
+/* One column, and the inline padding a phone needs to keep text off the bezel.
+   100dvh above, not 100vh: the iOS toolbar eats the difference and the primary action
+   ends up under it. */
+.guest {
+  max-inline-size: var(--container-guest);
+  padding-inline: var(--space-4);
+  padding-block-start: var(--space-6);
+  /* The thumb-reachable area sits above the home indicator. */
+  padding-block-end: calc(var(--space-6) + env(safe-area-inset-bottom));
+}
+
+.host {
+  max-inline-size: var(--container-host);
+  padding: var(--space-5);
+}
+
+/**
+ * The wall has no container: the photo goes edge to edge. The inset is projector
+ * overscan — consumer projectors crop the outer few percent, so captions, the join
+ * code and the QR live inside it while the photo and its letterbox may reach the
+ * physical edge.
+ */
+.wall {
+  max-inline-size: none;
+  padding: var(--wall-safe);
+}

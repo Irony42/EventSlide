@@ -1,0 +1,12 @@
+dist
+coverage
+node_modules
+playwright-report
+test-results
+tests/e2e/__screenshots__
+data
+media
+photos
+thumbnails
+package-lock.json
+*.sqlite

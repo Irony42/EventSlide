@@ -1,0 +1,51 @@
+/* No font-size here on purpose: base.css sets the 16px floor on every input, because
+   iOS Safari zooms the page for anything smaller and never zooms back out. */
+.input {
+  min-height: var(--touch-min);
+  padding: 0 var(--space-3);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  min-width: 0;
+  width: 100%;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.input:focus-visible {
+  border-color: var(--accent);
+}
+
+.input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Border and colour together, never the border alone: an invalid join code read in a
+   dark room has to be obvious without depending on hue. */
+.input[aria-invalid='true'] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/**
+ * The join code. Six characters, printed on a card, typed one-handed in a dark room:
+ * large, spaced out, and centred so a mistyped character is easy to spot.
+ */
+.code {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--space-2);
+  text-align: center;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  padding: var(--space-3);
+}

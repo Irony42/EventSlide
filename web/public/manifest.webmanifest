@@ -1,0 +1,20 @@
+{
+  "name": "EventSlide",
+  "short_name": "EventSlide",
+  "description": "Partagez vos photos, elles s’affichent dans la salle.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/join",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#101725",
+  "background_color": "#101725",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ]
+}

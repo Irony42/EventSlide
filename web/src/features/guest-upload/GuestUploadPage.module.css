@@ -1,0 +1,58 @@
+/**
+ * One column, and tall enough for `margin-block-start: auto` on the composer to push
+ * the controls to the bottom of a short screen instead of leaving them mid-page.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-block-size: 100%;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.intro {
+  color: var(--text-secondary);
+}
+
+.signature {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/**
+ * The composer stays reachable while the guest scrolls their own photos.
+ *
+ * Sticky rather than fixed: it is the last child, so it already paints over the
+ * content above it without a z-index, and it stays inside the shell's bottom padding
+ * — which is what keeps it clear of the iOS home indicator.
+ */
+.composer {
+  position: sticky;
+  inset-block-end: 0;
+  margin-block-start: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+  background: var(--surface-base);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+/* A link, not a button: it navigates. Sized to the touch floor all the same. */
+.rejoin {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding-inline: var(--space-2);
+  font-weight: 600;
+}

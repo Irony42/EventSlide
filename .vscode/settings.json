@@ -5,10 +5,7 @@
     "package-lock.json": true
   },
   "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": [
-    "source.addMissingImports",
-    "source.fixAll.eslint"
-  ],
+  "editor.codeActionsOnSave": ["source.addMissingImports", "source.fixAll.eslint"],
   "files.autoSave": "afterDelay",
   "jest.autoRun": "off", // Tests will have to be run manually
   "jest.showCoverageOnLoad": true, // Show code coverage when the project is launched

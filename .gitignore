@@ -1,12 +1,56 @@
 node_modules
 dist
-photos
-thumbnails
-statusfiles/*.json
-.env
+
+# `coverage` alone did not match `coverage-guests/`, a scratch report directory that a
+# `--coverage.reportsDirectory` override produced and a `git add -A` then committed. The
+# glob covers any such variant; CI's `prettier --check .` is what noticed, by refusing to
+# format the JSON inside it.
 coverage
-database/*.sqlite
-# SQLite
+coverage-*/
+
+# Runtime state. An event's photos and database belong to the operator, never to git.
+#
+# Anchored with a leading slash, and that is load-bearing rather than tidiness. A bare
+# `photos/` matches a directory of that name at *any* depth, so these four patterns were
+# silently excluding `src/domain/photos/`, `src/application/usecases/photos/` and
+# `src/infrastructure/media/` — the photo entity, the upload use cases and the whole
+# media adapter. None of it had ever been committed, every `git add` quietly skipped it,
+# and a fresh clone would not have built. Keep the slashes.
+/data/
+/media/
+/photos/
+/thumbnails/
+# Where `npm run backup` writes by default. Same rule, and the same anchoring: an
+# archive holds every photo and every password hash.
+/backups/
+
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.db
+
+.env
+.env.*
+!.env.example
+
+# Playwright
+playwright-report/
+test-results/
+tests/e2e/__screenshots__/**/*-actual.png
+tests/e2e/__screenshots__/**/*-diff.png
+blob-report/
+.playwright/
+
+# TypeScript incremental build state
+*.tsbuildinfo
+
+# TLS material for a local HTTPS run
+ssl/*.pem
+ssl/*.key
+ssl/*.crt
+
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+
+    /* Strictness. Every flag here has caught a real bug in this codebase; do not
+       relax one to make a change compile. */
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noPropertyAccessFromIndexSignature": true,
+
+    /* `rows[0]` is `T | undefined`. SQLite queries and playlist indexing both
+       depend on this being honest. */
+    "noUncheckedIndexedAccess": true,
+
+    /* `{ caption?: string }` must not accept `{ caption: undefined }`. Matters for
+       partial updates where "absent" and "cleared" are different intents. */
+    "exactOptionalPropertyTypes": true
+  }
+}

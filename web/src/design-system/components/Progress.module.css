@@ -1,0 +1,53 @@
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.track {
+  flex: 1;
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--surface-overlay);
+  overflow: hidden;
+  min-width: 0;
+}
+
+/**
+ * The width is set, never animated.
+ *
+ * Motion is restricted to `opacity` and `transform` because the wall runs for eight
+ * hours on whatever hardware the venue owns. A progress bar is exempt from the rule
+ * only because it does not transition: every step is a real byte count arriving from
+ * the upload, so there is nothing to interpolate.
+ */
+.fill {
+  height: 100%;
+  width: var(--progress-value, 0%);
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
+.value {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  /* The digits must not reflow as the percentage climbs. */
+  font-variant-numeric: tabular-nums;
+}
+
+.accent {
+  color: var(--accent);
+}
+
+.success {
+  color: var(--success);
+}
+
+.danger {
+  color: var(--danger);
+}
+
+.warning {
+  color: var(--warning);
+}

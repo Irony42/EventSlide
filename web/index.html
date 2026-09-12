@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover so the guest surface can paint into the notch area and use
+         env(safe-area-inset-*) for its thumb-reachable controls. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#101725" />
+    <meta name="description" content="Partagez vos photos, elles s'affichent dans la salle." />
+    <!-- No CDN. Every stylesheet, font and script is bundled, which is what lets the
+         server ship a strict CSP and what makes first paint work on venue Wi-Fi. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>EventSlide</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      EventSlide a besoin de JavaScript pour envoyer vos photos. Activez-le puis rechargez la page.
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

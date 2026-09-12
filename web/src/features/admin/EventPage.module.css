@@ -1,0 +1,105 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/**
+ * Two columns on a laptop, one below that.
+ *
+ * The minimum track is the single-column token: narrower than that, the join code at
+ * display size and the QR plate start competing for the same width.
+ */
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-guest)), 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/**
+ * The join code.
+ *
+ * At display size because a guest reads it out loud across a table, and a host reads
+ * it off a laptop screen from two metres away while somebody dictates it.
+ */
+.joinCode {
+  font-size: var(--text-display);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.joinUrl {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.archived {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/**
+ * Print takes the QR card and nothing else.
+ *
+ * Every other section carries this class, so "print-friendly" needs no global rule and
+ * no second route — the host presses the button and gets the card for the tables.
+ */
+@media print {
+  .screenOnly {
+    display: none;
+  }
+
+  .columns {
+    display: block;
+  }
+}

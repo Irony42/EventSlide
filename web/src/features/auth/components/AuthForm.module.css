@@ -1,0 +1,61 @@
+/**
+ * The host container is 78 rem wide, which a three-field form must not span: an input
+ * the width of a laptop screen is unreadable and reads as a broken layout. The
+ * single-column token is reused for its role rather than a new width being invented.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-inline-size: var(--container-guest);
+  margin-inline: auto;
+  padding-block: var(--space-6);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.intro {
+  color: var(--text-secondary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/**
+ * The form-level failure.
+ *
+ * Not attached to a field: the server answers "one of these two is wrong" and says no
+ * more, so pointing at the e-mail box would be a guess the UI is not entitled to make.
+ */
+.alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  font-size: var(--text-sm);
+}
+
+/* A span around the glyph, not a class on it: a CSS module is typed as an index
+   signature, so `styles['x']` is `string | undefined` and the primitive's `className`
+   does not take undefined. The design system's own Toast wraps it the same way. */
+.alertGlyph {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}

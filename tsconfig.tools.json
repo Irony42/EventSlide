@@ -1,0 +1,36 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    /* Playwright drives a browser, so page.evaluate callbacks legitimately reference
+       DOM globals. Keeping that in a separate project is what stops server code from
+       reaching for `document`. */
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    /* `eslint.config.mjs` is JavaScript, so it enters a program only under `allowJs`,
+       and is *checked* only under `checkJs`. Both are needed, and they are different
+       claims: with `allowJs` alone the file is parsed and inferred but no error inside
+       it is ever reported, so `--listFiles` would list a file nothing checks. */
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true
+  },
+  /* The single-file entries are in `files`, not in `include`, and that is a guard
+     rather than a style choice.
+
+     An `include` entry that matches nothing is silent — no error, no warning. That is
+     how `"eslint.config.js"` survived the rename to `.mjs`: the entry stayed, matched
+     nothing, and the file that enforces the entire architecture belonged to none of the
+     four tsconfig projects while `npm run typecheck` stayed green, covering less than it
+     had the day before.
+
+     `files` cannot fail that way. A name that no longer exists is `error TS6053`, and a
+     `.js`/`.mjs` file listed without `allowJs` is `error TS6504`. Both name the file and
+     both fail `npm run typecheck:tools`, so the next rename is reported at the moment it
+     is made instead of being found by a reviewer two months later. */
+  "files": ["vitest.config.ts", "playwright.config.ts", "eslint.config.mjs"],
+  /* Genuine globs: whole directories, where matching nothing would itself be the
+     anomaly and `tsc` says so (TS18003). */
+  "include": ["tests/**/*.ts", "scripts/**/*.ts"]
+}

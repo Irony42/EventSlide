@@ -1,0 +1,120 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-raised);
+  /* The status colour. Paired with the Badge's icon and word inside the tile, never
+     carrying the meaning on its own. */
+  border: 1px solid var(--border-subtle);
+  border-inline-start: var(--space-1) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  min-width: 0;
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.card[data-status='pending'] {
+  border-inline-start-color: var(--warning);
+}
+
+.card[data-status='published'] {
+  border-inline-start-color: var(--success);
+}
+
+.card[data-status='rejected'] {
+  border-inline-start-color: var(--danger);
+}
+
+.card[data-status='hidden'] {
+  border-inline-start-color: var(--text-muted);
+}
+
+/* Where the keyboard is. A host working with J/K has to be able to see which photo P
+   will publish, and the browser's focus ring alone is invisible on a scrolled grid. */
+.card[data-active='true'] {
+  box-shadow: var(--focus-ring);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.checkbox {
+  /* A host clicks these in sequence across a screenful; the native 13 px box is a
+     miss waiting to happen even with a mouse. */
+  width: var(--space-5);
+  height: var(--space-5);
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.thumbnail {
+  display: block;
+  width: 100%;
+  /* Fixed ratio, so the grid does not reshuffle as portraits and landscapes stream in
+     over SSE (DESIGN-SYSTEM.md section 6). */
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  /* Cropped here on purpose: the tile is for triage. The lightbox and the wall show
+     the whole photo. */
+  object-fit: cover;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.caption {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+  /* Guest text, at whatever length they typed. Two lines is enough to judge it and
+     keeps every tile the same height. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* "Sans légende", in the same slot as a caption so tiles keep one height and the host
+   can tell "no text" apart from "the text has not loaded". */
+.captionEmpty {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.author {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.dimensions {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--border-subtle);
+}

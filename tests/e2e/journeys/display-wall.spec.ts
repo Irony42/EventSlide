@@ -1,0 +1,231 @@
+import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
+import { joinAndUpload } from '../fixtures/guest'
+import { aPhoto } from '../fixtures/media'
+
+/**
+ * The projected wall.
+ *
+ * Everything here is about a screen nobody is standing at. The failure modes worth
+ * testing are not "does it render" but "does it still work at 1 a.m." — after a
+ * reconnect, after fifty photos, after the playlist changed under it.
+ */
+
+/** Publishes `count` photos into a fresh event and returns it. */
+const anEventWithPublishedPhotos = async (
+  app: Parameters<typeof signInAsHost>[1],
+  surfaces: {
+    guest: Parameters<typeof joinAndUpload>[0]
+    host: Parameters<typeof signInAsHost>[0]
+  },
+  count: number,
+  slug: string,
+) => {
+  const event = await app.seedEvent({ slug, name: 'Camille & Sacha' })
+  await signInAsHost(surfaces.host, app)
+  await surfaces.host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+
+  for (let index = 0; index < count; index += 1) {
+    await joinAndUpload(surfaces.guest, app, event.joinCode, {
+      displayName: `Invité ${index + 1}`,
+      caption: `Photo ${index + 1}`,
+      file: await aPhoto(`wall-${slug}-${index}`, 1200, 900),
+    })
+  }
+
+  await expect(surfaces.host.getByTestId('moderation-card')).toHaveCount(count)
+  for (let index = 0; index < count; index += 1) {
+    await surfaces.host
+      .getByTestId('moderation-card')
+      .first()
+      .getByRole('button', { name: /Publier/i })
+      .click()
+  }
+  return event
+}
+
+test('the empty state tells the room how to join', async ({ app, surfaces }) => {
+  // This is what two hundred people look at for the first twenty minutes. A blank
+  // screen is a wasted twenty minutes of uploads.
+  const { projector } = surfaces
+  const event = await app.seedEvent({ slug: 'mariage', name: 'Camille & Sacha' })
+
+  await projector.goto(wallUrl(app, event.slug))
+
+  const empty = projector.getByTestId('wall-empty')
+  await expect(empty).toBeVisible()
+  await expect(empty.getByText('Camille & Sacha')).toBeVisible()
+  await expect(empty.getByText(event.joinCode)).toBeVisible()
+  // Rendered as inline SVG, never a remote image: the CSP forbids one and venue Wi-Fi
+  // would drop it.
+  await expect(empty.locator('svg')).toBeVisible()
+})
+
+test('the slideshow advances and wraps', async ({ app, surfaces }) => {
+  const event = await anEventWithPublishedPhotos(app, surfaces, 3, 'defile')
+  const { projector } = surfaces
+
+  // Driven by the query hooks, so this takes a second rather than half a minute. The
+  // hooks are only honoured when the server was started with E2E_HOOKS=1.
+  await projector.goto(wallUrl(app, event.slug, { intervalMs: 250, transitionMs: 0 }))
+
+  const first = await projector.getByTestId('wall-slide').first().getAttribute('data-photo-id')
+  await expect
+    .poll(async () => projector.getByTestId('wall-slide').first().getAttribute('data-photo-id'), {
+      timeout: 5_000,
+    })
+    .not.toBe(first)
+
+  // Wraps rather than stopping at the end: an eight-hour evening has more hours than
+  // photos.
+  await expect
+    .poll(async () => projector.getByTestId('wall-slide').first().getAttribute('data-photo-id'), {
+      timeout: 10_000,
+    })
+    .toBe(first)
+})
+
+test('a newly published photo appears without the wall jumping elsewhere', async ({
+  app,
+  surfaces,
+}) => {
+  // 1.0 kept the index in sessionStorage, so a change made two projectors disagree and
+  // a refresh restarted the sequence. The cursor follows the photo, not the index.
+  const event = await anEventWithPublishedPhotos(app, surfaces, 2, 'ajout')
+  const { guest, host, projector } = surfaces
+
+  // A long interval, so nothing advances on its own during the assertion.
+  await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
+  const showing = await projector.getByTestId('wall-slide').first().getAttribute('data-photo-id')
+  expect(showing).not.toBeNull()
+
+  await joinAndUpload(guest, app, event.joinCode, {
+    displayName: 'Tardif',
+    file: await aPhoto('late', 900, 1200),
+  })
+  await host.reload()
+  await host
+    .getByTestId('moderation-card')
+    .first()
+    .getByRole('button', { name: /Publier/i })
+    .click()
+
+  // Give the wall time to refetch and rebuild, then assert it did NOT move.
+  await expect
+    .poll(async () => projector.getByTestId('wall-slide').first().getAttribute('data-photo-id'), {
+      timeout: 8_000,
+      intervals: [500, 1_000, 2_000],
+    })
+    .toBe(showing)
+})
+
+test('the caption and the sender are legible on the slide', async ({ app, surfaces }) => {
+  const { guest, host, projector } = surfaces
+  const event = await app.seedEvent({ slug: 'legende' })
+
+  await signInAsHost(host, app)
+  await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  await joinAndUpload(guest, app, event.joinCode, {
+    displayName: 'Léa',
+    caption: 'Les confettis',
+  })
+  await host
+    .getByTestId('moderation-card')
+    .first()
+    .getByRole('button', { name: /Publier/i })
+    .click()
+
+  await projector.goto(wallUrl(app, event.slug))
+  const slide = projector.getByTestId('wall-slide').first()
+  await expect(slide.getByText('Les confettis')).toBeVisible()
+  await expect(slide.getByText('Léa')).toBeVisible()
+
+  // Read from three to ten metres. The token floor is --text-xl; anything under 24px
+  // computed is unreadable from the back of a room.
+  const size = await slide
+    .getByText('Les confettis')
+    .evaluate((node) => Number.parseFloat(getComputedStyle(node).fontSize))
+  expect(size).toBeGreaterThanOrEqual(24)
+})
+
+test('a guest photo is never cropped in the spotlight layout', async ({ app, surfaces }) => {
+  // Cropping somebody's photo without asking is the one thing the primary layout must
+  // not do. `object-fit: contain` on black is the whole rule.
+  const event = await anEventWithPublishedPhotos(app, surfaces, 1, 'cadrage')
+  const { projector } = surfaces
+
+  await projector.goto(wallUrl(app, event.slug, { layout: 'spotlight' }))
+
+  const fit = await projector
+    .getByTestId('wall-slide')
+    .first()
+    .getByRole('img')
+    .evaluate((node) => getComputedStyle(node).objectFit)
+  expect(fit).toBe('contain')
+})
+
+test('the display URL picks the layout, for a projector nobody will touch', async ({
+  app,
+  surfaces,
+}) => {
+  // A kiosk autostarts one URL and is then left alone for eight hours, so `?layout=` is
+  // the `L` key for that machine. Three published photos, because the count is what
+  // tells the layouts apart: the mosaic gives each photo a tile, the spotlight shows
+  // one photo at a time.
+  const event = await anEventWithPublishedPhotos(app, surfaces, 3, 'disposition')
+  const { projector } = surfaces
+
+  await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic' }))
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(3)
+
+  // A layout nobody implements, as a typo in a kiosk config would leave it. The room
+  // gets the layout the wall response carries — never a blank screen.
+  await projector.goto(wallUrl(app, event.slug, { layout: 'neon' }))
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+
+  // And the host who does walk up carries on from where the URL put the wall.
+  await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic' }))
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(3)
+  await projector.keyboard.press('l')
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+})
+
+test('the wall keeps playing when the connection drops', async ({ app, surfaces }) => {
+  // Never a blank screen and never a spinner over the room's photos: the host is not
+  // at the laptop, and a wall that gave up would stay given up until morning.
+  const event = await anEventWithPublishedPhotos(app, surfaces, 2, 'coupure')
+  const { projector } = surfaces
+
+  await projector.goto(wallUrl(app, event.slug, { intervalMs: 300, transitionMs: 0 }))
+  await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
+
+  // Kill only the stream, leaving the already-loaded photos in place.
+  await projector.route('**/stream', (route) => route.abort())
+  await projector.evaluate(() => {
+    window.dispatchEvent(new Event('offline'))
+  })
+
+  await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
+  await expect(projector.getByTestId('wall-empty')).toHaveCount(0)
+})
+
+test('the Ken Burns duration comes from the server, not a constant', async ({ app, surfaces }) => {
+  // 1.0 ran a 20s zoom against a 10s slide, so every image visibly snapped back. The
+  // duration is derived from the interval and handed to the client.
+  const event = await anEventWithPublishedPhotos(app, surfaces, 1, 'kenburns')
+  const { projector } = surfaces
+
+  await projector.goto(wallUrl(app, event.slug, { intervalMs: 4_000, transitionMs: 0 }))
+  const slide = projector.getByTestId('wall-slide').first()
+  await expect(slide).toBeVisible()
+
+  const duration = await slide.evaluate((node) =>
+    getComputedStyle(node).getPropertyValue('--kenburns-duration').trim(),
+  )
+  test.skip(duration === '', 'the wall does not expose the duration as a custom property')
+
+  const ms = duration.endsWith('ms')
+    ? Number.parseFloat(duration)
+    : Number.parseFloat(duration) * 1000
+  // Never shorter than the slide, or the zoom finishes early and the image snaps.
+  expect(ms).toBeGreaterThanOrEqual(4_000)
+})

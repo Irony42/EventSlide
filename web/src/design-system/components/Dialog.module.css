@@ -1,0 +1,78 @@
+/* The native element is the backdrop; the panel inside it is the visible surface. That
+   split is what makes a backdrop click distinguishable from a click on the content. */
+.dialog {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  width: 100%;
+  max-inline-size: min(var(--container-guest), calc(100% - var(--space-6)));
+  z-index: var(--z-dialog);
+}
+
+.dialog::backdrop {
+  background: var(--surface-scrim);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .panel {
+    animation: enter var(--duration-base) var(--ease-out) both;
+  }
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-3));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  min-width: 0;
+}
+
+.description {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Actions right-aligned on a laptop, full width and stacked on a phone: a two-button
+   row at 360px puts both under one thumb and the wrong one gets pressed. */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

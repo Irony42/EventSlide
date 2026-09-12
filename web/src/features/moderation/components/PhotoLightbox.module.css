@@ -1,0 +1,39 @@
+.lightbox {
+  /* Wider than a confirmation: the whole point is to see the photo properly. */
+  max-width: var(--container-host);
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.image {
+  width: 100%;
+  /* Room for the header, the caption and the decision row inside the viewport, so a
+     host never scrolls a modal to reach "Publier". */
+  max-height: 60dvh;
+  /* Never cropped here. This is the view the decision is made from, and a face cut off
+     by a tile crop is exactly what the host is checking for. */
+  object-fit: contain;
+  background: var(--surface-base);
+  border-radius: var(--radius-sm);
+}
+
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.captionText {
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+}
+
+.author {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

@@ -1,0 +1,31 @@
+/**
+ * Dark modules on a light field, never the reverse.
+ *
+ * An inverted QR is read unreliably by the camera apps guests actually use, and the
+ * cost of a failed scan is a guest who never sends a photo. The plate is the only
+ * light surface the wall is allowed, and it is small.
+ */
+.plate {
+  display: grid;
+  background: var(--text-primary);
+  color: var(--surface-base);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.code {
+  inline-size: 100%;
+  block-size: auto;
+}
+
+/* Sized from the scale rather than from a chosen pixel count: the corner reminder is
+   two space steps wide, the invitation takes a guest-column's worth of the screen. */
+.md {
+  inline-size: calc(var(--space-10) * 2);
+}
+
+.lg {
+  inline-size: 100%;
+  max-inline-size: var(--container-guest);
+}
