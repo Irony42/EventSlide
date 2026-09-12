@@ -150,21 +150,48 @@ jobs:
           echo "before: $base"
           echo "after:  ${{ github.event.pull_request.head.sha }}"
 
+      # The whole method is "render the before, render the after, compare". That needs a
+      # before that can render — and the merge base of the 2.0 rewrite is a 1.0 commit
+      # with no Playwright suite and no `test:e2e:update-snapshots` script at all, so the
+      # job failed on `npm error Missing script` rather than on anything about the wall.
+      #
+      # Every later pull request has a base that carries both, so this is a guard for the
+      # first one rather than a permanent escape hatch. It reports loudly and skips,
+      # because the alternative — comparing the head against committed images rendered on
+      # a different operating system — is the permanently-red job this whole design
+      # exists to avoid.
+      - name: Can the merge base render a before?
+        run: |
+          if git cat-file -e "$BASE_SHA:package.json" 2>/dev/null &&
+             git show "$BASE_SHA:package.json" | grep -q '"test:e2e:update-snapshots"'; then
+            echo "COMPARABLE=1" >> "$GITHUB_ENV"
+          else
+            echo "COMPARABLE=0" >> "$GITHUB_ENV"
+            # One line: a workflow command with a newline in it is printed as plain text
+            # and never becomes an annotation.
+            echo "::warning::The merge base $BASE_SHA has no visual suite, so there is no before to compare against and this job is skipping. Expected for the first pull request of the 2.0 rewrite and for nothing else — on a later one it means the base is wrong or the script was renamed."
+          fi
+
       # ------------------------------------------------------------------ before --
       - name: Check out the merge base
+        if: env.COMPARABLE == '1'
         run: git checkout --force --detach "$BASE_SHA"
 
       - run: npm ci
+        if: env.COMPARABLE == '1'
 
       # Only the engine the visual project uses. The other three would double the
       # install for nothing.
       - name: Install Chromium
+        if: env.COMPARABLE == '1'
         run: npx playwright install --with-deps chromium
 
       - name: Build
+        if: env.COMPARABLE == '1'
         run: npm run build
 
       - name: Render the baselines from the merge base
+        if: env.COMPARABLE == '1'
         # The committed images are deleted first so that every snapshot is *missing* and
         # gets written fresh, rather than left in place by whichever update mode the
         # installed Playwright defaults to. With an explicit `--update-snapshots` this
@@ -175,6 +202,7 @@ jobs:
           npm run test:e2e:update-snapshots
 
       - name: Check the before is complete, and keep it out of the next checkout's way
+        if: env.COMPARABLE == '1'
         run: |
           shots='tests/e2e/__screenshots__'
           rendered="$(find "$shots" -type f -name '*.png' 2>/dev/null | wc -l | tr -d '[:space:]')"
@@ -188,17 +216,22 @@ jobs:
 
       # ------------------------------------------------------------------- after --
       - name: Check out the pull request head
+        if: env.COMPARABLE == '1'
         run: git checkout --force --detach "$HEAD_SHA"
 
       - run: npm ci
+        if: env.COMPARABLE == '1'
 
       - name: Install Chromium
+        if: env.COMPARABLE == '1'
         run: npx playwright install --with-deps chromium
 
       - name: Build
+        if: env.COMPARABLE == '1'
         run: npm run build
 
       - name: Compare the wall against the merge base
+        if: env.COMPARABLE == '1'
         # Two passes, and the first one is not the gate.
         #
         # A visual test *added* by this pull request has no before — the merge base
