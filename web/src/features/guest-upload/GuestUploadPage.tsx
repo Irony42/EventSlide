@@ -5,10 +5,12 @@ import { EmptyState } from '../../design-system/components/EmptyState'
 import { readGuestSession } from '../../lib/guestSession'
 import { fr } from '../../lib/i18n/fr'
 import { CaptionField } from './components/CaptionField'
+import { InstallCard } from './components/InstallCard'
 import { MyPhotos } from './components/MyPhotos'
 import { OfflineNotice } from './components/OfflineNotice'
 import { PhotoPicker } from './components/PhotoPicker'
 import { UploadQueue } from './components/UploadQueue'
+import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useMyPhotos } from './hooks/useMyPhotos'
 import { useOutbox } from './hooks/useOutbox'
 import { useUploadQueue } from './hooks/useUploadQueue'
@@ -102,6 +104,15 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
     settleRef.current = queue.settle
   }, [queue.settle])
 
+  /**
+   * Offered only once a photo has actually arrived.
+   *
+   * `mine.photos` is the server's answer rather than this session's queue, so a guest
+   * returning to a gallery they uploaded to yesterday is offered it too — and a guest
+   * who has sent nothing is never interrupted before they do.
+   */
+  const install = useInstallPrompt({ eligible: mine.photos.length > 0 })
+
   const trimmedCaption = caption.trim()
 
   return (
@@ -123,6 +134,14 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
         error={mine.error}
         onRetry={mine.refresh}
         onDelete={mine.remove}
+      />
+
+      {/* Below the proof that it worked, above the controls: a reward for having sent
+          something, never a gate in front of sending it. */}
+      <InstallCard
+        offer={install.offer}
+        onInstall={() => void install.install()}
+        onDismiss={install.dismiss}
       />
 
       {/* Everything to press, kept together at the bottom of the screen: a control in

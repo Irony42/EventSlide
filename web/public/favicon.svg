@@ -8,10 +8,15 @@
     is served from this origin.
 
     The dark is the same literal as index.html's `theme-color`; the light is the sRGB
-    equivalent of --accent (oklch(72% 0.17 305)). They are literals only because a
-    standalone SVG and a webmanifest cannot read a CSS custom property; if a token
+    equivalent of the accent token, oklch(72% 0.17 305). They are literals only because
+    a standalone SVG and a webmanifest cannot read a CSS custom property; if a token
     moves, these move with it. This file, manifest.webmanifest and index.html are the
     only places in the web app where a raw colour is allowed.
+
+    Written without a double hyphen anywhere in this comment, and that is not a style
+    note: XML forbids the sequence inside a comment, so naming the CSS custom property
+    the way CSS spells it made the file invalid XML. Every browser accepted it; sharp,
+    which renders the app icons from this mark, refused it outright.
   -->
   <rect width="32" height="32" rx="7" fill="#101725" />
   <rect

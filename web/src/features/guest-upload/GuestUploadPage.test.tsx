@@ -201,6 +201,33 @@ describe('GuestUploadPage', () => {
     expect(screen.getByText(fr.upload.thanks)).toBeVisible()
   })
 
+  it('does not offer a home-screen icon before the guest has sent anything', async () => {
+    // A prompt on arrival is friction at the worst possible moment: the guest has just
+    // scanned a QR code and is forty seconds from sending a photo.
+    havingJoined()
+    renderUpload(fakeApi(withPhotos()))
+
+    await waitFor(() => expect(screen.getByText(fr.upload.mineEmpty)).toBeVisible())
+    expect(screen.queryByTestId('install-card')).not.toBeInTheDocument()
+  })
+
+  it('offers a home-screen icon once a photo has arrived', async () => {
+    // The second half of an evening's photos are taken after midnight, by which time the
+    // QR code is face down under a wine glass.
+    havingJoined()
+    renderUpload(fakeApi(withPhotos(aGuestPhoto())))
+
+    // The offer needs a browser that can honour it; jsdom is neither Chromium nor iOS,
+    // so the platform is stated rather than assumed.
+    Object.defineProperty(navigator, 'standalone', { value: false, configurable: true })
+    try {
+      await waitFor(() => expect(screen.getByTestId('install-card')).toBeVisible())
+      expect(screen.getByText(fr.upload.installIosHint)).toBeVisible()
+    } finally {
+      Reflect.deleteProperty(navigator, 'standalone')
+    }
+  })
+
   it('keeps a photo the connection dropped, and sends it when the network returns', async () => {
     // This used to assert a "Réessayer" button, and the button was the problem: it only
     // helps a guest still looking at their phone. The photo is now held on the device
