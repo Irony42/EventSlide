@@ -50,6 +50,11 @@ const pickPhotos = async (...files: readonly File[]): Promise<void> => {
 describe('GuestUploadPage', () => {
   beforeEach(() => {
     sessionStorage.clear()
+    localStorage.clear()
+    // jsdom implements no IndexedDB, so the outbox falls back to memory and says so
+    // once per render. That fallback is the real production path on a phone in private
+    // browsing and has its own tests; here it is only noise.
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
   it('names the event it will send to', () => {
@@ -196,7 +201,10 @@ describe('GuestUploadPage', () => {
     expect(screen.getByText(fr.upload.thanks)).toBeVisible()
   })
 
-  it('offers a retry when the connection drops, and the retry works', async () => {
+  it('keeps a photo the connection dropped, and sends it when the network returns', async () => {
+    // This used to assert a "Réessayer" button, and the button was the problem: it only
+    // helps a guest still looking at their phone. The photo is now held on the device
+    // and goes up by itself — see web/src/lib/offline/.
     havingJoined()
     let attempt = 0
     const api = fakeApi({
@@ -210,18 +218,22 @@ describe('GuestUploadPage', () => {
     renderUpload(api)
 
     await pickPhotos(aPhotoFile('confettis.jpg'))
-    await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
 
     await waitFor(() =>
-      expect(screen.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'failed'),
+      expect(screen.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'queued'),
     )
-    expect(screen.getByText(fr.errors.network)).toBeVisible()
+    expect(screen.getByText(fr.upload.offlineTitle(1))).toBeVisible()
+    expect(screen.getByText(fr.upload.offlineHint)).toBeVisible()
 
-    await userEvent.click(screen.getByRole('button', { name: /Réessayer/ }))
+    // A guest who can see a bar of signal should not have to wait for the browser to
+    // agree; the same drain runs on the `online` event with nobody watching.
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.offlineRetry }))
 
     await waitFor(() =>
       expect(screen.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done'),
     )
+    expect(screen.queryByTestId('offline-notice')).not.toBeInTheDocument()
   })
 
   it('offers no retry for a photo the server will refuse again', async () => {

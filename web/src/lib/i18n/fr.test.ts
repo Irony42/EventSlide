@@ -22,6 +22,7 @@ const COUNTED: readonly CountedPhrase[] = [
   ['upload.sendCount', fr.upload.sendCount],
   ['upload.queueSummary', (count) => fr.upload.queueSummary(count, 3)],
   ['upload.queueFailed', fr.upload.queueFailed],
+  ['upload.offlineTitle', fr.upload.offlineTitle],
   ['moderation.pending', fr.moderation.pending],
   ['moderation.bulkSkipped', fr.moderation.bulkSkipped],
   ['moderation.selected', fr.moderation.selected],

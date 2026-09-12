@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    /* WebWorker, not DOM. The two declare incompatible globals — `self`, `location`,
+       `fetch` — so a program cannot hold both, which is the entire reason the worker
+       is type-checked separately from web/src. */
+    "lib": ["ES2023", "WebWorker"],
+    "types": [],
+    "verbatimModuleSyntax": true,
+    "noEmit": true
+  },
+  /* `files`, not `include`: a single named entry point. An `include` pattern that
+     matches nothing is silent, and a `files` entry that names nothing is TS6053 — the
+     difference between a rename that is caught and one that quietly empties this
+     program. See CLAUDE.md section 9. The modules the worker shares with the page are
+     pulled in by following its imports. */
+  "files": ["web/sw/serviceWorker.ts"]
+}

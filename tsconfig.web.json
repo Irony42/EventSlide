@@ -11,5 +11,9 @@
     "verbatimModuleSyntax": true,
     "noEmit": true
   },
-  "include": ["web/**/*.ts", "web/**/*.tsx", "web/vite.config.ts"]
+  "include": ["web/**/*.ts", "web/**/*.tsx", "web/vite.config.ts"],
+  /* The service worker is a WebWorker program, not a DOM one: see tsconfig.sw.json.
+     Left in here it fails on `self`, and adding the WebWorker lib to this project
+     would break every file that legitimately uses `window`. */
+  "exclude": ["web/sw/**"]
 }

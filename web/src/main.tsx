@@ -8,6 +8,8 @@ import { ErrorBoundary } from './app/ErrorBoundary'
 import { AppRoutes } from './app/router'
 import { ToastProvider } from './design-system/components/ToastProvider'
 import { api } from './lib/api/client'
+import { resolveOfflineQueue } from './lib/offline/killSwitch'
+import { registerUploadWorker, removeUploadWorker } from './lib/offline/serviceWorker'
 
 /**
  * The composition root of the web app: the one file that names the real API instance.
@@ -19,6 +21,27 @@ const container = document.getElementById('root')
 
 if (container === null) {
   throw new Error('#root is missing from index.html; the app has nowhere to mount.')
+}
+
+/**
+ * The upload worker, or its removal.
+ *
+ * Only in a production bundle: `/sw.js` is emitted by `web/vite.sw.config.ts` during
+ * `npm run build`, so the dev server has nothing to serve and a registration there
+ * would fail on every reload. The end-to-end suite runs against the built client, so it
+ * exercises the real thing rather than a branch nothing takes.
+ *
+ * The "off" path is not a no-op, and that is the point of having it: it unregisters a
+ * worker already installed on the guest's phone and deletes the photos it was holding.
+ * A kill switch that only stopped new installations would leave the bad build running
+ * on exactly the devices it was breaking.
+ */
+if (import.meta.env.PROD) {
+  if (resolveOfflineQueue(window.location.search)) {
+    void registerUploadWorker()
+  } else {
+    void removeUploadWorker()
+  }
 }
 
 createRoot(container).render(

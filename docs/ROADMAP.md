@@ -40,20 +40,59 @@ If a guest gives up, nothing else in this document matters. At a wedding the med
 guest spends **under a minute** in the app, once, on a phone with two bars of a
 saturated access point.
 
-### 1.1 Offline upload queue (P1, effort M, risk: medium)
+### 1.1 Offline upload queue — **Shipped**
 
-**The single most valuable thing left to build.** A service worker plus IndexedDB: a
-photo selected with no usable connection is stored locally and sent when connectivity
-returns, with the Background Sync API where available and a foreground retry everywhere
-else.
+A service worker plus IndexedDB: a photo selected with no usable connection is stored on
+the device and sent when connectivity returns, with the Background Sync API where
+available and a foreground retry everywhere else.
 
-Venue Wi-Fi at a hundred-guest event is not "sometimes slow", it is _saturated between
-19:00 and 23:00_ — exactly the window when photos are taken. Today a failed upload
-offers a retry button; that only helps a guest still looking at their phone. This makes
-the photo arrive whether or not they are.
+It was described here as "the single most valuable thing left to build", for a reason
+that has not changed: venue Wi-Fi at a hundred-guest event is not "sometimes slow", it is
+_saturated between 19:00 and 23:00_ — exactly the window when photos are taken. What
+existed before was a retry button, which only helps a guest still looking at their phone.
+The photo now arrives whether or not they are.
 
-Risk: service-worker lifecycle bugs are hard to reproduce and easy to ship. It needs its
-own Playwright project with the network throttled and offline, and a kill switch.
+What landed:
+
+- **An outbox behind a port** (`web/src/lib/offline/`). One IndexedDB adapter, one
+  in-memory fallback, one shared contract suite run against both — the same arrangement
+  `src/application/ports/` uses server-side. The fallback is not a test double: Firefox
+  in private browsing rejects the database outright, and those guests still get a queue
+  that survives a dropped connection for the length of the tab.
+- **Bytes, not Blobs.** IndexedDB is specified to store a `Blob`, and WebKit has a long
+  history of losing one. WebKit on a phone is the browser the largest share of guests
+  actually use, so entries hold an `ArrayBuffer` and the `File` is rebuilt at send time.
+- **One drain, two runtimes.** `drainOutbox` takes a store and a sender, so the page
+  (through the ordinary transport) and the worker (through bare `fetch`) share one set of
+  rules: one claim, one backoff, one expiry.
+- **A kill switch with teeth.** `?offline=off` does not merely stop new work — it
+  unregisters the worker and deletes the stored photos on the next page load. A switch
+  that only stopped new installations would leave a bad build running on precisely the
+  phones it was breaking.
+- **Its own Playwright project**, `chromium-offline`, which cuts the network out from
+  under a live page rather than stubbing a route.
+
+Three defects the tests caught before anyone else could, all worth recording because
+each is the kind that survives review:
+
+1. `?offline=maybe` silently re-enabled a queue somebody had switched off, because an
+   unrecognised value read as "not off, therefore on".
+2. `claimedAt` was doing two jobs — "a drain holds this" and "this is when it last
+   tried" — so releasing an entry after a failed attempt also looked like a live
+   two-minute lease, and the follow-up drain armed for its two-second backoff found
+   nothing to do.
+3. Nothing rescheduled a drain once every remaining entry was inside its backoff:
+   `online` fires once, and a photo queued offline and then reloaded back into view sat
+   there reported as waiting and sent by nothing. The drain now reports when it is worth
+   looking again, and the screen arms one timer from it rather than polling — a poll
+   would wake a phone in somebody's pocket all evening to serve the few guests with a
+   queue.
+
+The risk named here originally — "service-worker lifecycle bugs are hard to reproduce
+and easy to ship" — was real and is why the worker does exactly one job. It caches
+nothing, intercepts no `fetch` and claims no navigation, so the worst a bug in it can do
+is delay a photo. Precaching the app shell belongs with 1.2, and deliberately did not
+come along for the ride.
 
 ### 1.2 Installable PWA (P1, effort S, risk: low)
 

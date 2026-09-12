@@ -42,12 +42,24 @@ npx playwright install --with-deps    # once
 npm run test:e2e                      # headless, all projects
 npm run test:e2e:ui                   # Playwright UI, for debugging
 npm run test:e2e -- --project=chromium-mobile
+npm run test:e2e:offline               # the offline upload queue
 npm run test:e2e -- --grep @smoke     # the CI-on-every-push subset
 npm run test:e2e:update-snapshots     # after an intentional visual change
 ```
 
 Projects: `chromium-desktop` (host + projector), `chromium-mobile` (Pixel 7, guest),
-`webkit-mobile` (iPhone 14 — the browser most guests actually use), `firefox-desktop`.
+`webkit-mobile` (iPhone 14 — the browser most guests actually use), `firefox-desktop`,
+and `chromium-offline`.
+
+`chromium-offline` is the only project that runs `tests/e2e/offline/`, and the only one
+that may: those specs cut the network out from under a live page with
+`context.setOffline(true)`, which every other journey would rather not inherit by
+accident. Every other project carries `testIgnore: '**/offline/**'`. It is Chromium-only
+because a Playwright context gives a service worker a dependable registration there and
+not in WebKit — and a permanently-red project is a project people stop reading. What
+those specs assert is the **foreground** drain, the path every guest gets with or
+without a worker; Background Sync is a bonus the browser may or may not grant and no
+assertion depends on it.
 
 ## The app fixture: real server, disposable everything
 

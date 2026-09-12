@@ -69,7 +69,12 @@ jobs:
         # "cross-browser confidence without tripling every run" and this matrix is where
         # that promise is either kept or empty. It was empty: the project existed and no
         # job ever selected it.
-        project: [chromium-desktop, chromium-mobile, webkit-mobile, firefox-desktop]
+        # chromium-offline runs tests/e2e/offline/ and is the only project that does:
+        # every other one carries testIgnore: '**/offline/**'. Left out of this matrix
+        # it would be a project nothing ever selected, which is the exact failure the
+        # firefox-desktop note above describes.
+        project:
+          [chromium-desktop, chromium-mobile, webkit-mobile, firefox-desktop, chromium-offline]
     steps:
       - uses: actions/checkout@v4
 

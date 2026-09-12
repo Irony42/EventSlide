@@ -94,6 +94,16 @@ const readCookie = (name: string): string | null => {
   return null
 }
 
+/**
+ * The double-submit token as it stands right now.
+ *
+ * Exported for the one caller that cannot read `document.cookie` for itself: the
+ * offline outbox captures the token beside a photo so the service worker — which has no
+ * document — can send it hours later. Nothing else should reach for this; every request
+ * built here already carries the header.
+ */
+export const currentCsrfToken = (): string | null => readCookie(CSRF_COOKIE)
+
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 const headersFor = (method: string, body: unknown): HeadersInit => {

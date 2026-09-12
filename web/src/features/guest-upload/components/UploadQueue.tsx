@@ -26,6 +26,7 @@ const LABELS: Record<UploadItemState, string> = {
   uploading: fr.upload.itemUploading,
   done: fr.upload.itemDone,
   duplicate: fr.upload.itemDuplicate,
+  queued: fr.upload.itemQueued,
   failed: fr.upload.itemFailed,
 }
 
@@ -36,6 +37,10 @@ const LABELS: Record<UploadItemState, string> = {
  *
  * `duplicate` is deliberately not `danger`. "Already sent" is reassurance — the photo
  * is in the event — and 1.0 reported it as an error, so guests sent it a third time.
+ *
+ * `queued` is `warning` for the same reason in reverse: it is not a failure and must
+ * not be dressed as one, but it is the one state where something is still owed, and the
+ * bang glyph says "not finished" where the info dot would say "nothing to do".
  */
 const TONES: Record<UploadItemState, StatusTone> = {
   pending: 'neutral',
@@ -43,6 +48,7 @@ const TONES: Record<UploadItemState, StatusTone> = {
   uploading: 'accent',
   done: 'success',
   duplicate: 'accent',
+  queued: 'warning',
   failed: 'danger',
 }
 

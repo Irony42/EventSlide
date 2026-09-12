@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
@@ -6,11 +6,14 @@ import { readGuestSession } from '../../lib/guestSession'
 import { fr } from '../../lib/i18n/fr'
 import { CaptionField } from './components/CaptionField'
 import { MyPhotos } from './components/MyPhotos'
+import { OfflineNotice } from './components/OfflineNotice'
 import { PhotoPicker } from './components/PhotoPicker'
 import { UploadQueue } from './components/UploadQueue'
 import { useMyPhotos } from './hooks/useMyPhotos'
+import { useOutbox } from './hooks/useOutbox'
 import { useUploadQueue } from './hooks/useUploadQueue'
 import type { PublicEventDto } from '../../lib/api/dto'
+import type { DrainReport } from '../../lib/offline/drainOutbox'
 import styles from './GuestUploadPage.module.css'
 
 /**
@@ -61,8 +64,43 @@ interface UploadScreenProps {
 
 function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
   const mine = useMyPhotos(slug)
-  const queue = useUploadQueue({ slug, onSettled: mine.refresh })
   const [caption, setCaption] = useState('')
+
+  /**
+   * The two halves of one promise.
+   *
+   * `useUploadQueue` owns what is being sent right now; `useOutbox` owns what the
+   * device is holding until it can be. They meet in exactly two places — the queue
+   * hands a photo over when the network refuses it, and `settle` marks the rows a
+   * drain has since delivered — which is what stops one photo appearing twice on this
+   * screen under two different names.
+   *
+   * The indirection through a ref is not decoration: each hook needs something the
+   * other produces, and React has no ordering that satisfies both directly. The ref is
+   * written in an effect rather than during render, so a render that is thrown away
+   * cannot leave the outbox pointing at a queue that was never committed.
+   */
+  const settleRef = useRef<((report: DrainReport) => void) | null>(null)
+  // Lifted out of the object so the dependency below names the stable function rather
+  // than the state container it hangs off, which changes on every fetch.
+  const refreshMine = mine.refresh
+
+  const onDrained = useCallback(
+    (report: DrainReport) => {
+      settleRef.current?.(report)
+      // Only a real arrival is worth a refetch. A drain that only dropped an expired
+      // photo has changed nothing the server would report.
+      if (report.sent.length > 0) refreshMine()
+    },
+    [refreshMine],
+  )
+
+  const outbox = useOutbox({ slug, onDrained })
+  const queue = useUploadQueue({ slug, outbox, onSettled: mine.refresh })
+
+  useEffect(() => {
+    settleRef.current = queue.settle
+  }, [queue.settle])
 
   const trimmedCaption = caption.trim()
 
@@ -91,6 +129,13 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
           the top half of a phone needs a second hand, and the guest is holding a
           drink with the other one. */}
       <div className={styles['composer']}>
+        {/* Above the queue: it is the answer to "did my photos go?", and a guest who
+            reads it stops pressing "Envoyer" again. */}
+        <OfflineNotice
+          waiting={outbox.waiting}
+          draining={outbox.draining}
+          onSendNow={outbox.drain}
+        />
         <UploadQueue items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
         <PhotoPicker onPick={queue.add} />
         {/* The host's setting, from the event the join step returned. */}

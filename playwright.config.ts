@@ -6,6 +6,17 @@ import { defineConfig, devices } from '@playwright/test'
  * its own SQLite file and media root (see tests/e2e/fixtures/app.ts), so there is no
  * shared state and no network stubbing anywhere in this suite.
  */
+
+/**
+ * The offline journeys run in one project and nowhere else: they take the network away
+ * from a live page, and every other project would inherit that state by accident.
+ *
+ * A glob rather than a regular expression, because Playwright matches these against
+ * native paths — a hand-rolled `/offline\//` never matches on Windows, where half of
+ * this repository's development happens, and the specs would silently run everywhere.
+ */
+const OFFLINE_JOURNEYS = '**/offline/**'
+
 export default defineConfig({
   testDir: './tests/e2e',
   outputDir: './test-results',
@@ -42,24 +53,47 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium-desktop',
+      testIgnore: OFFLINE_JOURNEYS,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
       // The guest surface. Most guests at an event are on a phone, so this project
       // runs the upload journeys.
       name: 'chromium-mobile',
+      testIgnore: OFFLINE_JOURNEYS,
       use: { ...devices['Pixel 7'] },
     },
     {
       // The browser the largest share of guests actually use.
       name: 'webkit-mobile',
+      testIgnore: OFFLINE_JOURNEYS,
       use: { ...devices['iPhone 14'] },
     },
     {
       name: 'firefox-desktop',
+      testIgnore: OFFLINE_JOURNEYS,
       use: { ...devices['Desktop Firefox'] },
       // Cross-browser confidence without tripling every run.
       grep: /@smoke/,
+    },
+    {
+      /**
+       * The offline upload queue, and the only project allowed to run it.
+       *
+       * Its own project rather than a tag, for two reasons. These specs cut the
+       * network out from under a live page, which is a state every other journey would
+       * rather not inherit by accident; and the feature needs a registered service
+       * worker, which only Chromium gives a Playwright context reliably — WebKit here
+       * has neither Background Sync nor a dependable worker registration, and a
+       * permanently-red project is a project people stop reading.
+       *
+       * The foreground drain — the path every guest gets, worker or not — is what these
+       * specs assert. Background Sync is a bonus the browser may or may not grant, and
+       * no assertion depends on it.
+       */
+      name: 'chromium-offline',
+      testDir: './tests/e2e/offline',
+      use: { ...devices['Pixel 7'] },
     },
   ],
 })

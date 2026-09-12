@@ -1,0 +1,41 @@
+/**
+ * Sits directly above the composer, so the reassurance and the controls it talks about
+ * are in the same glance — and in the same thumb's reach.
+ */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+/* The colour is carried by the glyph alone; the words below say the same thing, so a
+   guest who cannot see the hue loses nothing. */
+.icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--warning);
+  margin-block-start: 0.15em;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-weight: 600;
+  /* The count must not reflow the row as photos leave. */
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
