@@ -38,6 +38,16 @@ playwright-report/
 test-results/
 tests/e2e/__screenshots__/**/*-actual.png
 tests/e2e/__screenshots__/**/*-diff.png
+
+# Baselines exist for one Playwright project, and only one: `test:e2e:visual` pins
+# `--project=chromium-desktop`, and the CI visual job counts every committed .png to
+# decide whether the harness rendered a complete "before". A run of any other project
+# writes its own baselines the first time it meets the @visual specs, and a `git add -A`
+# then commits them — which is exactly how eight baselines came to exist for a suite
+# that renders four, and how the next pull request's visual job came to fail with a
+# broken-harness error that had nothing to do with it.
+tests/e2e/__screenshots__/*
+!tests/e2e/__screenshots__/chromium-desktop/
 blob-report/
 .playwright/
 
