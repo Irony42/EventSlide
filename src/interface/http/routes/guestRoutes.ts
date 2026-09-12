@@ -63,6 +63,12 @@ export interface GuestRouteDeps {
     | 'withdrawReaction'
     | 'getPhotoReactions'
   >
+  /**
+   * The aggregate byte bound, overridable so a test can reach it in bytes rather than
+   * in hundreds of megabytes. Same arrangement as `streamConnectionLimiter`'s two
+   * ceilings, and for the same reason. Production leaves it alone.
+   */
+  readonly maxUploadBytesPerRequest?: number
 }
 
 /** The multipart field name. Anything else is `LIMIT_UNEXPECTED_FILE` from multer. */
@@ -77,6 +83,98 @@ const PHOTOS_FIELD = 'photos'
  * chance. This stops that at the parser.
  */
 const MAX_TEXT_FIELDS = 4
+
+/**
+ * How many bytes **one request** may hold in the heap, across every file in it.
+ *
+ * This is the number multer does not have. `limits.fileSize` bounds one file and
+ * `limits.files` bounds the count; nothing bounds the product, and the product is what
+ * a single request can buffer — 20 x 25 MB = 500 MB at the defaults, into a container
+ * `compose.yaml` gives 1 GB, with `sharp` still to decode each accepted image into
+ * three variants on top of it. The upload limiter does not cover this: it bounds
+ * requests per minute, and twelve of these can be in flight at once.
+ *
+ * 150 MB leaves the guest flow untouched and the arithmetic honest. A phone photo is
+ * 2-5 MB, so the twenty the picker allows are 40-100 MB — a real batch off a real
+ * phone stays inside this, and what does not is a batch nobody assembled by hand. On
+ * the other side, one request now costs the container 150 MB of buffers rather than
+ * 500 MB, which is what makes the memory limit in `compose.yaml` a number an operator
+ * can reason about instead of a hope.
+ *
+ * It is a constant rather than configuration because `HttpConfig` is the slice of
+ * settings the HTTP layer is given, and widening it reaches `src/interface/http/types.ts`
+ * and `src/main/container.ts`. The relationship an operator does need — that raising
+ * `MAX_UPLOAD_BYTES` past this raises what one request may hold — is written in
+ * `.env.example` and in `compose.yaml`.
+ */
+const MAX_UPLOAD_BYTES_PER_REQUEST = 150_000_000
+
+/**
+ * `multer.memoryStorage()`, plus the one thing it does not count.
+ *
+ * The bound is checked **while the stream is read**, which is the whole point: summing
+ * `req.files` afterwards would answer 413 about 500 MB the process had already
+ * allocated, and a limit that reports an exhaustion it did not prevent is documentation
+ * with a status code. Here the total is carried across the files of one request, so the
+ * request is cut off at the byte that crosses the line and multer drains the rest
+ * without buffering it.
+ *
+ * The refusal is a `DomainError`, so it leaves by the same door as every other failure:
+ * `errorHandler` recognises it before it reaches the opaque 500, `quotaExceeded` maps
+ * to **413**, and `upload.tooLarge` is a code `web/src/lib/i18n/fr.ts` already answers
+ * in French. A guest gets a sentence, not a dropped connection.
+ *
+ * The running total is kept in a `WeakMap` keyed by the request rather than as a
+ * property on it: `req` carries `RequestContext` and nothing else this layer invented,
+ * and the entry dies with the request either way.
+ */
+const boundedMemoryStorage = (maxBytesPerRequest: number): multer.StorageEngine => {
+  const spent = new WeakMap<Request, number>()
+
+  return {
+    _handleFile(req, file, callback) {
+      const chunks: Buffer[] = []
+      let size = 0
+      // Multer requires exactly one callback per file. A file aborted here still
+      // reaches `end` as multer drains what is left of the request.
+      let settled = false
+
+      file.stream.on('data', (chunk: Buffer) => {
+        if (settled) return
+
+        const total = (spent.get(req) ?? 0) + chunk.length
+        if (total > maxBytesPerRequest) {
+          settled = true
+          callback(DomainError.quotaExceeded('upload.tooLarge', { max: maxBytesPerRequest }))
+          return
+        }
+
+        spent.set(req, total)
+        size += chunk.length
+        chunks.push(chunk)
+      })
+
+      file.stream.on('end', () => {
+        if (settled) return
+        settled = true
+        callback(null, { buffer: Buffer.concat(chunks, size), size })
+      })
+
+      // No `error` listener: multer registers its own on this stream before calling
+      // the engine, and it both aborts the request and settles the pending write. A
+      // second one here would race it to a callback multer may only receive once.
+    },
+
+    _removeFile(_req, file, callback) {
+      // Multer calls this for every file already read when a later one aborts the
+      // request. There is nothing to unlink — dropping the reference is the whole of
+      // freeing a file that only ever existed as a Buffer, and doing it now rather
+      // than at the next collection is the point of bounding this at all.
+      ;(file as { buffer?: Buffer | undefined }).buffer = undefined
+      callback(null)
+    },
+  }
+}
 
 /** Both are populated by `requireGuest`. Narrowed once, in {@link withGuest}. */
 interface GuestScope {
@@ -154,23 +252,42 @@ const canGuestDelete = (event: Event, photo: Photo, guest: Guest, now: Date): bo
   event.settings.allowGuestSelfDelete &&
   photo.canBeDeletedBy(actorFor(guest), now, event.settings.guestSelfDeleteGraceMs)
 
-export const guestRoutes = ({ deps, usecases }: GuestRouteDeps): Router => {
+export const guestRoutes = ({
+  deps,
+  usecases,
+  maxUploadBytesPerRequest = MAX_UPLOAD_BYTES_PER_REQUEST,
+}: GuestRouteDeps): Router => {
   const router = Router()
+
+  /**
+   * The aggregate bound, never smaller than the one file the operator said was fine.
+   *
+   * `MAX_UPLOAD_BYTES` is an explicit statement that a file of that size is acceptable,
+   * so a per-request ceiling below it would be a configuration arguing with itself: the
+   * guest would be refused at a size the same operator had just permitted, and no
+   * combination of settings could send one photo. Taking the larger of the two keeps
+   * the bound meaningful — the worst case is `max(150 MB, MAX_UPLOAD_BYTES)` and never
+   * the `MAX_UPLOAD_BYTES x MAX_FILES_PER_UPLOAD` product again — while leaving the
+   * only lever that can raise it the one `.env.example` ties to the memory limit.
+   */
+  const perRequestBytes = Math.max(maxUploadBytesPerRequest, deps.config.uploads.maxBytes)
 
   /**
    * Memory, not a temp file.
    *
    * The ingest pipeline re-encodes every byte it accepts, so a disk-backed upload would
    * write a file and read it straight back for nothing — and then need cleanup on every
-   * exit path, which is where 1.0 leaked. `fileSize` is what bounds the memory this
-   * costs, and multer's own limit errors are already translated by the error handler.
+   * exit path, which is where 1.0 leaked. What that choice costs is heap, and the three
+   * limits below are what bound it: `fileSize` per file, `files` by count, and
+   * {@link boundedMemoryStorage} across the request, which is the one multer has no
+   * setting for. multer's own limit errors are already translated by the error handler.
    *
    * Deliberately **no `fileFilter`**. It could only inspect `file.mimetype`, which is a
    * string the client chose; trusting it is the exact 1.0 defect. The format is
    * identified from the bytes, by the use case, from the header.
    */
   const uploads = multer({
-    storage: multer.memoryStorage(),
+    storage: boundedMemoryStorage(perRequestBytes),
     limits: {
       fileSize: deps.config.uploads.maxBytes,
       files: deps.config.uploads.maxFiles,

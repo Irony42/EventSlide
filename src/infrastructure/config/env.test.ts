@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ConfigError, loadConfig } from './env'
+import { Password } from '../../domain/users/password'
 
 /**
  * Ring 3. `loadConfig` takes its source as a parameter, so every case here is a plain
@@ -456,6 +457,69 @@ describe('loadConfig', () => {
       const issues = refusalIssues({ [name]: '0' })
 
       expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
+    })
+  })
+
+  describe('the first-owner bootstrap', () => {
+    const A_GOOD_PASSWORD = 'a-first-owner-password'
+
+    it('refuses a password under the domain minimum here, rather than in a log line while the container assembles', () => {
+      // `bootstrapOwner` already applies `Password`, but it applies it during
+      // composition, where the only outcome is one log line and an operator meeting a
+      // login form that rejects them. Same reasoning as BCRYPT_COST's floor.
+      const issues = refusalIssues({
+        BOOTSTRAP_OWNER_EMAIL: 'host@example.com',
+        BOOTSTRAP_OWNER_PASSWORD: 'short',
+      })
+
+      expect(issues.some((issue) => issue.startsWith('BOOTSTRAP_OWNER_PASSWORD: '))).toBe(true)
+      // The number comes from the domain, so the message cannot drift from the rule.
+      expect(issues.join('\n')).toContain(`at least ${Password.minLength} characters`)
+    })
+
+    it('applies the whole password policy, not a length check restated here', () => {
+      // Twelve characters, so a length-only rule would let it through. The blocklist
+      // belongs to the domain and this is what reaching for it buys.
+      const issues = refusalIssues({
+        BOOTSTRAP_OWNER_EMAIL: 'host@example.com',
+        BOOTSTRAP_OWNER_PASSWORD: 'changemenow1',
+      })
+
+      expect(issues.some((issue) => issue.startsWith('BOOTSTRAP_OWNER_PASSWORD: '))).toBe(true)
+    })
+
+    it('reads the empty string compose renders for an unset variable as absent, not as a value', () => {
+      // `BOOTSTRAP_OWNER_PASSWORD: ${BOOTSTRAP_OWNER_PASSWORD:-}` is what every default
+      // `docker compose up` sends. Treated as a value it made the container log
+      // "could not create the first owner account" on every boot; treated as a policy
+      // failure it would now refuse to boot at all.
+      const config = loadConfig({ BOOTSTRAP_OWNER_EMAIL: '', BOOTSTRAP_OWNER_PASSWORD: '' })
+
+      expect(config.bootstrap).toEqual({ ownerEmail: null, ownerPassword: null })
+    })
+
+    it('refuses an email with no password, because half a bootstrap creates no account', () => {
+      const issues = refusalIssues({ BOOTSTRAP_OWNER_EMAIL: 'host@example.com' })
+
+      expect(issues.some((issue) => issue.startsWith('BOOTSTRAP_OWNER_PASSWORD: '))).toBe(true)
+    })
+
+    it('refuses a password with no email, for the same reason in the other direction', () => {
+      const issues = refusalIssues({ BOOTSTRAP_OWNER_PASSWORD: A_GOOD_PASSWORD })
+
+      expect(issues.some((issue) => issue.startsWith('BOOTSTRAP_OWNER_EMAIL: '))).toBe(true)
+    })
+
+    it('accepts a pair that satisfies the policy, which is the case an operator actually sets', () => {
+      const config = loadConfig({
+        BOOTSTRAP_OWNER_EMAIL: 'host@example.com',
+        BOOTSTRAP_OWNER_PASSWORD: A_GOOD_PASSWORD,
+      })
+
+      expect(config.bootstrap).toEqual({
+        ownerEmail: 'host@example.com',
+        ownerPassword: A_GOOD_PASSWORD,
+      })
     })
   })
 

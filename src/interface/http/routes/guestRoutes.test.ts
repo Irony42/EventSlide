@@ -198,6 +198,8 @@ interface SubjectOptions {
   readonly budget?: ReactionBudgetPolicy
   readonly config?: Partial<HttpConfig>
   readonly revoked?: boolean
+  /** The aggregate upload bound, in bytes a test can actually send. */
+  readonly maxUploadBytesPerRequest?: number
 }
 
 /**
@@ -223,6 +225,9 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
         '/api',
         guestRoutes({
           deps,
+          ...(options.maxUploadBytesPerRequest === undefined
+            ? {}
+            : { maxUploadBytesPerRequest: options.maxUploadBytesPerRequest }),
           usecases: {
             uploadPhotos: upload.run,
             listGuestPhotos: makeListGuestPhotos({ events: deps.events, photos }),
@@ -501,6 +506,66 @@ describe('POST /api/events/:eventSlug/photos', () => {
 
     expect(response.status).toBe(413)
     expect(response.body.error.code).toBe('upload.tooLarge')
+  })
+
+  it('answers 413 for a batch whose files are each inside the per-file limit but together are not', async () => {
+    // The defect this covers: multer bounds a file and a count, never the total, so at
+    // the shipped defaults one request could buffer 20 x 25 MB = 500 MB into a
+    // container given 1 GB. Both files here are well under `maxBytes`, which is exactly
+    // why nothing refused them before.
+    const subject = buildSubject({
+      config: { uploads: { maxBytes: 64, maxFiles: 20 } },
+      maxUploadBytesPerRequest: 100,
+    })
+
+    const response = await request(subject.app)
+      .post(`${BASE}/photos`)
+      .set('Cookie', cookie(subject.token))
+      .attach('photos', Buffer.alloc(64, 0x41), 'first.jpg')
+      .attach('photos', Buffer.alloc(64, 0x42), 'second.jpg')
+
+    expect(response.status).toBe(413)
+    // A code `web/src/lib/i18n/fr.ts` answers in French, not a dropped connection.
+    expect(response.body.error.code).toBe('upload.tooLarge')
+    // The bound stopped the request while it was being read: the use case never ran,
+    // so nothing was hashed, decoded or written for a batch that was never going to be
+    // accepted.
+    expect(subject.upload.calls).toHaveLength(0)
+  })
+
+  it('accepts a batch that fills the per-request budget exactly, so the bound is a ceiling and not a fence', async () => {
+    const subject = buildSubject({
+      config: { uploads: { maxBytes: 64, maxFiles: 20 } },
+      maxUploadBytesPerRequest: 128,
+    })
+    subject.upload.succeedsWith(stored(0, PENDING), stored(1, PUBLISHED))
+
+    const response = await request(subject.app)
+      .post(`${BASE}/photos`)
+      .set('Cookie', cookie(subject.token))
+      .attach('photos', Buffer.alloc(64, 0x41), 'first.jpg')
+      .attach('photos', Buffer.alloc(64, 0x42), 'second.jpg')
+
+    expect(response.status).toBe(201)
+    expect(subject.upload.calls[0]?.files).toHaveLength(2)
+  })
+
+  it('never refuses a single file MAX_UPLOAD_BYTES allows, even when the aggregate ceiling is smaller', async () => {
+    // A per-request ceiling under `MAX_UPLOAD_BYTES` would be a configuration arguing
+    // with itself: the guest refused at a size the same operator had just permitted,
+    // with no way to send one photo at all.
+    const subject = buildSubject({
+      config: { uploads: { maxBytes: 64, maxFiles: 20 } },
+      maxUploadBytesPerRequest: 8,
+    })
+    subject.upload.succeedsWith(stored(0, PENDING))
+
+    const response = await request(subject.app)
+      .post(`${BASE}/photos`)
+      .set('Cookie', cookie(subject.token))
+      .attach('photos', Buffer.alloc(64, 0x41), 'only.jpg')
+
+    expect(response.status).toBe(201)
   })
 
   it('answers 400 for more files than the deployment allows in one request', async () => {

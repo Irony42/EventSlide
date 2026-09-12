@@ -1,6 +1,7 @@
 import rateLimit, { ipKeyGenerator, type RateLimitRequestHandler } from 'express-rate-limit'
 import type { Request, RequestHandler } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
+import { Slug } from '../../../domain/shared/slug'
 import { errorBody } from '../presenters/send'
 
 /**
@@ -30,6 +31,33 @@ import { errorBody } from '../presenters/send'
  * generator uses `req.ip` without it — the warning is how this was caught.
  */
 const clientKey = (req: Request): string => ipKeyGenerator(req.ip ?? 'unknown')
+
+/** The bucket for a request with no event in its path — and for one whose event is not a slug. */
+const NO_EVENT = 'none'
+
+/**
+ * The event half of an upload or reaction key, **parsed** rather than interpolated.
+ *
+ * Both limiters are mounted before `requireGuest`, deliberately: a flood has to be
+ * refused before it costs an HMAC verification and two repository reads. The price is
+ * that nothing has looked at `:eventSlug` yet when the key is built, so interpolated
+ * raw it is whatever the caller typed — a path segment bounded only by the server's URL
+ * limit, and a different one on every request. Each distinct value mints its own entry
+ * in the in-memory store, so the caller chose both how many keys existed and how large
+ * each one was. The window resets every minute, which is why this was never unbounded;
+ * it was still a memory amplification factor of several thousand per request.
+ *
+ * `Slug.create` is the same parse `requireGuest` runs a moment later, so a key can only
+ * ever contain something that could name a real event — at most `Slug.maxLength`
+ * characters — and everything that could not collapses into the one `'none'` bucket
+ * that already covered a route with no event in its path. A client spraying invented
+ * slugs now spends a single bucket and gets limited on it, instead of buying a fresh
+ * one with every request.
+ */
+const eventKey = (req: Request): string => {
+  const slug = Slug.create(req.params['eventSlug'])
+  return slug.ok ? slug.value.value : NO_EVENT
+}
 
 const limiter = (perMinute: number, code: string, keyBy?: (req: Request) => string) =>
   rateLimit({
@@ -63,19 +91,11 @@ export const loginLimiter = (perMinute: number): RateLimitRequestHandler =>
  * box, and the byte quota is what actually bounds a determined guest.
  */
 export const uploadLimiter = (perMinute: number): RateLimitRequestHandler =>
-  limiter(
-    perMinute,
-    'rate.limited',
-    (req) => `${clientKey(req)}:${req.params['eventSlug'] ?? 'none'}`,
-  )
+  limiter(perMinute, 'rate.limited', (req) => `${clientKey(req)}:${eventKey(req)}`)
 
 /** Reactions are cheap but tappable at speed; the domain budget is the finer control. */
 export const reactionLimiter = (perMinute: number): RateLimitRequestHandler =>
-  limiter(
-    perMinute,
-    'reaction.rateLimited',
-    (req) => `${clientKey(req)}:${req.params['eventSlug'] ?? 'none'}`,
-  )
+  limiter(perMinute, 'reaction.rateLimited', (req) => `${clientKey(req)}:${eventKey(req)}`)
 
 /**
  * How many event streams one client key may hold **open at the same time**.

@@ -130,6 +130,57 @@ describe('the upload key', () => {
   })
 })
 
+describe('the event segment of an event-keyed limiter', () => {
+  /** Neither can be an event: one is not lower-case, the other is past `Slug.maxLength`. */
+  const NOT_A_SLUG = 'Mariage'
+  const TOO_LONG_TO_BE_A_SLUG = 'z'.repeat(65)
+
+  it.each([
+    ['uploads', uploadLimiter],
+    ['reactions', reactionLimiter],
+  ])(
+    'collapses every unparseable %s slug into one bucket, so invented slugs cannot mint a bucket each',
+    async (_label, limiter) => {
+      // The limiter runs before `requireGuest`, deliberately, so nothing has validated
+      // `:eventSlug` when the key is built. Interpolated raw, every invented segment
+      // bought its own entry in the in-memory store, sized by whatever the caller typed
+      // — the caller choosing both the number of keys and their length. Parsed with
+      // `Slug.create`, they all land in the `none` bucket instead.
+      const app = behindOneProxy((subject) => {
+        subject.post('/events/:eventSlug/photos', limiter(1), noContent)
+      })
+
+      await request(app)
+        .post(`/events/${NOT_A_SLUG}/photos`)
+        .set('X-Forwarded-For', SAME_SUBNET[0])
+        .expect(204)
+      const second = await request(app)
+        .post(`/events/${TOO_LONG_TO_BE_A_SLUG}/photos`)
+        .set('X-Forwarded-For', SAME_SUBNET[0])
+
+      expect(second.status).toBe(429)
+    },
+  )
+
+  it('keeps a real event out of that bucket, so nonsense cannot close a wedding', async () => {
+    // The collapse must not go so far that spending the `none` bucket spends the
+    // bucket a guest at an actual event is using.
+    const app = behindOneProxy((subject) => {
+      subject.post('/events/:eventSlug/photos', uploadLimiter(1), noContent)
+    })
+
+    await request(app)
+      .post(`/events/${NOT_A_SLUG}/photos`)
+      .set('X-Forwarded-For', SAME_SUBNET[0])
+      .expect(204)
+    const real = await request(app)
+      .post('/events/mariage/photos')
+      .set('X-Forwarded-For', SAME_SUBNET[0])
+
+    expect(real.status).toBe(204)
+  })
+})
+
 describe('an event-keyed limiter on a route with no event in its path', () => {
   it.each([
     ['uploads', uploadLimiter],

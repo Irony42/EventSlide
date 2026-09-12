@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { Password } from '../../domain/users/password'
 
 /**
  * The only module in the codebase that reads `process.env`. Lint enforces that
@@ -90,6 +91,47 @@ const publicUrl = z
     message: 'PUBLIC_URL must be an http or https origin',
   })
 
+/**
+ * `""` is absent, not a value.
+ *
+ * `compose.yaml` passes the first-owner variables as `${BOOTSTRAP_OWNER_EMAIL:-}` and
+ * `${BOOTSTRAP_OWNER_PASSWORD:-}`, which Docker renders as an **empty string** whenever
+ * the operator did not set them — so the ordinary case, `docker compose up` with no
+ * first owner wanted, arrives here as `""` and not as `undefined`. Read as a value it
+ * made `bootstrapFirstOwner` call the use case with an empty password and log
+ * `could not create the first owner account` on every boot of a default deployment;
+ * read as a policy failure, now that there is a policy, it would refuse that boot.
+ */
+const blankAsAbsent = (value: unknown): unknown => (value === '' ? undefined : value)
+
+/**
+ * The domain's password policy, applied at boot so the failure is a named ConfigError.
+ *
+ * This is exactly the reasoning written on `BCRYPT_COST` below, for the same shape of
+ * defect. `bootstrapOwner` already runs `Password.create`, but it runs it while
+ * `src/main/container.ts` is assembling the application, where the only outcome is one
+ * log line saying the first owner could not be created — and the operator finds out by
+ * meeting a login form that rejects them. Refusing here makes a weak bootstrap password
+ * one of the problems the boot refusal lists, beside every other bad variable.
+ *
+ * The minimum is **not** restated: `Password.minLength` owns it, and a second `12` in
+ * this file would be a number free to drift away from the rule it is quoting. The whole
+ * policy is applied rather than the length alone, so `changemenow1` is refused here for
+ * the same reason it is refused from the account form.
+ *
+ * No `PasswordContext`: the same-as-email and same-as-name checks need the other
+ * variables, and a cross-field refusal belongs in the object refinement, not in a field
+ * that cannot see them.
+ */
+const bootstrapOwnerPassword = z.string().superRefine((value, ctx) => {
+  const parsed = Password.create(value)
+  if (parsed.ok) return
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: `BOOTSTRAP_OWNER_PASSWORD must satisfy the same policy as any other account password: at least ${Password.minLength} characters, and not a guessable one (${parsed.error.code})`,
+  })
+})
+
 const schema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -142,13 +184,32 @@ const schema = z
       .max(15, 'BCRYPT_COST must be at most 15')
       .default(12),
 
-    BOOTSTRAP_OWNER_EMAIL: z.string().optional(),
-    BOOTSTRAP_OWNER_PASSWORD: z.string().optional(),
+    /**
+     * The first owner of an instance, created once against an empty database and then
+     * ignored. Both halves are needed or neither is; see the refinement below.
+     */
+    BOOTSTRAP_OWNER_EMAIL: z.preprocess(blankAsAbsent, z.string().optional()),
+    BOOTSTRAP_OWNER_PASSWORD: z.preprocess(blankAsAbsent, bootstrapOwnerPassword.optional()),
 
     /** Enables the display timing hooks the Playwright suite drives. Never in production. */
     E2E_HOOKS: boolish.optional(),
   })
   .superRefine((raw, ctx) => {
+    // The first owner is a pair, and half of one creates nothing. Before `""` meant
+    // absent, the missing half reached `bootstrapOwner` as an empty string and was
+    // refused into a log line; silently doing nothing instead would be no better, so
+    // the half that is missing is named at boot beside every other bad variable.
+    const email = raw.BOOTSTRAP_OWNER_EMAIL
+    const password = raw.BOOTSTRAP_OWNER_PASSWORD
+    if ((email === undefined) !== (password === undefined)) {
+      const missing = email === undefined ? 'BOOTSTRAP_OWNER_EMAIL' : 'BOOTSTRAP_OWNER_PASSWORD'
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [missing],
+        message: `${missing} is required alongside the other half of the first-owner bootstrap: an email with no password, or a password with no email, creates no account at all`,
+      })
+    }
+
     if (raw.NODE_ENV !== 'production') return
 
     for (const name of ['SESSION_SECRET', 'GUEST_TOKEN_SECRET'] as const) {
