@@ -290,12 +290,34 @@ A self-hosted product lives or dies on whether one person can run it.
 | Item                              | P   | Effort | Note                                                                                                                                                                                  |
 | --------------------------------- | --- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Docker image and one-file compose | P1  | S      | `docker compose up` should be the whole install. Today it is Node, a build and a `.env`.                                                                                              |
-| Backup and restore command        | P1  | S      | One command producing a verifiable archive of the database and the media, and one restoring it. Retention promises are unsafe without this.                                           |
 | Prometheus metrics                | P2  | S      | Upload latency, queue depth, SSE subscribers, quota headroom.                                                                                                                         |
 | Raspberry Pi kiosk image          | P2  | M      | The wall's natural hardware: boot straight into the display URL in kiosk mode.                                                                                                        |
 | S3 / MinIO media adapter          | P2  | M      | The `MediaStore` port exists for this. Needed by anyone running more than a handful of events.                                                                                        |
 | 1.0 migration script              | P2  | S      | Reads a 1.0 SQLite file and photo directory, creates one event per `partyId`, re-ingests through the 2.0 pipeline — which is what finally strips the EXIF that 1.0 stored.            |
 | Multi-event workspace             | P3  | L      | A photographer running five weddings a month needs cross-event search, shared moderators and per-event billing boundaries. A different product shape; only worth it with real demand. |
+
+**Retention scheduling is no longer on this list — it shipped.** It was the ugliest gap
+here, because its absence was not a missing feature but a false statement: the setting
+existed, the host was shown a confirmation, `purgeExpiredEvents` was written and tested,
+and nothing ever called it. An event now expires on its own (hourly by default, tunable
+or disabled with `RETENTION_SWEEP_INTERVAL_MINUTES`) and `npm run purge` runs the same
+sweep on demand for anyone whose cron owns the schedule. See
+[SECURITY.md §11](SECURITY.md#11-deployment-posture).
+
+**Backup and restore is no longer on this list either — it shipped, and it had to ship
+in the same breath as the retention sweep.** The note against it read "retention
+promises are unsafe without this", which was exactly right: deleting on a schedule
+without a tested restore is how a wedding album goes for good. `npm run backup` writes a
+directory holding a `VACUUM INTO` snapshot of the database, the media root, and a
+manifest of counts and SHA-256 checksums; it re-reads every byte it just wrote before it
+reports success, because a backup command that exits 0 having written nothing useful is
+the failure nobody notices until it matters. `npm run restore` verifies the whole archive
+before it touches anything, refuses a target that still holds a database or any media
+unless `--force` is given, and checks the restored migration ledger against the running
+build so an archive that would not boot is discovered by the person doing the restore.
+The round trip is proven at ring 6 by backing up a live server, destroying both halves,
+restoring, and booting a second server that serves the same wall. See
+[SECURITY.md §11](SECURITY.md#11-deployment-posture).
 
 ---
 

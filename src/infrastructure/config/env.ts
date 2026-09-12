@@ -41,6 +41,41 @@ const secret = (name: string) =>
     })
 
 /**
+ * How often the in-process retention sweep runs, in minutes — or the word `off`.
+ *
+ * **`0` is deliberately not the way to disable it.** Every other numeric setting here
+ * goes through `z.coerce.number()`, and `Number('')` is `0`: a compose file with a
+ * dangling `RETENTION_SWEEP_INTERVAL_MINUTES=`, a templated value that rendered empty,
+ * a truncated secret manager entry would all silently switch off a deletion the host
+ * promised their guests — the one failure mode nobody would notice, because its symptom
+ * is that nothing happens. So the empty string and `0` are refusals that name the
+ * variable at boot, and turning retention off takes a word somebody had to mean.
+ *
+ * Bounded at a day at the top, like the other numeric settings: a sweep that runs less
+ * often than the coarsest retention period anyone sets in days is indistinguishable
+ * from one that is off, and should be written as `off`.
+ */
+const RETENTION_SWEEP_OFF = 'off'
+const RETENTION_SWEEP_MAX_MINUTES = 1_440
+
+const retentionSweepInterval = z
+  .string()
+  .trim()
+  .refine(
+    (value) =>
+      value === RETENTION_SWEEP_OFF ||
+      (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= RETENTION_SWEEP_MAX_MINUTES),
+    {
+      message: `RETENTION_SWEEP_INTERVAL_MINUTES must be a whole number of minutes from 1 to ${RETENTION_SWEEP_MAX_MINUTES}, or the word '${RETENTION_SWEEP_OFF}' to stop honouring retention automatically`,
+    },
+  )
+  // `null` is "never", and it is only ever reached through that word.
+  .transform((value): number | null => (value === RETENTION_SWEEP_OFF ? null : Number(value)))
+
+/** Hourly. Retention is measured in days, so this is about bounding lag, not precision. */
+const DEFAULT_RETENTION_SWEEP_MINUTES = 60
+
+/**
  * The public origin. `z.string().url()` alone accepts any parseable URL, including
  * `javascript:alert(1)` and `data:text/html,…`: the value is concatenated into the
  * event DTO's `joinUrl`, which the admin console renders as a link and as a QR code,
@@ -79,6 +114,12 @@ const schema = z
     /** Checked against the header before decoding — the decompression-bomb control. */
     MAX_IMAGE_PIXELS: positiveInt(50_000_000),
     DEFAULT_EVENT_QUOTA_BYTES: positiveInt(5_000_000_000),
+
+    /**
+     * Left optional so the default can depend on NODE_ENV, below: a background sweep
+     * firing inside the end-to-end suite would delete a fixture's event mid-journey.
+     */
+    RETENTION_SWEEP_INTERVAL_MINUTES: retentionSweepInterval.optional(),
 
     GUEST_SELF_DELETE_GRACE_SECONDS: positiveInt(900, 86_400),
     UPLOAD_RATE_LIMIT_PER_MINUTE: positiveInt(12, 600),
@@ -176,6 +217,16 @@ export interface AppConfig {
     readonly selfDeleteGraceMs: number
   }
 
+  readonly retention: {
+    /**
+     * How often `src/main` sweeps events whose retention deadline has passed.
+     * `null` means never: `npm run purge` is then the only thing that honours the
+     * setting, which is the supported arrangement when a cron or systemd timer owns
+     * the schedule.
+     */
+    readonly sweepIntervalMs: number | null
+  }
+
   readonly rateLimits: {
     readonly uploadPerMinute: number
     readonly joinPerMinute: number
@@ -222,6 +273,25 @@ export const loadConfig = (source: Record<string, string | undefined> = process.
   const raw = parsed.data
   const isProduction = raw.NODE_ENV === 'production'
 
+  /**
+   * Off under `NODE_ENV=test`, on everywhere else.
+   *
+   * The end-to-end suite boots this exact binary (`tests/e2e/fixtures/startTestApp.ts`)
+   * with `NODE_ENV=test` and no retention variable, so the safe value has to be the one
+   * nobody sets: a sweep firing between two steps of a journey would delete the event
+   * the journey is asserting on, and it would do it on a timer nothing in the test can
+   * see. Development and production get an hourly sweep with no configuration at all,
+   * which is what makes `docker compose up` honour a host's retention setting.
+   */
+  // Not `??`: the configured value is `null` for `off`, which is nullish and would fall
+  // straight back to the default it was written to override.
+  const sweepMinutes =
+    raw.RETENTION_SWEEP_INTERVAL_MINUTES === undefined
+      ? raw.NODE_ENV === 'test'
+        ? null
+        : DEFAULT_RETENTION_SWEEP_MINUTES
+      : raw.RETENTION_SWEEP_INTERVAL_MINUTES
+
   return {
     env: raw.NODE_ENV,
     isProduction,
@@ -257,6 +327,10 @@ export const loadConfig = (source: Record<string, string | undefined> = process.
 
     guests: {
       selfDeleteGraceMs: raw.GUEST_SELF_DELETE_GRACE_SECONDS * 1000,
+    },
+
+    retention: {
+      sweepIntervalMs: sweepMinutes === null ? null : sweepMinutes * 60_000,
     },
 
     rateLimits: {

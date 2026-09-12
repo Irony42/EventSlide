@@ -80,6 +80,7 @@ describe('loadConfig', () => {
           defaultEventQuotaBytes: 5_000_000_000,
         },
         guests: { selfDeleteGraceMs: 900_000 },
+        retention: { sweepIntervalMs: 3_600_000 },
         rateLimits: {
           uploadPerMinute: 12,
           joinPerMinute: 20,
@@ -455,6 +456,91 @@ describe('loadConfig', () => {
       const issues = refusalIssues({ [name]: '0' })
 
       expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
+    })
+  })
+
+  describe('the retention sweep interval', () => {
+    const NAME = 'RETENTION_SWEEP_INTERVAL_MINUTES'
+
+    it('sweeps hourly with nothing configured, so a single-box install honours retention', () => {
+      // The whole point of the setting: `docker compose up` and nothing else must act on
+      // a host's "delete after 30 days". A default of off would ship the same lie the
+      // product told before there was a trigger at all.
+      const config = loadConfig({})
+
+      expect(config.retention.sweepIntervalMs).toBe(3_600_000)
+    })
+
+    it('sweeps hourly in production with nothing configured', () => {
+      const config = loadConfig(aProductionEnv())
+
+      expect(config.retention.sweepIntervalMs).toBe(3_600_000)
+    })
+
+    it('never sweeps under NODE_ENV=test unless asked', () => {
+      // tests/e2e/fixtures/startTestApp.ts boots this binary with NODE_ENV=test and no
+      // retention variable. A background sweep firing mid-journey would delete the event
+      // a spec is asserting on, on a timer nothing in the test can see.
+      const config = loadConfig({ NODE_ENV: 'test' })
+
+      expect(config.retention.sweepIntervalMs).toBeNull()
+    })
+
+    it('converts the configured interval from minutes to milliseconds', () => {
+      const config = loadConfig({ [NAME]: '15' })
+
+      expect(config.retention.sweepIntervalMs).toBe(900_000)
+    })
+
+    it('accepts an explicit interval under NODE_ENV=test, for a test that is about the sweep', () => {
+      const config = loadConfig({ NODE_ENV: 'test', [NAME]: '5' })
+
+      expect(config.retention.sweepIntervalMs).toBe(300_000)
+    })
+
+    it("turns the sweep off for the word 'off', which is the only way to turn it off", () => {
+      const config = loadConfig({ [NAME]: 'off' })
+
+      expect(config.retention.sweepIntervalMs).toBeNull()
+    })
+
+    it("ignores surrounding whitespace, which a compose file's quoting adds easily", () => {
+      expect(loadConfig({ [NAME]: ' off ' }).retention.sweepIntervalMs).toBeNull()
+      expect(loadConfig({ [NAME]: ' 30 ' }).retention.sweepIntervalMs).toBe(1_800_000)
+    })
+
+    it.each(['0', '', '  ', 'false', 'no', '-1', '1.5', 'never', 'OFF'])(
+      'refuses %s rather than silently never deleting anything again',
+      (value) => {
+        // This is the failure nobody notices, because its only symptom is that nothing
+        // happens. `z.coerce.number()` reads '' as 0, so a dangling
+        // `RETENTION_SWEEP_INTERVAL_MINUTES=` in a compose file would have switched off a
+        // deletion the host promised their guests. Disabling retention takes a word.
+        const issues = refusalIssues({ [NAME]: value })
+
+        expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+      },
+    )
+
+    it('refuses an interval longer than a day, which is indistinguishable from off', () => {
+      const issues = refusalIssues({ [NAME]: '1441' })
+
+      expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+    })
+
+    it('accepts the boundaries', () => {
+      expect(loadConfig({ [NAME]: '1' }).retention.sweepIntervalMs).toBe(60_000)
+      expect(loadConfig({ [NAME]: '1440' }).retention.sweepIntervalMs).toBe(86_400_000)
+    })
+
+    it('names the variable and both accepted shapes when it refuses', () => {
+      // The operator reading this is looking at a boot that exited 78 an hour before the
+      // guests arrive. The message has to say what to type.
+      const issues = refusalIssues({ [NAME]: 'yes' })
+      const issue = issues.find((candidate) => candidate.startsWith(`${NAME}: `)) ?? ''
+
+      expect(issue).toContain('1 to 1440')
+      expect(issue).toContain("'off'")
     })
   })
 })

@@ -443,7 +443,7 @@ those against a `requestId` and returns the code only.
 | "Delete everything I sent" | filter the moderation queue by guest, bulk delete                                                                                         | all photos for that `guest_id` in that event                                 |
 | "Give me my photos"        | `GET /api/events/:slug/archive` (`archiver`, streamed, owner only)                                                                        | zip of the event's photos                                                    |
 | "Forget the whole event"   | delete the event → `ON DELETE CASCADE` clears photos, guests, reactions, memberships; the media sweeper removes `<MEDIA_ROOT>/<eventId>/` | nothing left but the audit line that it happened                             |
-| Automatic expiry           | `settings.retentionDays` with a purge job in `src/main/` **(planned)**                                                                    | events age out without the host remembering                                  |
+| Automatic expiry           | `settings.retentionDays`, swept hourly by `src/main/retentionSweeper.ts` and on demand by `npm run purge` (§11)                           | events age out without the host remembering                                  |
 
 Deletion is real: `DELETE`, not a `deleted_at` column. A soft-delete of a photo someone
 asked you to remove is not a deletion.
@@ -453,17 +453,18 @@ asked you to remove is not a deletion.
 `src/infrastructure/config/env.ts` is the **only** file that reads `process.env`: parsed
 once with zod at startup, exported as a frozen typed object.
 
-| Variable                       | Required              | Default                                | Effect                                     |
-| ------------------------------ | --------------------- | -------------------------------------- | ------------------------------------------ |
-| `SESSION_SECRET`               | **yes in production** | none                                   | signs `es_sid`                             |
-| `GUEST_TOKEN_SECRET`           | **yes in production** | none                                   | HMAC key for guest tokens                  |
-| `NODE_ENV`                     | no                    | `development`                          | gates `Secure` cookies, HSTS, strict CSP   |
-| `PUBLIC_URL`                   | yes in production     | none                                   | join links, QR codes, `Origin` check       |
-| `DATABASE_PATH` / `MEDIA_ROOT` | no                    | `data/eventslide.sqlite`, `data/media` | see file permissions in §11                |
-| `TRUST_PROXY`                  | no                    | `false`                                | see §11 — wrong values break rate limiting |
-| `UPLOAD_MAX_BYTES`             | no                    | `12582912`                             | multer limit                               |
-| `EVENT_DEFAULT_QUOTA_BYTES`    | no                    | `5368709120`                           | new events' `quota_bytes`                  |
-| `PORT` / `LOG_LEVEL`           | no                    | `4300`, `info`                         |                                            |
+| Variable                           | Required              | Default                                | Effect                                        |
+| ---------------------------------- | --------------------- | -------------------------------------- | --------------------------------------------- |
+| `SESSION_SECRET`                   | **yes in production** | none                                   | signs `es_sid`                                |
+| `GUEST_TOKEN_SECRET`               | **yes in production** | none                                   | HMAC key for guest tokens                     |
+| `NODE_ENV`                         | no                    | `development`                          | gates `Secure` cookies, HSTS, strict CSP      |
+| `PUBLIC_URL`                       | yes in production     | none                                   | join links, QR codes, `Origin` check          |
+| `DATABASE_PATH` / `MEDIA_ROOT`     | no                    | `data/eventslide.sqlite`, `data/media` | see file permissions in §11                   |
+| `TRUST_PROXY`                      | no                    | `false`                                | see §11 — wrong values break rate limiting    |
+| `UPLOAD_MAX_BYTES`                 | no                    | `12582912`                             | multer limit                                  |
+| `EVENT_DEFAULT_QUOTA_BYTES`        | no                    | `5368709120`                           | new events' `quota_bytes`                     |
+| `PORT` / `LOG_LEVEL`               | no                    | `4300`, `info`                         |                                               |
+| `RETENTION_SWEEP_INTERVAL_MINUTES` | no                    | `60`, and `off` under `NODE_ENV=test`  | how often expired events are deleted; see §11 |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,
@@ -491,7 +492,7 @@ soon as an owner exists. Password rules live in `src/domain/users/`, not the con
 | Uploads           | proxy body limit ≥ `UPLOAD_MAX_BYTES` + overhead                                                                                        | otherwise the proxy rejects before the app can return a useful error                                                                                                                              |
 | File permissions  | run as a dedicated non-root user; DB `0600`, `MEDIA_ROOT` `0700`; both outside the web root                                             | the SQLite file contains session data and every hash                                                                                                                                              |
 | Process hardening | systemd: `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `ReadWritePaths=` the data dir                                | limits what a `sharp` or Node CVE can reach                                                                                                                                                       |
-| Backups           | `sqlite3 data/eventslide.sqlite "VACUUM INTO 'backup.sqlite'"` plus an rsync of `MEDIA_ROOT`; test a restore before the event           | copying a live WAL database yields a corrupt backup. A wedding album has no second take                                                                                                           |
+| Backups           | `npm run backup`, then copy the archive off the machine; rehearse with `npm run restore -- <archive> --dry-run`. Below.                 | copying a live WAL database yields a corrupt backup, and an untested restore is not a backup. A wedding album has no second take                                                                  |
 | Updates           | pin the version, read the release notes, `npm audit` before a deploy                                                                    | see §12: self-hosted means you own patching                                                                                                                                                       |
 
 **If the join code leaks** (screenshotted, posted, printed on the wrong sign):
@@ -549,6 +550,143 @@ Covered at ring 2 (`joinEvent.test.ts`, "a phone the host revoked": the refusal,
 indistinguishability from an unknown code, no new row, no announcement, and the ordinary
 and cross-event paths still working) and at ring 4 (`publicRoutes.test.ts`: the same 404
 with no `Set-Cookie` and no second guest row).
+
+### Automatic retention
+
+An event's `settings.retentionDays` is a promise made to people who never signed up for
+anything: the consent notice, the host's own answer to "what happens to these photos",
+and the GDPR storage-limitation obligation in §9 all rest on it. Until it had a trigger
+it was a lie — `purgeExpiredEvents` was written and tested and nothing called it, so a
+host who set "delete after 30 days" was shown a confirmation and their guests' photos
+stayed on the disk indefinitely.
+
+Two triggers now, for two kinds of operator:
+
+| Trigger                                              | Owns the schedule       | Use it when                                                                                                          |
+| ---------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| In-process sweep, hourly by default                  | the application         | the ordinary single-box install — `docker compose up` honours retention with nothing else configured                 |
+| `npm run purge` (`npm run purge:dry-run` to preview) | cron or a systemd timer | you want the schedule outside the app — then set `RETENTION_SWEEP_INTERVAL_MINUTES=off` — or you need the answer now |
+
+Both run the same use case, so the two can never disagree about what is due.
+
+**Disabling it takes the word `off`.** `RETENTION_SWEEP_INTERVAL_MINUTES=0` and an empty
+value are refused at boot, deliberately: every other numeric setting here is coerced with
+`Number()`, which reads an empty string as `0`, so a dangling variable in a compose file
+or a template that rendered blank would silently switch off a deletion the host promised
+— and the only symptom would be that nothing happens. A boot log always says which
+arrangement is in force (`retention sweep scheduled`, or `automatic retention sweep is
+off`).
+
+What the sweep guarantees, and what it does not:
+
+- **It never runs twice at once.** The deletions are recursive directory removals; two
+  sweeps over one event would leave a half-deleted media root and two contradictory
+  reports. A tick arriving while the previous sweep is still working is skipped and
+  logged — an operator seeing that line should lengthen the interval.
+- **It is abandoned at SIGTERM, not awaited**, so shutdown stays inside `docker stop`'s
+  ten seconds. This is safe because the sweep is resumable: it deletes media then the
+  row, one event at a time, so an interrupted event still has its row and is returned
+  again by the next run, and `MediaStore.deleteEvent` is idempotent. The timer is
+  `unref`'d for the same reason — an un-`unref`'d hourly interval would keep the process
+  alive long past the shutdown backstop.
+- **It reports what it did.** Purged ids at `info` — after that line there is nothing
+  left to look them up in — and failed ids at `error`, which is the only signal an
+  operator gets that a disk is full, read-only or wedged. Nothing is lost when a purge
+  fails; the next sweep retries it.
+- **It is off by default under `NODE_ENV=test`**, because the end-to-end suite boots this
+  same binary and a background deletion mid-journey would be both a flaky test and a
+  misleading one.
+- **It deletes; it does not export.** Retention and the backup/restore path in this
+  section are two halves of one control. Purging on a schedule without a tested restore
+  is how a wedding album disappears for good — take the archive first.
+
+Running `npm run purge` while the server is up is safe: the deletions are per-event and
+idempotent, so the worst a race with the in-process sweep produces is an event reported
+as failed by one of them because the other had already removed it.
+
+### Backup and restore
+
+This section used to tell an operator to run `VACUUM INTO` by hand and rsync
+`MEDIA_ROOT`. The reasoning was right and the instructions were the wrong shape: two
+manual steps whose agreement with each other nobody checks, and no way to find out
+whether the result is intact short of restoring it somewhere.
+
+```bash
+npm run backup                          # -> ./backups/eventslide-<timestamp>/
+npm run backup -- --to /mnt/usb/mariage
+npm run backup:verify -- <archive>      # re-check one later; --quick for sizes only
+npm run restore -- <archive> --dry-run  # verify and print the plan, write nothing
+npm run restore -- <archive> --force    # required to overwrite anything
+```
+
+The server may keep running during a backup. That is the case that matters — a host
+takes the backup mid-event, not after — and it is the case a file copy gets wrong:
+`VACUUM INTO` writes a consistent snapshot of an **open** database, while
+`cp data/eventslide.sqlite` yields a file missing everything still in `-wal`. The
+end-to-end proof of the round trip backs up a live server, destroys both halves and boots
+a second server on what came back.
+
+**The archive is a directory**, not a zip: the snapshot has to land on a path anyway
+(`VACUUM INTO` cannot write to a stream), photos are already compressed so a zip buys
+nothing, and a directory can be rsynced, resumed and inspected at 2am.
+
+```
+<archive>/manifest.json          counts, SHA-256 checksums, the migration ledger
+<archive>/database.sqlite        the snapshot
+<archive>/media/<eventId>/<variant>/<ab>/<contentHash>.jpg
+```
+
+**The database is captured first, and the skew that leaves is the recoverable one.** The
+two halves cannot be captured at the same instant. Database first means a photo uploaded
+during the backup has bytes in the archive and no row — dead weight, harmless. Media
+first would mean a row with no bytes, which restores as a broken album and which nothing
+notices until a guest looks for their photo. The other direction is covered rather than
+ignored: every photo row in the snapshot is checked against the media actually copied,
+and any gap is listed by photo id in the manifest and printed by the command. A photo
+deleted while the backup ran looks exactly like that and is harmless; any other cause is
+a gap that already existed on disk.
+
+**What "verifiable" covers.** `backup` re-reads every byte it just wrote before it
+reports success, and `restore` verifies the whole archive before it touches anything.
+Together that catches a missing or unreadable manifest, a database that is absent, the
+wrong length or no longer the one that was backed up, a database that fails
+`PRAGMA integrity_check`, any media file that is missing, truncated or altered, an entry
+list that has been truncated (the manifest carries a digest of its own entry list), and
+an archive whose migration ledger this build would refuse at boot — the case where a
+restore otherwise succeeds and the server then will not start.
+
+**What it does not cover, stated plainly**, because a backup check that oversells itself
+is worse than none:
+
+- **Tampering.** The checksums are unkeyed, so anyone who can edit the archive can
+  recompute them. This detects damage, not an adversary.
+- **A faithful copy of already-wrong data.** `integrity_check` proves the B-trees are
+  sound, not that the album is the one you remember.
+- **Rot after the check.** A verified archive is a statement about one moment; re-verify
+  before relying on it, which is why `restore` re-verifies rather than trusting the
+  result printed when the archive was written.
+- **Everything outside these two paths.** `.env` is not in the archive. Restoring into an
+  instance with a different `GUEST_TOKEN_SECRET` invalidates every outstanding guest
+  token, and a different `SESSION_SECRET` signs every host out. Back the secrets up
+  separately, and somewhere else.
+
+**Restore is built to be hard to use by accident.** It refuses outright if the target
+still holds a database or any media, and `--force` prints what it is about to destroy —
+paths, file counts, sizes — in the output rather than burying it in `--help`. The
+database goes in via a temporary sibling and a rename, so an interrupted restore leaves
+the previous one where it was. It warns when a `-wal` or `-shm` is present, which
+usually means a server is still running: stop it first, because replacing the file
+underneath a live process leaves the wall serving neither database.
+
+**Treat the archive as you treat the database.** It contains every password hash, every
+session row and every photograph — `chmod 0600` on the files, `0700` on the directory,
+and off this machine, since a backup on the same disk survives everything except the
+thing most likely to happen to it.
+
+One operational limitation, shared with `npm run db:migrate`: these are `tsx` scripts, so
+the pruned production container does not carry them. Run them from a source checkout and
+point them at the data with `--database` and `--media` — the commands need no running
+server and no configuration beyond those two paths.
 
 ## 12. Accepted risks
 

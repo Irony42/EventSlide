@@ -20,6 +20,9 @@ coverage-*/
 /media/
 /photos/
 /thumbnails/
+# Where `npm run backup` writes by default. Same rule, and the same anchoring: an
+# archive holds every photo and every password hash.
+/backups/
 
 *.sqlite
 *.sqlite-shm

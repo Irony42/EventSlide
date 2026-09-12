@@ -29,6 +29,7 @@ import { buildServer } from '../interface/http/server'
 import type { HttpConfig, HttpDeps } from '../interface/http/types'
 import type { PresenterContext } from '../interface/http/presenters/presenters'
 import { buildUseCases, type Adapters, type UseCases } from './usecases'
+import { createRetentionSweeper, type RetentionSweeper } from './retentionSweeper'
 
 /**
  * The composition root. **The only file in the codebase that constructs an adapter.**
@@ -45,6 +46,12 @@ export interface Container {
   readonly logger: Logger
   readonly usecases: UseCases
   readonly db: Db
+  /**
+   * The retention timer, built but never started here — `index.ts` starts it once the
+   * port is open and the shutdown handlers are installed. `null` when the operator has
+   * turned the automatic sweep off and a cron running `npm run purge` owns the schedule.
+   */
+  readonly retention: RetentionSweeper | null
   dispose(): Promise<void>
 }
 
@@ -110,6 +117,35 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     maxImagePixels: config.uploads.maxPixels,
     reactionBudget: { windowMs: REACTION_WINDOW_MS, maxPerWindow: REACTION_MAX_PER_WINDOW },
   })
+
+  // ------------------------------------------------------------- retention --
+
+  /**
+   * The single-box default: `docker compose up` and nothing else honours a host's
+   * "delete after 30 days" without any further configuration.
+   *
+   * An operator who would rather a cron or a systemd timer owned the schedule sets
+   * `RETENTION_SWEEP_INTERVAL_MINUTES=off` and runs `npm run purge` — which is the same
+   * use case, so the two are never out of step.
+   */
+  const retention =
+    config.retention.sweepIntervalMs === null
+      ? null
+      : createRetentionSweeper({
+          purge: usecases.purgeExpiredEvents,
+          logger,
+          clock: adapters.clock,
+          intervalMs: config.retention.sweepIntervalMs,
+        })
+
+  if (retention === null) {
+    // Info, not a warning: it is a configured choice, and it is the default under
+    // NODE_ENV=test. An operator reading a boot log still has to be able to see that
+    // nothing in this process will ever act on a retention setting.
+    logger.info('automatic retention sweep is off', {
+      detail: 'retention settings are honoured only when `npm run purge` is run',
+    })
+  }
 
   // ------------------------------------------------------------- first run --
 
@@ -177,7 +213,12 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     logger,
     usecases,
     db,
+    retention,
     dispose: async () => {
+      // First: a sweep that started after the database was closed would log a failure
+      // for every expired event and delete none of them. An already-running one is
+      // abandoned rather than awaited — see the reasoning in `retentionSweeper.stop`.
+      retention?.stop()
       sessionStore.close()
       bus.close()
       // Last, and synchronous: it checkpoints the WAL so the `.sqlite` file is

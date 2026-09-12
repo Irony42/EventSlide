@@ -29,7 +29,17 @@ export const openDatabase = ({ path, readonly = false }: ConnectionOptions): Db 
 
   const db = new Database(path, { readonly })
 
-  applyPragmas(db, { readonly })
+  try {
+    applyPragmas(db, { readonly })
+  } catch (cause) {
+    // The constructor is lazy: a file that is not a database, or one whose pages are
+    // damaged, opens fine and raises at the first pragma. Without this the handle is
+    // already allocated and nobody holds a reference to close it, so on Windows the
+    // file stays locked for the life of the process — which turns "this archive is
+    // corrupt" into "and now you cannot delete it either".
+    db.close()
+    throw cause
+  }
   return db
 }
 

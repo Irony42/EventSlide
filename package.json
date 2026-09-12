@@ -50,7 +50,12 @@
     "verify:full": "npm run verify && npm run test:e2e",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:status": "tsx scripts/migrate.ts --status",
-    "db:seed:demo": "tsx scripts/seedDemo.ts"
+    "db:seed:demo": "tsx scripts/seedDemo.ts",
+    "purge": "tsx scripts/purge.ts",
+    "purge:dry-run": "tsx scripts/purge.ts --dry-run",
+    "backup": "tsx scripts/backup.ts",
+    "backup:verify": "tsx scripts/backup.ts --verify",
+    "restore": "tsx scripts/restore.ts"
   },
   "dependencies": {
     "archiver": "^7.0.1",

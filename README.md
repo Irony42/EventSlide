@@ -95,7 +95,36 @@ Two settings worth a thought before you start:
   anything with colleagues or extended family in the room. `Publier automatiquement`
   is for a small party among close friends, and the app will warn you.
 - **Retention.** Nothing is deleted unless you ask. If you set a retention period, the
-  album is purged that many days after the event closes — export it first.
+  album is purged that many days after the event closes — export it first. The server
+  checks every hour and deletes what is due, so the promise the setting makes to your
+  guests is kept without you remembering. `npm run purge:dry-run` lists what the next
+  sweep would remove, `npm run purge` does it now, and
+  `RETENTION_SWEEP_INTERVAL_MINUTES=off` hands the schedule to your own cron.
+
+## Backups
+
+Take one before the event and one the morning after. It is two commands, the server can
+stay up, and the second one is the half that matters.
+
+```bash
+npm run backup                           # -> ./backups/eventslide-<timestamp>/
+npm run backup -- --to /mnt/usb/mariage  # or somewhere that is not this machine
+
+npm run restore -- <archive> --dry-run   # rehearse: verify, print the plan, write nothing
+npm run restore -- <archive> --force     # --force is required to overwrite anything
+```
+
+The archive is a directory holding a consistent snapshot of the database, every photo,
+and a manifest of counts and checksums. `backup` re-reads everything it just wrote before
+it says OK, so an archive that exits 0 is one you have a reason to trust;
+`npm run backup:verify -- <archive>` re-checks an older one. `restore` verifies the whole
+archive before it touches anything and refuses to overwrite an installation that is still
+there unless you say `--force`, which tells you exactly what it is about to destroy.
+
+Copy the archive somewhere else, and keep your `.env` with it — the secrets are not in
+the archive, and restoring photos with new ones signs every host out. Details, and what
+the checks do and do not catch, are in
+[docs/SECURITY.md §11](docs/SECURITY.md#11-deployment-posture).
 
 ## For contributors
 
