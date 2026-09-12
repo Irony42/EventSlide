@@ -132,14 +132,20 @@ accent CSS custom property the way CSS spells it, and `--` is forbidden inside a
 comment. Every browser had accepted it; `sharp` refused it outright, which is how a file
 that had been wrong since it was written came to light.
 
-**Still missing, and named here rather than quietly folded in: the installed app does not
-open offline.** The worker added in 1.1 caches nothing and intercepts no `fetch` — that
-restraint is deliberate and is why a bug in it can only ever delay a photo — so an
-installed EventSlide opened with no connection shows the browser's offline page. A guest
-in that state loses nothing already queued, because the outbox is theirs, but they cannot
-reach the app to add more. Precaching the shell is a real piece of work with a real
-lifecycle risk, it is not required for installability, and it deserves its own item
-rather than a paragraph in this one.
+**The app shell came with it, and not by choice.** Chromium dropped the service-worker
+requirement for a _menu_ install (108 on mobile, 112 on desktop), but the algorithm that
+fires `beforeinstallprompt` still wants a worker with a `fetch` handler — so the offer
+this item is about could not have appeared without one. The worker added in 1.1 had none,
+on purpose.
+
+It now precaches the entry bundle and answers for it **network-first**, so a deploy is
+never served stale to somebody standing in front of a working access point, and it
+refuses to touch anything under `/api/` at all: uploads, media, authorization and the
+wall's eight-hour SSE connection take exactly the path they would with no worker
+installed. Chrome's own account of relaxing that requirement is that sites gamed it with
+empty pass-through handlers which hurt performance, so this one does real work or gets
+out of the way entirely. An installed EventSlide now opens with no connection, which is
+what an installed app is for.
 
 ### 1.3 Camera-first capture (P1, effort M, risk: low)
 

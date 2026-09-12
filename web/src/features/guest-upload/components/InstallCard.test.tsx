@@ -61,11 +61,13 @@ describe('InstallCard', () => {
     expect(onDismiss).toHaveBeenCalled()
   })
 
-  it('is a region a screen reader can find by name', () => {
+  it('announces itself as a status, because nothing has gone wrong', () => {
+    // The card appears on its own once a photo lands. An alert would interrupt whatever
+    // a screen-reader guest was doing in order to tell them something good happened.
     renderWithProviders(
       <InstallCard offer={{ kind: 'prompt' }} onInstall={vi.fn()} onDismiss={vi.fn()} />,
     )
 
-    expect(screen.getByRole('region', { name: fr.upload.installTitle })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: fr.upload.installTitle })).toBeInTheDocument()
   })
 })

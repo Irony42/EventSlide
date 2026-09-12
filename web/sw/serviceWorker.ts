@@ -1,16 +1,28 @@
 import { drainOutbox } from '../src/lib/offline/drainOutbox'
 import { fetchOutboxSender } from '../src/lib/offline/fetchSender'
 import { IndexedDbOutbox } from '../src/lib/offline/indexedDbOutbox'
+import {
+  cacheNameFor,
+  isShellRequest,
+  ownCacheNames,
+  respondFromShell,
+  staleCacheNames,
+} from '../src/lib/pwa/appShell'
 import type { OutboxStore } from '../src/lib/offline/outbox'
 
 /**
  * The upload worker.
  *
- * It exists for one job: finish sending photos the guest is no longer watching. It
- * caches nothing, intercepts no `fetch`, and claims no navigation — so the worst a bug
- * in here can do is delay a photo. A worker that also served the app shell would put
- * every page load behind this lifecycle, and lifecycle bugs are exactly what makes
- * shipping a service worker frightening.
+ * Two jobs, both narrow. It finishes sending photos the guest is no longer watching,
+ * and it answers for the app shell when the network will not — which is what lets an
+ * installed EventSlide open at all with no connection, and what makes Chromium willing
+ * to fire `beforeinstallprompt` in the first place.
+ *
+ * Everything else is left alone. `isShellRequest` refuses anything that is not a
+ * same-origin GET outside `/api/`, and the handler then returns without calling
+ * `respondWith`, so uploads, media, authorization and the eight-hour SSE connection take
+ * the same path they would with no worker installed. The shell answer is network-first,
+ * so a deploy is never served stale to a guest who has a working access point.
  *
  * It is deliberately thin, and that is a testing decision rather than a taste one. This
  * file is built as its own bundle (`web/vite.sw.config.ts` to `dist/client/sw.js`) and
@@ -33,6 +45,12 @@ import type { OutboxStore } from '../src/lib/offline/outbox'
  */
 const OUTBOX_SYNC_TAG = 'eventslide-outbox'
 const KILL_MESSAGE = 'eventslide:kill'
+
+/** Written by the build; see `injectPrecache` in web/vite.sw.config.ts. */
+declare const __PRECACHE_URLS__: readonly string[]
+declare const __PRECACHE_VERSION__: string
+
+const CACHE_NAME = cacheNameFor(__PRECACHE_VERSION__)
 
 const CSRF_COOKIE = 'es_csrf'
 
@@ -106,15 +124,46 @@ const drainEverything = async (): Promise<void> => {
   }
 }
 
-worker.addEventListener('install', () => {
-  // Straight to active. No cached asset's version matters here, so making a guest close
-  // every tab before a fixed worker takes over would be ceremony with a cost and no
-  // benefit.
-  void worker.skipWaiting()
+/** Fills the shell cache. Failure is survivable: the app simply has no offline copy. */
+const precache = async (): Promise<void> => {
+  const cache = await caches.open(CACHE_NAME)
+  // `reload` so a deploy is not precached out of the very HTTP cache it replaces.
+  await cache.addAll(__PRECACHE_URLS__.map((url) => new Request(url, { cache: 'reload' })))
+}
+
+const sweepOldCaches = async (): Promise<void> => {
+  const stale = staleCacheNames(await caches.keys(), CACHE_NAME)
+  await Promise.all(stale.map((name) => caches.delete(name)))
+}
+
+worker.addEventListener('install', (event) => {
+  // Straight to active once the shell is in. Waiting would leave a guest on the previous
+  // worker until every tab closed, which at an event means until they go home.
+  event.waitUntil(
+    precache()
+      // A precache that failed leaves a worker that still drains the outbox, which is
+      // the job that must not be lost. Offline loading is the part that degrades.
+      .catch(() => undefined)
+      .then(() => worker.skipWaiting()),
+  )
 })
 
 worker.addEventListener('activate', (event) => {
-  event.waitUntil(worker.clients.claim())
+  event.waitUntil(sweepOldCaches().then(() => worker.clients.claim()))
+})
+
+worker.addEventListener('fetch', (event) => {
+  // Returning without `respondWith` is not the same as answering from the network: it
+  // hands the request back to the browser untouched, which is what keeps this worker off
+  // the critical path of every upload and every SSE frame.
+  if (!isShellRequest(event.request, worker.location.origin)) return
+
+  event.respondWith(
+    respondFromShell(event.request, {
+      fetch: (...args) => fetch(...args),
+      match: async (request) => caches.match(request, { cacheName: CACHE_NAME }),
+    }),
+  )
 })
 
 worker.addEventListener('sync', (event) => {
@@ -130,6 +179,13 @@ worker.addEventListener('message', (event) => {
   if (typeof data !== 'object' || data === null) return
   if (Reflect.get(data, 'type') !== KILL_MESSAGE) return
   // The kill switch, from the page. Unregistering from inside the worker is what makes
-  // "off" reach a worker that is already installed and misbehaving.
-  event.waitUntil(worker.registration.unregister().then(() => undefined))
+  // "off" reach a worker that is already installed and misbehaving — and the caches go
+  // with it, or the next worker inherits a shell nobody asked for.
+  event.waitUntil(
+    caches
+      .keys()
+      .then((names) => Promise.all(ownCacheNames(names).map((name) => caches.delete(name))))
+      .then(() => worker.registration.unregister())
+      .then(() => undefined),
+  )
 })

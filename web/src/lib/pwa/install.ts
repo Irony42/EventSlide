@@ -82,3 +82,99 @@ export const rememberDismissal = (): void => {
     // The prompt is gone for this page load regardless; only the memory of it is lost.
   }
 }
+
+/**
+ * The captured `beforeinstallprompt`, held at module scope rather than in a component.
+ *
+ * This is not premature generality; a hook holding it does not work. The event fires
+ * **once per document load**, and the guest's journey — `/join/:code`, then a React
+ * Router `navigate` to `/e/:slug/upload` — is one document. Chromium therefore fires it
+ * while the join screen is mounted, which is before the upload screen exists, and the
+ * event is never fired again. A listener registered inside the upload screen's hook
+ * misses it every single time a guest arrives the way guests actually arrive: by
+ * scanning the QR code.
+ *
+ * So the capture is started from the composition root, before any screen mounts, and the
+ * hook subscribes to what was already caught.
+ */
+let captured: BeforeInstallPromptEvent | null = null
+let installed = false
+const subscribers = new Set<() => void>()
+
+const announce = (): void => {
+  for (const notify of [...subscribers]) notify()
+}
+
+/**
+ * Starts listening. Call once, from the composition root.
+ *
+ * Returns a teardown, which production never uses and a test always does.
+ */
+export const watchForInstall = (): (() => void) => {
+  const onBeforeInstallPrompt = (event: Event): void => {
+    // Without this the browser shows its own mini-infobar, which is the arrival-time
+    // interruption this whole design exists to avoid.
+    event.preventDefault()
+    captured = event as BeforeInstallPromptEvent
+    announce()
+  }
+
+  const onInstalled = (): void => {
+    captured = null
+    installed = true
+    announce()
+  }
+
+  window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+  // Fires when the app is installed by any route, including the browser's own menu.
+  // Without it the card sits there offering something already done.
+  window.addEventListener('appinstalled', onInstalled)
+
+  return () => {
+    window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+    window.removeEventListener('appinstalled', onInstalled)
+  }
+}
+
+/** Subscribes to "something changed about whether we can offer an install". */
+export const onInstallStateChange = (notify: () => void): (() => void) => {
+  subscribers.add(notify)
+  return () => {
+    subscribers.delete(notify)
+  }
+}
+
+export const hasCapturedPrompt = (): boolean => captured !== null
+
+export const wasInstalledThisSession = (): boolean => installed
+
+/**
+ * Raises the browser's prompt, once.
+ *
+ * Resolves to the guest's answer, or `null` when there was nothing to raise or the
+ * browser refused it. The event is spent on use — a `BeforeInstallPromptEvent` may be
+ * prompted once and a second call throws — so it is cleared before the first `await`,
+ * which is what makes a double-tap safe.
+ */
+export const raiseInstallPrompt = async (): Promise<'accepted' | 'dismissed' | null> => {
+  const event = captured
+  if (event === null) return null
+  captured = null
+  announce()
+
+  try {
+    await event.prompt()
+    const { outcome } = await event.userChoice
+    return outcome
+  } catch {
+    // Raised outside a user gesture, or withdrawn by the browser.
+    return null
+  }
+}
+
+/** Testing seam: forgets everything captured so far. Never called in production. */
+export const resetInstallState = (): void => {
+  captured = null
+  installed = false
+  subscribers.clear()
+}

@@ -28,7 +28,14 @@ export function InstallCard({ offer, onInstall, onDismiss }: InstallCardProps) {
   if (offer.kind === 'none') return null
 
   return (
-    <section className={styles['card']} aria-labelledby="install-title" data-testid="install-card">
+    <section
+      className={styles['card']}
+      aria-labelledby="install-title"
+      data-testid="install-card"
+      // A status, not an alert: the card appears on its own once a photo lands, and
+      // nothing has gone wrong. Its sibling OfflineNotice announces itself the same way.
+      role="status"
+    >
       <div className={styles['body']}>
         <p className={styles['title']} id="install-title">
           {fr.upload.installTitle}

@@ -126,7 +126,12 @@ export const fr = {
     installHint:
       'Ajoutez-la à votre écran d’accueil pour retrouver la galerie plus tard, sans chercher le QR code.',
     /** iOS gives no prompt at all, so the route through the share menu is the feature. */
-    installIosHint: 'Appuyez sur Partager en bas de l’écran, puis sur « Sur l’écran d’accueil ».',
+    /**
+     * No location given for the Share button, deliberately: it is at the bottom on an
+     * iPhone and at the top on an iPad, and the property this browser was recognised by
+     * cannot tell the two apart. Naming the wrong corner is worse than naming none.
+     */
+    installIosHint: 'Ouvrez le menu Partager, puis choisissez « Sur l’écran d’accueil ».',
     installAction: 'Ajouter à l’écran d’accueil',
     installDismiss: 'Masquer cette proposition',
 

@@ -113,6 +113,12 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
    */
   const install = useInstallPrompt({ eligible: mine.photos.length > 0 })
 
+  const installSlot = useRef<HTMLDivElement | null>(null)
+  const dismissInstall = () => {
+    install.dismiss()
+    installSlot.current?.focus()
+  }
+
   const trimmedCaption = caption.trim()
 
   return (
@@ -137,12 +143,20 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
       />
 
       {/* Below the proof that it worked, above the controls: a reward for having sent
-          something, never a gate in front of sending it. */}
-      <InstallCard
-        offer={install.offer}
-        onInstall={() => void install.install()}
-        onDismiss={install.dismiss}
-      />
+          something, never a gate in front of sending it.
+
+          The wrapper outlives the card and takes focus when the card is dismissed.
+          Without it the dismiss button unmounts under the guest's own finger and focus
+          falls to <body>, which drops a keyboard or screen-reader guest back to the top
+          of the page in the middle of sending photos. The page owns this rather than the
+          card, because the page is what knows where the reading position should land. */}
+      <div ref={installSlot} tabIndex={-1} className={styles['installSlot']}>
+        <InstallCard
+          offer={install.offer}
+          onInstall={() => void install.install()}
+          onDismiss={dismissInstall}
+        />
+      </div>
 
       {/* Everything to press, kept together at the bottom of the screen: a control in
           the top half of a phone needs a second hand, and the guest is holding a

@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
+  hasCapturedPrompt,
   isInstalled,
   needsManualInstructions,
+  onInstallStateChange,
+  raiseInstallPrompt,
   rememberDismissal,
   wasDismissed,
+  wasInstalledThisSession,
 } from '../../../lib/pwa/install'
-import type { BeforeInstallPromptEvent } from '../../../lib/pwa/install'
 
 /**
  * Whether to offer the guest a home-screen icon, and how.
@@ -13,13 +16,14 @@ import type { BeforeInstallPromptEvent } from '../../../lib/pwa/install'
  * The offer is deliberately not made on arrival. A guest who has just scanned a QR code
  * is forty seconds from sending a photo, and a permission-shaped dialog in front of that
  * is friction at the worst possible moment — it is how a guest ends up sending nothing.
- * So the caller passes `eligible`, and the upload screen turns it on only after a photo
+ * So the caller passes `eligible`, and the upload screen turns it on only once a photo
  * has actually arrived. By then the app has proved it is worth keeping.
  *
- * `beforeinstallprompt` has one property that shapes everything here: the browser fires
- * it when *it* is ready, which may be before this screen mounts, and it can only be
- * answered once. So the event is captured as early as the hook exists and kept, rather
- * than listened for at the moment the guest presses anything.
+ * The `beforeinstallprompt` event itself is **not** captured here, and that is the whole
+ * reason `web/src/lib/pwa/install.ts` exists: the event fires once per document load,
+ * and a guest's journey from `/join/:code` to `/e/:slug/upload` is a single document, so
+ * by the time this screen mounts the event has already come and gone. The capture starts
+ * at the composition root; this hook only subscribes to the result.
  */
 
 export type InstallOffer =
@@ -33,7 +37,7 @@ export type InstallOffer =
 export interface UseInstallPromptOptions {
   /**
    * Whether the guest has earned the offer yet — in practice, whether a photo has
-   * arrived. Capturing the event still happens regardless; only the offer waits.
+   * arrived.
    */
   readonly eligible: boolean
 }
@@ -47,55 +51,28 @@ export interface InstallPrompt {
 }
 
 export const useInstallPrompt = ({ eligible }: UseInstallPromptOptions): InstallPrompt => {
-  const captured = useRef<BeforeInstallPromptEvent | null>(null)
-  const [available, setAvailable] = useState(false)
+  const [available, setAvailable] = useState(hasCapturedPrompt)
   const [settled, setSettled] = useState(() => isInstalled() || wasDismissed())
 
   useEffect(() => {
-    const onBeforeInstallPrompt = (event: Event) => {
-      // Without this the browser shows its own mini-infobar, which is the arrival-time
-      // interruption this whole design exists to avoid.
-      event.preventDefault()
-      captured.current = event as BeforeInstallPromptEvent
-      setAvailable(true)
+    const sync = () => {
+      setAvailable(hasCapturedPrompt())
+      if (wasInstalledThisSession()) setSettled(true)
     }
-
-    const onInstalled = () => {
-      captured.current = null
-      setAvailable(false)
-      setSettled(true)
-    }
-
-    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
-    // Fires when the app is installed by any route, including the browser's own menu.
-    // Without it the card sits there offering something already done.
-    window.addEventListener('appinstalled', onInstalled)
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
-      window.removeEventListener('appinstalled', onInstalled)
-    }
+    // Read once on mount as well as on change: the event may have been captured before
+    // this screen existed, which is the ordinary case rather than the exception.
+    sync()
+    return onInstallStateChange(sync)
   }, [])
 
   const install = useCallback(async () => {
-    const event = captured.current
-    if (event === null) return
-    // Spent on use, whatever the answer: a `BeforeInstallPromptEvent` may be prompted
-    // once, and a second call throws. Cleared first so a double-tap cannot reach it.
-    captured.current = null
-    setAvailable(false)
-
-    try {
-      await event.prompt()
-      const { outcome } = await event.userChoice
-      // "Not now" is remembered the same way an explicit dismissal is. A guest who
-      // refused the browser's own dialog has answered the question.
-      if (outcome === 'dismissed') rememberDismissal()
-      setSettled(true)
-    } catch {
-      // A prompt raised outside a user gesture, or one the browser withdrew. Nothing to
-      // tell the guest: they did not ask for this, and the photo is what they came for.
-      setSettled(true)
-    }
+    const outcome = await raiseInstallPrompt()
+    // "Not now" is remembered the same way an explicit dismissal is: a guest who refused
+    // the browser's own dialog has answered the question. `null` — nothing to raise, or
+    // a prompt the browser refused — is not worth a word to a guest who did not ask for
+    // this and came here to send a photo.
+    if (outcome === 'dismissed') rememberDismissal()
+    setSettled(true)
   }, [])
 
   const dismiss = useCallback(() => {
