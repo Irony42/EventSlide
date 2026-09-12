@@ -20,6 +20,7 @@ import { archiverWriter } from '../infrastructure/media/archiverWriter'
 import { createBcryptPasswordHasher } from '../infrastructure/crypto/bcryptPasswordHasher'
 import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestTokenService'
 import { randomIdGenerator } from '../infrastructure/crypto/randomIdGenerator'
+import { createSequentialIdGenerator } from '../infrastructure/crypto/sequentialIdGenerator'
 import { sha256ContentHasher } from '../infrastructure/crypto/sha256ContentHasher'
 import { createInMemoryEventBus } from '../infrastructure/realtime/inMemoryEventBus'
 import { createPinoLogger } from '../infrastructure/logging/pinoLogger'
@@ -95,7 +96,17 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   const adapters: Adapters = {
     clock: systemClock,
-    ids: randomIdGenerator,
+    /**
+     * Random in production, counted under `E2E_HOOKS` — the same gate the wall's
+     * timing hooks use, and one the config module refuses to accept in production.
+     *
+     * A visual baseline cannot be stable while the pixels depend on a random id: the
+     * polaroid tilts each print by a hash of its photo id, so fresh ids meant fresh
+     * angles and a snapshot that failed on tens of thousands of pixels of nothing. The
+     * join code printed on the wall comes from the same port and was doing the same to
+     * every full-page shot.
+     */
+    ids: config.e2eHooks ? createSequentialIdGenerator() : randomIdGenerator,
     logger,
     bus,
     events: new SqliteEventRepository(db),
