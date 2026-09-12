@@ -396,8 +396,7 @@ export const useModerationQueue = (
   const announce = useCallback(
     (decision: ModerationDecision, entries: readonly UndoEntry[]) => {
       const message = APPLIED_MESSAGE[decision](entries.length)
-      const reversible =
-        entries.length > 0 && entries.every((entry) => entry.restoreWith !== null)
+      const reversible = entries.length > 0 && entries.every((entry) => entry.restoreWith !== null)
 
       /**
        * Whatever was on offer belongs to a decision the host has now moved past.

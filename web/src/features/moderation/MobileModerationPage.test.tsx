@@ -77,7 +77,13 @@ const card = (): HTMLElement => screen.getByTestId('mobile-moderation-card')
 /** A thumb crossing the card from the middle outwards, and lifting at the end. */
 const swipe = (to: number): void => {
   const target = card()
-  fireEvent.pointerDown(target, { pointerId: 1, button: 0, isPrimary: true, clientX: 0, clientY: 0 })
+  fireEvent.pointerDown(target, {
+    pointerId: 1,
+    button: 0,
+    isPrimary: true,
+    clientX: 0,
+    clientY: 0,
+  })
   fireEvent.pointerMove(target, { pointerId: 1, clientX: to / 2, clientY: 0 })
   fireEvent.pointerMove(target, { pointerId: 1, clientX: to, clientY: 0 })
   fireEvent.pointerUp(target, { pointerId: 1, clientX: to, clientY: 0 })
@@ -383,9 +389,7 @@ describe('MobileModerationPage', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.publishPhoto('Léa') }))
 
     expect(
-      await screen.findByText(
-        fr.mobileModeration.nowDeciding(fr.moderation.photoAlt('Sacha')),
-      ),
+      await screen.findByText(fr.mobileModeration.nowDeciding(fr.moderation.photoAlt('Sacha'))),
     ).toBeInTheDocument()
   })
 

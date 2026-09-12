@@ -237,9 +237,7 @@ describe('SwipeCard', () => {
   it('shows the photo full width, named for somebody who cannot see it', () => {
     render(<SwipeCard photo={photo()} onDecide={vi.fn()} />)
 
-    expect(
-      screen.getByRole('article', { name: fr.moderation.photoOf('Léa') }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: fr.moderation.photoOf('Léa') })).toBeInTheDocument()
     expect(
       screen.getByAltText(fr.moderation.photoAltWithCaption('Les confettis', 'Léa')),
     ).toBeInTheDocument()

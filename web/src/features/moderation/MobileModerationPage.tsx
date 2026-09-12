@@ -209,9 +209,7 @@ export function MobileModerationPage() {
             block
             loading={queue.busy}
             disabled={current === null}
-            aria-label={
-              authorInName === null ? undefined : fr.moderation.rejectPhoto(authorInName)
-            }
+            aria-label={authorInName === null ? undefined : fr.moderation.rejectPhoto(authorInName)}
             onClick={() => {
               if (current !== null) decide('reject', current.id)
             }}

@@ -330,7 +330,7 @@ passed by the phone console and by nothing else:
 - **A refusal cannot**, here or anywhere. The only verb that would reverse it is
   `publish`, on a photo the host has just turned down, which would put it on a screen in
   front of the room with nobody's approval behind it. `src/domain/moderation/
-  moderationDecision.ts` refuses the same inference, and this agrees with it.
+moderationDecision.ts` refuses the same inference, and this agrees with it.
 
 The desktop console keeps the old behaviour exactly, and a regression test pins it: with
 no options, publishing a pending photo still offers no undo. Restoring a photo to

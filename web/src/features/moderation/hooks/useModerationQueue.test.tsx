@@ -187,9 +187,10 @@ describe('useModerationQueue', () => {
     // reversal that cannot put an unapproved photo on a screen.
     const api = fakeApi({
       moderationQueue: vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })])),
-      moderateBulk: vi.fn(
-        async (): Promise<BulkModerationResponse> => ({ applied: ['photo-1'], skipped: [] }),
-      ),
+      moderateBulk: vi.fn(async (): Promise<BulkModerationResponse> => ({
+        applied: ['photo-1'],
+        skipped: [],
+      })),
     })
     const { result } = mountWithUndoOfPublish(api)
     await waitFor(() => expect(result.current.items).toHaveLength(1))

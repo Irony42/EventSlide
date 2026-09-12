@@ -39,11 +39,7 @@ const phoneConsole = (slug: string) => `/admin/events/${slug}/moderation/mobile`
 /** 44 px is the floor, not the aspiration — docs/DESIGN-SYSTEM.md section 8. */
 const TOUCH_MIN = 44
 
-test('a photo swiped to the right on a phone reaches the wall', async ({
-  app,
-  page,
-  surfaces,
-}) => {
+test('a photo swiped to the right on a phone reaches the wall', async ({ app, page, surfaces }) => {
   const { guest, projector } = surfaces
   const event = await app.seedEvent({ slug: 'buffet', name: 'Camille & Sacha' })
 
@@ -132,11 +128,7 @@ test('a swipe dragged back before the thumb lifts decides nothing', async ({
   await expect(projector.getByTestId('wall-slide')).toHaveCount(0)
 })
 
-test('reduced motion takes the travel away, not the decision', async ({
-  app,
-  page,
-  surfaces,
-}) => {
+test('reduced motion takes the travel away, not the decision', async ({ app, page, surfaces }) => {
   /**
    * `prefers-reduced-motion` is a health requirement, not a preference: a card easing
    * across a phone held at reading distance is the kind of motion that triggers
