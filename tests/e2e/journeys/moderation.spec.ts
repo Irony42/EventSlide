@@ -174,8 +174,32 @@ test('the keyboard alone gets through the queue', async ({ app, surfaces }) => {
   await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
   await joinAndUpload(guest, app, event.joinCode, { displayName: 'Tom' })
 
-  await expect(host.getByTestId('moderation-card').first()).toBeVisible()
+  const card = host.getByTestId('moderation-card').first()
+  await expect(card).toBeVisible()
+
+  // J moves the keyboard onto a photo; P decides the photo the keyboard is on. So the
+  // cursor's arrival is asserted before the key that acts on it is pressed, and not as
+  // ceremony: it is the assertion this test's name claims and did not make. A J that
+  // moved nothing used to surface twenty lines lower as a wall that stayed empty, which
+  // reads as a decision that failed rather than as the shortcut that never fired.
+  //
+  // It also closes the one unobserved step between the two keystrokes.
+  // `useModerationShortcuts` reads its handlers through a ref refreshed in a
+  // `useEffect`, so a P reaching the window listener before React has flushed that
+  // passive effect runs the handlers captured while nothing was focused, and
+  // `decideByKey` drops it in silence. Measured, not assumed: dispatched inside one
+  // browser task the pair loses the publish every time, leaving the tile reading
+  // `data-active="true"` and `data-status="pending"`; one macrotask apart, never. Two
+  // awaited `keyboard.press` calls are two round trips and cleared that window in every
+  // attempt made here — so this is a window closed by observing state, never by waiting
+  // on time, and not a reproduction of the intermittent failure that prompted it.
+  //
+  // The fragility is the console's rather than this spec's, and is reported instead of
+  // fixed from here: a host pressing J and P a frame apart while the grid re-renders on
+  // an arriving photo loses the P the same way.
   await host.keyboard.press('j')
+  await expect(card).toHaveAttribute('data-active', 'true')
+
   await host.keyboard.press('p')
 
   await expect(projector.getByTestId('wall-slide').first()).toBeVisible()

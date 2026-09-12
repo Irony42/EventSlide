@@ -52,7 +52,7 @@ main ──> everything (composition only)
 
 This is checked mechanically, not by review: `npm run lint` fails the build on a
 violating import. The rule is **`no-restricted-imports`** — core ESLint, configured with
-`patterns` — applied per layer in `eslint.config.js`: search for `DOMAIN_FORBIDDEN` and
+`patterns` — applied per layer in `eslint.config.mjs`: search for `DOMAIN_FORBIDDEN` and
 `APPLICATION_FORBIDDEN`, and for the `files: ['src/infrastructure/**/*.ts']` block. There
 is no `eslint-plugin-import` in this project and no `import/no-restricted-paths`; if you
 went looking for that string you were reading an older version of this file. The
@@ -264,6 +264,15 @@ Learned the hard way. Do not rediscover them.
    `src/domain/slideshow/`.
 7. **`sessionStorage` slideshow index** meant two projectors disagreed. Playlist
    position is now derived from the playlist itself.
+8. **`eslint.config.mjs` is `.mjs` on purpose, and `package.json` has no `"type"`.**
+   The tempting one-line "cleanup" is `"type": "module"`, which is a repository-wide
+   change wearing a one-line disguise: `tsconfig.build.json` and `tsconfig.server.json`
+   use `module: node16`, where that field decides the module format of everything under
+   `src/`. Declaring the package ESM makes Node16 demand an explicit `.js` extension on
+   every relative import — measured on this tree, `tsc -p tsconfig.server.json` goes
+   from clean to **1 940 errors across 264 files** and `npm run build:api` exits 2. It
+   is real work (F15 in [docs/REVIEW-2.0.md](docs/REVIEW-2.0.md)), not a tidy-up. The
+   `.mjs` extension says "this one file is ESM" and costs nothing.
 
 ---
 

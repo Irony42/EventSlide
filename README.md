@@ -154,16 +154,10 @@ npm run verify:full    # the above plus the Playwright journeys
 
 ## Licence
 
-GPL-3.0, as declared in `package.json` — but the full licence text is **not yet in the
-repository**. Until a `LICENSE` file lands, the declaration is a statement of intent
-rather than a grant anyone can rely on, so add it before distributing this:
+GNU General Public License v3.0. The full text is in [LICENSE](LICENSE), and
+`package.json` declares the same `GPL-3.0`, so the declaration and the grant now agree —
+for a self-hosted product whose whole argument is that the operator owns their own
+machine and their guests' photos, that is not administrative tidying.
 
-```bash
-curl -o LICENSE https://www.gnu.org/licenses/gpl-3.0.txt
-```
-
-The repository has never carried the licence text itself. Add it before any release:
-
-```bash
-curl -o LICENSE https://www.gnu.org/licenses/gpl-3.0.txt
-```
+In short: run it, read it, change it, and pass it on — and if you distribute a modified
+version, ship the source under the same licence.

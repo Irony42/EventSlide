@@ -153,15 +153,28 @@ test.describe('backup and restore', () => {
 
     const primed = await fetch(`${baseUrl}/api/auth/me`)
     remember(primed)
-    const csrf = jar.get('es_csrf')
-    if (csrf === undefined) throw new Error('the server issued no CSRF cookie')
+
+    /**
+     * Read from the jar at send time, never captured once.
+     *
+     * The server rotates `es_csrf` in the same gesture as `session.regenerate()` and
+     * `session.destroy()`, so a value read before the login below would be the stale
+     * half of the pair from that point on, and every later write would be refused with
+     * `request.csrfMismatch` — a product failure this spec is not about. A browser
+     * re-reads the cookie for every request, and this client exists to behave like one.
+     */
+    const csrf = (): string => {
+      const token = jar.get('es_csrf')
+      if (token === undefined) throw new Error('the server issued no CSRF cookie')
+      return token
+    }
 
     const send = async (method: string, path: string, body?: unknown): Promise<Response> => {
       const response = await fetch(`${baseUrl}${path}`, {
         method,
         headers: {
           'content-type': 'application/json',
-          'x-csrf-token': csrf,
+          'x-csrf-token': csrf(),
           ...(jar.size > 0 ? { cookie: cookie() } : {}),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -179,7 +192,7 @@ test.describe('backup and restore', () => {
         form.append('photos', new Blob([bytes], { type: 'image/jpeg' }), 'confettis.jpg')
         const response = await fetch(`${baseUrl}${path}`, {
           method: 'POST',
-          headers: { 'x-csrf-token': csrf, cookie: cookie() },
+          headers: { 'x-csrf-token': csrf(), cookie: cookie() },
           body: form,
         })
         remember(response)

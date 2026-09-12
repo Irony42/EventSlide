@@ -1,3 +1,23 @@
+/**
+ * `.mjs`, not `.js`, and the extension is load-bearing.
+ *
+ * `package.json` has no `"type"` field, so Node treats a bare `.js` as CommonJS. This
+ * file is ESM, so Node used to fail to parse it, notice the `import` syntax, reparse it
+ * as a module, and print `MODULE_TYPELESS_PACKAGE_JSON` — on every `npm run lint`, which
+ * is every CI job and every agent iteration.
+ *
+ * The obvious fix, `"type": "module"` in `package.json`, is the wrong one *here*:
+ * `tsconfig.build.json` and `tsconfig.server.json` use `module: node16`, where the
+ * emitted and expected module format is read from that same field. Declaring the package
+ * ESM turns all of `src/**` into ESM, and Node16 ESM requires an explicit `.js` extension
+ * on every relative import. Measured, not guessed: `tsc -p tsconfig.server.json` goes
+ * from clean to 1 940 errors across 264 files (1 483 of them TS2835), and
+ * `npm run build:api` exits 2. That is a mechanical rewrite of every import in the
+ * server, and it is tracked as F15 in docs/REVIEW-2.0.md rather than done by surprise.
+ *
+ * `.mjs` says "this one file is ESM" and changes nothing else.
+ */
+
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'

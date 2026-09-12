@@ -168,6 +168,10 @@ because a per-address limit on a /64 residential allocation is no limit at all.
 Uploads are additionally bounded per event by a byte quota, which closes uploads rather
 than filling the disk.
 
+The two SSE routes are bounded differently, by **how many connections are open at once**
+rather than how many are made per minute, because a stream holds its socket for the whole
+evening. The numbers and the codes are in §7.
+
 ---
 
 ## 2. Public
@@ -830,6 +834,58 @@ No body. The emergency lever: a join link is circulating outside the venue, so t
 code stops working immediately. **200** with the event, carrying the new code and the
 new `joinUrl`, so the console reprints the QR without a second request.
 
+### `DELETE /api/events/:slug`
+
+No body. **204**, empty, no `Content-Type`. This is the only irreversible endpoint in
+the product, and there is no confirmation step in the protocol — the confirmation
+belongs to the console, because a second HTTP round trip would not make the first one
+any harder to send by accident.
+
+**Owner only.** `canDeleteEvent` is `owner`, so a moderator _of this event_ gets
+`403 auth.forbidden` with `details.required: "owner"`. Lending out the moderation screen
+for an evening must not be able to lose the album.
+
+**What is destroyed**, in this order — and the order is part of the contract:
+
+1. Every byte under the event's media directory: the original, display and thumb
+   variants of every photo, published, pending, hidden and rejected alike.
+2. The `events` row, and with it everything `ON DELETE CASCADE` hangs off it — `photos`,
+   `guests`, `reactions` and `event_memberships`.
+
+Media first, row second, because the row is the only record that the bytes exist: delete
+it first and a failure halfway through leaves gigabytes on disk with nothing left to find
+them by. The other order leaves a purge that can simply be run again.
+
+**What survives.** User accounts: an owner or moderator keeps their login and every
+other event they are a member of, and only their membership of _this_ event is removed.
+Sessions: nobody is signed out, here or elsewhere. Other events on the same instance,
+media directories included. The slug itself, which becomes free — a new event may take
+it.
+
+**On an event already purged** the slug no longer resolves, so a second call answers
+`404 event.notFound` — the same answer a caller with no membership gets, for the same
+reason (§6, _Errors across this section_). The status code is therefore not idempotent,
+and a client that reads 404 here as "already gone" is reading it correctly.
+
+**No lifecycle guard.** Rename and settings answer `409 event.immutable` on an archived
+event; a purge does not. It is legal from `draft`, `live`, `closed` and `archived`
+alike, because archiving is what a host does _instead_ of deleting, not a step on the
+way to it. **No `409` is reachable on this route.**
+
+**No realtime frame.** The handler publishes nothing on the event bus, so a wall or a
+console still holding an SSE connection is not told. Its next request against the event
+answers `404 event.notFound`. A guest whose device token names the purged event gets
+`404 event.notFound` too; if the host later creates a new event on the same slug, that
+old token names a different event id and gets `403 guest.wrongEvent`.
+
+**Errors** — `401 auth.required` with no session, answered before the slug is looked up
+so the route cannot be used to discover which events exist; `404 event.notFound` for an
+unknown slug, a malformed one, and for a caller with a session but no membership;
+`403 auth.forbidden` for a moderator of the event; `500 event.mediaPurgeFailed` when the
+media root could not be cleared — a read-only mount, or a disk that went away. That last
+one leaves the rows alone on purpose, so the call can simply be retried once the disk is
+back. CSRF applies as to every `DELETE` (§1).
+
 ### `GET /api/events/:slug/photos`
 
 The admin gallery: the same photos as the queue, newest first, **without** the queue's
@@ -970,8 +1026,12 @@ every other event that colleague runs.
 password.
 
 > Until this audit the table above said only "Invite by email", and
-> `web/src/lib/api/client.ts` sends only the address — so every invitation from the
-> console is a `400 request.invalid`. See §9.
+> `web/src/lib/api/client.ts` sent only the address — so every invitation from the
+> console was a `400 request.invalid`. Both halves are fixed: the table says what the
+> schema requires, and the panel now has the password field
+> (`web/src/features/admin/ModeratorsPanel.tsx`), asserted by
+> `ModeratorsPanel.test.tsx` and by the client→server body contract test in
+> `src/interface/http/presenters/requestContract.test.ts`.
 
 ### `DELETE /api/events/:slug/moderators/:userId`
 
@@ -1124,12 +1184,28 @@ Rules the implementation must keep:
 - **The payload is an invalidation signal, not data.** The client refetches the wall or
   the queue. Pushing rows would mean two divergent code paths for the same state and an
   authorization decision on the push side.
-- Subscribers are capped per event — 200 by default — and the cap must be answered with
-  **`503`, never a silent leak**. This is the one rule in this list the implementation
-  does not keep today; see §9.9.
+- Subscribers are capped per event — 200 by default — and the cap is answered with
+  **`503 service.notReady` and a `Retry-After`, before a single header of the stream is
+  written**. `EventBus.subscribe` returns a `Result`, so a refusal is a value the route
+  has to handle rather than a no-op unsubscribe it cannot tell from a real one. A
+  refused connection is a failed request, never a connection that carries nothing.
 - The response opens with `Content-Type: text/event-stream; charset=utf-8`,
   `Cache-Control: no-cache, no-transform`, `Connection: keep-alive` and a `: connected`
   comment frame, so a client behind a buffering proxy learns immediately that bytes flow.
+
+**Concurrency limits, on both stream routes.** These count what is _held open_, not what
+is spent per minute — a stream holds a socket, an interval and a subscription for the
+whole evening, so requests-per-minute bounds nothing that matters here.
+
+| Bound                                   | Value | Answer                                    |
+| --------------------------------------- | ----- | ----------------------------------------- |
+| Streams open at once per client key     | 12    | `429 rate.limited`                        |
+| Streams open at once across the process | 500   | `503 service.notReady`, `Retry-After: 30` |
+| Subscribers per event, in the bus       | 200   | `503 service.notReady`, `Retry-After`     |
+
+A slot is returned the moment the connection closes, so a client that reloads gets it
+straight back. The client key is the one every other limiter uses, IPv6 collapsed to its
+/56 subnet.
 
 ### `GET /api/events/:slug/moderation/stream`
 
@@ -1142,8 +1218,10 @@ refuses a caller with no session (`401 auth.required`) and a caller with no memb
 rather than data; what differs is who may hold the connection open, and therefore who
 learns that anything is happening at this event at all.
 
-It is the channel a moderation console should subscribe to. Today's console does not —
-see §9.
+It is the channel a moderation console subscribes to, and the console does:
+`api.moderationStreamUrl(slug)` in `web/src/lib/api/client.ts`, used by
+`web/src/features/moderation/hooks/useModerationQueue.ts`. It used to hold the public
+wall channel instead, which worked only because the frames are identical.
 
 ---
 
@@ -1177,6 +1255,11 @@ is authorized per request instead), and no GraphQL.
 > code is wrong and has not been touched — deliberately, because rewriting a
 > specification to agree with a bug is the one outcome an audit must not produce. When
 > one is fixed, the fix moves the behaviour into §1–8 and the entry is deleted from here.
+>
+> **The numbers do not shift when an entry goes**, so a gap means "fixed and removed",
+> not "missing". 9.2 (the moderator invitation the console could not send), 9.6 (the
+> console on the public wall channel) and 9.9 (the SSE subscriber cap failing in
+> silence) have all been fixed and are now described where they belong, in §6 and §7.
 
 Found by an end-to-end audit of every route against
 `src/interface/http/routes/*.ts`, `src/interface/http/schemas/requestSchemas.ts`,
@@ -1184,11 +1267,14 @@ Found by an end-to-end audit of every route against
 papered over: §1 says this document is the specification and one side is a bug, so the
 bug needs a name and a line number.
 
-Every route that exists is now documented, and every route documented exists. Nothing
-here is a missing endpoint; these are the ten places where the code and the intent above
-are not yet the same thing. Items marked **doc corrected above** have been fixed in this
-file. The rest are code defects, and none of them has been touched — rewriting a
-specification to agree with a bug is the one outcome an audit must not produce.
+Every route that exists is documented, and every route documented exists — including
+`DELETE /api/events/:slug`, which had only a table row until this pass and now has the
+contract section §6 gives every other endpoint. Nothing here is a missing endpoint. The
+audit found ten divergences; three have since been fixed and removed, and these seven
+are the places where the code and the intent above are not yet the same thing. Items
+marked **doc corrected above** have been fixed in this file. The rest are code defects,
+and none of them has been touched — rewriting a specification to agree with a bug is the
+one outcome an audit must not produce.
 
 ### 9.1 The per-guest cap sends a code this document invented — **doc corrected above**
 
@@ -1199,19 +1285,6 @@ status — `quotaExceeded` maps to **413**. `web/src/lib/i18n/fr.ts` already car
 for **both** spellings, with a comment saying it is keeping them until the contract picks
 one. It has now picked: `event.photoLimitReached`. The `photo.tooManyForGuest` entry in
 `fr.ts` is dead and can go.
-
-### 9.2 The moderator invitation is unusable from the console — **code defect**
-
-`src/interface/http/schemas/requestSchemas.ts:239` requires `temporaryPassword`, and
-`src/interface/http/routes/eventRoutes.ts:357` parses the body with it.
-`web/src/lib/api/client.ts:183` sends `{ email }` and nothing else, so every invitation
-from `web/src/features/admin/ModeratorsPanel.tsx` is refused with
-`400 request.invalid`. The client also types the response as `ModeratorDto` where the
-server answers `{ userId, created }` at 201.
-
-The contract in §6 is the server's, and it is the right one — there is no mailer, so the
-host has to hand over a credential. The client is the side to fix: a password field in
-the panel, threaded through `useInviteModerator` and `api.inviteModerator`.
 
 ### 9.3 `activeWithinMinutes` is validated and then ignored — **code defect**
 
@@ -1236,15 +1309,6 @@ its own comment says the route honours them under `E2E_HOOKS=1`. The route
 the real overrides live client-side in
 `web/src/features/wall/hooks/useTimingOverrides.ts`. The comment describes a design that
 is not there, and `HttpConfig.e2eHooks` is plumbed to this and used by nothing.
-
-### 9.6 The moderation console subscribes to the public stream — **code defect**
-
-`web/src/features/moderation/hooks/useModerationQueue.ts:392` uses `api.streamUrl`,
-which is the **public wall** channel (`web/src/lib/api/client.ts:193`).
-`GET /api/events/:slug/moderation/stream` (`streamRoutes.ts:219`) is implemented,
-authorized and unused. The frames are identical so nothing is visibly broken, but the
-console holds an unauthenticated connection to an endpoint whose whole point is that the
-authorized one exists.
 
 ### 9.7 `ModerationPhotoDto` differs between the two declarations — **drift**
 
@@ -1279,27 +1343,6 @@ how likely anyone is to hit them:
 
 `server.unexpected` deliberately has none: it falls through to the generic sentence,
 which is the correct copy for a bug.
-
-### 9.9 The SSE subscriber cap fails silently instead of answering 503 — **code defect**
-
-The most serious item on this list, and the one §7 is left stating as intent.
-
-`src/infrastructure/realtime/inMemoryEventBus.ts:70` refuses a subscription past
-`maxSubscribersPerEvent` (200 by default) by logging a warning and returning a **no-op
-unsubscribe**, with a comment saying "the HTTP layer decides whether to answer 503".
-`src/interface/http/routes/streamRoutes.ts:148` calls `bus.subscribe` and ignores what
-comes back. The HTTP layer never decides anything.
-
-What a projector gets when an event is over the cap: `200`, the headers, `: connected`,
-and a heartbeat comment every fifteen seconds — for the rest of the night, without a
-single `change` frame. It looks connected to the client, to the browser's network panel,
-and to the `connected` flag `useEventStream` exposes. The wall simply stops updating.
-
-That is trap §9.3 in CLAUDE.md ("SSE dies silently behind proxies") reproduced on our own
-side of the wire, and it is worse than the proxy version because there is no dropped
-connection for a reconnect to notice. The fix belongs in `openStream`: `subscribe` has to
-report refusal, and the route has to answer `503 service.notReady` before it writes any
-headers.
 
 ### 9.10 Two use cases are wired into the container with no route in front of them
 
