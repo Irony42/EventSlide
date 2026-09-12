@@ -19,6 +19,7 @@ import { makeBootstrapOwner } from '../application/usecases/auth/bootstrapOwner'
 import { makeChangePassword } from '../application/usecases/auth/changePassword'
 import { makeRegisterModerator } from '../application/usecases/auth/registerModerator'
 
+import { makeApplyEventSchedules } from '../application/usecases/events/applyEventSchedules'
 import { makeChangeEventStatus } from '../application/usecases/events/changeEventStatus'
 import { makeCreateEvent } from '../application/usecases/events/createEvent'
 import { makeGetEventBySlug } from '../application/usecases/events/getEventBySlug'
@@ -27,6 +28,7 @@ import { makePurgeEvent } from '../application/usecases/events/purgeEvent'
 import { makePurgeExpiredEvents } from '../application/usecases/events/purgeExpiredEvents'
 import { makeResolveJoinCode } from '../application/usecases/events/resolveJoinCode'
 import { makeRotateJoinCode } from '../application/usecases/events/rotateJoinCode'
+import { makeScheduleEvent } from '../application/usecases/events/scheduleEvent'
 import { makeUpdateEventSettings } from '../application/usecases/events/updateEventSettings'
 
 import { makeAuthenticateGuest } from '../application/usecases/guests/authenticateGuest'
@@ -159,6 +161,18 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   purgeExpiredEvents: makePurgeExpiredEvents({
     events: adapters.events,
     media: adapters.media,
+    clock: adapters.clock,
+  }),
+  scheduleEvent: makeScheduleEvent({
+    events: adapters.events,
+    memberships: adapters.memberships,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  /** The sweep behind the two scheduled instants. No actor: `src/main` drives it. */
+  applyEventSchedules: makeApplyEventSchedules({
+    events: adapters.events,
+    bus: adapters.bus,
     clock: adapters.clock,
   }),
 

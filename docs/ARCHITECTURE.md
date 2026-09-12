@@ -20,8 +20,11 @@ design. Companions: [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md) (rul
 > `image.tooManyPixels` (§3, step 18). Read a claim here as describing the code, not as
 > describing a passing suite.
 >
-> Mechanisms described here but not yet wired are marked **[planned]**. There are
-> exactly two: the retention purge job (§5) and readiness draining on shutdown (§8).
+> Mechanisms described here but not yet wired are marked **[planned]**. The retention
+> purge job is no longer one of them: `src/main/retentionSweeper.ts` drives it on an
+> interval and `container.ts` builds it. The scheduled open and close (§5) arrived the
+> same way and is wired the same way, in `src/main/scheduleSweeper.ts`. Readiness
+> draining on shutdown (§8) is still planned.
 
 ---
 
@@ -230,22 +233,22 @@ production adapter and one in-memory fake. Both are verified against the **same*
 suite in `src/application/testing/contracts/` — that is what keeps the fakes honest.
 Adding a port method means adding a contract case.
 
-| Port                 | Responsibility                                                            | Production adapter                         | Test fake                                                                                     |
-| -------------------- | ------------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `EventRepository`    | Events by id / slug / join code; slug and join-code uniqueness            | `db/sqliteEventRepository.ts`              | `FakeEventRepository` (enforces the same uniqueness)                                          |
-| `PhotoRepository`    | Event-scoped CRUD, status filters, `countBytes`, `findByContentHash`      | `db/sqlitePhotoRepository.ts`              | `FakePhotoRepository` (keyed `${eventId}:${photoId}`, so a cross-event read genuinely misses) |
-| `GuestRepository`    | Event-scoped device identity and display name                             | `db/sqliteGuestRepository.ts`              | `FakeGuestRepository`                                                                         |
-| `UserRepository`     | Host/moderator accounts and per-event role membership                     | `db/sqliteUserRepository.ts`               | `FakeUserRepository`                                                                          |
-| `ReactionRepository` | Event-scoped reactions, one per guest per photo                           | `db/sqliteReactionRepository.ts`           | `FakeReactionRepository`                                                                      |
-| `MediaStore`         | `put`/`get`/`delete`/`stat` of content-addressed bytes                    | `media/filesystemMediaStore.ts`            | `InMemoryMediaStore` (byte buffers, reports sizes)                                            |
-| `ImageProcessor`     | `probe` (magic bytes + dimensions), `transcode` (rotate → strip → resize) | `media/sharpImageProcessor.ts`             | `FakeImageProcessor` (deterministic metadata, simulates rotation and failure)                 |
-| `PasswordHasher`     | Hash and verify host credentials                                          | `crypto/bcryptPasswordHasher.ts`, cost 12  | `FakePasswordHasher` (`hash:<password>` — no bcrypt cost in tests)                            |
-| `TokenService`       | Sign and verify event-scoped guest device tokens                          | `crypto/hmacTokenService.ts`, HMAC-SHA-256 | `FakeTokenService` (`token:<eventId>:<guestId>`)                                              |
-| `IdGenerator`        | Opaque, non-enumerable application ids                                    | `crypto/cryptoIdGenerator.ts`              | `SequentialIdGenerator` (`id-1`, `id-2` — readable assertions)                                |
-| `Clock`              | `now(): Date`                                                             | `time/systemClock.ts`                      | `FakeClock` (`advance(ms)`)                                                                   |
-| `EventBus`           | Publish/subscribe domain events in-process                                | `realtime/inMemoryEventBus.ts`             | `RecordingEventBus` (`published: DomainEvent[]`)                                              |
-| `Logger`             | Structured logging with `requestId`                                       | `logging/pinoLogger.ts`                    | `CapturingLogger` (assert a warning was emitted, never a message string)                      |
-| `ArchiveBuilder`     | Stream an event's album as a zip                                          | `archive/archiverAlbumArchiver.ts`         | `FakeArchiveBuilder` (records the entries requested)                                          |
+| Port                 | Responsibility                                                                                                                   | Production adapter                         | Test fake                                                                                     |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `EventRepository`    | Events by id / slug / join code; slug and join-code uniqueness; the two sweep listings (`listDueForPurge`, `listDueForSchedule`) | `db/sqliteEventRepository.ts`              | `FakeEventRepository` (enforces the same uniqueness)                                          |
+| `PhotoRepository`    | Event-scoped CRUD, status filters, `countBytes`, `findByContentHash`                                                             | `db/sqlitePhotoRepository.ts`              | `FakePhotoRepository` (keyed `${eventId}:${photoId}`, so a cross-event read genuinely misses) |
+| `GuestRepository`    | Event-scoped device identity and display name                                                                                    | `db/sqliteGuestRepository.ts`              | `FakeGuestRepository`                                                                         |
+| `UserRepository`     | Host/moderator accounts and per-event role membership                                                                            | `db/sqliteUserRepository.ts`               | `FakeUserRepository`                                                                          |
+| `ReactionRepository` | Event-scoped reactions, one per guest per photo                                                                                  | `db/sqliteReactionRepository.ts`           | `FakeReactionRepository`                                                                      |
+| `MediaStore`         | `put`/`get`/`delete`/`stat` of content-addressed bytes                                                                           | `media/filesystemMediaStore.ts`            | `InMemoryMediaStore` (byte buffers, reports sizes)                                            |
+| `ImageProcessor`     | `probe` (magic bytes + dimensions), `transcode` (rotate → strip → resize)                                                        | `media/sharpImageProcessor.ts`             | `FakeImageProcessor` (deterministic metadata, simulates rotation and failure)                 |
+| `PasswordHasher`     | Hash and verify host credentials                                                                                                 | `crypto/bcryptPasswordHasher.ts`, cost 12  | `FakePasswordHasher` (`hash:<password>` — no bcrypt cost in tests)                            |
+| `TokenService`       | Sign and verify event-scoped guest device tokens                                                                                 | `crypto/hmacTokenService.ts`, HMAC-SHA-256 | `FakeTokenService` (`token:<eventId>:<guestId>`)                                              |
+| `IdGenerator`        | Opaque, non-enumerable application ids                                                                                           | `crypto/cryptoIdGenerator.ts`              | `SequentialIdGenerator` (`id-1`, `id-2` — readable assertions)                                |
+| `Clock`              | `now(): Date`                                                                                                                    | `time/systemClock.ts`                      | `FakeClock` (`advance(ms)`)                                                                   |
+| `EventBus`           | Publish/subscribe domain events in-process                                                                                       | `realtime/inMemoryEventBus.ts`             | `RecordingEventBus` (`published: DomainEvent[]`)                                              |
+| `Logger`             | Structured logging with `requestId`                                                                                              | `logging/pinoLogger.ts`                    | `CapturingLogger` (assert a warning was emitted, never a message string)                      |
+| `ArchiveBuilder`     | Stream an event's album as a zip                                                                                                 | `archive/archiverAlbumArchiver.ts`         | `FakeArchiveBuilder` (records the entries requested)                                          |
 
 Port design rules: **no storage vocabulary** — no `WHERE`, no row types, no `Statement`;
 an interface that mentions SQLite is not a port. **`eventId` comes first** on every
@@ -273,7 +276,7 @@ assert on codes and never on messages.
 
 | Kind   | Type                         | Lives in                               | Invariant it owns                                                                                  |
 | ------ | ---------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Entity | `Event`                      | `events/event.ts`                      | Lifecycle transitions, `acceptsUploads(now)`, settings coherence                                   |
+| Entity | `Event`                      | `events/event.ts`                      | Lifecycle transitions, `acceptsUploads(now)`, settings coherence, the scheduled open/close         |
 | Entity | `Photo`                      | `photos/photo.ts`                      | Status transitions, ownership, immutable dimensions                                                |
 | Entity | `Guest`                      | `guests/guest.ts`                      | Belongs to exactly one event; display-name rules                                                   |
 | Entity | `User` + `Membership`        | `users/`                               | A role is always _per event_; there is no global admin                                             |
@@ -332,6 +335,32 @@ draft ──publish()──► live ──close()──► closed ──archive(
 promise the storage layer cannot keep. `Event.acceptsUploads(now)` is the single
 predicate the upload use case calls, so "why was my upload refused" has one place to read.
 
+### The lifecycle on a timer
+
+`scheduled_open_at` and `scheduled_close_at` let a host say "open at 18:00, close at
+02:00". They are **not** `starts_at`, which is the printed start of the party, set at
+creation and read by no rule — reusing it would have armed every event already carrying
+one. `src/main/scheduleSweeper.ts` drives `applyEventSchedules` on an interval
+(`SCHEDULE_SWEEP_INTERVAL_MINUTES`, five minutes, `off` to disable), and every transition
+it makes goes through `Event.transitionTo`, so the table above is the only authority —
+an archived event does not reopen because a timestamp passed.
+
+Four properties are worth knowing before touching it:
+
+- The instants are **deadlines, not appointments** (`now >= instant`), so a window missed
+  while the box was down is honoured at the next sweep rather than skipped.
+- An instant that has **already gone by is refused when it is set** (`event.scheduleInPast`),
+  judged to the minute. The two rules do not conflict: a stored instant is never
+  re-validated, so only the moment of setting is guarded.
+- A due instant is **spent** once acted on, applied or refused, which is what makes the
+  sweep idempotent and what stops an impossible schedule being retried forever. A refusal
+  stamps `schedule_discarded_at`, because otherwise it would delete something the host
+  configured with nothing but a log line to show for it.
+- The sweep is a **read-modify-write with no optimistic concurrency**, and relies on the
+  synchronous single-process `better-sqlite3` adapter for that to be safe. The reasoning,
+  and what a different adapter would owe, is written out in
+  `application/usecases/events/applyEventSchedules.ts`.
+
 ---
 
 ## 6. Data model
@@ -347,16 +376,16 @@ Conventions: `snake_case` plural tables; primary keys are application-generated 
 timestamps are ISO-8601 UTC `TEXT` (sorts lexicographically, readable in a dump, no
 timezone ambiguity); booleans `INTEGER 0/1`; closed enums get a `CHECK`.
 
-| Table               | Primary key            | Key columns                                                                                                                         | Indexes                                                                                                          |
-| ------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `events`            | `id TEXT`              | `slug`, `name`, `join_code`, `status`, `settings` (JSON `TEXT`), `quota_bytes INTEGER`, `created_at`, `updated_at`                  | `UNIQUE(slug)`, `UNIQUE(join_code)`, `(status, created_at DESC)`                                                 |
-| `users`             | `id TEXT`              | `email` (normalised lowercase), `password_hash`, `created_at`                                                                       | `UNIQUE(email)`                                                                                                  |
-| `event_members`     | `(event_id, user_id)`  | `role TEXT CHECK (role IN ('host','moderator'))`, `created_at`                                                                      | `(event_id, role)`, `(user_id)`                                                                                  |
-| `guests`            | `id TEXT`              | `event_id`, `display_name`, `token_hash`, `created_at`, `last_seen_at`                                                              | `(event_id, created_at DESC)`, `UNIQUE(event_id, token_hash)`                                                    |
-| `photos`            | `id TEXT`              | `event_id`, `guest_id`, `status CHECK (…)`, `content_hash`, `caption`, `width`, `height`, `byte_size`, `created_at`, `moderated_at` | `(event_id, status, created_at DESC)`, `UNIQUE(event_id, content_hash)`, `(event_id, guest_id, created_at DESC)` |
-| `reactions`         | `(photo_id, guest_id)` | `event_id`, `emoji CHECK (…)`, `created_at`                                                                                         | `(event_id, photo_id)`                                                                                           |
-| `sessions`          | `sid TEXT`             | `expires_at`, `data TEXT`                                                                                                           | `(expires_at)` for the sweeper                                                                                   |
-| `schema_migrations` | `id INTEGER`           | `name`, `checksum`, `applied_at`                                                                                                    | —                                                                                                                |
+| Table               | Primary key            | Key columns                                                                                                                                                                            | Indexes                                                                                                                    |
+| ------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `events`            | `id TEXT`              | `slug`, `name`, `join_code`, `status`, `settings` (JSON `TEXT`), `quota_bytes INTEGER`, `created_at`, `updated_at`, `scheduled_open_at`, `scheduled_close_at`, `schedule_discarded_at` | `UNIQUE(slug)`, `UNIQUE(join_code)`, `(status, created_at DESC)`, partial `(scheduled_open_at)` and `(scheduled_close_at)` |
+| `users`             | `id TEXT`              | `email` (normalised lowercase), `password_hash`, `created_at`                                                                                                                          | `UNIQUE(email)`                                                                                                            |
+| `event_members`     | `(event_id, user_id)`  | `role TEXT CHECK (role IN ('host','moderator'))`, `created_at`                                                                                                                         | `(event_id, role)`, `(user_id)`                                                                                            |
+| `guests`            | `id TEXT`              | `event_id`, `display_name`, `token_hash`, `created_at`, `last_seen_at`                                                                                                                 | `(event_id, created_at DESC)`, `UNIQUE(event_id, token_hash)`                                                              |
+| `photos`            | `id TEXT`              | `event_id`, `guest_id`, `status CHECK (…)`, `content_hash`, `caption`, `width`, `height`, `byte_size`, `created_at`, `moderated_at`                                                    | `(event_id, status, created_at DESC)`, `UNIQUE(event_id, content_hash)`, `(event_id, guest_id, created_at DESC)`           |
+| `reactions`         | `(photo_id, guest_id)` | `event_id`, `emoji CHECK (…)`, `created_at`                                                                                                                                            | `(event_id, photo_id)`                                                                                                     |
+| `sessions`          | `sid TEXT`             | `expires_at`, `data TEXT`                                                                                                                                                              | `(expires_at)` for the sweeper                                                                                             |
+| `schema_migrations` | `id INTEGER`           | `name`, `checksum`, `applied_at`                                                                                                                                                       | —                                                                                                                          |
 
 Two rules explain most of that index list. **Every event-scoped table carries**
 `event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE`. **Every event-scoped
@@ -555,6 +584,12 @@ const schema = z.object({
   MAX_UPLOAD_FILES: z.coerce.number().int().min(1).max(50).default(10),
   MAX_IMAGE_PIXELS: z.coerce.number().int().positive().default(50_000_000),
   TRUST_PROXY: z.coerce.boolean().default(false),
+  // The two in-process sweeps. Both take a whole number of minutes **or the word
+  // `off`** — never 0, because `Number('')` is 0 and a dangling `VAR=` in a compose
+  // file would silently switch one off, which is the failure whose only symptom is
+  // that nothing happens. Both default to `off` under NODE_ENV=test.
+  RETENTION_SWEEP_INTERVAL_MINUTES: sweepInterval(…), // 60
+  SCHEDULE_SWEEP_INTERVAL_MINUTES: sweepInterval(…), // 5
   // …DEFAULT_EVENT_QUOTA_BYTES, GUEST_DELETE_GRACE_SECONDS, LOG_LEVEL,
   //   PUBLIC_BASE_URL, SHUTDOWN_TIMEOUT_MS
 })

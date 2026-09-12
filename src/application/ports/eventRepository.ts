@@ -36,7 +36,16 @@ export interface EventRepository {
   /** Events the user owns or moderates, newest first. */
   listForUser(userId: UserId): Promise<readonly EventSummary[]>
 
-  /** Insert or update. The unique indexes on slug and join code are the real guard. */
+  /**
+   * Insert or update. The unique indexes on slug and join code are the real guard.
+   *
+   * **Last write wins, over the whole row.** There is no version column and no
+   * compare-and-set, which is safe only because the production adapter is synchronous
+   * and single-process: `applyEventSchedules` does a read-modify-write over this method
+   * and would otherwise be able to revert a concurrent rename. An adapter that is
+   * genuinely asynchronous or admits a second writer has to add optimistic concurrency
+   * and revisit that use case — the reasoning is written out there.
+   */
   save(event: Event): Promise<void>
 
   /**
@@ -52,4 +61,14 @@ export interface EventRepository {
 
   /** Closed or archived events whose retention deadline has passed. */
   listDueForPurge(now: Date): Promise<readonly Event[]>
+
+  /**
+   * Events carrying a scheduled opening or closing whose instant has passed.
+   *
+   * `<=`, never `=`: the sweep that should have run at 18:00 may not have run at all,
+   * and an event that stayed shut because the box was rebooting is the defect this
+   * exists to remove. Whether the transition is legal is the aggregate's business —
+   * this only narrows the rows worth looking at.
+   */
+  listDueForSchedule(now: Date): Promise<readonly Event[]>
 }

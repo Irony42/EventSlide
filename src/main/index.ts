@@ -15,8 +15,9 @@ import { createContainer, type Container } from './container'
  *     hardcoded admin/password account, which `initDatabase()` recreated on every boot.
  *  4. Build the HTTP app, then listen.
  *  5. Install the shutdown handlers.
- *  6. Start the retention sweep, which is the only thing in the process that acts on an
- *     event's `retentionDays` on its own.
+ *  6. Start the two sweeps: retention, the only thing in the process that acts on an
+ *     event's `retentionDays` on its own, and scheduling, the only thing that acts on a
+ *     scheduled opening or closing.
  */
 
 const shutdownGrace = 15_000
@@ -74,6 +75,9 @@ const bootstrap = async (): Promise<void> => {
   // already has somewhere to land. The first sweep is one interval away, never now —
   // a restart mid-event must not begin deleting albums while the party is uploading.
   container.retention?.start()
+  // Same reasoning, and the first sweep is likewise one interval away: a restart at
+  // 18:02 must not decide the state of the evening before the shutdown handlers exist.
+  container.schedule?.start()
 }
 
 /**

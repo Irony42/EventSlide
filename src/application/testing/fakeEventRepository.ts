@@ -145,4 +145,14 @@ export class FakeEventRepository implements EventRepository {
   async listDueForPurge(now: Date): Promise<readonly Event[]> {
     return [...this.rows.values()].filter((event) => event.isDueForPurge(now)).sort(newestFirst)
   }
+
+  /**
+   * Unlike `listDueForPurge`, this one *is* expressible as a SQL predicate — the two
+   * instants are their own columns — so the adapter narrows in the database and this
+   * asks the entity. Both answer the same `now >= instant`, and the contract suite is
+   * what keeps them saying so.
+   */
+  async listDueForSchedule(now: Date): Promise<readonly Event[]> {
+    return [...this.rows.values()].filter((event) => event.hasDueSchedule(now)).sort(newestFirst)
+  }
 }

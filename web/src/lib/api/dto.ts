@@ -151,6 +151,19 @@ export interface EventDto extends EventSummaryDto {
   readonly settings: EventSettingsDto
   readonly startsAt: string | null
   readonly closedAt: string | null
+  /**
+   * When the event opens and closes by itself, as ISO-8601 instants, or `null` for
+   * "the host does it". Not `startsAt`, which is the printed start of the party and
+   * moves nothing.
+   */
+  readonly scheduledOpenAt: string | null
+  readonly scheduledCloseAt: string | null
+  /**
+   * When a sweep last threw a due instant away because the lifecycle refused it, or
+   * `null`. Rendered as a notice on the settings page: the schedule the host set is
+   * gone, and this is the only thing that says so. Saving any schedule clears it.
+   */
+  readonly scheduleDiscardedAt: string | null
   readonly role: EventRole
 }
 

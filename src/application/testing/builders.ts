@@ -101,6 +101,9 @@ export interface EventInput {
   readonly createdAt?: Date
   readonly startsAt?: Date | null
   readonly closedAt?: Date | null
+  readonly scheduledOpenAt?: Date | null
+  readonly scheduledCloseAt?: Date | null
+  readonly scheduleDiscardedAt?: Date | null
 }
 
 const toSettings = (input: EventSettings | EventSettingsPatch): EventSettings =>
@@ -141,6 +144,12 @@ export const anEvent = (input: EventInput = {}): Event => {
     ...created.toProps(),
     status,
     closedAt: pick(input.closedAt, retentionApplies(status) ? createdAt : null),
+    // Both empty by default: an event that opens or closes on its own is the exception,
+    // and a fixture that armed one would move events out from under tests about
+    // something else.
+    scheduledOpenAt: pick(input.scheduledOpenAt, null),
+    scheduledCloseAt: pick(input.scheduledCloseAt, null),
+    scheduleDiscardedAt: pick(input.scheduleDiscardedAt, null),
   })
 }
 

@@ -3,6 +3,7 @@ import { useApi } from '../../../app/useApi'
 import { useAction, type ActionState } from './useAction'
 import type {
   CreateEventInput,
+  EventScheduleInput,
   ModeratorInvitationInput,
   ModeratorInviteResponse,
 } from '../../../lib/api/client'
@@ -43,6 +44,22 @@ export const useSaveSettings = (): ActionState<[string, Partial<EventSettingsDto
   return useAction(
     useCallback(
       (slug: string, settings: Partial<EventSettingsDto>) => api.updateSettings(slug, settings),
+      [api],
+    ),
+  )
+}
+
+/**
+ * Separate from `useSaveSettings` because they are two endpoints and two rules: the
+ * schedule lives on the event itself, not in `EventSettings`, and its refusals —
+ * "a closing before an opening" — belong to the aggregate, not to the settings value
+ * object.
+ */
+export const useSaveSchedule = (): ActionState<[string, EventScheduleInput], EventDto> => {
+  const api = useApi()
+  return useAction(
+    useCallback(
+      (slug: string, schedule: EventScheduleInput) => api.setSchedule(slug, schedule),
       [api],
     ),
   )

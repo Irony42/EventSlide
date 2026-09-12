@@ -11,6 +11,7 @@ import { makeGetEventBySlug } from '../../../application/usecases/events/getEven
 import { makeListEventsForHost } from '../../../application/usecases/events/listEventsForHost'
 import { makePurgeEvent } from '../../../application/usecases/events/purgeEvent'
 import { makeRotateJoinCode } from '../../../application/usecases/events/rotateJoinCode'
+import { makeScheduleEvent } from '../../../application/usecases/events/scheduleEvent'
 import { makeUpdateEventSettings } from '../../../application/usecases/events/updateEventSettings'
 import { makeListGuests } from '../../../application/usecases/guests/listGuests'
 import { makeRevokeGuest } from '../../../application/usecases/guests/revokeGuest'
@@ -59,6 +60,16 @@ const DEFAULT_QUOTA_BYTES = 2_000_000_000
 
 /** What the host types into the invitation form and reads out to the invitee. */
 const TEMPORARY_PASSWORD = 'mot-de-passe-provisoire'
+
+/**
+ * Two instants ahead of the harness clock ({@link AT}, 21:00), already resolved by the
+ * browser. Ahead of it on purpose: the domain refuses a schedule that has already gone
+ * by, so a fixture in the past would exercise that refusal rather than the happy path.
+ */
+const SCHEDULED_OPEN_AT = '2026-06-20T22:00:00.000Z'
+const SCHEDULED_CLOSE_AT = '2026-06-21T04:00:00.000Z'
+/** Before the harness clock: what the host sends when they forget to advance the date. */
+const ALREADY_PAST = '2026-06-20T02:00:00.000Z'
 
 const notPartOfTheseRoutes = (method: string): never => {
   throw new Error(`MediaStore.${method} is not part of the host's event routes`)
@@ -169,6 +180,12 @@ const buildWorld = (): World => {
         updateEventSettings: makeUpdateEventSettings({ events, memberships, bus: deps.bus }),
         rotateJoinCode: makeRotateJoinCode({ events, memberships, ids, bus: deps.bus }),
         changeEventStatus: makeChangeEventStatus({
+          events,
+          memberships,
+          bus: deps.bus,
+          clock: deps.clock,
+        }),
+        scheduleEvent: makeScheduleEvent({
           events,
           memberships,
           bus: deps.bus,
@@ -331,6 +348,14 @@ const ROUTES: readonly RouteCase[] = [
     call: (client, slug) => client.post(`/api/events/${slug}/status`).send({ status: 'live' }),
   },
   {
+    name: 'PATCH /events/:slug/schedule',
+    requires: 'owner',
+    call: (client, slug) =>
+      client
+        .patch(`/api/events/${slug}/schedule`)
+        .send({ scheduledOpenAt: SCHEDULED_OPEN_AT, scheduledCloseAt: SCHEDULED_CLOSE_AT }),
+  },
+  {
     name: 'POST /events/:slug/join-code',
     requires: 'owner',
     call: (client, slug) => client.post(`/api/events/${slug}/join-code`),
@@ -403,6 +428,20 @@ const INVALID_INPUTS: readonly InputCase[] = [
   {
     name: 'POST /events/:slug/status with a status outside the enum',
     call: (client) => client.post(`/api/events/${SLUG}/status`).send({ status: 'annule' }),
+  },
+  {
+    // A wall-clock time with no offset. The server has no idea what time it is at the
+    // venue, so a string it would have to guess at is refused rather than interpreted.
+    name: 'PATCH /events/:slug/schedule with a time carrying no timezone',
+    call: (client) =>
+      client
+        .patch(`/api/events/${SLUG}/schedule`)
+        .send({ scheduledOpenAt: '2026-06-20T18:00:00', scheduledCloseAt: null }),
+  },
+  {
+    name: 'PATCH /events/:slug/schedule with only half the schedule',
+    call: (client) =>
+      client.patch(`/api/events/${SLUG}/schedule`).send({ scheduledOpenAt: SCHEDULED_OPEN_AT }),
   },
   {
     name: 'GET /events/:slug/guests with an unexpected query parameter',
@@ -732,6 +771,141 @@ describe('the host event routes', () => {
         retentionDays: 7,
         maxPhotosPerGuest: 5,
       })
+    })
+  })
+
+  describe('PATCH /api/events/:slug/schedule', () => {
+    it('stores both instants and answers with the event carrying them', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/schedule`)
+        .send({ scheduledOpenAt: SCHEDULED_OPEN_AT, scheduledCloseAt: SCHEDULED_CLOSE_AT })
+
+      expect(response.status).toBe(200)
+      expect(response.body.scheduledOpenAt).toBe(SCHEDULED_OPEN_AT)
+      expect(response.body.scheduledCloseAt).toBe(SCHEDULED_CLOSE_AT)
+      expect((await world.events.findById(WEDDING))?.scheduledOpenAt).toEqual(
+        new Date(SCHEDULED_OPEN_AT),
+      )
+    })
+
+    it('accepts a null half, which is a host who will do that one by hand', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/schedule`)
+        .send({ scheduledOpenAt: SCHEDULED_OPEN_AT, scheduledCloseAt: null })
+
+      expect(response.status).toBe(200)
+      expect(response.body.scheduledCloseAt).toBeNull()
+    })
+
+    it('clears the schedule when both halves are null', async () => {
+      const agent = await signedIn(world, 'owner')
+      await agent
+        .patch(`/api/events/${SLUG}/schedule`)
+        .send({ scheduledOpenAt: SCHEDULED_OPEN_AT, scheduledCloseAt: SCHEDULED_CLOSE_AT })
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/schedule`)
+        .send({ scheduledOpenAt: null, scheduledCloseAt: null })
+
+      expect(response.status).toBe(200)
+      expect(response.body.scheduledOpenAt).toBeNull()
+      expect(response.body.scheduledCloseAt).toBeNull()
+    })
+
+    it('answers 400 for a closing that comes before the opening', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/schedule`)
+        .send({ scheduledOpenAt: SCHEDULED_CLOSE_AT, scheduledCloseAt: SCHEDULED_OPEN_AT })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('event.scheduleOutOfOrder')
+    })
+
+    it('answers 400 for an instant that has already gone by', async () => {
+      // The host arms the closing at 21:30 and leaves the date on today. Nothing below
+      // this route would have stopped it, and the sweep would end the party.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/schedule`)
+        .send({ scheduledOpenAt: null, scheduledCloseAt: ALREADY_PAST })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('event.scheduleInPast')
+      expect((await world.events.findById(WEDDING))?.scheduledCloseAt).toBeNull()
+    })
+
+    it('accepts an instant carrying an offset other than Z', async () => {
+      // A third-party client in Paris sends `+02:00`, which is an ordinary RFC-3339
+      // instant. `z.string().datetime()` without `{ offset: true }` refuses it, and the
+      // contract in docs/API.md §6 says it is accepted.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/schedule`)
+        .send({ scheduledOpenAt: '2026-06-21T00:00:00+02:00', scheduledCloseAt: null })
+
+      expect(response.status).toBe(200)
+      // Normalised to UTC on the way out: 00:00+02:00 is 22:00Z the day before.
+      expect(response.body.scheduledOpenAt).toBe('2026-06-20T22:00:00.000Z')
+    })
+
+    it('reports a schedule the sweep threw away, so the host learns it is gone', async () => {
+      const agent = await signedIn(world, 'owner')
+      world.events.seed(
+        anEvent({
+          id: WEDDING,
+          ownerId: OWNER,
+          slug: SLUG,
+          joinCode: 'H7K2QM',
+          status: 'draft',
+          scheduleDiscardedAt: AT,
+        }),
+      )
+
+      const response = await agent.get(`/api/events/${SLUG}`)
+
+      expect(response.body.scheduleDiscardedAt).toBe(AT.toISOString())
+    })
+
+    it('clears that notice when the host saves a new schedule', async () => {
+      const agent = await signedIn(world, 'owner')
+      world.events.seed(
+        anEvent({
+          id: WEDDING,
+          ownerId: OWNER,
+          slug: SLUG,
+          joinCode: 'H7K2QM',
+          status: 'draft',
+          scheduleDiscardedAt: AT,
+        }),
+      )
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/schedule`)
+        .send({ scheduledOpenAt: SCHEDULED_OPEN_AT, scheduledCloseAt: null })
+
+      expect(response.status).toBe(200)
+      expect(response.body.scheduleDiscardedAt).toBeNull()
+    })
+
+    it('reports the schedule on every later read of the event', async () => {
+      const agent = await signedIn(world, 'owner')
+      await agent
+        .patch(`/api/events/${SLUG}/schedule`)
+        .send({ scheduledOpenAt: SCHEDULED_OPEN_AT, scheduledCloseAt: SCHEDULED_CLOSE_AT })
+
+      const response = await agent.get(`/api/events/${SLUG}`)
+
+      expect(response.body.scheduledOpenAt).toBe(SCHEDULED_OPEN_AT)
+      // Untouched by the schedule: `startsAt` is the printed start of the party.
+      expect(response.body.startsAt).toBeNull()
     })
   })
 

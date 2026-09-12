@@ -21,6 +21,7 @@ import type { GuestListResponseDto } from '../presenters/dto'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   createEventBody,
+  eventScheduleBody,
   eventSlugParams,
   eventStatusBody,
   guestListQuery,
@@ -239,6 +240,28 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
         eventId: scope.event.id,
         actorId: scope.user.userId,
         status: body.status,
+      })
+
+      await sendEvent(res, result, { userId: scope.user.userId, role: scope.role })
+    }),
+  )
+
+  router.patch(
+    '/events/:eventSlug/schedule',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScope(req.context)
+      const body = eventScheduleBody.parse(req.body)
+
+      // Parsed into `Date` here and nowhere else: the schema has already established
+      // that each string is an ISO-8601 instant with an offset, so this cannot produce
+      // an invalid date — and the aggregate refuses one anyway, because a handler is
+      // not where that guarantee should live.
+      const result = await usecases.scheduleEvent({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        scheduledOpenAt: body.scheduledOpenAt === null ? null : new Date(body.scheduledOpenAt),
+        scheduledCloseAt: body.scheduledCloseAt === null ? null : new Date(body.scheduledCloseAt),
       })
 
       await sendEvent(res, result, { userId: scope.user.userId, role: scope.role })

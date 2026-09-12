@@ -127,6 +127,9 @@ export const anEventDto = (overrides: Partial<EventDto> = {}): EventDto => ({
   settings: eventSettings(),
   startsAt: null,
   closedAt: null,
+  scheduledOpenAt: null,
+  scheduledCloseAt: null,
+  scheduleDiscardedAt: null,
   role: 'owner',
   ...overrides,
 })
@@ -178,6 +181,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   renameEvent: vi.fn(async () => anEventDto()),
   updateSettings: vi.fn(async () => anEventDto()),
   setEventStatus: vi.fn(async () => anEventDto()),
+  setSchedule: vi.fn(async () => anEventDto()),
   rotateJoinCode: vi.fn(async () => anEventDto()),
   purgeEvent: vi.fn(async () => undefined),
 

@@ -383,6 +383,35 @@ export const fr = {
     purgeConfirmLabel: 'Adresse de l’évènement',
     purgeConfirmHint: (slug: string) => `Saisissez « ${slug} » pour confirmer la suppression.`,
     purged: (name: string) => `${name} a été supprimé.`,
+
+    /* ------------------------------------------------------------------------
+     * Scheduled opening and closing (docs/ROADMAP.md §3.4).
+     *
+     * Times are typed and shown in the browser's timezone — the host's own laptop,
+     * which is at the venue — so "18:00" means 18:00 where the party is. Only the
+     * instant travels to the server. See web/src/features/admin/eventSchedule.ts.
+     * ---------------------------------------------------------------------- */
+    schedule: 'Ouverture et fermeture automatiques',
+    scheduleHint:
+      'Laissez vide pour ouvrir et clore vous-même. Les heures sont celles de votre ordinateur, donc celles du lieu de la fête.',
+    scheduleOpenAt: 'Ouvrir aux invités le',
+    scheduleCloseAt: 'Clore l’évènement le',
+    scheduleCloseAtHint: 'Les photos et l’album sont conservés : clore n’efface rien.',
+    scheduleSaved: 'L’horaire a été enregistré.',
+    scheduleNone: 'Aucun horaire : vous ouvrez et vous clôturez vous-même.',
+    /** Rendered as a reminder under the fields once a schedule is armed. */
+    scheduleArmed: (opensAt: string, closesAt: string) =>
+      `Ouverture le ${opensAt}, fermeture le ${closesAt}.`,
+    scheduleOpensOnly: (opensAt: string) => `Ouverture le ${opensAt}. Vous clôturerez vous-même.`,
+    scheduleClosesOnly: (closesAt: string) => `Fermeture le ${closesAt}. Vous ouvrirez vous-même.`,
+    scheduleSave: 'Enregistrer l’horaire',
+    /**
+     * The sweep threw a schedule away because the event could not change state then —
+     * an archived event, or a closing on an evening that never started. Says what
+     * happened, and that the host has to act if they still want it.
+     */
+    scheduleDiscarded: (when: string) =>
+      `L’horaire automatique n’a pas pu s’appliquer le ${when} : l’évènement ne pouvait pas changer d’état à ce moment-là. Il a été effacé. Enregistrez-en un nouveau si vous en voulez un.`,
   },
 
   auth: {
@@ -514,6 +543,19 @@ export const fr = {
     'membership.lastOwner': 'Un évènement doit garder au moins un propriétaire.',
     'membership.notFound': 'Cette personne ne modère pas cet évènement.',
     'guest.notFound': 'Cet invité n’apparaît plus dans la liste. Actualisez la page.',
+
+    /* ---- Added by the scheduled open and close (docs/ROADMAP.md §3.4). These live
+            here and not in the `admin` block above because `messageForCode` resolves a
+            server error code against `fr.errors` and nothing else. ---- */
+    'event.scheduleOutOfOrder': 'La fermeture doit venir après l’ouverture.',
+    /**
+     * The likeliest mistake with this form: it is 21:30, the host picks 02:00 for the
+     * closing and leaves the date on today. The sentence names the fix rather than the
+     * rule, because the date field is what they have to change.
+     */
+    'event.scheduleInPast':
+      'Cette heure est déjà passée. Vérifiez la date : pour la fin de soirée, choisissez le lendemain.',
+    'event.scheduleInvalid': 'Ces dates ne sont pas lisibles. Choisissez-les à nouveau.',
   },
 
   /**

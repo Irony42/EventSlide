@@ -4,6 +4,7 @@ import {
   captionBody,
   changePasswordBody,
   createEventBody,
+  eventScheduleBody,
   eventSlugParams,
   eventStatusBody,
   joinBody,
@@ -236,6 +237,78 @@ describe('eventStatusBody', () => {
 
   it('rejects a status the lifecycle does not have', () => {
     expect(eventStatusBody.safeParse({ status: 'paused' }).success).toBe(false)
+  })
+})
+
+describe('eventScheduleBody', () => {
+  const OPEN_AT = '2026-06-20T16:00:00.000Z'
+  const CLOSE_AT = '2026-06-21T00:00:00.000Z'
+
+  it('accepts two instants in UTC', () => {
+    expect(
+      eventScheduleBody.safeParse({ scheduledOpenAt: OPEN_AT, scheduledCloseAt: CLOSE_AT }).success,
+    ).toBe(true)
+  })
+
+  it.each([
+    '2026-06-20T18:00:00+02:00',
+    '2026-06-20T18:00:00-05:00',
+    '2026-06-20T18:00:00.000+02:00',
+  ])('accepts the offset %s, which a client outside UTC naturally sends', (value) => {
+    // Bare `z.string().datetime()` refuses every one of these. It accepted only `Z`
+    // while this schema's own comment and docs/API.md §6 both promised otherwise, so a
+    // third-party client in Paris got `400 request.invalid` for a valid instant.
+    expect(
+      eventScheduleBody.safeParse({ scheduledOpenAt: value, scheduledCloseAt: null }).success,
+    ).toBe(true)
+  })
+
+  it.each(['2026-06-20T18:00:00', '2026-06-20T18:00', '2026-06-20', '20/06/2026 18:00'])(
+    'rejects %p, because the server does not know what time it is at the venue',
+    (value) => {
+      expect(
+        eventScheduleBody.safeParse({ scheduledOpenAt: value, scheduledCloseAt: null }).success,
+      ).toBe(false)
+    },
+  )
+
+  it('accepts null on either half, which is "I will do this one myself"', () => {
+    expect(
+      eventScheduleBody.safeParse({ scheduledOpenAt: null, scheduledCloseAt: CLOSE_AT }).success,
+    ).toBe(true)
+    expect(
+      eventScheduleBody.safeParse({ scheduledOpenAt: null, scheduledCloseAt: null }).success,
+    ).toBe(true)
+  })
+
+  it.each(['scheduledOpenAt', 'scheduledCloseAt'])('requires %s to be present', (key) => {
+    // Not a partial update: both fields are read together on one form, and an absent
+    // key could mean either "leave it alone" or "there is no closing".
+    const body: Record<string, string | null> = {
+      scheduledOpenAt: OPEN_AT,
+      scheduledCloseAt: CLOSE_AT,
+    }
+    delete body[key]
+
+    expect(eventScheduleBody.safeParse(body).success).toBe(false)
+  })
+
+  it('is strict: an unexpected key is refused rather than silently ignored', () => {
+    expect(
+      eventScheduleBody.safeParse({
+        scheduledOpenAt: OPEN_AT,
+        scheduledCloseAt: CLOSE_AT,
+        timezone: 'Europe/Paris',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('does not decide whether the closing follows the opening', () => {
+    // Shape only. The ordering rule, and the "already in the past" rule that needs the
+    // clock, are `Event.reschedule`'s — a `z.refine` here would be a second copy.
+    expect(
+      eventScheduleBody.safeParse({ scheduledOpenAt: CLOSE_AT, scheduledCloseAt: OPEN_AT }).success,
+    ).toBe(true)
   })
 })
 

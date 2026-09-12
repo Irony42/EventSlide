@@ -38,9 +38,12 @@ interface EventRow {
   readonly created_at: string
   readonly starts_at: string | null
   readonly closed_at: string | null
+  readonly scheduled_open_at: string | null
+  readonly scheduled_close_at: string | null
+  readonly schedule_discarded_at: string | null
 }
 
-/** Named rather than positional: eleven columns in the right order by luck is no plan. */
+/** Named rather than positional: fourteen columns in the right order by luck is no plan. */
 interface EventParams {
   readonly id: string
   readonly ownerId: string
@@ -53,6 +56,9 @@ interface EventParams {
   readonly createdAt: string
   readonly startsAt: string | null
   readonly closedAt: string | null
+  readonly scheduledOpenAt: string | null
+  readonly scheduledCloseAt: string | null
+  readonly scheduleDiscardedAt: string | null
 }
 
 interface SummaryRow {
@@ -72,7 +78,8 @@ interface PresenceRow {
 }
 
 const EVENT_COLUMNS = `id, owner_id, name, slug, join_code, status, settings, quota_bytes,
-                       created_at, starts_at, closed_at`
+                       created_at, starts_at, closed_at, scheduled_open_at, scheduled_close_at,
+                       schedule_discarded_at`
 
 const corrupt = (column: string, detail: string): Error =>
   new Error(`Corrupt events.${column} in the database: ${detail}`)
@@ -166,6 +173,9 @@ const toEvent = (row: EventRow): Event =>
     createdAt: fromIsoText(row.created_at),
     startsAt: fromNullableIsoText(row.starts_at),
     closedAt: fromNullableIsoText(row.closed_at),
+    scheduledOpenAt: fromNullableIsoText(row.scheduled_open_at),
+    scheduledCloseAt: fromNullableIsoText(row.scheduled_close_at),
+    scheduleDiscardedAt: fromNullableIsoText(row.schedule_discarded_at),
   })
 
 const toSummary = (row: SummaryRow): EventSummary => ({
@@ -194,6 +204,10 @@ const toParams = (event: Event): EventParams => {
     createdAt: toIsoText(props.createdAt),
     startsAt: props.startsAt === null ? null : toIsoText(props.startsAt),
     closedAt: props.closedAt === null ? null : toIsoText(props.closedAt),
+    scheduledOpenAt: props.scheduledOpenAt === null ? null : toIsoText(props.scheduledOpenAt),
+    scheduledCloseAt: props.scheduledCloseAt === null ? null : toIsoText(props.scheduledCloseAt),
+    scheduleDiscardedAt:
+      props.scheduleDiscardedAt === null ? null : toIsoText(props.scheduleDiscardedAt),
   }
 }
 
@@ -203,6 +217,7 @@ export class SqliteEventRepository implements EventRepository {
   private readonly selectByJoinCode: Database.Statement<[string], EventRow>
   private readonly selectSummaries: Database.Statement<[string, string], SummaryRow>
   private readonly selectDueForPurge: Database.Statement<[string], EventRow>
+  private readonly selectDueForSchedule: Database.Statement<[string, string], EventRow>
   private readonly selectSlug: Database.Statement<[string], PresenceRow>
   private readonly selectJoinCode: Database.Statement<[string], PresenceRow>
   private readonly upsert: Database.Statement<EventParams>
@@ -265,6 +280,21 @@ export class SqliteEventRepository implements EventRepository {
         ORDER BY created_at DESC, id`,
     )
 
+    // The scheduling sweep's query, and the one read in this repository that is not
+    // scoped to an event: it asks which events, anywhere, are due. `<=` rather than `=`
+    // is the point — the sweep that should have run at 18:00 may not have run at all,
+    // and the next one has to open the party rather than wait for an instant that has
+    // gone. ISO-8601 UTC text compares lexicographically, so this is the same
+    // `now >= instant` the entity applies, and both partial indexes added by migration
+    // 002 serve it.
+    this.selectDueForSchedule = db.prepare<[string, string], EventRow>(
+      `SELECT ${EVENT_COLUMNS}
+         FROM events
+        WHERE (scheduled_open_at  IS NOT NULL AND scheduled_open_at  <= ?)
+           OR (scheduled_close_at IS NOT NULL AND scheduled_close_at <= ?)
+        ORDER BY created_at DESC, id`,
+    )
+
     this.selectSlug = db.prepare<[string], PresenceRow>(
       `SELECT 1 AS present FROM events WHERE slug = ? LIMIT 1`,
     )
@@ -275,9 +305,11 @@ export class SqliteEventRepository implements EventRepository {
 
     this.upsert = db.prepare<EventParams>(
       `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
-                           quota_bytes, created_at, starts_at, closed_at)
+                           quota_bytes, created_at, starts_at, closed_at,
+                           scheduled_open_at, scheduled_close_at, schedule_discarded_at)
             VALUES (@id, @ownerId, @name, @slug, @joinCode, @status, @settings,
-                    @quotaBytes, @createdAt, @startsAt, @closedAt)
+                    @quotaBytes, @createdAt, @startsAt, @closedAt,
+                    @scheduledOpenAt, @scheduledCloseAt, @scheduleDiscardedAt)
        ON CONFLICT (id) DO UPDATE SET owner_id    = excluded.owner_id,
                                       name        = excluded.name,
                                       slug        = excluded.slug,
@@ -287,7 +319,10 @@ export class SqliteEventRepository implements EventRepository {
                                       quota_bytes = excluded.quota_bytes,
                                       created_at  = excluded.created_at,
                                       starts_at   = excluded.starts_at,
-                                      closed_at   = excluded.closed_at`,
+                                      closed_at   = excluded.closed_at,
+                                      scheduled_open_at  = excluded.scheduled_open_at,
+                                      scheduled_close_at = excluded.scheduled_close_at,
+                                      schedule_discarded_at = excluded.schedule_discarded_at`,
     )
 
     this.deleteById = db.prepare<[string]>(`DELETE FROM events WHERE id = ?`)
@@ -346,5 +381,10 @@ export class SqliteEventRepository implements EventRepository {
 
   async listDueForPurge(now: Date): Promise<readonly Event[]> {
     return this.selectDueForPurge.all(toIsoText(now)).map(toEvent)
+  }
+
+  async listDueForSchedule(now: Date): Promise<readonly Event[]> {
+    const at = toIsoText(now)
+    return this.selectDueForSchedule.all(at, at).map(toEvent)
   }
 }
