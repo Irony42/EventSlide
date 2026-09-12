@@ -70,7 +70,7 @@ const LEDGER = `
  * migration that has already run somewhere, and two databases silently diverge with
  * nothing to reveal it.
  */
-const checksumOf = (migration: Migration): string =>
+export const checksumOf = (migration: Migration): string =>
   createHash('sha256')
     .update(`${migration.id}:${migration.name}:${migration.sql}`)
     .digest('hex')

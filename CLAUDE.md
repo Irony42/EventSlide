@@ -51,9 +51,16 @@ main ──> everything (composition only)
 ```
 
 This is checked mechanically, not by review: `npm run lint` fails the build on a
-violating import (see `eslint.config.js`, `import/no-restricted-paths` style rules
-under the boundary section). If you need domain code to do I/O, you have modelled it
-wrong — define a **port** in `src/application/ports/` instead.
+violating import. The rule is **`no-restricted-imports`** — core ESLint, configured with
+`patterns` — applied per layer in `eslint.config.js`: search for `DOMAIN_FORBIDDEN` and
+`APPLICATION_FORBIDDEN`, and for the `files: ['src/infrastructure/**/*.ts']` block. There
+is no `eslint-plugin-import` in this project and no `import/no-restricted-paths`; if you
+went looking for that string you were reading an older version of this file. The
+companion rule is `no-restricted-syntax`, which is what bans `process.env` outside
+`env.ts` and `new Date()` / `Date.now()` / `Math.random()` inside domain and application.
+
+If you need domain code to do I/O, you have modelled it wrong — define a **port** in
+`src/application/ports/` instead.
 
 ### Why it is worth the ceremony
 
@@ -267,5 +274,7 @@ Learned the hard way. Do not rediscover them.
 - [ ] Tests in the right ring, failing before the fix and passing after.
 - [ ] `npm run verify` green, output actually read.
 - [ ] No new token-less colour or spacing value; no new `any`; no new `process.env` read.
-- [ ] Docs touched if behaviour or API changed (`docs/API.md` is the contract).
+- [ ] Docs touched if behaviour or API changed (`docs/API.md` §§1–8 is the contract —
+      **§9 is not**: it is a list of known divergences and proposals, and nothing in it
+      is implemented. Never code against a route you found only in §9).
 - [ ] Conventional Commit, scoped, one concern.

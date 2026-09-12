@@ -1157,6 +1157,27 @@ is authorized per request instead), and no GraphQL.
 
 ## 9. Where this contract and the code still disagree
 
+> ### ⚠️ This section is not the contract. Nothing described here is implemented.
+>
+> Sections 1–8 above are the contract: every route there exists and behaves as written.
+> **This section is the opposite** — it is the list of places where the server does _not_
+> do what a reader would expect, plus, in §9.10, two routes that have been **proposed and
+> never built**.
+>
+> If you are an agent or an integrator: §1–8 is what you may rely on. Treat anything you
+> find only in §9 as a bug report, not as a specification. In particular
+> `GET /api/join/:code` and `PATCH /api/events/:slug/guests/:guestId` in §9.10 **answer
+> `404 route.notFound` today**, from the unmatched-`/api` fallback in
+> `server.ts` — they are sketches of a shape that was judged natural, not endpoints.
+> Calling one, or writing a client that expects one, will fail against the running
+> server.
+>
+> Each entry is labelled. **doc corrected above** means §1–8 was wrong and has been
+> fixed, so the entry is history. **code defect**, **stale code** and **drift** mean the
+> code is wrong and has not been touched — deliberately, because rewriting a
+> specification to agree with a bug is the one outcome an audit must not produce. When
+> one is fixed, the fix moves the behaviour into §1–8 and the entry is deleted from here.
+
 Found by an end-to-end audit of every route against
 `src/interface/http/routes/*.ts`, `src/interface/http/schemas/requestSchemas.ts`,
 `src/interface/http/presenters/dto.ts` and `web/src/lib/i18n/fr.ts`. Recorded rather than

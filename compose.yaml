@@ -38,7 +38,22 @@ services:
     # and there is no reason for it to be able to write anywhere else.
     read_only: true
     tmpfs:
-      # multer stages an upload here before the pipeline re-encodes it.
+      # Nothing stages an upload here. `src/interface/http/routes/guestRoutes.ts` uses
+      # `multer.memoryStorage()`, so every uploaded byte is a Buffer in the heap and
+      # never touches a filesystem — deliberately, because 1.0 leaked temporary files on
+      # the failure paths and the pipeline re-encodes everything anyway.
+      #
+      # This mount exists only because `read_only: true` above makes the whole root
+      # filesystem read-only, and a Node process with no writable temp directory fails
+      # in ways that are hard to read. It is a ceiling, not a reservation: an unused
+      # tmpfs costs nothing, and what it does cost is charged to the same cgroup as the
+      # heap, so it is not extra headroom on top of the limit below.
+      #
+      # **The number to size for uploads is `deploy.resources.limits.memory`, not this
+      # one.** A request can hold MAX_FILES_PER_UPLOAD × MAX_UPLOAD_BYTES in buffers
+      # (20 × 25 MB by default) before sharp then decodes each image into three
+      # variants. Raising either upload variable without raising that limit is how this
+      # container gets OOM-killed mid-party.
       - /tmp:size=512m,mode=1777
     security_opt:
       - no-new-privileges:true
