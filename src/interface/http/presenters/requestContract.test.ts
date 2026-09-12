@@ -32,7 +32,7 @@ import { buildServerHarness } from '../testing/serverHarness'
  * - **The server half is the real schema object**, imported and interrogated. It lives
  *   under `src/`, so importing it is ordinary.
  * - **The client half is read out of the client's own source text.** Importing it is
- *   not available: `eslint.config.js` forbids `src/interface` from importing `web/**`,
+ *   not available: `eslint.config.mjs` forbids `src/interface` from importing `web/**`,
  *   and the two are separate tsconfig projects with different module resolution. So the
  *   file is parsed, the `transport.post(...)` / `transport.get(...)` calls in
  *   `createApi` are found, and the keys of the object each one passes are taken from the

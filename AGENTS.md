@@ -55,20 +55,21 @@ suppress the rule. If domain code seems to need I/O, add a **port** in
 
 ## Hard constraints
 
-| #   | Constraint                                                                                                     |
-| --- | -------------------------------------------------------------------------------------------------------------- |
-| 1   | No business logic in an Express handler or a React component.                                                  |
-| 2   | No colour, spacing, radius, shadow, or font size outside `web/src/design-system/tokens.css`. Use `var(--...)`. |
-| 3   | Every boundary input parsed with zod. `req.*` and `process.env` are untrusted.                                 |
-| 4   | Never trust client MIME types or filenames. Magic bytes decide; the server names the file.                     |
-| 5   | Every photo/guest/reaction query is scoped by `eventId`.                                                       |
-| 6   | Strip EXIF and bake orientation on ingest.                                                                     |
-| 7   | No `any`, including in tests. Use `unknown` and narrow.                                                        |
-| 8   | A behaviour change ships with its tests in the same commit.                                                    |
-| 9   | Migrations are append-only. Never edit one that exists on `main`.                                              |
-| 10  | Only `src/infrastructure/config/env.ts` reads `process.env`.                                                   |
-| 11  | No remote `<script>` or `<link>`. The CSP forbids it and there is no CDN.                                      |
-| 12  | UI strings are French and live in `web/src/lib/i18n/`. Code, comments, commits, docs are English.              |
+| #   | Constraint                                                                                                                                                                                                                                                                                   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | No business logic in an Express handler or a React component.                                                                                                                                                                                                                                |
+| 2   | No colour, spacing, radius, shadow, or font size outside `web/src/design-system/tokens.css`. Use `var(--...)`.                                                                                                                                                                               |
+| 3   | Every boundary input parsed with zod. `req.*` and `process.env` are untrusted.                                                                                                                                                                                                               |
+| 4   | Never trust client MIME types or filenames. Magic bytes decide; the server names the file.                                                                                                                                                                                                   |
+| 5   | Every photo/guest/reaction query is scoped by `eventId`.                                                                                                                                                                                                                                     |
+| 6   | Strip EXIF and bake orientation on ingest.                                                                                                                                                                                                                                                   |
+| 7   | No `any`, including in tests. Use `unknown` and narrow.                                                                                                                                                                                                                                      |
+| 8   | A behaviour change ships with its tests in the same commit.                                                                                                                                                                                                                                  |
+| 9   | Migrations are append-only. Never edit one that exists on `main`.                                                                                                                                                                                                                            |
+| 10  | Only `src/infrastructure/config/env.ts` reads `process.env`.                                                                                                                                                                                                                                 |
+| 11  | No remote `<script>` or `<link>`. The CSP forbids it and there is no CDN.                                                                                                                                                                                                                    |
+| 12  | UI strings are French and live in `web/src/lib/i18n/`. Code, comments, commits, docs are English.                                                                                                                                                                                            |
+| 13  | Renaming a config file is not a local edit. Its name is also in tsconfigs, docs, comments and tests: finish with `grep -rn "<old name>" --exclude-dir=node_modules`, and keep single named files in a tsconfig `files`, never `include` — an `include` entry that matches nothing is silent. |
 
 ---
 

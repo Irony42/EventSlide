@@ -273,6 +273,24 @@ Learned the hard way. Do not rediscover them.
    from clean to **1 940 errors across 264 files** and `npm run build:api` exits 2. It
    is real work (F15 in [docs/REVIEW-2.0.md](docs/REVIEW-2.0.md)), not a tidy-up. The
    `.mjs` extension says "this one file is ESM" and costs nothing.
+9. **A config-file rename is never local.** That same rename of `eslint.config.js` to
+   `eslint.config.mjs` took two further rounds to finish. `tsconfig.tools.json` went on
+   listing the old name in `include`, and **an `include` entry that matches nothing is
+   silent** — no error, no warning. So the file that enforces the entire architecture
+   belonged to none of the four tsconfig projects, and `npm run typecheck` stayed green
+   while covering less than it had the day before (G2 in
+   [docs/REVIEW-2.0.md](docs/REVIEW-2.0.md)). Eight more references to the dead name
+   survived in `docs/ARCHITECTURE.md`, in an ADR, in two presenter contract tests and in
+   a web hook comment (G5) — one of them reading
+   `// eslint.config.js — abridged; the file is the source of truth` directly above the
+   excerpt it pointed at. Config names live in tsconfigs, in docs, in comments and in
+   tests, so a rename is finished only when
+   `grep -rn "<old name>" --exclude-dir=node_modules` is empty. Two mechanical rules come
+   out of it: a **single named file goes in a tsconfig `files`, not `include`**, because
+   a `files` entry that names nothing is `error TS6053` instead of silence; and a
+   `.js`/`.mjs` file needs `allowJs` to be in the program and `checkJs` to be _checked_ —
+   `--listFiles` lists it either way, which is why "typecheck passes" and "the file is
+   type-checked" are different claims, and only the second one is the guard.
 
 ---
 

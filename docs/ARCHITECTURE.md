@@ -9,7 +9,7 @@ design. Companions: [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md) (rul
 > `fa6e9bd` and remains on `main`. The `src/**` tree this document describes is
 > **complete**: the domain, the ports and use cases, every adapter, the HTTP layer and
 > the composition root all exist, and so does the toolchain that enforces the boundaries
-> — `eslint.config.js`, the tsconfig projects, `vitest.config.ts`,
+> — `eslint.config.mjs`, the tsconfig projects, `vitest.config.ts`,
 > `playwright.config.ts`.
 >
 > Complete is not the same as green. `npm run test:coverage` passes — 175 files, 3691
@@ -82,13 +82,13 @@ standing in the way, so add the pattern rather than argue about it.
 
 ### Enforcement 1 — eslint, one block per layer
 
-Review does not catch import drift; a build failure does. `eslint.config.js` carries one
+Review does not catch import drift; a build failure does. `eslint.config.mjs` carries one
 `files` block per layer listing what that layer may not reach for, using the built-in
 `no-restricted-imports` rather than an import-graph plugin — the patterns are readable in
 the error message and the boundary needs no extra dependency.
 
 ```js
-// eslint.config.js — abridged; the file is the source of truth
+// eslint.config.mjs — abridged; the file is the source of truth
 const DOMAIN_FORBIDDEN = [
   { group: ['**/application/**', '**/infrastructure/**', '**/interface/**', '**/main/**', '**/web/**'],
     message: 'src/domain is pure and may not depend on an outer layer. Model the need as a port.' },
@@ -117,14 +117,14 @@ wrong: declare a port in `src/application/ports/`, implement it in `src/infrastr
 Lint catches deliberate imports. The type projects make whole categories of code
 _unwritable_, because the ambient types are not there to compile against.
 
-| Project                | Includes                                               | `lib` / `types`                | What becomes impossible                                                   |
-| ---------------------- | ------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------- |
-| `tsconfig.base.json`   | —                                                      | shared strictness only         | — (extended by all below)                                                 |
-| `tsconfig.domain.json` | `src/domain`                                           | `lib: ["ES2023"]`, `types: []` | `process`, `Buffer`, `document`, `require` — no Node or DOM globals exist |
-| `tsconfig.server.json` | `src/**` incl. colocated tests                         | `types: ["node"]`, no DOM      | any DOM reference; `document` in a use case fails to compile              |
-| `tsconfig.web.json`    | `web/**`                                               | `lib: [… "DOM"]`               | Node globals; `verbatimModuleSyntax` also forbids CJS interop shortcuts   |
-| `tsconfig.tools.json`  | `tests/**`, `scripts/**`, `vitest`/`playwright` config | DOM + `types: ["node"]`        | build and e2e config leaking into shipped code                            |
-| `tsconfig.build.json`  | `src/**` minus tests and doubles                       | emits to `dist/server`         | shipping a fake or a test harness in the build output                     |
+| Project                | Includes                                                                  | `lib` / `types`                | What becomes impossible                                                   |
+| ---------------------- | ------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `tsconfig.base.json`   | —                                                                         | shared strictness only         | — (extended by all below)                                                 |
+| `tsconfig.domain.json` | `src/domain`                                                              | `lib: ["ES2023"]`, `types: []` | `process`, `Buffer`, `document`, `require` — no Node or DOM globals exist |
+| `tsconfig.server.json` | `src/**` incl. colocated tests                                            | `types: ["node"]`, no DOM      | any DOM reference; `document` in a use case fails to compile              |
+| `tsconfig.web.json`    | `web/**`                                                                  | `lib: [… "DOM"]`               | Node globals; `verbatimModuleSyntax` also forbids CJS interop shortcuts   |
+| `tsconfig.tools.json`  | `tests/**`, `scripts/**`, the root `vitest`/`playwright`/`eslint` configs | DOM + `types: ["node"]`        | build and e2e config leaking into shipped code                            |
+| `tsconfig.build.json`  | `src/**` minus tests and doubles                                          | emits to `dist/server`         | shipping a fake or a test harness in the build output                     |
 
 `npm run typecheck` runs domain, server, web and tools. `types: []` on the domain project
 is the strongest guard in the repo: `Date.now()` still compiles (it is ECMAScript, and
@@ -133,6 +133,18 @@ exist at all — there is nothing to import. The base config also carries
 `noUncheckedIndexedAccess` (a SQLite `rows[0]` is `T | undefined`, and so is a playlist
 lookup), `exactOptionalPropertyTypes` (on a partial update, "absent" and "cleared" are
 different intents), `noImplicitReturns` and `noPropertyAccessFromIndexSignature`.
+
+**A single named file belongs in `files`, never in `include`.** An `include` entry that
+matches nothing is silent — no error, no warning. That is how `tsconfig.tools.json` went
+on naming `eslint.config.js` after the file was renamed to `eslint.config.mjs`: the
+entry matched nothing, the file that carries Enforcement 1 above belonged to no tsconfig
+project at all, and `npm run typecheck` stayed green while covering less than it had the
+day before. A `files` entry cannot fail that way — a name that no longer exists is
+`error TS6053`. Two more things are worth knowing about that file specifically: it is
+JavaScript, so it needs `allowJs` to enter the program at all (without it, a `.mjs` name
+in `include` is matched by nothing, and the same name in `files` is `error TS6504`), and
+it needs `checkJs` to be _checked_ — under `allowJs` alone it is listed by `--listFiles`
+and no error inside it is ever reported.
 
 **Why the ceremony pays.** `src/domain/photos/photo.ts` decides whether a photo may be
 published. In 1.0 that decision lived inside `changePicsStatus` in
@@ -517,7 +529,7 @@ stream keeps a "graceful" shutdown hanging forever.
 ## 9. Configuration
 
 `src/infrastructure/config/env.ts` is the **only** module in the repository that reads
-`process.env` — enforced by the `no-restricted-syntax` ban in `eslint.config.js`, which is
+`process.env` — enforced by the `no-restricted-syntax` ban in `eslint.config.mjs`, which is
 switched off for this one file. It exports
 `loadConfig(source: Record<string, string | undefined>)`, taking the environment as an
 argument so tests pass a plain object and never mutate global state.

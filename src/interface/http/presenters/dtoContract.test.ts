@@ -27,7 +27,7 @@ import { describe, expect, it } from 'vitest'
  * A runtime check would need the client's types at runtime, and TypeScript interfaces
  * are erased. Sharing one declaration is the obvious alternative and is deliberately
  * not available: `web` and `src` are separate tsconfig projects and the architecture
- * rule forbids `web` importing from `src` (see `eslint.config.js`). Relaxing that to
+ * rule forbids `web` importing from `src` (see `eslint.config.mjs`). Relaxing that to
  * de-duplicate a type would trade an enforced boundary for a convenience, so the
  * duplication stays and this test carries the cost of it.
  *

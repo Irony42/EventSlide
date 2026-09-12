@@ -9,7 +9,7 @@ tree passes `npm run verify`.
 > As of this date the 2.0 tree is the **target** layout. Only the 1.0 files quoted below
 > exist on disk in `src/`. Every path under §Decision is a commitment, not a claim that
 > the file is already written; the eslint zones in §Enforcement are not in
-> `eslint.config.js` yet.
+> `eslint.config.mjs` yet.
 
 ## Date
 

@@ -7,7 +7,7 @@ import type { WallLayout } from '../../../lib/api/dto'
  * The set itself is the domain's — `WALL_LAYOUTS` in `src/domain/slideshow/wallLayout.ts`
  * — and it reaches the browser as the `WallLayout` union in `web/src/lib/api/dto.ts`,
  * because the web app talks to the server over HTTP only and lint forbids importing
- * across that boundary (`eslint.config.js`). A union is erased at runtime, so the guard
+ * across that boundary (`eslint.config.mjs`). A union is erased at runtime, so the guard
  * below needs one value, and this is it: `Record<WallLayout, true>` makes TypeScript
  * check it in both directions — a layout added to the contract fails to compile here
  * until it is listed, and a name that is not in the contract is rejected as an excess
