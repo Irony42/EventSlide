@@ -92,6 +92,21 @@ describe('useModerationQueue', () => {
     vi.unstubAllGlobals()
   })
 
+  it('subscribes to the moderation channel, not to the wall’s public one', () => {
+    // The console used to open `streamUrl` — the projector's channel, which asks for no
+    // authentication at all. Nothing broke visibly, because the two carry identical
+    // frames; what was wrong is that the screen deciding what reaches a room of two
+    // hundred people held an unauthenticated connection to do it, while its authorised
+    // twin sat unused. Only an assertion on the address can tell the two apart.
+    const api = fakeApi()
+
+    mount(api)
+
+    expect(api.moderationStreamUrl).toHaveBeenCalledWith(SLUG)
+    expect(api.streamUrl).not.toHaveBeenCalled()
+    expect(FakeEventSource.instances[0]?.url).toBe(`/api/events/${SLUG}/moderation/stream`)
+  })
+
   it('asks the server nothing when the address carries no event', () => {
     const api = fakeApi()
 

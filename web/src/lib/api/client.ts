@@ -45,6 +45,40 @@ export interface UploadInput {
   readonly signal?: AbortSignal
 }
 
+/**
+ * An invitation, in full.
+ *
+ * The password is not optional and is not generated here. There is no mail service in
+ * this product, so the host is the delivery channel: they type a temporary credential
+ * and read it out to the person they are handing the laptop to. The server's
+ * `moderatorInvitationBody` is `.strict()` and requires it — an invitation carrying only
+ * an address is answered `400 request.invalid`, which is exactly what this panel used to
+ * send, every time.
+ *
+ * An object rather than two positional strings: an address and a password are both
+ * `string`, and a call site that swaps them typechecks.
+ */
+export interface ModeratorInvitationInput {
+  readonly email: string
+  readonly temporaryPassword: string
+}
+
+/**
+ * What `POST /api/events/:slug/moderators` answers, as the server presents it.
+ *
+ * Not a `ModeratorDto`: the response is a 201 carrying `{ userId, created }`, and
+ * `created` is the useful half — it says whether the temporary password the host just
+ * typed is worth reading out, or whether the address already had an account that keeps
+ * its own.
+ *
+ * Declared here rather than in `dto.ts` because the response envelope of a write is not
+ * one of the shapes the wall and the console share.
+ */
+export interface ModeratorInviteResponse {
+  readonly userId: string
+  readonly created: boolean
+}
+
 export const createApi = (transport: Transport) => ({
   // ------------------------------------------------------------------ public --
 
@@ -187,8 +221,11 @@ export const createApi = (transport: Transport) => ({
   ): Promise<{ items: readonly ModeratorDto[] }> =>
     transport.get(`/api/events/${encode(slug)}/moderators`, undefined, signal),
 
-  inviteModerator: (slug: string, email: string): Promise<ModeratorDto> =>
-    transport.post(`/api/events/${encode(slug)}/moderators`, { email }),
+  inviteModerator: (
+    slug: string,
+    input: ModeratorInvitationInput,
+  ): Promise<ModeratorInviteResponse> =>
+    transport.post(`/api/events/${encode(slug)}/moderators`, input),
 
   revokeModerator: (slug: string, userId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/moderators/${encode(userId)}`),
@@ -197,7 +234,20 @@ export const createApi = (transport: Transport) => ({
 
   /** Built here so the ZIP link and the wall link cannot drift from the API doc. */
   albumUrl: (slug: string): string => `/api/events/${encode(slug)}/album.zip`,
+
+  /** The wall's channel. Public, because a projector has nobody to sign it in. */
   streamUrl: (slug: string): string => `/api/events/${encode(slug)}/stream`,
+
+  /**
+   * The console's channel. Same frames, `requireRole('moderator')` in front of them.
+   *
+   * Distinct from `streamUrl` on purpose, and not an alias for it. The console used to
+   * open the public one: nothing looked broken, because the frames are identical — but a
+   * screen that decides what reaches the room was holding an unauthenticated connection
+   * to the one endpoint whose authorised twin exists precisely to avoid that. The two
+   * will stop being identical the day moderation has to see rejected photos.
+   */
+  moderationStreamUrl: (slug: string): string => `/api/events/${encode(slug)}/moderation/stream`,
 })
 
 export type Api = ReturnType<typeof createApi>

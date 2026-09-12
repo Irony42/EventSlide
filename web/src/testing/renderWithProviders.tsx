@@ -5,14 +5,13 @@ import { vi } from 'vitest'
 import { ApiProvider } from '../app/ApiProvider'
 import { ToastProvider } from '../design-system/components/ToastProvider'
 import { installDialogStub } from './dialogStub'
-import type { Api } from '../lib/api/client'
+import type { Api, ModeratorInviteResponse } from '../lib/api/client'
 import type {
   EventDto,
   EventSettingsDto,
   GuestPhotoDto,
   JoinResponse,
   ModerationPhotoDto,
-  ModeratorDto,
   PublicEventDto,
   SessionResponse,
   SessionUserDto,
@@ -192,17 +191,18 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   revokeGuest: vi.fn(async () => undefined),
 
   listModerators: vi.fn(async () => ({ items: [] })),
-  inviteModerator: vi.fn(async (): Promise<ModeratorDto> => ({
+  // `{ userId, created }`, as the server answers: a 201 saying whether an account was
+  // created, never a membership row. `created: true` is the interesting default — it is
+  // the branch where the temporary password the host typed is live.
+  inviteModerator: vi.fn(async (): Promise<ModeratorInviteResponse> => ({
     userId: 'user-2',
-    email: 'moderateur@example.com',
-    displayName: null,
-    role: 'moderator',
-    grantedAt: CREATED_AT,
+    created: true,
   })),
   revokeModerator: vi.fn(async () => undefined),
 
   albumUrl: vi.fn((slug: string) => `/api/events/${slug}/album.zip`),
   streamUrl: vi.fn((slug: string) => `/api/events/${slug}/stream`),
+  moderationStreamUrl: vi.fn((slug: string) => `/api/events/${slug}/moderation/stream`),
 
   ...overrides,
 })

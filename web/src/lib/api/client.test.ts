@@ -285,7 +285,11 @@ const ENDPOINTS: readonly EndpointCase[] = [
     name: 'inviteModerator',
     verb: 'post',
     path: `/api/events/${SLUG}/moderators`,
-    invoke: (client) => client.inviteModerator(SLUG, 'moderateur@example.com'),
+    invoke: (client) =>
+      client.inviteModerator(SLUG, {
+        email: 'moderateur@example.com',
+        temporaryPassword: 'phrase-de-passe-temporaire',
+      }),
   },
   {
     name: 'revokeModerator',
@@ -311,9 +315,9 @@ describe('every endpoint addresses the documented method and path', () => {
       .map(([name]) => name)
       .sort()
 
-    // The two link builders return a string rather than making a request, so they are
+    // The link builders return a string rather than making a request, so they are
     // pinned in their own block below instead.
-    expect(missing).toEqual(['albumUrl', 'streamUrl'])
+    expect(missing).toEqual(['albumUrl', 'moderationStreamUrl', 'streamUrl'])
   })
 })
 
@@ -390,6 +394,21 @@ describe('request bodies', () => {
     await subject().updateSettings(SLUG, { moderation: 'auto' })
 
     expect(only().body).toEqual({ moderation: 'auto' })
+  })
+
+  it('sends the temporary password with the invitation, not just the address', async () => {
+    // The body that shipped was `{ email }`, and `moderatorInvitationBody` is `.strict()`
+    // and requires the password, so every invitation a host ever sent came back
+    // `400 request.invalid`. There is no mailer here: the credential is the invitation.
+    await subject().inviteModerator(SLUG, {
+      email: 'sacha@example.com',
+      temporaryPassword: 'phrase-de-passe-temporaire',
+    })
+
+    expect(only().body).toEqual({
+      email: 'sacha@example.com',
+      temporaryPassword: 'phrase-de-passe-temporaire',
+    })
   })
 })
 
@@ -484,9 +503,20 @@ describe('links the app builds rather than requests', () => {
     expect(subject().streamUrl(SLUG)).toBe(`/api/events/${SLUG}/stream`)
   })
 
-  it.each(['albumUrl', 'streamUrl'] as const)('escapes a slug in %s too', (method) => {
-    expect(subject()[method]('gala/autre')).toContain('gala%2Fautre')
+  it('points the console at the authorised channel, not at the public one', () => {
+    // The console used to open `streamUrl`. Nothing looked broken — the frames are
+    // identical — so the only thing that can keep these apart is an assertion that they
+    // are different addresses.
+    expect(subject().moderationStreamUrl(SLUG)).toBe(`/api/events/${SLUG}/moderation/stream`)
+    expect(subject().moderationStreamUrl(SLUG)).not.toBe(subject().streamUrl(SLUG))
   })
+
+  it.each(['albumUrl', 'streamUrl', 'moderationStreamUrl'] as const)(
+    'escapes a slug in %s too',
+    (method) => {
+      expect(subject()[method]('gala/autre')).toContain('gala%2Fautre')
+    },
+  )
 })
 
 describe('the instance the app uses', () => {

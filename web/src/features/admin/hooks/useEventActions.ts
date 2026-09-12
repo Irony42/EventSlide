@@ -1,8 +1,12 @@
 import { useCallback } from 'react'
 import { useApi } from '../../../app/useApi'
 import { useAction, type ActionState } from './useAction'
-import type { CreateEventInput } from '../../../lib/api/client'
-import type { EventDto, EventSettingsDto, EventStatus, ModeratorDto } from '../../../lib/api/dto'
+import type {
+  CreateEventInput,
+  ModeratorInvitationInput,
+  ModeratorInviteResponse,
+} from '../../../lib/api/client'
+import type { EventDto, EventSettingsDto, EventStatus } from '../../../lib/api/dto'
 
 /**
  * The writes the admin surface needs, one hook per endpoint.
@@ -51,10 +55,23 @@ export const useRevokeGuest = (): ActionState<[string, string], void> => {
   )
 }
 
-export const useInviteModerator = (): ActionState<[string, string], ModeratorDto> => {
+/**
+ * The whole invitation, not just the address.
+ *
+ * The temporary password travels with it because the server requires one and there is
+ * no mailer to send it: the host reads it out. Threading it through as part of the input
+ * object keeps the hook from having to know which of two strings is which.
+ */
+export const useInviteModerator = (): ActionState<
+  [string, ModeratorInvitationInput],
+  ModeratorInviteResponse
+> => {
   const api = useApi()
   return useAction(
-    useCallback((slug: string, email: string) => api.inviteModerator(slug, email), [api]),
+    useCallback(
+      (slug: string, input: ModeratorInvitationInput) => api.inviteModerator(slug, input),
+      [api],
+    ),
   )
 }
 

@@ -289,8 +289,20 @@ export const fr = {
     moderatorsEmpty: 'Vous êtes seul à modérer cet évènement.',
     moderatorEmail: 'Adresse e-mail du modérateur',
     moderatorEmailHint: 'Il recevra des droits sur cet évènement uniquement.',
+    moderatorPassword: 'Mot de passe temporaire',
+    /**
+     * Said plainly because the host *is* the delivery mechanism: rien n'est envoyé par
+     * e-mail, so a host who types a password and waits for something to happen has
+     * already lost the invitee.
+     */
+    moderatorPasswordHint: (min: number) =>
+      `Au moins ${min} caractères. Aucun e-mail n’est envoyé : lisez ce mot de passe au modérateur. Il en choisira un autre à sa première connexion.`,
     inviteSubmit: 'Inviter',
-    moderatorInvited: (email: string) => `${email} peut désormais modérer cet évènement.`,
+    moderatorInvited: (email: string) =>
+      `${email} peut désormais modérer cet évènement. Communiquez-lui le mot de passe temporaire.`,
+    /** The address already had an account, so the password just typed was not used. */
+    moderatorInvitedExisting: (email: string) =>
+      `${email} peut désormais modérer cet évènement. Ce compte existait déjà : il garde son mot de passe habituel.`,
     revokeModerator: 'Retirer',
     revokeModeratorTitle: 'Retirer ce modérateur ?',
     revokeModeratorHint:

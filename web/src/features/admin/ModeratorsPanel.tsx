@@ -8,6 +8,7 @@ import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { fr } from '../../lib/i18n/fr'
+import { PASSWORD_MIN_LENGTH } from '../auth/passwordPolicy'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { useModerators } from './hooks/useEventData'
 import { useInviteModerator, useRevokeModerator } from './hooks/useEventActions'
@@ -35,6 +36,12 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
   const toast = useToast()
 
   const [email, setEmail] = useState('')
+  /**
+   * There is no mail service in this product, so the host types a credential and reads
+   * it out. The server requires it — an invitation without one is `400 request.invalid`
+   * — and `mustChangePassword` on the created account makes it single-use.
+   */
+  const [temporaryPassword, setTemporaryPassword] = useState('')
   const [inviteFailure, setInviteFailure] = useState<string | null>(null)
   const [selected, setSelected] = useState<ModeratorDto | null>(null)
 
@@ -50,13 +57,27 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
     event.preventDefault()
     setInviteFailure(null)
 
-    void invite.run('invite', slug, email.trim()).then((result) => {
+    const address = email.trim()
+
+    // The password is not trimmed: leading and trailing spaces are legitimate characters
+    // in a passphrase, and silently removing them means the password the host read out
+    // is not the one the server stored. `Password` makes the same choice.
+    void invite.run('invite', slug, { email: address, temporaryPassword }).then((result) => {
       if (!result.ok) {
         setInviteFailure(result.message)
         return
       }
-      toast.show(fr.admin.moderatorInvited(result.value.email), { tone: 'success' })
+      // The response says whether an account was created. An address that already had
+      // one keeps its own password — saying otherwise would send the host off to read
+      // out a credential that does not work.
+      toast.show(
+        result.value.created
+          ? fr.admin.moderatorInvited(address)
+          : fr.admin.moderatorInvitedExisting(address),
+        { tone: 'success' },
+      )
       setEmail('')
+      setTemporaryPassword('')
       reload()
     })
   }
@@ -136,6 +157,26 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+            />
+          )}
+        </Field>
+        <Field
+          label={fr.admin.moderatorPassword}
+          hint={fr.admin.moderatorPasswordHint(PASSWORD_MIN_LENGTH)}
+        >
+          {(control) => (
+            <TextInput
+              {...control}
+              type="password"
+              name="moderatorTemporaryPassword"
+              // `new-password`, never `current-password`: this is a credential the host
+              // is choosing for somebody else, and offering their own saved password
+              // here would be the worst possible autofill.
+              autoComplete="new-password"
+              required
+              minLength={PASSWORD_MIN_LENGTH}
+              value={temporaryPassword}
+              onChange={(event) => setTemporaryPassword(event.target.value)}
             />
           )}
         </Field>

@@ -389,7 +389,19 @@ export const useModerationQueue = (slug: string | undefined): ModerationQueue =>
     [revalidate],
   )
 
-  const streamUrl = useMemo(() => (slug === undefined ? null : api.streamUrl(slug)), [api, slug])
+  /**
+   * The console's own channel, not the wall's.
+   *
+   * `streamUrl` is the public one a projector opens; it carries the same frames today,
+   * which is why subscribing to it here broke nothing visible for as long as it did. But
+   * this screen decides what reaches the room, and it should not be holding an
+   * unauthenticated connection to do it — the authorised twin exists for that, and the
+   * two stop being interchangeable the day moderation needs to see rejected photos.
+   */
+  const streamUrl = useMemo(
+    () => (slug === undefined ? null : api.moderationStreamUrl(slug)),
+    [api, slug],
+  )
   const { connected } = useEventStream({ url: streamUrl, onSignal })
 
   return {
