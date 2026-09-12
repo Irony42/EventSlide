@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { asEventId, asGuestId, asPhotoId, asUserId } from '../../../domain/shared/ids'
-import type { PhotoReview } from '../../../domain/photos/photo'
+import type { Photo, PhotoReview } from '../../../domain/photos/photo'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
-import type { PhotoRepository } from '../../ports/photoRepository'
+import type {
+  PhotoAdmission,
+  PhotoAdmissionLimits,
+  PhotoRepository,
+} from '../../ports/photoRepository'
 import { AT, aPhoto, atPlus } from '../builders'
 
 /**
@@ -66,6 +70,30 @@ export const photoRepositoryContract = (
     afterEach(async () => {
       await dispose?.()
     })
+
+    /**
+     * Arrange-step seeding. One `save` per photo on purpose: the only batch insert on
+     * this port is `saveManyWithinLimits`, and putting a limits object into twenty
+     * arrange steps would say the test cared about the quota when it does not.
+     */
+    const saveAll = async (photos: readonly Photo[]): Promise<void> => {
+      for (const photo of photos) await repo.save(photo)
+    }
+
+    /** No cap, and a quota far larger than any fixture: "insert these, unimpeded". */
+    const NO_LIMITS: PhotoAdmissionLimits = {
+      quotaBytes: Number.MAX_SAFE_INTEGER,
+      maxPhotosPerGuest: null,
+    }
+
+    const admit = async (
+      photos: readonly Photo[],
+      limits: PhotoAdmissionLimits = NO_LIMITS,
+    ): Promise<readonly PhotoAdmission[]> => repo.saveManyWithinLimits(WEDDING, photos, limits)
+
+    /** A verdict list read as `null` for admitted and the reason for the rest. */
+    const reasons = (admissions: readonly PhotoAdmission[]): readonly (string | null)[] =>
+      admissions.map((admission) => admission.refusal?.reason ?? null)
 
     // ------------------------------------------------------------ round trip --
 
@@ -154,7 +182,7 @@ export const photoRepositoryContract = (
     // --------------------------------------------------------------- ordering --
 
     it('lists newest first', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p-old', eventId: WEDDING, createdAt: atPlus(0) }),
         aPhoto({ id: 'p-new', eventId: WEDDING, createdAt: atPlus(2_000) }),
         aPhoto({ id: 'p-mid', eventId: WEDDING, createdAt: atPlus(1_000) }),
@@ -166,7 +194,7 @@ export const photoRepositoryContract = (
     })
 
     it('breaks a timestamp tie by ascending id, so two clients agree on the order', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p-b', eventId: WEDDING, createdAt: AT }),
         aPhoto({ id: 'p-a', eventId: WEDDING, createdAt: AT }),
         aPhoto({ id: 'p-c', eventId: WEDDING, createdAt: AT }),
@@ -191,7 +219,7 @@ export const photoRepositoryContract = (
     const statuses: readonly PhotoStatus[] = ['pending', 'published', 'rejected', 'hidden']
 
     it.each(statuses)('filters the listing down to %s', async (status) => {
-      await repo.saveMany(
+      await saveAll(
         statuses.map((each) => aPhoto({ id: `p-${each}`, eventId: WEDDING, status: each })),
       )
 
@@ -201,7 +229,7 @@ export const photoRepositoryContract = (
     })
 
     it('accepts several statuses at once', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', createdAt: atPlus(2_000) }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'hidden', createdAt: atPlus(1_000) }),
         aPhoto({ id: 'p3', eventId: WEDDING, status: 'rejected', createdAt: atPlus(0) }),
@@ -213,7 +241,7 @@ export const photoRepositoryContract = (
     })
 
     it('filters the listing by author', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p-lea', eventId: WEDDING, author: { kind: 'guest', id: LEA } }),
         aPhoto({ id: 'p-nils', eventId: WEDDING, author: { kind: 'guest', id: NILS } }),
       ])
@@ -234,7 +262,7 @@ export const photoRepositoryContract = (
     // ------------------------------------------------------------- pagination --
 
     it('pages through the listing without repeating or skipping a photo', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, createdAt: atPlus(0) }),
         aPhoto({ id: 'p2', eventId: WEDDING, createdAt: atPlus(1_000) }),
         aPhoto({ id: 'p3', eventId: WEDDING, createdAt: atPlus(2_000) }),
@@ -248,7 +276,7 @@ export const photoRepositoryContract = (
     })
 
     it('reports no cursor on the last page', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, createdAt: atPlus(0) }),
         aPhoto({ id: 'p2', eventId: WEDDING, createdAt: atPlus(1_000) }),
       ])
@@ -265,7 +293,7 @@ export const photoRepositoryContract = (
     })
 
     it('carries the status filter across a page boundary', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', createdAt: atPlus(0) }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'pending', createdAt: atPlus(1_000) }),
         aPhoto({ id: 'p3', eventId: WEDDING, status: 'published', createdAt: atPlus(2_000) }),
@@ -297,7 +325,7 @@ export const photoRepositoryContract = (
     // ------------------------------------------------------------- wall ids --
 
     it('lists ids for one status, newest first, up to the limit', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', createdAt: atPlus(0) }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
         aPhoto({ id: 'p3', eventId: WEDDING, status: 'pending', createdAt: atPlus(2_000) }),
@@ -307,7 +335,7 @@ export const photoRepositoryContract = (
     })
 
     it('honours the id limit so the wall never loads an unbounded playlist', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', createdAt: atPlus(0) }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
       ])
@@ -331,7 +359,7 @@ export const photoRepositoryContract = (
     // ------------------------------------------------------------- counters --
 
     it('counts every status of one event', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'pending' }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'pending' }),
         aPhoto({ id: 'p3', eventId: WEDDING, status: 'published' }),
@@ -369,7 +397,7 @@ export const photoRepositoryContract = (
     })
 
     it('sums bytes across every status, because storage does not care', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', byteSize: 1_000 }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'rejected', byteSize: 200 }),
       ])
@@ -395,7 +423,7 @@ export const photoRepositoryContract = (
     })
 
     it('counts a guest own photos', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, author: { kind: 'guest', id: LEA } }),
         aPhoto({ id: 'p2', eventId: WEDDING, author: { kind: 'guest', id: LEA } }),
         aPhoto({ id: 'p3', eventId: WEDDING, author: { kind: 'guest', id: NILS } }),
@@ -437,12 +465,38 @@ export const photoRepositoryContract = (
       expect((await repo.findById(GALA, asPhotoId('p2')))?.id).toBe('p2')
     })
 
+    // ------------------------------------------------------ admitting a batch --
+
+    it('writes every photo of a batch that fits', async () => {
+      const admissions = await admit([
+        aPhoto({ id: 'p1', eventId: WEDDING }),
+        aPhoto({ id: 'p2', eventId: WEDDING }),
+      ])
+
+      expect(reasons(admissions)).toEqual([null, null])
+      expect((await repo.list(WEDDING)).items).toHaveLength(2)
+    })
+
+    it('reports one verdict per photo, in the order they were submitted', async () => {
+      const admissions = await admit([
+        aPhoto({ id: 'p1', eventId: WEDDING }),
+        aPhoto({ id: 'p2', eventId: WEDDING }),
+      ])
+
+      expect(admissions.map((admission) => admission.photoId)).toEqual(['p1', 'p2'])
+    })
+
+    it('accepts an empty batch, because a caller filtered every file out', async () => {
+      expect(await admit([])).toEqual([])
+      expect((await repo.list(WEDDING)).items).toEqual([])
+    })
+
     it('writes nothing at all when one photo of a batch is a duplicate', async () => {
       const first = aPhoto({ id: 'p1', eventId: WEDDING })
       await repo.save(first)
 
       await expect(
-        repo.saveMany([
+        admit([
           aPhoto({ id: 'p2', eventId: WEDDING }),
           aPhoto({ id: 'p3', eventId: WEDDING, contentHash: first.contentHash.value }),
         ]),
@@ -451,19 +505,177 @@ export const photoRepositoryContract = (
       expect(await repo.findById(WEDDING, asPhotoId('p2'))).toBeNull()
     })
 
-    it('writes every photo of a valid batch', async () => {
-      await repo.saveMany([
-        aPhoto({ id: 'p1', eventId: WEDDING }),
-        aPhoto({ id: 'p2', eventId: WEDDING }),
-      ])
+    it('refuses a batch carrying a photo id that is already stored', async () => {
+      // Ingest mints a fresh id per file, so this is a bug rather than an update — and
+      // an update here would silently replace a photo with someone else's.
+      await repo.save(aPhoto({ id: 'p1', eventId: WEDDING }))
 
-      expect((await repo.list(WEDDING)).items).toHaveLength(2)
+      await expect(
+        admit([aPhoto({ id: 'p1', eventId: WEDDING, caption: 'Rebonjour' })]),
+      ).rejects.toThrow()
     })
 
-    it('accepts an empty batch, because a caller filtered every file out', async () => {
-      await repo.saveMany([])
+    // ------------------------------------------------------------ the quota --
 
+    it('refuses the photo that would take the event past its byte quota', async () => {
+      const admissions = await admit([aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 1_001 })], {
+        quotaBytes: 1_000,
+        maxPhotosPerGuest: null,
+      })
+
+      expect(reasons(admissions)).toEqual(['quotaExceeded'])
       expect((await repo.list(WEDDING)).items).toEqual([])
+    })
+
+    it('accepts a photo that exactly reaches the byte quota', async () => {
+      const admissions = await admit([aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 1_000 })], {
+        quotaBytes: 1_000,
+        maxPhotosPerGuest: null,
+      })
+
+      expect(reasons(admissions)).toEqual([null])
+    })
+
+    it('counts the rows already committed, not only the batch it was handed', async () => {
+      // This is the whole point of taking the sum inside the write: an upload decided
+      // against a total read before it started rendering is decided against a stale one.
+      await repo.save(aPhoto({ id: 'earlier', eventId: WEDDING, byteSize: 900 }))
+
+      const admissions = await admit([aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 200 })], {
+        quotaBytes: 1_000,
+        maxPhotosPerGuest: null,
+      })
+
+      expect(reasons(admissions)).toEqual(['quotaExceeded'])
+    })
+
+    it('counts the photos of this batch against each other', async () => {
+      const admissions = await admit(
+        [
+          aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 600 }),
+          aPhoto({ id: 'p2', eventId: WEDDING, byteSize: 600 }),
+        ],
+        { quotaBytes: 1_000, maxPhotosPerGuest: null },
+      )
+
+      expect(reasons(admissions)).toEqual([null, 'quotaExceeded'])
+    })
+
+    it('keeps considering the photos after the one that did not fit', async () => {
+      // A batch is a partial success. A guest whose large photo is refused still gets
+      // the small ones that follow it, exactly as they would one ring up.
+      const admissions = await admit(
+        [
+          aPhoto({ id: 'p-big', eventId: WEDDING, byteSize: 900 }),
+          aPhoto({ id: 'p-small', eventId: WEDDING, byteSize: 100 }),
+        ],
+        { quotaBytes: 500, maxPhotosPerGuest: null },
+      )
+
+      expect(reasons(admissions)).toEqual(['quotaExceeded', null])
+      expect((await repo.list(WEDDING)).items.map((photo) => photo.id)).toEqual(['p-small'])
+    })
+
+    it('reports what the quota still had room for when it refused', async () => {
+      await repo.save(aPhoto({ id: 'earlier', eventId: WEDDING, byteSize: 800 }))
+
+      const [admission] = await admit([aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 500 })], {
+        quotaBytes: 1_000,
+        maxPhotosPerGuest: null,
+      })
+
+      expect(admission?.refusal).toEqual({ reason: 'quotaExceeded', remaining: 200 })
+    })
+
+    it('never spends one event quota on another party bytes', async () => {
+      await repo.save(
+        aPhoto({ id: 'p1', eventId: GALA, byteSize: 900, author: { kind: 'guest', id: SAM } }),
+      )
+
+      const admissions = await admit([aPhoto({ id: 'p2', eventId: WEDDING, byteSize: 900 })], {
+        quotaBytes: 1_000,
+        maxPhotosPerGuest: null,
+      })
+
+      expect(reasons(admissions)).toEqual([null])
+    })
+
+    // -------------------------------------------------------- the guest cap --
+
+    it('refuses a photo once its author holds as many as the event allows', async () => {
+      await repo.save(
+        aPhoto({ id: 'earlier', eventId: WEDDING, author: { kind: 'guest', id: LEA } }),
+      )
+
+      const admissions = await admit(
+        [aPhoto({ id: 'p1', eventId: WEDDING, author: { kind: 'guest', id: LEA } })],
+        { quotaBytes: Number.MAX_SAFE_INTEGER, maxPhotosPerGuest: 1 },
+      )
+
+      expect(reasons(admissions)).toEqual(['photoLimitReached'])
+      expect(await repo.countByAuthor(WEDDING, LEA)).toBe(1)
+    })
+
+    it('reports how many the author already held when the cap refused', async () => {
+      await repo.save(
+        aPhoto({ id: 'earlier', eventId: WEDDING, author: { kind: 'guest', id: LEA } }),
+      )
+
+      const [admission] = await admit(
+        [aPhoto({ id: 'p1', eventId: WEDDING, author: { kind: 'guest', id: LEA } })],
+        { quotaBytes: Number.MAX_SAFE_INTEGER, maxPhotosPerGuest: 1 },
+      )
+
+      expect(admission?.refusal).toEqual({ reason: 'photoLimitReached', already: 1 })
+    })
+
+    it('counts the photos of this batch against the cap as well', async () => {
+      const admissions = await admit(
+        [
+          aPhoto({ id: 'p1', eventId: WEDDING, author: { kind: 'guest', id: LEA } }),
+          aPhoto({ id: 'p2', eventId: WEDDING, author: { kind: 'guest', id: LEA } }),
+        ],
+        { quotaBytes: Number.MAX_SAFE_INTEGER, maxPhotosPerGuest: 1 },
+      )
+
+      expect(reasons(admissions)).toEqual([null, 'photoLimitReached'])
+    })
+
+    it('does not count another guest photos against this guest cap', async () => {
+      await repo.save(
+        aPhoto({ id: 'earlier', eventId: WEDDING, author: { kind: 'guest', id: NILS } }),
+      )
+
+      const admissions = await admit(
+        [aPhoto({ id: 'p1', eventId: WEDDING, author: { kind: 'guest', id: LEA } })],
+        { quotaBytes: Number.MAX_SAFE_INTEGER, maxPhotosPerGuest: 1 },
+      )
+
+      expect(reasons(admissions)).toEqual([null])
+    })
+
+    it('never applies the guest cap to the host camera roll', async () => {
+      const admissions = await admit(
+        [
+          aPhoto({ id: 'p1', eventId: WEDDING, author: { kind: 'host', id: HOST } }),
+          aPhoto({ id: 'p2', eventId: WEDDING, author: { kind: 'host', id: HOST } }),
+        ],
+        { quotaBytes: Number.MAX_SAFE_INTEGER, maxPhotosPerGuest: 1 },
+      )
+
+      expect(reasons(admissions)).toEqual([null, null])
+    })
+
+    it('applies no cap at all when the event sets none', async () => {
+      await repo.save(
+        aPhoto({ id: 'earlier', eventId: WEDDING, author: { kind: 'guest', id: LEA } }),
+      )
+
+      const admissions = await admit([
+        aPhoto({ id: 'p1', eventId: WEDDING, author: { kind: 'guest', id: LEA } }),
+      ])
+
+      expect(reasons(admissions)).toEqual([null])
     })
 
     // ---------------------------------------------------------------- delete --
@@ -494,7 +706,7 @@ export const photoRepositoryContract = (
     // ------------------------------------------------------ bulk moderation --
 
     it('returns the ids it actually moved', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'pending' }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'pending' }),
       ])
@@ -527,7 +739,7 @@ export const photoRepositoryContract = (
     })
 
     it('omits a photo already in the target status, so nothing is announced twice', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'published' }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'pending' }),
       ])
@@ -581,7 +793,7 @@ export const photoRepositoryContract = (
     })
 
     it('moves what it can when a selection is mixed', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'pending' }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'published' }),
       ])
@@ -607,7 +819,7 @@ export const photoRepositoryContract = (
     }
 
     it('streams the album in the listing order', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', createdAt: atPlus(0) }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
       ])
@@ -616,7 +828,7 @@ export const photoRepositoryContract = (
     })
 
     it('streams only the requested statuses, so a rejected photo stays out of the zip', async () => {
-      await repo.saveMany([
+      await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, status: 'published' }),
         aPhoto({ id: 'p2', eventId: WEDDING, status: 'rejected' }),
       ])

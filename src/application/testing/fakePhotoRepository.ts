@@ -1,8 +1,11 @@
+import { allowsAnotherPhoto, fitsInQuota, remainingQuota } from '../../domain/events/quota'
 import type { Photo, PhotoReview } from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import type { ContentHash } from '../../domain/photos/contentHash'
 import type { EventId, GuestId, PhotoId } from '../../domain/shared/ids'
 import type {
+  PhotoAdmission,
+  PhotoAdmissionLimits,
   PhotoPage,
   PhotoQuery,
   PhotoRepository,
@@ -183,18 +186,81 @@ export class FakePhotoRepository implements PhotoRepository {
   }
 
   /**
-   * All or nothing, as the adapter's single transaction is. 1.0 fired one insert per
-   * file through `Promise.all`, so a duplicate in the fifth file left four committed
-   * rows and an error — and the guest had no way to tell which of their photos landed.
-   * Duplicates *within* the batch count too: the unique index does not care that two
-   * conflicting rows arrived together.
+   * The upload batch: count, sum, decide and insert, with nothing able to interleave.
+   *
+   * The adapter gets that from one SQLite transaction. Here it comes from the method
+   * body containing no `await` at all — an `await` between the totals and the inserts is
+   * exactly the defect this method exists to remove, and it was real: the use case used
+   * to read the byte total before it rendered the batch, so two guests uploading at the
+   * same moment both passed the same check.
+   *
+   * All or nothing on a rejection, as the adapter's transaction is: a duplicate content
+   * hash anywhere in the batch leaves the repository untouched. Duplicates *within* the
+   * batch count too, because the unique index does not care that two conflicting rows
+   * arrived together. A refusal by a *limit* is not a rejection — it is a verdict, and
+   * the photos that did fit are still written.
    */
-  async saveMany(photos: readonly Photo[]): Promise<void> {
+  async saveManyWithinLimits(
+    eventId: EventId,
+    photos: readonly Photo[],
+    limits: PhotoAdmissionLimits,
+  ): Promise<readonly PhotoAdmission[]> {
     const staged = new Map(this.rows)
-    for (const photo of photos) insertInto(staged, photo)
+    const forEventIn = (rows: ReadonlyMap<string, Photo>): Photo[] =>
+      [...rows.values()].filter((photo) => photo.eventId === eventId)
+
+    let usedBytes = forEventIn(staged).reduce((total, photo) => total + photo.byteSize, 0)
+    const authored = new Map<string, number>()
+    const alreadyBy = (guestId: GuestId): number => {
+      const known = authored.get(guestId)
+      if (known !== undefined) return known
+
+      const counted = forEventIn(staged).filter(
+        (photo) => photo.author.kind === 'guest' && photo.author.guestId === guestId,
+      ).length
+      authored.set(guestId, counted)
+      return counted
+    }
+
+    const verdicts: PhotoAdmission[] = []
+    for (const photo of photos) {
+      const author = photo.author
+      const guestId = author.kind === 'guest' ? author.guestId : null
+
+      if (guestId !== null) {
+        const already = alreadyBy(guestId)
+        if (!allowsAnotherPhoto(limits.maxPhotosPerGuest, already)) {
+          verdicts.push({ photoId: photo.id, refusal: { reason: 'photoLimitReached', already } })
+          continue
+        }
+      }
+
+      if (!fitsInQuota(limits.quotaBytes, usedBytes, photo.byteSize)) {
+        verdicts.push({
+          photoId: photo.id,
+          refusal: {
+            reason: 'quotaExceeded',
+            remaining: remainingQuota(limits.quotaBytes, usedBytes),
+          },
+        })
+        continue
+      }
+
+      // Insert only, as the adapter's statement is: ingest mints a fresh id per file, so
+      // an id already stored is a bug rather than an update, and the mapper's
+      // `INSERT OR REPLACE` twin would take the photo's reactions down with it.
+      if (staged.has(key(eventId, photo.id))) {
+        throw new Error(`UNIQUE constraint failed: photos.id (${photo.id} is already stored)`)
+      }
+      insertInto(staged, photo)
+      usedBytes += photo.byteSize
+      if (guestId !== null) authored.set(guestId, alreadyBy(guestId) + 1)
+      verdicts.push({ photoId: photo.id, refusal: null })
+    }
 
     this.rows.clear()
     for (const [rowKey, photo] of staged) this.rows.set(rowKey, photo)
+    return verdicts
   }
 
   async delete(eventId: EventId, photoId: PhotoId): Promise<void> {

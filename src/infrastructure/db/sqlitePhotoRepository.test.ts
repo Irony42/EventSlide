@@ -4,9 +4,9 @@ import {
   PHOTO_CONTRACT_FIXTURES,
   photoRepositoryContract,
 } from '../../application/testing/contracts/photoRepositoryContract'
-import type { PhotoPage } from '../../application/ports/photoRepository'
+import type { PhotoAdmissionLimits, PhotoPage } from '../../application/ports/photoRepository'
 import { AT, aPhoto, atPlus, type AuthorInput } from '../../application/testing/builders'
-import type { PhotoReview } from '../../domain/photos/photo'
+import type { Photo, PhotoReview } from '../../domain/photos/photo'
 import { asEventId, asPhotoId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrate } from './migrator'
@@ -217,9 +217,20 @@ describe('SqlitePhotoRepository', () => {
     closeDatabase(db)
   })
 
+  /** Arrange-step seeding: the only batch insert on this port carries a limits object. */
+  const saveAll = async (photos: readonly Photo[]): Promise<void> => {
+    for (const photo of photos) await repo.save(photo)
+  }
+
+  /** No cap, and a quota no fixture can reach: "insert these, unimpeded". */
+  const NO_LIMITS: PhotoAdmissionLimits = {
+    quotaBytes: Number.MAX_SAFE_INTEGER,
+    maxPhotosPerGuest: null,
+  }
+
   /** Five photos, one second apart, so `p5` is newest and the order is unambiguous. */
   const seedFivePhotos = async (): Promise<void> => {
-    await repo.saveMany([
+    await saveAll([
       aPhoto({ id: 'p1', eventId: WEDDING, createdAt: atPlus(1_000) }),
       aPhoto({ id: 'p2', eventId: WEDDING, createdAt: atPlus(2_000) }),
       aPhoto({ id: 'p3', eventId: WEDDING, createdAt: atPlus(3_000) }),
@@ -304,13 +315,37 @@ describe('SqlitePhotoRepository', () => {
     await repo.save(stored)
 
     await expect(
-      repo.saveMany([
-        aPhoto({ id: 'p2', eventId: WEDDING }),
-        aPhoto({ id: 'p3', eventId: WEDDING, contentHash: stored.contentHash.value }),
-      ]),
+      repo.saveManyWithinLimits(
+        WEDDING,
+        [
+          aPhoto({ id: 'p2', eventId: WEDDING }),
+          aPhoto({ id: 'p3', eventId: WEDDING, contentHash: stored.contentHash.value }),
+        ],
+        NO_LIMITS,
+      ),
     ).rejects.toThrow()
 
     expect(countPhotoRows(db)).toBe(1)
+  })
+
+  it('takes the byte total inside the transaction that inserts, not before it', async () => {
+    // The quota is only exact if the sum and the inserts cannot be separated. A reader
+    // on another connection must therefore see either none of this batch or all of it —
+    // and better-sqlite3 being synchronous is what makes "in between" unwritable here.
+    const [first, second] = await Promise.all([
+      repo.saveManyWithinLimits(WEDDING, [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 600 })], {
+        quotaBytes: 1_000,
+        maxPhotosPerGuest: null,
+      }),
+      repo.saveManyWithinLimits(WEDDING, [aPhoto({ id: 'p2', eventId: WEDDING, byteSize: 600 })], {
+        quotaBytes: 1_000,
+        maxPhotosPerGuest: null,
+      }),
+    ])
+
+    expect(first[0]?.refusal).toBeNull()
+    expect(second[0]?.refusal).toEqual({ reason: 'quotaExceeded', remaining: 400 })
+    expect(await repo.totalBytes(WEDDING)).toBe(600)
   })
 
   // ---------------------------------------------------------------- pagination --
@@ -397,7 +432,7 @@ describe('SqlitePhotoRepository', () => {
 
   /** Both events populated, every status used, so a missing scope shows up as a sum. */
   const seedMixedFixture = async (): Promise<void> => {
-    await repo.saveMany([
+    await saveAll([
       aPhoto({ id: 'w1', eventId: WEDDING, status: 'pending', byteSize: 1_000 }),
       aPhoto({ id: 'w2', eventId: WEDDING, status: 'pending', byteSize: 200 }),
       aPhoto({ id: 'w3', eventId: WEDDING, status: 'published', byteSize: 30 }),
@@ -428,7 +463,7 @@ describe('SqlitePhotoRepository', () => {
   // -------------------------------------------------------------------- export --
 
   it('pulls one row per photo the consumer asks for, not the whole album', async () => {
-    await repo.saveMany([
+    await saveAll([
       aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
       aPhoto({ id: 'p2', eventId: WEDDING, status: 'published', createdAt: atPlus(2_000) }),
       aPhoto({ id: 'p3', eventId: WEDDING, status: 'published', createdAt: atPlus(3_000) }),

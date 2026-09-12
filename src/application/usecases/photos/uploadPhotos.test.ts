@@ -8,6 +8,7 @@ import { ok, type Result } from '../../../domain/shared/result'
 import type { ContentHasher } from '../../ports/contentHasher'
 import type { ImageProbe, ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
 import type { LogContext, Logger } from '../../ports/logger'
+import type { PhotoAdmission, PhotoRefusal } from '../../ports/photoRepository'
 import {
   MEDIA_VARIANTS,
   type MediaMetadata,
@@ -244,8 +245,49 @@ class FakeContentHasher implements ContentHasher {
 
 /** A locked database: `SQLITE_BUSY` on the insert, after the media has been written. */
 class LockedPhotoRepository extends FakePhotoRepository {
-  override async saveMany(_photos: readonly Photo[]): Promise<void> {
+  override async saveManyWithinLimits(): Promise<readonly PhotoAdmission[]> {
     throw new Error('SQLITE_BUSY: database is locked')
+  }
+}
+
+/**
+ * An event that filled up *while this request was rendering*.
+ *
+ * The real fake enforces the limits honestly; this one forces the outcome the race
+ * produces — the write transaction turning a photo away after its media has already been
+ * written — without depending on two requests interleaving in a particular order.
+ */
+class FullPhotoRepository extends FakePhotoRepository {
+  constructor(private readonly refusal: PhotoRefusal) {
+    super()
+  }
+
+  override async saveManyWithinLimits(
+    _eventId: EventId,
+    photos: readonly Photo[],
+  ): Promise<readonly PhotoAdmission[]> {
+    return photos.map((photo) => ({ photoId: photo.id, refusal: this.refusal }))
+  }
+}
+
+/**
+ * The byte-identical photo of another guest, committed between this request's duplicate
+ * check and its write — and taking the last of the quota with it.
+ */
+class LostRacePhotoRepository extends FakePhotoRepository {
+  constructor(private readonly winningHash: string) {
+    super()
+  }
+
+  override async saveManyWithinLimits(
+    eventId: EventId,
+    photos: readonly Photo[],
+  ): Promise<readonly PhotoAdmission[]> {
+    await this.save(aPhoto({ id: 'winner', eventId, contentHash: this.winningHash }))
+    return photos.map((photo) => ({
+      photoId: photo.id,
+      refusal: { reason: 'quotaExceeded', remaining: 0 },
+    }))
   }
 }
 
@@ -278,6 +320,8 @@ class CapturingLogger implements Logger {
 const EVENT = asEventId('event-1')
 const OTHER_EVENT = asEventId('event-2')
 const GUEST: PhotoAuthor = { kind: 'guest', guestId: asGuestId('guest-1') }
+/** A second phone at the same party, for the two-uploads-at-once cases. */
+const OTHER_GUEST: PhotoAuthor = { kind: 'guest', guestId: asGuestId('guest-2') }
 const HOST: PhotoAuthor = { kind: 'host', userId: asUserId('user-1') }
 
 /** The env default. A 4032 x 3024 phone photo is 12 Mpx; a 30 000² PNG is 900 Mpx. */
@@ -688,6 +732,156 @@ describe('uploadPhotos', () => {
     await uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
     expect(await photos.totalBytes(EVENT)).toBe(1_000_000)
+  })
+
+  // ------------------------------------------------- two uploads at the same time --
+
+  /**
+   * The race, run for real: two requests in flight against one event, not two requests
+   * one after the other. Every port call is a promise, so both uploads read the event's
+   * byte total before either of them writes a row — which is exactly the window that
+   * made the quota beatable by a factor equal to the number of requests in flight.
+   *
+   * These are the tests that fail if the reservation moves back out of the write.
+   */
+  it('holds the byte quota when two guests upload at the same moment', async () => {
+    // Room for one photo of 1 MB, and two guests each sending one.
+    seedEvent({ quotaBytes: 1_500_000 })
+
+    const [first, second] = await Promise.all([
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+      uploadPhotos({ eventId: EVENT, author: OTHER_GUEST, files: [aFile('cake')] }),
+    ])
+
+    expect(await photos.totalBytes(EVENT)).toBe(1_000_000)
+    expect([...kinds(first), ...kinds(second)].sort()).toEqual(['refused', 'stored'])
+  })
+
+  it('tells the guest whose photo lost the race that the quota is full', async () => {
+    seedEvent({ quotaBytes: 1_500_000 })
+
+    const results = await Promise.all([
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+      uploadPhotos({ eventId: EVENT, author: OTHER_GUEST, files: [aFile('cake')] }),
+    ])
+    const loser = results.find((result) => kinds(result).includes('refused'))
+
+    expect(loser === undefined ? null : refusal(loser).code).toBe('event.quotaExceeded')
+  })
+
+  it('keeps no media for a photo two concurrent uploads left no room for', async () => {
+    seedEvent({ quotaBytes: 1_500_000 })
+
+    await Promise.all([
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+      uploadPhotos({ eventId: EVENT, author: OTHER_GUEST, files: [aFile('cake')] }),
+    ])
+
+    // Three variants for the one photo that landed, and nothing for the one that did
+    // not: the quota protects a disk, so a refused photo must not sit on it.
+    expect(media.objectCount).toBe(3)
+  })
+
+  it('holds the per-guest photo limit when one guest uploads twice at the same moment', async () => {
+    seedEvent({ settings: { maxPhotosPerGuest: 1 } })
+
+    await Promise.all([
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('cake')] }),
+    ])
+
+    expect(await photos.countByAuthor(EVENT, asGuestId('guest-1'))).toBe(1)
+  })
+
+  // ------------------------------------------- refused by the write transaction --
+
+  const QUOTA_REFUSAL: PhotoRefusal = { reason: 'quotaExceeded', remaining: 512 }
+  const LIMIT_REFUSAL: PhotoRefusal = { reason: 'photoLimitReached', already: 4 }
+
+  const uploadInto = (repository: FakePhotoRepository): UploadPhotos =>
+    build({ photos: repository })
+
+  it('refuses the file the write turned away, with the code the endpoint answers 413 to', async () => {
+    seedEvent()
+    const full = new FullPhotoRepository(QUOTA_REFUSAL)
+
+    const result = await uploadInto(full)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset')],
+    })
+
+    expect(refusal(result).code).toBe('event.quotaExceeded')
+    expect(refusal(result).kind).toBe('quotaExceeded')
+  })
+
+  it('reports what the quota had left at the moment the write refused, not before', async () => {
+    seedEvent()
+    const full = new FullPhotoRepository(QUOTA_REFUSAL)
+
+    const result = await uploadInto(full)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset')],
+    })
+
+    expect(refusal(result).details).toEqual({ remaining: 512, required: 1_000_000 })
+  })
+
+  it('names the per-guest limit when that is what the write refused', async () => {
+    seedEvent()
+    const full = new FullPhotoRepository(LIMIT_REFUSAL)
+
+    const result = await uploadInto(full)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset')],
+    })
+
+    expect(refusal(result).code).toBe('event.photoLimitReached')
+    expect(refusal(result).details).toEqual({ already: 4 })
+  })
+
+  it('removes the media of a photo the write turned away', async () => {
+    seedEvent()
+    const full = new FullPhotoRepository(QUOTA_REFUSAL)
+
+    await uploadInto(full)({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
+
+    expect(media.objectCount).toBe(0)
+  })
+
+  it('leaves the media alone when the row that won the race holds the same bytes', async () => {
+    // Two guests sending the same photo in the same instant: media is addressed by
+    // content, so the loser deleting "its" file would take the winner's slide with it.
+    seedEvent()
+    const lost = new LostRacePhotoRepository(hashOf('sunset'))
+
+    await uploadInto(lost)({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
+
+    expect(media.objectCount).toBe(3)
+  })
+
+  it('announces nothing for a photo the write turned away', async () => {
+    seedEvent({ settings: { moderation: 'auto' } })
+    const full = new FullPhotoRepository(QUOTA_REFUSAL)
+
+    await uploadInto(full)({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
+
+    expect(bus.published).toEqual([])
+  })
+
+  it('refuses the duplicate of a photo the write turned away, rather than naming a row that was never written', async () => {
+    seedEvent()
+    const full = new FullPhotoRepository(QUOTA_REFUSAL)
+
+    const result = await uploadInto(full)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('sunset')],
+    })
+
+    expect(kinds(result)).toEqual(['refused', 'refused'])
   })
 
   // --------------------------------------------------------------- moderation --

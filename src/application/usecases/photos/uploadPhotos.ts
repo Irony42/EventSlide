@@ -13,7 +13,11 @@ import type { IdGenerator } from '../../ports/idGenerator'
 import type { ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
 import type { Logger } from '../../ports/logger'
 import { MEDIA_VARIANTS, type MediaStore, type MediaVariant } from '../../ports/mediaStore'
-import type { PhotoRepository } from '../../ports/photoRepository'
+import type {
+  PhotoAdmission,
+  PhotoRefusal,
+  PhotoRepository,
+} from '../../ports/photoRepository'
 
 /**
  * Guest photo ingest: the request this product exists for, and the one place where a
@@ -27,7 +31,10 @@ import type { PhotoRepository } from '../../ports/photoRepository'
  * 3. hash the **rendered** bytes, so a retry is recognised as a retry;
  * 4. media written before the row, so a `sharp` failure can never leave a row
  *    pointing at a file that does not exist;
- * 5. every exit path after a write removes what this request wrote.
+ * 5. the limits re-checked inside the write transaction, because a total read here can
+ *    be stale by the time the batch is inserted — that is what makes the quota hold
+ *    when two guests upload at the same moment, and not merely when they take turns;
+ * 6. every exit path after a write removes what this request wrote.
  *
  * A batch is a partial success, not all-or-nothing: a guest who selected five photos
  * and one PDF gets five photos and one named refusal. Handing back a single opaque
@@ -134,6 +141,40 @@ const renderVariants = async (
   return ok({ display: display.value, thumb: thumb.value, original: original.value })
 }
 
+/**
+ * The refusal a guest is shown for a photo the write transaction turned away.
+ *
+ * Same codes as the checks before the loop, because it is the same rule — only decided
+ * against the state that was actually committed rather than the one this request read
+ * before it started rendering.
+ */
+const refusalError = (refusal: PhotoRefusal, requiredBytes: number): DomainError =>
+  refusal.reason === 'quotaExceeded'
+    ? DomainError.quotaExceeded('event.quotaExceeded', {
+        remaining: refusal.remaining,
+        required: requiredBytes,
+      })
+    : DomainError.quotaExceeded('event.photoLimitReached', { already: refusal.already })
+
+/**
+ * Restates the outcomes of the photos the write transaction turned away.
+ *
+ * A `duplicate` outcome is restated too, not only a `stored` one: it names a photo
+ * earlier in this same request, and if that photo was never written there is nothing
+ * left for it to point at.
+ */
+const settle = (
+  outcomes: readonly UploadOutcome[],
+  turnedAway: ReadonlyMap<PhotoId, DomainError>,
+): readonly UploadOutcome[] =>
+  outcomes.map((outcome) => {
+    if (outcome.kind === 'refused') return outcome
+
+    const error = turnedAway.get(outcome.photoId)
+    if (error === undefined) return outcome
+    return { index: outcome.index, declaredName: outcome.declaredName, kind: 'refused', error }
+  })
+
 export const makeUploadPhotos = ({
   events,
   photos,
@@ -170,6 +211,11 @@ export const makeUploadPhotos = ({
     const maxPerGuest = settings.maxPhotosPerGuest
     // A cap is a fairness tool between guests, so it does not apply to the host's own
     // camera roll. Storage is the byte quota's job, and that is checked per file below.
+    //
+    // Refusing the whole request here, before anything is decoded, is what keeps a guest
+    // who is already at their limit from costing the box a single decode. It is not the
+    // enforcing check: the repository takes this count again inside the write
+    // transaction, where a second request of theirs cannot slip past it.
     if (maxPerGuest !== null && author.kind === 'guest') {
       const already = await photos.countByAuthor(eventId, author.guestId)
       if (already + files.length > maxPerGuest) {
@@ -260,6 +306,12 @@ export const makeUploadPhotos = ({
 
       // `addedBytes` accumulates, so ten files that each fit individually cannot
       // collectively overrun the quota.
+      //
+      // This is the cheap check, not the enforcing one: `usedBytes` was read before the
+      // first decode and another request can commit against the same event while this
+      // one renders. Its job is to stop a full event from decoding and writing three
+      // variants per file only to have them removed again — which is the path a scanner
+      // that found the endpoint would hammer. The repository decides for real.
       if (!event.hasQuotaFor(addedBytes + byteSize, usedBytes)) {
         outcomes.push({
           ...at,
@@ -315,9 +367,20 @@ export const makeUploadPhotos = ({
     // Media first, row second, and the rows in one transaction. 1.0 inserted first and
     // fired one insert per file, so a failure left rows pointing at nothing and a guest
     // with no way to tell which of their photos had landed.
+    //
+    // The limits travel with the batch because this is where they are *enforced*. The
+    // checks above read totals that another request in flight can invalidate before this
+    // one commits; the repository takes them again inside the write transaction, where
+    // nothing can interleave, and refuses what no longer fits. So a photo can still be
+    // turned away here, after its media has been written — which is why the unwinding
+    // below is per photo rather than per request.
+    let admissions: readonly PhotoAdmission[] = []
     if (created.length > 0) {
       try {
-        await photos.saveMany(created)
+        admissions = await photos.saveManyWithinLimits(eventId, created, {
+          quotaBytes: event.quotaBytes,
+          maxPhotosPerGuest: maxPerGuest,
+        })
       } catch (cause) {
         logger.error('photo insert failed; removing the media this upload wrote', {
           eventId,
@@ -325,6 +388,31 @@ export const makeUploadPhotos = ({
         })
         await unwind()
         return err(DomainError.unexpected('photo.saveFailed'))
+      }
+    }
+
+    const refusals = new Map<PhotoId, PhotoRefusal>()
+    for (const admission of admissions) {
+      if (admission.refusal !== null) refusals.set(admission.photoId, admission.refusal)
+    }
+
+    const turnedAway = new Map<PhotoId, DomainError>()
+    const admitted: Photo[] = []
+    for (const photo of created) {
+      const refusal = refusals.get(photo.id)
+      if (refusal === undefined) {
+        admitted.push(photo)
+        continue
+      }
+      turnedAway.set(photo.id, refusalError(refusal, photo.byteSize))
+
+      // Its row was never written, so its media must not stay on the disk that the
+      // quota exists to protect. Media is addressed by content, though, and the request
+      // that beat this one to the quota may have been a byte-identical photo from
+      // another guest — whose row now holds this hash. Deleting then would leave *their*
+      // slide pointing at nothing, so the file goes only if nothing points at it.
+      if ((await photos.findByContentHash(eventId, photo.contentHash)) === null) {
+        await media.delete(eventId, photo.contentHash)
       }
     }
 
@@ -336,19 +424,19 @@ export const makeUploadPhotos = ({
       settings.moderation === 'auto'
         ? await photos.updateStatuses(
             eventId,
-            created.map((photo) => photo.id),
+            admitted.map((photo) => photo.id),
             'published',
             { kind: 'automatic', at: now },
           )
         : []
 
-    for (const photo of created) {
+    for (const photo of admitted) {
       bus.publish({ type: 'photo.uploaded', eventId, photoId: photo.id })
     }
     for (const photoId of published) {
       bus.publish({ type: 'photo.moderated', eventId, photoId, status: 'published' })
     }
 
-    return ok({ outcomes, published })
+    return ok({ outcomes: settle(outcomes, turnedAway), published })
   }
 }

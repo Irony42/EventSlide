@@ -5,6 +5,7 @@ import type { JoinCode } from '../shared/joinCode'
 import type { Slug } from '../shared/slug'
 import type { EventName } from './eventName'
 import type { EventSettings } from './eventSettings'
+import { fitsInQuota, remainingQuota } from './quota'
 import {
   acceptsGuests,
   acceptsUploads,
@@ -230,18 +231,20 @@ export class Event {
    * The control that stops a public upload endpoint filling the disk. Arithmetic, not a
    * query: the caller sums the event's bytes once and asks here, so the decision is
    * testable without a database and identical on every path that accepts a photo.
+   *
+   * It is *not* the last word, though. A total read before a batch is rendered can be
+   * stale by the time that batch is written, so the check that enforces the quota is
+   * the one the repository takes inside the write transaction. Both call the same
+   * arithmetic in `./quota` so the answer a guest is given and the answer the database
+   * acts on cannot differ.
    */
   hasQuotaFor(additionalBytes: number, usedBytes: number): boolean {
-    return additionalBytes <= this.remainingQuota(usedBytes)
+    return fitsInQuota(this.props.quotaBytes, usedBytes, additionalBytes)
   }
 
-  /**
-   * Clamped at zero. Usage can legitimately exceed the quota — the host lowered it
-   * after the party — and a negative "remaining" shown to a guest, or fed back into
-   * this arithmetic, is worse than an honest nothing left.
-   */
+  /** What is left of the quota, never negative. See `./quota`. */
   remainingQuota(usedBytes: number): number {
-    return Math.max(0, this.props.quotaBytes - usedBytes)
+    return remainingQuota(this.props.quotaBytes, usedBytes)
   }
 
   // ------------------------------------------------------------------ retention --

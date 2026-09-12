@@ -31,6 +31,39 @@ export interface PhotoStatusCounts {
   readonly hidden: number
 }
 
+/**
+ * The limits a batch insert must respect, checked against the rows already committed.
+ *
+ * They are passed in rather than read from the database because they belong to the
+ * `Event` aggregate, and a repository does not get to interpret another aggregate. What
+ * the repository contributes is the one thing a use case cannot: taking the count and
+ * the sum **inside the same transaction as the insert**, where nothing can interleave.
+ */
+export interface PhotoAdmissionLimits {
+  /** `events.quota_bytes`. The event's total `byteSize` may not pass it. */
+  readonly quotaBytes: number
+  /** `settings.maxPhotosPerGuest`; `null` is no cap. Never applies to a host author. */
+  readonly maxPhotosPerGuest: number | null
+}
+
+/**
+ * Why a staged photo was not inserted, with the numbers observed at the moment of the
+ * decision — so the caller reports the state that actually refused it rather than the
+ * stale one it read before rendering.
+ */
+export type PhotoRefusal =
+  /** `remaining` is what the event's quota still had room for, in bytes. */
+  | { readonly reason: 'quotaExceeded'; readonly remaining: number }
+  /** `already` is how many photos the author held when the cap refused this one. */
+  | { readonly reason: 'photoLimitReached'; readonly already: number }
+
+/** One verdict per submitted photo, in the order submitted. */
+export interface PhotoAdmission {
+  readonly photoId: PhotoId
+  /** `null` when the row was inserted. */
+  readonly refusal: PhotoRefusal | null
+}
+
 export interface PhotoRepository {
   findById(eventId: EventId, photoId: PhotoId): Promise<Photo | null>
 
@@ -60,11 +93,31 @@ export interface PhotoRepository {
   save(photo: Photo): Promise<void>
 
   /**
-   * One transaction for a whole multi-file upload. 1.0 fired several inserts through
-   * `Promise.all` with no transaction, so a failure part-way left the event with some
-   * rows committed and some not.
+   * Inserts the photos of one upload that the event still has room for, and reports the
+   * ones it does not — the whole thing in a single transaction.
+   *
+   * This is the only bulk insert, and it is the only place the byte quota and the
+   * per-guest cap are actually enforced. An unconditional `saveMany` used to sit here
+   * beside it, and the quota was decided before the batch was rendered: two guests
+   * uploading at the same moment both read the same usage, both passed, and the quota
+   * was beatable by a factor equal to the number of requests in flight. Counting inside
+   * the write transaction is what closes that, so there is deliberately no way to insert
+   * an upload without the check.
+   *
+   * Partial by design, in the order given: a photo that does not fit is reported, and
+   * the ones after it are still considered. That matches how a batch already behaves
+   * everywhere else in ingest — five photos and one refusal, not one opaque failure.
+   *
+   * Insert only. A photo id that already exists raises, because ingest mints a fresh id
+   * per file and a collision there is a bug, not an update. 1.0 fired one insert per
+   * file through `Promise.all` with no transaction, so a failure part-way left some rows
+   * committed and some not; anything that raises here leaves the batch entirely unwritten.
    */
-  saveMany(photos: readonly Photo[]): Promise<void>
+  saveManyWithinLimits(
+    eventId: EventId,
+    photos: readonly Photo[],
+    limits: PhotoAdmissionLimits,
+  ): Promise<readonly PhotoAdmission[]>
 
   /** Idempotent: deleting an already-deleted photo is not an error. */
   delete(eventId: EventId, photoId: PhotoId): Promise<void>

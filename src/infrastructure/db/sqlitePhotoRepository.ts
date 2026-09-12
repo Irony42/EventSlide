@@ -1,9 +1,12 @@
 import type {
+  PhotoAdmission,
+  PhotoAdmissionLimits,
   PhotoPage,
   PhotoQuery,
   PhotoRepository,
   PhotoStatusCounts,
 } from '../../application/ports/photoRepository'
+import { allowsAnotherPhoto, fitsInQuota, remainingQuota } from '../../domain/events/quota'
 import { Caption } from '../../domain/photos/caption'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Dimensions } from '../../domain/photos/dimensions'
@@ -32,9 +35,12 @@ import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
  * 1. **Every statement filters on `event_id`.** Tenant isolation in this product *is*
  *    "was the event id part of the query". There is no statement here that can be run
  *    without one.
- * 2. **A multi-file upload is one transaction.** 1.0 fired one insert per file through
- *    `Promise.all`, so a duplicate in the fifth file left four rows committed and the
- *    guest with no way to tell which of their photos landed.
+ * 2. **A multi-file upload is one transaction, and the quota is counted inside it.**
+ *    1.0 fired one insert per file through `Promise.all`, so a duplicate in the fifth
+ *    file left four rows committed and the guest with no way to tell which of their
+ *    photos landed. 2.0 then read the byte total *before* the batch was rendered, which
+ *    made the quota beatable by two guests uploading at the same moment; the sum and the
+ *    inserts now sit in the same transaction.
  * 3. **Paging is keyset, never `OFFSET`.** Guests keep uploading while a host scrolls
  *    the queue, and an offset shifts under them — which shows one photo twice and
  *    skips another entirely.
@@ -57,6 +63,17 @@ const INSERT_PHOTO = `
     @width, @height, @byte_size, @caption, @created_at,
     @review_kind, @reviewed_at, @reviewed_by_user_id
   )
+`
+
+/**
+ * The two totals the event's limits are judged against. Declared beside the insert
+ * because `saveManyWithinLimits` runs all three in one transaction, and it is that
+ * pairing — not the queries themselves — that enforces the quota.
+ */
+const SUM_EVENT_BYTES = `SELECT SUM(byte_size) AS value FROM photos WHERE event_id = ?`
+
+const COUNT_BY_AUTHOR = `
+  SELECT COUNT(*) AS value FROM photos WHERE event_id = ? AND author_guest_id = ?
 `
 
 /**
@@ -390,54 +407,119 @@ export class SqlitePhotoRepository implements PhotoRepository {
    * occupies the disk it was written to.
    */
   async totalBytes(eventId: EventId): Promise<number> {
-    return aggregate(
-      this.db
-        .prepare<[string], AggregateRow>(
-          `SELECT SUM(byte_size) AS value FROM photos WHERE event_id = ?`,
-        )
-        .get(eventId),
-    )
+    return aggregate(this.db.prepare<[string], AggregateRow>(SUM_EVENT_BYTES).get(eventId))
   }
 
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
     return aggregate(
-      this.db
-        .prepare<[string, string], AggregateRow>(
-          `SELECT COUNT(*) AS value FROM photos WHERE event_id = ? AND author_guest_id = ?`,
-        )
-        .get(eventId, guestId),
+      this.db.prepare<[string, string], AggregateRow>(COUNT_BY_AUTHOR).get(eventId, guestId),
     )
   }
 
-  async save(photo: Photo): Promise<void> {
-    this.writeBatch([photo])
-  }
-
-  async saveMany(photos: readonly Photo[]): Promise<void> {
-    this.writeBatch(photos)
-  }
-
   /**
-   * The whole batch in one transaction.
+   * Update-or-insert one photo: the moderation decision and the caption paths.
    *
    * A photo already stored under this id is updated rather than replaced: SQLite's
    * `INSERT OR REPLACE` deletes the conflicting row first, and `reactions.photo_id`
    * cascades from `photos` — so a re-saved photo would silently lose every reaction
    * the room had given it. A duplicate `(event_id, content_hash)` still raises, which
    * is what makes a double-tapped submit one slide instead of two.
+   *
+   * The two statements are one transaction because they are one decision: without it a
+   * concurrent insert between the miss and the insert turns an update into a raise.
    */
-  private writeBatch(photos: readonly Photo[]): void {
+  async save(photo: Photo): Promise<void> {
     const update = this.db.prepare<PhotoBindings>(UPDATE_PHOTO)
     const insert = this.db.prepare<PhotoBindings>(INSERT_PHOTO)
+    const bindings = toBindings(photo)
 
-    // better-sqlite3 is synchronous, so no `await` can sit between these statements
-    // and a reader never observes half a batch.
     this.db.transaction(() => {
-      for (const photo of photos) {
-        const bindings = toBindings(photo)
-        if (update.run(bindings).changes === 0) insert.run(bindings)
-      }
+      if (update.run(bindings).changes === 0) insert.run(bindings)
     })()
+  }
+
+  /**
+   * The upload batch: count, sum, decide and insert, all inside one write transaction.
+   *
+   * This is the fix for a real race. The quota used to be decided by the use case from
+   * a `SUM` taken before the batch was even rendered, and `await`s sat between that read
+   * and the insert — so two guests uploading at the same moment both read the same
+   * usage, both passed, and the quota was beatable by a factor equal to the number of
+   * requests in flight. The same held for the per-guest cap.
+   *
+   * What makes the check exact is that better-sqlite3 is **synchronous**: no `await` can
+   * be written between the `SUM` below and the `INSERT`s that follow it, so no other
+   * request can run in between. `.immediate()` extends that across connections — it
+   * takes the write lock before the first read, so the totals are the last committed
+   * state and no other writer can commit between the check and the insert. A deferred
+   * transaction would open on a read snapshot and raise `SQLITE_BUSY_SNAPSHOT` when it
+   * tried to upgrade: still correct, but delivered as a failed upload rather than as an
+   * enforced quota.
+   *
+   * No counter column, deliberately. `used_bytes` on `events` would make this a single
+   * conditional `UPDATE`, but it is derived state: `photos` rows also disappear through
+   * `ON DELETE CASCADE` from `guests` and `events`, which no repository method observes,
+   * so the counter would drift from the rows it summarises and nothing would say so.
+   * The sum is the truth; the transaction is what makes reading it safe.
+   */
+  async saveManyWithinLimits(
+    eventId: EventId,
+    photos: readonly Photo[],
+    limits: PhotoAdmissionLimits,
+  ): Promise<readonly PhotoAdmission[]> {
+    const insert = this.db.prepare<PhotoBindings>(INSERT_PHOTO)
+    const sumBytes = this.db.prepare<[string], AggregateRow>(SUM_EVENT_BYTES)
+    const countAuthored = this.db.prepare<[string, string], AggregateRow>(COUNT_BY_AUTHOR)
+
+    return this.db
+      .transaction((): readonly PhotoAdmission[] => {
+        let usedBytes = aggregate(sumBytes.get(eventId))
+        /** One `COUNT` per author, then kept in step with what this batch inserts. */
+        const authored = new Map<string, number>()
+        const alreadyBy = (guestId: GuestId): number => {
+          const known = authored.get(guestId)
+          if (known !== undefined) return known
+
+          const counted = aggregate(countAuthored.get(eventId, guestId))
+          authored.set(guestId, counted)
+          return counted
+        }
+
+        const verdicts: PhotoAdmission[] = []
+        for (const photo of photos) {
+          const author = photo.author
+          const guestId = author.kind === 'guest' ? author.guestId : null
+
+          if (guestId !== null) {
+            const already = alreadyBy(guestId)
+            if (!allowsAnotherPhoto(limits.maxPhotosPerGuest, already)) {
+              verdicts.push({
+                photoId: photo.id,
+                refusal: { reason: 'photoLimitReached', already },
+              })
+              continue
+            }
+          }
+
+          if (!fitsInQuota(limits.quotaBytes, usedBytes, photo.byteSize)) {
+            verdicts.push({
+              photoId: photo.id,
+              refusal: {
+                reason: 'quotaExceeded',
+                remaining: remainingQuota(limits.quotaBytes, usedBytes),
+              },
+            })
+            continue
+          }
+
+          insert.run(toBindings(photo))
+          usedBytes += photo.byteSize
+          if (guestId !== null) authored.set(guestId, alreadyBy(guestId) + 1)
+          verdicts.push({ photoId: photo.id, refusal: null })
+        }
+        return verdicts
+      })
+      .immediate()
   }
 
   async delete(eventId: EventId, photoId: PhotoId): Promise<void> {
