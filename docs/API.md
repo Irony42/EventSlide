@@ -271,9 +271,11 @@ The query schema is `.strict()` like every other, so **any parameter other than 
 e2e hooks below is a `400 request.invalid`**. That matters more here than anywhere else:
 this is the URL a projector is left on for eight hours, and a tracking parameter appended
 by whatever pasted the link turns the wall into an error page. The exceptions are
-`e2e_interval` and `e2e_transition`, which the schema still accepts and nothing on the
-server reads — they are honoured in the browser, and only when the server was started
-with `E2E_HOOKS=1`. See §9.
+`e2e_interval` and `e2e_transition`, which the schema accepts and **nothing on this server
+reads**: the handler passes `slideIntervalMs: null` whatever the `E2E_HOOKS` flag says,
+and the overrides that make the Playwright suite fast are applied in the browser, off the
+_display_ URL. They are accepted here and inert, which is a defect and not a feature —
+§9.5.
 
 **200**
 
@@ -927,7 +929,9 @@ no-store`.
 
 ### `GET /api/events/:slug/guests`
 
-Query: `activeWithinMinutes`, integer 1..1440, default 30.
+**No query parameter.** The schema is an empty `.strict()` object, so any parameter is a
+`400 request.invalid` — including `activeWithinMinutes`, which this endpoint accepted and
+discarded until 12 September.
 
 **200**
 
@@ -950,10 +954,14 @@ Query: `activeWithinMinutes`, integer 1..1440, default 30.
 Revoked guests are **included** in `items`: a removal the host cannot see afterwards
 looks like a button that did nothing. `activeCount` is presence and excludes them.
 
-`activeWithinMinutes` is validated and then **not applied** — the use case owns what "at
-the party" means and uses its own window. It is parsed rather than ignored so that a
-malformed value is still a 400 rather than silently accepted, but a client must not
-expect it to change the answer. See §9.
+`activeCount` counts the guests seen in the **last five minutes**, and that window is not
+a caller's choice. It is one number on a console read across a room, so a window the
+caller picked would make the same field mean "here now" to one screen and "was here this
+evening" to the next, with nothing on the wire saying which — and at the top of the range
+the old parameter allowed it would have converged on `items.length`, which this response
+already carries. The window and the reason for it live in
+`src/application/usecases/guests/listGuests.ts`. A second horizon, if a host ever needs
+one, is a second named field and not a knob that redefines this one.
 
 ### `POST /api/events/:slug/guests/:guestId/revoke`
 
@@ -1081,8 +1089,9 @@ so the status machine stays free to grow a state no keystroke maps to. **204**.
 The console's one read: one tab of the queue, plus the badge.
 
 Query: `status` ∈ `pending | published | rejected | hidden | all` (default `pending`),
-`limit` 1..200 (default 60). A `cursor` is accepted by the schema and read by nothing —
-see `nextCursor` below, and §9.
+`limit` 1..200 (default 60). **No `cursor`** — sending one is a `400 request.invalid`,
+for the reason `nextCursor` is always `null` below. The cursor-paged surface is
+`GET /api/events/:slug/photos`.
 
 **200**
 
@@ -1122,7 +1131,10 @@ nothing renders one.
 shrank to the page size the moment a `limit` was applied would under-report the work
 left. `nextCursor` is always `null`, and this queue is deliberately not cursor-paged —
 the ordering is applied to the whole filtered set _before_ `limit`, so the oldest pending
-photo cannot be pushed off the page by newer arrivals. The pending tab is oldest first
+photo cannot be pushed off the page by newer arrivals, and a cursor names a position in a
+stable order that this one does not have. That is why the request refuses a `cursor`
+rather than accepting one it would silently drop; `null` is reported rather than the key
+omitted, so the client reads one shape either way. The pending tab is oldest first
 for the same reason; every other tab is newest first, because there the host is looking
 at what just happened.
 
@@ -1252,14 +1264,21 @@ is authorized per request instead), and no GraphQL.
 >
 > Each entry is labelled. **doc corrected above** means §1–8 was wrong and has been
 > fixed, so the entry is history. **code defect**, **stale code** and **drift** mean the
-> code is wrong and has not been touched — deliberately, because rewriting a
-> specification to agree with a bug is the one outcome an audit must not produce. When
-> one is fixed, the fix moves the behaviour into §1–8 and the entry is deleted from here.
+> behaviour is still wrong — deliberately left wrong, because rewriting a specification
+> to agree with a bug is the one outcome an audit must not produce. When one is fixed,
+> the fix moves the behaviour into §1–8 and the entry is deleted from here.
+>
+> An open entry may still be **narrowed**: a comment that misdescribed the defect can be
+> corrected, and a claim that has gone stale can be struck, while the behaviour stays as
+> it is and the entry stays here. An entry that says less than it did is progress; an
+> entry that quietly says something untrue is the reason this section exists.
 >
 > **The numbers do not shift when an entry goes**, so a gap means "fixed and removed",
 > not "missing". 9.2 (the moderator invitation the console could not send), 9.6 (the
-> console on the public wall channel) and 9.9 (the SSE subscriber cap failing in
-> silence) have all been fixed and are now described where they belong, in §6 and §7.
+> console on the public wall channel), 9.9 (the SSE subscriber cap failing in silence),
+> 9.3 (`activeWithinMinutes` accepted and discarded) and 9.4 (the moderation `cursor`
+> accepted and inert) have all been fixed and are now described where they belong, in §6
+> and §7.
 
 Found by an end-to-end audit of every route against
 `src/interface/http/routes/*.ts`, `src/interface/http/schemas/requestSchemas.ts`,
@@ -1267,14 +1286,25 @@ Found by an end-to-end audit of every route against
 papered over: §1 says this document is the specification and one side is a bug, so the
 bug needs a name and a line number.
 
-Every route that exists is documented, and every route documented exists — including
-`DELETE /api/events/:slug`, which had only a table row until this pass and now has the
-contract section §6 gives every other endpoint. Nothing here is a missing endpoint. The
-audit found ten divergences; three have since been fixed and removed, and these seven
-are the places where the code and the intent above are not yet the same thing. Items
-marked **doc corrected above** have been fixed in this file. The rest are code defects,
-and none of them has been touched — rewriting a specification to agree with a bug is the
-one outcome an audit must not produce.
+Every route that exists is documented, and every route documented exists — verified in
+both directions: **37 routes in code, 37 `###` headings in §1–8, no discrepancy either
+way**. Nothing here is a missing endpoint. The audit found ten divergences; five have
+since been fixed and removed, and these five are the places where the code and the intent
+above are not yet the same thing. Items marked **doc corrected above** have been fixed in
+this file. The rest are code defects — rewriting a specification to agree with a bug is
+the one outcome an audit must not produce.
+
+**Three of the ten were a parameter accepted and then ignored** — the precise failure
+`.strict()` exists to prevent, and one §1 states as part of this contract: a refused field
+teaches the caller something, an accepted field that changes no answer lies to them. Two
+are now closed and the third, 9.5, is below with the reason it is not.
+`activeWithinMinutes` (9.3) and the moderation `cursor` (9.4) were each **removed from
+their schema**, so sending either is now a `400 request.invalid`. That was a decision per
+entry and not one rule applied twice: wiring the parameter was the live alternative in
+both cases, and both refusals are argued next to the code they constrain — in
+`listGuests.ts` for the presence window, in `requestSchemas.ts` for the cursor. Only two
+branches are available to an entry of this shape, and leaving the field accepted is
+neither.
 
 ### 9.1 The per-guest cap sends a code this document invented — **doc corrected above**
 
@@ -1286,43 +1316,60 @@ for **both** spellings, with a comment saying it is keeping them until the contr
 one. It has now picked: `event.photoLimitReached`. The `photo.tooManyForGuest` entry in
 `fr.ts` is dead and can go.
 
-### 9.3 `activeWithinMinutes` is validated and then ignored — **code defect**
-
-`src/interface/http/routes/eventRoutes.ts:293` parses `guestListQuery` and discards the
-result; `listGuests` uses its own `PRESENCE_WINDOW_MS`. A parameter that is accepted,
-bounded, and then has no effect is the precise failure mode `.strict()` exists to
-prevent — the sender believes it took effect. Either thread it into the use case or drop
-it from the schema so that sending it is a 400.
-
-### 9.4 The moderation queue accepts a `cursor` it cannot use — **code defect**
-
-`moderationQueueQuery` (`requestSchemas.ts:181`) accepts `cursor`;
-`src/interface/http/routes/moderationRoutes.ts:115` never reads it and the response
-always says `nextCursor: null`. Same shape of problem as 9.3, and the fix is the same
-one: this queue is deliberately not cursor-paged, so the field should not be accepted.
-
 ### 9.5 The wall's e2e timing hooks are accepted and read by nothing — **stale code**
 
-`wallQuery` (`requestSchemas.ts:209`) accepts `e2e_interval` and `e2e_transition`, and
-its own comment says the route honours them under `E2E_HOOKS=1`. The route
-(`publicRoutes.ts:178`) passes `slideIntervalMs: null` unconditionally and reads neither;
-the real overrides live client-side in
-`web/src/features/wall/hooks/useTimingOverrides.ts`. The comment describes a design that
-is not there, and `HttpConfig.e2eHooks` is plumbed to this and used by nothing.
+`wallQuery` (`requestSchemas.ts`) accepts `e2e_interval` and `e2e_transition`. The route
+parses the query at `publicRoutes.ts:167`, passes `slideIntervalMs: null` at `:178`
+unconditionally, and reads neither; the real overrides live client-side in
+`web/src/features/wall/hooks/useTimingOverrides.ts`. **This is the third parameter-accepted-
+then-ignored entry, and the one still open** — the other two are the closed 9.3 and 9.4
+named in the numbering note above.
 
-### 9.7 `ModerationPhotoDto` differs between the two declarations — **drift**
+Narrowed on 12 September rather than closed. The schema's own comment claimed the route
+honoured the pair under `E2E_HOOKS=1`, which described a design that is not there; it now
+states that the server reads neither and points here. What remains is the accepting
+itself, plus two things that follow it:
 
-`src/interface/http/presenters/dto.ts:89` carries `byteSize`;
-`web/src/lib/api/dto.ts:98` does not, and its comment says the field was removed because
-nothing renders it. Both are in use: the server's is the row of
-`GET /api/events/:slug/photos`, which really does ship `byteSize`. The client type is
-simply narrower than the bytes it receives, which typechecks and misleads. §6 above now
-documents the field as present.
+- `HttpConfig.e2eHooks` (`types.ts:75`, set from `container.ts:162`) is plumbed through
+  the HTTP layer and **read by no handler**. `publicRoutes.test.ts` exercises both states
+  of the flag precisely to pin that it changes no answer.
+- The rationale the flag was given does not hold on the side that does read the hooks.
+  `useTimingOverrides.ts` says "the server refuses to boot production with `E2E_HOOKS`
+  set, so the hooks cannot reach a real event" — but that flag guards the **server**, and
+  the overrides are applied in the **browser**, from the display URL, by the same bundle
+  production serves. A projector opened on `?e2e_interval=50` is sped up in production
+  today. Self-inflicted rather than cross-user, so it is a false rationale and not a
+  vulnerability — but it is the sentence that would stop the next reader from removing
+  the hooks, and it is wrong.
 
-Two server DTOs are also dead: `ModerationQueueResponseDto` and `GuestListResponseDto`
-(`presenters/dto.ts:102` and `:155`) have no referent anywhere. The first is the more
-dangerous of the two, because it describes the queue page with the `byteSize`-carrying
-row that the queue no longer sends.
+Closing it is a removal from `wallQuery` plus the flag, and it is not a one-file change:
+`requestSchemas.ts` and its test; `publicRoutes.ts` and `publicRoutes.test.ts`, which
+asserts **200** for `?e2e_interval=250&e2e_transition=10000` and is the test that goes red
+first; `types.ts`, `container.ts` and `middlewareHarness.ts` for the flag; and
+`docs/TESTING.md:414,472` with `.claude/skills/eventslide-e2e/SKILL.md:175`, which both
+still describe the hooks as server-honoured. Nine files, one commit — which is why it did
+not travel with 9.3 and 9.4, whose fixes were a schema line each.
+
+### 9.7 One name, `ModerationPhotoDto`, for two different rows — **drift**
+
+Re-verified on 12 September, and **two of the three claims this entry used to make were
+themselves stale**; what is left is smaller and sharper than it was written.
+
+The live half: `ModerationPhotoDto` in `src/interface/http/presenters/dto.ts:88` is the
+row of `GET /api/events/:slug/photos` — the gallery — and carries `byteSize`.
+`ModerationPhotoDto` in `web/src/lib/api/dto.ts:98` is the row of
+`ModerationQueueResponse`, i.e. of `GET /api/events/:slug/moderation`, whose server row is
+a **different interface**, `ModerationQueueItemDto` (`dto.ts:204`), which correctly has no
+`byteSize`. So each declaration is right about the endpoint it actually serves, and the
+drift is the shared name: a reader comparing the two finds a field on one side and not the
+other and cannot tell whether that is a bug. Nothing receives the mismatched bytes today —
+the gallery has no client method at all, which `requestContract.test.ts` records by name in
+`NO_CLIENT_CALLER`. The fix is a rename on the client side to `ModerationQueueItemDto`, in
+`web/src/lib/api/dto.ts` and its referents; it changes no wire format.
+
+Corrected rather than carried forward: `ModerationQueueResponseDto` is **gone** — no
+declaration anywhere — and `GuestListResponseDto` is **not dead**, `eventRoutes.ts` imports
+it and types the guest-list response with it. Both were listed here as dead code.
 
 ### 9.8 Codes a guest or host can provoke that have no French copy — **copy gaps**
 
@@ -1371,3 +1418,22 @@ target and `404 guest.notFound` when the id is not in this event, is what the us
 already written for.
 
 Neither is documented above, because this file specifies what the server implements.
+
+**Still open on 12 September, and re-verified**: `src/main/usecases.ts:136` and `:180` wire
+both, `useCases.ts:12` and `:19` declare both, `grep` over
+`src/interface/http/routes/` finds them in no router — only in the route tests, which
+stub them as deliberately unwired. Dead code that looks alive is worse than dead code that
+looks dead, and this has been true across two reviews.
+
+The decision is not deferrable much longer, and neither branch is a schema change, which
+is why it did not travel with 9.3 and 9.4: **giving them routes** means a handler in
+`publicRoutes.ts` for `GET /api/join/:code` (public, rate-limited like the POST) and one in
+`guestRoutes.ts` for `PATCH /api/events/:slug/guests/:guestId` — `renameGuest` takes an
+`actingGuestId` from the verified device token and refuses any other target, so it belongs
+behind the guest-token middleware and **cannot** be mounted on the host surface in
+`eventRoutes.ts`. **Deleting them** means the two use-case files, their unit tests, and the
+lines in `usecases.ts` and `useCases.ts`. What deletion loses is worth writing down before
+anyone takes it: the join page can then only tell a guest which event they are joining by
+calling `POST /api/join`, which creates the guest and sets the cookie — the guest commits
+before they can confirm they are at the right wedding — and a guest who mistypes the name
+projected under their photos has no way to correct it.

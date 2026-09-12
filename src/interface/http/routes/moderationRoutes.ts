@@ -130,7 +130,9 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
           // The queue is not cursor-paged, and cannot be: the domain orders the whole
           // filtered set *before* applying the limit, precisely so the oldest pending
           // photo cannot be pushed off the page by newer arrivals. Reported as `null`
-          // rather than omitted, so the client reads one shape either way.
+          // rather than omitted, so the client reads one shape either way — and
+          // `moderationQueueQuery` no longer accepts a `cursor` to go with it, so the
+          // refusal is stated at the boundary instead of being discovered here.
           nextCursor: null,
         }),
       )

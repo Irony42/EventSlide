@@ -8,8 +8,10 @@ import {
   eventStatusBody,
   joinBody,
   loginBody,
+  guestListQuery,
   moderationDecisionBody,
   moderationQueueQuery,
+  photoListQuery,
   photoParams,
   photoVariantParams,
   reactionBody,
@@ -314,6 +316,55 @@ describe('moderationQueueQuery', () => {
   ])('rejects a limit of %s', (_label, limit) => {
     expect(moderationQueueQuery.safeParse({ limit }).success).toBe(false)
   })
+
+  /**
+   * The queue answers `nextCursor: null` and always will: the domain orders the whole
+   * filtered set before applying `limit`, so there is no stable position for a cursor to
+   * name. Accepting one anyway — which this schema did for two reviews — told a caller
+   * their page token had been read when the answer was the first page again.
+   */
+  it('refuses a cursor, because this queue is not cursor-paged and cannot be', () => {
+    expect(moderationQueueQuery.safeParse({ cursor: 'photo-40' }).success).toBe(false)
+  })
+
+  it('refuses a cursor even alongside a filter and a limit it does accept', () => {
+    const result = moderationQueueQuery.safeParse({
+      status: 'pending',
+      limit: '20',
+      cursor: 'photo-40',
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('leaves the gallery its cursor, which is the paged surface', () => {
+    // `photoListQuery` is the newest-first, stable listing; the two are not the same
+    // endpoint and only one of them can resume.
+    expect(photoListQuery.safeParse({ cursor: 'photo-40' }).success).toBe(true)
+  })
+})
+
+describe('guestListQuery', () => {
+  it('accepts the empty query, which is the only request this endpoint takes', () => {
+    expect(guestListQuery.safeParse({}).success).toBe(true)
+  })
+
+  /**
+   * The schema used to declare `activeWithinMinutes` 1..1440 (default 30) and the route
+   * discarded it, so a host asking for two hours was answered with `listGuests`'s own
+   * five-minute window and told nothing. What counts as "at the party" is one rule, so
+   * the field is refused rather than threaded through.
+   */
+  it.each(['120', '30', '1'])(
+    'refuses activeWithinMinutes=%s rather than appearing to honour it',
+    (minutes) => {
+      expect(guestListQuery.safeParse({ activeWithinMinutes: minutes }).success).toBe(false)
+    },
+  )
+
+  it('refuses any other query parameter, as every query schema here does', () => {
+    expect(guestListQuery.safeParse({ limit: '10' }).success).toBe(false)
+  })
 })
 
 describe('wallQuery', () => {
@@ -323,7 +374,12 @@ describe('wallQuery', () => {
     expect(wallQuery.safeParse({ layout: 'mosaic' }).success).toBe(false)
   })
 
-  it('accepts the e2e timing hooks, which the route only honours when enabled', () => {
+  // Still accepted, and read by nothing on the server: the wall route passes
+  // `slideIntervalMs: null` whatever the flag says, and the overrides are applied in the
+  // browser off the display URL. Pinned as it is rather than as it should be, because
+  // docs/API.md §9.5 is the entry that owns removing them — the `.strict()` refusal here
+  // is what makes that a one-line change with a failing test in front of it.
+  it('still accepts the e2e timing hooks the server does not read — API.md §9.5', () => {
     const result = wallQuery.safeParse({ e2e_interval: '250', e2e_transition: '0' })
 
     expect(result.success && result.data.e2e_interval).toBe(250)

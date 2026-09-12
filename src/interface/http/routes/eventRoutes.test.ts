@@ -409,6 +409,14 @@ const INVALID_INPUTS: readonly InputCase[] = [
     call: (client) => client.get(`/api/events/${SLUG}/guests?activeWithin=30`),
   },
   {
+    // The parameter this endpoint used to accept and discard. It is refused now, which
+    // is the whole point: a host asking for a two-hour window is told it is not a
+    // question this endpoint answers, instead of receiving five minutes and believing
+    // they asked for two hours.
+    name: 'GET /events/:slug/guests with the activeWithinMinutes it used to ignore',
+    call: (client) => client.get(`/api/events/${SLUG}/guests?activeWithinMinutes=120`),
+  },
+  {
     name: 'POST /events/:slug/guests/:guestId/revoke with a guest id that is not a UUID',
     call: (client) => client.post(`/api/events/${SLUG}/guests/guest-1/revoke`),
   },
@@ -823,6 +831,28 @@ describe('the host event routes', () => {
       const response = await agent.get(`/api/events/${SLUG}/guests`)
 
       expect(response.body.activeCount).toBe(1)
+    })
+
+    /**
+     * The half a 400 alone does not state.
+     *
+     * `AWAY_GUEST` was last seen half an hour ago — inside the window the removed
+     * `activeWithinMinutes` defaulted to, outside the five minutes `listGuests` has
+     * always used. A host who sent the old default got this answer and read it as the
+     * thirty-minute one. The endpoint now has exactly one answer, and this is it.
+     */
+    it('answers one presence window and refuses to be asked for another', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const plain = await agent.get(`/api/events/${SLUG}/guests`)
+      const asked = await agent.get(`/api/events/${SLUG}/guests?activeWithinMinutes=30`)
+
+      expect(plain.status).toBe(200)
+      // Half an hour ago is not "in the room now", whatever a caller asks for.
+      expect(plain.body.items.map((item: { id: string }) => item.id)).toContain(AWAY_GUEST)
+      expect(plain.body.activeCount).toBe(1)
+      expect(asked.status).toBe(400)
+      expect(asked.body.error.code).toBe('request.invalid')
     })
 
     it('never lists a guest of another event', async () => {

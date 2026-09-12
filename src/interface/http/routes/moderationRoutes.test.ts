@@ -387,6 +387,11 @@ describe('GET /api/events/:eventSlug/moderation', () => {
     { label: 'a page size that is not a number', query: 'limit=beaucoup' },
     { label: 'a page size past the cap', query: 'limit=5000' },
     { label: 'an unexpected key', query: 'order=newestFirst' },
+    // The parameter this endpoint accepted and never read. The queue reports
+    // `nextCursor: null` by design, so a caller holding a cursor was resuming nothing —
+    // and got the first page back with no sign that their token had been discarded.
+    { label: 'the cursor this queue has never been able to use', query: 'cursor=photo-2' },
+    { label: 'a cursor next to parameters it does accept', query: 'status=all&cursor=photo-2' },
   ])('answers 400 for $label', async ({ query }) => {
     const agent = await signedIn(subject, 'moderator')
 

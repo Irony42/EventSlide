@@ -174,16 +174,21 @@ export const createApi = (transport: Transport) => ({
 
   // -------------------------------------------------------------- moderation --
 
+  /**
+   * No `cursor`, deliberately: the queue answers `nextCursor: null` and cannot be
+   * cursor-paged — the ordering is applied to the whole filtered set before `limit`, so
+   * there is no stable position to resume from. `moderationQueueQuery` refuses one, so
+   * sending it would be a 400 for the whole request. The paged surface is the gallery.
+   */
   moderationQueue: (
     slug: string,
-    query: { status?: PhotoStatus | 'all'; cursor?: string; limit?: number } = {},
+    query: { status?: PhotoStatus | 'all'; limit?: number } = {},
     signal?: AbortSignal,
   ): Promise<ModerationQueueResponse> =>
     transport.get(
       `/api/events/${encode(slug)}/moderation`,
       {
         ...(query.status ? { status: query.status } : {}),
-        ...(query.cursor ? { cursor: query.cursor } : {}),
         ...(query.limit ? { limit: query.limit } : {}),
       },
       signal,

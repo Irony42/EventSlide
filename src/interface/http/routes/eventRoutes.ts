@@ -287,10 +287,11 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
     requireRole('moderator', deps),
     asyncHandler(async (req, res) => {
       const scope = hostScope(req.context)
-      // Parsed even though the window it carries does not reach the use case:
-      // `listGuests` owns what "at the party" means (`PRESENCE_WINDOW_MS`), and
-      // parsing is what keeps a malformed or unexpected query parameter from being
-      // silently accepted as if it had taken effect.
+      // This endpoint takes no parameter, and the empty schema is parsed anyway so that
+      // sending one is a 400 rather than a silent no-op. It used to accept
+      // `activeWithinMinutes` and discard it — `listGuests` owns what "at the party"
+      // means and always used its own window, so a host asking for two hours was
+      // answered with five minutes and told nothing.
       guestListQuery.parse(req.query)
 
       const result = await usecases.listGuests({

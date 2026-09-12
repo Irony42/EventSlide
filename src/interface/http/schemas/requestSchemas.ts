@@ -178,26 +178,64 @@ export const photoListQuery = z
   })
   .strict()
 
+/**
+ * Deliberately **no `cursor`**, unlike `photoListQuery` directly above.
+ *
+ * This queue is not cursor-paged and cannot be: the domain orders the whole filtered
+ * set *before* applying `limit`, precisely so the oldest pending photo cannot be pushed
+ * off the page by newer arrivals. A cursor names a position in a stable order, and this
+ * order is recomputed against live uploads on every read — the same request would
+ * resume from a row that has moved. The host's paged surface is the gallery,
+ * `GET /events/:eventSlug/photos`, which is newest-first and stable and is what
+ * `photoListQuery` is for.
+ *
+ * The field used to be accepted here, bounded, and read by nothing, which is the one
+ * thing `.strict()` exists to prevent: a refused field teaches the caller something, an
+ * accepted one that changes no answer lies to them. Sending `?cursor=` is now a
+ * `400 request.invalid`.
+ */
 export const moderationQueueQuery = z
   .object({
     status: z.enum(['pending', 'published', 'rejected', 'hidden', 'all']).default('pending'),
     limit: z.coerce.number().int().min(1).max(200).default(60),
-    cursor: z.string().max(512).optional(),
-  })
-  .strict()
-
-export const guestListQuery = z
-  .object({
-    /** How long since `lastSeenAt` still counts as "at the party". */
-    activeWithinMinutes: z.coerce.number().int().min(1).max(1_440).default(30),
   })
   .strict()
 
 /**
+ * The host's guest list takes **no parameter at all**, and the empty schema is still
+ * parsed so that sending one is a `400 request.invalid`.
+ *
+ * It used to declare `activeWithinMinutes`, integer 1..1440, default 30, and the route
+ * threw the parsed value away: `listGuests` has always answered with its own five-minute
+ * window. A host asking for "active in the last two hours" was given five minutes, with
+ * no error and nothing in the response to say so.
+ *
+ * Removed rather than threaded through, because **what counts as "at the party" is one
+ * rule, not a caller's choice**. `activeCount` is rendered as a single number labelled
+ * *présents* on a console that is read across a room; a window the caller picks makes
+ * the same field mean something different to the console, to a second screen, and to the
+ * tests, with nothing on the wire saying which. It is the same call this file already
+ * makes for `layout` on `wallQuery` below, and the one `moderationRoutes` makes by not
+ * reading an order off the query string. `listGuests.ts` holds the window and the reason
+ * it is five minutes.
+ *
+ * Keeping the empty object rather than dropping the parse is what preserves the promise
+ * in docs/API.md §1 that query strings are `.strict()` too: `?activeWithinMinutes=120`
+ * is now told it had no effect instead of appearing to have had one.
+ */
+export const guestListQuery = z.object({}).strict()
+
+/**
  * The display timing overrides the Playwright suite drives, so a visual test does not
- * wait ten real seconds per slide. Only honoured when the server was started with
- * `E2E_HOOKS=1`; the route drops them otherwise, and the config module refuses to boot
- * production with that flag set.
+ * wait ten real seconds per slide.
+ *
+ * **This server reads neither.** They are honoured in the browser, by
+ * `web/src/features/wall/hooks/useTimingOverrides.ts`, off the *display* URL — the wall
+ * route passes `slideIntervalMs: null` unconditionally and `publicRoutes.test.ts` pins
+ * that with both states of the `E2E_HOOKS` flag, because a config flag must not be what
+ * protects the room. This comment used to claim the route honoured them under
+ * `E2E_HOOKS=1`, which described a design that is not here; the two fields themselves
+ * are still accepted by nothing that reads them, and that is docs/API.md §9.5.
  *
  * There is deliberately no `layout` here. The wall's layout is a presentation choice
  * made at the screen — the host's `L` shortcut and `?layout=` on the *display* URL,

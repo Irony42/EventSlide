@@ -23,6 +23,17 @@ import type { MembershipRepository } from '../../ports/userRepository'
  * short enough that the number means "here now" rather than "was here this evening" —
  * which is the number a host actually uses when deciding whether to keep the slideshow
  * running.
+ *
+ * **Not the caller's choice, on purpose.** `GET /events/:slug/guests` once accepted an
+ * `activeWithinMinutes` between 1 and 1 440 and the route dropped it, so the parameter
+ * read as an oversight; it is gone from `guestListQuery` and sending one is now a 400.
+ * Threading it through would have been the other legitimate branch, and it was refused
+ * for the reason the window exists: `activeCount` is one number on a console read across
+ * a room, so a window the caller picks makes the same field mean "here now" to one
+ * screen and "was here this evening" to the next, with nothing on the wire saying which.
+ * At the top of the old range it would have converged on `guests.length`, which the same
+ * response already carries. If a host ever genuinely needs a second horizon, it is a
+ * second named field — `seenThisHourCount` — and not a knob that redefines this one.
  */
 export const PRESENCE_WINDOW_MS = 5 * 60 * 1_000
 

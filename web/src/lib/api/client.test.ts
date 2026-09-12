@@ -419,10 +419,10 @@ describe('the moderation queue query', () => {
     expect(only().query).toEqual({})
   })
 
-  it('carries the filter, the cursor and the page size when they are set', async () => {
-    await subject().moderationQueue(SLUG, { status: 'pending', cursor: 'c1', limit: 50 })
+  it('carries the filter and the page size when they are set', async () => {
+    await subject().moderationQueue(SLUG, { status: 'pending', limit: 50 })
 
-    expect(only().query).toEqual({ status: 'pending', cursor: 'c1', limit: 50 })
+    expect(only().query).toEqual({ status: 'pending', limit: 50 })
   })
 
   it('omits a page size of zero rather than asking for an empty page', async () => {
