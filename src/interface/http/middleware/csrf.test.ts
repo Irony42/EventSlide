@@ -1,6 +1,6 @@
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken, requireCsrfToken } from './csrf'
+import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken, requireCsrfToken, rotateCsrfToken } from './csrf'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
 
 const harness = (secureCookie = false): Harness =>
@@ -21,6 +21,13 @@ const harness = (secureCookie = false): Harness =>
         res.status(204).end()
       })
       app.delete('/write', requireCsrfToken, (_req, res) => {
+        res.status(204).end()
+      })
+      // What a login and a logout do: pass the gate on this request, then replace the
+      // token for the next one. `authRoutes` is where it happens for real; this route
+      // is the same call with nothing else attached to it.
+      app.post('/write-and-rotate', requireCsrfToken, (_req, res) => {
+        rotateCsrfToken(res, { secureCookie })
         res.status(204).end()
       })
     },
@@ -174,6 +181,74 @@ describe('requireCsrfToken', () => {
       .delete('/write')
       .set('Cookie', `${CSRF_COOKIE}=${token}`)
       .set(CSRF_HEADER, token)
+      .expect(204)
+  })
+})
+
+describe('rotateCsrfToken', () => {
+  it('replaces a token the caller already holds, which issuing alone never does', async () => {
+    // `issueCsrfToken` is write-once by design, so before this existed one `es_csrf`
+    // covered the anonymous visitor, the guest and the signed-in host alike (F9).
+    const subject = harness()
+    const token = tokenFrom((await request(subject.app).get('/read')).headers)
+
+    const response = await request(subject.app)
+      .post('/write-and-rotate')
+      .set('Cookie', `${CSRF_COOKIE}=${token}`)
+      .set(CSRF_HEADER, token)
+
+    expect(response.status).toBe(204)
+    expect(tokenFrom(response.headers)).not.toBe(token)
+    expect(tokenFrom(response.headers).length).toBeGreaterThan(20)
+  })
+
+  it('replaces it on the same path, or the old cookie would survive beside the new one', async () => {
+    // A browser keys a cookie on name, domain and path. A replacement issued at a
+    // different path would be a second `es_csrf`, both would be sent, and the gate
+    // would compare the header against whichever one the parser read first.
+    const subject = harness()
+    const token = tokenFrom((await request(subject.app).get('/read')).headers)
+
+    const response = await request(subject.app)
+      .post('/write-and-rotate')
+      .set('Cookie', `${CSRF_COOKIE}=${token}`)
+      .set(CSRF_HEADER, token)
+
+    const header = setCookies(response.headers).join(';')
+    expect(header).toContain('Path=/')
+    expect(header.toLowerCase()).not.toContain('httponly')
+    expect(header.toLowerCase()).toContain('samesite=lax')
+  })
+
+  it('carries Secure into the replacement when the deployment is HTTPS', async () => {
+    // A rotation that dropped the attribute would downgrade the cookie mid-session.
+    const subject = harness(true)
+    const token = tokenFrom((await request(subject.app).get('/read')).headers)
+
+    const response = await request(subject.app)
+      .post('/write-and-rotate')
+      .set('Cookie', `${CSRF_COOKIE}=${token}`)
+      .set(CSRF_HEADER, token)
+
+    expect(setCookies(response.headers).join(';').toLowerCase()).toContain('secure')
+  })
+
+  it('lets the next write through with the replacement', async () => {
+    // The point of rotating in a handler rather than in front of one: the gate has
+    // already passed on this request, so the client needs the new value only from the
+    // next, and there is no window in which it can make no request at all.
+    const subject = harness()
+    const first = tokenFrom((await request(subject.app).get('/read')).headers)
+    const rotated = await request(subject.app)
+      .post('/write-and-rotate')
+      .set('Cookie', `${CSRF_COOKIE}=${first}`)
+      .set(CSRF_HEADER, first)
+    const second = tokenFrom(rotated.headers)
+
+    await request(subject.app)
+      .post('/write')
+      .set('Cookie', `${CSRF_COOKIE}=${second}`)
+      .set(CSRF_HEADER, second)
       .expect(204)
   })
 })

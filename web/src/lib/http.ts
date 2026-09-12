@@ -71,9 +71,17 @@ const isApiErrorBody = (value: unknown): value is ApiErrorBody => {
  * still permits a cross-site top-level POST, and the guest surface is reached by
  * scanning a QR code, so a guest's browser follows links from outside the app as a
  * matter of course.
+ *
+ * The token is read from `document.cookie` per request and never cached, which is what
+ * makes the server's rotation on login and on logout invisible here: whatever the
+ * cookie holds at the moment a request is built is what goes in the header. See
+ * {@link isStaleCsrf} for the one interleaving that still needs handling.
  */
 const CSRF_COOKIE = 'es_csrf'
 const CSRF_HEADER = 'x-csrf-token'
+
+/** The two codes the server's CSRF gate answers with. */
+const CSRF_REFUSALS = new Set(['request.csrfMissing', 'request.csrfMismatch'])
 
 const readCookie = (name: string): string | null => {
   for (const part of document.cookie.split('; ')) {
@@ -134,15 +142,13 @@ const parse = async <T>(response: Response): Promise<T> => {
   return payload as T
 }
 
-const request = async <T>(
-  method: string,
-  path: string,
-  options: {
-    body?: unknown
-    query?: Readonly<Record<string, string | number | undefined>>
-    signal?: AbortSignal
-  } = {},
-): Promise<T> => {
+interface RequestOptions {
+  body?: unknown
+  query?: Readonly<Record<string, string | number | undefined>>
+  signal?: AbortSignal
+}
+
+const send = async <T>(method: string, path: string, options: RequestOptions): Promise<T> => {
   // Assembled conditionally rather than with `undefined` values: under
   // `exactOptionalPropertyTypes` an explicit `body: undefined` is not the same as an
   // absent one, and `RequestInit` does not accept it.
@@ -171,6 +177,49 @@ const request = async <T>(
   return parse<T>(response)
 }
 
+/**
+ * Whether this refusal is the one a retry fixes.
+ *
+ * Reading the cookie and sending the request are not one atomic step: `headersFor`
+ * reads `document.cookie` synchronously, and the browser attaches its own `Cookie`
+ * header later, when it actually builds the request. A response that rotates `es_csrf`
+ * — a login or a logout completing in another tab, or alongside a queued mutation —
+ * can land in between, and then the header carries the old token while the cookie
+ * carries the new one. The server calls that `request.csrfMismatch` and the French copy
+ * for it tells the user the page has expired, which is both confusing and wrong: only
+ * the token moved.
+ *
+ * Retrying is safe here in a way it is not for other 4xx, and that is a property of the
+ * server rather than a hope: `requireCsrfToken` is mounted on `/api` ahead of every
+ * router (`src/interface/http/server.ts`), so a refusal carrying one of these two codes
+ * proves the request reached no route and changed nothing. Any other status may have
+ * been produced after work was done and is never repeated.
+ *
+ * Only for mutations, because only a mutation carries the header at all.
+ */
+const isStaleCsrf = (method: string, cause: unknown): boolean =>
+  MUTATING.has(method) &&
+  cause instanceof ApiError &&
+  cause.status === 403 &&
+  CSRF_REFUSALS.has(cause.code)
+
+const request = async <T>(
+  method: string,
+  path: string,
+  options: RequestOptions = {},
+): Promise<T> => {
+  try {
+    return await send<T>(method, path, options)
+  } catch (cause) {
+    if (!isStaleCsrf(method, cause)) throw cause
+    // Once, never in a loop. The second attempt re-reads `document.cookie`, so it
+    // carries whatever the rotation left there; if that is refused too then the token
+    // really is missing or stale — a tab open all evening, a proxy that dropped the
+    // cookie — and "reload the page" is the right advice after all.
+    return await send<T>(method, path, options)
+  }
+}
+
 export interface UploadProgress {
   readonly loaded: number
   readonly total: number
@@ -183,6 +232,13 @@ export interface UploadProgress {
  * `fetch` still has no upload-progress event in any shipping browser, and a guest on
  * congested venue Wi-Fi sending four photos needs to see that something is happening —
  * a spinner with no movement is indistinguishable from a hang, and they will re-tap.
+ *
+ * No CSRF retry here, unlike {@link request}, and the asymmetry is deliberate. The
+ * token is rotated only by a login or a logout; the only caller of this path is a guest
+ * sending photos, and a guest never does either — they have a device token, not a
+ * session. So the interleaving {@link isStaleCsrf} exists for cannot arise on this
+ * path, while the retry itself would mean pushing tens of megabytes back up a venue's
+ * Wi-Fi a second time, which is the one repetition the guest surface is built to avoid.
  */
 const upload = <T>(
   path: string,

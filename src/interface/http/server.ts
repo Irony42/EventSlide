@@ -101,10 +101,16 @@ export const buildServer = ({
     }),
   )
 
+  // Issues a token to a caller who holds none. It never replaces one, so that a client
+  // holding a valid token keeps it across every ordinary request; the two moments the
+  // token *must* change — a login and a logout, where the identity it travels beside
+  // changes — call `rotateCsrfToken` from inside `authRoutes` instead.
   app.use(issueCsrfToken({ secureCookie: config.secureCookie }))
   app.use(attachUser())
 
-  // Every state-changing request from here on must echo the CSRF cookie.
+  // Every state-changing request from here on must echo the CSRF cookie. Mounted ahead
+  // of every router, which is what lets the client retry a `request.csrfMismatch` once
+  // without asking whether the first attempt had an effect: it cannot have had one.
   app.use('/api', requireCsrfToken)
 
   const routeDeps = { deps, usecases, presenter }

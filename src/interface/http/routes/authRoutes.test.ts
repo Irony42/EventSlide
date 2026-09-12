@@ -3,6 +3,7 @@ import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { SESSION_COOKIE, authRoutes } from './authRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'
+import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken, requireCsrfToken } from '../middleware/csrf'
 import { buildHarness, signInAs, testHttpConfig, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
 import { AT, aUser } from '../../../application/testing/builders'
@@ -70,9 +71,23 @@ interface AuthHarnessOptions {
   readonly config?: Partial<HttpConfig>
   /** Mounted in front of the router, for the failures the fakes cannot reach. */
   readonly before?: RequestHandler
+  /**
+   * Mounts the real CSRF middleware around the router, in the order `server.ts` uses.
+   *
+   * Off by default: every other test in this file is about what a login or a logout
+   * *does*, and making each of them carry a token would say nothing about that. The
+   * rotation tests need it because the token is the subject, and they need the gate
+   * too — a rotated token that the gate then refuses would be a fix that breaks the
+   * next request, which is the failure the second half of each of those tests names.
+   */
+  readonly csrf?: boolean
 }
 
-const harness = ({ config = {}, before = passThrough }: AuthHarnessOptions = {}): AuthHarness => {
+const harness = ({
+  config = {},
+  before = passThrough,
+  csrf = false,
+}: AuthHarnessOptions = {}): AuthHarness => {
   const users = new FakeUserRepository()
   const hasher = new FakePasswordHasher()
 
@@ -80,12 +95,18 @@ const harness = ({ config = {}, before = passThrough }: AuthHarnessOptions = {})
     config,
     routes: (app, deps) => {
       // Two sign-in routes so a test can establish a session without driving a real
-      // login: the routes under test then fail for one reason each.
+      // login: the routes under test then fail for one reason each. Outside `/api`, so
+      // they stay reachable when the gate below is mounted.
       app.post('/test/sign-in', signInAs({ userId: HOST_ID, email: HOST_EMAIL }))
       app.post(
         '/test/sign-in/invited',
         signInAs({ userId: HOST_ID, email: HOST_EMAIL, mustChangePassword: true }),
       )
+
+      if (csrf) {
+        app.use(issueCsrfToken({ secureCookie: deps.config.secureCookie }))
+        app.use('/api', requireCsrfToken)
+      }
 
       app.use(before)
       app.use(
@@ -607,5 +628,149 @@ describe('POST /api/auth/password', () => {
 
     expect(response.status).toBe(404)
     expect(response.body.error.code).toBe('user.notFound')
+  })
+})
+
+/**
+ * F9: the CSRF token used to outlive the identity it protected.
+ *
+ * `issueCsrfToken` writes the cookie only when it is absent, so one `es_csrf` covered
+ * the anonymous visitor, the guest and the signed-in host alike — it survived the login
+ * that created the session and the logout that destroyed it. The token is rotated in
+ * the same gesture as `session.regenerate()` and `session.destroy()` now, and each test
+ * below asserts both halves: the value changed, and the very next state-changing
+ * request still goes through. A rotation that locked the client out would be worse than
+ * no rotation, because it would fail on the screen the host just reached.
+ */
+describe('the CSRF token across a change of identity', () => {
+  const csrfToken = (headers: Record<string, unknown>): string | undefined =>
+    cookieValue(headers, CSRF_COOKIE)
+
+  /** An agent holding a freshly issued token, as a browser that has loaded a page has. */
+  const withToken = async (subject: AuthHarness) => {
+    const agent = request.agent(subject.app)
+    const token = csrfToken((await agent.get('/api/auth/me').expect(200)).headers)
+    if (token === undefined) throw new Error('the server issued no CSRF cookie')
+    return { agent, token }
+  }
+
+  const login = (agent: ReturnType<typeof request.agent>, token: string) =>
+    agent.post('/api/auth/login').set(CSRF_HEADER, token).send({
+      email: HOST_EMAIL,
+      password: PASSWORD,
+    })
+
+  it('replaces the token on a login, so one token never spans two identities', async () => {
+    const subject = harness({ csrf: true })
+    seedHost(subject)
+    const { agent, token } = await withToken(subject)
+
+    const response = await login(agent, token)
+
+    expect(response.status).toBe(200)
+    expect(csrfToken(response.headers)).toBeTruthy()
+    expect(csrfToken(response.headers)).not.toBe(token)
+  })
+
+  it('lets a state-changing request through immediately after the login', async () => {
+    // The half that matters to the host: they sign in and land on a screen that writes.
+    // `/api/auth/password` is the first thing an invited moderator posts, and it is
+    // behind the gate like everything else.
+    const subject = harness({ csrf: true })
+    seedHost(subject)
+    const { agent, token } = await withToken(subject)
+
+    const rotated = csrfToken((await login(agent, token)).headers)
+    if (rotated === undefined) throw new Error('the login issued no CSRF cookie')
+    const response = await agent
+      .post('/api/auth/password')
+      .set(CSRF_HEADER, rotated)
+      .send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD })
+
+    expect(response.status).toBe(204)
+  })
+
+  it('replaces the token on a logout, so it does not outlive the session it travelled with', async () => {
+    // The session is destroyed and its cookie cleared; a token that carried over would
+    // still be the valid half held by every page opened during that session — on a
+    // shared laptop, by the next person to use it.
+    const subject = harness({ csrf: true })
+    const { agent, token } = await withToken(subject)
+    await agent.post('/test/sign-in').expect(204)
+
+    const response = await agent.post('/api/auth/logout').set(CSRF_HEADER, token)
+
+    expect(response.status).toBe(204)
+    expect(csrfToken(response.headers)).toBeTruthy()
+    expect(csrfToken(response.headers)).not.toBe(token)
+  })
+
+  it('lets a state-changing request through immediately after the logout', async () => {
+    // A signed-out browser is not a browser with nothing to do: the join page and the
+    // guest upload are public. So the logout issues a fresh anonymous token rather than
+    // clearing the cookie, and the next write works with it.
+    const subject = harness({ csrf: true })
+    const { agent, token } = await withToken(subject)
+    await agent.post('/test/sign-in').expect(204)
+
+    const rotated = csrfToken(
+      (await agent.post('/api/auth/logout').set(CSRF_HEADER, token)).headers,
+    )
+    if (rotated === undefined) throw new Error('the logout issued no CSRF cookie')
+
+    await agent.post('/api/auth/logout').set(CSRF_HEADER, rotated).expect(204)
+  })
+
+  it('replaces nothing when the credentials are refused, since no identity changed', async () => {
+    const subject = harness({ csrf: true })
+    seedHost(subject)
+    const { agent, token } = await withToken(subject)
+
+    const response = await agent
+      .post('/api/auth/login')
+      .set(CSRF_HEADER, token)
+      .send({ email: HOST_EMAIL, password: 'un-autre-mot-de-passe' })
+
+    expect(response.status).toBe(401)
+    expect(csrfToken(response.headers)).toBeUndefined()
+  })
+
+  it('replaces nothing when session regeneration fails', async () => {
+    // The rotation is sequenced after the regeneration precisely so that a login which
+    // could not take effect leaves the browser exactly as it found it.
+    const subject = harness({
+      csrf: true,
+      before: (req, _res, next) => {
+        req.session.regenerate = (done) => {
+          done(new Error('session store unavailable'))
+          return req.session
+        }
+        next()
+      },
+    })
+    seedHost(subject)
+    const { agent, token } = await withToken(subject)
+
+    const response = await login(agent, token)
+
+    expect(response.status).toBe(500)
+    expect(csrfToken(response.headers)).toBeUndefined()
+  })
+
+  it('still refuses a write whose header does not match the rotated cookie', async () => {
+    // Rotation must not become a way past the gate: the agent's jar now holds the new
+    // token, and a client still echoing the old one is refused like any other mismatch.
+    const subject = harness({ csrf: true })
+    seedHost(subject)
+    const { agent, token } = await withToken(subject)
+
+    await login(agent, token).expect(200)
+    const response = await agent
+      .post('/api/auth/password')
+      .set(CSRF_HEADER, token)
+      .send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD })
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('request.csrfMismatch')
   })
 })

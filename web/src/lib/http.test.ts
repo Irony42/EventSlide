@@ -64,6 +64,12 @@ const lastRequest = (): SentRequest => {
   return request
 }
 
+const requestAt = (index: number): SentRequest => {
+  const request = sent[index]
+  if (request === undefined) throw new Error(`no request was made at attempt ${index + 1}`)
+  return request
+}
+
 /** Read back through `Headers`, so the names are normalised the way fetch normalises them. */
 const headersOf = (request: SentRequest): Record<string, string> =>
   Object.fromEntries(new Headers(request.init.headers ?? {}).entries())
@@ -697,5 +703,97 @@ describe('uploading with progress', () => {
 
     expect(failure).toBeInstanceOf(DOMException)
     expect(pendingUpload().sent).toBe(false)
+  })
+})
+
+/**
+ * The server rotates `es_csrf` on a login and on a logout, so the token can change
+ * underneath a request this transport is in the middle of building: the cookie is read
+ * synchronously, the browser attaches its own `Cookie` header later, and a rotating
+ * response can land in between. That mismatch is refused by a gate mounted ahead of
+ * every router, so the attempt changed nothing and repeating it is safe.
+ */
+describe('a token rotated underneath a request', () => {
+  /** Answers the first attempt with `code`, rotating the cookie as the server would. */
+  const rotatingRefusal = (code: string): void => {
+    let attempt = 0
+    stubFetch(() => {
+      attempt += 1
+      if (attempt > 1) return Promise.resolve(jsonBody(200, { ok: true }))
+      document.cookie = 'es_csrf=frais'
+      return Promise.resolve(jsonBody(403, { error: { code } }))
+    })
+  }
+
+  it.each(['request.csrfMismatch', 'request.csrfMissing'])(
+    'repeats a mutation refused with %s, using the token the rotation left behind',
+    async (code) => {
+      document.cookie = 'es_csrf=perime'
+      rotatingRefusal(code)
+
+      await expect(http.post('/api/events/gala/status', { status: 'live' })).resolves.toEqual({
+        ok: true,
+      })
+
+      expect(sent).toHaveLength(2)
+      expect(headersOf(requestAt(0))['x-csrf-token']).toBe('perime')
+      expect(headersOf(requestAt(1))['x-csrf-token']).toBe('frais')
+    },
+  )
+
+  it('repeats the body and the path, not just the header', async () => {
+    document.cookie = 'es_csrf=perime'
+    rotatingRefusal('request.csrfMismatch')
+
+    await http.patch('/api/events/gala/photos/p1/caption', { caption: 'Les confettis' })
+
+    expect(lastRequest().url).toBe('/api/events/gala/photos/p1/caption')
+    expect(lastRequest().init.body).toBe('{"caption":"Les confettis"}')
+    expect(lastRequest().init.method).toBe('PATCH')
+  })
+
+  it('retries once and then reports the refusal, rather than looping', async () => {
+    // A token that is genuinely gone — a tab open all evening, a proxy that dropped the
+    // cookie — is not a race, and the French copy for these codes says to reload.
+    document.cookie = 'es_csrf=perime'
+    answerWith(() => jsonBody(403, { error: { code: 'request.csrfMismatch' } }))
+
+    const failure = asApiError(await failed(http.del('/api/events/gala')))
+
+    expect(failure.code).toBe('request.csrfMismatch')
+    expect(sent).toHaveLength(2)
+  })
+
+  it('does not repeat a 403 that is not the CSRF gate', async () => {
+    // A role refusal is the server's answer, not a stale token, and it may well have
+    // been decided after the route did work.
+    answerWith(() => jsonBody(403, { error: { code: 'auth.forbidden' } }))
+
+    const failure = asApiError(await failed(http.post('/api/events/gala/status')))
+
+    expect(failure.code).toBe('auth.forbidden')
+    expect(sent).toHaveLength(1)
+  })
+
+  it('does not repeat a refusal on a read, which never carried a token', async () => {
+    answerWith(() => jsonBody(403, { error: { code: 'request.csrfMismatch' } }))
+
+    await failed(http.get('/api/events/gala'))
+
+    expect(sent).toHaveLength(1)
+  })
+
+  it('does not repeat a refused upload, because a guest’s token never rotates', async () => {
+    // Only a login or a logout rotates, and a guest does neither — they carry a device
+    // token, not a session. Repeating here would push the photos up a congested venue's
+    // Wi-Fi a second time for a race that cannot happen on this path.
+    document.cookie = 'es_csrf=perime'
+    const pending = http.upload('/api/events/gala/photos', aForm())
+    pendingUpload().respond(403, JSON.stringify({ error: { code: 'request.csrfMismatch' } }))
+
+    const failure = asApiError(await failed(pending))
+
+    expect(failure.code).toBe('request.csrfMismatch')
+    expect(FakeXhr.instances).toHaveLength(1)
   })
 })

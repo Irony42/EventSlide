@@ -3,6 +3,7 @@ import type { Session } from 'express-session'
 import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireUser } from '../middleware/authz'
+import { rotateCsrfToken } from '../middleware/csrf'
 import { loginLimiter } from '../middleware/rateLimit'
 import { toSessionResponseDto, toSignedInUserDto } from '../presenters/presenters'
 import { sendError, sendJson, sendNoContent, sendResult } from '../presenters/send'
@@ -102,6 +103,18 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
       // survived the login and took the account with it.
       await regenerateSession(req.session)
 
+      // In the same gesture, and for the same reason. Regeneration replaces the id that
+      // says *who* the caller is; this replaces the token that says *which page* may act
+      // on their behalf. Leaving it would mean one `es_csrf` spanning the anonymous
+      // visitor and the host they just became — the defect F9 names — so anything that
+      // learnt the value before the login still holds a valid half of the pair after it.
+      //
+      // After the regeneration, never before: a regeneration that fails must leave the
+      // response with no `Set-Cookie` at all, which is what the login-failure tests
+      // assert. The gate already ran and passed on this request, so the client needs
+      // the new value only from the next one.
+      rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
+
       const payload: SessionPayload = {
         userId: result.value.userId,
         email: result.value.email,
@@ -135,6 +148,16 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
         sameSite: 'lax',
         secure: deps.config.secureCookie,
       })
+
+      // Replaced rather than cleared. The page that called this is still open and still
+      // needs to be able to act — the join page and the wall are public, and a guest on
+      // a shared phone signing the host out must not lose their own ability to upload —
+      // so what is issued here is a fresh anonymous token, not the absence of one.
+      //
+      // Rotating matters as much here as on the login: the browser has just stopped
+      // being a host, and a token that carried over would still be the one a page opened
+      // during the session holds.
+      rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
 
       sendNoContent(res)
     }),
