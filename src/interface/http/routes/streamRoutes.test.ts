@@ -18,7 +18,9 @@ import {
 import { SseSink, asResponse } from '../testing/sseSink'
 import { AT, anEvent } from '../../../application/testing/builders'
 import { asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
-import type { DomainEvent } from '../../../application/ports/eventBus'
+import { DomainError } from '../../../domain/shared/errors'
+import { err } from '../../../domain/shared/result'
+import type { DomainEvent, EventBus } from '../../../application/ports/eventBus'
 
 const WEDDING = 'wedding-id'
 const GALA = 'gala-id'
@@ -87,6 +89,24 @@ const photoPublished = (eventId: string): DomainEvent => ({
   photoId: asPhotoId('photo-1'),
   status: 'published',
 })
+
+/**
+ * A bus with no room left, which is what the two-hundred-and-first connection to an
+ * event meets.
+ *
+ * A fake rather than two hundred real sockets: *when* the in-memory adapter refuses is
+ * its own rule and has its own tests in `src/infrastructure/realtime/`. What only this
+ * ring can answer is what the route does with a refusal — and the answer has to be
+ * visible on the wire, because the defect it replaces was invisible there.
+ */
+const busAtCapacity = (): EventBus => ({
+  publish: () => {},
+  subscribe: () => err(DomainError.unexpected('service.notReady')),
+})
+
+/** Every `id:` a client was sent, in order. */
+const idsIn = (stream: Stream): string[] =>
+  [...stream.frames.join('').matchAll(/^id: (\d+)$/gm)].map(([, id]) => id ?? '')
 
 describe('streamRoutes', () => {
   let subject: Harness
@@ -177,9 +197,53 @@ describe('streamRoutes', () => {
     expect(stream.frames.join('')).not.toContain('event: change')
   })
 
+  it('gives two clients of one event the same id for one change', async () => {
+    // The id was minted inside each subscriber's callback, so one photo became id 1 for
+    // the projector and id 1 for the console — two private id spaces wearing the same
+    // numbers, and a sixty-four entry replay ring consumed once per connected screen.
+    // With six screens the real replay window was ten signals.
+    const projector = await open('/api/events/mariage/stream')
+    await projector.waitFor((text) => text.includes(': connected'), 'the projector')
+    const moderator = await open('/api/events/mariage/stream')
+    await moderator.waitFor((text) => text.includes(': connected'), 'the console')
+
+    subject.deps.bus.publish(photoPublished(WEDDING))
+    subject.deps.bus.publish(photoPublished(WEDDING))
+
+    await projector.waitFor((text) => text.includes('id: 2'), 'the projector’s second signal')
+    await moderator.waitFor((text) => text.includes('id: 2'), 'the console’s second signal')
+    // Two changes, two ids, the same two for both — not one each.
+    expect(idsIn(projector)).toEqual(['1', '2'])
+    expect(idsIn(moderator)).toEqual(['1', '2'])
+  })
+
+  it('records one replay entry per change, not one per connected client', async () => {
+    // The other half of the same defect, and the expensive half: the entry was appended
+    // from inside each subscriber's callback, so the sixty-four entry ring was consumed
+    // once per screen. A projector, two consoles and three phones turned a replay window
+    // of sixty-four signals into one of about ten, and a client that reconnected
+    // replayed the same change as many times as there were clients watching.
+    const projector = await open('/api/events/mariage/stream')
+    await projector.waitFor((text) => text.includes(': connected'), 'the projector')
+    const moderator = await open('/api/events/mariage/stream')
+    await moderator.waitFor((text) => text.includes(': connected'), 'the console')
+
+    subject.deps.bus.publish(photoPublished(WEDDING))
+    await moderator.waitFor((text) => text.includes('id: 1'), 'the signal')
+
+    const arriving = await open('/api/events/mariage/stream')
+    await arriving.waitFor((text) => text.includes('event: change'), 'the replay')
+
+    expect(idsIn(arriving)).toEqual(['1'])
+  })
+
   it('replays what a reconnecting client missed', async () => {
     // A projector that drops for thirty seconds must not miss the photos published
-    // while it was away.
+    // while it was away. The console stays connected throughout, which is what holds
+    // the event's replay buffer open — an event nobody is watching keeps none, as the
+    // next test says.
+    const moderator = await open('/api/events/mariage/stream')
+    await moderator.waitFor((text) => text.includes(': connected'), 'the console')
     const first = await open('/api/events/mariage/stream')
     await first.waitFor((text) => text.includes(': connected'), 'connection')
     subject.deps.bus.publish(photoPublished(WEDDING))
@@ -188,6 +252,7 @@ describe('streamRoutes', () => {
 
     subject.deps.bus.publish(photoPublished(WEDDING))
     subject.deps.bus.publish(photoPublished(WEDDING))
+    await moderator.waitFor((text) => text.includes('id: 3'), 'the signals it was away for')
 
     const reconnected = await open('/api/events/mariage/stream', { 'last-event-id': '1' })
 
@@ -196,6 +261,30 @@ describe('streamRoutes', () => {
     expect(text).toContain('id: 2')
     // Already seen, so it must not be replayed.
     expect(text).not.toContain('id: 1\n')
+  })
+
+  it('keeps no replay buffer for an event whose last client has left', async () => {
+    // The buffer belongs to the event's live channel and goes when the last connection
+    // does. It used to be a module-level map held for the lifetime of the process, so a
+    // purged event left its buffer behind for good — state with no owner, outliving the
+    // thing it described. Losing the replay costs nothing: a client refetches the wall
+    // on every connect, which is what makes replay an optimisation rather than the
+    // mechanism by which the wall stays correct.
+    const only = await open('/api/events/mariage/stream')
+    await only.waitFor((text) => text.includes(': connected'), 'connection')
+    subject.deps.bus.publish(photoPublished(WEDDING))
+    await only.waitFor((text) => text.includes('id: 1'), 'the first signal')
+
+    only.close()
+    await expect
+      .poll(() => subject.bus.subscriberCount(asEventId(WEDDING)), { timeout: 3_000 })
+      .toBe(0)
+
+    const later = await open('/api/events/mariage/stream')
+    await later.waitFor((text) => text.includes(': connected'), 'the new connection')
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    expect(later.frames.join('')).not.toContain('event: change')
   })
 
   it.each([
@@ -259,6 +348,40 @@ describe('streamRoutes', () => {
     const stream = await open('/api/events/mariage/moderation/stream')
 
     expect(stream.statusCode).toBe(401)
+  })
+
+  it('refuses a connection the bus has no room for, with 503 and no stream', async () => {
+    // The merge blocker this replaces. Past the per-event cap the bus returned a no-op
+    // unsubscribe, the route could not tell that from a live subscription, and the
+    // client was answered 200, the event-stream headers, `: connected` and a heartbeat
+    // every fifteen seconds — and never one `change` frame, for the rest of the
+    // evening. The wall stopped updating while displaying "connected", and the channel
+    // needs no authentication, so two hundred `EventSource`s from one laptop were
+    // enough to do it to someone else's wedding.
+    const full = buildHarness({
+      routes: (app, deps) => {
+        app.use('/api', streamRoutes({ ...deps, bus: busAtCapacity() }))
+      },
+    })
+    full.events.seed(anEvent({ slug: 'mariage', status: 'live', joinCode: 'H7K2QM' }))
+    const fullServer = http.createServer(full.app)
+    await new Promise<void>((resolve) => fullServer.listen(0, '127.0.0.1', resolve))
+    const fullPort = (fullServer.address() as AddressInfo).port
+
+    try {
+      const refused = await openStream(fullPort, '/api/events/mariage/stream')
+      await refused.waitFor((text) => text.includes('service.notReady'), 'the refusal')
+
+      expect(refused.statusCode).toBe(503)
+      // Refused as a request, never begun as a stream: a client that has been handed
+      // `text/event-stream` has been told the connection is good.
+      expect(refused.headers['content-type']).toContain('application/json')
+      expect(refused.headers['content-type']).not.toContain('text/event-stream')
+      expect(refused.headers['retry-after']).toBe('30')
+      expect(refused.frames.join('')).not.toContain(': connected')
+    } finally {
+      await new Promise<void>((resolve) => fullServer.close(() => resolve()))
+    }
   })
 
   it('serves the moderation channel to a moderator of that event', async () => {
@@ -336,6 +459,41 @@ describe('openStream', () => {
     vi.advanceTimersByTime(15_000)
 
     expect(sink.text).toContain(': keep-alive')
+  })
+
+  it('names the heartbeat too, so a client can tell quiet from dead', () => {
+    // A comment reaches no client handler, which is what makes it safe for a proxy and
+    // useless as a sign of life. The named half is what the client's watchdog listens
+    // for; it carries no `id:`, so it never moves a reconnecting client's cursor.
+    const sink = open()
+
+    vi.advanceTimersByTime(15_000)
+
+    expect(sink.text).toContain('event: ping')
+    expect(sink.text).not.toContain('id:')
+  })
+
+  it('writes nothing at all when the bus has no room for the connection', () => {
+    // The whole point of subscribing before writing: the status is still ours to choose.
+    // A refusal discovered after `writeHead(200)` cannot be answered, only abandoned —
+    // and an abandoned stream is what the projector reports as "connected".
+    const sink = new SseSink()
+
+    const result = openStreamFor({
+      deps: { ...world.deps, bus: busAtCapacity() },
+      logger: world.deps.logger,
+      eventId: asEventId(WEDDING),
+      lastEventId: undefined,
+      res: asResponse(sink),
+    })
+
+    expect(result.ok).toBe(false)
+    expect(sink.status).toBe(0)
+    expect(sink.headersFlushed).toBe(false)
+    expect(sink.frames).toEqual([])
+    // Nothing left running either: a refused connection that armed a heartbeat would
+    // hold an interval for a response nobody is reading.
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('writes no heartbeat to a response whose socket has already gone', () => {

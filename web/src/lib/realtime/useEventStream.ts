@@ -18,14 +18,39 @@ import { useEffect, useRef, useState } from 'react'
  * 3. **Reconnect, with a cap.** A venue's network drops. A wall nobody is watching has
  *    to come back on its own, and it must not hammer the server while the server is
  *    the thing that is down.
+ * 4. **A watchdog.** A connection that is open and silent is indistinguishable from a
+ *    healthy one during a quiet spell — and that is the failure mode that costs a whole
+ *    evening, because nothing on screen says anything is wrong. The server sends a
+ *    heartbeat every fifteen seconds, so silence is measurable: three missed heartbeats
+ *    and the stream is closed and reopened.
  */
 
 /**
- * The frame's `event:` name, from `src/interface/http/routes/streamRoutes.ts`. The
- * heartbeat is a comment frame, so it reaches no listener at all — which is exactly
- * why it can keep a proxy from closing an idle connection without waking the UI.
+ * The frame's `event:` name, from `src/interface/http/routes/streamRoutes.ts`.
  */
 const SIGNAL_EVENT = 'change'
+
+/**
+ * The heartbeat's `event:` name, from the same file.
+ *
+ * The heartbeat is also a comment frame, which reaches no listener at all — that is what
+ * lets it keep a proxy from closing an idle connection without waking the UI. The named
+ * half exists only for the watchdog below: it carries no `id:` and no meaning, and it is
+ * never delivered to the consumer. Without it a client cannot tell an hour with no
+ * photos from a proxy that stopped forwarding an hour ago.
+ */
+const HEARTBEAT_EVENT = 'ping'
+
+/**
+ * How long a connection may say nothing at all before it is assumed dead.
+ *
+ * Three heartbeats. Two would turn one late frame on a venue's saturated uplink into a
+ * reconnect; a minute or more is long enough for a guest to ask why their photo is not
+ * on the wall. The trap this closes is recorded in CLAUDE.md section 9.3: SSE dies
+ * silently behind a proxy, and the connection that carries nothing looks exactly like
+ * the connection that has nothing to carry.
+ */
+const SILENCE_TIMEOUT_MS = 45_000
 
 /**
  * `EventSource.CLOSED`, spelled as its value.
@@ -136,6 +161,13 @@ export const useEventStream = ({
     let attempt = 0
     let source: EventSource | null = null
     let timer: ReturnType<typeof setTimeout> | undefined
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+
+    const stopWatchdog = () => {
+      if (watchdog === undefined) return
+      clearTimeout(watchdog)
+      watchdog = undefined
+    }
 
     const connect = () => {
       // `withCredentials`, because the moderation stream is authorized by the host's
@@ -143,15 +175,40 @@ export const useEventStream = ({
       const stream = new EventSource(url, { withCredentials: true })
       source = stream
 
+      /**
+       * Restarted by anything that arrives — a signal, a heartbeat, the connection
+       * opening. Measured as a timer rather than against the clock, so a test decides
+       * when the silence is over instead of waiting for it, and so a laptop lid closing
+       * does not count the hours it slept as silence.
+       */
+      const heard = () => {
+        stopWatchdog()
+        watchdog = setTimeout(() => {
+          // Open, and carrying nothing, for three heartbeats. The server would have to
+          // be refusing to talk to us for this to be honest quiet, so treat it as a
+          // connection the browser has not noticed is dead.
+          setOpen(false)
+          stream.close()
+          scheduleReconnect()
+        }, SILENCE_TIMEOUT_MS)
+      }
+
       stream.addEventListener('open', () => {
         attempt = 0
         setOpen(true)
+        heard()
       })
 
       stream.addEventListener(SIGNAL_EVENT, (event) => {
+        heard()
         const signal = parseSignal(event)
         if (signal !== null) listener.current(signal)
       })
+
+      // Nothing is delivered to the consumer: a heartbeat says the pipe is alive and
+      // means nothing else, and refetching on one would be a request every fifteen
+      // seconds from every screen in the venue.
+      stream.addEventListener(HEARTBEAT_EVENT, heard)
 
       stream.addEventListener('error', () => {
         setOpen(false)
@@ -161,7 +218,12 @@ export const useEventStream = ({
          * replay of what was missed during the drop depends on staying out of its way.
          * Reconnecting by hand is for the case it gives up on: a non-2xx response or a
          * wrong content type, which leaves the stream CLOSED for good.
+         *
+         * The watchdog stands down for the same reason: a browser that is retrying has
+         * already noticed, and stepping in would replace its reconnect — the one that
+         * still carries the cursor — with a fresh connection that does not.
          */
+        stopWatchdog()
         if (stream.readyState !== READY_STATE_CLOSED) return
         stream.close()
         scheduleReconnect()
@@ -179,6 +241,7 @@ export const useEventStream = ({
 
     return () => {
       disposed = true
+      stopWatchdog()
       if (timer !== undefined) clearTimeout(timer)
       source?.close()
     }

@@ -1,5 +1,5 @@
 import rateLimit, { ipKeyGenerator, type RateLimitRequestHandler } from 'express-rate-limit'
-import type { Request } from 'express'
+import type { Request, RequestHandler } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { errorBody } from '../presenters/send'
 
@@ -76,3 +76,97 @@ export const reactionLimiter = (perMinute: number): RateLimitRequestHandler =>
     'reaction.rateLimited',
     (req) => `${clientKey(req)}:${req.params['eventSlug'] ?? 'none'}`,
   )
+
+/**
+ * How many event streams one client key may hold **open at the same time**.
+ *
+ * Twelve is several times the legitimate load and still nowhere near a denial of
+ * service. Only two screens in the product open a stream — the projected wall and the
+ * moderation console — and guests hold none, so one venue behind one public address is
+ * a projector, a host's laptop and a moderator or two. The headroom is for a reload,
+ * where the replacement connection can briefly overlap the one it replaces.
+ */
+const MAX_STREAMS_PER_CLIENT = 12
+
+/**
+ * How many event streams the process serves at once, across every client and event.
+ *
+ * The backstop for the case the per-client limit cannot see: a botnet, or simply a
+ * conference with more screens than anyone planned for. Five hundred idle sockets is
+ * far inside a default file-descriptor budget and far above any single venue, so this
+ * bounds the failure without being reachable by honest use.
+ */
+const MAX_STREAMS_TOTAL = 500
+
+export interface StreamConnectionLimits {
+  readonly perClient?: number
+  readonly total?: number
+}
+
+/**
+ * Concurrency, not rate — the only limiter here that counts what is held rather than
+ * what is spent.
+ *
+ * Every other public endpoint answers in milliseconds, so requests per minute bounds
+ * what it costs. A stream is the opposite: `requestTimeout` is deliberately `0` for it,
+ * and one connection holds a socket, a `setInterval` and a subscription for the whole
+ * evening. Two hundred of them is an afternoon's work for one laptop, needs no
+ * authentication, and used to be enough to silence an event's wall — so the quantity to
+ * bound is how many are open, and a client that closes one immediately gets it back.
+ *
+ * The key is the one every other limiter uses, IPv6 collapsed to its subnet by
+ * `ipKeyGenerator`: a per-address budget would be no budget at all against a residential
+ * /64, and inventing a second notion of "client" for this one route is how two limits
+ * end up disagreeing about who is being limited.
+ *
+ * Both bounds are constants rather than configuration because `HttpConfig` carries
+ * nothing that means "connections", and deriving a concurrency ceiling from a
+ * requests-per-minute figure would be numerology wearing a config key's clothes. They
+ * are parameters so a test can reach them in two connections instead of five hundred.
+ */
+export const streamConnectionLimiter = ({
+  perClient = MAX_STREAMS_PER_CLIENT,
+  total = MAX_STREAMS_TOTAL,
+}: StreamConnectionLimits = {}): RequestHandler => {
+  const openPerClient = new Map<string, number>()
+  let openTotal = 0
+
+  return (req, res, next) => {
+    if (openTotal >= total) {
+      // The server is full, not this client: `503`, the same answer `/api/ready` gives
+      // about a state that is temporary and nobody's fault.
+      res.setHeader('Retry-After', '30')
+      res.status(503).json(errorBody(DomainError.unexpected('service.notReady')))
+      return
+    }
+
+    const key = clientKey(req)
+    const held = openPerClient.get(key) ?? 0
+    if (held >= perClient) {
+      res.status(429).json(errorBody(DomainError.rateLimited('rate.limited')))
+      return
+    }
+
+    openPerClient.set(key, held + 1)
+    openTotal += 1
+
+    let released = false
+    const release = (): void => {
+      // `close` can be followed by `finish` on a short response, and a double release
+      // would hand out a slot that was never taken — the shape of leak that lets the
+      // ceiling drift upwards over an eight-hour run.
+      if (released) return
+      released = true
+
+      openTotal -= 1
+      const current = openPerClient.get(key) ?? 0
+      // The entry is dropped rather than left at zero, so the map holds one key per
+      // client currently connected and not one per client ever seen.
+      if (current <= 1) openPerClient.delete(key)
+      else openPerClient.set(key, current - 1)
+    }
+
+    res.on('close', release)
+    next()
+  }
+}

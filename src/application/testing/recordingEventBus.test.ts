@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { asEventId, asPhotoId } from '../../domain/shared/ids'
-import type { DomainEvent } from '../ports/eventBus'
+import { asEventId, asPhotoId, type EventId } from '../../domain/shared/ids'
+import type { DomainEvent, Unsubscribe } from '../ports/eventBus'
 import { RecordingEventBus } from './recordingEventBus'
+
+/**
+ * Subscribes and unwraps. The double always accepts — the cap that makes `subscribe`
+ * fallible belongs to the in-memory adapter — so a refusal here would be a broken
+ * double rather than a case to handle.
+ */
+const subscribed = (
+  bus: RecordingEventBus,
+  eventId: EventId,
+  listener: (event: DomainEvent) => void,
+): Unsubscribe => {
+  const result = bus.subscribe(eventId, listener)
+  if (!result.ok) throw new Error('the double refused a subscription')
+  return result.value
+}
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
@@ -60,7 +75,7 @@ describe('RecordingEventBus', () => {
   it('stops delivering once a subscriber unsubscribes', async () => {
     const bus = new RecordingEventBus()
     const seen: DomainEvent[] = []
-    const unsubscribe = bus.subscribe(WEDDING, (event) => seen.push(event))
+    const unsubscribe = subscribed(bus, WEDDING, (event) => seen.push(event))
 
     unsubscribe()
     bus.publish(uploaded('evt-wedding', 'p1'))
@@ -71,7 +86,7 @@ describe('RecordingEventBus', () => {
   it('tolerates a second unsubscribe, which an SSE handler will send', async () => {
     const bus = new RecordingEventBus()
     const seen: DomainEvent[] = []
-    const first = bus.subscribe(WEDDING, () => {})
+    const first = subscribed(bus, WEDDING, () => {})
     first()
     bus.subscribe(WEDDING, (event) => seen.push(event))
 
@@ -84,7 +99,7 @@ describe('RecordingEventBus', () => {
   it('lets a subscriber unsubscribe itself mid-broadcast without skipping the next', async () => {
     const bus = new RecordingEventBus()
     const seen: string[] = []
-    const unsubscribe = bus.subscribe(WEDDING, () => {
+    const unsubscribe = subscribed(bus, WEDDING, () => {
       seen.push('first')
       unsubscribe()
     })

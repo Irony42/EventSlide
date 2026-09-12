@@ -1,7 +1,9 @@
-import type { DomainEvent, EventBus, Unsubscribe } from '../ports/eventBus'
+import type { Delivery, DomainEvent, EventBus, EventListener, Unsubscribe } from '../ports/eventBus'
 import type { EventId } from '../../domain/shared/ids'
+import type { DomainError } from '../../domain/shared/errors'
+import { ok, type Result } from '../../domain/shared/result'
 
-type Listener = (event: DomainEvent) => void
+type Listener = EventListener
 
 /**
  * A bus that both records and delivers.
@@ -26,30 +28,41 @@ export class RecordingEventBus implements EventBus {
 
   private readonly listeners = new Map<EventId, Set<Listener>>()
 
+  /** One number per delivered announcement, shared by every subscriber of it. */
+  private lastSequence = 0
+
   publish(event: DomainEvent): void {
     this.published.push(event)
 
     const subscribers = this.listeners.get(event.eventId)
-    if (subscribers === undefined) return
+    if (subscribers === undefined || subscribers.size === 0) return
+
+    this.lastSequence += 1
+    const delivery: Delivery = { sequence: this.lastSequence }
 
     // A copy: an SSE connection closing mid-broadcast unsubscribes itself from inside
     // its own callback, and mutating the set while iterating would skip a subscriber.
     for (const listener of [...subscribers]) {
       try {
-        listener(event)
+        listener(event, delivery)
       } catch (cause) {
         this.listenerErrors.push(cause)
       }
     }
   }
 
-  subscribe(eventId: EventId, listener: Listener): Unsubscribe {
+  /**
+   * Always accepts. The cap that makes this fallible belongs to the in-memory adapter,
+   * which is what a test exercising a refusal reaches for — the double's job here is to
+   * deliver, and a limit invented for it would be a rule nothing in production shares.
+   */
+  subscribe(eventId: EventId, listener: Listener): Result<Unsubscribe, DomainError> {
     const subscribers = this.listeners.get(eventId) ?? new Set<Listener>()
     subscribers.add(listener)
     this.listeners.set(eventId, subscribers)
 
     let released = false
-    return () => {
+    return ok(() => {
       // Idempotent: an SSE handler plausibly unsubscribes on both `close` and `error`,
       // and the second call must not empty a set repopulated by a new connection.
       if (released) return
@@ -59,7 +72,7 @@ export class RecordingEventBus implements EventBus {
       if (current === undefined) return
       current.delete(listener)
       if (current.size === 0) this.listeners.delete(eventId)
-    }
+    })
   }
 
   /** Only what was recorded for one event, for a test asserting isolation. */

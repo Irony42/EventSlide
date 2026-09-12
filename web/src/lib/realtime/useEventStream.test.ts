@@ -47,6 +47,11 @@ class FakeEventSource extends EventTarget {
     this.emitFrame(JSON.stringify({ type }))
   }
 
+  /** The server's named heartbeat: the pipe is alive and nothing has happened. */
+  emitHeartbeat(): void {
+    this.dispatchEvent(new MessageEvent('ping', { data: '{}' }))
+  }
+
   /** A dropped connection the browser is already retrying by itself. */
   emitDrop(): void {
     this.readyState = 0
@@ -236,6 +241,83 @@ describe('useEventStream', () => {
     // minute for a drop it recovers from in one second.
     act(() => void vi.advanceTimersByTime(1_000))
     expect(FakeEventSource.instances).toHaveLength(3)
+  })
+
+  it('closes and reopens a connection that has gone silent', () => {
+    // The failure this exists for: a connection that is open and carrying nothing looks
+    // exactly like a quiet evening. Server-side it was the subscriber cap answering 200
+    // and then never a frame; it is also what a proxy does when it stops forwarding
+    // without closing the socket, which CLAUDE.md section 9.3 records as a trap of its
+    // own. Either way the wall says "connected" and stops updating.
+    vi.useFakeTimers()
+    const { result } = renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn() }))
+    act(() => latest().emitOpen())
+    const silent = latest()
+
+    act(() => void vi.advanceTimersByTime(45_000))
+
+    expect(silent.closeCount).toBe(1)
+    expect(result.current.connected).toBe(false)
+    act(() => void vi.advanceTimersByTime(1_000))
+    expect(FakeEventSource.instances).toHaveLength(2)
+  })
+
+  it('treats the heartbeat as a sign of life, so a quiet event is left alone', () => {
+    // Three quarters of an hour can pass between two photos at a wedding. The heartbeat
+    // is what says the silence is the room's and not the network's — a comment frame
+    // alone reaches no handler, so the client could not tell the difference.
+    vi.useFakeTimers()
+    renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn() }))
+    act(() => latest().emitOpen())
+    const stream = latest()
+
+    for (let beat = 0; beat < 12; beat += 1) {
+      act(() => void vi.advanceTimersByTime(15_000))
+      act(() => stream.emitHeartbeat())
+    }
+
+    expect(stream.closeCount).toBe(0)
+    expect(FakeEventSource.instances).toHaveLength(1)
+  })
+
+  it('treats a signal as a sign of life too', () => {
+    vi.useFakeTimers()
+    const onSignal = vi.fn()
+    renderHook(() => useEventStream({ url: URL_A, onSignal }))
+    act(() => latest().emitOpen())
+    const stream = latest()
+
+    act(() => void vi.advanceTimersByTime(40_000))
+    act(() => stream.emitSignal('photo.uploaded'))
+    act(() => void vi.advanceTimersByTime(40_000))
+
+    expect(stream.closeCount).toBe(0)
+    expect(onSignal).toHaveBeenCalledTimes(1)
+  })
+
+  it('delivers no signal for a heartbeat', () => {
+    // A refetch every fifteen seconds from every screen in the venue is a poll wearing
+    // a stream's clothes.
+    const onSignal = vi.fn()
+    renderHook(() => useEventStream({ url: URL_A, onSignal }))
+    act(() => latest().emitOpen())
+
+    act(() => latest().emitHeartbeat())
+
+    expect(onSignal).not.toHaveBeenCalled()
+  })
+
+  it('stops watching for silence once the page has gone', () => {
+    // The watchdog outliving the screen would reopen a connection against an unmounted
+    // console for the rest of the evening.
+    vi.useFakeTimers()
+    const { unmount } = renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn() }))
+    act(() => latest().emitOpen())
+
+    unmount()
+    act(() => void vi.advanceTimersByTime(120_000))
+
+    expect(FakeEventSource.instances).toHaveLength(1)
   })
 
   it('closes the connection when the page unmounts', () => {
