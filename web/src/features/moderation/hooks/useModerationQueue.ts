@@ -56,6 +56,60 @@ const RESTORING_DECISION: Readonly<Partial<Record<PhotoStatus, ModerationDecisio
   hidden: 'hide',
 }
 
+/**
+ * What "annuler" does to a photo that was still awaiting a decision when the host
+ * published it. `'hide'` is the only safe answer, which is why it is the only value.
+ */
+export type UndoOfPublish = 'hide'
+
+/**
+ * Which decision takes this one back, given where the photo came from and where it
+ * went. `null` when nothing safely does, and the console then offers no undo at all.
+ *
+ * The `pending` case is the whole reason this is a function rather than the map above.
+ * Nothing puts a photo back to `pending`, so the answer is `null` — except for one
+ * surface, and only in one direction:
+ *
+ * - **A publish can be taken back with `hide`**, when the caller asks for it. The photo
+ *   comes off the wall, which is what the host meant, and it lands in `hidden` rather
+ *   than back in the queue — `hidden` keeps it in the album and reachable from the
+ *   "Retirées" filter, and it is the only status change here that cannot put something
+ *   unapproved on a screen. The phone console asks for it because a decided photo
+ *   leaves that screen immediately and there is no grid to press "retirer" on; the
+ *   desktop console does not, because the tile is still sitting there with the button
+ *   on it.
+ * - **A refusal is never taken back from `pending`.** The only verb that would reverse
+ *   it is `publish`, and the photo was awaiting a decision, so "put that back" would
+ *   throw it onto the projector with no approval behind it — the one thing a host is
+ *   promised cannot happen. `src/domain/moderation/moderationDecision.ts` says the same
+ *   thing about `inverseOf('reject')`, and this agrees with it rather than working
+ *   around it.
+ */
+interface Restore {
+  /** What to send. `null` when nothing safely takes this decision back. */
+  readonly decision: ModerationDecision | null
+  /**
+   * Whether that decision puts the photo back exactly where it was.
+   *
+   * `false` is not a detail of wording: an inexact restore is a *second decision*, and
+   * a host told "décision annulée" would go looking for the photo in the queue it is
+   * no longer in.
+   */
+  readonly exact: boolean
+}
+
+const restoringDecision = (
+  previousStatus: PhotoStatus,
+  currentStatus: PhotoStatus,
+  undoOfPublish: UndoOfPublish | undefined,
+): Restore => {
+  const direct = RESTORING_DECISION[previousStatus]
+  if (direct !== undefined) return { decision: direct, exact: true }
+  return currentStatus === 'published' && undoOfPublish !== undefined
+    ? { decision: undoOfPublish, exact: false }
+    : { decision: null, exact: false }
+}
+
 const APPLIED_MESSAGE: Readonly<Record<ModerationDecision, (count: number) => string>> = {
   publish: fr.moderation.published,
   reject: fr.moderation.refused,
@@ -64,10 +118,16 @@ const APPLIED_MESSAGE: Readonly<Record<ModerationDecision, (count: number) => st
 
 interface UndoEntry {
   readonly id: string
-  /** Where the photo was before the decision, and where undo puts it back. */
-  readonly previousStatus: PhotoStatus
   /** What the decision made of it, so a failed undo can roll forward again. */
   readonly currentStatus: PhotoStatus
+  /**
+   * The decision that takes this one back, resolved when the entry is recorded rather
+   * than when "annuler" is pressed — the queue has moved on by then, and the previous
+   * status is the one thing the server never recorded.
+   */
+  readonly restoreWith: ModerationDecision | null
+  /** Whether that decision is a restoration or a second decision. See `Restore`. */
+  readonly exact: boolean
 }
 
 interface QueueState {
@@ -75,6 +135,15 @@ interface QueueState {
   readonly pendingCount: number
   readonly loading: boolean
   readonly error: Error | null
+}
+
+export interface ModerationQueueOptions {
+  /**
+   * Offer an undo for a publish taken on a photo that was still `pending`, performed
+   * with this decision. Absent everywhere but the phone console, where a decided photo
+   * leaves the screen and nothing else can reach it.
+   */
+  readonly undoOfPublish?: UndoOfPublish
 }
 
 export interface ModerationQueue extends QueueState {
@@ -105,7 +174,10 @@ const asError = (cause: unknown): Error =>
 const failureMessage = (cause: unknown, fallback: string): string =>
   cause instanceof ApiError ? cause.message : fallback
 
-export const useModerationQueue = (slug: string | undefined): ModerationQueue => {
+export const useModerationQueue = (
+  slug: string | undefined,
+  { undoOfPublish }: ModerationQueueOptions = {},
+): ModerationQueue => {
   const api = useApi()
   const toast = useToast()
 
@@ -207,39 +279,56 @@ export const useModerationQueue = (slug: string | undefined): ModerationQueue =>
     })
   }, [])
 
+  /**
+   * Drop the offer, and take it off the screen with it.
+   *
+   * The dismissal is the load-bearing half. `ToastProvider` stacks notices and holds one
+   * carrying an action for nine seconds, so an offer left on screen after the state
+   * behind it is gone is a button that lies: it either acts on a *later* decision than
+   * the one it is sitting next to, or — once `undoRef` is null — does nothing at all
+   * while the host believes their mistake has been taken back. Neither is visible to
+   * anyone; both are one press away at a party.
+   */
   const forgetUndo = useCallback(() => {
     undoRef.current = null
     setCanUndo(false)
-  }, [])
+
+    const open = undoToastRef.current
+    if (open === null) return
+    undoToastRef.current = null
+    toast.dismiss(open)
+  }, [toast])
 
   const undo = useCallback(async () => {
     const entries = undoRef.current
     if (slug === undefined || entries === null || entries.length === 0) return
+    // Takes the offer off the screen too: leaving it up invites a second press that
+    // would undo the undo.
     forgetUndo()
-
-    const openToast = undoToastRef.current
-    if (openToast !== null) {
-      // The offer has been taken; leaving it on screen invites a second press that
-      // would undo the undo.
-      toast.dismiss(openToast)
-      undoToastRef.current = null
-    }
 
     /**
      * Grouped by the decision that restores each photo, because one bulk action can
      * span statuses: rejecting a published photo and a hidden one in the same batch is
      * undone by `publish` for the first and `hide` for the second.
+     *
+     * The optimistic status is taken from that decision rather than from where the
+     * photo came from. The two are the same for everything the desktop console offers,
+     * and they differ for exactly one case — a publish taken back with `hide` — where
+     * showing the photo as "en attente" for a beat would be a status the server is
+     * never going to confirm.
      */
     const groups = new Map<ModerationDecision, string[]>()
+    const restored = new Map<string, PhotoStatus>()
     for (const entry of entries) {
-      const decision = RESTORING_DECISION[entry.previousStatus]
-      if (decision === undefined) continue
+      const decision = entry.restoreWith
+      if (decision === null) continue
+      restored.set(entry.id, TARGET_STATUS[decision])
       const group = groups.get(decision)
       if (group === undefined) groups.set(decision, [entry.id])
       else group.push(entry.id)
     }
 
-    setStatuses(new Map(entries.map((entry) => [entry.id, entry.previousStatus])))
+    setStatuses(restored)
     setBusy(true)
     try {
       const skipped: string[] = []
@@ -249,7 +338,43 @@ export const useModerationQueue = (slug: string | undefined): ModerationQueue =>
         const response = await api.moderateBulk(slug, ids, decision)
         skipped.push(...response.skipped)
       }
-      toast.show(fr.moderation.undone, { tone: 'success' })
+
+      /**
+       * What the server refused, put back where the decision left it.
+       *
+       * A skip is not an error and does not throw: a second moderator who rejected the
+       * photo on the laptop in between makes `rejected -> hidden` illegal, and the
+       * server says so by skipping rather than failing. Without this the grid would keep
+       * showing the restored status the server never stored, under a green line saying
+       * the decision was taken back.
+       */
+      if (skipped.length > 0) {
+        const refused = new Set(skipped)
+        setStatuses(
+          new Map(
+            entries.flatMap<[string, PhotoStatus]>((entry) =>
+              refused.has(entry.id) ? [[entry.id, entry.currentStatus]] : [],
+            ),
+          ),
+        )
+      }
+
+      const applied = restored.size - skipped.length
+      if (applied > 0) {
+        /**
+         * "Décision annulée" only when it was one.
+         *
+         * An inexact restore is a second decision, and the only one this app can
+         * produce is a publication taken back off the wall with `hide` — so the photo
+         * is now `hidden`, not waiting in the queue, and saying "annulée" would send
+         * the host looking for it where it is not. Adding another inexact restore means
+         * revisiting this line.
+         */
+        const restoredExactly = entries.every((entry) => entry.exact)
+        toast.show(restoredExactly ? fr.moderation.undone : fr.moderation.removed(applied), {
+          tone: 'success',
+        })
+      }
       if (skipped.length > 0) {
         toast.show(fr.moderation.bulkSkipped(skipped.length), { tone: 'warning' })
       }
@@ -264,19 +389,28 @@ export const useModerationQueue = (slug: string | undefined): ModerationQueue =>
   /**
    * Report the outcome, and offer to take it back.
    *
-   * The undo is offered only when every photo in the batch can be put back exactly
-   * where it was. A partial undo would be worse than none: the host would believe the
-   * whole accident was reversed.
+   * The undo is offered only when every photo in the batch has a decision that takes it
+   * back. A partial undo would be worse than none: the host would believe the whole
+   * accident was reversed.
    */
   const announce = useCallback(
     (decision: ModerationDecision, entries: readonly UndoEntry[]) => {
       const message = APPLIED_MESSAGE[decision](entries.length)
       const reversible =
-        entries.length > 0 &&
-        entries.every((entry) => RESTORING_DECISION[entry.previousStatus] !== undefined)
+        entries.length > 0 && entries.every((entry) => entry.restoreWith !== null)
+
+      /**
+       * Whatever was on offer belongs to a decision the host has now moved past.
+       *
+       * Unconditional, and before anything new is shown. Two identical "1 photo publiée
+       * — Annuler" toasts stacked three seconds apart are indistinguishable, and the
+       * older one acts on the newer decision; an offer left over from a publish beside
+       * a refusal that cannot be undone is a button that does nothing at all. Both are
+       * one press away on a surface that produces an offer per photo.
+       */
+      forgetUndo()
 
       if (!reversible) {
-        forgetUndo()
         toast.show(message, { tone: 'success' })
         return
       }
@@ -307,8 +441,9 @@ export const useModerationQueue = (slug: string | undefined): ModerationQueue =>
       if (photo === undefined) return
 
       const target = TARGET_STATUS[decision]
+      const restore = restoringDecision(photo.status, target, undoOfPublish)
       const entries: readonly UndoEntry[] = [
-        { id: photoId, previousStatus: photo.status, currentStatus: target },
+        { id: photoId, currentStatus: target, restoreWith: restore.decision, exact: restore.exact },
       ]
 
       setStatuses(new Map([[photoId, target]]))
@@ -324,7 +459,7 @@ export const useModerationQueue = (slug: string | undefined): ModerationQueue =>
         setBusy(false)
       }
     },
-    [api, slug, toast, setStatuses, announce, forgetUndo],
+    [api, slug, toast, setStatuses, announce, forgetUndo, undoOfPublish],
   )
 
   const decideBulk = useCallback(
@@ -357,7 +492,11 @@ export const useModerationQueue = (slug: string | undefined): ModerationQueue =>
 
         const entries = response.applied.flatMap<UndoEntry>((id) => {
           const previousStatus = before.get(id)
-          return previousStatus === undefined ? [] : [{ id, previousStatus, currentStatus: target }]
+          if (previousStatus === undefined) return []
+          const restore = restoringDecision(previousStatus, target, undoOfPublish)
+          return [
+            { id, currentStatus: target, restoreWith: restore.decision, exact: restore.exact },
+          ]
         })
         announce(decision, entries)
       } catch (cause) {
@@ -375,7 +514,7 @@ export const useModerationQueue = (slug: string | undefined): ModerationQueue =>
         setBusy(false)
       }
     },
-    [api, slug, toast, setStatuses, announce, forgetUndo],
+    [api, slug, toast, setStatuses, announce, forgetUndo, undoOfPublish],
   )
 
   const onSignal = useCallback(

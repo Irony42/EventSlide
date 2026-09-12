@@ -54,6 +54,17 @@ const ModerationPage = lazy(async () => ({
   default: (await import('../features/moderation/ModerationPage')).ModerationPage,
 }))
 
+/**
+ * The same queue, for a host who is standing up with a phone in one hand.
+ *
+ * Its own chunk rather than a branch inside the console: the two screens share their
+ * hooks and nothing else, and a host who only ever opens one of them should not be
+ * downloading the other's grid, lightbox and keyboard layer over a venue's Wi-Fi.
+ */
+const MobileModerationPage = lazy(async () => ({
+  default: (await import('../features/moderation/MobileModerationPage')).MobileModerationPage,
+}))
+
 const EventSettingsPage = lazy(async () => ({
   default: (await import('../features/admin/EventSettingsPage')).EventSettingsPage,
 }))
@@ -126,6 +137,13 @@ export function AppRoutes() {
               <Route path="/admin/events/new" element={<EventCreatePage />} />
               <Route path="/admin/events/:slug" element={<EventDetailPage />} />
               <Route path="/admin/events/:slug/moderation" element={<ModerationPage />} />
+              {/* Beside the console rather than instead of it: the host chooses the
+                  surface by choosing the address, and a phone-shaped screen is a
+                  different screen, not a narrow one. */}
+              <Route
+                path="/admin/events/:slug/moderation/mobile"
+                element={<MobileModerationPage />}
+              />
               <Route path="/admin/events/:slug/settings" element={<EventSettingsPage />} />
               <Route path="/admin/password" element={<ChangePasswordPage />} />
             </Route>

@@ -519,6 +519,53 @@ export const fr = {
     notFoundHome: 'Revenir à l’accueil',
     comingSoon: 'Cet écran arrive bientôt.',
   },
+
+  /* ======================================================================== */
+  /* ==== Added by features/moderation: the phone console (ROADMAP 3.1). ==== */
+  /* ==== Its own block, at the end of the file and after a section no    ==== */
+  /* ==== feature adds to, so a branch appending inside `moderation` or   ==== */
+  /* ==== `wall` above merges without meeting this one. Everything the    ==== */
+  /* ==== phone console can reuse — the verbs, the states, the counts —   ==== */
+  /* ==== it takes from `moderation`; only what is new to the gesture is  ==== */
+  /* ==== here.                                                          ==== */
+  /* ======================================================================== */
+  mobileModeration: {
+    /**
+     * Deliberately not `moderation.title`.
+     *
+     * The two consoles are two addresses, and a heading that read the same on both
+     * would let a mistyped route resolve to the wrong screen unnoticed — which is the
+     * exact failure `router.test.tsx` names one case per admin address to catch.
+     */
+    title: 'Modération sur téléphone',
+    intro: 'Glissez la photo vers la droite pour publier, vers la gauche pour refuser.',
+    /** The second half of the gesture: the host has gone far enough to decide. */
+    releaseToPublish: 'Relâchez pour publier',
+    releaseToReject: 'Relâchez pour refuser',
+    /**
+     * The photo that has just arrived in the host's hand, for the live region.
+     *
+     * The card is replaced silently when a decision lands, so without this a host using
+     * a screen reader is told what they published and nothing about what they are now
+     * deciding. Two sentences rather than a colon, because this is read aloud.
+     */
+    nowDeciding: (photo: string) => `Photo à modérer. ${photo}`,
+    /**
+     * Named more fully than `moderation.undo`, which is the label on the toast the
+     * decision itself raises. Both are on screen at once here, and two buttons reading
+     * "Annuler" is two buttons a screen reader cannot tell apart.
+     */
+    undoLast: 'Annuler la dernière décision',
+    /**
+     * Why the undo is greyed out, said once rather than per decision.
+     *
+     * A refusal cannot be taken back: nothing puts a photo back to "en attente", and
+     * the only verb that would reverse it is `publish` — which would throw a photo the
+     * host has just turned down onto the projector with no approval behind it. So the
+     * console says what it can do instead of offering something it cannot.
+     */
+    undoUnavailable: 'Seule une publication peut être annulée.',
+  },
 } as const
 
 export type Translations = typeof fr

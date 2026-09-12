@@ -1,0 +1,113 @@
+/**
+ * One photo, held in one hand.
+ *
+ * `touch-action: pan-y` is the load-bearing line: it hands the vertical axis to the
+ * browser so the page still scrolls, and keeps the horizontal one for this card. Without
+ * it a phone treats the start of a swipe as a scroll and steals the gesture halfway
+ * through, which reads as a card that randomly refuses to move.
+ */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  touch-action: pan-y;
+  /* A thumb dragged across the photo must not start selecting the caption. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/**
+ * Only the way back is animated.
+ *
+ * While the thumb is down the card is being moved by hand, and easing that would put
+ * the photo behind the finger holding it. The transition exists for the release: a card
+ * that jumps back to centre reads as a bug, one that travels back reads as "not this
+ * time". Under `prefers-reduced-motion` it is not declared at all, so the card simply
+ * is where it belongs — the gesture still works, it just does not travel.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .card[data-dragging='false'] {
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+}
+
+/* The direction, as a border. Never the only signal: the hint below carries the word. */
+.card[data-intent='publish'] {
+  border-color: var(--success);
+}
+
+.card[data-intent='reject'] {
+  border-color: var(--danger);
+}
+
+.card[data-committed='true'] {
+  box-shadow: var(--shadow-lg);
+}
+
+/**
+ * Letterboxed, never cropped. A portrait phone shot is most of what arrives at an
+ * event, and the host is deciding whether *this* photo goes on a wall — not whether a
+ * 4:3 crop of it does. The fixed ratio keeps the card the same height from one photo to
+ * the next, so the buttons underneath do not move between decisions.
+ */
+.image {
+  inline-size: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: var(--surface-base);
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  min-width: 0;
+}
+
+.caption {
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}
+
+.captionEmpty {
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  color: var(--text-muted);
+}
+
+.author {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/**
+ * The stamp. It sits on the side the card is travelling towards, so the direction is
+ * readable from the badge's position as well as from its colour and its word.
+ */
+.hint {
+  position: absolute;
+  inset-block-start: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-full);
+  background: var(--surface-overlay);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.card[data-intent='publish'] .hint {
+  inset-inline-end: var(--space-4);
+  color: var(--success);
+}
+
+.card[data-intent='reject'] .hint {
+  inset-inline-start: var(--space-4);
+  color: var(--danger);
+}
