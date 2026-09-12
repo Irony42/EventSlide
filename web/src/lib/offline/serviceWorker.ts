@@ -1,13 +1,18 @@
 import { deleteOutboxDb } from './indexedDbOutbox'
+import { ownCacheNames } from '../pwa/appShell'
 
 /**
  * Registering — and, just as importantly, un-registering — the upload worker.
  *
- * The worker exists for one reason: to finish an upload the guest is no longer
- * watching. It caches nothing and intercepts no request, so a bug in it can delay a
- * photo but cannot make the app unreachable. That restraint is deliberate; a worker
- * that also served the app shell would put every page load behind the same lifecycle
- * this module has to be able to undo.
+ * The worker has two jobs: finishing an upload the guest is no longer watching, and
+ * answering for the app shell when the network will not. The second is what lets an
+ * installed EventSlide open with no connection, and it is also what makes Chromium
+ * willing to fire `beforeinstallprompt` at all.
+ *
+ * Both are narrow, and the shell answer is network-first, so a bug in the worker can
+ * delay a photo or serve one stale document to somebody with no network — it cannot put
+ * a working deploy behind a cache. This module is the undo button for when it does
+ * something worse than that.
  */
 
 /** The Background Sync tag. Shared with `web/sw/serviceWorker.ts` by value, not by
@@ -67,7 +72,23 @@ export const removeUploadWorker = async (): Promise<void> => {
       console.warn('the upload worker could not be removed', cause)
     }
   }
+  // The page deletes the caches as well as asking the worker to. A worker that was
+  // already dead, or one killed before its message handler ran, leaves them behind
+  // otherwise — and a stale shell cache with no worker to update it is the one failure
+  // a kill switch exists to prevent.
+  await dropShellCaches()
   await deleteOutboxDb()
+}
+
+/** Deletes every cache this app's worker has ever made, from the page. */
+const dropShellCaches = async (): Promise<void> => {
+  if (typeof caches === 'undefined') return
+  try {
+    const names = await caches.keys()
+    await Promise.all(ownCacheNames(names).map((name) => caches.delete(name)))
+  } catch (cause) {
+    console.warn('the cached app shell could not be removed', cause)
+  }
 }
 
 /**

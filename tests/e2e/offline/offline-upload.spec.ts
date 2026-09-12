@@ -129,3 +129,33 @@ test('the kill switch removes the queue from a phone already carrying it @offlin
     )
     .toBe(0)
 })
+
+test('the app opens with no connection once it has been visited @offline', async ({
+  app,
+  surfaces,
+}) => {
+  // What an installed app is for. Before the worker cached the shell, an EventSlide on
+  // somebody's home screen opened to the browser's offline page — and Chromium will not
+  // fire `beforeinstallprompt` at all for an app with no `fetch` handler, so the offer to
+  // install it never appeared either.
+  const { guest } = surfaces
+  const event = await app.seedEvent({ slug: 'shell', name: 'Camille & Sacha' })
+
+  await join(guest, app.baseUrl, event.joinCode)
+  // The worker installs and precaches asynchronously; it is in control once it says so.
+  await guest.waitForFunction(() => navigator.serviceWorker.controller !== null, null, {
+    timeout: 20_000,
+  })
+
+  await guest.context().setOffline(true)
+  await guest.reload()
+
+  // The app boots from the cache, and the guest is still on their own upload screen —
+  // the join step is remembered per tab, so a reload with no network lands exactly where
+  // they were rather than on a browser error page. The API is unreachable, so "Vos
+  // envois" says so; the picker is there and the outbox will take whatever they add.
+  await expect(guest.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible({
+    timeout: 20_000,
+  })
+  await expect(guest.getByTestId('photo-input')).toBeAttached()
+})

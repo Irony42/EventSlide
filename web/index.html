@@ -11,6 +11,10 @@
     <!-- No CDN. Every stylesheet, font and script is bundled, which is what lets the
          server ship a strict CSP and what makes first paint work on venue Wi-Fi. -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- iOS never reads the manifest's icons. Without this line an installed EventSlide
+         gets a screenshot of the page as its home-screen icon, which at thumbnail size
+         is an unreadable grey rectangle. -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>EventSlide</title>
   </head>

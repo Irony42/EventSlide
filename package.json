@@ -26,6 +26,7 @@
     "build:web": "npm run build:client && npm run build:sw",
     "build:client": "vite build --config web/vite.config.ts",
     "build:sw": "vite build --config web/vite.sw.config.ts",
+    "build:icons": "tsx scripts/generateIcons.ts",
     "start": "node dist/server/main/index.js",
     "preview": "vite preview --config web/vite.config.ts",
     "lint": "eslint .",

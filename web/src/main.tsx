@@ -9,6 +9,7 @@ import { AppRoutes } from './app/router'
 import { ToastProvider } from './design-system/components/ToastProvider'
 import { api } from './lib/api/client'
 import { resolveOfflineQueue } from './lib/offline/killSwitch'
+import { watchForInstall } from './lib/pwa/install'
 import { registerUploadWorker, removeUploadWorker } from './lib/offline/serviceWorker'
 
 /**
@@ -46,6 +47,16 @@ if (resolveOfflineQueue(window.location.search)) {
 } else {
   void removeUploadWorker()
 }
+
+/**
+ * Started before anything renders, and that placement is the feature.
+ *
+ * `beforeinstallprompt` fires once per document load. A guest goes `/join/:code` then
+ * `navigate` to `/e/:slug/upload` — one document — so Chromium fires it while the join
+ * screen is up, long before the upload screen that wants it exists. Listening from a
+ * component means never hearing it.
+ */
+watchForInstall()
 
 createRoot(container).render(
   <StrictMode>

@@ -94,12 +94,58 @@ nothing, intercepts no `fetch` and claims no navigation, so the worst a bug in i
 is delay a photo. Precaching the app shell belongs with 1.2, and deliberately did not
 come along for the ride.
 
-### 1.2 Installable PWA (P1, effort S, risk: low)
+### 1.2 Installable PWA — **Shipped**
 
-The manifest exists. Add an install prompt after a successful first upload — not before,
-because a prompt on arrival is friction at the worst moment. A guest who installs can
-reopen the gallery at midnight without hunting for the QR code, which is when the second
-half of an evening's photos get taken.
+An install offer after a guest's first successful upload — not before, because a prompt
+on arrival is friction at the worst possible moment.
+
+What was missing turned out to be more than the prompt. The manifest existed but carried
+only `favicon.svg`, and **Chromium refuses to make an app installable without a 192px and
+a 512px raster icon** — silently: the manifest simply never becomes installable,
+`beforeinstallprompt` never fires, and nothing anywhere says why. So the feature had
+never been one line of JavaScript away; it had been impossible.
+
+What landed:
+
+- **Five icons**, rendered from the existing `favicon.svg` by `scripts/generateIcons.ts`:
+  192 and 512 for Chromium, two maskable variants drawn inside Android's 80% safe zone
+  so a launcher's crop does not cut the mark, and a 180px `apple-touch-icon` because iOS
+  ignores the manifest's icons entirely and reads a `<link>`. They are committed rather
+  than built — Vite copies `web/public` at the start of a build, so a fresh clone running
+  `npm run dev` would otherwise have a manifest pointing at four 404s — and
+  `scripts/generateIcons.test.ts` re-renders and compares pixels, so editing the mark
+  without re-running `npm run build:icons` fails the build rather than shipping last
+  quarter's logo to somebody's home screen.
+- **The offer itself**, held back until `mine.photos` is non-empty. A guest forty seconds
+  from sending their first photo is never interrupted; one who has proved the app works
+  is asked once.
+- **Two shapes, because the platforms genuinely differ.** Chromium gets a button that
+  raises the real prompt. iOS Safari has no API at all, so it gets the one sentence that
+  helps — Share, then "Sur l'écran d'accueil" — detected through `navigator.standalone`,
+  a feature check rather than a user-agent string. Firefox gets nothing, which is the
+  correct answer rather than a card it could not honour.
+- **"No" outlives the tab.** A guest who declines at 21:00 is not asked again at
+  midnight, which is exactly when the second half of an evening's photos are taken.
+
+One thing the mark itself needed: `favicon.svg` was invalid XML. Its comment named the
+accent CSS custom property the way CSS spells it, and `--` is forbidden inside an XML
+comment. Every browser had accepted it; `sharp` refused it outright, which is how a file
+that had been wrong since it was written came to light.
+
+**The app shell came with it, and not by choice.** Chromium dropped the service-worker
+requirement for a _menu_ install (108 on mobile, 112 on desktop), but the algorithm that
+fires `beforeinstallprompt` still wants a worker with a `fetch` handler — so the offer
+this item is about could not have appeared without one. The worker added in 1.1 had none,
+on purpose.
+
+It now precaches the entry bundle and answers for it **network-first**, so a deploy is
+never served stale to somebody standing in front of a working access point, and it
+refuses to touch anything under `/api/` at all: uploads, media, authorization and the
+wall's eight-hour SSE connection take exactly the path they would with no worker
+installed. Chrome's own account of relaxing that requirement is that sites gamed it with
+empty pass-through handlers which hurt performance, so this one does real work or gets
+out of the way entirely. An installed EventSlide now opens with no connection, which is
+what an installed app is for.
 
 ### 1.3 Camera-first capture (P1, effort M, risk: low)
 

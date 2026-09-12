@@ -36,6 +36,12 @@ export default defineConfig({
     outDir: here('../dist/client'),
     emptyOutDir: true,
     sourcemap: true,
+    // Emitted so the service worker's build can read the hashed file names and precache
+    // them. Without a precache the installed app opens to the browser's offline page,
+    // and — less obviously — Chromium's algorithm for firing `beforeinstallprompt` still
+    // requires a worker with a `fetch` handler, so there would be no install offer to
+    // make either. See web/vite.sw.config.ts.
+    manifest: true,
     // Photos dominate the payload at an event, so the JS budget is what makes the
     // guest page usable on 4G. Low on purpose: crossing it should prompt a look at
     // what was just imported, not a raised limit.

@@ -56,3 +56,17 @@
   padding-inline: var(--space-2);
   font-weight: 600;
 }
+
+/**
+ * Holds the install offer's place after it is dismissed, so focus has somewhere to land
+ * rather than falling to the document. It has no box of its own — an empty slot must not
+ * add a gap to a column that is already tight on a phone.
+ */
+.installSlot:empty {
+  display: none;
+}
+
+/* Focused only programmatically, and the card inside it carries the visible identity. */
+.installSlot:focus {
+  outline: none;
+}
