@@ -1,711 +1,334 @@
-# Revue de code — `deuxpointzero` face à `main`
+# Revue de code #2 — `deuxpointzero` face à `main`
 
-**Projet** EventSlide · **Date** 11 septembre 2026 · **Base** `main` · **Branche** `deuxpointzero` (56 commits d'avance, arbre de travail propre)
+**Projet** EventSlide · **Date** 12 septembre 2026 · **Base** `main` · **Branche** `deuxpointzero` (66 commits d'avance, arbre de travail propre)
 
-Une réécriture complète, pas une évolution : 604 fichiers, +80 675 lignes pour 2 380 supprimées. L'application Express monolithique de 1.x devient une architecture hexagonale avec frontières vérifiées mécaniquement, 3 859 tests et six niveaux de test. Le travail est d'une qualité inhabituelle. Les défauts qui restent sont concentrés sur un seul chemin : le flux temps réel du mur.
+> **Ce fichier remplace la revue du 11 septembre** (branche à 56 commits, constats F1–F18), qui occupait ce chemin et dont les dix-huit constats sont désormais tous traités — voir le tableau de suivi en §2. L'ancienne version reste consultable dans l'historique : `git show f778c01:docs/REVIEW-2.0.md`. Le nom de fichier est conservé parce que [CLAUDE.md](../CLAUDE.md) y renvoie par numéro de constat ; le renommer créerait exactement le défaut décrit en G5.
 
-|                   |                      |
-| ----------------- | -------------------- |
-| Commits           | 56                   |
-| Fichiers modifiés | 604                  |
-| Tests             | 3 859 / 177 fichiers |
-| Échecs            | 0 (en 10,8 s)        |
-| Constats          | 18                   |
-| Dont élevés       | 4                    |
+Dix commits ont atterri depuis la première revue, pour +9 582 lignes. **Les dix-huit constats sont tous traités** — pas contournés : la plupart des correctifs s'attaquent à la cause et non au symptôme, et trois d'entre eux ont fait remonter des défauts que la revue n'avait pas vus. Deux fonctionnalités neuves sont arrivées en même temps (balayage de rétention, sauvegarde/restauration), et c'est dans cette surface neuve que se trouve le seul constat bloquant de cette revue.
+
+|                         | Revue #1 (11 sept.)  | Revue #2 (12 sept.)                |
+| ----------------------- | -------------------- | ---------------------------------- |
+| Commits                 | 56                   | **66**                             |
+| Fichiers modifiés       | 604                  | **621**                            |
+| Lignes ajoutées         | +80 675              | **+90 257**                        |
+| Tests                   | 3 859 / 177 fichiers | **4 107 / 183 fichiers**           |
+| Échecs                  | 0 (10,8 s)           | **0 (10,5 s)**                     |
+| Constats levés          | 18                   | **7** (dont 1 élevé)               |
+| Constats encore ouverts | 18                   | **6** — G3 est clos par ce fichier |
 
 ---
 
 ## 1. Verdict
 
-> **Fusionnable après correction de F1 et F4.** F1 est un déni de service non authentifié qui coupe le mur en silence ; F4 est une fonctionnalité livrée qui ne fonctionne dans aucun cas. Les seize autres constats sont du travail de suivi légitime.
+> **Fusionnable après correction de G1.** Les deux bloquants de la revue précédente (F1, F4) sont corrigés à la racine. Un nouveau bloquant les remplace : `restoreBackup` écrit les fichiers d'une archive sans vérifier qu'ils restent sous la racine média, et la vérification d'intégrité valide la même chaîne traversée — une archive fabriquée passe les contrôles et écrit où elle veut. Les six autres constats sont du travail de suivi.
 
-> **Au 12 septembre 2026 : la condition est remplie, et bien au-delà.** F1 et F4 sont
-> corrigés et vérifiés, chacun avec le test qui le nomme (`streamRoutes.test.ts:353`,
-> `ModeratorsPanel.test.tsx:126`). Sur les dix-huit constats, **dix-sept sont fermés** ;
-> le dix-huitième, F14, est à moitié fait et sa moitié manquante est nommée. Le tableau
-> au début de la section 3 donne l'état de chacun, et ce qui reste à faire est en fin de
-> section 8.
+La qualité de la réponse mérite d'être notée précisément, parce qu'elle n'est pas la réponse habituelle à une revue. Trois exemples.
 
-Cette branche est meilleure que la plupart du code de production que l'on croise. Ce n'est pas une formule de politesse : c'est ce que montrent les vérifications mécaniques de la section 2.
+**F1 a été corrigé par le type, pas par une rustine.** La revue signalait que `Unsubscribe` n'avait pas de canal d'échec et que « la couche HTTP décide de répondre 503 » était donc inexprimable. Le port a été changé : `subscribe` retourne un `Result<Unsubscribe, DomainError>`, et `openStream` s'abonne _avant_ d'écrire le moindre en-tête, avec le commentaire qui explique pourquoi cet ordre est toute l'affaire. C'est la correction structurelle, pas le contournement.
 
-La discipline architecturale n'est pas déclarative. J'ai injecté un fichier volontairement fautif dans `src/domain/` qui importait `node:crypto`, `fs` et la couche application : ESLint a rejeté les trois, y compris l'import relatif `../application/ports/clock`. La règle la plus importante du dépôt tient réellement au build.
+**Trois correctifs ont trouvé des défauts que la revue avait manqués.** En bornant `BOOTSTRAP_OWNER_PASSWORD` (F16), le travail a mis au jour que `compose.yaml` rend `${BOOTSTRAP_OWNER_PASSWORD:-}` en chaîne vide : le cas ordinaire — `docker compose up` sans premier propriétaire — appelait le cas d'usage avec un mot de passe vide au lieu de ne rien faire. En étendant la couverture à `scripts/` (F14), il est apparu que `scripts/backup.test.ts` existait avec quinze tests que le `include` de vitest ne ramassait pas : quinze tests qui ne tournaient nulle part. Et le correctif de F8 a déplacé l'application du quota dans la transaction d'écriture du dépôt, ce qui a nécessité un nouveau module de domaine `quota.ts` plutôt qu'un verrou applicatif.
 
-Le point remarquable, et rare, est `docs/API.md` §9 : la documentation recense elle-même dix divergences entre le contrat et le code, dont cinq qualifiées de _code defect_, avec fichier et numéro de ligne. J'en ai vérifié quatre : toutes exactes, toutes encore présentes. C'est une honnêteté qui mérite d'être dite — et qui ne dispense pas de les corriger, parce qu'un défaut documenté reste un défaut en production.
-
-La concentration des problèmes est en revanche frappante. Sur dix-huit constats, quatre portent sur le même chemin : le flux SSE qui alimente le mur projeté. C'est aussi la promesse centrale du produit. Le reste du code — upload, authentification, persistance, isolation entre événements — résiste à un examen soutenu.
+**Une recommandation de la revue précédente était fausse, et l'argumentaire qui la réfute est dans le code.** Voir §5.
 
 ---
 
-## 2. Ce qui a été vérifié, pas cru sur parole
+## 2. Suivi des dix-huit constats
 
-Les documents de ce dépôt affirment beaucoup de choses. Chaque affirmation forte a été confrontée au code ou exécutée.
+Chaque ligne a été vérifiée dans le code, pas déduite du message de commit.
 
-| Affirmation                                                | Source                            | Méthode                                                     | Résultat                                                                                  |
-| ---------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Les frontières hexagonales sont vérifiées mécaniquement    | `CLAUDE.md` §2                    | Fichier fautif injecté dans `src/domain/`, `npx eslint`     | **Exact** — 3 violations sur 3 rejetées                                                   |
-| La suite est verte                                         | mémoire projet                    | `npm run test:run`                                          | **Exact** — 3 859 / 3 859 en 10,8 s                                                       |
-| Aucune interpolation dans le SQL                           | implicite                         | grep sur ``prepare(`…${…}`)`` dans `src/infrastructure/db/` | **Exact** — un seul cas, dans un test, colonnes en dur                                    |
-| Aucun `dangerouslySetInnerHTML`                            | `SECURITY.md` §12                 | grep sur `web/src/`                                         | **Exact** — zéro occurrence, y compris `innerHTML` et `eval`                              |
-| Chaque route documentée existe, et réciproquement          | `API.md` §9                       | Inventaire des `router.*` comparé aux en-têtes d'API.md     | **Presque** — `DELETE /events/:slug` n'a qu'une ligne de tableau (F10) ; **exact depuis** |
-| Les suites de contrat tournent sur le fake _et_ sur SQLite | `TESTING.md`                      | grep des appelants de `*RepositoryContract`                 | **Exact** — 6 ports × 2 implémentations                                                   |
-| Régénération de session à la connexion                     | `CLAUDE.md` §8                    | Lecture de `authRoutes.ts`                                  | **Exact** — `regenerate` + `destroy` + `clearCookie`                                      |
-| Les sept _skills_ annoncées aux agents existent            | `AGENTS.md`                       | `ls .claude/skills/`                                        | **Exact** — 7 / 7                                                                         |
-| Le plafond d'abonnés SSE fait répondre 503                 | commentaire de `inMemoryEventBus` | Lecture de `inMemoryEventBus.ts` + `streamRoutes.ts`        | **Faux** — échec silencieux (F1) ; **vrai depuis** `a19da12`                              |
-| Les snapshots visuels protègent le mur                     | 3 commits dédiés                  | Lecture de `ci.yml` et des scripts npm                      | **Faux** — jamais exécutés en CI (F6) ; **vrai depuis** `dff8ac9`                         |
+| #       | Constat                                        | État                               | Comment                                                                                                                                                                                    |
+| ------- | ---------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **F1**  | Plafond SSE en échec silencieux                | ✅ **Corrigé (racine)**            | `subscribe` retourne un `Result` ; `openStream` s'abonne avant d'écrire ; `503` + `Retry-After: 30` ; chien de garde client à 45 s sur une trame `ping` nommée                             |
+| **F2**  | Pas de limite sur le flux SSE                  | ✅ **Corrigé**                     | `streamConnectionLimiter` — concurrence, pas débit : 12 flux par clé IP, 500 par processus, relâchés sur `close`, garde anti-double-libération                                             |
+| **F3**  | Mémoire d'upload non bornée en agrégat         | ✅ **Corrigé**                     | `MAX_UPLOAD_BYTES_PER_REQUEST = 150 MB`, jamais inférieur à `MAX_UPLOAD_BYTES`                                                                                                             |
+| **F4**  | Invitation de modérateur cassée à 100 %        | ✅ **Corrigé + filet**             | Le panneau porte le champ ; `requestContract.test.ts` (754 lignes) et un parcours e2e dédié                                                                                                |
+| **F5**  | Console abonnée au canal public                | ✅ **Corrigé**                     | `api.moderationStreamUrl`, avec un test qui assure que les deux URL diffèrent                                                                                                              |
+| **F6**  | Régression visuelle jamais exécutée en CI      | ✅ **Corrigé (mieux que demandé)** | Job qui rend sa propre référence depuis la base de fusion sur le même _runner_, donc la dérive de plateforme ne peut plus rougir le job                                                    |
+| **F7**  | `firefox-desktop` hors matrice                 | ✅ **Corrigé**                     | Ajouté à la matrice e2e                                                                                                                                                                    |
+| **F8**  | Quota franchissable en concurrence             | ✅ **Corrigé (racine)**            | Application déplacée dans la transaction d'écriture (`sqlitePhotoRepository.ts:459-516`) ; le contrôle du cas d'usage est explicitement « le contrôle bon marché, pas celui qui applique » |
+| **F9**  | Jeton CSRF ni lié ni renouvelé                 | ✅ **Corrigé à moitié, à raison**  | `rotateCsrfToken` sur connexion et déconnexion. La signature est refusée avec un argumentaire correct — voir §5                                                                            |
+| **F10** | `DELETE /events/:slug` sans section de contrat | ✅ **Corrigé**                     | Section écrite. Inventaire revérifié : **37 routes en code, 37 documentées, correspondance exacte**                                                                                        |
+| **F11** | Identifiants SSE divergents par client         | ✅ **Corrigé (racine)**            | `Delivery.sequence` frappé une fois par publication et partagé ; `SignalLog.record` déduplique                                                                                             |
+| **F12** | Commentaire tmpfs faux                         | ✅ **Corrigé**                     | Le commentaire dit maintenant que rien n'y est écrit, et pourquoi le tmpfs reste                                                                                                           |
+| **F13** | LICENSE absent                                 | ✅ **Corrigé**                     | Texte GPL-3.0 ajouté                                                                                                                                                                       |
+| **F14** | `scripts/` hors couverture                     | ✅ **Corrigé + trouvaille**        | `include` et seuils étendus ; a révélé 15 tests qui ne tournaient nulle part                                                                                                               |
+| **F15** | Avertissement `MODULE_TYPELESS_PACKAGE_JSON`   | ⚠️ **Corrigé, avec séquelles**     | Renommé `eslint.config.mjs`. Introduit **G2** et **G5**                                                                                                                                    |
+| **F16** | `BOOTSTRAP_OWNER_PASSWORD` non borné           | ✅ **Corrigé + trouvaille**        | Politique du domaine appliquée à la configuration ; a révélé le bug de la chaîne vide rendue par Compose                                                                                   |
+| **F17** | Clé de limitation sur _slug_ non validé        | ✅ **Corrigé**                     | `Slug.create` dans la clé, tout le reste retombe sur un seul godet `'none'`                                                                                                                |
+| **F18** | `Map` des journaux jamais purgée               | ✅ **Corrigé (racine)**            | `Channel` compté par référence, supprimé au dernier départ                                                                                                                                 |
+
+Trois défauts que la documentation s'était signalés à elle-même sont également fermés : API.md §9.2 (invitation), §9.6 (canal de modération) et §9.9 (plafond SSE) ont disparu de la section.
 
 ---
 
-## 3. Les 18 constats
+## 3. Vérifications mécaniques, rejouées
 
-> **Relecture complète des statuts — 12 septembre 2026.** Les dix-huit constats ont été
-> repris un par un et confrontés au code, fichier et ligne en main, pas déduits d'un
-> message de commit. Chacun porte désormais une ligne **Statut** sous son titre.
->
-> Un constat n'est marqué **corrigé** que si trois choses sont vraies ensemble : la cause
-> racine est traitée dans le code lu à cette date, le test qui la protège existe et porte
-> un nom qui la nomme, et la suite passe. La doctrine du 11 septembre ne change pas — une
-> correction non vérifiée se lit comme une correction absente — et elle s'applique dans
-> les deux sens : elle interdit de fermer ce qui n'est que plausible, et elle interdit
-> aussi de laisser ouvert ce qu'on vient de voir passer au vert.
->
-> **État audité :** `HEAD` à `6eecad7` **plus l'arbre de travail**, qui n'était pas
-> propre : cinq constats — F3, F8, F9, F16, F17 — y étaient livrés au même moment par
-> d'autres agents. Ils ont d'abord été notés « en cours » parce que
-> `npm run typecheck:server` échouait dessus, un port ayant été renommé
-> (`PhotoRepository.saveMany` → `saveManyWithinLimits`) avant que sa suite de contrat
-> suive. Le renommage a été terminé pendant cette relecture, et ils sont passés à
-> « corrigé » sur une deuxième vérification, pas sur la première lecture.
->
-> **Vérification de clôture, exécutée et lue :** `npx eslint .` → 0 ;
-> `tsc` sur les quatre projets → 0 ; `npx vitest run` → **183 fichiers, 4 106 tests,
-> 0 échec, 14,3 s** ; `vitest run --coverage` → tous les seuils tenus (96,32 % des
-> instructions, 95,88 % des branches) ; `npm run build` → propre ; et le serveur
-> **construit** démarre, `/api/health` rendant `{"status":"ok"}` et `/api/ready` `200`.
-> Ce qui reste ouvert est nommé en fin de document.
+| Affirmation                                            | Méthode                                                                          | Résultat                                                            |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Les frontières hexagonales tiennent toujours           | Fichier fautif réinjecté dans `src/domain/`, `npx eslint`                        | **Exact** — 3 violations sur 3 rejetées, y compris l'import relatif |
+| La suite est verte                                     | `npm run test:run`                                                               | **Exact** — 4 107 / 4 107 en 10,5 s, 183 fichiers                   |
+| L'avertissement Node a disparu                         | Même exécution ESLint                                                            | **Exact** — plus de `MODULE_TYPELESS_PACKAGE_JSON`                  |
+| Chaque route documentée existe, et réciproquement      | Inventaire `router.*` comparé aux en-têtes `###` d'API.md, paramètres normalisés | **Exact** — 37 ↔ 37, aucun écart dans les deux sens                 |
+| `eslint.config.mjs` est toujours typé                  | `npx tsc -p tsconfig.tools.json --listFiles`                                     | **Faux** — le fichier n'est dans aucun programme tsconfig (**G2**)  |
+| Le restore contient les écritures sous la racine média | Lecture de `restoreBackup` et du schéma de manifeste                             | **Faux** — aucun contrôle de confinement (**G1**)                   |
+| API.md §9 ne recense plus de défaut de code            | Lecture de la section                                                            | **Faux** — 9.3, 9.4, 9.5, 9.7 et 9.10 restent ouverts (**G4**)      |
 
-| Constat | Gravité | État        | En une ligne                                                                    |
-| ------- | ------- | ----------- | ------------------------------------------------------------------------------- |
-| F1      | élevée  | **Corrigé** | `subscribe` rend un `Result`, `503` avant le moindre en-tête                    |
-| F2      | élevée  | **Corrigé** | Limiteur de connexions simultanées : 12 par client, 500 par processus           |
-| F3      | élevée  | **Corrigé** | Borne agrégée `MAX_UPLOAD_BYTES_PER_REQUEST` dans le stockage multer            |
-| F4      | élevée  | **Corrigé** | Champ mot de passe dans le panneau, plus le test de contrat client → serveur    |
-| F5      | moyenne | **Corrigé** | `moderationStreamUrl` : la console est sur le canal autorisé                    |
-| F6      | moyenne | **Corrigé** | Job `visual` qui rend lui-même son « avant » sur le runner                      |
-| F7      | moyenne | **Corrigé** | `firefox-desktop` dans la matrice e2e                                           |
-| F8      | moyenne | **Corrigé** | Compte, somme, décision et insertion dans une seule transaction d'écriture      |
-| F9      | moyenne | **Corrigé** | `rotateCsrfToken` dans le même geste que `regenerate` et `destroy`              |
-| F10     | moyenne | **Corrigé** | Section de contrat `DELETE /api/events/:slug` dans API.md §6                    |
-| F11     | moyenne | **Corrigé** | Le numéro vient de la séquence de livraison du bus                              |
-| F12     | faible  | **Corrigé** | Le commentaire de `compose.yaml` dit ce qui est vrai                            |
-| F13     | faible  | **Corrigé** | `LICENSE` (texte GPL-3.0 canonique) et section Licence du README réécrite       |
-| F14     | faible  | _À moitié_  | Cliquet resserré et `restore.test.ts` livré ; trois scripts encore à 0 %        |
-| F15     | faible  | **Corrigé** | `eslint.config.mjs` ; le passage ESM complet est chiffré et explicitement remis |
-| F16     | faible  | **Corrigé** | `BOOTSTRAP_OWNER_PASSWORD` passe par `Password.create`                          |
-| F17     | faible  | **Corrigé** | La clé de limitation passe par `Slug.create`                                    |
-| F18     | faible  | **Corrigé** | `Channel` compté ; l'entrée disparaît avec son dernier abonné                   |
+---
 
-Classés par gravité. Aucun n'est critique au sens « exploitable pour lire les photos d'autrui » : l'isolation entre événements résiste. Les quatre constats élevés sont des pannes de disponibilité ou de fonctionnalité.
+## 4. Les sept nouveaux constats
 
 ### Gravité élevée
 
-#### F1 — Le plafond d'abonnés SSE échoue en silence : 200 connexions anonymes figent le mur d'un événement
+#### G1 — Traversée de chemin à la restauration : une archive fabriquée écrit où elle veut
 
-> **Statut — corrigé.** La cause racine a été traitée par le type : `EventBus.subscribe`
-> est désormais faillible et documenté comme tel (`src/application/ports/eventBus.ts:90`,
-> « **Fallible on purpose** »), et `openStream` s'abonne **avant** d'écrire le moindre
-> en-tête puis répond `503` sur échec (`streamRoutes.ts:188`, `:296`). Test :
-> `streamRoutes.test.ts:353`, « refuses a connection the bus has no room for, with 503
-> and no stream ». Le contrat porte enfin la règle : API.md §7 disait « c'est la seule
-> règle de cette liste que l'implémentation ne tient pas » et dit maintenant ce que
-> l'implémentation fait.
+`src/infrastructure/db/backupArchive.ts:96` · `src/infrastructure/db/backupArchive.ts:875-888` · `src/infrastructure/db/backupArchive.ts:221`
 
-`src/infrastructure/realtime/inMemoryEventBus.ts:70` · `src/interface/http/routes/streamRoutes.ts:148`
+Le manifeste décrit chaque fichier média par un chemin, validé par `entrySchema` :
 
-Au-delà de `maxSubscribersPerEvent` (200 par défaut), `subscribe()` journalise un avertissement et retourne une fonction de désabonnement vide — un `Unsubscribe` indistinguable d'un vrai. Le commentaire annonce que « la couche HTTP décide de répondre 503 » ; `openStream` utilise la valeur retournée uniquement comme fonction de nettoyage et ne décide rien.
+```ts
+const entrySchema = z.object({
+  /** Relative to `<archive>/media`, always with `/` separators. */
+  path: z.string().min(1),
+  ...
+})
+```
 
-Ce que reçoit un projecteur au-delà du plafond : `200`, les en-têtes, `: connected`, puis un _heartbeat_ toutes les quinze secondes — et jamais la moindre trame `change`, pour le reste de la soirée. Côté client, `useEventStream` lève `open` et expose `connected: true`. Le mur cesse de se mettre à jour en affichant « connecté ».
+« Relatif » est un commentaire, pas une contrainte. `restoreBackup` s'en sert directement :
 
-Le canal public `GET /api/events/:slug/stream` ne demande aucune authentification. Un attaquant qui connaît le _slug_ — que SECURITY.md §12 admet comme divulgable, « le mur sert d'invitation » — ouvre 200 `EventSource` et éteint définitivement la promesse centrale du produit, sans qu'aucun écran n'affiche d'erreur.
+```ts
+for (const entry of manifest.media.entries) {
+  const relative = fromPosix(entry.path)
+  const restored = await streamThroughSha256(
+    join(root, MEDIA_DIR, relative),
+    join(target.mediaRoot, relative),   // ← aucun contrôle de confinement
+  )
+```
 
-La cause racine est architecturale, et la documentation ne la nomme pas : le type `Unsubscribe` du port `EventBus` n'a pas de canal d'échec. « La couche HTTP décide » est _inexprimable_ avec cette signature. Le reste du code utilise partout `Result<T, DomainError>` ; ce port est l'exception, et c'est exactement là que le défaut est né.
+et `streamThroughSha256` fait `await mkdir(dirname(to), { recursive: true })` avant d'écrire : les répertoires intermédiaires sont créés aussi. Un manifeste portant `"path": "../../app/dist/server/main/index.js"` écrit le contenu que l'attaquant a placé dans l'archive par-dessus le serveur compilé, avec les droits de l'opérateur qui lance la restauration.
 
-**Correctif.** Faire retourner à `subscribe` un `Result<Unsubscribe, DomainError>` comme le reste des ports. `openStream` répond alors `503 service.notReady` _avant_ d'écrire le moindre en-tête. Ajouter côté client un chien de garde : aucune trame ni commentaire reçu depuis 45 s ⇒ fermer et reconnecter. Les deux sont nécessaires : le premier corrige la cause, le second couvre la même panne quand elle vient d'un proxy.
+**Ce qui rend le défaut sérieux, c'est que toute la machinerie d'intégrité coopère.** `verifyBackup` résout le fichier source avec exactement la même expression traversée (`join(root, MEDIA_DIR, fromPosix(entry.path))`, ligne 711), y trouve le fichier que l'attaquant a placé, vérifie sa taille et son sha256 — et déclare l'archive saine. Le `--force` que la restauration exige protège la cible existante, pas la sortie de l'arborescence. Et la vérification de somme de contrôle de la copie a lieu **après** l'écriture.
 
-#### F2 — Aucune limite de débit ni de connexions sur le flux SSE public
+La documentation du module anticipe la falsification (« The checksums are unkeyed. Anyone who can edit the archive can… », ligne 586) mais la traite comme une altération du _contenu_, pas comme une évasion de l'_emplacement_. Ce sont deux menaces différentes : la première rend une sauvegarde inutilisable, la seconde donne l'exécution de code.
 
-> **Statut — corrigé.** `streamConnectionLimiter` borne les connexions _simultanées_ par
-> clé client — et non les requêtes par minute, ce qui était la distinction à faire —
-> avec `MAX_STREAMS_PER_CLIENT = 12` et son raisonnement écrit
-> (`src/interface/http/middleware/rateLimit.ts`). Monté sur les deux routes de flux
-> (`streamRoutes.ts:309`). Tests dans `rateLimit.test.ts`.
+Le modèle de menace est réaliste pour l'outil concerné. Une archive de sauvegarde est précisément ce qui voyage : clé USB, NAS, stockage objet, transfert entre l'hébergeur et le client. `restore` existe pour lire un fichier venu d'ailleurs.
 
-`src/interface/http/routes/streamRoutes.ts:216` · `src/interface/http/server.ts:117`
+**Correctif.** Rejeter le chemin à l'analyse plutôt qu'à l'usage, ce qui protège `verify` et `restore` d'un seul geste :
 
-`joinLimiter`, `loginLimiter`, `uploadLimiter` et `reactionLimiter` couvrent toutes les écritures publiques. La route de flux, elle, n'a aucun limiteur — alors que c'est la seule route qui immobilise une ressource dans la durée : une socket, un `setInterval` et une entrée dans le `Set` du bus, pour des heures.
+```ts
+path: z.string().min(1).refine(
+  (p) => !p.split('/').some((s) => s === '' || s === '.' || s === '..') && !/^[a-zA-Z]:/.test(p),
+  { message: 'a media entry path must stay inside the archive' },
+),
+```
 
-`server.maxConnections` n'est pas fixé non plus, et `requestTimeout = 0` est mis délibérément à zéro pour le SSE. C'est ce qui rend F1 trivial à déclencher, et c'est aussi un épuisement de descripteurs de fichiers dans l'absolu.
-
-**Correctif.** Un limiteur de _connexions simultanées_ par clé IP (et non de requêtes par minute) sur les deux routes de flux, plus un plafond global de connexions par processus. Le plafond existant du bus reste la deuxième ligne de défense — mais il doit devenir bruyant, cf. F1.
-
-#### F3 — Les uploads sont tamponnés en mémoire sans borne agrégée : 500 Mo par requête pour 1 Go de limite conteneur
-
-> **Statut — corrigé** (livré dans ce lot, non encore committé quand ces lignes sont
-> écrites). Le correctif prend la première des deux formes proposées : un `StorageEngine`
-> qui enveloppe
-> `memoryStorage` et compte les octets **pendant la lecture du flux**
-> (`guestRoutes.ts:131`, `boundedMemoryStorage`), avec
-> `MAX_UPLOAD_BYTES_PER_REQUEST = 150_000_000` (`:110`) et un refus en
-> `quotaExceeded('upload.tooLarge')` dès que le cumul le dépasse (`:146`). La borne est
-> paramétrable pour qu'un test du ring 4 l'atteigne en octets plutôt qu'en centaines de
-> mégaoctets, et elle ne peut pas descendre sous `MAX_UPLOAD_BYTES` (`:263`) — une borne
-> agrégée plus petite que le fichier unique que l'opérateur a déclaré acceptable serait
-> un refus déguisé en réglage. Deux tests au ring 4 tiennent les deux bouts
-> (`guestRoutes.test.ts`) : « answers 413 for a batch whose files are each inside the
-> per-file limit but together are not », et son inverse, « never refuses a single file
-> MAX_UPLOAD_BYTES allows, even when the aggregate ceiling is smaller ».
-
-`src/interface/http/routes/guestRoutes.ts:172` · `src/infrastructure/config/env.ts:77` · `compose.yaml:52`
-
-`multer.memoryStorage()` avec `limits: { fileSize: MAX_UPLOAD_BYTES, files: MAX_FILES_PER_UPLOAD }`. Multer borne _par fichier_ et _en nombre_, jamais au total : aux valeurs par défaut, 20 × 25 Mo = 500 Mo de `Buffer` pour une seule requête. `compose.yaml` fixe `memory: 1g`.
-
-S'y ajoute `sharp`, qui décode ensuite chaque image en trois variantes. Le choix de la mémoire plutôt que du disque est justifié dans le code (le pipeline ré-encode tout, 1.0 fuyait sur le nettoyage des fichiers temporaires) — mais la conséquence n'est bornée nulle part, et le limiteur d'upload plafonne le débit, pas la concurrence.
-
-**Correctif.** Ajouter une borne agrégée sur la requête : soit un plafond explicite `MAX_UPLOAD_BYTES_PER_REQUEST` vérifié pendant la lecture du flux, soit aligner le produit `maxBytes × maxFiles` sur la limite mémoire du conteneur et documenter le lien dans `.env.example`. Un test de la borne au ring 4 tient les deux valeurs ensemble.
-
-#### F4 — L'invitation d'un modérateur est refusée dans 100 % des cas
-
-> **Statut — corrigé.** Le panneau porte le champ de mot de passe temporaire
-> (`ModeratorsPanel.tsx:178`), `InviteModeratorBody` l'exige côté client
-> (`client.ts:63`), et c'est bien le contrat serveur qui a été rejoint. Test :
-> `ModeratorsPanel.test.tsx:126`, dont le commentaire nomme la cause — le schéma est
-> `.strict()` et `temporaryPassword` n'est pas optionnel.
-
-`web/src/lib/api/client.ts:190` · `src/interface/http/schemas/requestSchemas.ts:245`
-
-Le client envoie `{ email }`. Le schéma serveur `moderatorInvitationBody` est `.strict()` et exige `temporaryPassword`. Toute invitation émise depuis `ModeratorsPanel.tsx` reçoit `400 request.invalid`. Le client type par ailleurs la réponse en `ModeratorDto` quand le serveur répond `{ userId, created }` en 201.
-
-Le contrat serveur est le bon — il n'y a pas de service d'envoi d'e-mail, donc l'hôte doit transmettre un identifiant de vive voix. C'est le panneau d'administration qui est incomplet : il lui manque le champ. Identifié en API.md §9.2 et non corrigé.
-
-Aucun test ne l'a attrapé parce que les deux côtés sont testés séparément et correctement : le test HTTP envoie le corps complet, le test React vérifie que le client appelle bien `api.inviteModerator`. C'est la limite exacte du découpage en anneaux — et la raison pour laquelle ce parcours mérite un test e2e.
-
-**Correctif.** Ajouter le champ mot de passe temporaire au panneau, le faire transiter par `useInviteModerator` et `api.inviteModerator`, corriger le type de retour, et ajouter un parcours e2e « l'hôte invite un modérateur qui se connecte ensuite ».
+Et, en ceinture et bretelles, vérifier le confinement à l'écriture : `resolve(target.mediaRoot, relative).startsWith(resolve(target.mediaRoot) + sep)`. Le test qui manque est un cas de manifeste hostile dans `backupArchive.test.ts` — la même famille que les charges utiles hostiles déjà présentes dans `tests/e2e/fixtures/media.ts`, qui sont l'un des points forts de cette base de code.
 
 ### Gravité moyenne
 
-#### F5 — La console de modération s'abonne au canal public ; le canal autorisé est du code mort
+#### G2 — Le renommage d'ESLint a sorti la configuration de tout programme TypeScript
 
-> **Statut — corrigé.** `api.moderationStreamUrl` existe et c'est lui que la console
-> appelle (`useModerationQueue.ts:402`). Assertions aux deux bouts :
-> `useModerationQueue.test.tsx:105` côté client, et au ring 4 « refuses the moderation
-> channel without a session » attend bien un `401` (`streamRoutes.test.ts:347`). API.md §7
-> ne dit plus « la console d'aujourd'hui ne le fait pas » mais nomme le client et le hook
-> qui le font.
+`tsconfig.tools.json:18`
 
-`web/src/features/moderation/hooks/useModerationQueue.ts:392` · `web/src/lib/api/client.ts:200`
+F15 a renommé `eslint.config.js` en `eslint.config.mjs`. `tsconfig.tools.json` liste toujours l'ancien nom :
 
-`api.streamUrl(slug)` construit `/api/events/:slug/stream`, le canal du mur. `GET /api/events/:slug/moderation/stream` est implémenté, protégé par `requireRole('moderator')`, testé — et appelé par personne : aucune méthode `moderationStreamUrl` n'existe dans le client.
+```json
+"include": [
+  "tests/**/*.ts", "scripts/**/*.ts",
+  "vitest.config.ts", "playwright.config.ts",
+  "eslint.config.js"
+]
+```
 
-Les trames étant identiques, rien ne casse visiblement. Mais la console tient une connexion non authentifiée vers un point d'entrée dont l'existence même de la version autorisée est la justification. Et l'écart se paiera le jour où les deux canaux divergeront — par exemple si la modération doit voir les photos rejetées.
+Une entrée d'`include` qui ne correspond à rien est silencieuse — pas d'erreur, pas d'avertissement. Vérifié : `npx tsc -p tsconfig.tools.json --listFiles` ne contient aucune ligne pour `eslint.config`. Le fichier qui **applique toute l'architecture** n'est plus typé par aucun des quatre projets, et `npm run typecheck` reste vert en couvrant moins qu'avant.
 
-**Correctif.** Ajouter `moderationStreamUrl` au client, l'utiliser dans `useModerationQueue`, et ajouter au ring 4 une assertion que ce chemin répond 401 sans session.
+C'est la classe de défaut que ce dépôt combat partout ailleurs : un garde-fou qui a cessé de garder sans rien dire, exactement comme les quinze tests de `scripts/backup.test.ts` que F14 a exhumés.
 
-#### F6 — Les tests de régression visuelle ne sont exécutés par aucun job CI
+**Correctif.** `"eslint.config.mjs"` dans `include`, et vérifier que `allowJs` permet de le charger. Plus durablement : un test qui assure que chaque fichier de configuration racine appartient à au moins un programme tsconfig — le même raisonnement que `requestContract.test.ts`, appliqué à la configuration.
 
-> **Statut — corrigé, mais pas comme le suggérait le correctif.** Un job `visual` a été
-> ajouté (`.github/workflows/ci.yml`) et il ne compare **jamais** les images commises :
-> celles-ci ont été produites sur un poste Windows, un runner Ubuntu ne les reproduira
-> pas, et c'est précisément la raison pour laquelle elles avaient été sorties de la CI
-> (commit `4748a55`). Un job rouge en permanence aurait réintroduit le défaut sous une
-> autre forme. Le job rend donc lui-même son « avant » depuis la base de fusion de la
-> _pull request_, sur le runner, dans la même exécution, puis rend l'« après » et compare
-> les deux : un seul Chromium, une seule pile de polices, une seule machine, donc un
-> écart ne peut signifier qu'une chose — cette PR a changé l'aspect du mur. Le job
-> n'existe pas sur un simple `push`, faute d'un « avant » : absent plutôt que cassé.
-> Vérifié en rejouant la séquence dans un clone : `--wall-safe` porté de 4 % à 11 %
-> (le mur se décale visiblement) laisse `npm run test:e2e` **vert** — 44 passés — et fait
-> échouer la comparaison avec un écart de 2 % des pixels. Les images commises gardent
-> leur rôle : la boucle locale, `npm run test:e2e:visual`.
+#### G3 — Une revue périmée occupait `docs/` sans marque d'obsolescence — corrigé par ce fichier
 
-`.github/workflows/ci.yml:85` · `package.json` (scripts `test:e2e`, `test:e2e:visual`)
+`docs/REVIEW-2.0.md` · `CLAUDE.md:274`
 
-La CI lance `npm run test:e2e`, défini comme `playwright test --grep-invert @visual`. Aucun job ne lance `test:e2e:visual`. Les quatre snapshots de `tests/e2e/__screenshots__/chromium-desktop/` ne sont jamais comparés.
+Le rapport du 11 septembre était commité tel quel à ce chemin. Son en-tête annonçait « branche à 56 commits », son verdict disait « **Fusionnable après correction de F1 et F4** », et il décrivait dix-huit constats dont quinze étaient déjà corrigés au moment de cette revue. Rien dans le document ne disait qu'il était historique.
 
-Ce qui rend le constat concret : cette branche contient _trois_ commits qui corrigent des snapshots photographiant la mauvaise chose (`e03dc35`, `2019f3d`, `509f016`). Ces défauts ont été trouvés à la main. Rien n'empêche la même classe d'erreur de revenir.
+Le risque était concret : CLAUDE.md y renvoie par numéro de constat (« F15 in docs/REVIEW-2.0.md »), ce qui le désigne comme référence vivante, et AGENTS.md ordonne aux agents de lire `docs/`. Un agent — ou un nouvel arrivant — y trouvait une liste de tâches à 85 % faite, présentée comme à faire, et un verdict de fusion qui n'était plus le bon.
 
-**Correctif.** Ajouter un job `visual` exécutant `test:e2e:visual` sur `chromium-desktop`, ou l'admettre explicitement en supprimant les snapshots. Un garde-fou qui ne s'exécute pas est pire qu'absent : il donne l'impression d'une couverture.
+**Traité :** ce fichier remplace l'ancien au même chemin. Le tableau §2 donne le statut par constat, à la manière dont API.md §9 marque chaque entrée **doc corrected above** / **code defect** / **stale code** — c'est la discipline que le dépôt applique déjà ailleurs et qui manquait ici. Le nom est conservé pour que le lien de CLAUDE.md continue de résoudre, et le renvoi à F15 reste valide puisque §2 porte cette ligne.
 
-#### F7 — Le projet Playwright `firefox-desktop` n'est dans aucune matrice CI
+**Ce qui reste à faire.** Une règle, pas un correctif ponctuel : une revue vit à ce chemin et n'y est jamais accumulée. La suivante remplace celle-ci et reprend son tableau de suivi, sans quoi le défaut revient au cycle d'après.
 
-> **Statut — corrigé.** `firefox-desktop` est ajouté à la matrice du job `e2e`
-> (`.github/workflows/ci.yml`). Le projet reste filtré sur `@smoke` dans
-> `playwright.config.ts`, donc il exécute quatre spécifications et non la suite entière :
-> la promesse « confiance inter-navigateurs sans tripler chaque exécution » est
-> maintenant tenue au lieu d'être seulement écrite.
+#### G4 — API.md §9 recense toujours cinq divergences, dont deux paramètres acceptés puis ignorés
 
-`playwright.config.ts:58` · `.github/workflows/ci.yml:67`
+`docs/API.md:1289` · `docs/API.md:1297`
 
-Le projet existe, filtré sur `@smoke`, avec le commentaire « confiance inter-navigateurs sans tripler chaque exécution ». La matrice CI liste `chromium-desktop`, `chromium-mobile`, `webkit-mobile`. Firefox n'est jamais exécuté : la confiance annoncée n'existe pas.
+La section a fondu — 9.2, 9.6 et 9.9 sont fermés — mais **9.3, 9.4, 9.5, 9.7 et 9.10** restent. Deux vérifiées dans le code :
 
-**Correctif.** Ajouter `firefox-desktop` à la matrice — il ne lance que les `@smoke`, le coût est faible — ou retirer le projet de la configuration.
+**9.3.** `eventRoutes.ts:294` appelle `guestListQuery.parse(req.query)` et jette le résultat. Le schéma annonce `activeWithinMinutes`, borné de 1 à 1 440 minutes, défaut 30. `listGuests.ts:27` utilise `PRESENCE_WINDOW_MS = 5 * 60 * 1000`. Un hôte qui demande « actifs depuis deux heures » reçoit cinq minutes, sans erreur et sans indication.
 
-#### F8 — Le quota d'événement est franchissable par des uploads concurrents (TOCTOU)
+**9.4.** `moderationQueueQuery` déclare `cursor: z.string().max(512).optional()`. `moderationRoutes.ts` ne le lit jamais et répond toujours `nextCursor: null`, avec le commentaire qui explique que la file _ne peut pas_ être paginée par curseur. Le paramètre est donc accepté, borné, et sans effet — par conception.
 
-> **Statut — corrigé** (livré dans ce lot, non encore committé quand ces lignes sont
-> écrites ; c'est le chantier qui a rendu l'arbre rouge un moment, le temps que la suite
-> de contrat suive le renommage du port). La
-> forme est celle que le correctif proposait : la décision descend dans la transaction
-> d'écriture. `PhotoRepository.saveMany` devient `saveManyWithinLimits`
-> (`src/application/ports/photoRepository.ts:116`), et l'adaptateur SQLite compte, somme,
-> décide et insère dans **une seule** transaction (`sqlitePhotoRepository.ts:465`) — donc
-> deux invités simultanés ne peuvent plus lire la même usage et passer tous les deux.
-> L'arithmétique commune est sortie dans `src/domain/events/quota.ts` (fichier neuf),
-> avec la raison écrite : le contrôle avancé du cas d'usage et le contrôle qui applique
-> réellement la limite doivent être la même comparaison, sinon ils dérivent. Le port
-> renommé a bien été porté partout : la suite de contrat `photoRepositoryContract.ts`
-> s'exécute contre le fake **et** contre l'adaptateur SQLite, comme le veut la règle du
-> dépôt. Test qui nomme la cause : « takes the byte total inside the transaction that
-> inserts, not before it » (`sqlitePhotoRepository.test.ts:331`), plus l'arithmétique
-> elle-même dans `src/domain/events/quota.test.ts`.
+C'est la défaillance précise que `.strict()` existe pour empêcher : un champ refusé apprend quelque chose à l'appelant, un champ accepté et ignoré lui ment. Ces deux-là sont ouverts depuis la revue précédente et n'ont été touchés par aucun des dix commits.
 
-`src/application/usecases/photos/uploadPhotos.ts:174, 186, 263`
-
-`photos.countByAuthor()` et `photos.totalBytes()` sont lus une fois, avant la boucle. `addedBytes` accumule correctement _à l'intérieur_ d'une requête — le commentaire le souligne — mais rien ne coordonne deux requêtes simultanées. Deux invités qui envoient en même temps lisent le même `usedBytes` et passent chacun le contrôle : le quota est dépassable d'un facteur égal au nombre de requêtes en vol.
-
-Impact réel modéré — le quota par défaut est de 5 Go et le dépassement se chiffre en dizaines de mégaoctets — mais il est présenté comme le contrôle qui empêche de remplir le disque, et la même race s'applique à `maxPhotosPerGuest`.
-
-**Correctif.** Déplacer la réservation d'octets dans la transaction d'écriture : un `UPDATE events SET used_bytes = used_bytes + ? WHERE id = ? AND used_bytes + ? <= quota` qui échoue sur zéro ligne affectée. SQLite en WAL sérialise les écritures, donc le contrôle devient exact sans verrou applicatif.
-
-#### F9 — Le jeton CSRF n'est ni lié à la session ni renouvelé lors du changement de privilège
-
-> **Statut — corrigé pour la moitié qui était un défaut, et l'autre moitié est un refus
-> argumenté** (livré dans ce lot, non encore committé quand ces lignes sont écrites). La
-> moitié « renouveler » est faite :
-> `rotateCsrfToken` (`csrf.ts:134`) remplace le jeton qu'il y en ait un ou non, et il est
-> appelé dans le même geste que `session.regenerate()` à la connexion
-> (`authRoutes.ts:116`) et que `session.destroy()` à la déconnexion (`:160`) — après la
-> régénération et jamais avant, pour qu'une régénération qui échoue laisse la réponse
-> sans le moindre `Set-Cookie`. La déconnexion **remplace** au lieu d'effacer : la page
-> qui a appelé est encore ouverte et un invité sur un téléphone partagé ne doit pas
-> perdre sa capacité à envoyer une photo parce que l'hôte s'est déconnecté.
->
-> La moitié « signer » est un **non délibéré**, et l'argumentaire est écrit dans
-> `csrf.ts` plutôt que laissé à deviner : signer une valeur aléatoire ne lie rien, parce
-> qu'un attaquant capable d'écrire nos cookies peut aussi nous demander un jeton
-> légitimement signé ; lier à la session protégerait les hôtes, qui sont déjà les mieux
-> protégés, et ne pourrait pas atteindre les invités, qui n'ont pas de session — or
-> c'est l'upload invité que cette revue désigne comme le plus exposé ; et la paire forgée
-> n'est de toute façon pas livrable tant que ce serveur ne monte aucun CORS. Une
-> dépendance est notée en face : **si CORS est ajouté un jour, rouvrir le point.** C'est
-> un refus argumenté, pas un oubli. Tests : `describe('rotateCsrfToken')`
-> (`csrf.test.ts:188`), qui vérifie entre autres que la rotation ne perd pas l'attribut
-> `Secure` en chemin, et les assertions de connexion et de déconnexion dans
-> `authRoutes.test.ts`.
-
-`src/interface/http/middleware/csrf.ts:40` · `src/interface/http/routes/authRoutes.ts:103`
-
-`issueCsrfToken` ne pose le cookie que s'il est absent. La session, elle, est correctement régénérée à la connexion et détruite à la déconnexion. Le jeton CSRF survit donc à la connexion, à la déconnexion et au changement d'identité : le même `es_csrf` couvre le visiteur anonyme, l'invité et l'hôte connecté.
-
-Le choix du _double-submit_ non signé est justifié dans le code — les invités n'ont pas de session, et c'est l'upload invité qui a le plus besoin de la protection. C'est défendable. Mais le motif ne résiste pas à une injection de cookie : tout ce qui peut écrire un cookie sur l'origine (sous-domaine compromis, MITM sur un déploiement HTTP interne) peut forger la paire cookie/en-tête.
-
-**Correctif.** Renouveler le jeton dans le même geste que `session.regenerate()` et que `session.destroy()`. Pour le fond : signer le jeton avec `SESSION_SECRET` (HMAC sur une valeur aléatoire) rend l'injection de cookie insuffisante tout en restant sans état pour les invités — c'est le motif _signed double-submit_, et il coûte dix lignes ici.
-
-#### F10 — La suppression définitive d'un événement n'a pas de section de contrat
-
-> **Statut — corrigé.** `DELETE /api/events/:slug` a sa section `###` dans API.md §6,
-> écrite contre le code et non contre l'intention. Elle dit : propriétaire seulement
-> (`canDeleteEvent`) ; `204` vide ; ce qui est détruit et **dans quel ordre** — les
-> octets d'abord, la ligne ensuite, parce que la ligne est le seul registre qui sache que
-> les octets existent ; ce qui survit — les comptes, les sessions, les autres événements,
-> et le slug, qui redevient libre ; ce que rend un événement **déjà purgé**, à savoir
-> `404 event.notFound`, donc un code de retour qui n'est pas idempotent ; et deux choses
-> que le correctif proposé supposait à tort. La première : **aucun `409` n'est
-> atteignable ici**. Renommer et régler répondent `409 event.immutable` sur un événement
-> archivé, purger non — c'est légal depuis `draft`, `live`, `closed` et `archived`, parce
-> qu'archiver est ce qu'on fait _au lieu_ de supprimer. La seconde : la route ne publie
-> rien sur le bus, donc un mur encore connecté n'est pas prévenu. S'y ajoute le seul
-> `500` de la famille, `event.mediaPurgeFailed`, qui laisse les lignes en place exprès
-> pour que l'appel puisse être rejoué.
-
-`src/interface/http/routes/eventRoutes.ts:266` · `docs/API.md:646`
-
-`DELETE /api/events/:slug` purge l'événement, ses photos et ses médias, sans retour arrière. API.md lui consacre une ligne de tableau (« Purge: media first, then rows ») et aucune section `###`, alors que les trente-huit autres points d'entrée en ont une avec corps de requête, codes de retour et erreurs.
-
-C'est le seul endpoint irréversible du produit, et celui dont un agent IA ou un intégrateur a le plus besoin de connaître le contrat exact. CLAUDE.md §10 désigne API.md comme « le contrat » ; ici il ne l'est pas.
-
-**Correctif.** Écrire la section : prérequis de rôle, codes 204/404/409, ce qui est détruit, ce qui subsiste, et le comportement sur un événement déjà purgé.
-
-#### F11 — Le journal de relecture SSE attribue un identifiant différent par client au même événement
-
-> **Statut — corrigé.** Le numéro vient désormais du bus : `channel.log.record(delivery.sequence, …)`
-> (`streamRoutes.ts:190`), donc un événement de domaine produit une entrée et une seule,
-> diffusée identique à tous les abonnés. Test : « gives two clients of one event the same
-> id for one change » (`streamRoutes.test.ts:200`).
-
-`src/interface/http/routes/streamRoutes.ts:150`
-
-`writeSignal(res, log.append(domainEvent.type))` est exécuté _dans le callback de chaque abonné_. Un seul événement de domaine produit donc N entrées d'identifiants distincts pour N clients connectés, et chaque client ne voit que le sien.
-
-Deux conséquences. L'espace d'identifiants `Last-Event-ID` n'est pas partagé : à la reconnexion, un client rejoue des entrées qui sont des doublons du même changement. Et le tampon circulaire de 64 est consommé N fois plus vite : avec un projecteur, deux consoles et trois téléphones, la fenêtre de relecture réelle tombe à une dizaine de signaux.
-
-Bénin aujourd'hui, parce que la trame est un signal d'invalidation sans données et que le client refait un _fetch_ complet à chaque reconnexion — la documentation le dit explicitement. Mais la structure ne fait pas ce que son nom promet, et l'ambiguïté coûtera cher si la relecture devient un jour porteuse d'état.
-
-**Correctif.** Faire publier au bus un signal déjà numéroté : `append` une fois par événement de domaine, dans `publish` ou dans un abonné unique par événement, et diffuser la même instance de `Signal` à tous les abonnés.
+**Correctif.** Pour chacun, l'une des deux branches — brancher le paramètre, ou le retirer du schéma pour que l'envoyer devienne un 400. Le retrait est un choix légitime et documenté ; le laisser accepté ne l'est pas. Note pour §9.10 : `resolveJoinCode` et `renameGuest` restent câblés sans route depuis deux revues, avec leurs tests unitaires — du code mort qui a l'air vivant.
 
 ### Gravité faible
 
-#### F12 — `compose.yaml` provisionne un tmpfs pour un multer qui n'écrit jamais sur disque
+#### G5 — Six références au nom `eslint.config.js` survivent au renommage
 
-> **Statut — corrigé.** Le commentaire dit maintenant ce qui est vrai : rien n'est
-> tamponné là, `multer.memoryStorage()` garde chaque octet dans le tas, et le nombre à
-> dimensionner pour les uploads est `deploy.resources.limits.memory` — avec le produit
-> `MAX_FILES_PER_UPLOAD × MAX_UPLOAD_BYTES` (20 × 25 Mo par défaut, vérifié dans
-> `env.ts:112`) écrit en face, ce qui relie enfin F12 à F3. Le montage est **conservé** :
-> `read_only: true` rend toute la racine non inscriptible, et un processus Node sans
-> répertoire temporaire échoue de façon illisible. Ce qui écrit réellement dans `/tmp`
-> dans ce dépôt est `scripts/seedDemo.ts:68` (`mkdtemp`), et `tsconfig.build.json`
-> n'embarque que `src/**` dans l'image, donc pas lui.
+`docs/ARCHITECTURE.md:12, 85, 91, 520` · `docs/adr/0001-hexagonal-architecture.md:12` · `src/interface/http/presenters/dtoContract.test.ts:30` · `src/interface/http/presenters/requestContract.test.ts:35` · `web/src/features/wall/hooks/useLayoutParam.ts:10`
 
-`compose.yaml:40` · `src/interface/http/routes/guestRoutes.ts:173`
+Sans conséquence à l'exécution, mais ARCHITECTURE.md:91 écrit `// eslint.config.js — abridged; the file is the source of truth` juste au-dessus d'un extrait — un lecteur qui va chercher le fichier nommé ne le trouve pas. Même catégorie que le constat de la revue précédente sur la règle citée sous un nom qui n'existe pas : la documentation reste juste sur le fond et fausse sur l'adresse.
 
-Le commentaire dit « multer stages an upload here before the pipeline re-encodes it » et réserve `/tmp:size=512m`. Le code utilise `multer.memoryStorage()` : rien n'est jamais écrit là. Un opérateur qui dimensionne sa machine d'après ce commentaire se trompe de ressource — et c'est justement celle qui manque, cf. F3.
+**Correctif.** Un `grep -rl 'eslint\.config\.js'` et un remplacement. À faire avec **G2**, qui est la même cause.
 
-**Correctif.** Corriger le commentaire pour dire que les uploads sont tamponnés en mémoire et que c'est `deploy.resources.limits.memory` qu'il faut dimensionner.
+#### G6 — Le message de succès de `backup` apprend à l'opérateur à toujours passer `--force`
 
-#### F13 — Aucun fichier LICENSE alors que `package.json` déclare GPL-3.0
+`scripts/backup.ts:180`
 
-> **Statut — corrigé.** `LICENSE` existe à la racine, 674 lignes, et c'est bien le texte
-> canonique : `md5 = 1ebbd3e34237af26da5dc08a4e440464`, celui de la GPL-3.0 telle que la
-> FSF la publie, pas une LGPL ni une paraphrase (`grep -c "GNU LESSER" LICENSE` → 0).
-> Committé en `6eecad7`. La section « Licence » du README a été réécrite : elle portait
-> **deux fois** le même paragraphe « la licence n'est pas encore là, ajoutez-la avant de
-> distribuer », reliquat d'une édition antérieure, et disait donc deux fois une chose
-> devenue fausse. Elle pointe maintenant sur le fichier.
+Une sauvegarde réussie affiche :
 
-`package.json:9` · racine du dépôt
+```
+Copy it off this machine. Restore with:
+  npm run restore -- <archive> --force
+```
 
-Déjà relevé par le commit `6a0cf58` (« flag the missing licence ») et par `6be8a2f`, qui a retiré du README le lien qui la promettait. Le fichier n'a toujours pas été ajouté. Pour un produit auto-hébergé dont l'argument est que l'opérateur possède ses données, la licence n'est pas un détail administratif.
+`--force` est le drapeau qui désactive le refus d'écraser une installation existante — le garde-fou que `restore.ts` décrit comme « the only way past that ». L'imprimer inconditionnellement dans le chemin heureux en fait la formule qu'on copie-colle, y compris le jour où la cible n'était pas censée être occupée. `restore.ts:127` connaît pourtant la distinction et l'affiche correctement (« The target is empty, so the real run needs no `--force` »).
 
-**Correctif.** Ajouter le texte GPL-3.0 en `LICENSE` et rétablir le lien dans le README.
+**Correctif.** Imprimer la commande sans `--force`, en ajoutant une ligne du type « si la cible contient déjà une installation, `--force` est requis et détruira ce qui s'y trouve ».
 
-#### F14 — `scripts/` est hors couverture et hors seuils
+#### G7 — La fenêtre où la restauration a détruit les deux moitiés
 
-> **Statut — à moitié corrigé, et la moitié qui manque est nommée ici.** `scripts/**/*.ts`
-> entre dans `coverage.include`, et `scripts/**/*.test.ts` entre dans la collecte du
-> projet `server` — sans quoi un test écrit à côté d'un outil n'aurait jamais été
-> exécuté, exactement le défaut de F6 sous une autre forme. Le seuil est en place mais
-> c'est un **cliquet, pas un plancher** : les cinq scripts sont à 0 %, donc le seul
-> plancher en pourcentage qui passe est 0, et un seuil qui ne peut pas échouer ne vaut
-> pas mieux que pas de seuil. Les valeurs sont donc négatives — le nombre maximal
-> d'entités _non couvertes_ — épinglées sur la dette du jour (350 instructions).
-> Vérifié dans les deux sens : vert tel quel, et rouge à `-349` avec le message
-> « Uncovered statements (350) exceed "scripts/\*\*" threshold (349) ».
->
-> **Reste à faire, et c'est un travail de test, pas de configuration.** Le fond est déjà
-> couvert ailleurs — `backupArchive.ts` est sous le seuil `src/infrastructure/**` — donc
-> ce qui manque est la coquille CLI, et c'est elle qu'un opérateur manipule à une heure
-> du matin : l'analyse des arguments, le code de sortie et ce qui est imprimé. Cinq
-> tests, un par outil : le seeder refuse une base de production (`seedDemo.ts`, garde
-> `config.isProduction`) ; `migrate.ts --status` rend compte des migrations en attente
-> sans en appliquer une seule ; `purge.ts --dry-run` ne touche ni fichier ni ligne ;
-> `backup.ts --verify` sort non nul sur une archive abîmée ; `restore.ts` refuse une
-> cible non vide sans `--force`, et imprime ce qu'il allait détruire. Chaque test écrit
-> fait baisser un des quatre nombres du cliquet.
->
-> **Relevé du 12 septembre : deux des cinq sont faits, et le cliquet l'a enregistré.**
-> `scripts/` contient maintenant `backup.test.ts` et `restore.test.ts`, et le seuil est
-> descendu de `-350` instructions à `{ statements: -280, branches: -109, functions: -22,
-lines: -263 }` (`vitest.config.ts:108`). C'est exactement le comportement attendu d'un
-> cliquet : il ne s'est pas desserré pour accueillir du code neuf, il s'est resserré
-> parce que des tests ont été écrits. Restent **trois** outils à 0 % — `migrate.ts`,
-> `purge.ts` et `seedDemo.ts` — dont le garde-fou `config.isProduction` du seeder, qui
-> reste la seule protection du dépôt dont rien ne vérifie qu'elle fonctionne encore.
+`src/infrastructure/db/backupArchive.ts:869-895`
 
-`vitest.config.ts:43`
+L'ordre est : vérifier l'archive en profondeur, remplacer la base par un fichier temporaire renommé, puis `rm -rf` la racine média et recopier fichier par fichier. Si une copie média échoue en cours de route — le code lève alors `The restore is incomplete` — l'ancienne base **et** l'ancienne racine média ont déjà disparu, et la nouvelle est partielle.
 
-`coverage.include` ne couvre que `src/**` et `web/src/**`. `scripts/migrate.ts` et `scripts/seedDemo.ts` n'ont ni test ni seuil — alors que `migrate.ts` est l'outil qu'un opérateur lance sur une base qui contient les photos d'un mariage.
+La conception le sait et le borne : la vérification profonde tourne avant toute destruction, le message d'erreur dit que la restauration est incomplète, et la docstring explique pourquoi copier plusieurs gigaoctets deux fois n'est pas un prix qu'une machine auto-hébergée peut payer. Le raisonnement est juste. Il reste que c'est la seule fenêtre de tout le produit où une opération interrompue laisse l'opérateur sans les données d'avant ni celles d'après.
 
-À noter : `seedDemo.ts` refuse correctement de s'exécuter quand `config.isProduction`, et son mot de passe de démonstration est explicitement nommé `demo-passphrase-not-for-production`. Le garde-fou existe ; c'est sa vérification automatique qui manque.
-
-**Correctif.** Étendre `coverage.include` à `scripts/**` avec un seuil modeste, et ajouter un test qui assure que le seeder refuse une base de production.
-
-#### F15 — `package.json` sans `"type": "module"` : avertissement Node à chaque lint
-
-> **Statut — corrigé par le renommage, et le passage ESM complet est chiffré plutôt que
-> reporté en silence.** Le fichier est maintenant `eslint.config.mjs`. Avant :
-> `npx eslint .` imprimait `MODULE_TYPELESS_PACKAGE_JSON … Reparsing as ES module …`.
-> Après : rien, sortie 0. Et la configuration est bien chargée, pas ignorée — vérifié
-> autrement que par l'absence de message : `eslint --print-config src/domain/photos/photo.ts`
-> rend toujours `no-restricted-imports` avec ses `patterns`, et un fichier fautif passé
-> en `--stdin --stdin-filename src/domain/__probe__.ts` est toujours rejeté avec
-> « src/domain must have no I/O and no framework dependency ». La règle la plus
-> importante du dépôt mord encore.
->
-> **Pourquoi pas `"type": "module"`, avec le chiffre.** Les deux options du correctif
-> n'ont pas le même rayon d'action et la différence n'est pas une question de goût.
-> `tsconfig.build.json` et `tsconfig.server.json` utilisent `module: node16`, où c'est ce
-> champ de `package.json` qui décide du format de **tout** `src/`. Déclaré ESM, Node16
-> exige une extension `.js` explicite sur chaque import relatif. Mesuré sur cet arbre, le
-> champ ajouté puis retiré : `tsc -p tsconfig.server.json` passe de propre à **1 940
-> erreurs réparties sur 264 fichiers** — 1 493 sur l'extension manquante elle-même
-> (`TS2835` et `TS2834`) et 447 induites par les imports qui ne résolvent plus — et
-> `npm run build:api` sort en **2**. Le serveur
-> construit est du CommonJS aujourd'hui ; déclarer le paquet ESM le casserait, et c'est
-> une panne qui ne se verrait qu'à l'exécution du e2e ou en production, parce que la
-> fixture démarre `dist/server/main/index.js`.
->
-> **Ce qu'il reste, donc, si quelqu'un veut le vrai passage ESM** : ajouter `.js` à chaque
-> import relatif de `src/**` (une réécriture mécanique, mais qui touche 264 fichiers),
-> puis reconstruire et **redémarrer le serveur construit** — pas relire la configuration.
-> Vérification de non-régression faite dans l'autre sens après le renommage :
-> `npm run build` propre, `node dist/server/main/index.js` démarre, `/api/health` rend
-> `{"status":"ok"}` et `/api/ready` rend `200`.
->
-> Effet de bord à connaître : `eslint.config.js` est cité par son nom dans
-> `docs/ARCHITECTURE.md` (quatre fois), `docs/adr/0001-hexagonal-architecture.md`, deux
-> commentaires de tests et `web/src/features/wall/hooks/useLayoutParam.ts`. CLAUDE.md a
-> été mis à jour ; les autres restent à corriger et sont hors du périmètre de cette
-> passe. `tsconfig.tools.json` cite aussi l'ancien nom dans son `include`, sans
-> conséquence : `allowJs` n'est pas actif, donc cette entrée n'a jamais rien inclus.
-
-`package.json` · `eslint.config.js`
-
-Node émet `MODULE_TYPELESS_PACKAGE_JSON` et reparse `eslint.config.js` en ESM à chaque exécution. Bruit dans les journaux CI, et surcoût à chaque `npm run lint` — soit à chaque itération d'un agent.
-
-**Correctif.** Ajouter `"type": "module"`, ou renommer le fichier en `eslint.config.mjs`.
-
-#### F16 — `BOOTSTRAP_OWNER_PASSWORD` n'a aucune longueur minimale
-
-> **Statut — corrigé** (livré dans ce lot, non encore committé quand ces lignes sont
-> écrites). La variable ne passe plus par un
-> `z.string().optional()` nu : `bootstrapOwnerPassword` (`env.ts:126`) applique
-> `Password.create`, donc exactement la politique du domaine et pas une longueur
-> recopiée à côté qui dériverait, et le message nomme la variable, la longueur minimale
-> et le code du refus. Deux choses que le constat n'avait pas vues et que le correctif a
-> traitées au passage : `z.preprocess(blankAsAbsent, …)` (`:192`), parce que
-> `${BOOTSTRAP_OWNER_PASSWORD:-}` dans un `compose.yaml` rend une chaîne **vide** et non
-> une variable absente ; et l'absence de `PasswordContext`, les contrôles « identique à
-> l'e-mail » relevant du raffinement d'objet qui voit les autres variables. Tests dans
-> `env.test.ts`, dont « refuses a password under the domain minimum here, rather than in
-> a log line while the container assembles » et « applies the whole password policy, not
-> a length check restated here » — c'est-à-dire les deux moitiés du constat.
-
-`src/infrastructure/config/env.ts:105`
-
-`z.string().optional()`, sans contrainte, pour la variable qui crée le premier compte propriétaire d'une instance. Le reste du fichier est exemplaire : les secrets exigent 32 caractères, refusent les valeurs de `.env.example`, et `BCRYPT_COST` est borné aux deux extrémités avec une explication de pourquoi le plancher existe.
-
-La politique de mot de passe appartient au domaine (`Password`), et `bootstrapOwner` la fait probablement respecter — mais l'échec survient alors pendant l'assemblage du conteneur, exactement le scénario que le commentaire sur `BCRYPT_COST` décrit comme la raison de valider ici.
-
-**Correctif.** Appliquer la même logique qu'à `BCRYPT_COST` : une longueur minimale ici, pour que l'échec soit une `ConfigError` nommant la variable.
-
-#### F17 — Les clés de limitation de débit sont construites sur un _slug_ non validé
-
-> **Statut — corrigé** (livré dans ce lot, non encore committé quand ces lignes sont
-> écrites). `${clientKey(req)}:${req.params['eventSlug'] ?? 'none'}`
-> a disparu des deux limiteurs, remplacé par `eventKey` (`rateLimit.ts:57`), qui passe le
-> segment par `Slug.create` — le même parse que `requireGuest` fera un instant plus tard,
-> et non une troncature choisie au jugé — et retombe sur un unique seau `'none'` pour
-> tout ce qui n'est pas un slug possible. Un client qui pulvérise des slugs inventés
-> dépense désormais un seul seau et se fait limiter dessus, au lieu d'en acheter un neuf
-> à chaque requête. Utilisé aux deux endroits cités par le constat (`:94`, `:98`). Le
-> test qui compte est celui qui borne la collapse dans l'autre sens : « keeps a real
-> event out of that bucket, so nonsense cannot close a wedding »
-> (`rateLimit.test.ts:165`) — sans lui, tout replier sur `'none'` aurait fermé un vrai
-> mariage avec des slugs inventés.
-
-`src/interface/http/middleware/rateLimit.ts:69, 77`
-
-`` `${clientKey(req)}:${req.params['eventSlug'] ?? 'none'}` ``. Le limiteur est monté _avant_ `requireGuest` — délibérément, pour rejeter un flot avant qu'il ne coûte une vérification de jeton — donc le _slug_ n'a encore été validé par rien. La cardinalité des clés dans le store mémoire est dictée par l'attaquant.
-
-Borné en pratique : le `MemoryStore` d'express-rate-limit réinitialise à chaque fenêtre d'une minute, donc la croissance ne dépasse pas une minute de trafic. Réel néanmoins comme facteur d'amplification mémoire.
-
-**Correctif.** Tronquer ou hacher le segment de _slug_ dans la clé, ou le valider avec `Slug.create` et retomber sur `'none'` en cas d'échec.
-
-#### F18 — La `Map` des journaux de signaux n'est jamais purgée
-
-> **Statut — corrigé.** La `Map` est devenue une `Map<EventId, Channel>` où `Channel`
-> compte ses connexions : `acquireChannel` incrémente, `releaseChannel` décrémente et
-> supprime l'entrée quand le dernier abonné se retire (`streamRoutes.ts:124–142`, relâché
-> aux deux sorties, `:194` et `:234`). Un événement purgé ne laisse donc plus rien
-> derrière lui.
-
-`src/interface/http/routes/streamRoutes.ts:83`
-
-`const logs = new Map<EventId, SignalLog>()` au niveau du module, tenue pour la durée de vie du processus. Le commentaire la déclare bornée par le nombre d'événements servis, ce qui est vrai — mais un événement purgé y laisse son tampon pour toujours, et l'état vit hors du conteneur d'injection de dépendances, ce qui est la seule entorse au principe de composition dans tout ce code.
-
-**Correctif.** Supprimer l'entrée quand le dernier abonné d'un événement se retire — le bus sait déjà le détecter — ou déplacer les journaux dans le conteneur, aux côtés du bus.
+**Correctif.** Pas de restructuration : rendre la fenêtre lisible. Un message d'erreur qui nomme l'archive, dit que la cible est maintenant incomplète et que **relancer la même commande la termine** — ce qui est vrai, la copie étant idempotente. Un opérateur qui lit « incomplete » à 2 h du matin doit savoir en une ligne que rien n'est perdu tant que l'archive est là.
 
 ---
 
-## 4. Sécurité
+## 5. Sécurité
 
-> Le modèle de menace est réel et les contrôles tiennent. Ce qui manque n'est pas la confidentialité, c'est la disponibilité.
+> Le durcissement du chemin temps réel est fait, et bien fait. Le risque s'est déplacé vers la surface neuve : sauvegarde et restauration.
 
-L'isolation entre événements — l'invariant que le produit ne peut pas se permettre de rater — est structurelle plutôt que déclarative. Le jeton invité HMAC nomme un événement, et `requireGuest` compare cet identifiant à celui résolu depuis l'URL ; le dépôt de photos n'expose pas de `findById(photoId)`, seulement des méthodes portées par `(eventId, …)`, donc une photo d'un autre événement n'est pas interdite, elle est _absente_. Trois spécifications e2e l'assertent contre un vrai serveur, avec de vrais cookies.
+Les trois constats de disponibilité de la revue précédente sont fermés, et fermés par la bonne mécanique. Le plafond d'abonnés répond désormais `503` avec `Retry-After` **avant** le premier en-tête — le commentaire du code souligne que l'ordre des deux premières instructions est toute l'affaire, ce qui est exact : une fois `200 text/event-stream` sur le fil, il n'existe plus aucun moyen de dire non. Le limiteur de flux compte la _concurrence_ et non le débit, avec la justification explicite qu'un limiteur par minute laisserait un client tenir deux cents connexions à perpétuité en les ouvrant lentement. La libération est idempotente, avec un commentaire qui nomme la fuite que la double-libération provoquerait sur huit heures.
 
-Le pipeline d'upload est le meilleur morceau de la branche. Identification par octets magiques en liste blanche, refus explicite des SVG, PHP, ELF et exécutables Windows avec normalisation du BOM et de l'espace de tête ; `probe` avant tout décodage pour rejeter une bombe de décompression depuis son en-tête ; ré-encodage systématique de _toutes_ les variantes, y compris l'originale, de sorte qu'un fichier polyglotte ne survit pas et qu'aucune coordonnée GPS ne subsiste ; écriture des médias avant l'insertion des lignes, avec nettoyage sur chaque chemin de sortie. Chaque décision d'ordonnancement est justifiée par un défaut concret de 1.0.
+Le côté client a reçu la moitié qui manquait : le _heartbeat_ porte maintenant une trame nommée `ping` sans `id:`, invisible pour le consommateur, dont le seul rôle est d'alimenter un chien de garde à 45 secondes. Trois battements manqués ferment et rouvrent la connexion. C'est ce qui distingue enfin une soirée calme d'un tuyau qui a cessé de livrer.
 
-Les octets sont servis par un contrôleur, jamais par `express.static`, avec une règle appliquée partout : tout refus qui confirmerait l'existence d'une photo ou d'un événement répond **404, jamais 403**. Le raffinement va jusqu'à `requireRole`, qui renvoie 401 avant de chercher l'événement pour qu'une requête anonyme ne serve pas à découvrir les _slugs_ présents sur la machine.
+L'application du quota est passée dans la transaction d'écriture du dépôt SQLite, le cas d'usage conservant un contrôle explicitement étiqueté « le contrôle bon marché, pas celui qui applique ». C'est la bonne répartition : le contrôle qui informe l'invité reste en amont, celui qui garantit l'invariant est là où la sérialisation existe.
 
-La CSP est stricte et le mérite : `'self'` partout, pas de CDN, `frame-ancestors 'none'`, `connect-src 'self'`. Le seul `'unsafe-inline'` résiduel est sur `style-src`, avec sa raison (attributs de style calculés pour la durée du Ken Burns) et la contrepartie : aucun `dangerouslySetInnerHTML` nulle part, vérifié.
+### La recommandation de la revue précédente qui était fausse
 
-Ce que le modèle de menace ne couvre pas : le tableau des risques acceptés de SECURITY.md §12 énumère sept entrées et aucune ne concerne l'épuisement de ressources. F1, F2 et F3 tombent tous les trois dans cet angle mort. Pour un produit dont la promesse est « tourne sans surveillance pendant huit heures sur un vidéoprojecteur », la disponibilité _est_ une propriété de sécurité.
+F9 demandait deux choses : renouveler le jeton CSRF au changement d'identité, et le signer. **La première est faite. La seconde a été refusée, et le refus est justifié.**
 
-| Contrôle                                      | État          | Note                                                                                                               |
-| --------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Isolation entre événements                    | **Solide**    | Structurelle : pas de lecture possible hors `eventId`. Testée aux rings 4 et 6.                                    |
-| Durcissement des uploads                      | **Solide**    | Octets magiques, budget de pixels avant décodage, ré-encodage total, EXIF supprimé.                                |
-| Jeton invité                                  | **Solide**    | HMAC-SHA256, secret ≥ 32 caractères imposé, comparaison à temps constant, MAC vérifié avant le parseur JSON.       |
-| Authentification hôte                         | **Solide**    | bcrypt coût 10–15 imposé, session régénérée, store SQLite, rôle vérifié par événement.                             |
-| Injection SQL                                 | **Solide**    | Paramètres liés partout. `foreign_keys`, WAL et `busy_timeout` actifs.                                             |
-| XSS                                           | **Solide**    | CSP stricte, `nosniff` sur les médias, React échappe, aucune insertion HTML brute.                                 |
-| CSRF                                          | **Correct**   | Double-submit, comparaison à temps constant, monté avant toutes les routes. Jeton non signé et non renouvelé (F9). |
-| Limitation de débit                           | **Partiel**   | Bonne couverture des écritures, clé IPv6 correcte. Flux SSE non couvert (F2), état en mémoire (risque accepté).    |
-| Épuisement de ressources                      | **Découvert** | Connexions SSE (F1, F2), mémoire d'upload (F3). Absent du tableau des risques acceptés.                            |
-| Refus de démarrage sur mauvaise configuration | **Solide**    | Secrets exigés en production, valeurs d'exemple refusées, `E2E_HOOKS` interdit, HTTPS imposé.                      |
+L'argumentaire est dans `csrf.ts:82-133`, en trois points dont le premier suffit : signer une valeur aléatoire ne lie rien. Le vérificateur ne peut comparer que « cette signature est la mienne » et « le cookie égale l'en-tête » ; rien dans la paire ne nomme _ce_ navigateur. Un attaquant capable d'écrire nos cookies peut aussi bien nous **demander** un jeton — n'importe quel GET en émet un — puis injecter cette valeur authentiquement signée comme cookie et l'écho en en-tête. Cela vérifie. La revue recommandait de convertir un jeton infalsifiable-par-devinette en jeton infalsifiable-par-devinette.
 
----
+Le lier à la session marcherait, et le code explique pourquoi c'est hors de portée ici : `saveUninitialized: false` fait que chaque requête anonyme reçoit un `req.sessionID` neuf et jamais stocké, et `POST /api/join` — la requête qui _crée_ l'identité invité — s'exécute avant qu'il y ait quoi que ce soit à lier. La liaison protégerait les hôtes, qui tiennent déjà un cookie de session `HttpOnly` régénéré à la connexion, et laisserait le flux d'upload invité — celui que la revue elle-même désigne comme le plus exposé — exactement où il est.
 
-## 5. Architecture
+Le troisième point est décisif : `x-csrf-token` n'est pas un en-tête sûr au sens CORS, il exige donc un préliminaire, et ce serveur ne monte aucun intergiciel CORS et n'émet aucun `Access-Control-Allow-*`. Un sous-domaine compromis peut écrire nos cookies ; il reste une _autre origine_ et ne peut pas poser l'en-tête. Le code va jusqu'à nommer la dépendance exacte de la décision — « si CORS est ajouté un jour, rouvrir le sujet » — et l'alternative écartée, le préfixe `__Host-`, avec la raison de son rejet (il impose `Secure`, ce qui casserait les installations auto-hébergées en HTTP simple).
 
-> L'architecture hexagonale est réellement appliquée, et c'est la différence entre cette branche et la plupart des dépôts qui affichent le même diagramme.
+C'est la bonne façon de répondre à une revue : ne pas appliquer ce qui est demandé quand c'est faux, et écrire pourquoi à l'endroit où le prochain lecteur refera l'analyse.
 
-La vérification vaut mieux qu'une lecture : j'ai déposé dans `src/domain/` un fichier important `node:crypto`, `fs` et `../application/ports/clock`. ESLint a rejeté les trois avec des messages qui expliquent quoi faire à la place (« modélisez le besoin comme un port »). La règle survivra donc aux relectures distraites — et aux agents.
+### État des contrôles
 
-Le découpage est cohérent jusque dans les détails. Le domaine est pur et l'interdiction de `Date.now()`, `new Date()` et `Math.random()` y est imposée par sélecteur AST, pas par convention. `server.ts` n'appelle jamais `listen()`, ce qui rend toute la surface HTTP testable sans ouvrir de port — et le commentaire explique que c'est précisément ce qui manquait à 1.0. `process.env` n'est lisible que dans `env.ts`, imposé lui aussi par règle.
+| Contrôle                   | État           | Évolution depuis #1                                                        |
+| -------------------------- | -------------- | -------------------------------------------------------------------------- |
+| Isolation entre événements | **Solide**     | inchangé                                                                   |
+| Durcissement des uploads   | **Solide**     | + borne agrégée de 150 Mo par requête                                      |
+| Jeton invité               | **Solide**     | inchangé                                                                   |
+| Authentification hôte      | **Solide**     | + rotation CSRF à la connexion et à la déconnexion                         |
+| Injection SQL              | **Solide**     | inchangé                                                                   |
+| XSS                        | **Solide**     | inchangé                                                                   |
+| CSRF                       | **Solide**     | ↑ rotation faite, non-signature argumentée                                 |
+| Limitation de débit        | **Solide**     | ↑ concurrence SSE bornée, clés de godet validées                           |
+| Épuisement de ressources   | **Couvert**    | ↑ était l'angle mort de #1 ; 12 flux/client, 500/processus, 150 Mo/requête |
+| Sauvegarde et restauration | **Défaillant** | ⚠️ **surface neuve** — traversée de chemin (**G1**)                        |
+| Suppression sur rétention  | **Correct**    | nouveau — garde anti-chevauchement, `unref`, reprise par construction      |
 
-Deux choix méritent d'être signalés comme excellents. Les _ports_ sont exposés aux routes par des `Pick<HttpUseCases, …>` module par module : `mediaRoutes` déclare avoir besoin de deux cas d'usage, pas de trente, ce qui rend ses tests proportionnés à ce qu'il fait. Et les doublures de test sont des _fakes_ de qualité production partageant une suite de contrat exécutée à la fois contre le fake et contre l'adaptateur SQLite — six ports, deux implémentations chacun. C'est la seule technique qui empêche vraiment une doublure de mentir.
-
-### Les deux entorses
-
-La première est le port `EventBus`, dont `Unsubscribe` n'a pas de canal d'échec alors que tout le reste du code utilise `Result<T, DomainError>`. C'est la cause racine de F1 : l'intention documentée (« la couche HTTP décide de répondre 503 ») n'est pas exprimable avec cette signature. Quand un type ne peut pas porter une intention, l'intention disparaît sans que personne s'en aperçoive.
-
-La seconde est `const logs = new Map()` au niveau du module dans `streamRoutes.ts` (F18). C'est le seul état mutable qui échappe au conteneur de composition, et il n'y a pas de raison qu'il y échappe.
-
-### Exploitation
-
-L'image Docker est bien faite : multi-étages, `USER node`, `dumb-init` pour que SIGTERM atteigne le processus, `HEALTHCHECK` branché sur la vraie sonde de disponibilité plutôt que sur l'ouverture du port. Le `compose.yaml` ajoute `read_only`, `cap_drop: ALL` et `no-new-privileges`. Les migrations tournent dans `createContainer` avant l'ouverture du port, donc un conteneur neuf s'initialise correctement même si `tsx` a été élagué de l'image.
-
-L'arrêt gracieux est traité sérieusement — fermeture du serveur, puis `container.dispose()`, avec un délai de grâce de 15 s parce qu'un flux SSE ne se fermera jamais de lui-même, et un second signal qui sort immédiatement. Le commentaire explique que 1.0 enregistrait un `db.close()` asynchrone sur `process.on('exit')` qui ne se terminait jamais, d'où des WAL non fusionnés.
-
-**Sur la parité fonctionnelle**, un point à trancher explicitement : il n'existe aucune migration des données depuis le schéma 1.x. La branche est un départ à blanc. C'est probablement le bon choix pour un produit où les données sont des événements passés, mais ce n'est écrit nulle part, et un opérateur qui met à jour le découvrira en démarrant.
+Le tableau des risques acceptés de SECURITY.md §12 mérite maintenant deux lignes qu'il n'a pas : ce qui reste accepté sur l'épuisement de ressources après ces bornes, et le fait qu'une archive de sauvegarde est un intrant non fiable dont les sommes de contrôle ne sont pas authentifiées.
 
 ---
 
-## 6. Qualité des tests
+## 6. Architecture
 
-> 3 859 tests en 10,8 secondes, et ils testent du comportement, pas des appels de mocks. C'est la partie la plus solide de la branche après le pipeline d'upload.
+> Les frontières tiennent toujours — vérifié, pas relu — et les correctifs les ont renforcées au lieu de les contourner.
 
-J'ai cherché les pathologies habituelles. Pas de `vi.mock` de module interne — la stratégie est explicitement « des fakes, pas des mocks », et les fakes sont de vraies implémentations en mémoire, testées elles-mêmes. Pas d'assertion sur des helpers privés. Pas de `waitForTimeout` dans le e2e : c'est interdit par un sélecteur ESLint dédié, avec le motif (« la première source de flakiness dans une application pilotée par SSE »).
+La sonde a été rejouée : un fichier importe `node:crypto`, `fs` et `../application/ports/clock` depuis `src/domain/`, ESLint rejette les trois avec les messages qui expliquent quoi faire à la place. Rien n'a été relâché pour faire passer les correctifs.
 
-Les spécifications de sécurité e2e assertent des codes de statut _et_ des codes d'erreur métier exacts — `403 guest.wrongEvent`, pas « une erreur ». Elles tournent contre un vrai serveur, une vraie base SQLite jetable et de vrais cookies, chaque worker sur son propre port. Les fixtures de médias incluent une bombe de pixels, un SVG renommé en `.jpg` et un script déguisé : les entrées hostiles sont des citoyens de première classe de cette suite.
+Les deux entorses relevées en #1 sont réparées, et l'une l'a été à la racine. `Unsubscribe` porte maintenant son échec dans un `Result`, comme tout le reste du code : la signature peut enfin exprimer ce que le commentaire promettait. Et `const logs = new Map()` est devenu un `Channel` compté par référence, créé au premier abonné et supprimé au dernier — l'état n'est plus immortel, même s'il reste au niveau du module.
 
-Les seuils de couverture sont différenciés avec une justification : 100 % de branches sur `src/domain` et `src/application`, 90/85 sur les adaptateurs, 95/90 sur l'interface, 85/80 sur le web. Le commentaire dit « des planchers, jamais des objectifs », ce qui est la bonne façon d'en parler. Les harnais de test sont exclus du calcul plutôt que de le gonfler.
+Le nouveau code respecte le découpage. `retentionSweeper` vit dans `src/main` parce que la racine de composition est la seule couche autorisée à posséder un timer, et il est un module à part plutôt que quatre lignes dans `container.ts` — justifié par le fait qu'un `setInterval` dans la racine de composition est intestable par construction. Il ne décide rien de la rétention : il prend une horloge et une fonction de balayage. La garde anti-chevauchement est correcte (assignation avant le premier `await`), le timer est `unref`é pour ne pas retenir le processus pendant `docker stop`, et l'abandon au démarrage de l'arrêt est justifié par la reprise : le balayage supprime le média puis la ligne, donc un événement interrompu est un événement dont la ligne existe encore et que le balayage suivant reprend.
 
-### Ce que le maillage laisse passer
+`backupArchive.ts` fait un choix structurel qui mérite d'être relevé : **l'archive est un répertoire, ni tar ni zip**, alors qu'`archiver` est déjà une dépendance. La première raison donnée est que `VACUUM INTO` écrit vers un chemin et ne peut pas écrire dans un flux. La conséquence heureuse est qu'il n'y a pas de _zip-slip_ possible — ce qui rend G1 d'autant plus regrettable : la traversée revient par le manifeste, la seule porte que ce choix de format laissait ouverte.
 
-F4 est l'illustration exacte de la limite du découpage en anneaux. Le test HTTP envoie un corps complet et passe ; le test React vérifie que le client appelle bien la bonne méthode et passe ; la fonctionnalité est cassée à 100 %. Aucun test ne fait traverser la frontière avec les _vraies_ données des deux côtés.
+`VACUUM INTO` est par ailleurs la bonne réponse au problème que SECURITY.md §11 posait depuis le début : copier une base SQLite en WAL à chaud donne une sauvegarde corrompue, parce que les octets du `.sqlite` ne sont que la moitié de l'histoire. La restauration rejoue ensuite `migrate` contre la base restaurée — le même appel que `container.ts` au démarrage — pour que l'incompatibilité soit découverte par la personne qui restaure et non par un hôte dont le mur ne monte pas.
 
-Le correctif n'est pas « plus de tests e2e » — ils coûtent des secondes — mais un test de contrat de transport : prendre les corps que `client.ts` construit réellement et les faire valider par les schémas zod du serveur. C'est du ring 4, cela s'exécute en millisecondes, et cela attrape toute cette classe de défaut. Le dépôt a déjà l'idée : `presenters/dtoContract.test.ts` fait exactement cela pour les _réponses_. Il manque le sens aller.
-
-Deuxième trou : la régression visuelle et Firefox ne s'exécutent jamais (F6, F7). Quatre snapshots et un projet Playwright entier sont de la couverture apparente. Et `scripts/` échappe entièrement au filet (F14).
+La régression structurelle de ce cycle est **G2** : le renommage de la configuration ESLint l'a sortie de tout programme TypeScript, silencieusement.
 
 ---
 
-## 7. Compréhension par les agents IA
+## 7. Qualité des tests
 
-> C'est le meilleur dépôt pour agents que j'aie eu à examiner. Le tout est structurellement supérieur à ce que la plupart des projets obtiennent avec dix fois plus de documentation.
+> 4 107 tests en 10,5 secondes, et la boucle n'a pas ralenti malgré +248 tests et deux fonctionnalités.
 
-Ce qui fait la différence n'est pas la quantité — 3 800 lignes de `docs/`, 271 de CLAUDE.md — mais trois propriétés que les documentations d'agent n'ont presque jamais :
+Le test recommandé en #1 existe, et il est meilleur que la recommandation. `requestContract.test.ts` (754 lignes) compare les corps que `web/src/lib/api/client.ts` construit aux schémas zod qui les analysent — mais **ne restitue aucun des deux côtés** : le serveur est le vrai objet de schéma, importé et interrogé ; le client est lu dans son propre texte source et parcouru par l'AST TypeScript, parce que le lint interdit à `src/interface` d'importer `web/**`. L'appariement est _dérivé_ de l'ordre de montage des routeurs, à la manière dont Express apparierait, si bien qu'un point d'entrée ajouté d'un seul côté apparaît comme un appel non apparié plutôt que comme un silence.
 
-- **Les règles sont appliquées par la machine, pas par le document.** Un agent qui ignore CLAUDE.md §2 est arrêté par `npm run lint`. Un document qui n'est qu'un document est un document que l'agent finira par contredire.
-- **La boucle de vérification est réellement rapide.** `npm run test:run` rend la main en 10,8 s. Un agent la lancera vraiment. Une suite à trois minutes est une suite qu'on saute.
-- **Les commentaires disent _pourquoi_, avec le défaut concret en face.** « `pipeline`, jamais `pipe` : `pipe` laisse la réponse ouverte quand la source échoue, et un ZIP à moitié écrit ressemble exactement à un album complet. » Un agent qui lit cela ne refactorisera pas le motif par mégarde. Une section « Pièges » recense sept défauts de 1.0 qu'il ne faut pas redécouvrir, dont le bug du QR code où `?partyname=` était lu comme `?party`.
+La docstring énumère aussi ce que le test **ne peut pas** attraper — une valeur de mauvaise longueur, de mauvais format ou hors énumération — avec la raison : « un test de contrat dont les angles morts sont inconnus finit par inspirer plus de confiance qu'il n'en mérite ». C'est le bon réflexe, et il est rare.
 
-Le dispositif est complet : CLAUDE.md pour Claude, AGENTS.md neutre pour les autres agents, sept _skills_ dans `.claude/skills/` (toutes présentes, vérifié) qui donnent une recette par tâche récurrente, et six ADR qui documentent les décisions _et les alternatives rejetées_. Les noms prédisent le contenu : pour « approuver une photo », un agent trouvera `src/application/usecases/moderation/` sans chercher.
+Le job de régression visuelle est également au-dessus de ce qui était demandé. Le problème réel n'était pas l'absence de job mais l'impossibilité d'en écrire un : une image de référence est spécifique à la plateforme, et pointer un _runner_ Ubuntu sur des captures générées sous Windows produit un job rouge en permanence — donc un job que plus personne ne lit. La solution rend la référence _depuis la base de fusion, sur le même runner, dans la même exécution_, puis compare à la tête. Les deux côtés partagent un Chromium, une pile de polices et une machine : un écart ne peut plus signifier que « cette _pull request_ a changé l'apparence du mur ». Un garde-fou vérifie même que la base a bien rendu le nombre de références attendu, avec un message qui explique que c'est un harnais cassé et non une régression.
 
-La discipline s'étend à la conservation des pièges découverts pendant la branche elle-même. Le `.gitignore` porte ce commentaire : un `photos/` nu correspondait à n'importe quelle profondeur et excluait silencieusement `src/domain/photos/`, `src/application/usecases/photos/` et tout l'adaptateur média — 33 fichiers source que `git add` ignorait, et qu'un clone neuf n'aurait pas pu construire. « Keep the slashes. » C'est exactement le genre de piège qu'un agent reproduirait sans cette ligne.
+Les seuils de `scripts/` utilisent des valeurs **négatives** — `{ statements: -280, branches: -109 }` — c'est-à-dire un plafond de lignes non couvertes plutôt qu'un plancher de pourcentage. La différence compte : c'est un cliquet qui ne peut que se resserrer, et le commentaire le nomme « a ratchet, not a floor » en listant ce qui est encore à zéro.
 
-### Ce qu'il faudrait corriger
-
-> **Statut — les trois sont corrigés.** §9 d'API.md s'ouvre sur un encadré qui dit que
-> la section n'est pas le contrat, que rien n'y est implémenté, et que les deux routes
-> de §9.10 répondent `404 route.notFound` aujourd'hui — vérifié : aucun routeur ne les
-> monte et `server.ts` répond dans la forme d'erreur de l'API. CLAUDE.md §10 porte la
-> même limite à l'endroit où il désigne API.md comme le contrat : « §§1–8 est le
-> contrat, §9 ne l'est pas ». CLAUDE.md §2 nomme désormais la vraie règle,
-> `no-restricted-imports` avec `patterns`, dit qu'il n'y a pas de plugin `import` dans
-> ce projet, et donne les trois chaînes qu'un agent peut réellement chercher :
-> `DOMAIN_FORBIDDEN`, `APPLICATION_FORBIDDEN`, et le bloc
-> `files: ['src/infrastructure/**/*.ts']`. Le commentaire de `compose.yaml` : cf. F12.
-
-- **API.md §9 est un piège pour un agent naïf.** Dix divergences connues y sont recensées, dont cinq défauts de code — et la section 9.10 propose deux routes (« la forme naturelle est `GET /api/join/:code` ») qui n'existent pas. Un agent qui lit le document comme « le contrat », ce que CLAUDE.md §10 lui dit de faire, peut coder contre une route hypothétique. La section mérite un avertissement en tête : _rien ici n'est implémenté ; ce sont des défauts et des propositions_.
-- **Le commentaire de `compose.yaml` ment sur multer** (F12). Un agent chargé de dimensionner le déploiement tirera la mauvaise conclusion.
-- **CLAUDE.md §2 renvoie à une règle ESLint introuvable par son nom.** Il écrit « `import/no-restricted-paths` style rules » — à lire comme « des règles dans ce genre », puisque la configuration utilise en réalité `no-restricted-imports` avec des `patterns`. L'enforcement est bien réel — je l'ai éprouvé — mais un agent qui cherche la règle par la chaîne citée ne trouvera rien, et le plugin `import` n'est même pas une dépendance du projet.
+Ce qui reste à faire côté tests : **G1 n'a pas de test**, et devrait en avoir un du genre le mieux établi de ce dépôt — un manifeste hostile, à côté des charges utiles hostiles que `tests/e2e/fixtures/media.ts` contient déjà (bombe de pixels, SVG renommé `.jpg`, script déguisé). Et **G2** montre qu'aucun test ne vérifie que les fichiers de configuration racine appartiennent bien à un programme tsconfig.
 
 ---
 
-## 8. Recommandation
+## 8. Compréhension par les agents IA
 
-| Dimension    | Note   |                                                                                           |
-| ------------ | ------ | ----------------------------------------------------------------------------------------- |
-| Sécurité     | **A−** | Confidentialité et intégrité solides. La disponibilité est l'angle mort.                  |
-| Architecture | **A**  | Hexagonale et vérifiée par le build. Une entorse de typage, à l'origine de F1.            |
-| Tests        | **A−** | Excellents et rapides. Le sens client→serveur et le visuel ne sont pas couverts.          |
-| Agents IA    | **A+** | Règles appliquées par la machine, boucle à 10 s, commentaires qui expliquent le pourquoi. |
+> La qualité de fond ne bouge pas — c'est l'hygiène des références qui s'est dégradée, et sur exactement deux points.
+
+Tout ce qui fondait la note de #1 est intact : règles appliquées par la machine plutôt que par le document, boucle de vérification à 10 secondes, commentaires qui donnent le _pourquoi_ avec le défaut concret en face. Le nouveau code entretient la tradition et l'améliore même : la docstring de `csrf.ts` sur la non-signature est un modèle — elle anticipe la question, y répond en trois points ordonnés par poids, nomme la condition qui invaliderait la décision (« si CORS est ajouté, rouvrir ») et l'alternative écartée avec sa raison. Un agent qui lit cela ne « corrigera » pas le code en ajoutant une signature.
+
+Les deux régressions sont des problèmes d'adresse, pas de contenu :
+
+**G3 — une revue périmée occupait `docs/` sans date de péremption**, avec un verdict — « fusionnable après F1 et F4 » — qui n'était plus vrai, et un renvoi depuis CLAUDE.md qui la désignait comme référence vivante. Un agent qui lit `docs/` comme AGENTS.md le lui ordonne y trouvait une liste de travail à 85 % faite et la prenait pour l'état courant. Clos par ce fichier, qui remplace l'ancien au même chemin et porte le statut par constat en §2 — la discipline qu'API.md §9 applique déjà. La règle à tenir est que ce chemin porte une revue, jamais une pile.
+
+**G5 — six références pointent vers un nom de fichier qui n'existe plus.** Dont ARCHITECTURE.md:91, qui écrit `// eslint.config.js — abridged; the file is the source of truth` au-dessus d'un extrait. La source de vérité désignée est introuvable sous ce nom.
+
+Les deux sont la même leçon, et c'est celle que **G2** paie au prix fort : dans ce dépôt, un renommage n'est jamais une opération locale, parce que les fichiers de configuration sont cités nommément par la documentation, par les commentaires, par les tests et par les tsconfig. Cela vaut une ligne dans la section « Pièges » de CLAUDE.md, qui est exactement l'endroit prévu pour ce genre de chose.
+
+Un ajout à porter au crédit du cycle : `docs/API.md` est maintenant exact au point d'être vérifiable mécaniquement — 37 routes en code, 37 sections `###`, correspondance exacte dans les deux sens. Pour un agent qui code contre le contrat, c'est la propriété qui compte le plus, et elle est désormais tenue.
+
+---
+
+## 9. Recommandation
+
+| Dimension    | #1  | #2     |                                                                                              |
+| ------------ | --- | ------ | -------------------------------------------------------------------------------------------- |
+| Sécurité     | A−  | **A−** | Disponibilité couverte ; le risque est passé à la surface sauvegarde/restauration (G1)       |
+| Architecture | A   | **A**  | Les deux entorses réparées, dont une par le type. Une régression de configuration (G2)       |
+| Tests        | A−  | **A**  | Contrat client→serveur en place, régression visuelle réellement exécutée, `scripts/` couvert |
+| Agents IA    | A+  | **A**  | Fond intact ; références périmées (G3 clos ici, G5 ouvert)                                   |
 
 ### Avant la fusion
 
-- **F1** — faire retourner un `Result` à `subscribe` et répondre 503 avant l'écriture des en-têtes. Sans cela le mur peut être éteint par n'importe qui, en silence.
-- **F4** — ajouter le champ de mot de passe temporaire au panneau des modérateurs. Une fonctionnalité livrée qui échoue systématiquement ne doit pas passer.
+- **G1** — contraindre `entrySchema.path` dans le schéma, et vérifier le confinement à l'écriture. Une archive est un intrant non fiable ; aujourd'hui elle choisit où le restore écrit. Ajouter le test de manifeste hostile.
 
 ### Dans la foulée
 
-- **F2, F3** — borner les connexions SSE et la mémoire d'upload. Même classe de risque que F1 ; à traiter dans le même lot.
-- **F6, F7** — brancher la régression visuelle et Firefox sur la CI, ou supprimer ce qui ne tourne pas.
-- **Test de contrat client→serveur** — valider les corps que `client.ts` construit contre les schémas zod du serveur. C'est ce qui aurait attrapé F4, et cela coûte des millisecondes.
+- **G2** — remettre `eslint.config.mjs` dans `tsconfig.tools.json`. Un garde-fou qui a cessé de garder en silence est exactement ce que ce dépôt combat partout ailleurs.
+- **G4** — trancher 9.3 et 9.4 : brancher le paramètre, ou le retirer du schéma. Un champ accepté et ignoré ment à l'appelant.
 
 ### Ensuite
 
-- **F5, F8, F9, F10, F11** — canal de modération, quota transactionnel, rotation du jeton CSRF, contrat de la purge, numérotation des signaux.
-- **F13** — ajouter le fichier LICENSE. Deux commits l'ont déjà signalé.
-- Ajouter une entrée « épuisement de ressources » au tableau des risques acceptés de SECURITY.md, une fois F1–F3 traités : ce qui reste accepté doit être écrit.
-
-### Ce qui reste, au 12 septembre 2026
-
-Cette liste remplace les trois qui précèdent, qui décrivent l'ordre de priorité tel qu'il
-était le 11 et qu'on garde comme trace.
-
-Dix-sept constats sur dix-huit sont fermés. Voici les quatre choses qui ne le sont pas.
-
-1. **F14, le seul constat encore à moitié** — trois outils encore à 0 % : `migrate.ts`,
-   `purge.ts`, `seedDemo.ts`. Trois tests, et trois des quatre nombres du cliquet
-   descendent. Le plus urgent des trois est le garde-fou `config.isProduction` du
-   seeder : c'est la seule protection du dépôt dont rien ne vérifie qu'elle marche
-   encore.
-2. **L'entrée « épuisement de ressources » du tableau des risques acceptés de
-   SECURITY.md §12.** F1, F2 et F3 sont traités, donc ce qui reste accepté peut enfin
-   être énoncé au lieu d'être absent du tableau — c'est l'angle mort que la section 4
-   nomme, et le fermer est un travail de rédaction, pas de code.
-3. **Les références au nom `eslint.config.js`** laissées derrière le renommage de F15,
-   dans `docs/ARCHITECTURE.md` (quatre fois), `docs/adr/0001-hexagonal-architecture.md`
-   et deux commentaires de tests. CLAUDE.md a été mis à jour ; ces fichiers-là n'étaient
-   pas dans le périmètre de la passe qui a fait le renommage.
-4. **Le passage ESM complet**, si on le veut : le chiffre est en F15, et ce n'est pas un
-   nettoyage d'une ligne.
+- **G5, G6, G7** — noms de fichiers périmés, message de `backup` qui normalise `--force`, message d'erreur du restore incomplet qui doit dire que relancer termine le travail.
+- **§9.5, §9.7, §9.10 d'API.md** — crochets e2e morts, DTO divergent, deux cas d'usage câblés sans route. Ouverts depuis deux revues.
+- Deux lignes à ajouter au tableau des risques acceptés de SECURITY.md §12 : ce qui reste accepté sur l'épuisement de ressources après ces bornes, et le statut d'intrant non authentifié d'une archive de sauvegarde.
+- Une entrée « Pièges » dans CLAUDE.md : renommer un fichier de configuration touche la documentation, les commentaires, les tests et les tsconfig — G2 et G5 sortent toutes deux du même renommage.
 
 ---
 
-Revue menée le 11 septembre 2026 sur `deuxpointzero` à 56 commits d'avance sur `main`, arbre de travail propre. Toutes les références `fichier:ligne` ont été lues dans le code, pas déduites d'un nom. Les affirmations de la section 2 ont été exécutées ou éprouvées.
+Revue menée le 12 septembre 2026 sur `deuxpointzero` à 66 commits d'avance sur `main`, arbre de travail propre. Toutes les références `fichier:ligne` ont été lues dans le code. Chaque ligne du tableau de suivi §2 a été vérifiée dans le code source, pas déduite d'un message de commit.
 
-Suite de tests exécutée pendant la revue : `npm run test:run` → 177 fichiers, 3 859 tests, 0 échec, 10,8 s.
-
-Statuts relus intégralement le 12 septembre 2026 sur `6eecad7`, arbre de travail **non
-propre** : plusieurs agents y livraient F3, F8, F9, F16 et F17 au même moment. Ces cinq
-ont d'abord été notés « en cours », puis fermés sur une deuxième vérification une fois le
-renommage de port qui cassait la compilation terminé — pas sur la première lecture, et
-pas sur un message de commit. Les références `fichier:ligne` des lignes de statut ont été
-relues dans le code à cette date ; celles du corps des constats sont restées à leur
-valeur du 11, puisqu'elles décrivent le défaut tel qu'il était.
-
-Suite exécutée à la clôture : `npx vitest run` → 183 fichiers, 4 106 tests, 0 échec,
-14,3 s.
+Vérifications exécutées pendant la revue : `npm run test:run` → 183 fichiers, 4 107 tests, 0 échec, 10,5 s · sonde ESLint sur `src/domain/` → 3 violations sur 3 rejetées · `npx tsc -p tsconfig.tools.json --listFiles` → `eslint.config.mjs` absent du programme · inventaire des routes → 37 ↔ 37.
