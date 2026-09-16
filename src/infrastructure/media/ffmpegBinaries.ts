@@ -52,6 +52,35 @@ export interface BinaryOverrides {
   readonly ffmpegPath?: string | undefined
   readonly ffprobePath?: string | undefined
   readonly search: ExecutableSearch
+  /**
+   * The packages the bundled-binary fallback resolves through. Production never passes
+   * it; {@link STATIC_PACKAGES} is the answer there.
+   *
+   * It exists for the same reason {@link ExecutableSearch} does, and it was the missing
+   * half of that idea. A test could hand this module an empty `PATH` and so be
+   * independent of what the machine has installed — but nothing disabled the second
+   * source, so "there is no ffmpeg anywhere" still meant "unless a devDependency happens
+   * to be present". That is not a hypothetical: `ffmpeg-static` and `ffprobe-static` are
+   * installed on CI and were absent from the developer's worktree, so two assertions
+   * about absence passed on one machine and failed on the other while the product they
+   * describe had not changed.
+   *
+   * A name that resolves to nothing turns the fallback off deterministically, which is
+   * what a test about absence needs — and pointing it at a package that *is* installed
+   * is equally how the fallback itself gets pinned rather than assumed.
+   */
+  readonly packages?: StaticPackages | undefined
+}
+
+export interface StaticPackages {
+  readonly ffmpeg: string
+  readonly ffprobe: string
+}
+
+/** What the fallback resolves through in production, and the default for a caller. */
+export const STATIC_PACKAGES: StaticPackages = {
+  ffmpeg: 'ffmpeg-static',
+  ffprobe: 'ffprobe-static',
 }
 
 /**
@@ -164,14 +193,16 @@ const CAPABILITY_TIMEOUT_MS = 10_000
 export const probeFfmpegCapability = async (
   overrides: BinaryOverrides,
 ): Promise<FfmpegCapability> => {
-  const ffmpeg = resolveBinary('ffmpeg', 'ffmpeg-static', overrides.ffmpegPath, overrides.search)
+  const packages = overrides.packages ?? STATIC_PACKAGES
+
+  const ffmpeg = resolveBinary('ffmpeg', packages.ffmpeg, overrides.ffmpegPath, overrides.search)
   if (ffmpeg.path === null) {
     return { available: false, reason: ffmpeg.reason ?? 'ffmpeg was not found' }
   }
 
   const ffprobe = resolveBinary(
     'ffprobe',
-    'ffprobe-static',
+    packages.ffprobe,
     overrides.ffprobePath,
     overrides.search,
   )

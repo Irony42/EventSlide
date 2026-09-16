@@ -121,8 +121,26 @@ export const isTooDangerousToSweep = (root: string): boolean => {
       .replace(/\/+$/, '')
       .toLowerCase()
 
-  const here = shapeOf(absolute)
-  return SHARED_PARENTS.some((parent) => here === shapeOf(parent))
+  /**
+   * **The raw input as well as the resolved path**, because `resolve` is the half of
+   * this that is platform-specific and the answer must not be.
+   *
+   * `resolve('C:\Users')` is a drive-anchored absolute path on Windows and
+   * `/home/runner/work/…/C:\Users` on Linux — the same string, reduced on one platform
+   * to `/users` and on the other to a working directory with a colon in it. Judging only
+   * the resolved form meant this guard silently changed its mind about a Windows-shaped
+   * root depending on who was asking, and the platform where it lied is the one the
+   * product deploys on. The mirror holds too: `resolve('/var')` on Windows produces
+   * `C:\var`, which shapes back to `/var` by luck of the current drive rather than by
+   * rule.
+   *
+   * Reducing the input as written costs nothing — a legitimate media root is a
+   * directory of its own, which shapes to neither — and makes the sentence "a shared
+   * parent is refused" true on every platform instead of on the one that resolves it
+   * conveniently.
+   */
+  const shapes = new Set([shapeOf(absolute), shapeOf(root)])
+  return SHARED_PARENTS.some((parent) => shapes.has(shapeOf(parent)))
 }
 
 export const createMediaSweeper = ({

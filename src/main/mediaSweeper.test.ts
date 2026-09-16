@@ -81,8 +81,25 @@ describe('isTooDangerousToSweep', () => {
 
   it('refuses a shared parent whatever its case or separator', () => {
     expect(isTooDangerousToSweep('/USERS')).toBe(true)
-    expect(isTooDangerousToSweep('C:\\users')).toBe(true)
     expect(isTooDangerousToSweep('/var/')).toBe(true)
+  })
+
+  it.each([
+    ['C:\\users', 'a Windows-shaped path, on a POSIX box'],
+    ['D:\\Users\\', 'the same with another drive and a trailing separator'],
+    ['/var', 'a POSIX path, on Windows'],
+    ['/Users', 'the other direction of the same question'],
+  ])('refuses %s — %s — whichever platform is reading it', (parent) => {
+    // **This is the one CI caught.** The guard used to judge `resolve(root)` alone, and
+    // `resolve` is the platform-specific half: on Linux `resolve('C:\users')` is
+    // `<cwd>/C:\users`, so the drive letter is no longer leading, nothing is stripped,
+    // and the comparison against `/users` could not match. The assertion passed on
+    // Windows and failed on the platform the product actually deploys on — which is the
+    // worse way round for a guard in front of an `rm -rf`.
+    //
+    // A shape is a shape on both platforms, so the raw input is reduced too and the
+    // answer no longer depends on who is asking.
+    expect(isTooDangerousToSweep(parent)).toBe(true)
   })
 
   it('allows a directory of its own, which is what every deployment gives it', () => {
