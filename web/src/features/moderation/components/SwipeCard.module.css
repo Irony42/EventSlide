@@ -55,20 +55,20 @@
  * 4:3 crop of it does. The fixed ratio keeps the card the same height from one photo to
  * the next, so the buttons underneath do not move between decisions.
  */
+/**
+ * The box is the ratio's doing, and the photo's own dimensions decide nothing.
+ *
+ * `aspect-ratio: 4 / 3` — not `auto 4 / 3` — discards the intrinsic ratio outright, so
+ * every upload gets the same box whatever shape it is, from a panorama to a one-pixel
+ * square, and the buttons below therefore sit in the same place for every decision.
+ * That holds only while the block axis is auto: the `width`/`height` attributes this
+ * element carries are presentational hints for the CSS `width` and `height`
+ * properties, and a pinned block size makes the ratio inert. `base.css` states
+ * `img { block-size: auto }` for exactly that reason, which is what this rule relies
+ * on, and `phone-moderation.spec.ts` measures the outcome on a real phone viewport.
+ */
 .image {
   inline-size: 100%;
-  /**
-   * `block-size: auto` is load-bearing, not tidiness. The element carries `width` and
-   * `height` attributes — they are there so the card reserves the right box before the
-   * bytes arrive and the buttons underneath do not jump — and those attributes are
-   * presentational hints for the CSS `width` and `height` properties. `inline-size`
-   * overrides the first; without this line the second stays at the photo's pixel
-   * height, and `aspect-ratio` is ignored, because it only applies when one axis is
-   * auto. A 1200-pixel-tall photo then made a 1284-pixel card on an 844-pixel phone:
-   * the photo letterboxed in the middle of a vast empty box, the caption and author
-   * pushed below the fold, and the host scrolling to reach a card meant for one thumb.
-   */
-  block-size: auto;
   aspect-ratio: 4 / 3;
   object-fit: contain;
   background: var(--surface-base);
