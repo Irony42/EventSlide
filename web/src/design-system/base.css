@@ -44,6 +44,30 @@ svg {
   max-width: 100%;
 }
 
+/**
+ * The half of that reset the repository has now paid for twice.
+ *
+ * Every photo this product renders carries `width` and `height` attributes, because a
+ * box reserved before the bytes arrive is what stops a grid reflowing under a reader.
+ * Those attributes are presentational hints for the CSS `width` and `height`
+ * properties, so a rule that sets only the inline axis leaves the block axis pinned to
+ * the photo's own pixel height — and `aspect-ratio` is then inert, because it applies
+ * only when one axis is auto.
+ *
+ * The wall hit it first (`WallLayouts.module.css`, "every frame took its photo's
+ * intrinsic pixel height instead") and fixed it locally. The phone moderation card hit
+ * the same hazard and rendered 1284 pixels tall on an 844-pixel viewport. Fixing the
+ * class here rather than a third time in a third file is what makes the fourth
+ * instance impossible; every other image rule in this repository declares its own
+ * block size with class specificity, which outranks this type selector.
+ *
+ * `img` alone, not the whole reset: an `<svg>` sized by attributes is a legitimate
+ * pattern, and no inline icon here relies on this.
+ */
+img {
+  block-size: auto;
+}
+
 input,
 button,
 textarea,

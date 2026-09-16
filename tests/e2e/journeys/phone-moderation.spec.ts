@@ -1,5 +1,6 @@
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
+import { aPhoto } from '../fixtures/media'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
@@ -188,9 +189,12 @@ test('every decision is reachable without a gesture', async ({ app, page, surfac
   await joinAndUpload(guest, app, event.joinCode, { displayName: 'Léa' })
   await expect(page.getByTestId('mobile-moderation-card')).toBeVisible()
 
-  // Matched on the verb alone: a decision button is named after the photo's author, and
-  // the queue endpoint sends `authorName: null` for every photo, so naming the guest
-  // here would pin a separate defect onto a test about the buttons.
+  // Matched on the verb alone, by prefix: a decision button is named after the photo's
+  // author, and this route does send one — `toModerationQueueItemDto` carries
+  // `row.authorName`, and it is the *album* read at `moderationRoutes.ts:171` that
+  // passes `authorName: null`, because it resolves no guest. Anchoring on the verb
+  // keeps a test about touch targets from failing the day the fixture's guest is
+  // renamed.
   const publish = page.getByRole('button', { name: /^Publier/ })
   const refuse = page.getByRole('button', { name: /^Refuser/ })
 
@@ -208,4 +212,67 @@ test('every decision is reachable without a gesture', async ({ app, page, surfac
   await expect(page.getByRole('heading', { name: fr.moderation.empty })).toBeVisible()
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
   await expect(projector.getByTestId('wall-slide')).toHaveCount(0)
+})
+
+test('a tall photo does not stretch the card past the phone holding it', async ({
+  app,
+  page,
+  surfaces,
+}) => {
+  /**
+   * The regression this exists for: the photo element carries `width` and `height`
+   * attributes, which are presentational hints for the CSS `width` and `height`
+   * properties. `inline-size: 100%` overrode the first; the second stayed at the
+   * photo's own pixel height, which made `aspect-ratio` inert, because it applies only
+   * when one axis is auto. The card then took the upload's height — a portrait phone
+   * shot made it roughly twice the height of the phone's viewport, with the photo
+   * letterboxed in the middle of an empty box, the caption and author below the fold,
+   * and a host scrolling a screen designed for one thumb.
+   *
+   * Nothing cheaper could have caught it. jsdom applies no presentational hints and
+   * lays out no CSS module — it reports `height: auto` and a zero-sized box, which is
+   * the *fixed* answer, so a component test would have been green throughout. The
+   * visual suite renders the wall, on the desktop project. The measurement has to
+   * happen on a phone viewport in a real engine, which is this ring.
+   */
+  const { guest } = surfaces
+  const event = await app.seedEvent({ slug: 'portrait' })
+
+  await signInAsHost(page, app)
+  await page.goto(app.url(phoneConsole(event.slug)))
+
+  // Portrait, because a phone held upright is what a guest actually sends, and it is
+  // the orientation that made the old bug worst.
+  await joinAndUpload(guest, app, event.joinCode, {
+    displayName: 'Léa',
+    caption: 'Le discours',
+    file: await aPhoto('portrait', 1200, 1600),
+  })
+
+  const card = page.getByTestId('mobile-moderation-card')
+  await expect(card).toBeVisible()
+
+  const viewport = page.viewportSize()
+  expect(viewport).not.toBeNull()
+
+  const cardBox = await card.boundingBox()
+  expect(cardBox).not.toBeNull()
+  expect(cardBox!.height).toBeLessThanOrEqual(viewport!.height)
+
+  // The photo keeps the declared 4:3 box whatever the upload's own shape — letterboxed
+  // inside it, never sized by it. This is the assertion that actually catches the
+  // regression: the height bound above is loose enough to pass a card twice the size
+  // it should be, while this one fails for a removed `block-size`, a removed ratio and
+  // a changed ratio alike. Stated as an absolute tolerance rather than `toBeCloseTo`,
+  // whose `numDigits` argument reads like a pixel count and is not one.
+  const photo = card.locator('img')
+  const photoBox = await photo.boundingBox()
+  expect(photoBox).not.toBeNull()
+  expect(Math.abs(photoBox!.height - (photoBox!.width * 3) / 4)).toBeLessThan(1)
+
+  // And the two things a decision is taken on are on the screen, not under it —
+  // whole, which is what `ratio: 1` asks and the default `ratio: 0` does not: one
+  // visible pixel row of a caption is not a caption a host can read.
+  await expect(card.getByText('Le discours')).toBeInViewport({ ratio: 1 })
+  await expect(card.getByText(/Léa/)).toBeInViewport({ ratio: 1 })
 })
