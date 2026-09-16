@@ -24,6 +24,15 @@ import {
 class InMemoryMediaStore implements MediaStore {
   private readonly objects = new Map<string, Uint8Array>()
 
+  /**
+   * How many byte streams have been opened.
+   *
+   * Counted because "how many" is the whole of a descriptor leak: `openRead` on the
+   * filesystem store opens the file when the stream is *constructed*, so a stream
+   * nobody reads still costs a descriptor until something destroys it.
+   */
+  opened = 0
+
   /** Keys whose size is still known but whose bytes have gone. */
   private readonly unreadable = new Set<string>()
 
@@ -74,6 +83,7 @@ class InMemoryMediaStore implements MediaStore {
     range?: ByteRange,
   ): Promise<AsyncIterable<Uint8Array> | null> {
     const key = this.key(eventId, hash, variant)
+    this.opened += 1
     const bytes = this.objects.get(key)
     if (bytes === undefined || this.unreadable.has(key)) return null
     // A range outside the object answers `null`, as the filesystem store does: a `206`
@@ -134,10 +144,20 @@ const AUTHOR: MediaViewer = { kind: 'guest', guestId: asGuestId('guest-1') }
 const ANOTHER_GUEST: MediaViewer = { kind: 'guest', guestId: asGuestId('guest-2') }
 const MODERATOR: MediaViewer = { kind: 'moderator', userId: asUserId('user-1') }
 
-const bytesOf = async (result: Result<PhotoMedia, DomainError>): Promise<number> => {
+/** The bytes a caller would actually send, opened the way the HTTP layer opens them. */
+const openOrThrow = async (
+  result: Result<PhotoMedia, DomainError>,
+  range?: ByteRange,
+): Promise<AsyncIterable<Uint8Array>> => {
   if (!result.ok) throw new Error(`expected media, got ${result.error.code}`)
+  const bytes = await result.value.open(range)
+  if (bytes === null) throw new Error('expected bytes, got null')
+  return bytes
+}
+
+const bytesOf = async (result: Result<PhotoMedia, DomainError>): Promise<number> => {
   let total = 0
-  for await (const chunk of result.value.bytes) total += chunk.length
+  for await (const chunk of await openOrThrow(result)) total += chunk.length
   return total
 }
 
@@ -397,7 +417,11 @@ describe('getPhotoMedia', () => {
     expect(!result.ok && result.error.code).toBe('photo.mediaMissing')
   })
 
-  it('reports a file that disappeared between the size check and the open as missing', async () => {
+  it('answers no bytes when the file disappears between the size check and the open', async () => {
+    // The retention purge deleting a file mid-read is the one window in which a media
+    // read fails after it has already succeeded. It is reported as "no bytes" rather
+    // than as a refusal, because by then the caller has a size, a validator and possibly
+    // a range: only it knows whether this is a 404 or a 416, and `mediaRoutes` decides.
     const hash = await seedPhoto({ status: 'published' })
     media.vanishAfterStat(EVENT, hash)
 
@@ -408,7 +432,8 @@ describe('getPhotoMedia', () => {
       viewer: WALL,
     })
 
-    expect(!result.ok && result.error.code).toBe('photo.mediaMissing')
+    expect(result.ok).toBe(true)
+    expect(result.ok && (await result.value.open())).toBeNull()
   })
 })
 
@@ -432,7 +457,38 @@ describe('getPhotoMedia: byte ranges', () => {
     await media.put(clip.eventId, facet.posterHash, 'poster', Uint8Array.of(9))
   }
 
-  it('serves only the bytes a range asked for, and says which they were', async () => {
+  it('opens nothing until the caller asks for the bytes', async () => {
+    /**
+     * **The descriptor leak, at the ring that can state it as a rule.**
+     *
+     * Every answer used to carry an open stream, and most of the HTTP layer's answers
+     * send none: a `416`, a `304`, and — before this shape — the extra call a range
+     * request made purely to learn the object's size. `fsMediaStore.openRead` opens the
+     * file when the stream is constructed, so each of those cost a descriptor that
+     * nothing closed. A `<video>` issues a `Range` request per seek, so a guest with a
+     * clip could walk the box to `EMFILE` and take the wall down.
+     *
+     * Answering with metadata and an opener is what makes that unrepresentable. A
+     * caller that decides not to send bytes has opened nothing.
+     */
+    await seedClip()
+
+    const result = await getPhotoMedia({
+      eventId: EVENT,
+      photoId: PHOTO,
+      variant: 'video',
+      viewer: WALL,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(media.opened).toBe(0)
+
+    await collect(await openOrThrow(result))
+
+    expect(media.opened).toBe(1)
+  })
+
+  it('opens only the bytes a range asked for, and still reports the whole object’s size', async () => {
     // A projector seeking through a clip must not make the box read the whole file per
     // seek, which is why the range reaches the store rather than being sliced above it.
     await seedClip()
@@ -442,32 +498,18 @@ describe('getPhotoMedia: byte ranges', () => {
       photoId: PHOTO,
       variant: 'video',
       viewer: WALL,
-      range: { start: 2, end: 4 },
     })
 
-    expect(result.ok && result.value.range).toEqual({ start: 2, end: 4 })
     // The size of the **whole** object: a 206 declares the part's length itself and the
-    // whole one in `Content-Range`.
+    // whole one in `Content-Range`, and this is what the caller judges the range against.
     expect(result.ok && result.value.byteSize).toBe(6)
-    expect(result.ok && (await collect(result.value.bytes))).toEqual([2, 3, 4])
+    expect(await collect(await openOrThrow(result, { start: 2, end: 4 }))).toEqual([2, 3, 4])
   })
 
-  it('distinguishes a range outside the object from a file that is gone', async () => {
-    // Two different answers on the wire — 416 and 404 — so they must not share a code.
-    await seedClip()
-
-    const result = await getPhotoMedia({
-      eventId: EVENT,
-      photoId: PHOTO,
-      variant: 'video',
-      viewer: WALL,
-      range: { start: 99, end: 120 },
-    })
-
-    expect(!result.ok && result.error.code).toBe('photo.rangeNotSatisfiable')
-  })
-
-  it('reports no range at all when none was asked for', async () => {
+  it('answers null for a range outside the object, rather than a refusal of its own', async () => {
+    // 416 and 404 are two different answers on the wire, and the caller is the one that
+    // can tell them apart: it holds `byteSize` and has judged the range against it before
+    // opening anything. A second verdict here would be a second source of that truth.
     await seedClip()
 
     const result = await getPhotoMedia({
@@ -477,7 +519,7 @@ describe('getPhotoMedia: byte ranges', () => {
       viewer: WALL,
     })
 
-    expect(result.ok && result.value.range).toBeNull()
+    expect(result.ok && (await result.value.open({ start: 99, end: 120 }))).toBeNull()
   })
 
   it('addresses a clip’s poster by the poster’s own digest', async () => {
@@ -490,7 +532,7 @@ describe('getPhotoMedia: byte ranges', () => {
       viewer: WALL,
     })
 
-    expect(result.ok && (await collect(result.value.bytes))).toEqual([9])
+    expect(await collect(await openOrThrow(result))).toEqual([9])
   })
 
   it('misses on the row for a rendition this kind does not have', async () => {

@@ -9,7 +9,10 @@ import {
   utimes,
   writeFile,
 } from 'node:fs/promises'
+import { closeSync, openSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { once } from 'node:events'
+import type { ReadStream } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createFsMediaStore } from './fsMediaStore'
@@ -139,6 +142,65 @@ describe('fsMediaStore', () => {
     // point the HTTP layer has already sent a 200. Statting first is what makes a 404
     // possible.
     expect(await store.openRead(WEDDING, hashOf('ff'), 'display')).toBeNull()
+  })
+
+  it('holds a file descriptor from the moment a stream is opened, read or not', async () => {
+    /**
+     * **Why a discarded stream is not free, stated where it is true.**
+     *
+     * `openRead` answers with a `ReadStream`, and constructing one issues the `open`
+     * straight away — nothing waits for a reader. From the moment it lands, that
+     * descriptor is held until the stream is destroyed or read to the end. A caller that
+     * opens a stream and walks away has leaked one, which is what `mediaRoutes` did on
+     * every `Range` request, every `416` and every `304`: a `<video>` seeks per request,
+     * so the count climbed for as long as the evening lasted and ended at `EMFILE`, which
+     * takes the wall down.
+     *
+     * Measured by the number the next open is handed: descriptors are allocated lowest
+     * free first on every platform this runs on, so a watermark that has moved is a
+     * watermark with something still holding the numbers below it.
+     */
+    await store.put(WEDDING, HASH_A, 'original', new Uint8Array(4_096).fill(7))
+    const probe = join(root, 'probe')
+    await writeFile(probe, 'x')
+    const watermark = (): number => {
+      const fd = openSync(probe, 'r')
+      closeSync(fd)
+      return fd
+    }
+
+    const before = watermark()
+    const abandoned = (await Promise.all(
+      Array.from({ length: 8 }, () => store.openRead(WEDDING, HASH_A, 'original')),
+    )) as (ReadStream | null)[]
+    // The open is asynchronous, so this waits for it rather than sleeping — and waiting
+    // for `open` is itself the proof that a descriptor arrives with no read at all.
+    //
+    // `pending` is checked first because `once` on an event that has already fired waits
+    // for ever: by the time this runs, some of the eight are open and some are not. It is
+    // the documented way to ask — true exactly until the file has been opened.
+    await Promise.all(
+      abandoned.map(async (stream) => {
+        const readStream = stream as ReadStream
+        if (readStream.pending) await once(readStream, 'open')
+      }),
+    )
+
+    expect(watermark()).toBeGreaterThanOrEqual(before + 8)
+
+    // Destroying returns them, which is the other half of the rule: nothing else does.
+    // Upstream the answer is to open only what will be written, and this is why.
+    await Promise.all(
+      abandoned.map(async (stream) => {
+        const readStream = stream as ReadStream
+        if (readStream.closed) return
+        const closed = once(readStream, 'close')
+        readStream.destroy()
+        await closed
+      }),
+    )
+
+    expect(watermark()).toBe(before)
   })
 
   it('reports the content type per variant', async () => {

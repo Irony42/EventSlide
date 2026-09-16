@@ -157,6 +157,17 @@ export const makeSweepOrphanedMedia = ({
     objects: readonly StoredObject[],
     collectableBefore: number,
   ): Promise<boolean> => {
+    if ((await photos.findIdsReferencing(eventId, hash)).length > 0) return false
+
+    const job = await clips.findBySourceHash(eventId, hash)
+    if (job !== null && holdsStagedBytes(job.status)) return false
+
+    // **The disk is asked last, so that it is asked with nothing after it.** Each of
+    // these is an `await`, and a re-upload landing between the stat and the unlink is
+    // the same race in miniature — sub-millisecond rather than milliseconds, but the
+    // consequence is identical and the ordering costs nothing. The database questions
+    // are the ones that can safely go first: a row that appears after them is a row
+    // whose bytes were written before it, and the timestamp below is what sees that.
     for (const object of objects) {
       const current = await media.stat(eventId, hash, object.variant)
       // Gone already — another pass, or a purge. Nothing to collect and nothing to say.
@@ -165,10 +176,7 @@ export const makeSweepOrphanedMedia = ({
       if (current.modifiedAt.getTime() > collectableBefore) return false
     }
 
-    if ((await photos.findIdsReferencing(eventId, hash)).length > 0) return false
-
-    const job = await clips.findBySourceHash(eventId, hash)
-    return job === null || !holdsStagedBytes(job.status)
+    return true
   }
 
   /**
@@ -244,8 +252,11 @@ export const makeSweepOrphanedMedia = ({
           if (named.has(digest)) continue
 
           // The freshness guard, applied to the **newest** rendition under the digest: a
-          // clip's poster and video are written moments apart, and judging them apart
-          // would let the sweep take one and leave the other.
+          // photograph's `original`, `display` and `thumb` are three files written in
+          // sequence under one hash, and judging them apart would let the sweep take the
+          // thumb it has already aged past while the original is still being written.
+          // (A clip's poster is *not* an example: it is a different digest and is never
+          // grouped here, which is the whole reason a poster can be shared at all.)
           const newest = Math.max(...objects.map((object) => object.modifiedAt.getTime()))
           if (newest > collectableBefore) continue
 

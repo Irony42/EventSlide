@@ -49,9 +49,15 @@ export interface EventSettingsProps {
    * which is an apology, while this is a decision — some rooms do not want video on the
    * wall, and the guest is entitled to be told which of the two it was.
    *
-   * Default on, like captions and reactions: an event upgraded into this version gets
-   * the feature, and every clip still waits for a moderation decision like everything
-   * else.
+   * Default on, like captions and reactions — but read that as "a host who has not
+   * thought about it gets the feature", which is not the same sentence as "an upgraded
+   * event gets it". An event created before migration 003 has a settings blob with no
+   * such key, and `sqliteEventRepository.settingsOf` deliberately reads an **absent key
+   * as `false`**: switching an 80 MB upload path and a CPU-bound encoder onto a wedding
+   * that may be live right now is a change its host never consented to. The two answers
+   * differ on purpose, and the adapter is where that difference is explained.
+   *
+   * Every clip still waits for a moderation decision like everything else.
    */
   readonly allowClips: boolean
   readonly allowGuestSelfDelete: boolean

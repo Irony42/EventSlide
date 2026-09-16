@@ -8,7 +8,12 @@ import {
   type ClipFixtures,
 } from '../../application/testing/contracts/videoTranscoderContract'
 import { probeFfmpegCapability, type FfmpegPaths } from './ffmpegBinaries'
-import { createFfmpegVideoTranscoder, type FfmpegVideoTranscoder } from './ffmpegVideoTranscoder'
+import {
+  createFfmpegVideoTranscoder,
+  durationSecondsOf,
+  probeSchema,
+  type FfmpegVideoTranscoder,
+} from './ffmpegVideoTranscoder'
 import { runProcess } from './runProcess'
 
 /**
@@ -302,6 +307,30 @@ describe('ffmpegVideoTranscoder against real ffmpeg', () => {
     expect(await readdir(scratchRoot)).toEqual([])
   }, 180_000)
 
+  it('answers a scratch directory it cannot create, rather than rejecting', async () => {
+    /**
+     * **The port's contract is that a transcode answers.** Every ffmpeg failure in this
+     * adapter is already a `DomainError`, because the caller is a queue that counts
+     * attempts and words a refusal for a guest — but `mkdtemp`, `writeFile` and
+     * `readFile` reject, and those rejections used to go straight past the Result and out
+     * of the adapter, where the worker's own catch had to guess what had happened.
+     *
+     * A file where the scratch root should be is the cheapest way to produce one, and it
+     * is a real deployment state: a full disk and a read-only remount fail in the same
+     * place. `clip.storageFailed` is transient, so the box gets its three attempts.
+     */
+    const occupied = join(harness.scratch, 'not-a-directory')
+    await writeFile(occupied, 'a file where a directory should be')
+    const transcoder = createFfmpegVideoTranscoder({
+      paths: harness.paths,
+      scratchRoot: join(occupied, 'work'),
+    })
+
+    const result = await transcoder.transcode(harness.fixtures.landscape, CONTRACT_SPEC)
+
+    expect(!result.ok && result.error.code).toBe('clip.storageFailed')
+  }, 60_000)
+
   it('cuts a poster that is a real image of the right size', async () => {
     const result = await harness.transcoder.transcode(harness.fixtures.landscape, CONTRACT_SPEC)
 
@@ -318,4 +347,53 @@ describe('ffmpegVideoTranscoder against real ffmpeg', () => {
     const probed = await harness.transcoder.probe(harness.fixtures.corrupt)
     expect(!probed.ok && probed.error.code).toBe('clip.corrupt')
   }, 60_000)
+})
+
+/**
+ * The duration rule, against fixtures rather than against a muxer's mood.
+ *
+ * ffprobe writes the literal string `"N/A"` for a duration the container declares but
+ * does not know, and no synthetic clip generated on a healthy box produces that on
+ * demand — which is exactly why the case went untested and shipped broken. These are the
+ * two documents, parsed through the real schema so the `"N/A"` to `NaN` transform is part
+ * of what is under test.
+ */
+describe('durationSecondsOf', () => {
+  const probeOf = (json: string) => probeSchema.parse(JSON.parse(json))
+  const videoOf = (parsed: ReturnType<typeof probeOf>) => {
+    const stream = parsed.streams.find((candidate) => candidate.codec_type === 'video')
+    if (stream === undefined) throw new Error('fixture has no video stream')
+    return stream
+  }
+
+  it('takes the stream’s duration when the container declares N/A', () => {
+    // **A guest recording in the browser.** WebM from `MediaRecorder` routinely carries
+    // no top-level duration, and `??` does not fall through `NaN` — so the container's
+    // non-answer shadowed a perfectly good one and `ClipDuration` refused the clip.
+    const parsed = probeOf(
+      '{"streams":[{"codec_type":"video","width":"1280","height":"720","duration":"7.500"}],"format":{"duration":"N/A"}}',
+    )
+
+    expect(durationSecondsOf(parsed, videoOf(parsed))).toBeCloseTo(7.5)
+  })
+
+  it('prefers the container’s duration when it knows one', () => {
+    // The container's is the whole file; a stream's can end early. Order matters, and
+    // this is what stops the fix above from becoming a different bug.
+    const parsed = probeOf(
+      '{"streams":[{"codec_type":"video","width":"1280","height":"720","duration":"7.500"}],"format":{"duration":"9.250"}}',
+    )
+
+    expect(durationSecondsOf(parsed, videoOf(parsed))).toBeCloseTo(9.25)
+  })
+
+  it('answers NaN when neither knows, so the caller refuses rather than guesses', () => {
+    // Never zero: `ClipDuration` reads zero as a clip of no length rather than as an
+    // absent claim, and the guest would be told their video is empty.
+    const parsed = probeOf(
+      '{"streams":[{"codec_type":"video","width":"1280","height":"720","duration":"N/A"}],"format":{"duration":"N/A"}}',
+    )
+
+    expect(Number.isNaN(durationSecondsOf(parsed, videoOf(parsed)))).toBe(true)
+  })
 })

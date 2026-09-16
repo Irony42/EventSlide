@@ -76,10 +76,17 @@ describe('holdsStagedBytes', () => {
 })
 
 describe('blocksReupload', () => {
-  it.each(['queued', 'running', 'done'] as const)(
+  it.each(['reserved', 'queued', 'running', 'done'] as const)(
     '%s stops the same bytes being staged again',
     (status) => {
       // The dedupe: two jobs for one upload would be two transcodes and two slides.
+      //
+      // **`reserved` is the one that carries the concurrency race**, and it was the one
+      // this list left out. A reservation is the row that exists while the source is
+      // being written, so the partial unique index covers the digest from the moment the
+      // upload is admitted — which is what makes two guests sending the same video from
+      // the group chat land on one job instead of two. Leaving it unasserted meant the
+      // fix for that race was held by nothing but the column it happened to be listed in.
       expect(blocksReupload(status)).toBe(true)
     },
   )

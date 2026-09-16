@@ -37,13 +37,6 @@ export interface GetPhotoMediaInput {
    */
   readonly variant: ServedVariant
   readonly viewer: MediaViewer
-  /**
-   * The bytes a `Range` request asked for, if it did.
-   *
-   * Answered here rather than by slicing in the HTTP layer, because a projector seeking
-   * through a clip must not make the box read the whole file per seek.
-   */
-  readonly range?: ByteRange
 }
 
 export interface PhotoMedia {
@@ -51,15 +44,31 @@ export interface PhotoMedia {
   /** The ETag: the name changes when the bytes do, which is what makes the cache safe. */
   readonly contentHash: ContentHash
   readonly variant: ServedVariant
-  /** The size of the whole object, whatever range was asked for. */
+  /** The size of the whole object. What a `Range` header is judged against. */
   readonly byteSize: number
   readonly contentType: string
-  readonly bytes: AsyncIterable<Uint8Array>
   /**
-   * The range actually served, or `null` for the whole object. The HTTP layer turns it
-   * into a `206` and a `Content-Range`.
+   * The bytes, opened only if they are going to be sent. **Call it at most once.**
+   *
+   * A function rather than a stream, and this is a fix rather than a style: every answer
+   * of this use case used to carry an open stream, and three of the HTTP layer's four
+   * answers do not send one. A `416`, a `304` and the first of a range request's two
+   * calls all threw their stream away, and `fsMediaStore.openRead` opens the file
+   * descriptor when the stream is *constructed*, not when it is read — so a `<video>`
+   * seeking through a clip, or a projector revalidating a slide it already holds, leaked
+   * one descriptor per request until the process hit `EMFILE` and the wall went dark.
+   *
+   * Deciding first and opening second makes that unrepresentable: the caller knows the
+   * status, the validator and the range before anything is opened, and the one stream it
+   * opens is the one it writes. It also collapses a range request from two calls to one,
+   * so the authorization above is decided once per request rather than twice.
+   *
+   * `null` means the object is gone, or the range falls outside it — the caller has the
+   * size from `byteSize` and has already told those two apart.
+   *
+   * @param range inclusive at both ends, as `Range` is. Absent means the whole object.
    */
-  readonly range: ByteRange | null
+  readonly open: (range?: ByteRange) => Promise<AsyncIterable<Uint8Array> | null>
 }
 
 export interface GetPhotoMediaDeps {
@@ -85,7 +94,7 @@ const mayRead = (photo: Photo, variant: ServedVariant, viewer: MediaViewer): boo
 }
 
 export const makeGetPhotoMedia = ({ photos, media }: GetPhotoMediaDeps): GetPhotoMedia => {
-  return async ({ eventId, photoId, variant, viewer, range }) => {
+  return async ({ eventId, photoId, variant, viewer }) => {
     // No event lookup: this runs once per tile in a moderation grid and once per slide
     // on the wall, and the row is already reached through `(eventId, photoId)` — the
     // event is in the query, which is what scoping means here.
@@ -109,28 +118,17 @@ export const makeGetPhotoMedia = ({ photos, media }: GetPhotoMediaDeps): GetPhot
     const metadata = await media.stat(eventId, hash, variant)
     if (metadata === null) return err(DomainError.notFound('photo.mediaMissing'))
 
-    // `range` is an optional *parameter* rather than an optional property, so an absent
-    // one and an explicit `undefined` mean the same thing to the port — no conditional,
-    // and one fewer branch that would have to be covered twice to prove nothing.
-    const bytes = await media.openRead(eventId, hash, variant, range)
-    if (bytes === null) {
-      // Two conditions, one answer, and they are genuinely different: the object is gone,
-      // or the range falls outside it. The HTTP layer already knows the object's size
-      // from `stat`, so it is the one that can tell a client which — as a 416 rather than
-      // a 404 — and it does not need this to repeat it.
-      return err(
-        DomainError.notFound(range === undefined ? 'photo.mediaMissing' : 'photo.rangeNotSatisfiable'),
-      )
-    }
-
     return ok({
       photoId: photo.id,
       contentHash: hash,
       variant,
       byteSize: metadata.byteSize,
       contentType: metadata.contentType,
-      bytes,
-      range: range ?? null,
+      // Authorization is decided above, once, and captured here: by the time this runs
+      // the caller has committed to sending these bytes. `range` is an optional
+      // *parameter* rather than an optional property, so an absent one and an explicit
+      // `undefined` mean the same thing to the port.
+      open: (range?: ByteRange) => media.openRead(eventId, hash, variant, range),
     })
   }
 }

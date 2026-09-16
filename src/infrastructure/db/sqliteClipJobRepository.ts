@@ -77,6 +77,19 @@ const UPDATE_CLIP_JOB = `
    WHERE id = @id AND event_id = @event_id
 `
 
+/**
+ * The claim's own write: the update above, plus the state it was read in.
+ *
+ * Redundant today, and deliberately kept. `claimNext` selects and updates inside one
+ * `.immediate()` transaction, which is what stops a second worker — or a second container
+ * during a rolling restart — from reading the same `queued` row; the guard adds nothing
+ * while that holds. It is here for the change that does not hold it: a reader-friendly
+ * refactor that splits the transaction, a `BEGIN DEFERRED` somebody thinks is equivalent,
+ * a future adapter on a database with different isolation. The cost is one comparison per
+ * claim; the failure it prevents is two ffmpeg processes writing one output path.
+ */
+const CLAIM_CLIP_JOB = `${UPDATE_CLIP_JOB.trimEnd()} AND status = 'queued'\n`
+
 interface ClipJobRow {
   readonly id: string
   readonly event_id: string
@@ -330,7 +343,7 @@ export class SqliteClipJobRepository implements ClipJobRepository {
         ORDER BY not_before ASC, created_at ASC, id ASC
         LIMIT 1`,
     )
-    const update = this.db.prepare<ClipJobBindings>(UPDATE_CLIP_JOB)
+    const update = this.db.prepare<ClipJobBindings>(CLAIM_CLIP_JOB)
 
     return this.db
       .transaction((): ClipJob | null => {
@@ -343,7 +356,10 @@ export class SqliteClipJobRepository implements ClipJobRepository {
         // empty queue, which is the failure that would look like "the worker is idle".
         if (!claimed.ok) throw corruptRow(row.id, `could not be claimed (${claimed.error.code})`)
 
-        update.run(toBindings(claimed.value))
+        // Zero rows means the guard fired: something moved the row out of `queued`
+        // between the select and here, which the transaction makes impossible today. The
+        // honest answer is the one an empty queue gets — the worker asks again.
+        if (update.run(toBindings(claimed.value)).changes === 0) return null
         return claimed.value
       })
       .immediate()

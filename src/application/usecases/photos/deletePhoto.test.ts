@@ -248,6 +248,63 @@ describe('deletePhoto', () => {
     expect(await media.exists(EVENT, going.contentHash, 'video')).toBe(false)
   })
 
+  it('leaves a poster written moments ago, because its row may not have committed yet', async () => {
+    /**
+     * **The window `findIdsReferencing` cannot see into.**
+     *
+     * Clip B writing its poster and inserting its row are two operations. Between them
+     * nothing in the database names those bytes — so clip A, deleted in that window, was
+     * told the shared poster was unreferenced, unlinked it, and B committed pointing at a
+     * file that is gone. `sweepOrphanedMedia` only deletes and nothing rebuilds a poster,
+     * so the tile was broken for the rest of the event and in the album afterwards.
+     *
+     * Recency is the only evidence there is of a writer that has not committed, which is
+     * exactly why the sweep refuses to collect anything recent. This is the same rule at
+     * the other site that deletes by digest, and the store is given the clock so the test
+     * states an age rather than hoping for one.
+     */
+    media = new InMemoryMediaStore(clock)
+    deletePhoto = makeDeletePhoto({ events, photos, clips, media, bus, clock })
+    seedEvent()
+    const clip = aClip({ id: 'photo-1', eventId: 'event-1', status: 'pending' })
+    photos.seed(clip)
+    const facet = clip.facet
+    if (facet.kind !== 'clip') throw new Error('fixture is not a clip')
+    await media.put(clip.eventId, clip.contentHash, 'video', Uint8Array.of(1, 2, 3))
+    await media.put(clip.eventId, facet.posterHash, 'poster', Uint8Array.of(4))
+
+    // The guest changes their mind a second later, while another transcode is mid-commit.
+    clock.advance(1_000)
+    await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect(await media.exists(EVENT, facet.posterHash, 'poster')).toBe(true)
+    // The row goes regardless: it is the row that frees the quota and clears the wall,
+    // and the bytes left behind are the reconciliation sweep's to collect.
+    expect(await photos.findById(EVENT, PHOTO)).toBeNull()
+  })
+
+  it('deletes bytes old enough that nothing can still be committing a row for them', async () => {
+    // The other side of the same rule: past the window, the age check says nothing about
+    // this digest and `findIdsReferencing` is the whole of the decision again. Without
+    // this pair, "leaves a poster" and "deletes a poster" could both be satisfied by a
+    // delete that had simply stopped working.
+    media = new InMemoryMediaStore(clock)
+    deletePhoto = makeDeletePhoto({ events, photos, clips, media, bus, clock })
+    seedEvent()
+    const clip = aClip({ id: 'photo-1', eventId: 'event-1', status: 'pending' })
+    photos.seed(clip)
+    const facet = clip.facet
+    if (facet.kind !== 'clip') throw new Error('fixture is not a clip')
+    await media.put(clip.eventId, clip.contentHash, 'video', Uint8Array.of(1, 2, 3))
+    await media.put(clip.eventId, facet.posterHash, 'poster', Uint8Array.of(4))
+
+    clock.advance(10 * 60_000)
+    await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect(await media.exists(EVENT, facet.posterHash, 'poster')).toBe(false)
+    expect(await media.exists(EVENT, clip.contentHash, 'video')).toBe(false)
+  })
+
   it('retires the clip job that produced the photo, so the clip can be sent again', async () => {
     // A `done` job blocks the dedupe. Without this, a guest who deleted their own clip by
     // mistake and sent it again was answered `duplicate: true`, `status: done`, and the

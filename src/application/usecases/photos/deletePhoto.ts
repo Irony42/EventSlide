@@ -1,3 +1,4 @@
+import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, PhotoId } from '../../../domain/shared/ids'
@@ -5,7 +6,7 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
-import type { MediaStore } from '../../ports/mediaStore'
+import { SERVED_VARIANTS, type MediaStore } from '../../ports/mediaStore'
 import type { ClipJobRepository } from '../../ports/clipJobRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 
@@ -19,6 +20,27 @@ import type { PhotoRepository } from '../../ports/photoRepository'
  * things the entity has no business owning: the event-scoped read, and the order of the
  * two deletions.
  */
+
+/**
+ * How long bytes are treated as somebody's work in progress rather than as an orphan.
+ *
+ * **The same rule `sweepOrphanedMedia` applies, at the other site that deletes by
+ * digest**, and it is here for the same reason: every write path in the product is bytes
+ * first, row second, so there is always a window in which a file is on the disk and the
+ * row naming it has not committed. A check against the table cannot see inside that
+ * window — the row is not there to be found — so age is the only evidence there is.
+ *
+ * The number is smaller than the sweep's (`MEDIA_SWEEP_MIN_AGE_MS`, fifteen minutes)
+ * because the two cover different gaps. The sweep has to survive any write path on a box
+ * that may be swapping; this one only has to cover another clip's `media.put` of a poster
+ * and the `photos.save` that follows it — two awaits in `transcodeNextClip`, milliseconds
+ * on a healthy box and seconds on a bad one.
+ *
+ * The cost of being generous is a leak the sweep collects; the cost of being mean is a
+ * clip on the wall whose poster is a broken tile, permanently, because nothing in the
+ * product rebuilds one. That is the whole of the trade.
+ */
+const CONCURRENT_WRITE_GRACE_MS = 60_000
 
 export interface DeletePhotoInput {
   readonly eventId: EventId
@@ -90,12 +112,35 @@ export const makeDeletePhoto = ({
     // and `displayUrl` both point at it, so deleting clip A without asking turned clip B
     // into a broken tile on the wall, in the grid and in the album, while its mp4 still
     // played.
-    for (const hash of photo.storageHashes) {
+    //
+    // **And the age check the sweep makes, for the holder that cannot be read yet.**
+    // `findIdsReferencing` answers about rows that exist. Clip B writing its poster and
+    // inserting its row is two operations, and between them nothing in the database names
+    // those bytes — so a clip A deleted in that window was told the poster was
+    // unreferenced, unlinked it, and B committed pointing at a file that is gone. There
+    // is no repair: `sweepOrphanedMedia` only deletes, and no path rebuilds a poster.
+    // Recency is the only evidence of a writer that has not committed, which is why the
+    // collector refuses to collect anything recent and why this refuses to delete it.
+    const collectableBefore = clock.now().getTime() - CONCURRENT_WRITE_GRACE_MS
+
+    /** Both rules, asked with nothing between them and the unlink. */
+    const isOursAlone = async (hash: ContentHash): Promise<boolean> => {
       const holders = await photos.findIdsReferencing(eventId, hash)
       // This row is still in the table — media goes first, deliberately — so its own id
       // is expected here and is not a reason to keep the file.
-      if (holders.some((holder) => holder !== photoId)) continue
-      await media.delete(eventId, hash)
+      if (holders.some((holder) => holder !== photoId)) return false
+
+      for (const variant of SERVED_VARIANTS) {
+        if (!photo.hasVariant(variant)) continue
+        if (photo.hashFor(variant).value !== hash.value) continue
+        const object = await media.stat(eventId, hash, variant)
+        if (object !== null && object.modifiedAt.getTime() > collectableBefore) return false
+      }
+      return true
+    }
+
+    for (const hash of photo.storageHashes) {
+      if (await isOursAlone(hash)) await media.delete(eventId, hash)
     }
     await photos.delete(eventId, photoId)
 

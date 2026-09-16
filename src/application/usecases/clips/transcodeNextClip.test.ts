@@ -571,6 +571,61 @@ describe('transcodeNextClip', () => {
     expect(clips.all).toEqual([])
     expect(await media.exists(EVENT, staged.sourceHash, 'source')).toBe(true)
     expect(logger.lines.some((line) => line.level === 'info')).toBe(true)
+    // **And the photo row this pass inserted stays.** Retiring the job in this window is
+    // only reachable from `deletePhoto`, which needs a photo row — so when the row does
+    // not exist yet, as here, the only callers are a crash-recovered job's old row or an
+    // operator. The clip itself is finished, plays, and has a poster; deleting it because
+    // its queue entry went would throw away a video nobody asked to lose. The next test
+    // covers the window a guest can actually reach.
+    expect(await photos.findById(EVENT, staged.photoId)).not.toBeNull()
+  })
+
+  it('announces a clip the guest deleted between the insert and the commit, harmlessly', async () => {
+    /**
+     * **The window the previous test does not cover**, and the one a guest can actually
+     * reach: `deletePhoto` needs a photo row, so a clip can only be deleted *after* this
+     * pass inserts one — and there are two awaits between that insert and `finish`.
+     *
+     * What follows is `photo.uploaded` and, under `moderation: 'auto'`, a
+     * `photo.moderated` for a photo id that no longer resolves. That is deliberate and
+     * it is safe, for a reason worth writing down rather than assuming: every frame on
+     * this bus is a **signal, not data** — `streamRoutes` forwards a bare `{"type":…}`
+     * and `useEventStream` refetches the list, which comes back without the deleted row.
+     * A consumer that looked the id up would be reading a push as data, which
+     * docs/API.md section 7 rules out precisely because there is no request to authorize
+     * such a push against.
+     *
+     * Suppressing the publish would cost more than it saves: the pass would have to
+     * re-read the row it just inserted, and a wall that missed a legitimate upload
+     * because a delete raced it is a worse failure than one extra refetch.
+     */
+    seedEvent({ settings: { moderation: 'auto' } })
+    await stage()
+    const staged = clips.all[0]
+    expect(staged).toBeDefined()
+    if (staged === undefined) return
+
+    // Between the insert and `finish`: the status update is the last step before it.
+    const updateStatuses = photos.updateStatuses.bind(photos)
+    photos.updateStatuses = async (eventId, photoIds, status, reviewer) => {
+      const published = await updateStatuses(eventId, photoIds, status, reviewer)
+      await photos.delete(staged.eventId, staged.photoId)
+      await clips.deleteForPhoto(staged.eventId, staged.photoId)
+      return published
+    }
+
+    const result = await transcodeNextClip()
+
+    expect(result.ok).toBe(true)
+    // The row and the job are both gone, and the source is kept for the sweep: the
+    // guest's re-upload may already hold that digest.
+    expect(await photos.findById(EVENT, staged.photoId)).toBeNull()
+    expect(clips.all).toEqual([])
+    expect(await media.exists(EVENT, staged.sourceHash, 'source')).toBe(true)
+    // Announced anyway, and that is the documented answer rather than an oversight.
+    expect(bus.published.map((event) => event.type)).toEqual(
+      expect.arrayContaining(['photo.uploaded', 'photo.moderated']),
+    )
   })
 
   describe('the quota, decided against committed state', () => {

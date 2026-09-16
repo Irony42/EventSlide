@@ -323,10 +323,14 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
       maxPixels: policy.clips.maxPixels,
     },
   }),
-  // It takes `media` for **reservations only** — rows whose bytes never arrived, which it
-  // deletes row-and-bytes together because the row was the proof of ownership. A job it
-  // *abandons* keeps its source: giving up after three interrupted boots says something
-  // about the box, not about the guest's video.
+  // **It takes no media store at all, and that is the design rather than an omission.**
+  // It puts a `running` row back on the queue, or gives up on one that has spent its
+  // attempts — and an abandoned job keeps its source: `failed` releases the digest from
+  // the partial unique index, so an unlink after that commit races the guest's own
+  // re-upload for bytes the new reservation now owns. Stale *reservations* are the
+  // reaper's, which deletes the row and leaves the bytes for the same reason. Every
+  // digest either of them leaves behind is `sweepOrphanedMedia`'s to collect, which is
+  // the one caller that re-checks the database with nothing between it and the unlink.
   recoverClipJobs: makeRecoverClipJobs({
     clips: adapters.clips,
     clock: adapters.clock,

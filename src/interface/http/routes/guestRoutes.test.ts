@@ -82,11 +82,14 @@ const unreached = (method: string): string =>
   `MediaStore.${method} is not reached from the guest surface`
 
 /**
- * A `MediaStore` that records deletions and refuses everything else.
+ * A `MediaStore` that records deletions, answers how old an object is, and refuses
+ * everything else.
  *
- * Only `delete` is reachable from here — a guest taking a photo back. The rest throw
- * rather than answering politely, so a route that started reading or writing bytes
- * itself fails loudly instead of passing against a store that shrugs.
+ * Two methods are reachable from here — a guest taking a photo back is a `delete`, and
+ * `deletePhoto` asks `stat` how recently the bytes were written before it unlinks them,
+ * because bytes written moments ago may belong to a row that has not committed yet. The
+ * rest throw rather than answering politely, so a route that started reading or writing
+ * bytes itself fails loudly instead of passing against a store that shrugs.
  */
 class RecordingMediaStore implements MediaStore {
   readonly deleted: string[] = []
@@ -104,7 +107,9 @@ class RecordingMediaStore implements MediaStore {
   }
 
   async stat(): Promise<MediaMetadata | null> {
-    throw new Error(unreached('stat'))
+    // Written at the epoch: old enough that the concurrent-writer guard has nothing to
+    // say, so what these tests are about — who may delete what — is what decides.
+    return { byteSize: 1, contentType: 'image/jpeg', modifiedAt: new Date(0) }
   }
 
   async openRead(): Promise<AsyncIterable<Uint8Array> | null> {

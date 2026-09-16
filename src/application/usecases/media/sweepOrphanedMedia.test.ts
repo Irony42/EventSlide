@@ -266,14 +266,10 @@ describe('sweepOrphanedMedia', () => {
       const realSources = clips.listStagedSources.bind(clips)
       clips.listStagedSources = async (eventId) => {
         const staged = await realSources(eventId)
-        clips.seed(
-          aClipJob({
-            id: 'job-1',
-            eventId: 'event-1',
-            status: 'reserved',
-            sourceHash: hexOf('c0de'),
-          }),
-        )
+        // **Bytes and no row**, which is the shape of the window: `stage` writes the
+        // source before it inserts the reservation, so for a moment the new upload is on
+        // the disk and nothing in the database names it. Neither re-read can see that
+        // upload — the freshness of the bytes is the only evidence it exists.
         written.set(atPlus(60 * 60 * 1000))
         await media.put(EVENT, hashOf('c0de'), 'source', Uint8Array.of(3, 4, 5))
         return staged

@@ -31,10 +31,8 @@ import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepos
 import { SqlitePhotoRepository } from '../src/infrastructure/db/sqlitePhotoRepository'
 import { createFsMediaStore } from '../src/infrastructure/media/fsMediaStore'
 import { systemClock } from '../src/infrastructure/time/systemClock'
+import { MEDIA_SWEEP_MIN_AGE_MS } from '../src/main/container'
 import { isTooDangerousToSweep } from '../src/main/mediaSweeper'
-
-/** Fifteen minutes, matching the container's own sweep: see `MEDIA_SWEEP_MIN_AGE_MS`. */
-const MEDIA_SWEEP_MIN_AGE_MS = 15 * 60 * 1000
 
 /** The sweep wants a `Logger`; on a terminal that is the console. */
 const consoleLogger: Logger = {

@@ -64,6 +64,30 @@ const IMMUTABLE_CACHE = 'private, max-age=31536000, immutable'
 class InMemoryMediaStore implements MediaStore {
   private readonly objects = new Map<string, Uint8Array>()
 
+  /**
+   * Every byte stream this store has been asked for.
+   *
+   * **A count, because a leak is a count.** The filesystem store opens the file when the
+   * stream is *constructed* — `createReadStream` takes the descriptor before anything
+   * reads it — so a route that opens a stream it does not write costs one descriptor per
+   * request, and the process dies of `EMFILE` rather than of anything a response body
+   * would show. Nothing about the bytes on the wire can see that; only this can.
+   */
+  opened = 0
+
+  /**
+   * Every open from here on answers `null`, while `stat` goes on reporting the size.
+   *
+   * The retention purge unlinking a file between the two is the one window in which a
+   * media read fails after it has already succeeded, and it is the only way to reach the
+   * route's `mediaMissing` answer now that the size is a metadata read.
+   */
+  private vanished = false
+
+  vanishAfterStat(): void {
+    this.vanished = true
+  }
+
   private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
     return `${eventId}|${hash.value}|${variant}`
   }
@@ -105,8 +129,9 @@ class InMemoryMediaStore implements MediaStore {
     variant: MediaVariant,
     range?: ByteRange,
   ): Promise<AsyncIterable<Uint8Array> | null> {
+    this.opened += 1
     const bytes = this.objects.get(this.key(eventId, hash, variant))
-    if (bytes === undefined) return null
+    if (bytes === undefined || this.vanished) return null
 
     // A range the object cannot satisfy answers `null`, exactly as the filesystem store
     // does — a `206` over an empty stream is a player waiting forever.
@@ -621,6 +646,11 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant — a clip', () => {
     expect(response.status).toBe(416)
     expect(response.headers['content-range']).toBe('bytes */64')
     expect(response.body.error.code).toBe('photo.rangeNotSatisfiable')
+    // The one refusal that does not go through `sendMedia`, and it used to be the one
+    // response from this route with no `nosniff` on it. A JSON body is a small risk and
+    // an inconsistent header is a bigger one: the next reader has to work out which
+    // answers carry it.
+    expect(response.headers['x-content-type-options']).toBe('nosniff')
   })
 
   it('serves the whole object for a multi-range request rather than refusing it', async () => {
@@ -686,5 +716,60 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant — a clip', () => {
 
     expect(second.status).toBe(304)
     expect(second.headers['accept-ranges']).toBe('bytes')
+  })
+
+  it('opens one byte stream per response that carries bytes, and none for the rest', async () => {
+    /**
+     * **The descriptor leak, as the count that would have caught it.**
+     *
+     * `fsMediaStore.openRead` takes the file descriptor when the stream is constructed,
+     * not when it is read, so a stream this route opens and does not write is a
+     * descriptor nothing closes. The route used to ask for the whole object purely to
+     * learn its size and then throw that stream away on every range request — and a
+     * `<video>` issues one per seek, so a guest watching their own clip walked the box
+     * towards `EMFILE` and the wall with it. The `416` and the `304` leaked one each too.
+     *
+     * Nothing on the wire shows it: every assertion in this file passed throughout. Only
+     * the number of opens does, which is why the double counts them.
+     */
+    const seeks = 8
+    world.media.opened = 0
+
+    for (let seek = 0; seek < seeks; seek += 1) {
+      const response = await getBytes(world, mediaPath(CLIP, 'video')).set(
+        'Range',
+        `bytes=${seek * 4}-${seek * 4 + 3}`,
+      )
+      expect(response.status).toBe(206)
+    }
+    expect(world.media.opened).toBe(seeks)
+
+    // Two answers that send no bytes at all. Both used to cost a descriptor.
+    const refused = await getJson(world, mediaPath(CLIP, 'video')).set('Range', 'bytes=999-')
+    expect(refused.status).toBe(416)
+
+    const held = await getBytes(world, mediaPath(CLIP, 'video'))
+    const revalidated = await getJson(world, mediaPath(CLIP, 'video')).set(
+      'If-None-Match',
+      held.headers['etag'] ?? '',
+    )
+    expect(revalidated.status).toBe(304)
+
+    // The whole-object request in the middle is the only one that added an open.
+    expect(world.media.opened).toBe(seeks + 1)
+  })
+
+  it('answers 404 when the file vanishes between the size read and the open', async () => {
+    // The retention purge deleting a file mid-read: the size came from `stat` and the
+    // open failed after it. The use case answers "no bytes" rather than a refusal,
+    // because by then only this layer knows whether a null open is a missing file or a
+    // range question — and `photo.mediaMissing` is the code that means a row points at
+    // bytes that are gone, which is a corruption worth an operator's attention.
+    world.media.vanishAfterStat()
+
+    const response = await getJson(world, mediaPath(CLIP, 'video'))
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('photo.mediaMissing')
   })
 })

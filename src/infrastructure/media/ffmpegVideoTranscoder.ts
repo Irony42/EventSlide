@@ -97,9 +97,15 @@ const PROBE_STDOUT_BYTES = 4 * 1024 * 1024
 
 /**
  * The bound on how far into a **guest's** container the demuxer will read looking for
- * streams. Applied to the transcode's input as well as the probe's: without it a crafted
- * header can make the encoder read the whole file before it decodes a frame, which is
- * work the timeout eventually stops rather than work anything refuses.
+ * streams. On both commands that open guest bytes — the probe and the encode — and on
+ * neither by accident: without it a crafted header can make the encoder read the whole
+ * file before it decodes a frame, which is work the timeout eventually stops rather than
+ * work anything refuses.
+ *
+ * It is an **input** option, so it goes before that command's `-i`; after it, ffmpeg
+ * takes it as a global and it silently applies to nothing. The poster pass is the one
+ * ffmpeg call that does not carry it, because it reads our own re-encoded output rather
+ * than anything a guest wrote.
  */
 const INPUT_SCAN_BYTES = '10000000'
 
@@ -134,12 +140,33 @@ const streamSchema = z.object({
   tags: z.record(z.string(), z.unknown()).optional(),
 })
 
-const probeSchema = z.object({
+export const probeSchema = z.object({
   streams: z.array(streamSchema).default([]),
   format: z.object({ duration: numeric.optional() }).optional(),
 })
 
 type ProbedStream = z.infer<typeof streamSchema>
+type ProbedFile = z.infer<typeof probeSchema>
+
+/**
+ * How long the clip is, in seconds, from the two places ffprobe may say so.
+ *
+ * **The first duration that is a number, not the first that is present.** `??` falls
+ * through on `null` and `undefined`, and `NaN` is neither — while the schema above maps
+ * ffprobe's literal `"N/A"` to exactly that. So a container declaring a duration it does
+ * not know shadowed a perfectly good per-stream one, `durationMs` came out `NaN`, and
+ * `ClipDuration` refused the clip as durationless.
+ *
+ * That is a guest path rather than a corner: WebM from `MediaRecorder` — a guest who
+ * recorded in the browser — routinely carries no top-level duration, and a stream copy or
+ * an interrupted write leaves the same shape in an MP4.
+ *
+ * Exported because the shape that breaks it is one no synthetic clip generated on a
+ * healthy box produces on demand, and the rule deserves a fixture rather than a muxer's
+ * mood. `NaN` when neither source knows, which is what the caller refuses on.
+ */
+export const durationSecondsOf = (probe: ProbedFile, video: ProbedStream): number =>
+  [probe.format?.duration, video.duration].find((value) => Number.isFinite(value)) ?? Number.NaN
 
 /**
  * The rotation the container asks a player to apply, in degrees.
@@ -234,6 +261,34 @@ export const createFfmpegVideoTranscoder = ({
         // A leaked scratch directory is emptied at the next boot, with the whole of
         // MEDIA_ROOT/.scratch; failing a guest's clip over the cleanup would be worse.
       })
+    }
+  }
+
+  /**
+   * `withScratch`, with the filesystem's failures inside the Result instead of beside it.
+   *
+   * Every ffmpeg failure in this adapter is a `DomainError` — the port's contract is that
+   * a transcode *answers*, because the caller is a queue that counts attempts and words a
+   * refusal for a guest. But `mkdtemp`, `writeFile` and `readFile` reject, and those
+   * rejections went straight past the contract: a full disk or a read-only remount threw
+   * out of the adapter, and the worker's own catch had to guess what had happened.
+   *
+   * `clip.storageFailed` because that is what it is, and it is transient: a box that has
+   * run out of scratch space for one clip may well encode the next one, and the attempt
+   * count is what stops it trying for ever. A non-filesystem bug reaching here would be
+   * reported as storage too — the reason string carries the truth, and three attempts at
+   * a `TypeError` is a cheaper failure than a worker that dies with the row still
+   * `running`.
+   */
+  const onScratch = async <T>(
+    work: (directory: string) => Promise<Result<T, DomainError>>,
+  ): Promise<Result<T, DomainError>> => {
+    try {
+      return await withScratch(work)
+    } catch (cause) {
+      return err(
+        DomainError.unexpected('clip.storageFailed', { reason: String(cause).slice(0, 160) }),
+      )
     }
   }
 
@@ -338,7 +393,7 @@ export const createFfmpegVideoTranscoder = ({
     )
     if (!dimensions.ok) return err(DomainError.invalid('clip.corrupt', { reason: 'impossible size' }))
 
-    const seconds = parsed.format?.duration ?? video.duration ?? Number.NaN
+    const seconds = durationSecondsOf(parsed, video)
 
     return ok({
       container,
@@ -366,7 +421,7 @@ export const createFfmpegVideoTranscoder = ({
       // reaches a demuxer at all, which is the same ordering the image path uses.
       if (container === null) return err(DomainError.invalid('clip.unsupportedFormat'))
 
-      return withScratch(async (directory) => {
+      return onScratch(async (directory) => {
         const input = join(directory, 'in.bin')
         await writeFile(input, bytes)
         return probeFile(input, container)
@@ -380,7 +435,7 @@ export const createFfmpegVideoTranscoder = ({
       const container = identify(bytes)
       if (container === null) return err(DomainError.invalid('clip.unsupportedFormat'))
 
-      return withScratch(async (directory) => {
+      return onScratch(async (directory) => {
         const input = join(directory, 'in.bin')
         const output = join(directory, 'out.mp4')
         const poster = join(directory, 'poster.jpg')
@@ -410,6 +465,16 @@ export const createFfmpegVideoTranscoder = ({
             'file',
             '-f',
             DEMUXER[container],
+            // **Before `-i`, or they apply to nothing.** The same bound the probe
+            // carries: an input option placed after the input is a global option ffmpeg
+            // quietly ignores for this file. The comment on the constant claimed the
+            // encoder was bounded too while the argv said otherwise, so the encoder read
+            // at ffmpeg's defaults and the stall and wall-clock timeouts were the only
+            // thing standing between a crafted header and a full read of a 60 MB file.
+            '-analyzeduration',
+            INPUT_SCAN_BYTES,
+            '-probesize',
+            INPUT_SCAN_BYTES,
             '-i',
             `file:${input}`,
             // The cap, again. The header is a claim by the file.
@@ -544,6 +609,26 @@ export const createFfmpegVideoTranscoder = ({
 
         const videoBytes = new Uint8Array(await readFile(output))
         const posterBytes = new Uint8Array(await readFile(poster))
+
+        /**
+         * `-fs` is a ceiling ffmpeg applies **between packets**, not a hard limit.
+         *
+         * Muxer versions differ on whether the packet that crosses the line is written
+         * or dropped, and `+faststart` rewrites the file afterwards — so the size that
+         * matters is the one on the disk, read back here. Without this the contract the
+         * caller was handed ("no more than `maxOutputBytes`") was a request made of
+         * ffmpeg rather than a fact, and the quota arithmetic upstream is built on it.
+         *
+         * A refusal rather than a truncation: a clipped mp4 is a file that plays until
+         * it stops, which is worse on a wall than a clip that never appeared.
+         */
+        if (videoBytes.byteLength > spec.maxOutputBytes) {
+          return err(
+            DomainError.unexpected('clip.transcodeFailed', {
+              reason: `output overshot its ceiling: ${videoBytes.byteLength} > ${spec.maxOutputBytes}`,
+            }),
+          )
+        }
 
         return ok({
           video: {

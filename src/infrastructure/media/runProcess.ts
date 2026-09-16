@@ -200,6 +200,15 @@ export const startProcess = ({
     child.kill('SIGTERM')
     // A decoder inside a demuxer loop never handles SIGTERM. This is the escalation that
     // actually ends it, and it must not hold the event loop open on its own.
+    //
+    // The previous escalation is cleared first. `terminate` is reachable twice on one
+    // child — a stall and then the wall clock, or either followed by shutdown's `kill` —
+    // and each call used to overwrite the handle, leaving the earlier timer running with
+    // nothing able to clear it. Both are unref'd and the escalation is idempotent, so
+    // nothing was ever observed; a timer only `clearTimers` cannot reach is still a
+    // handle this function lost track of, and losing track is how the observable kind
+    // starts.
+    if (killTimer !== null) clearTimeout(killTimer)
     killTimer = setTimeout(() => {
       if (child !== null) child.kill('SIGKILL')
     }, killGraceMs)
