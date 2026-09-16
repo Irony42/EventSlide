@@ -47,7 +47,7 @@ If a guest gives up, nothing else in this document matters. At a wedding the med
 guest spends **under a minute** in the app, once, on a phone with two bars of a
 saturated access point.
 
-_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa). Considered and declined: [1.6](#96-spoken-captions)._
+_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa), [1.4](#97-short-video-clips). Considered and declined: [1.6](#96-spoken-captions)._
 
 ### 1.3 Camera-first capture (P1, effort M, risk: low)
 
@@ -57,30 +57,6 @@ Android means three taps through a gallery app.
 
 The measure of success is taps from opening the app to a photo being sent: **five today,
 two after this**.
-
-### 1.4 Short video clips — **Server side shipped, surfaces in review**
-
-The most-requested thing at weddings and the hardest item on this list. 5–15 seconds,
-transcoded to a web-friendly H.264/AAC, muted on the wall by default with a duration cap
-and its own quota line.
-
-The risk named here was real and is where the work went. `ffmpeg` is a large native
-dependency, transcoding is CPU-bound in a way image resizing is not, and a single 4K clip
-can outweigh a hundred photos — so it needed a job queue and backpressure, the first
-thing in this document to change the architecture rather than extend it.
-
-**Where it stands.** The server side is on `main` (#18): a `ClipJob` aggregate separate
-from `Photo`, so a clip being transcoded cannot reach the wall half-encoded; a row
-reserved _before_ the bytes are written, so a refusal costs nothing and the quota counts
-what is on the disk; one worker at concurrency 1; `429` with `Retry-After` rather than
-`413`; and a media reconciliation sweep that three comments in the tree already assumed
-existed. The guest, moderation and wall surfaces are in review (#19) — until they land,
-nothing on any screen can send, judge or play a clip.
-
-Seven adversarial review rounds ran against the two halves and each one found something a
-green suite had passed over, the worst being two guests sending the same video destroying
-it. The pattern worth carrying forward: every defect that survived lived in a rule stated
-only in a comment.
 
 ### 1.5 Guest UI languages (P2, effort S, risk: low)
 
@@ -608,3 +584,56 @@ The two things the attempt did turn up are worth keeping either way:
   per session and detach its handlers before aborting.
 
 ---
+
+### 9.7 Short video clips
+
+_Shipped in [#18](https://github.com/Irony42/EventSlide/pull/18) (server) and
+[#19](https://github.com/Irony42/EventSlide/pull/19) (guest, moderation and wall)._
+
+The most-requested thing at weddings and the hardest item on this list. 5–15 seconds,
+transcoded to a web-friendly H.264/AAC, muted on the wall with a duration cap and its own
+quota line.
+
+The risk named here was real and is where the work went. `ffmpeg` is a large native
+dependency, transcoding is CPU-bound in a way image resizing is not, and a single 4K clip
+can outweigh a hundred photos — so it needed a job queue and backpressure, the first
+thing in this document to change the architecture rather than extend it.
+
+What landed:
+
+- A `ClipJob` aggregate **separate from `Photo`**, so a clip still encoding has no
+  `photos` row at all and "reaches the wall half-encoded" is unrepresentable rather than
+  filtered out downstream. A finished clip becomes a facet on `Photo`.
+- **Reserve, then write.** The row is inserted before a byte is on disk, deciding queue
+  depth, quota and source uniqueness in one transaction. A refusal costs nothing, the
+  quota counts what is actually on the disk, and deleting is safe because the row is the
+  proof of ownership.
+- One in-process worker at concurrency 1 with a lease; ffmpeg as the system binary, input
+  demuxer pinned, metadata and chapters dropped, output capped in duration, pixels and
+  bytes.
+- Backpressure is `429` with `Retry-After`, never `413`, and the guest surface
+  **honours** the delay rather than displaying it — the bytes are written before the queue
+  is consulted, so an early retry costs the guest their upload twice.
+- Clips are deliberately **not** queued in the offline outbox. A phone holding 80 MB it
+  cannot send is a phone that never sends anything else either.
+- On the wall, only `spotlight` and `split` play; the other four show the poster. That
+  rule lives in the domain with a client mirror and a contract test that fails naming the
+  layout when they drift — `collage` would ask a venue mini-PC for twelve simultaneous
+  decodes.
+- A media reconciliation sweep that three comments in the tree already assumed existed.
+
+**What it cost, and the part worth carrying forward.** Seven adversarial review rounds ran
+against the two halves. Every one started from a green `npm run verify` and every one
+found something the suite had passed over: two guests sending the same video destroyed it;
+a clip refused because the album was full could never be sent again even after the host
+made room; a crash stranded a reservation for a whole evening; an `unlink` throwing on a
+read-only mount wedged a row in `running` for the life of the process; the wall swapped a
+clip for its poster at the start of every crossfade.
+
+They share one shape. **Every defect that survived lived in a rule stated only in a
+comment** — prose asserting an invariant, with no test that failed when it broke. The
+file-descriptor leak is the cleanest example: `mediaRoutes` opened a byte stream merely to
+learn an object's size, and a comment calling that stream "cheap" is what made it look
+safe to six consecutive reviews. A `<video>` seeking would have climbed to `EMFILE` and
+taken the wall down mid-event. It was found by an external reviewer who looked at the read
+path while everyone else was looking at writes.
