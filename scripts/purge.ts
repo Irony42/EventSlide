@@ -19,13 +19,31 @@
  * produces is an event reported as failed here because the other run had already removed
  * it — the album is gone either way, and the next sweep reconciles anything left.
  */
+import { realpath } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { makePurgeExpiredEvents } from '../src/application/usecases/events/purgeExpiredEvents'
+import { makeSweepOrphanedMedia } from '../src/application/usecases/media/sweepOrphanedMedia'
+import type { LogContext, Logger } from '../src/application/ports/logger'
 import { loadConfig } from '../src/infrastructure/config/env'
 import { closeDatabase, openDatabase } from '../src/infrastructure/db/connection'
+import { SqliteClipJobRepository } from '../src/infrastructure/db/sqliteClipJobRepository'
 import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepository'
+import { SqlitePhotoRepository } from '../src/infrastructure/db/sqlitePhotoRepository'
 import { createFsMediaStore } from '../src/infrastructure/media/fsMediaStore'
 import { systemClock } from '../src/infrastructure/time/systemClock'
+import { isTooDangerousToSweep } from '../src/main/mediaSweeper'
+
+/** Fifteen minutes, matching the container's own sweep: see `MEDIA_SWEEP_MIN_AGE_MS`. */
+const MEDIA_SWEEP_MIN_AGE_MS = 15 * 60 * 1000
+
+/** The sweep wants a `Logger`; on a terminal that is the console. */
+const consoleLogger: Logger = {
+  debug: () => {},
+  info: (message: string, context?: LogContext) => console.log(`  ${message}`, context ?? ''),
+  warn: (message: string, context?: LogContext) => console.warn(`  ${message}`, context ?? ''),
+  error: (message: string, context?: LogContext) => console.error(`  ${message}`, context ?? ''),
+  child: () => consoleLogger,
+}
 
 const main = async (): Promise<number> => {
   const dryRun = process.argv.includes('--dry-run')
@@ -47,7 +65,65 @@ const main = async (): Promise<number> => {
   const db = openDatabase({ path: databasePath })
   try {
     const events = new SqliteEventRepository(db)
+    const media = createFsMediaStore({ root: mediaRoot })
     const now = systemClock.now()
+
+    /**
+     * **The media reconciliation sweep, because on this box nothing else runs it.**
+     *
+     * The operator who reaches for this script is the one who set
+     * `RETENTION_SWEEP_INTERVAL_MINUTES=off` — which is also the switch the container
+     * uses to decide whether to build the collector at all. So without this, the
+     * deployment this project documents as supported is the one deployment where a
+     * leaked clip source is never collected: the upload path deliberately does not
+     * delete, and there would be nothing behind it.
+     *
+     * Runs on **every** invocation that is not a dry run, including one that purged
+     * nothing: the leaks it collects have nothing to do with retention.
+     */
+    const reconcile = async (): Promise<void> => {
+      /**
+       * **The same guard the container applies, because this is the same deleter.**
+       *
+       * `container.ts` refuses to build the reconciliation sweep when `MEDIA_ROOT`
+       * resolves somewhere shared — a filesystem root, a home directory, `/var` — and
+       * logs that nothing will delete under that root. The line was false while this
+       * script, which `docs/SECURITY.md` positions as the fallback collector for exactly
+       * the deployments where the container's own sweep is switched off, applied no guard
+       * at all and swept anyway.
+       *
+       * `realpath` first, because `resolve` does not follow symlinks and a media root
+       * that is a link to `$HOME` walks straight past a comparison of resolved strings.
+       */
+      const realRoot = await realpath(mediaRoot).catch(() => mediaRoot)
+      if (isTooDangerousToSweep(realRoot)) {
+        console.error('')
+        console.error('Not reconciling media: MEDIA_ROOT is not a directory of its own.')
+        console.error(`  ${realRoot}`)
+        console.error('Give it a directory nothing else owns, as compose.yaml does.')
+        return
+      }
+
+      const sweep = makeSweepOrphanedMedia({
+        photos: new SqlitePhotoRepository(db),
+        clips: new SqliteClipJobRepository(db),
+        media,
+        clock: systemClock,
+        logger: consoleLogger,
+        // No practical bound from a CLI: an operator ran this and is watching it.
+        policy: {
+          minimumAgeMs: MEDIA_SWEEP_MIN_AGE_MS,
+          maxDigestsPerPass: Number.MAX_SAFE_INTEGER,
+        },
+      })
+
+      const collected = await sweep()
+      console.log(
+        `Reconciled ${collected.scanned} stored object(s): collected ${collected.collected}, ` +
+          `${collected.bytes} byte(s).`,
+      )
+      for (const id of collected.failed) console.error(`  could not reconcile ${id}`)
+    }
 
     // The same listing the use case sweeps. Read here as well so a dry run can name the
     // events, and so a real run can report a slug for an id that no longer resolves to
@@ -59,6 +135,7 @@ const main = async (): Promise<number> => {
       console.log(
         'Only closed or archived events with a retention period reach this list; an event still running is never due.',
       )
+      if (!dryRun) await reconcile()
       return 0
     }
 
@@ -82,13 +159,15 @@ const main = async (): Promise<number> => {
 
     const purge = makePurgeExpiredEvents({
       events,
-      media: createFsMediaStore({ root: mediaRoot }),
+      media,
       clock: systemClock,
     })
 
     const report = await purge()
 
     console.log(`Purged ${report.purged.length} event(s).`)
+    await reconcile()
+
     if (report.failed.length > 0) {
       // The exit code and this list are what a cron job mails to the operator at 2am.
       console.error('')

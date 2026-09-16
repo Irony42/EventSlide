@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeGetModerationQueue, type GetModerationQueue } from './getModerationQueue'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
-import { anEvent, aGuest, aPhoto, atPlus, AT } from '../../testing/builders'
+import { anEvent, aClip, aGuest, aPhoto, atPlus, AT } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
@@ -195,6 +195,31 @@ describe('getModerationQueue', () => {
     const result = await pendingQueue()
 
     expect(result.ok && result.value.items.map((item) => item.caption)).toEqual([null])
+  })
+
+  it('says a photograph is a photograph, and carries no duration for it', async () => {
+    photos.seed(aPhoto({ id: 'photo-1', eventId: 'event-1', status: 'pending' }))
+
+    const result = await pendingQueue()
+
+    expect(result.ok && result.value.items.map((item) => [item.kind, item.durationMs])).toEqual([
+      ['photo', null],
+    ])
+  })
+
+  it('says a clip is a clip, and how long it runs', async () => {
+    // A moderator deciding about a clip has to be able to watch it: a poster frame is
+    // not a decision about fifteen seconds of video. The console needs both fields to
+    // know which control to render.
+    photos.seed(
+      aClip({ id: 'photo-1', eventId: 'event-1', status: 'pending', clip: { durationMs: 11_500 } }),
+    )
+
+    const result = await pendingQueue()
+
+    expect(result.ok && result.value.items.map((item) => [item.kind, item.durationMs])).toEqual([
+      ['clip', 11_500],
+    ])
   })
 
   it('carries the photo dimensions, so the grid is laid out before the thumbnails arrive', async () => {

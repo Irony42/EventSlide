@@ -77,6 +77,23 @@ export class Dimensions {
     )
   }
 
+  /**
+   * Both edges rounded down to an even number, never below two.
+   *
+   * This is not tidiness, it is whether the frame can be encoded at all. `yuv420p`
+   * subsamples chroma two pixels at a time, so an odd edge is not a representable frame
+   * and `libx264` refuses it — which is exactly what `scale=-1:720` produces from a
+   * source whose aspect ratio lands on an odd width. The video pipeline computes its
+   * target size here rather than leaving it to a filter expression, so the number handed
+   * to the encoder is one this codebase can test.
+   */
+  evenEdges(): Dimensions {
+    return new Dimensions(
+      Math.max(2, this.width - (this.width % 2)),
+      Math.max(2, this.height - (this.height % 2)),
+    )
+  }
+
   equals(other: Dimensions): boolean {
     return this.width === other.width && this.height === other.height
   }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { EventId } from '../../../domain/shared/ids'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
-import type { MediaMetadata, MediaStore } from '../../ports/mediaStore'
+import type { MediaMetadata, MediaStore, StoredObject } from '../../ports/mediaStore'
 import { AT, anEvent } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
@@ -51,6 +51,8 @@ class RecordingMediaStore implements MediaStore {
   read = async (): Promise<Uint8Array | null> => notPartOfAPurge('read')
   delete = async (): Promise<void> => notPartOfAPurge('delete')
   usedBytes = async (): Promise<number> => notPartOfAPurge('usedBytes')
+  listEvents = async (): Promise<readonly EventId[]> => notPartOfAPurge('listEvents')
+  list = async (): Promise<readonly StoredObject[]> => notPartOfAPurge('list')
 }
 
 describe('purgeEvent', () => {

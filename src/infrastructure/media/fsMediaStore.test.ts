@@ -1,4 +1,14 @@
-import { mkdir, mkdtemp, readFile, rm, readdir, symlink, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  readdir,
+  stat,
+  symlink,
+  utimes,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -363,5 +373,125 @@ describe('fsMediaStore', () => {
     await mkdir(objectPath(root, WEDDING, 'display', HASH_A), { recursive: true })
 
     await expect(store.delete(WEDDING, HASH_A)).rejects.toThrow()
+  })
+})
+
+describe('fsMediaStore: the inventory the reconciliation sweep reads', () => {
+  let root: string
+  let store: MediaStore
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'eventslide-media-list-'))
+    store = createFsMediaStore({ root })
+  })
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('lists nothing for a store that has never been written to', async () => {
+    expect(await store.listEvents()).toEqual([])
+    expect(await store.list(WEDDING)).toEqual([])
+  })
+
+  it('names every event it is holding bytes for', async () => {
+    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(3))
+    await store.put(GALA, HASH_B, 'thumb', new Uint8Array(4))
+
+    expect([...(await store.listEvents())].sort()).toEqual([WEDDING, GALA].sort())
+  })
+
+  it('leaves the boot scratch directories out of the event list', async () => {
+    // `.uploads` and `.scratch` live under MEDIA_ROOT because the container is read-only
+    // with a tmpfs on the memory cgroup. A sweep handed them as event ids would ask the
+    // database about an event that cannot exist and then delete what it found.
+    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(3))
+    await mkdir(join(root, '.uploads'), { recursive: true })
+    await mkdir(join(root, '.scratch'), { recursive: true })
+
+    expect(await store.listEvents()).toEqual([WEDDING])
+  })
+
+  it('reports each object with its digest, variant, size and write time', async () => {
+    const before = Date.now() - 1_000
+    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(7))
+
+    const [object] = await store.list(WEDDING)
+
+    expect(object?.hash.value).toBe(HASH_A.value)
+    expect(object?.variant).toBe('display')
+    expect(object?.byteSize).toBe(7)
+    // The sweep refuses to collect anything written recently, so this field is the one
+    // that decides whether a file the database does not yet name survives.
+    expect(object?.modifiedAt.getTime()).toBeGreaterThanOrEqual(before)
+  })
+
+  it('lists every variant of every digest, including the unservable source', async () => {
+    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(1))
+    await store.put(WEDDING, HASH_A, 'thumb', new Uint8Array(1))
+    await store.put(WEDDING, HASH_B, 'source', new Uint8Array(1))
+
+    const objects = await store.list(WEDDING)
+
+    expect(objects.map((object) => object.variant).sort()).toEqual(['display', 'source', 'thumb'])
+  })
+
+  it('never lists another event’s objects', async () => {
+    await store.put(GALA, HASH_B, 'display', new Uint8Array(1))
+
+    expect(await store.list(WEDDING)).toEqual([])
+  })
+
+it('reaps an abandoned .tmp on the way past, since nothing else ever would', async () => {
+    // `put` writes `<target>.<uuid>.tmp` and renames. A SIGKILL between the two strands up
+    // to MAX_CLIP_BYTES that no row names — invisible to the quota — and that the
+    // reconciliation sweep will not touch, because a collector must never be handed a path
+    // it cannot account for. Only the store knows this name is its own wreckage.
+    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(1))
+    const shard = join(root, WEDDING, 'display', HASH_A.value.slice(0, 2))
+    const stale = join(shard, `${HASH_A.value}.abandoned.tmp`)
+    await writeFile(stale, 'half a photo')
+    // An hour and a minute old: past the window a `put` in flight could possibly need.
+    const old = new Date(Date.now() - 61 * 60 * 1000)
+    await utimes(stale, old, old)
+
+    await store.list(WEDDING)
+
+    await expect(stat(stale)).rejects.toThrow()
+  })
+
+  it('leaves a .tmp that a put may still be writing', async () => {
+    // The guard that matters: deleting a temporary file another request is writing would
+    // fail that guest's upload to reclaim bytes that were never lost.
+    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(1))
+    const shard = join(root, WEDDING, 'display', HASH_A.value.slice(0, 2))
+    const fresh = join(shard, `${HASH_A.value}.in-flight.tmp`)
+    await writeFile(fresh, 'being written right now')
+
+    const objects = await store.list(WEDDING)
+
+    expect((await stat(fresh)).size).toBeGreaterThan(0)
+    // And it is still not listed: it is not an address this store could have written.
+    expect(objects).toHaveLength(1)
+  })
+
+
+  it('refuses to name a file this store could not have written', async () => {
+    // A leaked `.tmp` from an interrupted `put`, or anything an operator dropped in by
+    // hand. The sweep deletes what this returns, so it must only ever return objects the
+    // store owns and can address.
+    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(1))
+    const shard = join(root, WEDDING, 'display', HASH_A.value.slice(0, 2))
+    await writeFile(join(shard, `${HASH_A.value}.jpg.1234.tmp`), 'half a photo')
+    await writeFile(join(shard, 'not-a-digest.jpg'), 'hand-dropped')
+    // Upper-case hex parses as a digest but is not the spelling this store writes:
+    // listing it under the lower-cased value would make `delete` unlink a different path
+    // while reporting these bytes as reclaimed.
+    await writeFile(join(shard, `${HASH_B.value.toUpperCase()}.jpg`), 'wrong case')
+
+    const objects = await store.list(WEDDING)
+
+    expect(objects).toHaveLength(1)
+    expect(objects[0]?.hash.value).toBe(HASH_A.value)
   })
 })

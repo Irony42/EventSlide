@@ -75,9 +75,24 @@ const bootstrap = async (): Promise<void> => {
   // already has somewhere to land. The first sweep is one interval away, never now —
   // a restart mid-event must not begin deleting albums while the party is uploading.
   container.retention?.start()
+  // The collector for objects nothing names — a refused clip upload, a staging attempt
+  // that lost a race, a job the box abandoned. On a schedule and not only at boot,
+  // because an evening is longer than a boot and those leaks happen during the party.
+  // One interval away for the same reason as the others, and it is doubly right here: a
+  // sweep at boot would walk every shard directory on the disk at the moment a
+  // projector is waiting for the server to come back.
+  container.mediaReconciliation?.start()
   // Same reasoning, and the first sweep is likewise one interval away: a restart at
   // 18:02 must not decide the state of the evening before the shutdown handlers exist.
   container.schedule?.start()
+  // The exception to "one interval away", and deliberately so: this one's first pass is
+  // **immediate**, because it is also crash recovery. A clip left mid-transcode by a
+  // restart is invisible to everything until this puts it back, and a guest who is
+  // standing in the room has already waited once.
+  container.clipWorker.start()
+  // Its first pass is immediate too, and for the same reason: whatever killed the last
+  // process may have left a reservation charging an event for bytes that never arrived.
+  container.reservationReaper.start()
 }
 
 /**

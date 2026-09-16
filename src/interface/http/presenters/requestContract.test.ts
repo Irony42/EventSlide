@@ -618,6 +618,10 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // ring 4, but nothing in `web/src` calls it yet; the console reads the moderation
   // queue instead. `dtoContract.test.ts` records the same gap from the response side.
   photoListQuery: 'GET /api/events/:eventSlug/photos has no client method',
+  // `POST /api/events/:slug/clips` — the clip upload (docs/ROADMAP.md 1.4). The server
+  // spine landed deliberately alone: the guest, moderation and wall surfaces are a
+  // separate branch, so nothing in `web/src` posts a clip yet. Ring 4 covers the route.
+  clipUploadFields: 'POST /api/events/:eventSlug/clips has no client method yet',
 }
 
 // --------------------------------------------------------------------- tests --

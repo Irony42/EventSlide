@@ -9,7 +9,8 @@ import { DomainError } from '../../../domain/shared/errors'
 import { asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { GUEST_COOKIE, requireRole, resolvePublicEvent } from '../middleware/authz'
-import { sendError } from '../presenters/send'
+import { contentRange, parseByteRange, unsatisfiedRange } from '../presenters/byteRange'
+import { errorBody, sendError } from '../presenters/send'
 import { photoVariantParams } from '../schemas/requestSchemas'
 import type { HttpDeps } from '../types'
 import type { HttpUseCases, RouteDeps } from '../useCases'
@@ -156,12 +157,16 @@ const sendMedia = async (req: Request, res: Response, media: PhotoMedia): Promis
   // policy, or a projector revalidates every slide for the rest of the night.
   res.setHeader('ETag', etagFor(media))
   res.setHeader('Cache-Control', IMMUTABLE_CACHE)
-  // The stored bytes are always a re-encoded image, but a browser that sniffs its way to
+  // The stored bytes are always re-encoded, but a browser that sniffs its way to
   // something executable is how an upload becomes stored XSS.
   res.setHeader('X-Content-Type-Options', 'nosniff')
   // Never `attachment`: the wall, the moderation grid and the guest's own view all
-  // render these in an `<img>`.
+  // render these in an `<img>` or a `<video>`.
   res.setHeader('Content-Disposition', 'inline')
+  // **Advertised on every response, not only on a clip.** A media element decides whether
+  // it can seek from this header, and it asks about the object before it plays it — so a
+  // response that omits it is one a player treats as unseekable.
+  res.setHeader('Accept-Ranges', 'bytes')
 
   // `req.fresh` compares `If-None-Match` weakly, as RFC 9110 requires, handles a list of
   // validators and honours a client's own `Cache-Control: no-cache`. A projector
@@ -174,9 +179,18 @@ const sendMedia = async (req: Request, res: Response, media: PhotoMedia): Promis
   }
 
   res.setHeader('Content-Type', media.contentType)
-  // From the store's own metadata, so the declared length is the length that will be
-  // written. 1.0 had no length at all and every image arrived chunked.
-  res.setHeader('Content-Length', String(media.byteSize))
+
+  if (media.range === null) {
+    // From the store's own metadata, so the declared length is the length that will be
+    // written. 1.0 had no length at all and every image arrived chunked.
+    res.setHeader('Content-Length', String(media.byteSize))
+  } else {
+    // A `206` declares the length of the **part**, and `Content-Range` the whole. Getting
+    // the two the wrong way round is how a player stalls at the end of the first chunk.
+    res.status(206)
+    res.setHeader('Content-Range', contentRange(media.range, media.byteSize))
+    res.setHeader('Content-Length', String(media.range.end - media.range.start + 1))
+  }
 
   await streamOrAbandon(res, req.context.logger, 'photo media failed mid-stream', media.bytes)
 }
@@ -209,16 +223,56 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
 
       const viewer = await viewerFor(deps, req, event)
 
-      const result = await usecases.getPhotoMedia({
+      /**
+       * The object's size has to be known before its range can be judged, and only the
+       * use case can read it — so a range request is two calls: one for the whole object
+       * and, when the range turns out to be satisfiable, one for the part.
+       *
+       * Nothing is written in between. `stat` is a metadata read and `openRead` opens a
+       * stream that is discarded unread, which is what the media store's `AsyncIterable`
+       * makes cheap; the alternative — passing a range the handler has not checked and
+       * letting the store answer `null` — cannot tell "outside the object" from "the file
+       * is gone", and those are a `416` and a `404`.
+       */
+      const whole = await usecases.getPhotoMedia({
         eventId: event.id,
         photoId: asPhotoId(params.photoId),
         variant: params.variant,
         viewer,
       })
+      if (!whole.ok) return sendError(res, whole.error)
 
-      if (!result.ok) return sendError(res, result.error)
+      const verdict = parseByteRange(req.get('range'), whole.value.byteSize)
+      if (verdict.kind === 'whole') return sendMedia(req, res, whole.value)
 
-      return sendMedia(req, res, result.value)
+      if (verdict.kind === 'unsatisfiable') {
+        /**
+         * **416, written here rather than through the kind table.**
+         *
+         * `DomainErrorKind` has no member for it and should not grow one: it is a
+         * property of this one representation and of the header that asked for it, not a
+         * class of business failure — and the taxonomy's value is that it is small
+         * enough to hold in your head. This is the same call `streamRoutes` makes when it
+         * answers `503` for an error whose kind maps to `500`.
+         *
+         * The `Content-Range` is what lets a player correct itself instead of retrying
+         * the same impossible range for the rest of the evening.
+         */
+        res.setHeader('Accept-Ranges', 'bytes')
+        res.setHeader('Content-Range', unsatisfiedRange(whole.value.byteSize))
+        return res.status(416).json(errorBody(DomainError.invalid('photo.rangeNotSatisfiable')))
+      }
+
+      const part = await usecases.getPhotoMedia({
+        eventId: event.id,
+        photoId: asPhotoId(params.photoId),
+        variant: params.variant,
+        viewer,
+        range: verdict.range,
+      })
+      if (!part.ok) return sendError(res, part.error)
+
+      return sendMedia(req, res, part.value)
     }),
   )
 

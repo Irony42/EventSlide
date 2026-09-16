@@ -14,6 +14,8 @@ import {
   type MediaMetadata,
   type MediaStore,
   type MediaVariant,
+  type StoredObject,
+  type PhotoVariant,
 } from '../../ports/mediaStore'
 import { anEvent, aPhoto, type EventInput } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
@@ -51,7 +53,7 @@ const must = <T>(result: Result<T, DomainError>): T => {
 }
 
 /** Sums to exactly 1 MB per photo, so a quota expectation is arithmetic a reader can do. */
-const DEFAULT_BYTE_SIZES: Readonly<Record<MediaVariant, number>> = {
+const DEFAULT_BYTE_SIZES: Readonly<Record<PhotoVariant, number>> = {
   original: 900_000,
   display: 90_000,
   thumb: 10_000,
@@ -61,12 +63,12 @@ interface ImageScript {
   readonly width?: number
   readonly height?: number
   readonly probeError?: DomainError
-  readonly renderErrorAt?: MediaVariant
-  readonly byteSizes?: Readonly<Record<MediaVariant, number>>
+  readonly renderErrorAt?: PhotoVariant
+  readonly byteSizes?: Readonly<Record<PhotoVariant, number>>
 }
 
 /** Matched on the longest edge, so the double does not depend on object identity. */
-const variantFor = (spec: RenderSpec): MediaVariant => {
+const variantFor = (spec: RenderSpec): PhotoVariant => {
   const match = MEDIA_VARIANTS.find((variant) => VARIANT_SPECS[variant].maxWidth === spec.maxWidth)
   if (match === undefined) throw new Error(`no variant renders at ${spec.maxWidth}px`)
   return match
@@ -90,7 +92,7 @@ class FakeImageProcessor implements ImageProcessor {
   }
 
   /** The exact bytes `render` will produce, so a test can pre-compute a content hash. */
-  renderedBytes(tag: string, variant: MediaVariant): Uint8Array {
+  renderedBytes(tag: string, variant: PhotoVariant): Uint8Array {
     return tagBytes(`${tag}/${variant}`)
   }
 
@@ -181,7 +183,12 @@ class InMemoryMediaStore implements MediaStore {
     variant: MediaVariant,
   ): Promise<MediaMetadata | null> {
     const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined ? null : { byteSize: bytes.length, contentType: 'image/jpeg' }
+    return bytes === undefined ? null : {
+            byteSize: bytes.length,
+            contentType: 'image/jpeg',
+            // Not a fact any of these tests depends on; the sweep is the only reader.
+            modifiedAt: new Date(0),
+          }
   }
 
   async openRead(
@@ -208,6 +215,16 @@ class InMemoryMediaStore implements MediaStore {
     for (const key of [...this.objects.keys()]) {
       if (key.startsWith(`${eventId}|`)) this.objects.delete(key)
     }
+  }
+
+  // Reconciliation only. A use case that started enumerating the store would fail
+  // loudly here rather than pass against a permissive stub.
+  async listEvents(): Promise<readonly EventId[]> {
+    throw new Error(`listEvents is not part of photo ingest`)
+  }
+
+  async list(): Promise<readonly StoredObject[]> {
+    throw new Error(`list is not part of photo ingest`)
   }
 
   async usedBytes(eventId: EventId): Promise<number> {

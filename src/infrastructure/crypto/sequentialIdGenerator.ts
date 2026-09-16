@@ -1,10 +1,12 @@
 import type { IdGenerator } from '../../application/ports/idGenerator'
 import {
+  asClipJobId,
   asEventId,
   asGuestId,
   asPhotoId,
   asReactionId,
   asUserId,
+  type ClipJobId,
   type EventId,
   type GuestId,
   type PhotoId,
@@ -35,7 +37,7 @@ import {
  */
 
 /** One counter per kind, so a photo and a guest do not share a sequence. */
-type Kind = 'event' | 'photo' | 'guest' | 'user' | 'reaction'
+type Kind = 'event' | 'photo' | 'guest' | 'user' | 'reaction' | 'clipJob'
 
 const PREFIX: Record<Kind, string> = {
   event: 'e0000000',
@@ -43,6 +45,7 @@ const PREFIX: Record<Kind, string> = {
   guest: '10000000',
   user: '20000000',
   reaction: '30000000',
+  clipJob: '40000000',
 }
 
 export const createSequentialIdGenerator = (): IdGenerator => {
@@ -67,6 +70,7 @@ export const createSequentialIdGenerator = (): IdGenerator => {
     guestId: (): GuestId => asGuestId(next('guest')),
     userId: (): UserId => asUserId(next('user')),
     reactionId: (): ReactionId => asReactionId(next('reaction')),
+    clipJobId: (): ClipJobId => asClipJobId(next('clipJob')),
 
     bytes: (count: number): Uint8Array => {
       if (!Number.isInteger(count) || count < 1) {

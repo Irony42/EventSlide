@@ -2,7 +2,8 @@ import { allowsAnotherPhoto, fitsInQuota, remainingQuota } from '../../domain/ev
 import type { Photo, PhotoReview } from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import type { ContentHash } from '../../domain/photos/contentHash'
-import type { EventId, GuestId, PhotoId } from '../../domain/shared/ids'
+import type { ClipJobId, EventId, GuestId, PhotoId } from '../../domain/shared/ids'
+import type { StagedByteSource } from '../ports/clipJobRepository'
 import type {
   PhotoAdmission,
   PhotoAdmissionLimits,
@@ -123,6 +124,25 @@ export class FakePhotoRepository implements PhotoRepository {
     return this.forEvent(eventId).find((photo) => photo.contentHash.equals(hash)) ?? null
   }
 
+  async findIdsReferencing(eventId: EventId, hash: ContentHash): Promise<readonly PhotoId[]> {
+    // `storageHashes` is the entity's own answer to "which files does this row own", so
+    // the poster is included here for exactly the reason it is included there, and a
+    // future facet with a third file needs no change on this line.
+    return this.forEvent(eventId)
+      .filter((photo) => photo.storageHashes.some((held) => held.equals(hash)))
+      .map((photo) => photo.id)
+  }
+
+  async listReferencedDigests(eventId: EventId): Promise<ReadonlySet<string>> {
+    // `storageHashes` again, for the same reason `findIdsReferencing` uses it: the entity
+    // is the one thing that knows which files a row owns.
+    const digests = new Set<string>()
+    for (const photo of this.forEvent(eventId)) {
+      for (const hash of photo.storageHashes) digests.add(hash.value)
+    }
+    return digests
+  }
+
   async list(eventId: EventId, query: PhotoQuery = {}): Promise<PhotoPage> {
     const cursor = query.cursor === undefined ? null : decodeCursor(query.cursor)
     if (query.cursor !== undefined && cursor === null) {
@@ -173,8 +193,47 @@ export class FakePhotoRepository implements PhotoRepository {
     return counts
   }
 
-  async totalBytes(eventId: EventId): Promise<number> {
+  /**
+   * Bytes this event is charged that are **not** photo rows: the transcode queue's
+   * staged sources.
+   *
+   * The SQLite adapter reads them from `clip_jobs` inside the same statement as its
+   * `SUM(byte_size)`, because the quota is "bytes on the disk for this event" and a
+   * clip waiting to be transcoded is on the disk. This fake cannot reach a second table
+   * on its own, so a test that is about clips wires the clip repository in here — which
+   * is what keeps the two implementations answering the same number.
+   *
+   * A test that is only about photographs leaves it alone and charges nothing extra,
+   * which is exactly what an event with no clips is charged.
+   */
+  private staged: StagedByteSource | null = null
+
+  chargeStagedBytesFrom(source: StagedByteSource): this {
+    this.staged = source
+    return this
+  }
+
+  private async stagedBytes(eventId: EventId, crediting?: ClipJobId): Promise<number> {
+    if (this.staged === null) return 0
+    const total = await this.staged.stagedBytes(eventId)
+    if (crediting === undefined) return total
+    // The mirror of the adapter subtracting the job inside its own SQL.
+    return total - (await this.staged.stagedBytesOf(eventId, crediting))
+  }
+
+  /**
+   * The photographs' half of the total, on its own.
+   *
+   * What `FakeClipJobRepository.stage` asks for, and the reason it is separate: staging
+   * a clip has to re-read the *queue's* half after its one `await`, so it needs the half
+   * that no clip upload can change apart from the half that every clip upload changes.
+   */
+  async photoBytes(eventId: EventId): Promise<number> {
     return this.forEvent(eventId).reduce((total, photo) => total + photo.byteSize, 0)
+  }
+
+  async totalBytes(eventId: EventId): Promise<number> {
+    return (await this.photoBytes(eventId)) + (await this.stagedBytes(eventId))
   }
 
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
@@ -205,11 +264,24 @@ export class FakePhotoRepository implements PhotoRepository {
     photos: readonly Photo[],
     limits: PhotoAdmissionLimits,
   ): Promise<readonly PhotoAdmission[]> {
+    // **The only `await` in this method, and it is deliberately the first statement.**
+    // better-sqlite3 is synchronous, so the adapter's transaction cannot interleave; the
+    // fake earns the same property by having no suspension point between the snapshot
+    // below and the last write. Reading the queue after the snapshot instead would hand
+    // a second concurrent call a stale view of `rows`, and the quota would be beatable
+    // by the number of requests in flight — which is the defect these tests exist for.
+    //
+    // `replacesStagedClip` is credited here rather than subtracted afterwards, for the
+    // same reason: the worker's own job is still `running` while its output is inserted,
+    // and the source it became must not be charged twice.
+    const stagedClipBytes = await this.stagedBytes(eventId, limits.replacesStagedClip)
+
     const staged = new Map(this.rows)
     const forEventIn = (rows: ReadonlyMap<string, Photo>): Photo[] =>
       [...rows.values()].filter((photo) => photo.eventId === eventId)
 
-    let usedBytes = forEventIn(staged).reduce((total, photo) => total + photo.byteSize, 0)
+    let usedBytes =
+      forEventIn(staged).reduce((total, photo) => total + photo.byteSize, 0) + stagedClipBytes
     const authored = new Map<string, number>()
     const alreadyBy = (guestId: GuestId): number => {
       const known = authored.get(guestId)

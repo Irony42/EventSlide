@@ -34,16 +34,18 @@ The adversary at an event is almost never a professional. It is a guest with a p
 ten minutes, and no accountability. The model is built around that, plus one anonymous
 internet scanner.
 
-| #   | Adversary / event                                                                | Asset at risk                                           | Control                                                                                                                                                                                                                                              | Where                                                                                              |
-| --- | -------------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| T1  | Bored guest with the QR code, poking at URLs                                     | other events' photos, moderation actions, host accounts | guest token grants **upload + own-photo delete on one event** and nothing else; every admin route behind `requireRole`; ids are opaque, non-enumerable `TEXT`                                                                                        | `src/interface/http/middleware/authz.ts`, `src/infrastructure/db/migrations/001_initial_schema.ts` |
-| T2  | Screenshot of the join link shared outside the venue (WhatsApp, X)               | uninvited uploads, quota burn, junk on the wall         | join code is rotatable (`POST /api/events/:eventSlug/join-code`), event has `status` the host can set to closed, upload limiter keyed by IP **and** event, per-event byte quota, moderation is on by default                                         | `src/domain/events/`, `src/application/usecases/events/rotateJoinCode.ts`                          |
-| T3  | Guest uploading something offensive, in front of 200 people                      | the room, the host's reputation                         | **nothing reaches the projector unpublished.** `photos.status` starts `pending`; the wall renders only `published`; the host can flip a live photo to `hidden` and the SSE invalidation drops it from every projector within one refetch             | `src/domain/photos/photoStatus.ts`, `src/interface/http/routes/streamRoutes.ts`                    |
-| T4  | Scanner finds the upload endpoint and fills the disk                             | availability of the whole box, every other event on it  | upload requires a valid event-scoped token (there is **no** unauthenticated upload path in 2.0), byte and file-count limits at multer, a limiter keyed by IP **and** event, per-event `quota_bytes` that refuses a file rather than filling the disk | `src/interface/http/middleware/rateLimit.ts`, `src/application/usecases/photos/uploadPhotos.ts`    |
-| T5  | Curious guest reading another event's photos                                     | confidentiality across tenants on one host              | **every** repository method takes `eventId`; media served by a controller that resolves the event from the path and 404s across events; named isolation tests at rings 3, 4 and 6                                                                    | §3                                                                                                 |
-| T6  | Passive privacy exposure: GPS of a private home in EXIF                          | guests' home addresses, device serials, timestamps      | EXIF is stripped on ingest by re-encoding; orientation is baked in first; raw bytes never reach the media root                                                                                                                                       | §4                                                                                                 |
-| T7  | Attacker on the venue Wi-Fi reading traffic                                      | session cookie, guest token, photos in flight           | HTTPS terminated in front of the app, `Secure` cookies in production, HSTS, `upgrade-insecure-requests`                                                                                                                                              | §11                                                                                                |
-| T8  | Malicious file dressed as a photo (renamed `.php`, `.svg`, polyglot, pixel bomb) | RCE via a served payload, CPU/RAM exhaustion in `sharp` | magic bytes decide the type, dimension probe before decode, everything re-encoded to a known format, media never served from a static handler                                                                                                        | §4                                                                                                 |
+| #   | Adversary / event                                                                                                         | Asset at risk                                                                                             | Control                                                                                                                                                                                                                                                                                                         | Where                                                                                              |
+| --- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| T1  | Bored guest with the QR code, poking at URLs                                                                              | other events' photos, moderation actions, host accounts                                                   | guest token grants **upload + own-photo delete on one event** and nothing else; every admin route behind `requireRole`; ids are opaque, non-enumerable `TEXT`                                                                                                                                                   | `src/interface/http/middleware/authz.ts`, `src/infrastructure/db/migrations/001_initial_schema.ts` |
+| T2  | Screenshot of the join link shared outside the venue (WhatsApp, X)                                                        | uninvited uploads, quota burn, junk on the wall                                                           | join code is rotatable (`POST /api/events/:eventSlug/join-code`), event has `status` the host can set to closed, upload limiter keyed by IP **and** event, per-event byte quota, moderation is on by default                                                                                                    | `src/domain/events/`, `src/application/usecases/events/rotateJoinCode.ts`                          |
+| T3  | Guest uploading something offensive, in front of 200 people                                                               | the room, the host's reputation                                                                           | **nothing reaches the projector unpublished.** `photos.status` starts `pending`; the wall renders only `published`; the host can flip a live photo to `hidden` and the SSE invalidation drops it from every projector within one refetch                                                                        | `src/domain/photos/photoStatus.ts`, `src/interface/http/routes/streamRoutes.ts`                    |
+| T4  | Scanner finds the upload endpoint and fills the disk                                                                      | availability of the whole box, every other event on it                                                    | upload requires a valid event-scoped token (there is **no** unauthenticated upload path in 2.0), byte and file-count limits at multer, a limiter keyed by IP **and** event, per-event `quota_bytes` that refuses a file rather than filling the disk                                                            | `src/interface/http/middleware/rateLimit.ts`, `src/application/usecases/photos/uploadPhotos.ts`    |
+| T5  | Curious guest reading another event's photos                                                                              | confidentiality across tenants on one host                                                                | **every** repository method takes `eventId`; media served by a controller that resolves the event from the path and 404s across events; named isolation tests at rings 3, 4 and 6                                                                                                                               | §3                                                                                                 |
+| T6  | Passive privacy exposure: GPS of a private home in EXIF                                                                   | guests' home addresses, device serials, timestamps                                                        | EXIF is stripped on ingest by re-encoding; orientation is baked in first; raw bytes never reach the media root                                                                                                                                                                                                  | §4                                                                                                 |
+| T7  | Attacker on the venue Wi-Fi reading traffic                                                                               | session cookie, guest token, photos in flight                                                             | HTTPS terminated in front of the app, `Secure` cookies in production, HSTS, `upgrade-insecure-requests`                                                                                                                                                                                                         | §11                                                                                                |
+| T8  | Malicious file dressed as a photo (renamed `.php`, `.svg`, polyglot, pixel bomb)                                          | RCE via a served payload, CPU/RAM exhaustion in `sharp`                                                   | magic bytes decide the type, dimension probe before decode, everything re-encoded to a known format, media never served from a static handler                                                                                                                                                                   | §4                                                                                                 |
+| T9  | Malicious **video**: a crafted container that makes the box fetch a URL, a decoder bomb, a clip carrying a second payload | SSRF from a guest upload, a wedged encoder holding a core all evening, a polyglot served back to the room | the signature decides the container before a byte is staged; the demuxer is **pinned** and `-protocol_whitelist file` forbids every other protocol; the encoder runs under a wall-clock **and** a progress-stall bound with SIGKILL escalation; the stored bytes are always the encoder output, never `-c copy` | §4.1                                                                                               |
+| T10 | Passive privacy exposure in a clip: per-frame gyroscope and sometimes GPS in an iPhone timed-metadata track               | guests movements and locations, invisible in any player                                                   | `-map 0:v:0 -map 0:a:0? -dn -sn` drops every stream that is not the picture or the sound, rather than merely stripping its metadata; the guest upload is deleted once the transcode succeeds and is never servable                                                                                              | §4.1                                                                                               |
 
 **Explicitly out of scope.** A guest you invited is inside the trust boundary for
 uploading; 200 people on one Wi-Fi doing the intended thing is a capacity question, not
@@ -184,13 +186,33 @@ route, and `eventRoutes.test.ts` asserts that a route mounted without one fails 
 
 One box hosts many events. Isolation is not a feature; it is the thing that must not break.
 
-| Layer   | Mechanism                                                                                                                             | Consequence                                                                                        |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Ports   | every event-scoped method takes `eventId` **first**: `findById(eventId, photoId)`, never `findById(photoId)`                          | there is no method that _can_ return another event's row, so there is no call site to review       |
-| Schema  | `event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE` plus an index leading with `event_id`, on every event-scoped table   | the cascade makes "delete this event and everything in it" atomic                                  |
-| Fakes   | `FakePhotoRepository` keys its map on `(eventId, photoId)`                                                                            | a cross-tenant bug fails a ring-2 test instead of passing because a mock returned what it was told |
-| Media   | served by a controller that resolves the event from the path, authorizes, then streams from an explicit root — never `express.static` | scoping applies to every byte; a hash guessed from another event is a 404                          |
-| Storage | `<MEDIA_ROOT>/<eventId>/<variant>/<hash[0:2]>/<hash>.jpg` (`src/infrastructure/media/fsMediaStore.ts`)                                | the only client input in a media URL is an id, and it is looked up, never concatenated into a path |
+| Layer   | Mechanism                                                                                                                             | Consequence                                                                                                                             |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Ports   | every event-scoped method takes `eventId` **first**: `findById(eventId, photoId)`, never `findById(photoId)`                          | a method that can name another event's row cannot be written by accident; the three that deliberately span events are listed below      |
+| Schema  | `event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE` plus an index leading with `event_id`, on every event-scoped table   | the cascade makes "delete this event and everything in it" atomic                                                                       |
+| Fakes   | `FakePhotoRepository` keys its map on `(eventId, photoId)`                                                                            | a cross-tenant bug fails a ring-2 test instead of passing because a mock returned what it was told                                      |
+| Media   | served by a controller that resolves the event from the path, authorizes, then streams from an explicit root — never `express.static` | scoping applies to every byte; a hash guessed from another event is a 404                                                               |
+| Storage | `<MEDIA_ROOT>/<eventId>/<variant>/<hash[0:2]>/<hash>.<jpg                                                                             | mp4>`— the extension follows the rendition, so a clip is never served labelled`image/jpeg` (`src/infrastructure/media/fsMediaStore.ts`) | the only client input in a media URL is an id, and it is looked up, never concatenated into a path |
+
+### The documented exceptions, and why each is one
+
+Three methods are not scoped by event, and they are the only three. All belong to
+`ClipJobRepository`, because there is **one transcode worker for the whole box** and it
+cannot name the event whose guest is about to upload — the same shape as
+`EventRepository.listDueForPurge`, and the same reasoning.
+
+| Method             | Reached from                        | What it can return                                      |
+| ------------------ | ----------------------------------- | ------------------------------------------------------- |
+| `claimNext`        | the worker only, never a route      | one job, any event — handed to the worker, not a reply  |
+| `recoverAbandoned` | the worker, once, at boot           | the jobs a dead process was holding, any event          |
+| `countActive`      | `POST /clips`, on a guest's request | **a number only**: how many clips are waiting, box-wide |
+
+`countActive` is the one an outsider can reach, and what it discloses is one integer
+about the box's queue depth — which the guest is then told outright in the
+`429 clip.queueFull` body, because a `Retry-After` computed from a depth the client may
+not know would be a worse answer. It names no event, no guest and no photo.
+`HttpUseCases` does not list the use cases that call the other two, so no route can
+reach them at all.
 
 Tests that hold the line, each with its own name and no happy-path folding:
 
@@ -231,12 +253,16 @@ file (`stored`, `duplicate`, or `refused` with its code). A guest who picked fiv
 and one screenshot of a PDF is told which one was refused and why. 1.0 failed the whole
 request, and the guest re-picked six files on venue Wi-Fi.
 
-Two steps that used to be here are gone because the code does not work that way:
-multer writes to **memory**, not a temp directory, so there is no temp file to name
+Two steps that used to be here are gone because the **photo** path does not work that
+way: multer writes to **memory**, not a temp directory, so there is no temp file to name
 safely and none to unlink in a `finally`. `fileSize` is what bounds the memory that
 costs, and the pipeline re-encodes every byte it accepts anyway, so a disk-backed upload
 would write a file and read it straight back — then need cleanup on every exit path,
 which is precisely where 1.0 leaked.
+
+**A clip is the exception, and it is a separate route with a separate multer** (§4.1). It
+does stage to disk, deliberately, and therefore does carry the cleanup obligation that
+sentence describes.
 
 Details that are load-bearing:
 
@@ -285,6 +311,164 @@ Details that are load-bearing:
 - **SVG is rejected, not sanitised.** It is a script container served from our own
   origin; no benefit is worth that.
 
+## 4.1 Clip hardening, in order
+
+A short video clip (docs/ROADMAP.md 1.4) is a second ingest path with a different shape,
+and the differences are what this section is for. It is a **separate route with its own
+multer, its own byte limit and its own queue**; it stages to disk rather than to the heap;
+and the expensive work happens **after** the response, in a worker.
+
+The single sentence that carries most of the security of this path: **the stored bytes
+are always the encoder's output.** Never `-c copy`.
+
+| #   | Step                                                                                                                                                                                                                                                                                                                                                | Where                                                    | Failure                                                                                                                                            |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Rate-limit, then authorize — the same limiter bucket as photos, because a guest sending both is one guest                                                                                                                                                                                                                                           | `middleware/rateLimit.ts`, `middleware/authz.ts`         | 429 `rate.limited`; 401/403 as §4                                                                                                                  |
+| 2   | `multer` to **disk**, under `MEDIA_ROOT/.uploads`, one file, `MAX_CLIP_BYTES` (default 80 000 000). No `fileFilter`: it could only read the client's own `Content-Type`                                                                                                                                                                             | `routes/clipRoutes.ts`                                   | 413 `upload.tooLarge`; 400 `upload.noFiles`                                                                                                        |
+| 3   | The host's own switch: `settings.allowClips`, and then whether this box has an encoder at all                                                                                                                                                                                                                                                       | `usecases/clips/uploadClip.ts`                           | 403 `event.clipsNotAllowed`; 500 `clip.transcoderUnavailable`                                                                                      |
+| 4   | **Signature identification**, before a byte is written to the media store: `ftyp` at **offset 4** with an mp4/QuickTime/3GP brand, or an EBML header. Starts no process                                                                                                                                                                             | `infrastructure/media/magicBytes.ts`                     | 400 `clip.unsupportedFormat`                                                                                                                       |
+| 5   | Backpressure and the byte quota — decided **once**, and at step 7, inside the transaction that reserves the row. There is no advisory pre-check: the row is written before the bytes, so a refusal has nothing to unwind                                                                                                                            | `domain/clips/clipQueue.ts`, `uploadClip.ts`             | **429 `clip.queueFull` with `Retry-After`** — never the quota 413; 413 `event.quotaExceeded`                                                       |
+| 6   | The byte quota counts the staged sources already in the queue as well as the album — one `SUM` over `photos` and `clip_jobs`                                                                                                                                                                                                                        | `sqlitePhotoRepository.ts`, `sqliteClipJobRepository.ts` | 413 `event.quotaExceeded`                                                                                                                          |
+| 7   | **The row first, then the bytes.** `ClipJobRepository.stage` inserts a `reserved` row — depth, quota and uniqueness in one `.immediate()` transaction — and only then is the source written and the row moved to `queued`. A refusal therefore costs **zero bytes**. The multer temp file is unlinked before the response, and again in a `finally` | `uploadClip.ts`, `clipRoutes.ts`                         | 500 `clip.stageFailed`; 429 `clip.queueFull`; 413 `event.quotaExceeded` — nothing was written                                                      |
+| 8   | `202 Accepted`. **No `photos` row exists**, so nothing can reach a moderator or the wall                                                                                                                                                                                                                                                            | `clipRoutes.ts`                                          | —                                                                                                                                                  |
+| 9   | The worker probes with `ffprobe`, under a pinned demuxer and `-protocol_whitelist file`, and applies the duration cap **and the pixel budget** to the header before a frame is decoded                                                                                                                                                              | `ffmpegVideoTranscoder.ts`, `transcodeNextClip.ts`       | `clip.corrupt`, `clip.noVideoStream`, `clip.tooLong`, `clip.tooShort`, `clip.pixelBudgetExceeded`, `clip.probeUnreadable`                          |
+| 10  | Re-encode to H.264/AAC in an 8-bit 4:2:0 mp4, dropping every stream that is not the picture or the sound, bounded by `-t` and `-fs`, under a wall-clock and a stall timeout                                                                                                                                                                         | same                                                     | `clip.transcodeFailed`, `clip.transcodeTimedOut`, `clip.transcodeCancelled`                                                                        |
+| 11  | Poster frame cut from the **output**, then both files hashed and stored, then the `photos` row through `saveManyWithinLimits` — quota counted inside the insert transaction, as for a photo, and crediting back this clip own staged source so it is not charged twice                                                                              | `usecases/clips/transcodeNextClip.ts`                    | `clip.storageFailed`; `event.quotaExceeded`; what this pass wrote is removed **except any digest another row still names** — a poster is shareable |
+| 12  | Only now is the job `done` and the guest's upload deleted                                                                                                                                                                                                                                                                                           | same                                                     | —                                                                                                                                                  |
+
+Details that are load-bearing, each closing something a naive implementation gets wrong:
+
+- **`-c copy` is forbidden, and it is the first optimisation anyone proposes.** It is
+  roughly fifty times cheaper, and `free`, `skip` and `udta` boxes and the `moov/meta`
+  atom all survive a remux — so both a polyglot payload and the GPS of a guest's home
+  come through intact. The same rule as a photograph: stored bytes are pipeline output.
+- **`-map_metadata -1` does not remove streams.** An iPhone writes a `mebx` timed-metadata
+  track carrying per-frame gyroscope data and sometimes location, with a `tmcd` timecode
+  track beside it. Neither is visible in a player and both survive a metadata strip. What
+  removes them is `-map 0:v:0 -map 0:a:0? -dn -sn`, and a ring-3 test asserts the output
+  has no stream that is not `video` or `audio`.
+- **`-protocol_whitelist file`, `file:` on both paths, and a pinned input demuxer**
+  (`-f mov,mp4,m4a,3gp,3g2,mj2` or `-f matroska,webm`). Without them a crafted Matroska,
+  HLS playlist or concat script makes ffmpeg open network URLs on the server's behalf —
+  server-side request forgery, from a guest upload. Pinning `-f` also stops content
+  sniffing from choosing a demuxer the signature check never authorised.
+- **`-pix_fmt yuv420p` _and_ `format=yuv420p` at the end of the filter chain.** A phone in
+  High Efficiency records 10-bit HEVC; without both, `libx264` emits High 10, which
+  transcodes without error, passes every check this codebase can make, and renders as a
+  black rectangle on the projector. Ring 3 pins it against a genuine 10-bit source.
+- **The guest's upload is never servable.** It is stored as the `source` variant, which is
+  outside `SERVED_VARIANTS` — so the media use case's own parameter type excludes it and
+  no route can parse a value that reaches it. Those bytes still carry whatever the phone
+  wrote into the container. It is deleted the moment the transcode succeeds, and when the
+  clip is given up on **because of its own content** — not a video, an unparseable header,
+  past the duration cap or the pixel budget. It is deliberately **kept** in the one other
+  case: a job abandoned after three interrupted boots failed because the box kept dying,
+  which says nothing about the guest's video, and deleting is the one action that cannot
+  be walked back. Those bytes are collected by the reconciliation sweep below, and by the
+  retention purge if the event goes first.
+- **Two bounds on the encoder, not one.** A wall clock generous enough for a legitimate 4K
+  clip is far too generous for a decoder spinning in a demuxer loop, so there is also a
+  progress-stall bound fed by `-progress pipe:1`. Both escalate SIGTERM to **SIGKILL**:
+  Node's own `timeout` option sends SIGTERM and stops there, which such a decoder ignores.
+- **Scratch files, and cleanup on every exit path.** `+faststart` rewrites the `moov` atom
+  at the end of the file, so the output must be seekable; an mp4 input commonly has its
+  own `moov` at the end, so neither side can be a pipe. They live under **`MEDIA_ROOT`**,
+  never `os.tmpdir()`: the container runs `read_only: true` with a small tmpfs charged to
+  the same memory cgroup as the heap. Ring 3 asserts the scratch directory is empty after
+  a success, a failure and a probe.
+- **Reserve, then write. The row exists before the bytes do.** The quota is computed from
+  rows — `photos.byte_size` plus the staged sources — so while the bytes went first, every
+  refused upload had already written up to `MAX_CLIP_BYTES` that nothing counted, until a
+  sweep came round. A table of guests forwarding one video from the group chat could
+  therefore fill the disk with every individual check passing, and `ENOSPC` takes photo
+  ingest and the wall down with it. `stage` now inserts a `reserved` row — depth, quota
+  and uniqueness in one transaction — and only then is the source written and the row
+  moved to `queued`. A refusal costs zero bytes; the reservation is charged from the
+  instant it exists; and deleting becomes safe again, because the row **is** the proof of
+  ownership: the unique index means no other request can hold that digest. A reservation
+  whose bytes never arrive is deleted by the **reservation reaper**, on a five-minute
+  timer of its own.
+- **That timer is not optional, and it is not the boot pass.** A reservation nothing
+  reaps charges its event for bytes that do not exist — and the quota spans `photos`, so
+  the album's own room shrinks with it — holds one of `MAX_QUEUED_CLIPS` slots so twenty
+  of them answer every clip upload on the box with a `429`, and locks its digest so the
+  guest's own retry is deduped onto a job that will never move. While the reaper ran only
+  inside crash recovery, a box OOM-killed mid-upload came back in seconds, found the
+  stranded row ten seconds old, correctly spared it under the five-minute window, and
+  never asked again: on a box booted at 18:00 the row lived until 02:00. The window is
+  unchanged — it exists for a `--force-recreate` overlapping two containers — but the pass
+  repeats, which turns "never" into "five minutes later". It deletes rows only; the bytes
+  are `sweepOrphanedMedia`'s business, because the row goes inside a transaction and any
+  unlink would follow the commit, where a re-upload that won the digest would lose its own
+  source.
+- **`sweepOrphanedMedia` is the collector behind all of that**, and it is what makes
+  "leak rather than destroy" an honest trade wherever the code still takes it: the source
+  `recoverClipJobs` keeps when the _box_ was at fault, a worker whose job was deleted
+  under it mid-transcode, and a `.tmp` from an interrupted `put`. It lists an event's
+  stored objects and deletes those named by no `photos` row and no live `clip_jobs` row,
+  one query per event, bounded per pass, on the retention interval — and on `npm run
+purge`, which is the _only_ place it runs when an operator has moved the schedule to
+  cron. Two rules keep it safe mid-event: **nothing written in the last fifteen minutes is
+  collected**, because every write path here is bytes first and row second, and **a source
+  a reserved, queued or running job names is never collected**, however old.
+- **The same is true of a transcode that unwinds.** A clip's poster is a deterministic
+  JPEG of a frame one second in — not the first frame, which on a phone is usually black
+  — and it carries no unique index, so two clips whose opening second looks the same
+  share it. The unwind asks `findIdsReferencing` before removing either digest, exactly
+  as `deletePhoto` and `uploadPhotos` do.
+- **Both scratch directories are emptied at boot.** `MEDIA_ROOT/.uploads` and
+  `MEDIA_ROOT/.scratch` hold work in progress and nothing addressable, so the composition
+  root deletes and recreates them before the port opens. Every ordinary exit path removes
+  its own file; what survives is what a `SIGKILL`, an OOM kill or a power cut left — up
+  to `MAX_CLIP_BYTES` per interrupted upload, on the disk the byte quota exists to
+  protect, charged to no event. Nothing else would ever collect them: the retention sweep
+  deletes an event's media by content hash, and neither of these files has one.
+- **A pixel budget on the input, judged from the probed header.** `CLIP_MAX_HEIGHT` is not
+  one: it scales the _output_, and `-vf scale` runs after the decoder has already
+  allocated the frame. A valid 16000x16000 HEVC is roughly 380 MB a frame, which is an OOM
+  kill on a venue box — so `MAX_CLIP_PIXELS` refuses it before a frame exists, exactly as
+  `MAX_IMAGE_PIXELS` does for a photograph, and the refusal is permanent.
+- **A cancelled encode is not a timed-out one.** A deliberate `kill()` at shutdown and a
+  wedged decoder produce different codes (`clip.transcodeCancelled`,
+  `clip.transcodeTimedOut`), and both are **transient**: a clip must not be destroyed
+  because the operator restarted the container mid-transcode. `MAX_ATTEMPTS` bounds what
+  a genuinely pathological file can cost, and the stall bound is what stops it costing
+  that slowly.
+- **On shutdown the child is killed, not orphaned.** `container.dispose()` calls the
+  transcoder's `close()`, which SIGTERMs then SIGKILLs every running ffmpeg. Without it a
+  new container starts the same job while the old encoder holds a core all evening.
+- **ffprobe's stdout is an untrusted boundary input**, derived from a guest's file. It is
+  parsed with zod, like `req.body`.
+- **ffprobe is not the cheap header read `sharp.metadata()` is.** It is the same demuxer
+  and at its defaults partially decodes, which is why it is bounded with `-probesize` and
+  `-analyzeduration` and a timeout — and why it runs in the worker rather than on the
+  guest's request. The cheap gate on the request path is the signature, and only that.
+- **No encoder on the box is not a failure of the box.** The boot check asks `-encoders`
+  for `libx264` and `aac` **by name, never a version string**: a distribution's patched
+  build reports its own version, and one compiled without those encoders reports a
+  perfectly modern one right up until the first transcode fails. On failure the adapter is
+  replaced by a Null Object, clip uploads are refused with `clip.transcoderUnavailable`,
+  photo ingest is untouched, and `/api/ready` reports `video: unavailable` **without
+  failing**: a photo wall with no video still serves the room.
+
+### The residual, stated plainly
+
+**The clip quota is enforced twice, and both times inside a write transaction.**
+`ClipJobRepository.stage` takes the queue depth and the event's byte total — `photos`
+plus the sources still staged, in one statement — and inserts the row, all in the same
+`.immediate()` transaction; `PhotoRepository.saveManyWithinLimits` does the same for the
+transcoded output when it lands. The upload path also reads both numbers before it writes
+sixty megabytes to the disk, but that read is **advisory**: it exists so a full queue is
+refused before the bytes are written, and two requests in flight can both pass it. Only
+one of them can pass `stage`, and the loser's staged source is deleted before the
+response goes out.
+
+What remains is bounded and worth stating: the staged source is charged from the moment
+it lands and released when the job reaches `done` or `failed`, so an event's usage
+includes clips that will never become photographs until the worker says so — up to
+`MAX_QUEUED_CLIPS x MAX_CLIP_BYTES` of an event's own quota, held by its own queue. That
+is the quota doing its job rather than a hole in it: those bytes are on the disk.
+
 ## 5. Rate limits and quotas
 
 `express-rate-limit`, with a SQLite-backed store so limits survive a restart
@@ -296,9 +480,19 @@ on a restart loop)**.
 | `POST /api/auth/login`                        | 10           | —              | —               | 15 min |
 | `GET /api/join/:code` (code lookup)           | 20           | 60             | —               | 1 min  |
 | `POST /api/events/:slug/guests` (join)        | 10           | 60             | —               | 1 min  |
-| `POST /api/events/:slug/photos`               | 30           | 240            | 12              | 1 min  |
+| `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**   | —               | 1 min  |
+| `POST /api/events/:slug/clips`                | **(defect)** | **(defect)**   | —               | 1 min  |
 | `POST /api/events/:slug/photos/:id/reactions` | 120          | 600            | 60              | 1 min  |
 | `GET /api/events/:slug/stream` (SSE)          | 5 concurrent | 200 concurrent | —               | —      |
+
+**(defect)** The two upload rows describe three independent limits and there is one.
+`uploadLimiter` in `middleware/rateLimit.ts` mints a single bucket keyed by
+`clientKey:eventSlug` at `UPLOAD_RATE_LIMIT_PER_MINUTE` (default **12** per minute), and
+both upload routes share it — deliberately, because a guest sending a photo and a clip is
+one guest and two buckets would be twice the allowance. There is no per-guest-token
+limiter at all. The numbers above were never implemented; the intent — a limit that a
+whole table of guests behind one venue access point does not trip on somebody else's
+behalf — is served by the composite key rather than by three tiers.
 
 - Limits return **429** with `Retry-After` and the code `request.rateLimited`. A named
   ring-4 test asserts the status; a limiter that silently allows everything is the
@@ -405,14 +599,16 @@ and `X-Powered-By` removed.
 Guests do not sign up, do not consent to a policy, and often do not know the software
 exists. That raises the bar rather than lowering it.
 
-| Data                                                | Why                                     | Retention                                                    |
-| --------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------ |
-| Re-encoded photo bytes                              | the product                             | until photo delete, event purge, or `settings.retentionDays` |
-| `guests.display_name` (a first name, guest-typed)   | attribution on the wall                 | with the event                                               |
-| Guest device token (cookie only, `gid` in `guests`) | re-identify a device without an account | token TTL                                                    |
-| `photos.caption`                                    | the guest's words                       | with the photo                                               |
-| `users.email` + bcrypt hash                         | host/moderator accounts                 | until account delete                                         |
-| Session rows                                        | login                                   | ≤ 12 h                                                       |
+| Data                                                | Why                                     | Retention                                                                                                                                                                 |
+| --------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Re-encoded photo bytes                              | the product                             | until photo delete, event purge, or `settings.retentionDays`                                                                                                              |
+| Transcoded clip bytes and its poster frame          | the product                             | as above                                                                                                                                                                  |
+| A clip still waiting for the transcoder             | it is the guest upload, on its way      | minutes — deleted when the transcode succeeds or the clip itself is refused; kept until the event is purged when the box abandoned the job, and **never servable** (§4.1) |
+| `guests.display_name` (a first name, guest-typed)   | attribution on the wall                 | with the event                                                                                                                                                            |
+| Guest device token (cookie only, `gid` in `guests`) | re-identify a device without an account | token TTL                                                                                                                                                                 |
+| `photos.caption`                                    | the guest's words                       | with the photo                                                                                                                                                            |
+| `users.email` + bcrypt hash                         | host/moderator accounts                 | until account delete                                                                                                                                                      |
+| Session rows                                        | login                                   | ≤ 12 h                                                                                                                                                                    |
 
 **Deliberately not stored:** EXIF of any kind (GPS, device serial, capture time), the
 original filename as a path, the uploader's IP alongside the photo row, and any
@@ -453,19 +649,26 @@ asked you to remove is not a deletion.
 `src/infrastructure/config/env.ts` is the **only** file that reads `process.env`: parsed
 once with zod at startup, exported as a frozen typed object.
 
-| Variable                           | Required              | Default                                | Effect                                                                 |
-| ---------------------------------- | --------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
-| `SESSION_SECRET`                   | **yes in production** | none                                   | signs `es_sid`                                                         |
-| `GUEST_TOKEN_SECRET`               | **yes in production** | none                                   | HMAC key for guest tokens                                              |
-| `NODE_ENV`                         | no                    | `development`                          | gates `Secure` cookies, HSTS, strict CSP                               |
-| `PUBLIC_URL`                       | yes in production     | none                                   | join links, QR codes, `Origin` check                                   |
-| `DATABASE_PATH` / `MEDIA_ROOT`     | no                    | `data/eventslide.sqlite`, `data/media` | see file permissions in §11                                            |
-| `TRUST_PROXY`                      | no                    | `false`                                | see §11 — wrong values break rate limiting                             |
-| `UPLOAD_MAX_BYTES`                 | no                    | `12582912`                             | multer limit                                                           |
-| `EVENT_DEFAULT_QUOTA_BYTES`        | no                    | `5368709120`                           | new events' `quota_bytes`                                              |
-| `PORT` / `LOG_LEVEL`               | no                    | `4300`, `info`                         |                                                                        |
-| `RETENTION_SWEEP_INTERVAL_MINUTES` | no                    | `60`, and `off` under `NODE_ENV=test`  | how often expired events are deleted; see §11                          |
-| `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                    | `5`, and `off` under `NODE_ENV=test`   | how often scheduled openings and closings are applied; deletes nothing |
+| Variable                           | Required              | Default                               | Effect                                                                 |
+| ---------------------------------- | --------------------- | ------------------------------------- | ---------------------------------------------------------------------- |
+| `SESSION_SECRET`                   | **yes in production** | none                                  | signs `es_sid`                                                         |
+| `GUEST_TOKEN_SECRET`               | **yes in production** | none                                  | HMAC key for guest tokens                                              |
+| `NODE_ENV`                         | no                    | `development`                         | gates `Secure` cookies, HSTS, strict CSP                               |
+| `PUBLIC_URL`                       | yes in production     | none                                  | join links, QR codes, `Origin` check                                   |
+| `DATABASE_PATH` / `MEDIA_ROOT`     | no                    | `./data/eventslide.sqlite`, `./media` | see file permissions in §11                                            |
+| `TRUST_PROXY_HOPS`                 | no                    | `0`                                   | see §11 — wrong values break rate limiting                             |
+| `MAX_UPLOAD_BYTES`                 | no                    | `25000000`                            | multer's per-photo limit                                               |
+| `MAX_FILES_PER_UPLOAD`             | no                    | `20`                                  | photos in one request                                                  |
+| `MAX_CLIP_BYTES`                   | no                    | `80000000`                            | multer's per-clip limit; **separate on purpose** — see §4.1            |
+| `MAX_CLIP_SECONDS`                 | no                    | `15`                                  | the duration cap, applied at the probe and at the encoder              |
+| `MAX_QUEUED_CLIPS`                 | no                    | `20`                                  | queue depth before `429 clip.queueFull`                                |
+| `CLIP_MAX_HEIGHT`                  | no                    | `720`                                 | the projected height a clip is encoded at                              |
+| `MAX_CLIP_PIXELS`                  | no                    | `33177600`                            | the video decompression bomb bound, from the header — see §4.1         |
+| `FFMPEG_PATH` / `FFPROBE_PATH`     | no                    | none                                  | set, and wrong, is a refusal rather than a fallback — see §4.1         |
+| `DEFAULT_EVENT_QUOTA_BYTES`        | no                    | `5000000000`                          | new events' `quota_bytes`                                              |
+| `PORT` / `LOG_LEVEL`               | no                    | `4300`, `info`                        |                                                                        |
+| `RETENTION_SWEEP_INTERVAL_MINUTES` | no                    | `60`, and `off` under `NODE_ENV=test` | how often expired events are deleted; see §11                          |
+| `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                    | `5`, and `off` under `NODE_ENV=test`  | how often scheduled openings and closings are applied; deletes nothing |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,
@@ -484,17 +687,18 @@ soon as an owner exists. Password rules live in `src/domain/users/`, not the con
 
 ## 11. Deployment posture
 
-| Concern           | Do this                                                                                                                                 | Because                                                                                                                                                                                           |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TLS               | terminate at nginx/Caddy/Traefik; bind the app to `127.0.0.1`                                                                           | guests are on hostile Wi-Fi; the cookie and the token are bearer credentials                                                                                                                      |
-| `trust proxy`     | set `TRUST_PROXY` to the number of proxies (usually `1`) or their CIDRs; never `true` on a public interface                             | `req.ip` feeds the rate limiter and `Secure` detection. With `trust proxy` too permissive, a client spoofs `X-Forwarded-For` and gets a fresh bucket per request — the limiter becomes decorative |
-| Headers           | let the app own security headers; do not duplicate CSP at the proxy                                                                     | two CSPs intersect and produce a policy nobody wrote                                                                                                                                              |
-| SSE               | disable proxy buffering (`proxy_buffering off`, and the app sends `X-Accel-Buffering: no`); raise read timeout above the 15 s heartbeat | a buffering proxy makes the wall look frozen                                                                                                                                                      |
-| Uploads           | proxy body limit ≥ `UPLOAD_MAX_BYTES` + overhead                                                                                        | otherwise the proxy rejects before the app can return a useful error                                                                                                                              |
-| File permissions  | run as a dedicated non-root user; DB `0600`, `MEDIA_ROOT` `0700`; both outside the web root                                             | the SQLite file contains session data and every hash                                                                                                                                              |
-| Process hardening | systemd: `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `ReadWritePaths=` the data dir                                | limits what a `sharp` or Node CVE can reach                                                                                                                                                       |
-| Backups           | `npm run backup`, then copy the archive off the machine; rehearse with `npm run restore -- <archive> --dry-run`. Below.                 | copying a live WAL database yields a corrupt backup, and an untested restore is not a backup. A wedding album has no second take                                                                  |
-| Updates           | pin the version, read the release notes, `npm audit` before a deploy                                                                    | see §12: self-hosted means you own patching                                                                                                                                                       |
+| Concern           | Do this                                                                                                                                                                                             | Because                                                                                                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TLS               | terminate at nginx/Caddy/Traefik; bind the app to `127.0.0.1`                                                                                                                                       | guests are on hostile Wi-Fi; the cookie and the token are bearer credentials                                                                                                                      |
+| `trust proxy`     | set `TRUST_PROXY_HOPS` to the number of proxies in front of the app (usually `1`); never a boolean `true` on a public interface                                                                     | `req.ip` feeds the rate limiter and `Secure` detection. With `trust proxy` too permissive, a client spoofs `X-Forwarded-For` and gets a fresh bucket per request — the limiter becomes decorative |
+| Headers           | let the app own security headers; do not duplicate CSP at the proxy                                                                                                                                 | two CSPs intersect and produce a policy nobody wrote                                                                                                                                              |
+| SSE               | disable proxy buffering (`proxy_buffering off`, and the app sends `X-Accel-Buffering: no`); raise read timeout above the 15 s heartbeat                                                             | a buffering proxy makes the wall look frozen                                                                                                                                                      |
+| Uploads           | proxy body limit ≥ `MAX_UPLOAD_BYTES` + overhead                                                                                                                                                    | otherwise the proxy rejects before the app can return a useful error                                                                                                                              |
+| Video             | leave `ffmpeg` installed (the image does) and raise the proxy read timeout above a clip upload, not above a transcode: a clip is encoded **after** the response, so no request waits on the encoder | a missing encoder is reported by `/api/ready` as a detail and refuses clips by name; it never takes the wall out of service                                                                       |
+| File permissions  | run as a dedicated non-root user; DB `0600`, `MEDIA_ROOT` `0700`; both outside the web root                                                                                                         | the SQLite file contains session data and every hash                                                                                                                                              |
+| Process hardening | systemd: `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `ReadWritePaths=` the data dir                                                                                            | limits what a `sharp` or Node CVE can reach                                                                                                                                                       |
+| Backups           | `npm run backup`, then copy the archive off the machine; rehearse with `npm run restore -- <archive> --dry-run`. Below.                                                                             | copying a live WAL database yields a corrupt backup, and an untested restore is not a backup. A wedding album has no second take                                                                  |
+| Updates           | pin the version, read the release notes, `npm audit` before a deploy                                                                                                                                | see §12: self-hosted means you own patching                                                                                                                                                       |
 
 **If the join code leaks** (screenshotted, posted, printed on the wrong sign):
 `POST /api/events/:slug/join-code`, then reprint the QR — the old code stops
@@ -569,6 +773,15 @@ Two triggers now, for two kinds of operator:
 | `npm run purge` (`npm run purge:dry-run` to preview) | cron or a systemd timer | you want the schedule outside the app — then set `RETENTION_SWEEP_INTERVAL_MINUTES=off` — or you need the answer now |
 
 Both run the same use case, so the two can never disagree about what is due.
+
+**Both also run the media reconciliation sweep** (§4.1), and the second one has to: the
+switch that moves the schedule to cron is the same switch the container reads to decide
+whether to build the collector at all. Without it in the script, the deployment documented
+on the row above would be the one deployment where an orphaned clip source is never
+collected — the upload path deliberately leaks rather than risking a destructive delete,
+and there would be nothing behind it. It runs on every invocation that is not a dry run,
+including one that purged nothing: the leaks it collects have nothing to do with
+retention.
 
 **Disabling it takes the word `off`.** `RETENTION_SWEEP_INTERVAL_MINUTES=0` and an empty
 value are refused at boot, deliberately: every other numeric setting here is coerced with
@@ -712,16 +925,18 @@ server and no configuration beyond those two paths.
 
 Stated plainly: a threat model that claims to cover everything covers nothing.
 
-| Risk                                                                | Why it is accepted                                                                                                                                                                                                                                                    | Partial mitigation                                                                                                                                                                      |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A guest with the join code can upload anything                      | that is the product; the alternative is per-guest accounts, which kills the zero-friction requirement                                                                                                                                                                 | moderation before projection, per-guest rate limit, host can revoke a guest — and a revoked device is refused at the join endpoint too, so the code alone no longer undoes it (§11)     |
-| A leaked display URL exposes published photos **and the join code** | the wall doubles as the invitation — the empty state exists to tell the room how to join, and someone arriving at 23:00 has only the screen to read. Withholding the code there would break the product to protect what the QR code on every table already gives away | only `published` photos are ever served; the host can rotate the join code, which invalidates it immediately; display access can require the join code for private events **(planned)** |
-| Guest identity is a device cookie, not a person                     | anonymity is a feature; a cleared cookie means a new guest, and a shared phone means a shared identity. This is also the ceiling on revocation (§11): it refuses the revoked **device**, so clearing cookies or borrowing a phone is a new guest with the same code   | grace-window deletion is deliberately short, so a mis-attributed identity has a narrow blast radius; revocation stops the re-scan, and a join-code rotation is what stops the evader    |
-| Captions and display names are guest-supplied text on a 3 m screen  | pre-moderating text as well as photos would slow the wall to uselessness                                                                                                                                                                                              | length-bounded, control characters stripped in the domain, rendered as text (React escapes; no `dangerouslySetInnerHTML` anywhere), and the host can hide any photo instantly           |
-| Rate-limit state is in-process in the first cut                     | a restart resets buckets                                                                                                                                                                                                                                              | quota is transactional and survives restarts; SQLite-backed limiter store is **(planned)**                                                                                              |
-| Self-hosted operators own their own patching, TLS, and backups      | there is no hosted control plane to push a fix from                                                                                                                                                                                                                   | pinned dependencies, published advisories, and boot-time config refusal so a misconfigured instance never starts quietly                                                                |
-| A backup archive is untrusted input with unauthenticated checksums  | signing needs a key, and a key kept beside the archive signs nothing; a self-hosted operator has nowhere to put one that a machine restoring after a total loss can still reach. An archive stays usable by whoever holds it, which is what an attacker uses          | paths are constrained at the parse, so an archive no longer chooses where the restore writes; contents are another matter, so restore only from a copy you control (§11)                |
-| A malicious host can read every photo in their own event            | they organised the event; the data is theirs                                                                                                                                                                                                                          | per-event roles limit _moderators_ to their own events                                                                                                                                  |
+| Risk                                                                     | Why it is accepted                                                                                                                                                                                                                                                                                          | Partial mitigation                                                                                                                                                                      |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A guest with the join code can upload anything                           | that is the product; the alternative is per-guest accounts, which kills the zero-friction requirement                                                                                                                                                                                                       | moderation before projection, per-guest rate limit, host can revoke a guest — and a revoked device is refused at the join endpoint too, so the code alone no longer undoes it (§11)     |
+| A leaked display URL exposes published photos **and the join code**      | the wall doubles as the invitation — the empty state exists to tell the room how to join, and someone arriving at 23:00 has only the screen to read. Withholding the code there would break the product to protect what the QR code on every table already gives away                                       | only `published` photos are ever served; the host can rotate the join code, which invalidates it immediately; display access can require the join code for private events **(planned)** |
+| Guest identity is a device cookie, not a person                          | anonymity is a feature; a cleared cookie means a new guest, and a shared phone means a shared identity. This is also the ceiling on revocation (§11): it refuses the revoked **device**, so clearing cookies or borrowing a phone is a new guest with the same code                                         | grace-window deletion is deliberately short, so a mis-attributed identity has a narrow blast radius; revocation stops the re-scan, and a join-code rotation is what stops the evader    |
+| Captions and display names are guest-supplied text on a 3 m screen       | pre-moderating text as well as photos would slow the wall to uselessness                                                                                                                                                                                                                                    | length-bounded, control characters stripped in the domain, rendered as text (React escapes; no `dangerouslySetInnerHTML` anywhere), and the host can hide any photo instantly           |
+| Rate-limit state is in-process in the first cut                          | a restart resets buckets                                                                                                                                                                                                                                                                                    | quota is transactional and survives restarts; SQLite-backed limiter store is **(planned)**                                                                                              |
+| An event's byte quota can be held by clips that never become photographs | the staged source is charged from the moment it lands, because it is on the disk the quota protects, and released only when the job reaches `done` or `failed`. Both the depth and the byte total are decided inside `ClipJobRepository.stage`'s own transaction, so two uploads in flight cannot both pass | bounded by the event's own queue at `MAX_QUEUED_CLIPS x MAX_CLIP_BYTES`, and released as each clip finishes or fails (§4.1)                                                             |
+| One event can fill the clip queue for every event on the box             | backpressure is process-wide because the worker is: one encoder at concurrency 1 serves the whole machine, and the wait a guest experiences is the global one. A per-event cap would admit a clip and then make it queue behind another event's backlog anyway — the same wait, reported as a success       | the deployment target is one venue with one live event; per-event fairness is carried by the byte quota and by the upload limiter, which is keyed by event                              |
+| Self-hosted operators own their own patching, TLS, and backups           | there is no hosted control plane to push a fix from                                                                                                                                                                                                                                                         | pinned dependencies, published advisories, and boot-time config refusal so a misconfigured instance never starts quietly                                                                |
+| A backup archive is untrusted input with unauthenticated checksums       | signing needs a key, and a key kept beside the archive signs nothing; a self-hosted operator has nowhere to put one that a machine restoring after a total loss can still reach. An archive stays usable by whoever holds it, which is what an attacker uses                                                | paths are constrained at the parse, so an archive no longer chooses where the restore writes; contents are another matter, so restore only from a copy you control (§11)                |
+| A malicious host can read every photo in their own event                 | they organised the event; the data is theirs                                                                                                                                                                                                                                                                | per-event roles limit _moderators_ to their own events                                                                                                                                  |
 
 ## 13. Reporting a vulnerability
 

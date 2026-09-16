@@ -9,6 +9,8 @@ import type { ReactionRepository } from '../application/ports/reactionRepository
 import type { MembershipRepository, UserRepository } from '../application/ports/userRepository'
 import type { MediaStore } from '../application/ports/mediaStore'
 import type { ImageProcessor } from '../application/ports/imageProcessor'
+import type { ClipJobRepository } from '../application/ports/clipJobRepository'
+import type { VideoTranscoder } from '../application/ports/videoTranscoder'
 import type { ContentHasher } from '../application/ports/contentHasher'
 import type { ArchiveWriter } from '../application/ports/archiveWriter'
 import type { PasswordHasher } from '../application/ports/passwordHasher'
@@ -26,6 +28,7 @@ import { makeGetEventBySlug } from '../application/usecases/events/getEventBySlu
 import { makeListEventsForHost } from '../application/usecases/events/listEventsForHost'
 import { makePurgeEvent } from '../application/usecases/events/purgeEvent'
 import { makePurgeExpiredEvents } from '../application/usecases/events/purgeExpiredEvents'
+import { makeSweepOrphanedMedia } from '../application/usecases/media/sweepOrphanedMedia'
 import { makeResolveJoinCode } from '../application/usecases/events/resolveJoinCode'
 import { makeRotateJoinCode } from '../application/usecases/events/rotateJoinCode'
 import { makeScheduleEvent } from '../application/usecases/events/scheduleEvent'
@@ -54,6 +57,12 @@ import { makeGetTopPhotos } from '../application/usecases/reactions/getTopPhotos
 import { makeReactToPhoto } from '../application/usecases/reactions/reactToPhoto'
 import { makeWithdrawReaction } from '../application/usecases/reactions/withdrawReaction'
 
+import { makeGetClipJob } from '../application/usecases/clips/getClipJob'
+import { makeReapStaleReservations } from '../application/usecases/clips/reapStaleReservations'
+import { makeRecoverClipJobs } from '../application/usecases/clips/recoverClipJobs'
+import { makeTranscodeNextClip } from '../application/usecases/clips/transcodeNextClip'
+import { makeUploadClip } from '../application/usecases/clips/uploadClip'
+
 import { makeGetWallPlaylist } from '../application/usecases/slideshow/getWallPlaylist'
 
 /**
@@ -69,12 +78,15 @@ export interface Adapters {
   readonly bus: EventBus
   readonly events: EventRepository
   readonly photos: PhotoRepository
+  readonly clips: ClipJobRepository
   readonly guests: GuestRepository
   readonly reactions: ReactionRepository
   readonly users: UserRepository
   readonly memberships: MembershipRepository
   readonly media: MediaStore
   readonly imageProcessor: ImageProcessor
+  /** The real encoder, or the Null Object when this box has none. */
+  readonly videoTranscoder: VideoTranscoder
   readonly contentHasher: ContentHasher
   readonly archive: ArchiveWriter
   readonly passwordHasher: PasswordHasher
@@ -88,6 +100,20 @@ export interface UseCasePolicy {
   readonly reactionBudget: {
     readonly windowMs: number
     readonly maxPerWindow: number
+  }
+  /** How recently written an object must be for the reconciliation sweep to spare it. */
+  readonly mediaSweepMinimumAgeMs: number
+  /** The most digests one reconciliation pass will consider, across every event. */
+  readonly mediaSweepMaxDigestsPerPass: number
+  readonly clips: {
+    readonly maxQueuedClips: number
+    /** How long a reservation may sit before recovery treats it as wreckage. */
+    readonly reservationTimeoutMs: number
+    readonly maxHeight: number
+    readonly maxDurationMs: number
+    readonly maxOutputBytes: number
+    readonly posterMaxEdge: number
+    readonly maxPixels: number
   }
 }
 
@@ -163,6 +189,22 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     media: adapters.media,
     clock: adapters.clock,
   }),
+  /**
+   * The collector the clip upload, the losing staging attempt and `recoverClipJobs` all
+   * rely on. None of those deletes media itself any more, because deleting by digest can
+   * destroy a byte-identical file somebody else owns.
+   */
+  sweepOrphanedMedia: makeSweepOrphanedMedia({
+    photos: adapters.photos,
+    clips: adapters.clips,
+    media: adapters.media,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    policy: {
+      minimumAgeMs: policy.mediaSweepMinimumAgeMs,
+      maxDigestsPerPass: policy.mediaSweepMaxDigestsPerPass,
+    },
+  }),
   scheduleEvent: makeScheduleEvent({
     events: adapters.events,
     memberships: adapters.memberships,
@@ -221,6 +263,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   deletePhoto: makeDeletePhoto({
     events: adapters.events,
     photos: adapters.photos,
+    clips: adapters.clips,
     media: adapters.media,
     bus: adapters.bus,
     clock: adapters.clock,
@@ -238,6 +281,69 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     media: adapters.media,
     archive: adapters.archive,
     logger: adapters.logger,
+  }),
+
+  // ------------------------------------------------------------------ clips --
+  uploadClip: makeUploadClip({
+    events: adapters.events,
+    clips: adapters.clips,
+    photos: adapters.photos,
+    media: adapters.media,
+    transcoder: adapters.videoTranscoder,
+    hasher: adapters.contentHasher,
+    bus: adapters.bus,
+    clock: adapters.clock,
+    ids: adapters.ids,
+    logger: adapters.logger,
+    limits: { maxQueuedClips: policy.clips.maxQueuedClips },
+  }),
+  getClipJob: makeGetClipJob({ clips: adapters.clips }),
+  /**
+   * The two the HTTP layer deliberately does not list.
+   *
+   * Both drain the queue across **every** event on the box, so a route in front of
+   * either would be an endpoint with no tenant to scope it to. `src/main/clipWorker.ts`
+   * is their only caller.
+   */
+  transcodeNextClip: makeTranscodeNextClip({
+    events: adapters.events,
+    clips: adapters.clips,
+    photos: adapters.photos,
+    media: adapters.media,
+    transcoder: adapters.videoTranscoder,
+    hasher: adapters.contentHasher,
+    bus: adapters.bus,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    policy: {
+      maxHeight: policy.clips.maxHeight,
+      maxDurationMs: policy.clips.maxDurationMs,
+      maxOutputBytes: policy.clips.maxOutputBytes,
+      posterMaxEdge: policy.clips.posterMaxEdge,
+      maxPixels: policy.clips.maxPixels,
+    },
+  }),
+  // It takes `media` for **reservations only** — rows whose bytes never arrived, which it
+  // deletes row-and-bytes together because the row was the proof of ownership. A job it
+  // *abandons* keeps its source: giving up after three interrupted boots says something
+  // about the box, not about the guest's video.
+  recoverClipJobs: makeRecoverClipJobs({
+    clips: adapters.clips,
+    clock: adapters.clock,
+    logger: adapters.logger,
+  }),
+
+  /**
+   * Reservations, on a short timer rather than only at boot — see the use case. It is
+   * separate from `recoverClipJobs` because that one may run **only** at startup:
+   * `recoverAbandoned` reads every `running` row as the wreckage of a dead process, which
+   * is true then and false while the encoder is working.
+   */
+  reapStaleReservations: makeReapStaleReservations({
+    clips: adapters.clips,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    policy: { reservationTimeoutMs: policy.clips.reservationTimeoutMs },
   }),
 
   // ------------------------------------------------------------- moderation --

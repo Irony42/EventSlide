@@ -120,6 +120,31 @@ const settingsInteger = (value: unknown, field: string): number => {
 const settingsNullableInteger = (value: unknown, field: string): number | null =>
   value === null ? null : settingsInteger(value, field)
 
+/**
+ * The one exception to "every field is required", and it is the exception a settings
+ * blob written as JSON always eventually needs.
+ *
+ * `allowClips` arrived with migration 003. Every event created before it has a
+ * `settings` blob with no such key, and there is no way to backfill one — the column is
+ * opaque JSON, so a migration would have to parse and rewrite every row of every album.
+ * Refusing those rows would make the upgrade take down every existing wedding; silently
+ * defaulting a field a host *did* choose is the failure the strict reading above exists
+ * to prevent, and it cannot happen here because no host has ever chosen this one.
+ *
+ * **The fallback is what an absent key means, which is not the same as the default a new
+ * event gets.** `EventSettings`' own default is the answer to "what should a host who
+ * has not thought about it have"; this is the answer to "what should an event whose host
+ * was never asked have". For a feature that costs nothing they are the same value; for
+ * one that opens an 80 MB upload path onto a live event they are not, and conflating
+ * them is how a deploy changes the behaviour of somebody's wedding at 21:00.
+ *
+ * A field added in a future migration belongs here too, with its own line saying which
+ * migration introduced it, and its own answer to that question. A field that has always
+ * existed does not.
+ */
+const settingsBooleanAddedLater = (value: unknown, field: string, fallback: boolean): boolean =>
+  value === undefined ? fallback : settingsBoolean(value, field)
+
 const decodeJson = (raw: string): unknown => {
   try {
     return JSON.parse(raw)
@@ -146,6 +171,30 @@ const settingsOf = (raw: string): EventSettings => {
     moderation,
     allowCaptions: settingsBoolean(decoded['allowCaptions'], 'allowCaptions'),
     allowReactions: settingsBoolean(decoded['allowReactions'], 'allowReactions'),
+    /**
+     * Added by migration 003, and **off** when the key is absent — the one place this
+     * differs from the domain's own default of `true`.
+     *
+     * A row with no key predates the field, so its host was never asked, and switching on
+     * an 80 MB upload path and a CPU-bound encoder for an event that may be live right
+     * now is a change nobody consented to. An event created after this deploy is written
+     * *with* the key and keeps `true`.
+     *
+     * **There is no settings control for this yet.** It is not in `EventSettingsPage`, it
+     * is not in `web/src/lib/api/dto.ts`, and `dtoContract.test.ts` exempts
+     * `EventSettingsDto: ['allowClips']` outright — the toggle ships with the web
+     * surfaces, on their own branch. Until it does, the only way to enable video on an
+     * event that predates this deploy is `PATCH /api/events/:slug/settings` with
+     * `{"allowClips": true}`.
+     *
+     * And one consequence worth knowing before it is discovered: this is a **one-way
+     * door**. The first save of *any* unrelated setting on a pre-deploy event writes the
+     * whole blob, `allowClips: false` included — after which the key is present and
+     * indistinguishable from a host who looked at the switch and chose no. No later
+     * migration can tell those apart, so an upgrade path that wanted to revisit the
+     * decision cannot be written afterwards.
+     */
+    allowClips: settingsBooleanAddedLater(decoded['allowClips'], 'allowClips', false),
     allowGuestSelfDelete: settingsBoolean(decoded['allowGuestSelfDelete'], 'allowGuestSelfDelete'),
     guestSelfDeleteGraceSeconds: settingsInteger(
       decoded['guestSelfDeleteGraceSeconds'],

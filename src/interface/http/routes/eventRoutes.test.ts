@@ -2,7 +2,7 @@ import type { Express } from 'express'
 import request, { type Agent, type Test } from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Logger } from '../../../application/ports/logger'
-import type { MediaMetadata, MediaStore } from '../../../application/ports/mediaStore'
+import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
 import type { PasswordHasher } from '../../../application/ports/passwordHasher'
 import { makeRegisterModerator } from '../../../application/usecases/auth/registerModerator'
 import { makeChangeEventStatus } from '../../../application/usecases/events/changeEventStatus'
@@ -94,6 +94,8 @@ class PurgingMediaStore implements MediaStore {
   read = async (): Promise<Uint8Array | null> => notPartOfTheseRoutes('read')
   delete = async (): Promise<void> => notPartOfTheseRoutes('delete')
   usedBytes = async (): Promise<number> => notPartOfTheseRoutes('usedBytes')
+  listEvents = async (): Promise<readonly EventId[]> => notPartOfTheseRoutes('listEvents')
+  list = async (): Promise<readonly StoredObject[]> => notPartOfTheseRoutes('list')
 }
 
 /**
@@ -205,6 +207,8 @@ const buildWorld = (): World => {
         deletePhoto: absent('deletePhoto'),
         setPhotoCaption: absent('setPhotoCaption'),
         getPhotoMedia: absent('getPhotoMedia'),
+        uploadClip: absent('uploadClip'),
+        getClipJob: absent('getClipJob'),
         exportAlbum: absent('exportAlbum'),
 
         getModerationQueue: absent('getModerationQueue'),
@@ -755,6 +759,7 @@ describe('the host event routes', () => {
         moderation: 'auto',
         allowCaptions: false,
         allowReactions: false,
+        allowClips: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
@@ -766,6 +771,7 @@ describe('the host event routes', () => {
         moderation: 'auto',
         allowCaptions: false,
         allowReactions: false,
+        allowClips: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,

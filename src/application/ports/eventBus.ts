@@ -1,4 +1,4 @@
-import type { EventId, GuestId, PhotoId } from '../../domain/shared/ids'
+import type { ClipJobId, EventId, GuestId, PhotoId } from '../../domain/shared/ids'
 import type { EventStatus } from '../../domain/events/eventStatus'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import type { ReactionKind } from '../../domain/reactions/reactionKind'
@@ -37,6 +37,22 @@ export type DomainEvent =
       readonly status: EventStatus
     }
   | { readonly type: 'event.settingsChanged'; readonly eventId: EventId }
+  /**
+   * A clip has been staged and is waiting for the transcoder.
+   *
+   * Two subscribers care, for different reasons. The guest's own view refetches, so
+   * "en cours de traitement" appears without polling. And the worker wakes: a clip
+   * uploaded at 22:03 must not wait for the next tick of a timer sized for an idle
+   * evening. There is no `photos` row behind this fact, which is why it names a
+   * `ClipJobId` and not a `PhotoId`.
+   */
+  | { readonly type: 'clip.queued'; readonly eventId: EventId; readonly clipJobId: ClipJobId }
+  /**
+   * A clip will never become a photo. Announced so the guest's own view stops saying
+   * "en cours" for the rest of the evening; the wall learns nothing, because there was
+   * never anything on it.
+   */
+  | { readonly type: 'clip.failed'; readonly eventId: EventId; readonly clipJobId: ClipJobId }
 
 export type DomainEventType = DomainEvent['type']
 
@@ -88,4 +104,23 @@ export interface EventBus {
    * say no.
    */
   subscribe(eventId: EventId, listener: EventListener): Result<Unsubscribe, DomainError>
+
+  /**
+   * Listen to **every** event's activity, for an in-process worker rather than a client.
+   *
+   * The clip worker needs this and nothing else does: it drains one queue for the whole
+   * box, so it cannot name the event it is waiting for — the next clip may be staged by
+   * a guest at an event that had no subscriber a second ago.
+   *
+   * Not a `Result`, unlike {@link EventBus.subscribe}. The cap that makes that one
+   * fallible exists because the wall's channel needs no authentication and a stranger can
+   * open two hundred sockets against it; there is no such pressure here, because there is
+   * no way to reach this from outside the process. The composition root subscribes once
+   * at boot and unsubscribes at shutdown.
+   *
+   * A listener here is called for facts about every event, so it must **never** be used
+   * to serve one — that is exactly 1.0's single global `EventEmitter`, where each
+   * subscriber was trusted to compare party names inside its own callback.
+   */
+  subscribeAll(listener: EventListener): Unsubscribe
 }

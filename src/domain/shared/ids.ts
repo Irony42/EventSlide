@@ -20,6 +20,16 @@ export type PhotoId = Branded<string, 'PhotoId'>
 export type GuestId = Branded<string, 'GuestId'>
 export type UserId = Branded<string, 'UserId'>
 export type ReactionId = Branded<string, 'ReactionId'>
+/**
+ * A queued transcode, not a photo.
+ *
+ * Separate from `PhotoId` because the two name different things at different times: a
+ * `ClipJobId` exists while there is no `photos` row at all, and it is what a guest's
+ * phone polls to find out what became of the fifteen seconds they sent. Branding it
+ * means the id a guest polls with can never be mistaken for the id of the row the
+ * transcode eventually produces.
+ */
+export type ClipJobId = Branded<string, 'ClipJobId'>
 
 /**
  * The only casts in the codebase. Use them at a boundary — a database row becoming an
@@ -30,3 +40,4 @@ export const asPhotoId = (value: string): PhotoId => value as PhotoId
 export const asGuestId = (value: string): GuestId => value as GuestId
 export const asUserId = (value: string): UserId => value as UserId
 export const asReactionId = (value: string): ReactionId => value as ReactionId
+export const asClipJobId = (value: string): ClipJobId => value as ClipJobId

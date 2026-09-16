@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  asClipJobId,
   asEventId,
   asGuestId,
   asPhotoId,
   asReactionId,
   asUserId,
+  type ClipJobId,
   type EventId,
   type GuestId,
   type PhotoId,
@@ -26,6 +28,7 @@ const takesPhotoId = (id: PhotoId): PhotoId => id
 const takesGuestId = (id: GuestId): GuestId => id
 const takesUserId = (id: UserId): UserId => id
 const takesReactionId = (id: ReactionId): ReactionId => id
+const takesClipJobId = (id: ClipJobId): ClipJobId => id
 
 /* Each helper must produce the brand its name promises. A helper that quietly widened
    to `string` would stop compiling here. */
@@ -34,6 +37,7 @@ takesPhotoId(asPhotoId('pho-42'))
 takesGuestId(asGuestId('gst-42'))
 takesUserId(asUserId('usr-42'))
 takesReactionId(asReactionId('rct-42'))
+takesClipJobId(asClipJobId('clp-42'))
 
 /* Tenant isolation in this product *is* "did you pass the right event id", so the
    cross-assignments below must not compile. Each suppression is load-bearing: if
@@ -46,6 +50,8 @@ takesPhotoId(asEventId('evt-42'))
 takesUserId(asGuestId('gst-42'))
 // @ts-expect-error ids only enter the domain through the as*Id helpers.
 takesEventId('evt-42')
+// @ts-expect-error a job a guest is polling is not the photo row it will produce.
+takesPhotoId(asClipJobId('clp-42'))
 
 const HELPERS: readonly [string, (value: string) => string][] = [
   ['asEventId', asEventId],
@@ -53,6 +59,7 @@ const HELPERS: readonly [string, (value: string) => string][] = [
   ['asGuestId', asGuestId],
   ['asUserId', asUserId],
   ['asReactionId', asReactionId],
+  ['asClipJobId', asClipJobId],
 ]
 
 describe('branded id helpers', () => {

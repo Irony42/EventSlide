@@ -64,6 +64,9 @@ export const notWiredUseCases = (): HttpUseCases => ({
   deletePhoto: notWired('deletePhoto'),
   setPhotoCaption: notWired('setPhotoCaption'),
   getPhotoMedia: notWired('getPhotoMedia'),
+
+  uploadClip: notWired('uploadClip'),
+  getClipJob: notWired('getClipJob'),
   exportAlbum: notWired('exportAlbum'),
 
   getModerationQueue: notWired('getModerationQueue'),
@@ -96,6 +99,7 @@ export interface MutableHealthChecks {
   now: () => Date
   databaseReady: () => Promise<boolean>
   mediaWritable: () => Promise<boolean>
+  videoTranscoding: () => 'ok' | 'unavailable'
 }
 
 export interface ServerHarnessOptions {
@@ -142,6 +146,7 @@ export const buildServerHarness = ({
     now: () => world.clock.now(),
     databaseReady: async () => true,
     mediaWritable: async () => true,
+    videoTranscoding: () => 'ok',
   }
 
   const app = buildServer({

@@ -69,6 +69,18 @@ export interface GuestRouteDeps {
    * ceilings, and for the same reason. Production leaves it alone.
    */
   readonly maxUploadBytesPerRequest?: number
+  /**
+   * The upload bucket, **built by the caller so the clip route can share this one**.
+   *
+   * `express-rate-limit` mints a fresh `MemoryStore` per call, so two
+   * `uploadLimiter(...)` calls are two independent allowances: a guest who had spent
+   * the photo budget still had a whole clip budget, and the documented per-guest upload
+   * rate was quietly double what it said. One instance, passed in, is what makes "a
+   * guest sending clips and photos at once is one guest" true rather than written down.
+   *
+   * Optional only so a test can mount this router alone; production passes it.
+   */
+  readonly uploadRateLimiter?: RequestHandler
 }
 
 /** The multipart field name. Anything else is `LIMIT_UNEXPECTED_FILE` from multer. */
@@ -256,6 +268,7 @@ export const guestRoutes = ({
   deps,
   usecases,
   maxUploadBytesPerRequest = MAX_UPLOAD_BYTES_PER_REQUEST,
+  uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerMinute),
 }: GuestRouteDeps): Router => {
   const router = Router()
 
@@ -308,7 +321,7 @@ export const guestRoutes = ({
    */
   router.post(
     '/events/:eventSlug/photos',
-    uploadLimiter(deps.config.rateLimits.uploadPerMinute),
+    uploadRateLimiter,
     requireGuest(deps),
     uploads.array(PHOTOS_FIELD),
     withGuest(async ({ event, guest }, req, res) => {

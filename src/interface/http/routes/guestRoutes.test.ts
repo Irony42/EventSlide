@@ -6,11 +6,12 @@ import { GUEST_COOKIE, requireRole, resolvePublicEvent } from '../middleware/aut
 import { sendNoContent } from '../presenters/send'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
-import type { MediaMetadata, MediaStore } from '../../../application/ports/mediaStore'
+import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
 import { AT, aGuest, aPhoto, aReaction, anEvent } from '../../../application/testing/builders'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
+import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListGuestPhotos } from '../../../application/usecases/photos/listGuestPhotos'
 import { makeSetPhotoCaption } from '../../../application/usecases/photos/setPhotoCaption'
@@ -120,6 +121,14 @@ class RecordingMediaStore implements MediaStore {
 
   async usedBytes(): Promise<number> {
     throw new Error(unreached('usedBytes'))
+  }
+
+  async listEvents(): Promise<readonly EventId[]> {
+    throw new Error(unreached('listEvents'))
+  }
+
+  async list(): Promise<readonly StoredObject[]> {
+    throw new Error(unreached('list'))
   }
 }
 
@@ -234,6 +243,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
             deletePhoto: makeDeletePhoto({
               events: deps.events,
               photos,
+              clips: new FakeClipJobRepository(),
               media,
               bus: deps.bus,
               clock: deps.clock,
@@ -697,6 +707,11 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       caption: null,
       createdAt: AT.toISOString(),
       canDelete: true,
+      // The clip facet, `null` on a photograph rather than absent, so no client has to
+      // test for a missing key before deciding what to render.
+      kind: 'photo',
+      videoUrl: null,
+      durationMs: null,
     })
   })
 

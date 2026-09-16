@@ -102,6 +102,8 @@ const photoPublished = (eventId: string): DomainEvent => ({
 const busAtCapacity = (): EventBus => ({
   publish: () => {},
   subscribe: () => err(DomainError.unexpected('service.notReady')),
+  // The clip worker's channel. Uncapped, and beside the point of this double.
+  subscribeAll: () => () => {},
 })
 
 /** Every `id:` a client was sent, in order. */

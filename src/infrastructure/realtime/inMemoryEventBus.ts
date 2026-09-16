@@ -66,6 +66,13 @@ export const createInMemoryEventBus = ({
   const byEvent = new Map<EventId, Set<EventListener>>()
 
   /**
+   * Subscribers that hear every event, for in-process work that drains one queue for the
+   * whole box. Uncapped, because nothing outside the process can reach it — see
+   * `EventBus.subscribeAll`.
+   */
+  const global = new Set<EventListener>()
+
+  /**
    * One number per delivered announcement, shared by every subscriber of it.
    *
    * Process-wide rather than per event, so there is nothing to purge when an event's
@@ -77,16 +84,17 @@ export const createInMemoryEventBus = ({
 
   return {
     publish: (event: DomainEvent): void => {
-      const listeners = byEvent.get(event.eventId)
-      if (!listeners || listeners.size === 0) return
+      const scoped = byEvent.get(event.eventId)
+      // A copy, because a listener may unsubscribe itself while being called — an SSE
+      // connection closing mid-broadcast does exactly that, and mutating the set
+      // during iteration would skip a subscriber.
+      const listeners = [...(scoped ?? []), ...global]
+      if (listeners.length === 0) return
 
       lastSequence += 1
       const delivery: Delivery = { sequence: lastSequence }
 
-      // A copy, because a listener may unsubscribe itself while being called — an SSE
-      // connection closing mid-broadcast does exactly that, and mutating the set
-      // during iteration would skip a subscriber.
-      for (const listener of [...listeners]) {
+      for (const listener of listeners) {
         try {
           listener(event, delivery)
         } catch (cause) {
@@ -134,6 +142,16 @@ export const createInMemoryEventBus = ({
       })
     },
 
+    subscribeAll: (listener: EventListener): Unsubscribe => {
+      global.add(listener)
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        global.delete(listener)
+      }
+    },
+
     subscriberCount: (eventId?: EventId): number => {
       if (eventId !== undefined) return byEvent.get(eventId)?.size ?? 0
       let total = 0
@@ -143,6 +161,7 @@ export const createInMemoryEventBus = ({
 
     close: (): void => {
       byEvent.clear()
+      global.clear()
     },
   }
 }
