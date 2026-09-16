@@ -381,6 +381,95 @@ on data it does not own, "what happened" stops being a question the git history 
 
 ---
 
+## 11. The feel of the thing — a liquid-glass interface
+
+Everything in this document so far is about what the product does. This category is about
+what it feels like to use, which is not decoration: a guest decides in the first three
+seconds whether this is a serious tool or a school project, and a host decides whether to
+recommend it by how it looked on the wall in front of their friends.
+
+The target is a **liquid-glass surface language** — translucent panes that pick up the
+photograph behind them, depth from layering rather than from borders, motion that responds
+to the hand — with a **wahou** on first sight and no cost to how obvious the thing is to
+use. Those two are in tension, and where they conflict the guest wins: an interface that
+impresses and then loses a photo is worse than the plain one it replaced.
+
+### 11.1 A glass material, as tokens rather than as CSS sprinkled per component (P1, effort M, risk: medium)
+
+Glass is a **material**, not an effect: a blur radius, a tint, a saturation lift, a hairline
+border, an inner highlight and a shadow, which together make a pane read as a physical
+sheet. Defined once in `tokens.css` as a set, applied by primitives, and refused everywhere
+else — the repo already forbids a raw colour outside the tokens, and this is that rule
+applied to a compound.
+
+The reason it belongs in tokens rather than in twenty components: a glass pane whose blur
+differs by four pixels from the one beside it reads as a mistake even to someone who cannot
+say why. One definition is also the only way the performance budget below can be enforced
+in one place.
+
+Two properties the material has to carry from the start, because retrofitting them is what
+makes redesigns fail:
+
+- **Legibility over an unknown photograph.** A translucent pane sits on top of whatever a
+  guest uploaded, which may be a white dress in full sun. The material needs a floor — a
+  minimum tint opacity that guarantees the contrast the accessibility contract already
+  requires, whatever is behind it. This is the same rule §2.2 states for a host's chosen
+  hue, and the two interact: glass **over** a themed accent must still pass.
+- **A no-blur fallback that is not ugly.** `backdrop-filter` is unavailable or disabled on
+  some machines, and the budget below will switch it off on others. The fallback is an
+  opaque token from the same family, not a transparent pane that becomes unreadable.
+
+### 11.2 Motion that answers the hand (P1, effort M, risk: medium)
+
+The animation work is not "add transitions". It is: what does the interface do when a guest
+presses a button, when a photo arrives on a moderator's queue over SSE, when the wall
+changes slide, when an upload fails? Each of those is a moment where motion carries meaning
+— the state changed, and here is where it came from — and everything else is where motion
+is noise.
+
+`docs/DESIGN-SYSTEM.md` §7 already has a motion scale. This extends it rather than
+replacing it, and inherits its non-negotiable: **`prefers-reduced-motion` is a health
+requirement, not a taste setting.** Under it, every decision must remain reachable and every
+state change legible. The phone moderation console already proves this can be done — the
+card stops travelling and the swipe still decides.
+
+The specific trap, learned here: the wall now runs Ken Burns over a playing `<video>`, and
+adding a blurred pane over that means the compositor is scaling, decoding and blurring at
+once. Animate `transform` and `opacity` only, never layout properties, and treat
+`will-change` as a scarce resource rather than a default.
+
+### 11.3 The budget that keeps it usable (P1, effort S, risk: low)
+
+The item that makes the other two safe, and the one most likely to be skipped. A redesign
+of this kind is judged on two machines nobody develops on:
+
+- **A venue mini-PC driving a projector for eight hours.** The wall must hold its frame
+  rate through a crossfade with a clip playing. If glass costs frames there, the wall gets
+  the opaque fallback and the guest surfaces keep the blur — that is an acceptable outcome,
+  decided in advance rather than discovered at a wedding.
+- **A mid-range Android phone on saturated wifi, mid-upload.** Blur is GPU work competing
+  with an encode and a request. The upload screen staying responsive outranks how it looks.
+
+So this item is: a measured frame-rate floor on the wall, a first-interaction budget on the
+guest surface, both asserted rather than asserted-about — and a written rule for what is
+switched off first when a device cannot afford it.
+
+The visual regression baselines will move, deliberately and all at once. That is a
+re-baseline with a human looking at every image, not a `--update-snapshots` in a hurry: the
+suite exists because a wall regression is invisible in a diff.
+
+### What this is not
+
+- **Not a component rewrite.** The primitive catalogue and the token architecture are the
+  reason this is affordable at all; a redesign that discards them buys a fresh set of the
+  bugs they already fixed.
+- **Not motion on everything.** A list that animates every row on every render is slower to
+  read, and a moderator working a queue at 23:00 is reading, not admiring.
+- **Not a reason to touch the guest's critical path.** Join, pick, send. If any of the three
+  gets a frame slower or a tap longer, the change is wrong however good it looks.
+
+---
+
 ## 7. Deliberate non-goals
 
 Saying no is what keeps the rest coherent.
