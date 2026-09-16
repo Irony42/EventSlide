@@ -11,9 +11,16 @@ and the **risk** that makes it harder than it looks.
 
 > **Audited against the code.** This document was written before most of the
 > implementation landed, so an end-to-end pass checked every "already exists" claim and
-> every item listed as future. Three had shipped and are marked **Shipped** below rather
-> than quietly deleted — a roadmap that silently drops what got built teaches nobody
-> anything. Everything else still reads as future, and still reads as sensible.
+> every item listed as future.
+>
+> What has since been built moves to **[§9, Done](#9-done)**, in full rather than
+> summarised — a roadmap that silently drops what got built teaches nobody anything, and
+> the reasoning that justified an item is the part worth re-reading when the next one
+> looks similar. The numbering never changes: an item keeps the number it was argued
+> under, so §9.1 is still "1.1" in every commit message and review that referred to it,
+> and the gaps left in §§1–3 are the point rather than an oversight.
+>
+> Everything still under §§1–6 is unbuilt, and still reads as sensible.
 
 ---
 
@@ -40,112 +47,7 @@ If a guest gives up, nothing else in this document matters. At a wedding the med
 guest spends **under a minute** in the app, once, on a phone with two bars of a
 saturated access point.
 
-### 1.1 Offline upload queue — **Shipped**
-
-A service worker plus IndexedDB: a photo selected with no usable connection is stored on
-the device and sent when connectivity returns, with the Background Sync API where
-available and a foreground retry everywhere else.
-
-It was described here as "the single most valuable thing left to build", for a reason
-that has not changed: venue Wi-Fi at a hundred-guest event is not "sometimes slow", it is
-_saturated between 19:00 and 23:00_ — exactly the window when photos are taken. What
-existed before was a retry button, which only helps a guest still looking at their phone.
-The photo now arrives whether or not they are.
-
-What landed:
-
-- **An outbox behind a port** (`web/src/lib/offline/`). One IndexedDB adapter, one
-  in-memory fallback, one shared contract suite run against both — the same arrangement
-  `src/application/ports/` uses server-side. The fallback is not a test double: Firefox
-  in private browsing rejects the database outright, and those guests still get a queue
-  that survives a dropped connection for the length of the tab.
-- **Bytes, not Blobs.** IndexedDB is specified to store a `Blob`, and WebKit has a long
-  history of losing one. WebKit on a phone is the browser the largest share of guests
-  actually use, so entries hold an `ArrayBuffer` and the `File` is rebuilt at send time.
-- **One drain, two runtimes.** `drainOutbox` takes a store and a sender, so the page
-  (through the ordinary transport) and the worker (through bare `fetch`) share one set of
-  rules: one claim, one backoff, one expiry.
-- **A kill switch with teeth.** `?offline=off` does not merely stop new work — it
-  unregisters the worker and deletes the stored photos on the next page load. A switch
-  that only stopped new installations would leave a bad build running on precisely the
-  phones it was breaking.
-- **Its own Playwright project**, `chromium-offline`, which cuts the network out from
-  under a live page rather than stubbing a route.
-
-Three defects the tests caught before anyone else could, all worth recording because
-each is the kind that survives review:
-
-1. `?offline=maybe` silently re-enabled a queue somebody had switched off, because an
-   unrecognised value read as "not off, therefore on".
-2. `claimedAt` was doing two jobs — "a drain holds this" and "this is when it last
-   tried" — so releasing an entry after a failed attempt also looked like a live
-   two-minute lease, and the follow-up drain armed for its two-second backoff found
-   nothing to do.
-3. Nothing rescheduled a drain once every remaining entry was inside its backoff:
-   `online` fires once, and a photo queued offline and then reloaded back into view sat
-   there reported as waiting and sent by nothing. The drain now reports when it is worth
-   looking again, and the screen arms one timer from it rather than polling — a poll
-   would wake a phone in somebody's pocket all evening to serve the few guests with a
-   queue.
-
-The risk named here originally — "service-worker lifecycle bugs are hard to reproduce
-and easy to ship" — was real and is why the worker does exactly one job. It caches
-nothing, intercepts no `fetch` and claims no navigation, so the worst a bug in it can do
-is delay a photo. Precaching the app shell belongs with 1.2, and deliberately did not
-come along for the ride.
-
-### 1.2 Installable PWA — **Shipped**
-
-An install offer after a guest's first successful upload — not before, because a prompt
-on arrival is friction at the worst possible moment.
-
-What was missing turned out to be more than the prompt. The manifest existed but carried
-only `favicon.svg`, and **Chromium refuses to make an app installable without a 192px and
-a 512px raster icon** — silently: the manifest simply never becomes installable,
-`beforeinstallprompt` never fires, and nothing anywhere says why. So the feature had
-never been one line of JavaScript away; it had been impossible.
-
-What landed:
-
-- **Five icons**, rendered from the existing `favicon.svg` by `scripts/generateIcons.ts`:
-  192 and 512 for Chromium, two maskable variants drawn inside Android's 80% safe zone
-  so a launcher's crop does not cut the mark, and a 180px `apple-touch-icon` because iOS
-  ignores the manifest's icons entirely and reads a `<link>`. They are committed rather
-  than built — Vite copies `web/public` at the start of a build, so a fresh clone running
-  `npm run dev` would otherwise have a manifest pointing at four 404s — and
-  `scripts/generateIcons.test.ts` re-renders and compares pixels, so editing the mark
-  without re-running `npm run build:icons` fails the build rather than shipping last
-  quarter's logo to somebody's home screen.
-- **The offer itself**, held back until `mine.photos` is non-empty. A guest forty seconds
-  from sending their first photo is never interrupted; one who has proved the app works
-  is asked once.
-- **Two shapes, because the platforms genuinely differ.** Chromium gets a button that
-  raises the real prompt. iOS Safari has no API at all, so it gets the one sentence that
-  helps — Share, then "Sur l'écran d'accueil" — detected through `navigator.standalone`,
-  a feature check rather than a user-agent string. Firefox gets nothing, which is the
-  correct answer rather than a card it could not honour.
-- **"No" outlives the tab.** A guest who declines at 21:00 is not asked again at
-  midnight, which is exactly when the second half of an evening's photos are taken.
-
-One thing the mark itself needed: `favicon.svg` was invalid XML. Its comment named the
-accent CSS custom property the way CSS spells it, and `--` is forbidden inside an XML
-comment. Every browser had accepted it; `sharp` refused it outright, which is how a file
-that had been wrong since it was written came to light.
-
-**The app shell came with it, and not by choice.** Chromium dropped the service-worker
-requirement for a _menu_ install (108 on mobile, 112 on desktop), but the algorithm that
-fires `beforeinstallprompt` still wants a worker with a `fetch` handler — so the offer
-this item is about could not have appeared without one. The worker added in 1.1 had none,
-on purpose.
-
-It now precaches the entry bundle and answers for it **network-first**, so a deploy is
-never served stale to somebody standing in front of a working access point, and it
-refuses to touch anything under `/api/` at all: uploads, media, authorization and the
-wall's eight-hour SSE connection take exactly the path they would with no worker
-installed. Chrome's own account of relaxing that requirement is that sites gamed it with
-empty pass-through handlers which hurt performance, so this one does real work or gets
-out of the way entirely. An installed EventSlide now opens with no connection, which is
-what an installed app is for.
+_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa). Considered and declined: [1.6](#96-spoken-captions)._
 
 ### 1.3 Camera-first capture (P1, effort M, risk: low)
 
@@ -156,16 +58,29 @@ Android means three taps through a gallery app.
 The measure of success is taps from opening the app to a photo being sent: **five today,
 two after this**.
 
-### 1.4 Short video clips (P1, effort L, risk: high)
+### 1.4 Short video clips — **Server side shipped, surfaces in review**
 
 The most-requested thing at weddings and the hardest item on this list. 5–15 seconds,
 transcoded to a web-friendly H.264/AAC, muted on the wall by default with a duration cap
 and its own quota line.
 
-Risk, and it is real: `ffmpeg` is a large native dependency, transcoding is CPU-bound in
-a way image resizing is not, and a single 4K clip can outweigh a hundred photos. It needs
-a job queue and backpressure, which is genuine new infrastructure — the first thing in
-this document that changes the architecture rather than extending it.
+The risk named here was real and is where the work went. `ffmpeg` is a large native
+dependency, transcoding is CPU-bound in a way image resizing is not, and a single 4K clip
+can outweigh a hundred photos — so it needed a job queue and backpressure, the first
+thing in this document to change the architecture rather than extend it.
+
+**Where it stands.** The server side is on `main` (#18): a `ClipJob` aggregate separate
+from `Photo`, so a clip being transcoded cannot reach the wall half-encoded; a row
+reserved _before_ the bytes are written, so a refusal costs nothing and the quota counts
+what is on the disk; one worker at concurrency 1; `429` with `Retry-After` rather than
+`413`; and a media reconciliation sweep that three comments in the tree already assumed
+existed. The guest, moderation and wall surfaces are in review (#19) — until they land,
+nothing on any screen can send, judge or play a clip.
+
+Seven adversarial review rounds ran against the two halves and each one found something a
+green suite had passed over, the worst being two guests sending the same video destroying
+it. The pattern worth carrying forward: every defect that survived lived in a rule stated
+only in a comment.
 
 ### 1.5 Guest UI languages (P2, effort S, risk: low)
 
@@ -174,55 +89,12 @@ Spanish, German and Italian are a mechanical addition, chosen from `Accept-Langu
 a manual override. International weddings are common and a guest who cannot read the
 upload button does not upload.
 
-### 1.6 Spoken captions — **Considered and declined**
-
-The Web Speech API for the caption field. Typing on a phone in a dark room with a drink
-in hand is the reason most photos arrive without a caption, and captions are what make
-the wall feel like the room rather than a screensaver. The problem is real and the entry
-below is kept so nobody proposes it a third time without knowing what it costs.
-
-It was built, and it worked. It is not being shipped, for one reason: **`SpeechRecognition`
-is not an on-device API in the browsers that have it.** Chrome streams the captured audio
-to Google's recognition service and Safari to Apple's, over their own connections. No
-header and no setting this application controls keeps that audio local, or in the EU, or
-out of a third party's logs.
-
-That is irreconcilable with the posture the rest of this product is built on. There is no
-CDN here; the fonts are self-hosted **specifically** to deny Google a log of every guest's
-IP address ([SECURITY.md §8](SECURITY.md)); EXIF is stripped on ingest so a guest's phone
-does not hand over the venue's GPS coordinates. A guest at somebody else's wedding did not
-choose this software and often does not know it exists, which raises the bar rather than
-lowering it. Shipping a button that sends their voice — and the conversation of everyone
-standing near them — to Google would undo in one feature what several others exist to
-protect.
-
-The implementation answered every objection it could. It told the guest where the audio
-was going before they pressed rather than after, it kept typing unchanged and always
-available, and the operator could switch it off in one line. None of that changes what
-happens when a guest does press it.
-
-What would change the decision: an on-device recognition engine the browser exposes
-without a network round trip. Chrome has shipped on-device speech in other surfaces and
-the Web Speech API may follow. Until then the honest answer is that this product cannot
-offer dictation without breaking a promise it makes everywhere else, and a caption typed
-with one thumb is a smaller loss than that.
-
-The two things the attempt did turn up are worth keeping either way:
-
-- `Permissions-Policy` sends `microphone=()`, and an **empty allowlist disables a feature
-  for the document itself**, not only for embedded frames. Anything reaching for the
-  microphone or the camera here will hit that first, with `service-not-allowed` and no
-  prompt, and no clue as to why.
-- A single `SpeechRecognition` object reused across sessions delivers a dead session's
-  `aborted`/`end` pair to the next session's handlers. Whoever tries this next: build one
-  per session and detach its handlers before aborting.
-
----
-
 ## 2. The room — where the product is judged
 
 The wall is what two hundred people look at all evening. It is also the surface with the
 least engineering attention in most tools of this kind.
+
+_Shipped and moved to §9: [2.3](#93-more-wall-layouts)._
 
 ### 2.1 Photo missions (P1, effort M, risk: low)
 
@@ -243,65 +115,6 @@ product, and today they do.
 
 Constraint: contrast is validated server-side against the token contract, so a host
 cannot choose a palette that makes captions unreadable at ten metres.
-
-### 2.3 More wall layouts — **Shipped**
-
-`spotlight` and `mosaic` shipped in 2.0. The layout registry was already a closed union
-with a per-layout spec, and each addition was contained exactly as predicted:
-
-| Layout      | What it is for                                                                                                         |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `polaroid`  | Three photos as tilted prints on a dark ground. Reads as warm and handmade; the right choice for a small wedding.      |
-| `filmstrip` | A slow horizontal drift. Good for a cocktail hour where nobody is watching continuously.                               |
-| `collage`   | New photos compose into a growing grid that fills over the evening. The room watches it fill, which is its own reward. |
-| `split`     | Two photos side by side, pairing an old upload with a new one.                                                         |
-
-What landed, and the three decisions that were not obvious from the paragraph above:
-
-- **The drift needed a number the wall already had.** The filmstrip is the only
-  animation on the projector that runs for a whole slide, which makes it the one place
-  1.0's Ken Burns defect could come back — an animation with a duration of its own
-  standing next to a slide interval. `useSlideshow` now reports the interval its own
-  clock is running on, and the drift is timed from that; there is no second setting left
-  to fall out of step with the first. The track is also keyed on the playlist position,
-  so the movement restarts at the instant the content changes rather than drifting out
-  of phase with it over eight hours.
-- **"Fills over the evening" became "fills over the first twelve slides."** The collage
-  grows from one cell to twelve and then recycles a cell in turn. A grid that genuinely
-  grew for eight hours would end the night at a photo per few hundred pixels, which is
-  the point at which a face stops being a face from five metres — so the growth is the
-  first minutes of the evening, and the ceiling is the renderer's `COLLAGE_CELLS`, which
-  mirrors `wallLayoutSpec('collage').slotCount` and cannot be joined to it: the import
-  boundary keeps the domain out of `web/`, so the number is pinned twice and the two can
-  drift. **The fill is per-screen and does not synchronise.** It comes from the count of
-  slides that browser has shown, so a kiosk that reloads at 23:00 drops back to one cell
-  and takes twelve slides to refill. Which photo sits in which cell is derived from the
-  playlist position alone, so two screens on the same index compose the same grid — but
-  nothing in this build gives two screens a shared cursor in the first place: trap 7
-  removed `sessionStorage`, and `useSlideshow` still adopts the newest photo on its own
-  first frame. Synchronised projectors would need a cursor on the wire, which is not
-  this item.
-- **The polaroid needed the palette's first light ground.** `--surface-print`,
-  `--text-print` and `--text-print-secondary`, for paper and for the two weights of
-  pencil on it. It is the one caption in the product that is ink on a material rather
-  than light over a photograph, and both inks are held to the wall's 7:1 contrast bar by
-  `tokens.contrast.test.ts`. The credit was briefly `opacity: 0.75` over the mat instead,
-  which measured 5.6:1 and which that test was structurally unable to see — so it now
-  also refuses any `opacity` on caption text, because a ratio between two declared
-  colours says nothing about a composite.
-- **The wall had a corner it had never told anyone about.** The join card is the default
-  state, bottom-right, and the two new layouts that centre a caption in the bottom band
-  printed the guest's words under it — cut mid-word, and photographed as correct by the
-  first baselines. The wall now declares the corner (`--wall-chrome-inline-end`, from the
-  card's own `--wall-join-card` width) and `polaroid` and `split` lay out inside what is
-  left. The card yields rather than the caption, because a caption is content and a card
-  is chrome; and because the card is dismissible, the width comes back with one Escape
-  rather than being a standing tax. Details and the measurements in DESIGN-SYSTEM.md §9.
-
-Under `prefers-reduced-motion`, the polaroid's landing and the filmstrip's drift are
-declined outright in JavaScript; the collage's cell arrival ends at the cell's resting
-state, so the `base.css` collapse lands exactly where the animation would have. `L` walks
-all six layouts and wraps — 2.0's two first, so the first press still lands on the mosaic.
 
 ### 2.4 Guestbook messages (P2, effort S, risk: low)
 
@@ -339,51 +152,7 @@ announce something, and hosts currently do it by shouting.
 
 ## 3. Host control
 
-### 3.1 Moderation on a phone — **Shipped**
-
-The host is not at the laptop. They are at a table, standing, holding a phone. The
-moderation console is built for a keyboard, and no amount of responsive CSS makes a
-dense grid workable one-handed.
-
-A separate mobile surface: one photo at a time, swipe right to publish and left to
-refuse, undo always reachable. Reuses every use case; it is a view, not a feature.
-
-What landed, at `/admin/events/:slug/moderation/mobile`, reached from the event page:
-
-- **No server code at all.** No endpoint, no use case, no migration. The screen is a
-  second view over `useModerationQueue` — same fetch, same SSE channel, same decisions —
-  which is what the entry meant by "a view, not a feature", and it is worth saying twice
-  because a mobile surface is exactly the kind of thing that grows its own API.
-- **The gesture is arithmetic, not a library.** `web/src/features/moderation/swipe/`
-  holds a pure reading of a drag — how far commits, when the direction is announced,
-  what taking it back means — tested without a DOM; `hooks/useSwipeDecision.ts` feeds it
-  pointer events. There is no CDN and no new runtime dependency on a host's phone.
-- **Every decision is also a button.** A swipe-only console is unusable with a screen
-  reader and unusable one-handed by somebody with limited mobility, so the gesture is a
-  shortcut over the same two controls, and the e2e measures their touch targets on a
-  real phone viewport.
-
-**Where it does not match the entry above, and why.** "Undo always reachable" is not
-literally deliverable on this surface without server work the entry forbids. A photo
-awaiting a decision has no status any verb puts it back into — `pending` is not a
-moderation outcome — so `useModerationQueue` offered nothing after a decision on a fresh
-photo, and a persistent "annuler" would have been a permanently disabled button. What
-shipped instead is one opt-in option, `useModerationQueue(slug, { undoOfPublish: 'hide' })`,
-passed by the phone console and by nothing else:
-
-- **A publication can be taken back**, with `hide`. The photo leaves the wall, which is
-  what the host meant, and lands in "Retirées" rather than back in the queue — so the
-  console says "retirée de l'écran" rather than claiming a decision was cancelled.
-- **A refusal cannot**, here or anywhere. The only verb that would reverse it is
-  `publish`, on a photo the host has just turned down, which would put it on a screen in
-  front of the room with nobody's approval behind it. `src/domain/moderation/
-moderationDecision.ts` refuses the same inference, and this agrees with it.
-
-The desktop console keeps the old behaviour exactly, and a regression test pins it: with
-no options, publishing a pending photo still offers no undo. Restoring a photo to
-`pending` — a true undo, and the only one that would satisfy the entry as written —
-needs the server to record where a decision came from, which is a use case and a
-migration, so it belongs in its own roadmap item rather than in this one.
+_Shipped and moved to §9: [3.1](#94-moderation-on-a-phone), [3.4](#95-scheduled-open-and-close)._
 
 ### 3.2 Pre-sorted moderation queue (P2, effort L, risk: medium)
 
@@ -401,11 +170,6 @@ easier and is refused for exactly that reason.
 Two moderators working the same queue currently double-review and race each other. The
 SSE channel already exists; broadcasting "someone is looking at this one" is a small
 addition to it.
-
-### 3.4 Scheduled open and close (P2, effort S, risk: low)
-
-An event goes live at 18:00 and closes at 02:00 without anyone remembering. `startsAt`
-already exists on the aggregate; this is a job plus two fields.
 
 ### 3.5 Event templates (P3, effort S, risk: low)
 
@@ -547,10 +311,300 @@ Saying no is what keeps the rest coherent.
 
 ## 8. If only three things get built
 
-1. **Offline upload queue** (§1.1) — the difference between photos arriving and photos
-   being lost to a saturated access point. Everything else assumes the upload works.
+1. **Offline upload queue** (§9.1, shipped) — the difference between photos arriving and
+   photos being lost to a saturated access point. Everything else assumes the upload
+   works.
 2. **Photo missions** (§2.1) — the cheapest large increase in how much guests
    participate, and it changes the wall from a screensaver into something the room is
    part of.
 3. **Shared gallery link** (§4.1) — answers the question every host is asked the next
    morning, and the reason they recommend the tool to the next person.
+
+---
+
+## 9. Done
+
+What has shipped, with the change that did it. Kept in full rather than summarised: the
+reasoning that justified each one is the part worth re-reading when the next item looks
+similar.
+
+### 9.1 Offline upload queue
+
+_Shipped in [#10](https://github.com/Irony42/EventSlide/pull/10)._
+
+A service worker plus IndexedDB: a photo selected with no usable connection is stored on
+the device and sent when connectivity returns, with the Background Sync API where
+available and a foreground retry everywhere else.
+
+It was described here as "the single most valuable thing left to build", for a reason
+that has not changed: venue Wi-Fi at a hundred-guest event is not "sometimes slow", it is
+_saturated between 19:00 and 23:00_ — exactly the window when photos are taken. What
+existed before was a retry button, which only helps a guest still looking at their phone.
+The photo now arrives whether or not they are.
+
+What landed:
+
+- **An outbox behind a port** (`web/src/lib/offline/`). One IndexedDB adapter, one
+  in-memory fallback, one shared contract suite run against both — the same arrangement
+  `src/application/ports/` uses server-side. The fallback is not a test double: Firefox
+  in private browsing rejects the database outright, and those guests still get a queue
+  that survives a dropped connection for the length of the tab.
+- **Bytes, not Blobs.** IndexedDB is specified to store a `Blob`, and WebKit has a long
+  history of losing one. WebKit on a phone is the browser the largest share of guests
+  actually use, so entries hold an `ArrayBuffer` and the `File` is rebuilt at send time.
+- **One drain, two runtimes.** `drainOutbox` takes a store and a sender, so the page
+  (through the ordinary transport) and the worker (through bare `fetch`) share one set of
+  rules: one claim, one backoff, one expiry.
+- **A kill switch with teeth.** `?offline=off` does not merely stop new work — it
+  unregisters the worker and deletes the stored photos on the next page load. A switch
+  that only stopped new installations would leave a bad build running on precisely the
+  phones it was breaking.
+- **Its own Playwright project**, `chromium-offline`, which cuts the network out from
+  under a live page rather than stubbing a route.
+
+Three defects the tests caught before anyone else could, all worth recording because
+each is the kind that survives review:
+
+1. `?offline=maybe` silently re-enabled a queue somebody had switched off, because an
+   unrecognised value read as "not off, therefore on".
+2. `claimedAt` was doing two jobs — "a drain holds this" and "this is when it last
+   tried" — so releasing an entry after a failed attempt also looked like a live
+   two-minute lease, and the follow-up drain armed for its two-second backoff found
+   nothing to do.
+3. Nothing rescheduled a drain once every remaining entry was inside its backoff:
+   `online` fires once, and a photo queued offline and then reloaded back into view sat
+   there reported as waiting and sent by nothing. The drain now reports when it is worth
+   looking again, and the screen arms one timer from it rather than polling — a poll
+   would wake a phone in somebody's pocket all evening to serve the few guests with a
+   queue.
+
+The risk named here originally — "service-worker lifecycle bugs are hard to reproduce
+and easy to ship" — was real and is why the worker does exactly one job. It caches
+nothing, intercepts no `fetch` and claims no navigation, so the worst a bug in it can do
+is delay a photo. Precaching the app shell belongs with 1.2, and deliberately did not
+come along for the ride.
+
+### 9.2 Installable PWA
+
+_Shipped in [#11](https://github.com/Irony42/EventSlide/pull/11)._
+
+An install offer after a guest's first successful upload — not before, because a prompt
+on arrival is friction at the worst possible moment.
+
+What was missing turned out to be more than the prompt. The manifest existed but carried
+only `favicon.svg`, and **Chromium refuses to make an app installable without a 192px and
+a 512px raster icon** — silently: the manifest simply never becomes installable,
+`beforeinstallprompt` never fires, and nothing anywhere says why. So the feature had
+never been one line of JavaScript away; it had been impossible.
+
+What landed:
+
+- **Five icons**, rendered from the existing `favicon.svg` by `scripts/generateIcons.ts`:
+  192 and 512 for Chromium, two maskable variants drawn inside Android's 80% safe zone
+  so a launcher's crop does not cut the mark, and a 180px `apple-touch-icon` because iOS
+  ignores the manifest's icons entirely and reads a `<link>`. They are committed rather
+  than built — Vite copies `web/public` at the start of a build, so a fresh clone running
+  `npm run dev` would otherwise have a manifest pointing at four 404s — and
+  `scripts/generateIcons.test.ts` re-renders and compares pixels, so editing the mark
+  without re-running `npm run build:icons` fails the build rather than shipping last
+  quarter's logo to somebody's home screen.
+- **The offer itself**, held back until `mine.photos` is non-empty. A guest forty seconds
+  from sending their first photo is never interrupted; one who has proved the app works
+  is asked once.
+- **Two shapes, because the platforms genuinely differ.** Chromium gets a button that
+  raises the real prompt. iOS Safari has no API at all, so it gets the one sentence that
+  helps — Share, then "Sur l'écran d'accueil" — detected through `navigator.standalone`,
+  a feature check rather than a user-agent string. Firefox gets nothing, which is the
+  correct answer rather than a card it could not honour.
+- **"No" outlives the tab.** A guest who declines at 21:00 is not asked again at
+  midnight, which is exactly when the second half of an evening's photos are taken.
+
+One thing the mark itself needed: `favicon.svg` was invalid XML. Its comment named the
+accent CSS custom property the way CSS spells it, and `--` is forbidden inside an XML
+comment. Every browser had accepted it; `sharp` refused it outright, which is how a file
+that had been wrong since it was written came to light.
+
+**The app shell came with it, and not by choice.** Chromium dropped the service-worker
+requirement for a _menu_ install (108 on mobile, 112 on desktop), but the algorithm that
+fires `beforeinstallprompt` still wants a worker with a `fetch` handler — so the offer
+this item is about could not have appeared without one. The worker added in 1.1 had none,
+on purpose.
+
+It now precaches the entry bundle and answers for it **network-first**, so a deploy is
+never served stale to somebody standing in front of a working access point, and it
+refuses to touch anything under `/api/` at all: uploads, media, authorization and the
+wall's eight-hour SSE connection take exactly the path they would with no worker
+installed. Chrome's own account of relaxing that requirement is that sites gamed it with
+empty pass-through handlers which hurt performance, so this one does real work or gets
+out of the way entirely. An installed EventSlide now opens with no connection, which is
+what an installed app is for.
+
+### 9.3 More wall layouts
+
+_Shipped in [#14](https://github.com/Irony42/EventSlide/pull/14), with the baseline fix it exposed in [#16](https://github.com/Irony42/EventSlide/pull/16)._
+
+`spotlight` and `mosaic` shipped in 2.0. The layout registry was already a closed union
+with a per-layout spec, and each addition was contained exactly as predicted:
+
+| Layout      | What it is for                                                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `polaroid`  | Three photos as tilted prints on a dark ground. Reads as warm and handmade; the right choice for a small wedding.      |
+| `filmstrip` | A slow horizontal drift. Good for a cocktail hour where nobody is watching continuously.                               |
+| `collage`   | New photos compose into a growing grid that fills over the evening. The room watches it fill, which is its own reward. |
+| `split`     | Two photos side by side, pairing an old upload with a new one.                                                         |
+
+What landed, and the three decisions that were not obvious from the paragraph above:
+
+- **The drift needed a number the wall already had.** The filmstrip is the only
+  animation on the projector that runs for a whole slide, which makes it the one place
+  1.0's Ken Burns defect could come back — an animation with a duration of its own
+  standing next to a slide interval. `useSlideshow` now reports the interval its own
+  clock is running on, and the drift is timed from that; there is no second setting left
+  to fall out of step with the first. The track is also keyed on the playlist position,
+  so the movement restarts at the instant the content changes rather than drifting out
+  of phase with it over eight hours.
+- **"Fills over the evening" became "fills over the first twelve slides."** The collage
+  grows from one cell to twelve and then recycles a cell in turn. A grid that genuinely
+  grew for eight hours would end the night at a photo per few hundred pixels, which is
+  the point at which a face stops being a face from five metres — so the growth is the
+  first minutes of the evening, and the ceiling is the renderer's `COLLAGE_CELLS`, which
+  mirrors `wallLayoutSpec('collage').slotCount` and cannot be joined to it: the import
+  boundary keeps the domain out of `web/`, so the number is pinned twice and the two can
+  drift. **The fill is per-screen and does not synchronise.** It comes from the count of
+  slides that browser has shown, so a kiosk that reloads at 23:00 drops back to one cell
+  and takes twelve slides to refill. Which photo sits in which cell is derived from the
+  playlist position alone, so two screens on the same index compose the same grid — but
+  nothing in this build gives two screens a shared cursor in the first place: trap 7
+  removed `sessionStorage`, and `useSlideshow` still adopts the newest photo on its own
+  first frame. Synchronised projectors would need a cursor on the wire, which is not
+  this item.
+- **The polaroid needed the palette's first light ground.** `--surface-print`,
+  `--text-print` and `--text-print-secondary`, for paper and for the two weights of
+  pencil on it. It is the one caption in the product that is ink on a material rather
+  than light over a photograph, and both inks are held to the wall's 7:1 contrast bar by
+  `tokens.contrast.test.ts`. The credit was briefly `opacity: 0.75` over the mat instead,
+  which measured 5.6:1 and which that test was structurally unable to see — so it now
+  also refuses any `opacity` on caption text, because a ratio between two declared
+  colours says nothing about a composite.
+- **The wall had a corner it had never told anyone about.** The join card is the default
+  state, bottom-right, and the two new layouts that centre a caption in the bottom band
+  printed the guest's words under it — cut mid-word, and photographed as correct by the
+  first baselines. The wall now declares the corner (`--wall-chrome-inline-end`, from the
+  card's own `--wall-join-card` width) and `polaroid` and `split` lay out inside what is
+  left. The card yields rather than the caption, because a caption is content and a card
+  is chrome; and because the card is dismissible, the width comes back with one Escape
+  rather than being a standing tax. Details and the measurements in DESIGN-SYSTEM.md §9.
+
+Under `prefers-reduced-motion`, the polaroid's landing and the filmstrip's drift are
+declined outright in JavaScript; the collage's cell arrival ends at the cell's resting
+state, so the `base.css` collapse lands exactly where the animation would have. `L` walks
+all six layouts and wraps — 2.0's two first, so the first press still lands on the mosaic.
+
+### 9.4 Moderation on a phone
+
+_Shipped in [#13](https://github.com/Irony42/EventSlide/pull/13); the card was taller than the phone it was held on until [#17](https://github.com/Irony42/EventSlide/pull/17)._
+
+The host is not at the laptop. They are at a table, standing, holding a phone. The
+moderation console is built for a keyboard, and no amount of responsive CSS makes a
+dense grid workable one-handed.
+
+A separate mobile surface: one photo at a time, swipe right to publish and left to
+refuse, undo always reachable. Reuses every use case; it is a view, not a feature.
+
+What landed, at `/admin/events/:slug/moderation/mobile`, reached from the event page:
+
+- **No server code at all.** No endpoint, no use case, no migration. The screen is a
+  second view over `useModerationQueue` — same fetch, same SSE channel, same decisions —
+  which is what the entry meant by "a view, not a feature", and it is worth saying twice
+  because a mobile surface is exactly the kind of thing that grows its own API.
+- **The gesture is arithmetic, not a library.** `web/src/features/moderation/swipe/`
+  holds a pure reading of a drag — how far commits, when the direction is announced,
+  what taking it back means — tested without a DOM; `hooks/useSwipeDecision.ts` feeds it
+  pointer events. There is no CDN and no new runtime dependency on a host's phone.
+- **Every decision is also a button.** A swipe-only console is unusable with a screen
+  reader and unusable one-handed by somebody with limited mobility, so the gesture is a
+  shortcut over the same two controls, and the e2e measures their touch targets on a
+  real phone viewport.
+
+**Where it does not match the entry above, and why.** "Undo always reachable" is not
+literally deliverable on this surface without server work the entry forbids. A photo
+awaiting a decision has no status any verb puts it back into — `pending` is not a
+moderation outcome — so `useModerationQueue` offered nothing after a decision on a fresh
+photo, and a persistent "annuler" would have been a permanently disabled button. What
+shipped instead is one opt-in option, `useModerationQueue(slug, { undoOfPublish: 'hide' })`,
+passed by the phone console and by nothing else:
+
+- **A publication can be taken back**, with `hide`. The photo leaves the wall, which is
+  what the host meant, and lands in "Retirées" rather than back in the queue — so the
+  console says "retirée de l'écran" rather than claiming a decision was cancelled.
+- **A refusal cannot**, here or anywhere. The only verb that would reverse it is
+  `publish`, on a photo the host has just turned down, which would put it on a screen in
+  front of the room with nobody's approval behind it. `src/domain/moderation/
+moderationDecision.ts` refuses the same inference, and this agrees with it.
+
+The desktop console keeps the old behaviour exactly, and a regression test pins it: with
+no options, publishing a pending photo still offers no undo. Restoring a photo to
+`pending` — a true undo, and the only one that would satisfy the entry as written —
+needs the server to record where a decision came from, which is a use case and a
+migration, so it belongs in its own roadmap item rather than in this one.
+
+### 9.5 Scheduled open and close
+
+_Shipped in [#15](https://github.com/Irony42/EventSlide/pull/15)._
+
+An event goes live at 18:00 and closes at 02:00 without anyone remembering. Two fields on
+the aggregate, a migration, and a sweeper that applies them — the small item on this list,
+and the one that most often decides whether a host has to stand at a laptop at midnight.
+
+The thing it taught was not about scheduling. Its visual job was red on `main` before it
+began, because the polaroid wall tilts each print by a hash of its photo id and every
+seeded run produced fresh ids: the baseline was comparing forty-seven thousand pixels of
+nothing. Deterministic ids under `E2E_HOOKS` fixed it, and this point's green visual run
+is what proved it.
+
+### 9.6 Spoken captions — **Considered and declined**
+
+_Recorded in [#12](https://github.com/Irony42/EventSlide/pull/12). Not built, and this is the reasoning, kept so it is not rediscovered._
+
+The Web Speech API for the caption field. Typing on a phone in a dark room with a drink
+in hand is the reason most photos arrive without a caption, and captions are what make
+the wall feel like the room rather than a screensaver. The problem is real and the entry
+below is kept so nobody proposes it a third time without knowing what it costs.
+
+It was built, and it worked. It is not being shipped, for one reason: **`SpeechRecognition`
+is not an on-device API in the browsers that have it.** Chrome streams the captured audio
+to Google's recognition service and Safari to Apple's, over their own connections. No
+header and no setting this application controls keeps that audio local, or in the EU, or
+out of a third party's logs.
+
+That is irreconcilable with the posture the rest of this product is built on. There is no
+CDN here; the fonts are self-hosted **specifically** to deny Google a log of every guest's
+IP address ([SECURITY.md §8](SECURITY.md)); EXIF is stripped on ingest so a guest's phone
+does not hand over the venue's GPS coordinates. A guest at somebody else's wedding did not
+choose this software and often does not know it exists, which raises the bar rather than
+lowering it. Shipping a button that sends their voice — and the conversation of everyone
+standing near them — to Google would undo in one feature what several others exist to
+protect.
+
+The implementation answered every objection it could. It told the guest where the audio
+was going before they pressed rather than after, it kept typing unchanged and always
+available, and the operator could switch it off in one line. None of that changes what
+happens when a guest does press it.
+
+What would change the decision: an on-device recognition engine the browser exposes
+without a network round trip. Chrome has shipped on-device speech in other surfaces and
+the Web Speech API may follow. Until then the honest answer is that this product cannot
+offer dictation without breaking a promise it makes everywhere else, and a caption typed
+with one thumb is a smaller loss than that.
+
+The two things the attempt did turn up are worth keeping either way:
+
+- `Permissions-Policy` sends `microphone=()`, and an **empty allowlist disables a feature
+  for the document itself**, not only for embedded frames. Anything reaching for the
+  microphone or the camera here will hit that first, with `service-not-allowed` and no
+  prompt, and no clue as to why.
+- A single `SpeechRecognition` object reused across sessions delivers a dead session's
+  `aborted`/`end` pair to the next session's handlers. Whoever tries this next: build one
+  per session and detach its handlers before aborting.
+
+---
