@@ -257,14 +257,14 @@ machine is not physically secure. The `MediaStore` port makes it an adapter.
 
 A self-hosted product lives or dies on whether one person can run it.
 
-| Item                              | P   | Effort | Note                                                                                                                                                                                  |
-| --------------------------------- | --- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Docker image and one-file compose | P1  | S      | `docker compose up` should be the whole install. Today it is Node, a build and a `.env`.                                                                                              |
-| Prometheus metrics                | P2  | S      | Upload latency, queue depth, SSE subscribers, quota headroom.                                                                                                                         |
-| Raspberry Pi kiosk image          | P2  | M      | The wall's natural hardware: boot straight into the display URL in kiosk mode.                                                                                                        |
-| S3 / MinIO media adapter          | P2  | M      | The `MediaStore` port exists for this. Needed by anyone running more than a handful of events.                                                                                        |
-| 1.0 migration script              | P2  | S      | Reads a 1.0 SQLite file and photo directory, creates one event per `partyId`, re-ingests through the 2.0 pipeline — which is what finally strips the EXIF that 1.0 stored.            |
-| Multi-event workspace             | P3  | L      | A photographer running five weddings a month needs cross-event search, shared moderators and per-event billing boundaries. A different product shape; only worth it with real demand. |
+| Item                              | P   | Effort | Note                                                                                                                                                                                                                                               |
+| --------------------------------- | --- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Docker image and one-file compose | P1  | S      | `docker compose up` should be the whole install. Today it is Node, a build and a `.env`.                                                                                                                                                           |
+| Prometheus metrics                | P2  | S      | Upload latency, queue depth, SSE subscribers, quota headroom.                                                                                                                                                                                      |
+| Raspberry Pi kiosk image          | P2  | M      | The wall's natural hardware: boot straight into the display URL in kiosk mode.                                                                                                                                                                     |
+| S3 / MinIO media adapter          | P2  | M      | The `MediaStore` port exists for this. Needed by anyone running more than a handful of events.                                                                                                                                                     |
+| 1.0 migration script              | P2  | S      | Reads a 1.0 SQLite file and photo directory, creates one event per `partyId`, re-ingests through the 2.0 pipeline — which is what finally strips the EXIF that 1.0 stored.                                                                         |
+| Multi-event workspace             | P3  | L      | **Superseded by [§10](#10-running-a-box-for-other-people--site-administration).** This row said "a different product shape; only worth it with real demand" — the demand arrived, so it is argued properly there rather than as a line in a table. |
 
 **Retention scheduling is no longer on this list — it shipped.** It was the ugliest gap
 here, because its absence was not a missing feature but a false statement: the setting
@@ -288,6 +288,120 @@ build so an archive that would not boot is discovered by the person doing the re
 The round trip is proven at ring 6 by backing up a live server, destroying both halves,
 restoring, and booting a second server that serves the same wall. See
 [SECURITY.md §11](SECURITY.md#11-deployment-posture).
+
+---
+
+## 10. Running a box for other people — site administration
+
+Everything above this point assumes the person who installed EventSlide is the person
+whose wedding it is. This category assumes the opposite: **an operator runs one instance
+for many clients** — a couple, a company launch, a school gala — creates the event, hands
+the client the keys to their own evening, and never touches their photographs.
+
+That is a different product shape, and the code does not have it. Today a `User` is an
+account with no site-level role at all; the roles that exist (`owner`, `moderator`) belong
+to an _event_, and the first account is whatever `BOOTSTRAP_OWNER_EMAIL` said. There is no
+record of a client, no way to invite one, and the existing invitation flow creates an
+account with a password **read out loud to the person** — which works once, in the same
+room, and is exactly what will not do when the invitee is a bride you have never met.
+
+> Numbered 10 rather than 7 on purpose. Section numbers are item numbers here (§3.2 is a
+> reference people have written in commits and reviews), so a new category takes the next
+> free number instead of shifting the ones that exist.
+
+### 10.1 A site-level role, distinct from an event role (P1, effort M, risk: medium)
+
+The foundation, and the item every other one waits on. An account needs to say what it may
+do **on the box** — operate it, or merely own events on it — separately from what it may do
+inside any given event. Two roles, not a permission matrix: an operator, and everyone else.
+
+The risk is not writing the role, it is that authorization today reads "is this user the
+event's owner". Every one of those checks has to keep meaning exactly what it means now
+while a second, higher authority exists above it — and an operator who can accidentally
+moderate a client's photographs is worse than one who cannot help at all. Ring-4 tests on
+every admin route are the gate.
+
+Migration matters here: the bootstrap account on an existing install becomes the operator,
+and an install that never wanted any of this must behave exactly as it does today.
+
+### 10.2 Clients as a record, not a convention (P1, effort M, risk: low)
+
+An event has an `ownerId`; a client is currently the pattern of one person owning several
+events, which nothing enforces and nothing can query. Make it a thing: a client has a name,
+a contact, zero or more events, and a lifecycle of its own.
+
+The reason this is worth a table rather than a label: everything else in this category
+needs a noun to hang off. Ceilings are per client. An invitation is to a client's event.
+Suspension is of a client. Without it each of those grows its own ad-hoc grouping.
+
+### 10.3 Invitations that survive a box with no mail server (P1, effort M, risk: medium)
+
+Today's flow — create the account, read the password aloud — has to be replaced by a
+single-use, expiring, signed link that lets a client set their own password and lands them
+on their event.
+
+**The risk is the mail.** A self-hosted box in a photographer's office usually has no SMTP
+credentials, and a product that silently requires them is a product that does not install.
+So the link must be copyable from the console and work when pasted into whatever the
+operator already uses to talk to their client — SMS, WhatsApp, a mail client on their own
+laptop — with SMTP as the optional convenience rather than the mechanism. The HMAC token
+work from the guest device token is the closest existing pattern.
+
+Single-use and short-lived are not decoration: an invitation link is a password reset for
+an account that does not exist yet.
+
+### 10.4 The operator console (P1, effort M, risk: low)
+
+One screen the operator actually lives in: every client, their events, what state each is
+in, disk used against its ceiling, when it expires. Today the answer to "how much of this
+box is that wedding using" is a SQL query.
+
+Deliberately _not_ a second moderation console. The operator sees shapes and sizes, not
+photographs — which is also what keeps this screen out of the privacy posture in
+[SECURITY.md](SECURITY.md).
+
+### 10.5 Ceilings per client (P2, effort S, risk: low)
+
+The operator sets the maximum — byte quota, how many events, the longest retention the
+client may choose — and the client works inside it. The per-event quota already exists and
+is enforced on the upload path; this is the layer above it, and the honest reason for it is
+that one client's 4K video habit should not fill the disk the other four weddings are on.
+
+### 10.6 Support access, with the audit trail that makes it acceptable (P2, effort M, risk: medium)
+
+A client will ring on the evening of their wedding and the operator will need to see what
+they see. That capability is also the one most likely to become the incident: it is, by
+construction, a way to look at someone's private photographs.
+
+So it is built as the narrow version or not at all — time-boxed, announced in the client's
+own interface rather than silent, and written to an append-only log the client can read.
+"The operator can log in as the client" without those three is a feature that will be
+regretted in public.
+
+### 10.7 Suspension and handover (P2, effort S, risk: low)
+
+An engagement ends: the client stops paying, or the event is over and they want their
+album elsewhere. Suspension freezes an account without touching media; handover transfers
+ownership of an event to another account; export-then-purge (§4.4) is the door out. The
+three together are what let an operator stop a relationship without a database console.
+
+### 10.8 An audit log of operator actions (P2, effort S, risk: low)
+
+Who created this client, who changed that ceiling, who used support access and when. Pairs
+with the moderation audit log (§5.4) and shares its storage — the moment an account can act
+on data it does not own, "what happened" stops being a question the git history can answer.
+
+### Deliberately out of scope for this category
+
+- **Billing, invoicing and payment.** The operator's accounting lives in whatever they
+  already use. A self-hosted photo wall that grows a payment processor has changed
+  business, and the security surface arrives with it.
+- **Public self-service signup.** An open registration form on a box at a photographer's
+  office is an abuse inbox. Clients arrive by invitation, from an operator who already
+  knows who they are.
+- **Multi-server and high availability.** One box, one operator. The day that is wrong is
+  the day this is a different product, and it should be argued then rather than designed
+  for now.
 
 ---
 
