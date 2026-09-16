@@ -5,11 +5,13 @@ import { EmptyState } from '../../design-system/components/EmptyState'
 import { readGuestSession } from '../../lib/guestSession'
 import { fr } from '../../lib/i18n/fr'
 import { CaptionField } from './components/CaptionField'
+import { ClipComposer } from './components/ClipComposer'
 import { InstallCard } from './components/InstallCard'
 import { MyPhotos } from './components/MyPhotos'
 import { OfflineNotice } from './components/OfflineNotice'
 import { PhotoPicker } from './components/PhotoPicker'
 import { UploadQueue } from './components/UploadQueue'
+import { useClipUpload } from './hooks/useClipUpload'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useMyPhotos } from './hooks/useMyPhotos'
 import { useOutbox } from './hooks/useOutbox'
@@ -100,6 +102,24 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
   const outbox = useOutbox({ slug, onDrained })
   const queue = useUploadQueue({ slug, outbox, onSettled: mine.refresh })
 
+  /**
+   * The video path, and it is deliberately not part of the queue above.
+   *
+   * A clip is one file, refused for reasons a photograph is not, and it goes on being
+   * worked on for a minute after the bytes have landed — so it has its own hook, its own
+   * states and, crucially, **no outbox**: the bytes are never stored on the device. See
+   * `useClipUpload` and `web/src/lib/offline/outboxPolicy.ts`.
+   *
+   * `onArrived` is what closes the loop: a finished transcode is a new row in "Vos
+   * envois", and until it is refetched the guest has a success message and an empty list
+   * above it.
+   */
+  const clip = useClipUpload({
+    slug,
+    limits: { maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds },
+    onArrived: refreshMine,
+  })
+
   useEffect(() => {
     settleRef.current = queue.settle
   }, [queue.settle])
@@ -173,6 +193,23 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
         <PhotoPicker onPick={queue.add} />
         {/* The host's setting, from the event the join step returned. */}
         {event.allowCaptions ? <CaptionField value={caption} onChange={setCaption} /> : null}
+        {/*
+          Below the caption, because the caption travels with the clip as well — a guest
+          who wrote one and then sent a video must not lose it — and above the send
+          button, because the video has a send button of its own and two of them side by
+          side would be a guess about which one does what.
+
+          Rendered only when the host allowed video. On a gallery created before clips
+          shipped this setting reads `false`, and offering the control there would mean a
+          `403` after eighty megabytes.
+        */}
+        {event.allowClips ? (
+          <ClipComposer
+            clip={clip}
+            limits={{ maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds }}
+            caption={trimmedCaption.length === 0 ? null : trimmedCaption}
+          />
+        ) : null}
         <Button
           variant="primary"
           size="lg"

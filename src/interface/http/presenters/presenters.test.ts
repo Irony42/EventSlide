@@ -16,6 +16,7 @@ import { AT, aGuest, aPhoto, aUser, anEvent } from '../../../application/testing
 const context: PresenterContext = {
   publicUrl: 'https://photos.example.com',
   uploadLimits: { maxBytes: 25_000_000, maxFiles: 20 },
+  clipLimits: { maxBytes: 80_000_000, maxSeconds: 15, supported: true },
 }
 
 describe('joinUrl', () => {
@@ -59,7 +60,49 @@ describe('toPublicEventDto', () => {
       allowReactions: false,
       maxUploadBytes: 25_000_000,
       maxFilesPerUpload: 20,
+      allowClips: true,
+      maxClipBytes: 80_000_000,
+      maxClipSeconds: 15,
     })
+  })
+
+  it('carries the clip limits the upload will actually be judged against', () => {
+    // Not decoration and not a duplicate of the assertion above: these are the numbers
+    // the guest's picker refuses on, and a refusal that arrives *before* eighty
+    // megabytes go up a venue's Wi-Fi is the whole reason they are on the wire. A
+    // constant in the bundle would be a second copy of `MAX_CLIP_BYTES` that no
+    // deployment's `.env` could move.
+    const strict = toPublicEventDto(event, {
+      ...context,
+      clipLimits: { maxBytes: 40_000_000, maxSeconds: 8, supported: true },
+    })
+
+    expect(strict.maxClipBytes).toBe(40_000_000)
+    expect(strict.maxClipSeconds).toBe(8)
+  })
+
+  it('tells a guest there is no video when the box has no encoder, whatever the host ticked', () => {
+    // The host's switch and the box's capability are two different facts, and the guest
+    // needs the conjunction. `uploadClip` refuses with `clip.transcoderUnavailable` —
+    // **after** multer has written the upload to disk — so a deployment with no ffmpeg
+    // and a ticked checkbox charges every guest a full eighty-megabyte upload to be told
+    // `500`, and nothing about the answer improves by repeating it.
+    const noEncoder = toPublicEventDto(event, {
+      ...context,
+      clipLimits: { ...context.clipLimits, supported: false },
+    })
+
+    expect(noEncoder.allowClips).toBe(false)
+  })
+
+  it('tells a guest when the host has turned video off', () => {
+    // Without this the picker offers a video control that answers
+    // `403 event.clipsNotAllowed` after the upload — on exactly the events the
+    // persistence fallback reads `false` for, which is every event created before
+    // clips shipped.
+    const noClips = anEvent({ settings: { allowClips: false } })
+
+    expect(toPublicEventDto(noClips, context).allowClips).toBe(false)
   })
 
   it.each(['joinCode', 'quotaBytes', 'ownerId', 'photoCount', 'settings', 'retentionDays'])(

@@ -1,8 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ModerationPage } from './ModerationPage'
-import { aModerationPhoto, fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
+import {
+  aModerationClip,
+  aModerationPhoto,
+  fakeApi,
+  renderWithProviders,
+} from '../../testing/renderWithProviders'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import type { Api } from '../../lib/api/client'
@@ -778,5 +783,106 @@ describe('ModerationPage', () => {
     // An eight-hour evening with a host moving between screens must not leave a
     // connection per visit open against the event.
     expect(stream().readyState).toBe(2)
+  })
+})
+
+/**
+ * A clip in the queue.
+ *
+ * The decision a host is taking here is not "is this a nice picture": it is whether
+ * fifteen seconds of video, with sound, go on a wall in front of two hundred people —
+ * and the thing that makes a clip unsuitable is rarely in its first frame.
+ */
+describe('a clip in the queue', () => {
+  beforeEach(() => {
+    FakeEventSource.instances = []
+    vi.stubGlobal('EventSource', FakeEventSource)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const aClip = (overrides: Partial<ModerationPhotoDto> = {}): ModerationPhotoDto =>
+    aModerationClip({ authorName: 'Léa', caption: 'La première danse', ...overrides })
+
+  it('says on the tile that it is a video, and how long', async () => {
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderConsole(api)
+
+    // Before the host opens anything: "this one is eight seconds" changes how long they
+    // are about to spend on it, and a poster frame does not say so.
+    expect(await screen.findByText(fr.moderation.videoLength(8))).toBeVisible()
+  })
+
+  it('offers to watch it rather than to enlarge it', async () => {
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderConsole(api)
+
+    expect(
+      await screen.findByRole('button', { name: fr.moderation.watchVideo('Léa') }),
+    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.moderation.enlargePhoto('Léa') })).toBeNull()
+  })
+
+  it('plays it in the lightbox, which is the only place it can be watched', async () => {
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderConsole(api)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.moderation.watchVideo('Léa') }),
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: fr.moderation.videoOf('Léa') })
+    const player = within(dialog).getByLabelText(
+      fr.moderation.videoAltWithCaption('La première danse', 'Léa'),
+    )
+    expect(player.tagName).toBe('VIDEO')
+    expect(player).toHaveAttribute('src', '/api/events/camille-et-sacha/photos/clip-1/video')
+    // With sound: half of what makes a clip unsuitable is audible, and playback starts
+    // from the host's own click so no autoplay policy is in the way.
+    //
+    // Asserted on the **property**, not the attribute. React sets `muted` as a property
+    // (`node.muted = v`) and never through `setAttribute`, so `not.toHaveAttribute` is
+    // true of a muted element as well and the assertion could not fail either way.
+    expect((player as HTMLVideoElement).muted).toBe(false)
+  })
+
+  it('says so when the browser cannot open the clip, rather than leaving a dead player', async () => {
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderConsole(api)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.moderation.watchVideo('Léa') }),
+    )
+    const dialog = await screen.findByRole('dialog', { name: fr.moderation.videoOf('Léa') })
+    fireEvent.error(within(dialog).getByLabelText(/vidéo envoyée par/i))
+
+    // The host still has to decide, from the poster and the caption — but they have to
+    // be told that is all they are getting, or they are pressing play on a dead element.
+    expect(within(dialog).getByText(fr.moderation.videoUnplayable)).toBeVisible()
+  })
+
+  it('still offers every decision on it, exactly as on a photograph', async () => {
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderConsole(api)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.moderation.publishPhoto('Léa') }),
+    )
+
+    // A clip is a facet of a photo, not a parallel thing: the same queue, the same
+    // endpoint, the same three decisions.
+    await waitFor(() => expect(api.moderate).toHaveBeenCalledWith(SLUG, 'clip-1', 'publish'))
+  })
+
+  it('leaves a photograph rendered as a still', async () => {
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+    renderConsole(api)
+
+    await screen.findByTestId('moderation-card')
+
+    expect(screen.queryByText(fr.moderation.videoBadge)).toBeNull()
+    expect(screen.getByRole('button', { name: fr.moderation.enlargePhoto('Léa') })).toBeVisible()
   })
 })

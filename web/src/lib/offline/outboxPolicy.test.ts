@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CLAIM_LEASE_MS,
+  acceptsFileType,
   MAX_AGE_MS,
   MAX_ATTEMPTS,
   backoffMs,
@@ -187,5 +188,30 @@ describe('shouldQueue', () => {
     // The guest is standing there pressing the button and the limit is per minute:
     // "réessayez dans un instant" is the honest answer, not a silent queue.
     expect(shouldQueue(429)).toBe(false)
+  })
+})
+
+describe('acceptsFileType', () => {
+  it.each(['video/mp4', 'video/quicktime', 'video/webm', 'VIDEO/MP4'])(
+    'refuses %s, which this queue could never deliver',
+    (fileType) => {
+      // The drain posts to the photo route; a clip belongs to a different one, with a
+      // different field, a different limit and a job in its answer. Queueing one would
+      // burn an attempt every time the guest walked past an access point — and, because
+      // entries drain oldest first, would park eighty megabytes in front of every
+      // photograph behind it.
+      expect(acceptsFileType(fileType)).toBe(false)
+    },
+  )
+
+  it.each(['image/jpeg', 'image/png', 'image/heic'])('keeps %s', (fileType) => {
+    expect(acceptsFileType(fileType)).toBe(true)
+  })
+
+  it('keeps a photo whose type the picker did not declare', () => {
+    // Several Android pickers and every share-sheet path report an empty type. Refusing
+    // those would drop ordinary photographs for a check the photo route does properly,
+    // from the signature.
+    expect(acceptsFileType('')).toBe(true)
   })
 })

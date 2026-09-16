@@ -7,6 +7,7 @@ import { ToastProvider } from '../design-system/components/ToastProvider'
 import { installDialogStub } from './dialogStub'
 import type { Api, ModeratorInviteResponse } from '../lib/api/client'
 import type {
+  ClipJobDto,
   EventDto,
   EventSettingsDto,
   GuestPhotoDto,
@@ -40,6 +41,12 @@ export const aPublicEvent = (overrides: Partial<PublicEventDto> = {}): PublicEve
   allowReactions: true,
   maxUploadBytes: 25_000_000,
   maxFilesPerUpload: 20,
+  // Video on by default in tests, because the interesting cases are the ones where a
+  // guest can actually send one; a screen that hides the control is one assertion away
+  // with `allowClips: false`.
+  allowClips: true,
+  maxClipBytes: 80_000_000,
+  maxClipSeconds: 15,
   ...overrides,
 })
 
@@ -59,8 +66,31 @@ export const aWallItem = (overrides: Partial<WallItemDto> = {}): WallItemDto => 
   caption: 'Les confettis',
   authorName: 'Léa',
   createdAt: CREATED_AT,
+  // A photograph unless a test says otherwise. The clip facet is `null`-valued rather
+  // than absent on the wire, so no surface tests for a missing key.
+  kind: 'photo',
+  videoUrl: null,
+  durationMs: null,
   ...overrides,
 })
+
+/**
+ * A clip, as every surface that can hold one receives it.
+ *
+ * `thumbUrl` and `displayUrl` point at the **poster**, exactly as the server presents
+ * them — which is what lets the four layouts that do not play video render one with no
+ * branch of their own, and what a test would quietly lose by inventing its own row.
+ */
+export const aWallClip = (overrides: Partial<WallItemDto> = {}): WallItemDto =>
+  aWallItem({
+    id: 'clip-1',
+    displayUrl: '/api/events/camille-et-sacha/photos/clip-1/poster',
+    thumbUrl: '/api/events/camille-et-sacha/photos/clip-1/poster',
+    kind: 'clip',
+    videoUrl: '/api/events/camille-et-sacha/photos/clip-1/video',
+    durationMs: 8_000,
+    ...overrides,
+  })
 
 export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallResponse => ({
   event: { slug: 'camille-et-sacha', name: 'Camille & Sacha' },
@@ -82,6 +112,9 @@ export const aGuestPhoto = (overrides: Partial<GuestPhotoDto> = {}): GuestPhotoD
   // The server computes this from the grace window and the status. A component must
   // never recompute it: that divergence is why 1.0 offered a delete button that 403'd.
   canDelete: true,
+  kind: 'photo',
+  videoUrl: null,
+  durationMs: null,
   ...overrides,
 })
 
@@ -97,13 +130,29 @@ export const aModerationPhoto = (
   caption: null,
   authorName: 'Léa',
   createdAt: CREATED_AT,
+  kind: 'photo',
+  videoUrl: null,
+  durationMs: null,
   ...overrides,
 })
+
+/** The same row when it is fifteen seconds of video the host has to watch. */
+export const aModerationClip = (overrides: Partial<ModerationPhotoDto> = {}): ModerationPhotoDto =>
+  aModerationPhoto({
+    id: 'clip-1',
+    thumbUrl: '/api/events/camille-et-sacha/photos/clip-1/poster',
+    displayUrl: '/api/events/camille-et-sacha/photos/clip-1/poster',
+    kind: 'clip',
+    videoUrl: '/api/events/camille-et-sacha/photos/clip-1/video',
+    durationMs: 8_000,
+    ...overrides,
+  })
 
 export const eventSettings = (overrides: Partial<EventSettingsDto> = {}): EventSettingsDto => ({
   moderation: 'manual',
   allowCaptions: true,
   allowReactions: true,
+  allowClips: true,
   allowGuestSelfDelete: true,
   guestSelfDeleteGraceSeconds: 300,
   retentionDays: null,
@@ -134,6 +183,21 @@ export const anEventDto = (overrides: Partial<EventDto> = {}): EventDto => ({
   ...overrides,
 })
 
+/**
+ * A clip job, as `POST .../clips` and `GET .../clips/:id` both answer it.
+ *
+ * `queued` by default, because that is what a fresh upload actually returns — the bytes
+ * have landed and the worker has not taken them yet. Defaulting to `done` would let every
+ * test skip the window this surface exists for.
+ */
+export const aClipJob = (overrides: Partial<ClipJobDto> = {}): ClipJobDto => ({
+  clipJobId: 'clip-job-1',
+  status: 'queued',
+  photoId: 'clip-1',
+  failureCode: null,
+  ...overrides,
+})
+
 export const aSessionUser = (overrides: Partial<SessionUserDto> = {}): SessionUserDto => ({
   userId: 'user-1',
   email: 'organisation@example.com',
@@ -158,6 +222,11 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   wall: vi.fn(async () => aWallResponse()),
 
   uploadPhotos: vi.fn(async () => ({ results: [] })),
+  // `queued`, which is what a fresh upload actually answers: the bytes have landed and
+  // the worker has not taken them yet. `done` as a default would make every clip test
+  // skip the polling this surface exists for.
+  uploadClip: vi.fn(async () => aClipJob()),
+  clipJob: vi.fn(async () => aClipJob()),
   myPhotos: vi.fn(async () => ({ items: [] })),
   deleteMyPhoto: vi.fn(async () => undefined),
   setCaption: vi.fn(async () => undefined),

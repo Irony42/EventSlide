@@ -169,3 +169,38 @@ const TERMINAL_CODES: ReadonlySet<string> = new Set([
 ])
 
 export const isTerminal = (code: string): boolean => TERMINAL_CODES.has(code)
+
+/**
+ * Whether the outbox may hold these bytes at all.
+ *
+ * **A video is refused, explicitly and by name.** This is a product decision rather than
+ * a technical limitation, and it is the one rule in this file that is about what the
+ * outbox will *not* do:
+ *
+ * - The cap above is thirty to forty photos, which is 60–80 MB of someone's evening. One
+ *   clip is up to `MAX_CLIP_BYTES` — eighty megabytes by default — **on its own**, so a
+ *   device holding two of them is already past what any phone's storage quota will grant
+ *   an origin. The write then fails at the browser's own limit, which is the silent
+ *   failure this whole feature exists to avoid.
+ * - The drain sends through `POST .../photos`, and a clip goes to `POST .../clips`: a
+ *   different route, a different field name, a different limit, and a `202` naming a job
+ *   rather than a photo. A queued clip would be refused by the photo route for ever,
+ *   burning an attempt every time the guest walks past an access point.
+ * - And the cost of getting it wrong is not the clip. Entries drain oldest first, so
+ *   eighty megabytes that can never be sent is eighty megabytes in front of every
+ *   photograph behind it. **A phone holding a clip it cannot send is a phone that never
+ *   sends anything else either.**
+ *
+ * So the guest is told, at the moment it would have been queued, that video is not kept
+ * for later (`fr.upload.clipNotQueued`) — which is a worse answer than the photo path
+ * gives and an honest one, where a row reading "en attente du réseau" all evening for
+ * bytes nothing will ever send is neither.
+ *
+ * Judged on the declared type because that is all the outbox is given. An empty type — as
+ * several Android pickers report — is accepted, for the same reason `refuseClipFile`
+ * accepts it: the photo route identifies the bytes properly and answers
+ * `image.unsupportedFormat` if they are not an image, and refusing here would drop
+ * ordinary photographs from ordinary phones.
+ */
+export const acceptsFileType = (fileType: string): boolean =>
+  !fileType.toLowerCase().startsWith('video/')

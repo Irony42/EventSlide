@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { WallItemDto, WallLayout } from '../../../lib/api/dto'
-import { aWallItem } from '../../../testing/renderWithProviders'
+import { aWallClip, aWallItem } from '../../../testing/renderWithProviders'
+import { fr } from '../../../lib/i18n/fr'
 import type { Slideshow } from '../hooks/useSlideshow'
 import { WallLayouts } from './WallLayouts'
 
@@ -659,5 +660,170 @@ describe('the split layout', () => {
       'src',
       items[3]?.displayUrl ?? '',
     )
+  })
+})
+
+/**
+ * A clip on the wall.
+ *
+ * The decision under test is not "does a `<video>` render". It is that **one** table
+ * decides where a clip plays — `WallLayoutSpec.playsVideo` in the domain, mirrored in
+ * `wallLayoutPlayback.ts` and guarded by `wallLayoutContract.test.ts` — and that the four
+ * layouts it excludes cost the wall nothing, because a clip's `displayUrl` is already its
+ * poster frame.
+ */
+describe('a clip on the wall', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  /** jsdom has no media pipeline: `play()` is not implemented on the prototype at all. */
+  const stubPlayback = (outcome: Promise<void> = Promise.resolve()) =>
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => outcome)
+
+  const oneClip = (): readonly WallItemDto[] => [aWallClip({ caption: 'La première danse' })]
+
+  const playerOnScreen = (container: HTMLElement): HTMLVideoElement | null =>
+    container.querySelector('video')
+
+  it.each(['spotlight', 'split'] as const)('plays it in %s', (layout) => {
+    stubPlayback()
+    const { container } = renderWall(layout, oneClip())
+
+    const player = playerOnScreen(container)
+    expect(player).not.toBeNull()
+    expect(player).toHaveAttribute('src', '/api/events/camille-et-sacha/photos/clip-1/video')
+  })
+
+  it.each(['mosaic', 'polaroid', 'filmstrip', 'collage'] as const)(
+    'shows its poster frame in %s, and mounts no decoder',
+    (layout) => {
+      stubPlayback()
+      const { container } = renderWall(layout, oneClip())
+
+      // Twelve simultaneous decodes is not a slower wall, it is a stuttering one, for
+      // eight hours, on a box that is also driving the projector.
+      expect(playerOnScreen(container)).toBeNull()
+      // And it costs the layout nothing: `displayUrl` is the poster already, so this is
+      // the same `<img>` a photograph gets.
+      expect(container.querySelector('img')).toHaveAttribute(
+        'src',
+        '/api/events/camille-et-sacha/photos/clip-1/poster',
+      )
+    },
+  )
+
+  it('starts it muted, because autoplay does not survive sound', () => {
+    stubPlayback()
+    const { container } = renderWall('spotlight', oneClip())
+
+    const player = playerOnScreen(container)
+    // Two reasons at once: a wall that asks for sound in a room with a DJ is a wall
+    // nobody hears, and an unmuted video is one no browser starts by itself.
+    expect(player?.muted).toBe(true)
+    expect(player).toHaveAttribute('autoplay')
+    expect(player).toHaveAttribute('playsinline')
+    // For the slide's duration: a few seconds of video in an eight-second slot runs round
+    // rather than freezing on its last frame.
+    expect(player).toHaveAttribute('loop')
+  })
+
+  it('names it as a video rather than as a photo', () => {
+    stubPlayback()
+    const { container } = renderWall('spotlight', oneClip())
+
+    expect(playerOnScreen(container)).toHaveAttribute(
+      'aria-label',
+      `La première danse — ${fr.wall.videoBy('Léa')}`,
+    )
+  })
+
+  it('falls back to the poster when the clip will not decode', async () => {
+    stubPlayback()
+    const { container } = renderWall('spotlight', oneClip())
+    const player = playerOnScreen(container)
+
+    fireEvent.error(player as HTMLVideoElement)
+
+    // The wall runs unattended for eight hours. A codec this box does not have must be a
+    // still frame, never a black rectangle in the middle of a wedding.
+    await waitFor(() => expect(playerOnScreen(container)).toBeNull())
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      '/api/events/camille-et-sacha/photos/clip-1/poster',
+    )
+  })
+
+  it('falls back to the poster when the browser refuses to autoplay it', async () => {
+    // Tested rather than trusted: "muted autoplay is allowed" is a user-agent policy, not
+    // a property of this codebase, and a slot sitting black behind a play button is the
+    // one outcome nobody in the room can fix.
+    stubPlayback(Promise.reject(new DOMException('blocked', 'NotAllowedError')))
+    const { container } = renderWall('spotlight', oneClip())
+
+    await waitFor(() => expect(playerOnScreen(container)).toBeNull())
+    expect(container.querySelector('img')).not.toBeNull()
+  })
+
+  it('leaves a photograph exactly as it was', () => {
+    stubPlayback()
+    const { container } = renderWall('spotlight', somePhotos(1))
+
+    // The four grid layouts and every photograph must render the same DOM they did
+    // before video existed — the wall's visual baselines are pinned against it.
+    expect(playerOnScreen(container)).toBeNull()
+    expect(container.querySelector('img')).toHaveAttribute('decoding', 'async')
+  })
+})
+
+/**
+ * The spotlight's two recycled layers, when what they hold is a clip.
+ *
+ * `SlideLayer` keeps both `<figure>` elements for the whole evening, and the one behind
+ * holds the item that just left for a full slide after the crossfade. That is the layer
+ * this suite is about: what it does with a clip is the difference between one decoder and
+ * two, on the layout whose budget is one.
+ */
+describe('a clip leaving the spotlight', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const media = () => ({
+    play: vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(),
+    pause: vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {}),
+  })
+
+  it('stops the outgoing clip instead of leaving a second decoder running', () => {
+    const stub = media()
+    const leaving = aWallClip({ id: 'clip-out' })
+    const arriving = aWallClip({ id: 'clip-in' })
+
+    renderWall('spotlight', [arriving, leaving], {
+      current: arriving,
+      previous: leaving,
+      generation: 1,
+    })
+
+    // One playing, one held still. A clip left running behind an opacity of zero is
+    // eight seconds of decoding a projector spends on a picture nobody can see.
+    expect(stub.pause).toHaveBeenCalled()
+  })
+
+  it('keeps the outgoing clip’s own frame rather than snapping it back to the poster', () => {
+    media()
+    const leaving = aWallClip({ id: 'clip-out' })
+    const arriving = aWallClip({ id: 'clip-in' })
+
+    const { container } = renderWall('spotlight', [arriving, leaving], {
+      current: arriving,
+      previous: leaving,
+      generation: 1,
+    })
+
+    // Both layers keep a `<video>`: swapping the outgoing one for its poster would jump
+    // the picture back to the first frame at the instant the dissolve starts, which is
+    // plainly visible on a three-metre screen.
+    expect(container.querySelectorAll('video')).toHaveLength(2)
   })
 })

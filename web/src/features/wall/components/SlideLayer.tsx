@@ -3,6 +3,7 @@ import type { WallItemDto } from '../../../lib/api/dto'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { photoAlt } from '../photoAlt'
 import { PhotoPreload } from './PhotoPreload'
+import { WallMedia } from './WallMedia'
 import styles from './SlideLayer.module.css'
 
 /** Computed values, so an inline custom property is the legitimate carrier. */
@@ -22,6 +23,16 @@ export interface SlideLayerProps {
   /** Monotonic slide counter, used to give each layer a permanent slot. */
   readonly generation: number
   readonly caption?: ReactNode
+  /**
+   * Whether a clip plays here. Resolved from the layout's spec by `WallLayouts` and
+   * passed through; this component does not decide it and must not.
+   *
+   * Both layers get the same answer, and only the front one runs — see `paused` below.
+   * The outgoing layer keeps its `<video>` and stops it, so the dissolve fades out the
+   * frame the room was watching rather than snapping back to the poster, and the wall
+   * still decodes exactly one stream at a time, which is `spotlight`'s budget.
+   */
+  readonly plays?: boolean
 }
 
 const SLOTS = [0, 1] as const
@@ -48,6 +59,7 @@ export function SlideLayer({
   transitionMs,
   generation,
   caption,
+  plays = false,
 }: SlideLayerProps) {
   const reducedMotion = usePrefersReducedMotion()
 
@@ -94,17 +106,21 @@ export function SlideLayer({
             {...(isFront ? {} : { 'aria-hidden': true })}
           >
             {showsItem && item !== null ? (
-              <img
+              <WallMedia
                 // Keyed by the photo so the element is remade per slide: that is what
                 // restarts the Ken Burns animation. The bytes are already in cache from
                 // the hidden preload, so the remount paints in the same frame.
                 key={item.id}
-                className={styles['image']}
-                src={item.displayUrl}
+                item={item}
+                plays={plays}
+                // The layer behind holds its item for a whole slide after the crossfade.
+                // A clip left running there is a second decoder for eight seconds, every
+                // slide, on the one layout whose budget is a single stream.
+                paused={!isFront}
+                // The outgoing copy is the same photo the front layer already named, on
+                // its way out, and is `aria-hidden` besides.
                 alt={isFront ? photoAlt(item) : ''}
-                width={item.width}
-                height={item.height}
-                decoding="async"
+                className={styles['image'] ?? ''}
               />
             ) : null}
             {isFront ? caption : null}

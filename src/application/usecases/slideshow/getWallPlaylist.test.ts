@@ -242,6 +242,7 @@ describe('getWallPlaylist', () => {
       crops: false,
       showsCaption: true,
       showsAuthor: true,
+      playsVideo: true,
     })
   })
 

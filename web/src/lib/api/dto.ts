@@ -23,6 +23,24 @@ export type WallLayout = 'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'co
  */
 export type MediaVariant = 'thumb' | 'display' | 'original' | 'video' | 'poster'
 export type EventRole = 'owner' | 'moderator'
+/**
+ * What a row on the wall actually is.
+ *
+ * Consulted where a **rule** differs and nowhere else. Everything mechanical about a
+ * clip already arrives resolved: `thumbUrl` and `displayUrl` point at its poster frame,
+ * so a surface that does not care renders a still and needs no branch at all.
+ */
+export type MediaKind = 'photo' | 'clip'
+/**
+ * The life of one transcode, as the guest's phone polls it.
+ *
+ * A separate machine from `PhotoStatus`, and deliberately: a clip that is still
+ * transcoding has no photo row at all, which is what makes "a half-encoded clip reached
+ * the projector" unrepresentable rather than filtered out. `reserved` is a window of
+ * milliseconds that only a second upload of the same file can observe; a fresh upload
+ * answers `queued`.
+ */
+export type ClipJobStatus = 'reserved' | 'queued' | 'running' | 'done' | 'failed'
 
 export type ReactionCounts = Record<ReactionKind, number>
 
@@ -34,6 +52,15 @@ export interface PublicEventDto {
   readonly allowReactions: boolean
   readonly maxUploadBytes: number
   readonly maxFilesPerUpload: number
+  /** The host's switch over video. `false` means: do not offer the control at all. */
+  readonly allowClips: boolean
+  /**
+   * The limits the clip route enforces, so the picker can refuse **before** the bytes
+   * go up a venue's Wi-Fi rather than after. Deployment configuration, which is exactly
+   * why they travel instead of being compiled in here.
+   */
+  readonly maxClipBytes: number
+  readonly maxClipSeconds: number
 }
 
 export interface JoinResponse {
@@ -42,6 +69,14 @@ export interface JoinResponse {
   readonly event: PublicEventDto
 }
 
+/**
+ * One row of the wall's playlist.
+ *
+ * The three clip fields are `null`-valued on a photograph rather than absent, so nothing
+ * here tests for a missing key. `displayUrl` and `thumbUrl` point at a clip's **poster**,
+ * which is what lets the four layouts that do not play video render one with no branch of
+ * their own — see `wallLayoutPlayback.ts` for which two do.
+ */
 export interface WallItemDto {
   readonly id: string
   readonly displayUrl: string
@@ -51,6 +86,28 @@ export interface WallItemDto {
   readonly caption: string | null
   readonly authorName: string | null
   readonly createdAt: string
+  readonly kind: MediaKind
+  /** `null` for a photograph. The mp4, which answers `Range` requests. */
+  readonly videoUrl: string | null
+  /** `null` for a photograph. Milliseconds, measured on the stored file. */
+  readonly durationMs: number | null
+}
+
+/**
+ * What a guest is told about a clip that has no photo row yet.
+ *
+ * It exists because that window is real: between the upload and the transcode there is
+ * nothing in "Vos envois" to show them, and a guest who cannot tell whether it worked
+ * sends the video again. `photoId` names the row the job will produce and is present
+ * whatever the status, so the client can start watching for it immediately — it names an
+ * existing photo only once `status` is `done`.
+ */
+export interface ClipJobDto {
+  readonly clipJobId: string
+  readonly status: ClipJobStatus
+  readonly photoId: string
+  /** The stable code behind a `failed` status; the client picks its French from it. */
+  readonly failureCode: string | null
 }
 
 export interface WallResponse {
@@ -89,6 +146,10 @@ export interface GuestPhotoDto {
   readonly createdAt: string
   /** Computed server-side from the grace window and the status, so the two never disagree. */
   readonly canDelete: boolean
+  /** See {@link WallItemDto}. `thumbUrl` is the poster when this row is a clip. */
+  readonly kind: MediaKind
+  readonly videoUrl: string | null
+  readonly durationMs: number | null
 }
 
 /**
@@ -117,6 +178,14 @@ export interface ModerationPhotoDto {
   /** `null` for a guest who chose not to give a name, which is a supported choice. */
   readonly authorName: string | null
   readonly createdAt: string
+  /**
+   * See {@link WallItemDto}. A moderator deciding about a clip has to be able to watch
+   * it — a poster frame is not a decision about fifteen seconds of video in front of
+   * two hundred people.
+   */
+  readonly kind: MediaKind
+  readonly videoUrl: string | null
+  readonly durationMs: number | null
 }
 
 export interface ModerationQueueResponse {
@@ -135,6 +204,16 @@ export interface EventSettingsDto {
   readonly moderation: 'manual' | 'auto'
   readonly allowCaptions: boolean
   readonly allowReactions: boolean
+  /**
+   * The host's veto over video, and separate from whether the box *can* transcode one:
+   * a deployment with no encoder refuses a clip with `clip.transcoderUnavailable`, which
+   * is an apology, while this is a decision.
+   *
+   * It reads `false` for every event stored before clips shipped, which is why the
+   * settings form has to carry it: without the checkbox the feature is unreachable on
+   * exactly the events it exists for.
+   */
+  readonly allowClips: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null

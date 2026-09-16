@@ -87,6 +87,24 @@ export interface HttpConfig {
    */
   readonly clips: {
     readonly maxBytes: number
+    /**
+     * `MAX_CLIP_SECONDS`, in seconds.
+     *
+     * Enforced by the domain rather than here — `ClipDuration.create` refuses a longer
+     * source — so the only thing the HTTP layer does with it is **tell the guest**, in
+     * `PublicEventDto`. That is worth the field: a phone can read a recording's duration
+     * before it sends it, and a refusal that arrives before eighty megabytes do is the
+     * difference between a guest filming a shorter one and a guest giving up.
+     */
+    readonly maxSeconds: number
+    /**
+     * Whether this box has a video encoder at all, decided once at boot.
+     *
+     * Here for the same reason `maxSeconds` is: the HTTP layer enforces nothing with it
+     * — `uploadClip` does — and only **tells the guest**, through `PublicEventDto`. That
+     * is worth the field, because the refusal it prevents costs a full upload.
+     */
+    readonly supported: boolean
     /** Where multer writes a clip before it is staged. Under `MEDIA_ROOT`. */
     readonly uploadTempDir: string
   }

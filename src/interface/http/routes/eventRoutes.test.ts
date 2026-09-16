@@ -236,7 +236,15 @@ const buildWorld = (): World => {
         eventRoutes({
           deps,
           usecases,
-          presenter: { publicUrl: deps.config.publicUrl, uploadLimits: deps.config.uploads },
+          presenter: {
+            publicUrl: deps.config.publicUrl,
+            uploadLimits: deps.config.uploads,
+            clipLimits: {
+              maxBytes: deps.config.clips.maxBytes,
+              maxSeconds: deps.config.clips.maxSeconds,
+              supported: deps.config.clips.supported,
+            },
+          },
         }),
       )
     },

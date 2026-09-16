@@ -18,6 +18,15 @@ const SLOT_COUNTS: [WallLayout, number][] = [
  */
 const MAX_SLOTS = 12
 
+/**
+ * How many slots a layout may hold and still play video in every one of them.
+ *
+ * Two, because that is what a venue mini-PC already driving a 1080p projector decodes
+ * without dropping frames. Twelve simultaneous decodes is not a slower wall, it is a
+ * stuttering one, for eight hours, with nobody in the room able to fix it.
+ */
+const MAX_PLAYING_SLOTS = 2
+
 describe('isWallLayout', () => {
   it.each([...WALL_LAYOUTS])('accepts %s, which a host can pick', (layout) => {
     expect(isWallLayout(layout)).toBe(true)
@@ -70,5 +79,31 @@ describe('wallLayoutSpec', () => {
     const spec = wallLayoutSpec(l)
 
     expect(spec.showsAuthor).toBe(spec.showsCaption)
+  })
+
+  it('plays a clip only in the two layouts a projector can decode', () => {
+    const playing = WALL_LAYOUTS.filter((layout) => wallLayoutSpec(layout).playsVideo)
+
+    // Named rather than counted, because this is the decision itself and not a property
+    // of it: the four grid layouts show a clip's poster frame, which costs them nothing
+    // — `displayUrl` already points at it.
+    expect(playing).toEqual(['spotlight', 'split'])
+  })
+
+  it('keeps every layout that plays inside the projector’s decode budget', () => {
+    // The reason for the list above, stated as the rule behind it. A venue mini-PC is
+    // already driving the wall; a layout that plays one video per slot is affordable at
+    // two slots and is dropped frames at twelve, so a seventh layout may only be given
+    // `playsVideo` if it is small enough to pay for it.
+    //
+    // Written as a filter rather than as a per-layout `if`: parameterising over all six
+    // and skipping four of them inside the body is four cases that assert nothing while
+    // the report says they passed.
+    const budgets = WALL_LAYOUTS.filter((layout) => wallLayoutSpec(layout).playsVideo).map(
+      (layout) => wallLayoutSpec(layout).slotCount,
+    )
+
+    expect(budgets.length).toBeGreaterThan(0)
+    for (const slotCount of budgets) expect(slotCount).toBeLessThanOrEqual(MAX_PLAYING_SLOTS)
   })
 })

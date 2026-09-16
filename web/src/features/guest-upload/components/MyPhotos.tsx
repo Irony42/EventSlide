@@ -92,16 +92,53 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
       {photos.length === 0 ? null : (
         <ul className={styles['list']}>
           {photos.map((photo, index) => (
-            <li key={photo.id} className={styles['photo']}>
-              {/* The caption is the photo's own description; without one the fallback
-                  says what it is rather than reading a filename aloud. */}
-              <img
-                className={styles['thumb']}
-                src={photo.thumbUrl}
-                alt={photo.caption ?? fr.upload.mineAlt}
-              />
+            <li
+              key={photo.id}
+              className={[styles['photo'], photo.kind === 'clip' ? styles['clipRow'] : '']
+                .filter(Boolean)
+                .join(' ')}
+            >
+              {photo.kind === 'clip' && photo.videoUrl !== null ? (
+                /*
+                  A guest's own clip, playable from the one screen that answers "did it
+                  arrive, and was it the right one?" — which is this list's whole job. A
+                  poster frame cannot answer the second half.
+
+                  `preload="none"` because the answer is usually yes and a list of five
+                  clips must not fetch five videos over venue Wi-Fi to say so. Native
+                  controls, on a box that takes the whole row: a `<video controls>` sized
+                  like a thumbnail hands a guest a play target far under the 44 px floor
+                  of DESIGN-SYSTEM.md section 8, on the one surface where everybody is
+                  using a thumb.
+                */
+                <video
+                  className={styles['clip']}
+                  src={photo.videoUrl}
+                  poster={photo.thumbUrl}
+                  controls
+                  preload="none"
+                  aria-label={photo.caption ?? fr.upload.mineClipAlt}
+                />
+              ) : (
+                /* The caption is the photo's own description; without one the fallback
+                   says what it is rather than reading a filename aloud. */
+                <img
+                  className={styles['thumb']}
+                  src={photo.thumbUrl}
+                  alt={photo.caption ?? fr.upload.mineAlt}
+                />
+              )}
               <div className={styles['detail']}>
                 <Badge tone={TONES[photo.status]}>{LABELS[photo.status]}</Badge>
+                {/* Said as well as shown: the host's decision and "this one is a video"
+                    are different facts, and the badge above only carries the first. */}
+                {photo.kind === 'clip' ? (
+                  <Badge tone="neutral">
+                    {photo.durationMs === null
+                      ? fr.upload.mineClipBadge
+                      : fr.moderation.videoLength(Math.round(photo.durationMs / 1_000))}
+                  </Badge>
+                ) : null}
                 {photo.caption === null ? null : (
                   <p className={styles['caption']}>{photo.caption}</p>
                 )}

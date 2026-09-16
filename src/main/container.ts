@@ -493,6 +493,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     uploads: { maxBytes: config.uploads.maxBytes, maxFiles: config.uploads.maxFiles },
     clips: {
       maxBytes: config.clips.maxBytes,
+      maxSeconds: Math.floor(config.clips.maxDurationMs / 1000),
+      supported: ffmpeg !== null,
       uploadTempDir: clipUploadTempDir(mediaRoot),
     },
     rateLimits: config.rateLimits,
@@ -512,6 +514,15 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   const presenter: PresenterContext = {
     publicUrl: config.publicUrl,
     uploadLimits: { maxBytes: config.uploads.maxBytes, maxFiles: config.uploads.maxFiles },
+    clipLimits: {
+      maxBytes: config.clips.maxBytes,
+      // Floor, never round: the guest surface refuses on this number, and
+      // `clipFile.ts` is explicit that a client copy of a server rule may be stricter
+      // and useless but never looser and misleading. A 15 500 ms cap rounded up to 16 s
+      // is a client that waves through a clip the domain refuses.
+      maxSeconds: Math.floor(config.clips.maxDurationMs / 1000),
+      supported: ffmpeg !== null,
+    },
   }
 
   // The built web app, when there is one. Absent during `npm run dev:api`, where Vite

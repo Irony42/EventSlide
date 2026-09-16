@@ -53,6 +53,9 @@
 
 .thumbnail {
   display: block;
+  /* The badge below is absolutely positioned against this button. Declared here rather
+     than on a wrapper, because the button is already the box the poster fills. */
+  position: relative;
   width: 100%;
   /* Fixed ratio, so the grid does not reshuffle as portraits and landscapes stream in
      over SSE (DESIGN-SYSTEM.md section 6). */
@@ -70,6 +73,31 @@
   /* Cropped here on purpose: the tile is for triage. The lightbox and the wall show
      the whole photo. */
   object-fit: cover;
+}
+
+/**
+ * "Vidéo · 8 s", over the poster frame.
+ *
+ * On the scrim rather than on the photo's own colours: a poster frame is somebody's
+ * photograph and can be any brightness at all, so the only way a label over it reads
+ * reliably is its own ground. `--surface-scrim` is the token the wall's captions already
+ * use for exactly this problem.
+ */
+.clipBadge {
+  position: absolute;
+  inset-block-end: var(--space-2);
+  inset-inline-start: var(--space-2);
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  /* Announced by the button's own label, which already says "Regarder la vidéo de …".
+     Reading it twice is noise on a queue of a hundred tiles. */
+  pointer-events: none;
 }
 
 .meta {

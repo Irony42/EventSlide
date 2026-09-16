@@ -34,6 +34,29 @@ export interface PresenterContext {
     readonly maxBytes: number
     readonly maxFiles: number
   }
+  /**
+   * The clip route's own limits, which are deliberately not the photo route's.
+   *
+   * Passed in rather than imported from the config module for the reason everything else
+   * here is: a presenter is pure and takes what it needs, so it can be tested without a
+   * request and without an environment.
+   */
+  readonly clipLimits: {
+    readonly maxBytes: number
+    readonly maxSeconds: number
+    /**
+     * Whether this deployment has a video encoder at all, decided once at boot.
+     *
+     * A **capability**, not a setting, and the guest needs it folded together with the
+     * host's switch. `uploadClip` refuses with `clip.transcoderUnavailable` — and it
+     * refuses *after* multer has written the upload to disk, because the file has to
+     * arrive before a handler runs at all. So on a box with no ffmpeg and a host who
+     * ticked the box, every guest pays a full eighty-megabyte upload to be told `500`,
+     * and pays it again every time they try, because nothing about the answer changes
+     * until somebody redeploys.
+     */
+    readonly supported: boolean
+  }
 }
 
 const iso = (date: Date): string => date.toISOString()
@@ -112,8 +135,9 @@ export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto =>
  * What a guest is told about the event.
  *
  * Compare with {@link toEventDto}: no owner, no quota, no counts, no join code, no
- * retention, no per-guest limit. A guest holding the join code learns the event's name
- * and whether captions and reactions are on, and nothing else.
+ * retention, no per-guest limit. A guest holding the join code learns the event's name,
+ * which of the three guest-facing switches are on, and the limits their own upload will
+ * be judged against — and nothing else.
  */
 export const toPublicEventDto = (event: Event, context: PresenterContext): PublicEventDto => ({
   slug: event.slug.value,
@@ -122,6 +146,13 @@ export const toPublicEventDto = (event: Event, context: PresenterContext): Publi
   allowReactions: event.settings.allowReactions,
   maxUploadBytes: context.uploadLimits.maxBytes,
   maxFilesPerUpload: context.uploadLimits.maxFiles,
+  // The host's decision **and** the box's capability. A guest is being told whether they
+  // may send a video here, which is a different question from the one
+  // `EventSettingsDto.allowClips` answers for the host — that one is their own switch,
+  // and it stays exactly as they set it whatever this deployment can do.
+  allowClips: event.settings.allowClips && context.clipLimits.supported,
+  maxClipBytes: context.clipLimits.maxBytes,
+  maxClipSeconds: context.clipLimits.maxSeconds,
 })
 
 export const toEventSummaryDto = (summary: EventSummary): EventSummaryDto => ({

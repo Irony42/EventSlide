@@ -26,12 +26,20 @@ design. Companions: [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md) (rul
 > same way and is wired the same way, in `src/main/scheduleSweeper.ts`. Readiness
 > draining on shutdown (§8) is still planned.
 >
-> **Short video clips (roadmap 1.4) are here on the server and nowhere else.** Upload,
-> the queue, the transcode, storage, the byte quota, moderation and delivery are all
-> implemented and tested (§3.1); `web/src` has not been taught to send or render one, so
-> the fields those surfaces will read are on the wire and unconsumed. That gap is
-> recorded where it can be checked rather than only here: `UNREAD_BY_CLIENT` in
-> `dtoContract.test.ts` and `NO_CLIENT_CALLER` in `requestContract.test.ts` both name it.
+> **Short video clips (roadmap 1.4) reach all three surfaces.** The server spine — upload,
+> the queue, the transcode, storage, the byte quota, moderation and delivery — is §3.1.
+> The web surfaces are `web/src/features/guest-upload/` (send one, and watch the job's
+> real states), `web/src/features/moderation/` (watch it before deciding, on the laptop
+> and on the phone) and `web/src/features/wall/` (play it, in the two layouts a projector
+> can afford). The exemptions that recorded the gap in `dtoContract.test.ts` and
+> `requestContract.test.ts` are gone with it.
+>
+> One decision spans the boundary and is worth naming here: **which layouts play a clip
+> is `WallLayoutSpec.playsVideo` in the domain**, and the client holds a copy of that one
+> field (`web/src/features/wall/wallLayoutPlayback.ts`) because the layout belongs to the
+> screen rather than to the event — it is chosen in the browser and `GET /wall` neither
+> accepts nor stores it, so the server cannot resolve the rule for us.
+> `wallLayoutContract.test.ts` compares the two declarations and fails when they drift.
 
 ---
 
@@ -309,6 +317,21 @@ owns a loop, a timer and a guard.
 | media write                | part of the output     | both output digests deleted, treated as transient                                                   |
 | the row insert             | mp4 and poster stored  | both deleted; a quota refusal here is **permanent**, because it was decided against committed state |
 | a crash, anywhere          | anything up to the row | the row is `running` at the next boot, recovered to `queued`, and the id makes the retry idempotent |
+
+### On the three surfaces
+
+The web half, and what is decided where. None of it re-derives a server rule: the
+limits, the job's states and the failure codes all arrive from the wire.
+
+| Surface      | File                                                      | The decision it carries                                                                                                                                                                                                                                                                                                                |
+| ------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guest        | `guest-upload/clipFile.ts`                                | Refuse **before** the bytes: size always, duration where the browser can read the header, on exactly the bound the domain applies rather than a rounded one. Judged against `PublicEventDto.maxClipBytes` / `maxClipSeconds`, never a constant — a `413` after four minutes of venue Wi-Fi has already cost the guest the four minutes |
+| Guest        | `PublicEventDto.allowClips`                               | The host's switch **and** the box's capability, folded together. `uploadClip` refuses an encoder-less deployment only after multer has written the file, so without the conjunction a ticked checkbox on a box with no ffmpeg charges every guest a full upload, every attempt, until a redeploy                                       |
+| Guest        | `guest-upload/hooks/useClipUpload.ts`                     | The job polled through its real states. `429 clip.queueFull` is a wait carrying the server's own `retryAfterSeconds`, not a failure the guest caused                                                                                                                                                                                   |
+| Guest        | `lib/offline/outboxPolicy.ts` → `acceptsFileType`         | **A clip is never queued offline.** The drain posts to the photo route, and entries drain oldest first, so eighty unsendable megabytes would sit in front of every photograph behind them. The refusal is explicit and the guest is told why                                                                                           |
+| Host         | `moderation/components/PhotoLightbox.tsx`                 | The clip plays, with sound, from the host's own click — half of what makes a clip unsuitable is audible                                                                                                                                                                                                                                |
+| Host (phone) | `moderation/MobileModerationPage.tsx` + `SwipeCard.tsx`   | Playback is requested from a **button in the action bar**, never from a control inside the card: the card is a drag surface, and `touch-action: pan-y` on it is what keeps the swipe                                                                                                                                                   |
+| Room         | `wall/wallLayoutPlayback.ts` → `components/WallMedia.tsx` | Only `spotlight` and `split` play; the other four render the poster, which costs them nothing because `displayUrl` already is it. Muted, `playsinline`, looping — and a clip that will not decode degrades to its poster rather than leaving a black slot for eight hours                                                              |
 
 ---
 

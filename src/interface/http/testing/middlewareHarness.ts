@@ -43,7 +43,12 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   // A clip carries its own limit and its own temp directory. The photo path's ceiling
   // feeds a per-request heap calculation the deployment's memory limit was reasoned
   // against, so the two deliberately do not share one number.
-  clips: { maxBytes: 80_000_000, uploadTempDir: join(tmpdir(), 'eventslide-test-clips') },
+  clips: {
+    maxBytes: 80_000_000,
+    maxSeconds: 15,
+    supported: true,
+    uploadTempDir: join(tmpdir(), 'eventslide-test-clips'),
+  },
   rateLimits: {
     uploadPerMinute: 12,
     joinPerMinute: 20,

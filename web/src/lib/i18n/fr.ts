@@ -137,6 +137,127 @@ export const fr = {
     installAction: 'Ajouter à l’écran d’accueil',
     installDismiss: 'Masquer cette proposition',
 
+    /* ---- Added by short video clips (roadmap 1.4). ---- */
+
+    /**
+     * The picker's two controls, worded as "vidéo" and never as "clip".
+     *
+     * `clip` is the code's word for the thing; a guest at a wedding films a video. The
+     * two labels are separate for the same reason the photo pair is: choosing from the
+     * library and filming now are different intentions, and a phone's camera app is a
+     * one-way trip out of the page unless `capture` keeps it inside.
+     *
+     * The section heading is a third, shorter word: it and the picker's own label would
+     * otherwise be the same string, and a screen reader would announce the region and
+     * the control inside it identically.
+     */
+    clipSection: 'Vidéo',
+    addClip: 'Ajouter une vidéo',
+    recordClip: 'Filmer une vidéo',
+    /**
+     * What the limits are, said **before** the picker opens.
+     *
+     * The numbers come from the event, not from this bundle: they are the deployment's
+     * `MAX_CLIP_SECONDS` and `MAX_CLIP_BYTES`, and a guest who reads them films a
+     * shorter sequence instead of losing four minutes of venue Wi-Fi to a refusal.
+     *
+     * The second sentence is the other thing they cannot guess and would be annoyed to
+     * discover: **the wall plays a clip muted.** A room with a DJ in it is not a room
+     * that hears a projector, so a guest filming a speech should know before they film
+     * it rather than after it is on the screen.
+     */
+    clipHint: (seconds: number, megabytes: number) =>
+      `${seconds} secondes et ${megabytes} Mo maximum. La vidéo est diffusée sans le son.`,
+    clipSend: 'Envoyer la vidéo',
+    /** The picker's label once a recording is in hand: pressing it opens the picker. */
+    clipChange: 'Choisir une autre vidéo',
+    /**
+     * The button that empties the composer. Named after what it does, not after what the
+     * guest might do next: it and the picker above were both "choisir une autre vidéo",
+     * so a screen-reader user activating one of them watched the composer empty and no
+     * picker open.
+     */
+    clipDiscard: 'Retirer cette vidéo',
+    clipCancel: 'Annuler l’envoi',
+    /**
+     * Once the bytes are on the box there is nothing left to cancel, and the screen says
+     * so rather than offering a button that lies.
+     *
+     * A real cancellation is not a missing button, it is a reshaping of the spine: the
+     * transcode queue deduplicates **per event**, so two guests who forward the same
+     * video from the group chat share one job — cancelling it would delete somebody
+     * else's clip. `queued` may also only become `running`, and there is no route for a
+     * guest to touch a job at all. So the honest thing is to stop promising it and to
+     * name what actually happens next.
+     */
+    clipAlreadySent:
+      'Cette vidéo est déjà sur le serveur. Elle sera traitée, puis proposée à l’organisateur.',
+    /** The chosen file, before anything has been sent. */
+    clipChosen: 'Vidéo prête à être envoyée',
+    clipSize: (megabytes: number) => `${megabytes} Mo`,
+    /**
+     * The refusals this surface makes for itself, before a byte leaves the phone.
+     *
+     * Both name the limit rather than saying "trop grande": a guest who is told the
+     * number can act on it, and the number is the one this deployment actually enforces.
+     */
+    clipTooLarge: (megabytes: number) =>
+      `Cette vidéo dépasse ${megabytes} Mo. Filmez une séquence plus courte.`,
+    clipTooLong: (seconds: number) =>
+      `Cette vidéo dépasse ${seconds} secondes. Filmez une séquence plus courte.`,
+    clipNotAVideo: 'Ce fichier n’est pas une vidéo.',
+    /**
+     * The four states the job actually has, in the guest's words.
+     *
+     * Polled from the server rather than guessed at: a progress bar that reaches 100%
+     * and then says nothing for forty seconds is how a guest concludes it failed and
+     * sends the same eighty megabytes again.
+     */
+    clipUploading: 'Envoi de la vidéo…',
+    clipQueued: 'En file d’attente…',
+    clipRunning: 'Traitement de la vidéo…',
+    clipDone: 'Vidéo envoyée. Elle apparaîtra à l’écran après validation.',
+    clipProgress: 'Envoi de la vidéo',
+    /**
+     * `429 clip.queueFull`, which is the box being busy and **not** the guest's fault.
+     *
+     * Worded as a delay rather than as an error, and it carries the server's own
+     * `Retry-After`: the condition clears in about a minute, and a guest told "réessayez
+     * dans 30 secondes" waits, where a guest told "erreur" presses the button four more
+     * times and makes the queue worse.
+     */
+    clipQueueFullRetry: (seconds: number) =>
+      seconds <= 1
+        ? 'Beaucoup de vidéos sont en cours de traitement. Réessayez dans un instant.'
+        : `Beaucoup de vidéos sont en cours de traitement. Réessayez dans ${seconds} secondes.`,
+    /** The wait is over and the button is back. Said, so the change is not silent. */
+    clipQueueFreed: 'La file s’est libérée. Vous pouvez renvoyer la vidéo.',
+    /**
+     * The box is still working on it after several minutes, and the screen has stopped
+     * asking.
+     *
+     * Not "échec": the clip may very well arrive. What has ended is the watching, and the
+     * sentence points the guest at the one place it will turn up — which is the whole
+     * reason "Vos envois" exists.
+     */
+    clipStillWorking:
+      'Le traitement de cette vidéo prend plus de temps que prévu. Rechargez la page dans quelques minutes pour savoir si elle a abouti.',
+    /**
+     * Said when the network drops mid-upload, and it is the honest half of a deliberate
+     * decision: **a clip is not kept in the offline outbox.**
+     *
+     * A photo is stored on the device and leaves by itself. Eighty megabytes cannot be —
+     * a phone holding a video it can never drain is a phone whose queue never empties,
+     * and the photos behind it never leave either. So the video is not promised, and the
+     * guest is told why rather than watching a row say "en attente du réseau" all
+     * evening for bytes nothing will ever send.
+     */
+    clipNotQueued:
+      'Les vidéos ne sont pas mises en attente sur votre téléphone : elles sont trop lourdes. Réessayez quand la connexion revient.',
+    /** In "Vos envois", where a clip's thumbnail is its image d’aperçu. */
+    mineClipAlt: 'Votre vidéo',
+    mineClipBadge: 'Vidéo',
+
     /* -------------------------- end guest surface --------------------------- */
   },
 
@@ -217,6 +338,48 @@ export const fr = {
      * to decide what gets projected with that photo.
      */
     noCaption: 'Sans légende',
+
+    /* ---- Added by short video clips (roadmap 1.4). ---- */
+
+    /**
+     * A clip, on the two surfaces that judge one.
+     *
+     * The badge is on the card because the decision starts before the host opens
+     * anything: "this one is fifteen seconds of video" changes how long they are about
+     * to spend, and a poster frame alone does not say it.
+     */
+    videoBadge: 'Vidéo',
+    videoLength: (seconds: number) => `Vidéo · ${seconds} s`,
+    /**
+     * The whole point of the clip work on this surface. A moderator deciding whether
+     * fifteen seconds of video goes on a wall in front of two hundred people cannot do
+     * it from a still frame — the thing that gets someone into trouble is rarely in the
+     * first frame.
+     */
+    watchVideo: (author: string) => `Regarder la vidéo de ${author}`,
+    playVideo: (author: string) => `Lire la vidéo de ${author}`,
+    pauseVideo: (author: string) => `Mettre en pause la vidéo de ${author}`,
+    videoOf: (author: string) => `Vidéo de ${author}`,
+    videoAlt: (author: string) => `Vidéo envoyée par ${author}`,
+    videoAltWithCaption: (caption: string, author: string) =>
+      `${caption} — vidéo envoyée par ${author}`,
+    /**
+     * The host is watching, and hearing nothing.
+     *
+     * A browser that refuses unmuted playback is met with a muted retry rather than
+     * with nothing — a silent clip is a far better decision than a poster frame. But it
+     * is said out loud, because a moderator judging fifteen seconds of a speech would
+     * otherwise approve it on half the evidence and never know.
+     */
+    videoMuted: 'Le son n’a pas pu être activé : cette vidéo est lue sans le son.',
+    /**
+     * The degradation, said rather than left as a button that does nothing.
+     *
+     * A console that cannot decode a clip still has to let the host decide, and the
+     * poster frame plus this sentence is a worse decision than watching it — but it is a
+     * decision, and it is an honest one.
+     */
+    videoUnplayable: 'Cette vidéo ne peut pas être lue ici. Seule l’image d’aperçu s’affiche.',
   },
 
   wall: {
@@ -262,6 +425,18 @@ export const fr = {
       split: 'Côte à côte',
     } satisfies Record<WallLayout, string>,
     layoutOrder: (names: readonly string[]) => `Dispositions, dans l’ordre : ${names.join(', ')}.`,
+
+    /* ---- Short video clips (roadmap 1.4). Keep additions inside this block. ---- */
+    /**
+     * A clip's accessible name. Distinct from a photo's, because "photo envoyée par
+     * Léa" on an element that moves and has sound is the wrong description of it.
+     *
+     * Nobody in the room hears this: the wall is projected. It is read on the laptop a
+     * host sets the projector up from, which is the one place this screen is ever
+     * driven by a keyboard.
+     */
+    videoBy: (name: string) => `Vidéo envoyée par ${name}`,
+    videoByAnonymous: 'Vidéo envoyée par un invité',
   },
 
   admin: {
@@ -299,6 +474,18 @@ export const fr = {
       'Les photos apparaîtront à l’écran sans validation. À réserver aux évènements entre proches.',
     allowCaptions: 'Autoriser les légendes',
     allowReactions: 'Autoriser les réactions',
+    /**
+     * The host's switch over video (roadmap 1.4).
+     *
+     * The hint says the part a host cannot guess: the setting reads *off* on every
+     * gallery that existed before video shipped, because a deploy must not start
+     * accepting eighty-megabyte uploads on a wedding that is live at that moment. So
+     * for exactly the events this feature was built for, nothing happens until the host
+     * comes here and ticks it.
+     */
+    allowClips: 'Autoriser les vidéos',
+    allowClipsHint:
+      'Les invités peuvent envoyer de courtes vidéos, en plus des photos. Désactivé sur les galeries créées avant l’arrivée de cette fonctionnalité : cochez la case pour l’activer.',
     allowGuestSelfDelete: 'Autoriser les invités à supprimer leurs photos',
     retention: 'Suppression automatique',
     retentionNever: 'Jamais',

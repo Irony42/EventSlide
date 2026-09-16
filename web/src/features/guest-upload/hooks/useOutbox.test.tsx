@@ -99,6 +99,29 @@ describe('useOutbox', () => {
     expect(held?.caption).toBe('Les confettis')
   })
 
+  it('refuses a video rather than holding bytes it can never drain', async () => {
+    // Not a size check and not an accident: the drain posts to the photo route, which
+    // would refuse a clip for ever, and entries drain oldest first — so eighty
+    // megabytes that can never leave sit in front of every photograph behind them. A
+    // phone holding a clip it cannot send is a phone that never sends anything else.
+    const { result, store } = mount(fakeApi())
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    let entryId: string | null = 'not-yet'
+    await act(async () => {
+      entryId = await result.current.enqueue(
+        new File([new Uint8Array([0, 0, 0, 0x18])], 'danse.mp4', { type: 'video/mp4' }),
+        null,
+      )
+    })
+
+    // `null` is the contract for "the outbox could not take it", which is what makes the
+    // caller report the failure instead of promising a delivery nobody is left to make.
+    expect(entryId).toBeNull()
+    expect(await store.list(SLUG)).toEqual([])
+    expect(result.current.waiting).toBe(0)
+  })
+
   it('keeps the bytes, so the photo can actually be sent later', async () => {
     const { result, store } = mount(fakeApi())
     await waitFor(() => expect(result.current.ready).toBe(true))

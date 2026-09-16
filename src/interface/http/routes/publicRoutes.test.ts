@@ -43,6 +43,7 @@ const ARCHIVED = 'archived-id'
 const presenter: PresenterContext = {
   publicUrl: 'http://localhost:4300',
   uploadLimits: { maxBytes: 25_000_000, maxFiles: 20 },
+  clipLimits: { maxBytes: 80_000_000, maxSeconds: 15, supported: true },
 }
 
 interface World {
@@ -53,8 +54,15 @@ interface World {
 /**
  * One event per lifecycle state, so every enumeration case below is a real row rather
  * than a missing one — the whole point is that the two are indistinguishable.
+ *
+ * The second parameter is the **deployment** rather than the event: the only thing any
+ * test overrides through it is whether this box has a video encoder, which is decided
+ * once at boot and is not something an event carries.
  */
-const world = (config: Partial<HttpConfig> = {}): World => {
+const world = (
+  config: Partial<HttpConfig> = {},
+  deployment: Partial<PresenterContext> = {},
+): World => {
   const photos = new FakePhotoRepository()
   const ids = new SequentialIdGenerator()
 
@@ -65,7 +73,7 @@ const world = (config: Partial<HttpConfig> = {}): World => {
         '/api',
         publicRoutes({
           deps,
-          presenter,
+          presenter: { ...presenter, ...deployment },
           usecases: {
             joinEvent: makeJoinEvent({
               events: deps.events,
@@ -152,8 +160,41 @@ describe('POST /api/join', () => {
         allowReactions: true,
         maxUploadBytes: 25_000_000,
         maxFilesPerUpload: 20,
+        allowClips: true,
+        maxClipBytes: 80_000_000,
+        maxClipSeconds: 15,
       },
     })
+  })
+
+  it('tells the phone the clip limits, so a refusal costs no bytes', async () => {
+    // The guest surface refuses an over-size or over-long recording at the picker. It
+    // can only do that honestly if it is told the numbers this deployment enforces — a
+    // constant compiled into the bundle is a second copy of `MAX_CLIP_BYTES` that no
+    // operator's `.env` can move, and the guest finds out after four minutes of venue
+    // Wi-Fi instead of before.
+    const { subject } = world()
+
+    const response = await request(subject.app).post('/api/join').send({ joinCode: 'H7K2QM' })
+
+    expect(response.body.event.maxClipBytes).toBe(subject.deps.config.clips.maxBytes)
+    expect(response.body.event.maxClipSeconds).toBe(subject.deps.config.clips.maxSeconds)
+  })
+
+  it('offers no video on a deployment with no encoder, whatever the host allowed', async () => {
+    // The refusal a guest would otherwise meet — `500 clip.transcoderUnavailable` — is
+    // decided *after* multer has written the upload to disk, because the file has to
+    // arrive before a handler can run. So on a box with no ffmpeg this saves every guest
+    // a full eighty-megabyte upload, every time they try, for as long as it takes
+    // somebody to redeploy.
+    const { subject } = world(
+      {},
+      { clipLimits: { maxBytes: 80_000_000, maxSeconds: 15, supported: false } },
+    )
+
+    const response = await request(subject.app).post('/api/join').send({ joinCode: 'H7K2QM' })
+
+    expect(response.body.event.allowClips).toBe(false)
   })
 
   it('scopes the cookie to that one event, HttpOnly and SameSite=Lax', async () => {
@@ -334,7 +375,10 @@ describe('POST /api/join', () => {
 
     expect(Object.keys(response.body.event).sort()).toEqual([
       'allowCaptions',
+      'allowClips',
       'allowReactions',
+      'maxClipBytes',
+      'maxClipSeconds',
       'maxFilesPerUpload',
       'maxUploadBytes',
       'name',

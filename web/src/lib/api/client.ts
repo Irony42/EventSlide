@@ -1,6 +1,7 @@
 import { http, type Transport, type UploadProgress } from '../http'
 import type {
   BulkModerationResponse,
+  ClipJobDto,
   EventDto,
   EventSettingsDto,
   EventStatus,
@@ -53,6 +54,21 @@ export interface EventScheduleInput {
 
 export interface UploadInput {
   readonly files: readonly File[]
+  readonly caption?: string | null
+  readonly onProgress?: (progress: UploadProgress) => void
+  readonly signal?: AbortSignal
+}
+
+/**
+ * One clip. Singular, and that is the endpoint's shape rather than this function's.
+ *
+ * `POST /api/events/:slug/clips` accepts **exactly one** file under the field `clip`;
+ * anything else is `LIMIT_UNEXPECTED_FILE` from multer before a line of our code runs.
+ * The photo path takes a batch because twenty photographs is an ordinary thing for a
+ * guest to have; twenty videos is eight hundred megabytes and a queue nobody drains.
+ */
+export interface ClipUploadInput {
+  readonly file: File
   readonly caption?: string | null
   readonly onProgress?: (progress: UploadProgress) => void
   readonly signal?: AbortSignal
@@ -123,6 +139,42 @@ export const createApi = (transport: Transport) => ({
       ...(input.signal ? { signal: input.signal } : {}),
     })
   },
+
+  /**
+   * Sends a clip and gets back the **job**, not a photo.
+   *
+   * `202`, and the status code is the contract: nothing exists yet that a moderator
+   * could act on. What comes back is the job to watch and the id of the row it will
+   * become — which is why the caller's next move is {@link Api.clipJob} rather than a
+   * refetch of "Vos envois", where there is nothing to find for the length of the
+   * transcode.
+   *
+   * A repeat of the same bytes answers `202` with the **same** `clipJobId` rather than
+   * queueing a second transcode, so a dropped upload on venue Wi-Fi is safe to send
+   * again.
+   */
+  uploadClip: (slug: string, input: ClipUploadInput): Promise<ClipJobDto> => {
+    const form = new FormData()
+    form.append('clip', input.file)
+    // Omitted rather than sent empty, exactly as the photo path does: the server
+    // distinguishes "no caption" from an invalid one.
+    if (input.caption !== undefined && input.caption !== null && input.caption !== '') {
+      form.append('caption', input.caption)
+    }
+    return transport.upload(`/api/events/${encode(slug)}/clips`, form, {
+      ...(input.onProgress ? { onProgress: input.onProgress } : {}),
+      ...(input.signal ? { signal: input.signal } : {}),
+    })
+  },
+
+  /**
+   * "Where is my clip?" — the one question a guest has while it is transcoding.
+   *
+   * Answers the same body as the upload. The server sends `Cache-Control: no-store`,
+   * because this is the one view whose whole purpose is to change.
+   */
+  clipJob: (slug: string, clipJobId: string, signal?: AbortSignal): Promise<ClipJobDto> =>
+    transport.get(`/api/events/${encode(slug)}/clips/${encode(clipJobId)}`, undefined, signal),
 
   myPhotos: (slug: string, signal?: AbortSignal): Promise<{ items: readonly GuestPhotoDto[] }> =>
     transport.get(`/api/events/${encode(slug)}/photos/mine`, undefined, signal),

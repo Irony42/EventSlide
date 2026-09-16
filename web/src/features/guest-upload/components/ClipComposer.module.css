@@ -1,0 +1,162 @@
+/**
+ * The video composer, directly under the photo picker.
+ *
+ * Deliberately quieter than the photo controls: photographs are the product and video is
+ * the addition, so nothing here takes the one accent colour. A guest scanning the bottom
+ * of the screen with one thumb should still land on "Ajouter des photos" first.
+ */
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
+
+.picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+/**
+ * The label is the button, and its `position: relative` is load-bearing: the real input
+ * is stretched over it, so the whole tile is the file input's own hit area rather than a
+ * script forwarding clicks. Same arrangement as `PhotoPicker.module.css`.
+ */
+.action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-2);
+  /* The 44 px floor of DESIGN-SYSTEM.md section 8, as a token rather than a number. */
+  min-height: var(--touch-min);
+  padding-block: var(--space-4);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  cursor: pointer;
+}
+
+/* The ring belongs on the tile, because the element that actually has focus is
+   transparent and 44 px of invisible outline would be no signal at all. */
+.action:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.action:has(.input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/**
+ * Transparent, not hidden. `display: none` and `visibility: hidden` both take the input
+ * out of the tab order, which is how a file picker ends up mouse-only.
+ */
+.input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.chosen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+}
+
+.name {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+  /* A recording from a phone is named `IMG_4821_2026-06-20_21-14-03.mov`, which wraps to
+     three lines on a 360 px screen and pushes the send button off it. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.size {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.stage {
+  margin: 0;
+  min-height: var(--space-5);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
+
+.danger,
+.warning,
+.success {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.danger {
+  color: var(--danger);
+}
+
+/* A full queue is a wait, not a fault. It must not be the same colour as a refusal. */
+.warning {
+  color: var(--warning);
+}
+
+.success {
+  color: var(--success);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: var(--space-1);
+}
+
+/**
+ * What is happening, where a button would otherwise be.
+ *
+ * Shown once the bytes are on the box and there is nothing left to cancel. It occupies
+ * the action row on purpose: the guest is looking there for a control, and finding a
+ * sentence is what tells them there is no longer one to press.
+ */
+.notice {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
