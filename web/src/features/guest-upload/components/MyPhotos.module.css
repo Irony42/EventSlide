@@ -48,6 +48,38 @@
   background: var(--surface-overlay);
 }
 
+/**
+ * A clip's own box: the full width of the row, above its status rather than beside it.
+ *
+ * It is not a thumbnail and must not be sized like one. A `<video controls>` in a 64 px
+ * square hands the guest a native control bar whose play target is far under the 44 px
+ * floor of DESIGN-SYSTEM.md section 8 — on the one surface where every guest is using a
+ * thumb. So the clip takes the row: the poster is legible, the controls are a real
+ * target, and "did it arrive, and was it the right one?" is answerable.
+ */
+.clip {
+  inline-size: 100%;
+  /* The shape a phone films in, so the poster is not letterboxed into a strip. */
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-overlay);
+}
+
+/**
+ * The row a clip sits in: stacked, because its media is full width.
+ *
+ * `.photo` keeps the thumbnail-beside-status arrangement for a photograph, which is what
+ * makes a list of twenty of them scannable.
+ */
+.clipRow {
+  flex-wrap: wrap;
+}
+
+.clipRow .detail {
+  flex: 1 1 auto;
+}
+
 .detail {
   display: flex;
   flex-direction: column;

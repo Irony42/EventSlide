@@ -25,6 +25,30 @@ export interface WallLayoutSpec {
   readonly crops: boolean
   readonly showsCaption: boolean
   readonly showsAuthor: boolean
+  /**
+   * Whether a clip in this layout **plays**, or shows its poster frame.
+   *
+   * A decision, and it belongs here rather than in a stylesheet or a `className` check
+   * for the same reason `slotCount` does: it is a statement about what the room can bear,
+   * and the room is not something a component knows about.
+   *
+   * The rule is the slot count. A venue mini-PC driving a projector for eight hours
+   * decodes one or two video streams comfortably and twelve not at all — `collage` holds
+   * twelve slots, `mosaic` six, `filmstrip` five, and a simultaneous decode per slot is
+   * dropped frames on the one screen in the building nobody is watching over. So the two
+   * layouts that already promise a whole, uncropped photo are the two that play, and the
+   * four that tessellate show the still.
+   *
+   * It costs nothing to show the still: a clip's `thumbUrl` and `displayUrl` already
+   * point at its poster (`toMediaFacetDto`), so a layout that does not play one renders
+   * exactly what it renders for a photograph, with no branch of its own.
+   *
+   * It lines up with `crops` today and is not derived from it. They answer different
+   * questions — "may a face be cut off" and "how many decoders does this cost" — and
+   * tying one to the other would mean a seventh layout that crops but holds two slots
+   * silently losing the ability to play.
+   */
+  readonly playsVideo: boolean
 }
 
 /**
@@ -45,12 +69,30 @@ export interface WallLayoutSpec {
  * hold, which is what keeps an eight-hour run flat.
  */
 const SPECS: Readonly<Record<WallLayout, WallLayoutSpec>> = {
-  spotlight: { slotCount: 1, crops: false, showsCaption: true, showsAuthor: true },
-  mosaic: { slotCount: 6, crops: true, showsCaption: false, showsAuthor: false },
-  polaroid: { slotCount: 3, crops: true, showsCaption: true, showsAuthor: true },
-  filmstrip: { slotCount: 5, crops: true, showsCaption: false, showsAuthor: false },
-  collage: { slotCount: 12, crops: true, showsCaption: false, showsAuthor: false },
-  split: { slotCount: 2, crops: false, showsCaption: true, showsAuthor: true },
+  spotlight: {
+    slotCount: 1,
+    crops: false,
+    showsCaption: true,
+    showsAuthor: true,
+    playsVideo: true,
+  },
+  mosaic: { slotCount: 6, crops: true, showsCaption: false, showsAuthor: false, playsVideo: false },
+  polaroid: { slotCount: 3, crops: true, showsCaption: true, showsAuthor: true, playsVideo: false },
+  filmstrip: {
+    slotCount: 5,
+    crops: true,
+    showsCaption: false,
+    showsAuthor: false,
+    playsVideo: false,
+  },
+  collage: {
+    slotCount: 12,
+    crops: true,
+    showsCaption: false,
+    showsAuthor: false,
+    playsVideo: false,
+  },
+  split: { slotCount: 2, crops: false, showsCaption: true, showsAuthor: true, playsVideo: true },
 }
 
 export const isWallLayout = (value: unknown): value is WallLayout =>

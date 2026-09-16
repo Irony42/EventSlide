@@ -225,6 +225,36 @@ describe('EventSettingsPage', () => {
     )
   })
 
+  it('turns video on for a gallery that predates it', async () => {
+    // The state that matters, and the one no other screen can reach: the persistence
+    // fallback reads `allowClips: false` for every event stored before clips shipped, so
+    // without this checkbox video is unreachable on exactly the events the feature
+    // exists for.
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ allowClips: false }) })),
+    })
+
+    renderPage(api)
+    const control = await screen.findByLabelText(fr.admin.allowClips)
+    expect(control).not.toBeChecked()
+
+    await userEvent.click(control)
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      'camille-et-sacha',
+      expect.objectContaining({ allowClips: true }),
+    )
+  })
+
+  it('says why the switch is off on an older gallery', async () => {
+    // A host who finds an unticked box with no explanation reads it as a choice somebody
+    // made, not as a default they were never asked about.
+    renderPage(fakeApi())
+
+    expect(await screen.findByText(fr.admin.allowClipsHint)).toBeVisible()
+  })
+
   it('saves the host’s choice about guests deleting their own photos', async () => {
     const api = fakeApi()
 

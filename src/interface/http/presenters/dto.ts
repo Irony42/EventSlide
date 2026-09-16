@@ -16,7 +16,22 @@ import type { ReactionKind } from '../../../domain/reactions/reactionKind'
 import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
 import type { WallLayout } from '../../../domain/slideshow/wallLayout'
 
-/** What a guest may know about an event, before and after joining. */
+/**
+ * What a guest may know about an event, before and after joining.
+ *
+ * The three clip fields are here for one reason: **a refusal has to happen before the
+ * bytes do.** A guest on venue Wi-Fi who picks a 200 MB recording and is told `413` after
+ * pushing it for four minutes has lost the four minutes and, on a phone that went to
+ * sleep halfway, the recording's place in their evening as well. The only way the picker
+ * can refuse first is to know the same numbers the route enforces, and the only honest
+ * way for it to know them is to be told — a constant compiled into the bundle is a second
+ * copy of `MAX_CLIP_BYTES` that no deployment's `.env` can move.
+ *
+ * `allowClips` is the same argument about the host's switch rather than the box's limits:
+ * without it the guest surface would offer a video control that answers
+ * `403 event.clipsNotAllowed` after the upload, on exactly the events — the ones that
+ * predate the feature — where the persistence fallback reads `false`.
+ */
 export interface PublicEventDto {
   readonly slug: string
   readonly name: string
@@ -24,6 +39,12 @@ export interface PublicEventDto {
   readonly allowReactions: boolean
   readonly maxUploadBytes: number
   readonly maxFilesPerUpload: number
+  /** The host's switch over video. `false` means: do not offer the control at all. */
+  readonly allowClips: boolean
+  /** `MAX_CLIP_BYTES`. Separate from `maxUploadBytes`, which is the photo path's. */
+  readonly maxClipBytes: number
+  /** `MAX_CLIP_SECONDS`. Seconds, because that is the unit a guest is told about. */
+  readonly maxClipSeconds: number
 }
 
 export interface JoinResponseDto {

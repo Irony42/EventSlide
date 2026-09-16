@@ -3,9 +3,11 @@ import type { WallItemDto, WallLayout } from '../../../lib/api/dto'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import type { Slideshow } from '../hooks/useSlideshow'
 import { photoAlt } from '../photoAlt'
+import { wallLayoutPlaysVideo } from '../wallLayoutPlayback'
 import { PhotoPreload } from './PhotoPreload'
 import { SlideCaption } from './SlideCaption'
 import { SlideLayer } from './SlideLayer'
+import { WallMedia } from './WallMedia'
 import styles from './WallLayouts.module.css'
 
 type StageStyle = CSSProperties & { readonly '--wall-transition': string }
@@ -18,9 +20,19 @@ interface LayoutViewProps {
   /** From the wall response. Only the spotlight animates. */
   readonly kenBurnsDurationMs: number
   readonly transitionMs: number | null
+  /**
+   * Whether a clip in this layout plays or shows its poster frame.
+   *
+   * Resolved once, in {@link WallLayouts}, from the layout's spec — see
+   * `wallLayoutPlayback.ts` and `src/domain/slideshow/wallLayout.ts`. Every layout below
+   * takes it and hands it to {@link WallMedia}; none of them decides it, and a layout
+   * that hardcoded `false` would be the domain's rule written a second time, in the place
+   * it is hardest to find.
+   */
+  readonly plays: boolean
 }
 
-export interface WallLayoutsProps extends LayoutViewProps {
+export interface WallLayoutsProps extends Omit<LayoutViewProps, 'plays'> {
   /**
    * The layout to render, already resolved by `WallPage`. In order of precedence: the
    * `L` key's local override, then the display URL's `?layout=`, then the wall
@@ -182,7 +194,7 @@ const stageStyleFor = (transitionMs: number | null): CSSProperties | StageStyle 
   transitionMs === null ? {} : { '--wall-transition': `${transitionMs}ms` }
 
 /** One photo, letterboxed, with its caption and author. The safe default. */
-function SpotlightLayout({ slideshow, kenBurnsDurationMs, transitionMs }: LayoutViewProps) {
+function SpotlightLayout({ slideshow, kenBurnsDurationMs, transitionMs, plays }: LayoutViewProps) {
   const { current, previous, next, generation } = slideshow
 
   return (
@@ -193,6 +205,7 @@ function SpotlightLayout({ slideshow, kenBurnsDurationMs, transitionMs }: Layout
       kenBurnsDurationMs={kenBurnsDurationMs}
       transitionMs={transitionMs}
       generation={generation}
+      plays={plays}
       caption={
         current === null ? null : (
           <SlideCaption caption={current.caption} authorName={current.authorName} />
@@ -213,7 +226,7 @@ function SpotlightLayout({ slideshow, kenBurnsDurationMs, transitionMs }: Layout
  * The geometry is fixed in CSS, so a photo arriving mid-evening never reshuffles the
  * wall — it takes a tile's next turn and nothing moves.
  */
-function MosaicLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
+function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
   const tiles = rotatingSlots(items, slideshow.index, MOSAIC_SLOTS)
 
   return (
@@ -228,16 +241,14 @@ function MosaicLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
           data-testid="wall-slide"
           data-photo-id={item.id}
         >
-          <img
+          <WallMedia
             // Keyed by the photo, so a tile taking its turn fades its new photo in
             // rather than swapping it under the viewer's eye.
             key={item.id}
-            className={styles['image']}
-            src={item.displayUrl}
+            item={item}
+            plays={plays}
             alt={photoAlt(item)}
-            width={item.width}
-            height={item.height}
-            decoding="async"
+            className={styles['image'] ?? ''}
           />
           <SlideCaption caption={null} authorName={item.authorName} variant="tile" />
         </figure>
@@ -268,7 +279,7 @@ function MosaicLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
  * likely to trigger the symptom the preference exists for. So it is declined here
  * outright rather than left to a global `!important` to defuse.
  */
-function PolaroidLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
+function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
   const reducedMotion = usePrefersReducedMotion()
   const prints = rotatingSlots(items, slideshow.index, POLAROID_PRINTS)
 
@@ -293,13 +304,11 @@ function PolaroidLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
             data-photo-id={item.id}
           >
             <span className={styles['printWindow']}>
-              <img
-                className={styles['printImage']}
-                src={item.displayUrl}
+              <WallMedia
+                item={item}
+                plays={plays}
                 alt={photoAlt(item)}
-                width={item.width}
-                height={item.height}
-                decoding="async"
+                className={styles['printImage'] ?? ''}
               />
             </span>
             {/* On the mat, not on the photo: the one caption in the product that is ink
@@ -344,7 +353,7 @@ function PolaroidLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
  * is the invariant worth having, and the settle happens on a deliberate keypress that
  * already puts a notice on the wall.
  */
-function FilmstripLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
+function FilmstripLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
   const reducedMotion = usePrefersReducedMotion()
   const scrolls = items.length > FILMSTRIP_FRAMES
   const frames = playlistWindow(items, scrolls ? slideshow.index : 0, FILMSTRIP_FRAMES + 1)
@@ -373,13 +382,11 @@ function FilmstripLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
             data-testid="wall-slide"
             data-photo-id={item.id}
           >
-            <img
-              className={styles['frameImage']}
-              src={item.displayUrl}
+            <WallMedia
+              item={item}
+              plays={plays}
               alt={photoAlt(item)}
-              width={item.width}
-              height={item.height}
-              decoding="async"
+              className={styles['frameImage'] ?? ''}
             />
           </figure>
         ))}
@@ -413,7 +420,7 @@ function FilmstripLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
  * growing before or after the spec says it should — nothing breaks, and nothing catches
  * it either. `COLLAGE_CELLS` is the one the room sees.
  */
-function CollageLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
+function CollageLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
   const composed = rotatingSlots(items, slideshow.index, COLLAGE_CELLS)
   const filled = Math.min(slideshow.generation + 1, composed.length)
   const cells = composed.slice(0, filled)
@@ -429,14 +436,12 @@ function CollageLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
           data-testid="wall-slide"
           data-photo-id={item.id}
         >
-          <img
+          <WallMedia
             key={item.id}
-            className={styles['image']}
-            src={item.displayUrl}
+            item={item}
+            plays={plays}
             alt={photoAlt(item)}
-            width={item.width}
-            height={item.height}
-            decoding="async"
+            className={styles['image'] ?? ''}
           />
         </figure>
       ))}
@@ -457,7 +462,7 @@ function CollageLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
  * The panes change alternately, so one half is always still — a wall where both halves
  * cut at once is two slideshows rather than a pairing.
  */
-function SplitLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
+function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
   const panes = splitPanes(items, slideshow.index)
 
   return (
@@ -470,14 +475,12 @@ function SplitLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
           data-photo-id={item.id}
         >
           <span className={styles['paneWindow']}>
-            <img
+            <WallMedia
               key={item.id}
-              className={styles['paneImage']}
-              src={item.displayUrl}
+              item={item}
+              plays={plays}
               alt={photoAlt(item)}
-              width={item.width}
-              height={item.height}
-              decoding="async"
+              className={styles['paneImage'] ?? ''}
             />
           </span>
           <SlideCaption caption={item.caption} authorName={item.authorName} variant="pane" />
@@ -495,21 +498,29 @@ function SplitLayout({ items, slideshow, transitionMs }: LayoutViewProps) {
  * Every name in the contract now renders itself; the `never` assignment below means
  * adding a seventh layout to `WallLayout` fails the build here instead of silently
  * showing the room black.
+ *
+ * It is also the **one** place that asks whether this layout plays video. Resolved here
+ * and handed down, so the answer is the domain's spec at every slot on the wall rather
+ * than six components each remembering the same rule — and so a seventh layout gets its
+ * answer from the spec too, automatically, instead of from whichever branch somebody
+ * copied.
  */
 export function WallLayouts({ layout, ...view }: WallLayoutsProps) {
+  const plays = wallLayoutPlaysVideo(layout)
+
   switch (layout) {
     case 'spotlight':
-      return <SpotlightLayout {...view} />
+      return <SpotlightLayout {...view} plays={plays} />
     case 'mosaic':
-      return <MosaicLayout {...view} />
+      return <MosaicLayout {...view} plays={plays} />
     case 'polaroid':
-      return <PolaroidLayout {...view} />
+      return <PolaroidLayout {...view} plays={plays} />
     case 'filmstrip':
-      return <FilmstripLayout {...view} />
+      return <FilmstripLayout {...view} plays={plays} />
     case 'collage':
-      return <CollageLayout {...view} />
+      return <CollageLayout {...view} plays={plays} />
     case 'split':
-      return <SplitLayout {...view} />
+      return <SplitLayout {...view} plays={plays} />
     default: {
       const unhandled: never = layout
       return unhandled

@@ -157,7 +157,15 @@ export const buildServerHarness = ({
     // (a leak, and every session lost on restart) cost nothing inside one test.
     sessionStore,
     health,
-    presenter: { publicUrl: deps.config.publicUrl, uploadLimits: deps.config.uploads },
+    presenter: {
+      publicUrl: deps.config.publicUrl,
+      uploadLimits: deps.config.uploads,
+      clipLimits: {
+        maxBytes: deps.config.clips.maxBytes,
+        maxSeconds: deps.config.clips.maxSeconds,
+        supported: deps.config.clips.supported,
+      },
+    },
     ...(clientDir === undefined ? {} : { clientDir }),
   })
 

@@ -6,8 +6,30 @@ import { aPublicEvent } from '../testing/renderWithProviders'
  * Taken from the builder rather than listed, so a field added to `PublicEventDto`
  * arrives here with a row of its own: a field the upload screen starts reading but
  * `isGuestSession` never checks is a field an older tab can leave undefined.
+ *
+ * The three clip fields are the exception, and the exception is the interesting case
+ * rather than a hole. A session written before video shipped has none of them, and
+ * rejecting it would log every guest already in the room out of the upload screen at the
+ * moment the new build is deployed — mid-evening, with photos in their queue. They are
+ * filled in as "this gallery has no video" instead, which is what that session knew when
+ * it was written; the test below pins that, and it is the one behaviour here that a
+ * deploy can get wrong in front of a hundred people.
  */
-const EVENT_FIELDS: readonly string[] = Object.keys(aPublicEvent())
+const OLDER_THAN_VIDEO: readonly string[] = ['allowClips', 'maxClipBytes', 'maxClipSeconds']
+
+/**
+ * Only `allowClips` is exempt, and the exemption is that narrow on purpose.
+ *
+ * It is the field that says whether the entry was written by a build that knew about
+ * video, so its absence is a version and not a fault. The two **limits** stay in the
+ * list: the upload screen reads them without asking again, and an entry carrying a
+ * garbage `maxClipBytes` would put "NaN Mo maximum" in the picker's hint and refuse
+ * nothing at all on size — which is the whole defect this narrowing exists to prevent,
+ * reintroduced by the compatibility fix.
+ */
+const EVENT_FIELDS: readonly string[] = Object.keys(aPublicEvent()).filter(
+  (field) => field !== 'allowClips',
+)
 
 describe('guestSession', () => {
   beforeEach(() => {
@@ -29,6 +51,39 @@ describe('guestSession', () => {
 
   it('refuses an entry left by an older build rather than rendering half an event', () => {
     sessionStorage.setItem('eventslide.guest.gala', JSON.stringify({ event: { slug: 'gala' } }))
+
+    expect(readGuestSession('gala')).toBeNull()
+  })
+
+  it('keeps a guest who joined before video shipped, with video simply off', () => {
+    // The deploy case, and the one that matters: a guest already in the room, with
+    // photos in their queue, must not be bounced to the join screen because the build
+    // changed under them. Their session is older than the feature, not broken by it.
+    const older: Record<string, unknown> = { ...aPublicEvent({ slug: 'gala' }) }
+    for (const field of OLDER_THAN_VIDEO) delete older[field]
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({ event: older, displayName: 'Léa' }),
+    )
+
+    const session = readGuestSession('gala')
+
+    expect(session?.event.name).toBe('Camille & Sacha')
+    // Off rather than guessed: the composer keys off this, so the guest keeps sending
+    // photos and video appears the next time they scan the code.
+    expect(session?.event.allowClips).toBe(false)
+  })
+
+  it('still refuses an entry that kept the clip limits but lost their types', () => {
+    // The compatibility path above forgives a **version**, never a fault. A stored
+    // `maxClipBytes` that is not a number reaches the picker's hint as "NaN Mo maximum"
+    // and refuses nothing at all on size, which is exactly what the narrowing is for.
+    const corrupted: Record<string, unknown> = { ...aPublicEvent({ slug: 'gala' }) }
+    corrupted['maxClipBytes'] = 'quatre-vingts'
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({ event: corrupted, displayName: null }),
+    )
 
     expect(readGuestSession('gala')).toBeNull()
   })

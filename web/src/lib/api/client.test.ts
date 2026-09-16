@@ -131,6 +131,19 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.uploadPhotos(SLUG, { files: [] }),
   },
   {
+    name: 'uploadClip',
+    verb: 'upload',
+    path: `/api/events/${SLUG}/clips`,
+    invoke: (client) =>
+      client.uploadClip(SLUG, { file: new File(['bytes'], 'danse.mp4', { type: 'video/mp4' }) }),
+  },
+  {
+    name: 'clipJob',
+    verb: 'get',
+    path: `/api/events/${SLUG}/clips/job-1`,
+    invoke: (client) => client.clipJob(SLUG, 'job-1'),
+  },
+  {
     name: 'myPhotos',
     verb: 'get',
     path: `/api/events/${SLUG}/photos/mine`,
@@ -499,6 +512,61 @@ describe('the multipart upload', () => {
     await subject().uploadPhotos(SLUG, { files: [aFile('un.jpg')], signal: controller.signal })
 
     expect(only().signal).toBe(controller.signal)
+  })
+})
+
+describe('the clip upload', () => {
+  const aClip = (name: string): File => new File(['bytes'], name, { type: 'video/mp4' })
+
+  it('sends the recording under the clip field, which is the only one multer accepts', async () => {
+    // `photos` here is `LIMIT_UNEXPECTED_FILE` before a line of our code runs, and the
+    // guest would see a generic failure after pushing eighty megabytes.
+    await subject().uploadClip(SLUG, { file: aClip('premiere-danse.mp4') })
+
+    const part = only().form?.get('clip')
+    expect(part instanceof File ? part.name : null).toBe('premiere-danse.mp4')
+    expect(only().form?.has('photos')).toBe(false)
+  })
+
+  it('sends the caption the guest wrote', async () => {
+    await subject().uploadClip(SLUG, { file: aClip('un.mp4'), caption: 'La première danse' })
+
+    expect(only().form?.get('caption')).toBe('La première danse')
+  })
+
+  it.each([
+    ['an untouched field', ''],
+    ['a field the guest cleared', null],
+  ])('omits the caption for %s, rather than failing validation', async (_case, caption) => {
+    await subject().uploadClip(SLUG, { file: aClip('un.mp4'), caption })
+
+    expect(only().form?.has('caption')).toBe(false)
+  })
+
+  it('forwards the progress handler, because a clip is a minute of venue Wi-Fi', async () => {
+    const seen: number[] = []
+
+    await subject().uploadClip(SLUG, {
+      file: aClip('un.mp4'),
+      onProgress: (progress) => seen.push(progress.percent),
+    })
+    only().onProgress?.({ loaded: 1, total: 4, percent: 25 })
+
+    expect(seen).toEqual([25])
+  })
+
+  it('forwards the cancellation signal', async () => {
+    const controller = new AbortController()
+
+    await subject().uploadClip(SLUG, { file: aClip('un.mp4'), signal: controller.signal })
+
+    expect(only().signal).toBe(controller.signal)
+  })
+
+  it('encodes a job id into the path rather than into the query', async () => {
+    await subject().clipJob(SLUG, 'a/b')
+
+    expect(only().path).toBe(`/api/events/${SLUG}/clips/a%2Fb`)
   })
 })
 

@@ -59,6 +59,7 @@ export function ModerationCard({
   const authorInName = photo.authorName ?? fr.moderation.anonymousInName
   const authorLine =
     photo.authorName === null ? fr.moderation.byAnonymous : fr.moderation.by(photo.authorName)
+  const isClip = photo.kind === 'clip'
 
   return (
     <article
@@ -95,10 +96,18 @@ export function ModerationCard({
         type="button"
         className={styles['thumbnail']}
         // The photo has to be judged full size before it goes on a wall in front of
-        // two hundred people; a 240 px tile is not enough to spot who is in it.
-        aria-label={fr.moderation.enlargePhoto(authorInName)}
+        // two hundred people; a 240 px tile is not enough to spot who is in it. For a
+        // clip the button says something stronger, because what it opens is not a
+        // larger still — it is the only place on this surface the video can be watched,
+        // and the thing that gets somebody into trouble is rarely in the first frame.
+        aria-label={
+          isClip ? fr.moderation.watchVideo(authorInName) : fr.moderation.enlargePhoto(authorInName)
+        }
         onClick={() => onOpen(photo.id)}
       >
+        {/* A clip's `thumbUrl` is its poster frame, so this is the same `<img>` either
+            way — the server resolved the difference. What changes is the badge over it
+            and what the button promises. */}
         <img
           className={styles['image']}
           src={photo.thumbUrl}
@@ -112,6 +121,20 @@ export function ModerationCard({
           width={photo.width}
           height={photo.height}
         />
+        {/*
+          On the poster, because the host's decision starts before they open anything:
+          "this one is eight seconds of video" changes how long they are about to spend
+          on it, and a still frame does not say so. Text rather than a play glyph alone
+          — the badge has to survive stage lighting and a projector-lit room, which is
+          the same argument the status badge above it settles.
+        */}
+        {isClip ? (
+          <span className={styles['clipBadge']}>
+            {photo.durationMs === null
+              ? fr.moderation.videoBadge
+              : fr.moderation.videoLength(Math.round(photo.durationMs / 1_000))}
+          </span>
+        ) : null}
       </button>
 
       <div className={styles['meta']}>

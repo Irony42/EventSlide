@@ -1,6 +1,9 @@
+import { spawn } from 'node:child_process'
+import { accessSync, constants } from 'node:fs'
 import { mkdtemp, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import sharp from 'sharp'
 
 /**
@@ -190,3 +193,117 @@ export const aDemoAlbum = async (count = 6): Promise<readonly string[]> =>
       aPhoto(`demo-${index + 1}`, index % 2 === 0 ? 1600 : 1200, index % 2 === 0 ? 1200 : 1600),
     ),
   )
+
+// ------------------------------------------------------- short video clips --
+
+/**
+ * Where the encoder that makes a clip fixture comes from.
+ *
+ * The same three sources, in the same order, that
+ * `src/infrastructure/media/ffmpegBinaries.ts` uses for the server — spelled out again
+ * here rather than imported, because `tests/**` and `src/**` are separate tsconfig
+ * projects with different module resolution and a fixture is not worth coupling them
+ * over. What matters is that both answer the same way on the same machine: on CI the
+ * `ffmpeg-static` devDependency, on a laptop whatever is on `PATH`.
+ *
+ * `null` when this machine has neither, which the clip journey turns into a named skip
+ * rather than a confusing failure. A worktree whose `node_modules` is a junction to
+ * another checkout genuinely does not have the devDependency, and that has already cost
+ * this branch a round of "green locally, red on CI".
+ */
+const encoderPath = (): string | null => {
+  const bundled = ((): string | null => {
+    try {
+      const loaded: unknown = createRequire(join(process.cwd(), 'noop.cjs'))('ffmpeg-static')
+      return typeof loaded === 'string' && loaded.length > 0 ? loaded : null
+    } catch {
+      return null
+    }
+  })()
+  if (bundled !== null && isExecutable(bundled)) return bundled
+
+  // Resolved to an absolute path rather than handed to `spawn` as a bare name: without a
+  // shell Node does not apply `PATHEXT`, so `spawn('ffmpeg')` fails on Windows where
+  // `ffmpeg.exe` exists — and `shell: true` is CVE-2024-27980.
+  const search = process.env['PATH'] ?? ''
+  const suffixes =
+    process.platform === 'win32'
+      ? ['', ...(process.env['PATHEXT'] ?? '.EXE;.CMD;.BAT').split(';').filter(Boolean)]
+      : ['']
+  for (const directory of search.split(delimiter).filter(Boolean)) {
+    for (const suffix of suffixes) {
+      const candidate = join(directory, `ffmpeg${suffix}`)
+      if (isExecutable(candidate)) return candidate
+    }
+  }
+  return null
+}
+
+const isExecutable = (candidate: string): boolean => {
+  try {
+    accessSync(candidate, constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Whether this machine can make a clip fixture at all. Read by the journey's skip. */
+export const hasEncoder = (): boolean => encoderPath() !== null
+
+/**
+ * A short, real mp4: colour bars and a tone, encoded as a phone would encode them.
+ *
+ * Generated rather than committed, for the reason every other fixture here is — and for
+ * one more that is specific to this file: a committed binary that happens to match a
+ * malware signature is deleted from disk mid-run by Windows Defender, which this
+ * repository has already paid for once.
+ *
+ * H.264 in yuv420p with AAC audio, because that is what the transcoder produces and what
+ * every browser plays; `-movflags +faststart` puts the index at the front so the wall can
+ * begin playing before the whole file has arrived, which is the condition on venue Wi-Fi.
+ */
+export const aClip = async (label = 'clip', seconds = 3, size = '640x360'): Promise<string> => {
+  const encoder = encoderPath()
+  if (encoder === null) throw new Error('no ffmpeg is available to build a clip fixture')
+
+  const path = join(await scratchDir(), `${label}.mp4`)
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(
+      encoder,
+      [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-f',
+        'lavfi',
+        '-i',
+        `testsrc=size=${size}:rate=15:duration=${seconds}`,
+        '-f',
+        'lavfi',
+        '-i',
+        `sine=frequency=440:duration=${seconds}`,
+        '-c:v',
+        'libx264',
+        '-pix_fmt',
+        'yuv420p',
+        '-c:a',
+        'aac',
+        '-shortest',
+        '-movflags',
+        '+faststart',
+        '-y',
+        path,
+      ],
+      { stdio: ['ignore', 'ignore', 'pipe'] },
+    )
+    const errors: string[] = []
+    child.stderr?.on('data', (chunk: Buffer) => errors.push(chunk.toString()))
+    child.once('error', reject)
+    child.once('exit', (code) => {
+      if (code === 0) resolve()
+      else reject(new Error(`building the clip fixture failed with ${code}: ${errors.join('')}`))
+    })
+  })
+  return path
+}

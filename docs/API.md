@@ -251,13 +251,33 @@ which is allowed.
     "allowCaptions": true,
     "allowReactions": true,
     "maxUploadBytes": 25000000,
-    "maxFilesPerUpload": 20
+    "maxFilesPerUpload": 20,
+    "allowClips": true,
+    "maxClipBytes": 80000000,
+    "maxClipSeconds": 15
   }
 }
 ```
 
 Only what a guest may know before joining. The owner, the quota, the counts and the
 settings that are none of their business are absent.
+
+`allowClips` here is **the host's switch and the box's capability together** — it answers
+"may a guest send a video to this event, on this deployment", which is a different
+question from `EventSettingsDto.allowClips` in §7, where the host sees their own setting
+exactly as they left it. A box with no video encoder answers `false` however the host set
+it, because `POST /clips` refuses with `500 clip.transcoderUnavailable` **after** multer
+has written the upload to disk: without the conjunction every guest pays a full
+eighty-megabyte upload, every time they try, until somebody redeploys.
+
+`allowClips`, `maxClipBytes` and `maxClipSeconds` are here so that a refusal can happen
+**before the bytes do**. A phone can read a recording's size and, usually, its duration
+before sending it, and a guest told "cette vidéo est trop longue" at the picker has lost
+nothing — where the same refusal after four minutes of venue Wi-Fi has cost them the
+upload and, on a phone that slept halfway, the attempt. `maxClipBytes` is
+`MAX_CLIP_BYTES` and deliberately not `maxUploadBytes`, which is the photo path's; both
+are deployment configuration, which is why they travel rather than being compiled into
+the client.
 
 **Errors** — `404 event.notFound` for an unknown code, for an event that is `draft`,
 `closed` or `archived`, **and** for a request whose `es_guest` cookie names a guest of
@@ -992,10 +1012,13 @@ written with the field, while one whose settings predate it belongs to a host wh
 never asked — and a deploy must not start accepting 80 MB uploads on a wedding that is
 live at that moment.
 
-The host-facing switch is not built yet: it ships with the web surfaces, and until then
-this `PATCH` is the only way to enable video on an event that predates the deploy. Note
-also that the first save of **any** setting on such an event writes `allowClips: false`
-into its blob, after which it is indistinguishable from a host who chose no.
+The host-facing switch is the "Autoriser les vidéos" checkbox on the event settings page.
+It matters more than it looks: the persistence fallback reads `false` for every event
+stored before the deploy, so without it video would be unreachable on exactly the events
+the feature exists for. Note also that the first save of **any** setting on such an event
+writes `allowClips: false` into its blob, after which it is indistinguishable from a host
+who chose no — which is why the checkbox ships in the same form as every other setting
+rather than behind one of its own.
 
 **200** with the event. **Errors** — `409 event.immutable`,
 `400 eventSettings.graceSecondsInvalid`, `400 eventSettings.retentionDaysInvalid`,

@@ -6,6 +6,7 @@ import { rememberGuestSession } from '../../lib/guestSession'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
+  aClipJob,
   aGuestPhoto,
   aPublicEvent,
   fakeApi,
@@ -415,5 +416,164 @@ describe('GuestUploadPage', () => {
 
     const bar = await screen.findByRole('progressbar', { name: fr.upload.itemProgress(1) })
     expect(bar).toHaveAttribute('aria-valuenow', '60')
+  })
+})
+
+describe('sending a video', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  const aClipFile = (name = 'premiere-danse.mp4', size = 12_000_000): File => {
+    const file = new File([new Uint8Array([0, 0, 0, 0x18])], name, { type: 'video/mp4' })
+    Object.defineProperty(file, 'size', { value: size })
+    return file
+  }
+
+  it('offers no video control when the host has not allowed it', () => {
+    // The persistence fallback reads false for every gallery created before clips
+    // shipped. Offering the control there means a 403 after eighty megabytes of a
+    // guest's evening, which is exactly the failure this surface is arranged to avoid.
+    havingJoined({ allowClips: false })
+    renderUpload(fakeApi())
+
+    expect(screen.queryByLabelText(fr.upload.addClip)).toBeNull()
+  })
+
+  it('lets the guest watch back the video they sent, and says how long it is', async () => {
+    // "Did it arrive, and was it the right one?" is what this list is for, and a poster
+    // frame answers only the first half.
+    havingJoined({ allowClips: true })
+    renderUpload(
+      fakeApi(
+        withPhotos(
+          aGuestPhoto({
+            id: 'clip-1',
+            kind: 'clip',
+            videoUrl: '/api/events/camille-et-sacha/photos/clip-1/video',
+            durationMs: 8_000,
+          }),
+        ),
+      ),
+    )
+
+    const player = await screen.findByLabelText(fr.upload.mineClipAlt)
+    expect(player).toHaveAttribute('src', '/api/events/camille-et-sacha/photos/clip-1/video')
+    expect(screen.getByText(fr.moderation.videoLength(8))).toBeVisible()
+  })
+
+  it('says what the limits are before the picker is opened', () => {
+    havingJoined({ allowClips: true, maxClipBytes: 80_000_000, maxClipSeconds: 15 })
+    renderUpload(fakeApi())
+
+    // The numbers come from the event, not from this bundle: a guest who reads them
+    // films a shorter sequence instead of losing four minutes to a refusal.
+    expect(screen.getByText(fr.upload.clipHint(15, 80))).toBeVisible()
+  })
+
+  it('refuses a recording heavier than the limit without contacting the server', async () => {
+    havingJoined({ allowClips: true })
+    const api = fakeApi()
+    renderUpload(api)
+
+    await userEvent.upload(
+      screen.getByLabelText(fr.upload.addClip),
+      aClipFile('longue.mp4', 90_000_000),
+    )
+
+    expect(await screen.findByText(fr.upload.clipTooLarge(80))).toBeVisible()
+    expect(api.uploadClip).not.toHaveBeenCalled()
+    // And no greyed-out "Réessayer" beside it: a control that exists to be refused reads,
+    // in a dark room, as the app being broken rather than as the recording being wrong.
+    expect(screen.queryByRole('button', { name: fr.app.retry })).toBeNull()
+    // Named after what it does. It and the picker above it were both "Choisir une autre
+    // vidéo", so a screen-reader user activating one watched the composer empty and no
+    // picker open.
+    expect(screen.getByRole('button', { name: fr.upload.clipDiscard })).toBeEnabled()
+  })
+
+  it('waits out a full queue instead of offering the same eighty megabytes again', async () => {
+    havingJoined({ allowClips: true })
+    const api = fakeApi({
+      uploadClip: vi.fn(() =>
+        Promise.reject(new ApiError(429, 'clip.queueFull', { retryAfterSeconds: 30 })),
+      ),
+    })
+    renderUpload(api)
+
+    await userEvent.upload(screen.getByLabelText(fr.upload.addClip), aClipFile())
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSend }))
+
+    // Backpressure is a wait, not an error the guest caused — and it carries the server's
+    // own estimate, so they stop pressing the button.
+    expect(await screen.findByText(fr.upload.clipQueueFullRetry(30))).toBeVisible()
+    // No send while the box asked for a delay: the upload is written to disk before the
+    // queue depth is decided, so an instant retry spends the bytes for nothing.
+    expect(screen.queryByRole('button', { name: fr.upload.clipSend })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.app.retry })).toBeNull()
+  })
+
+  it('shows the transcode as its own state rather than stopping at 100%', async () => {
+    havingJoined({ allowClips: true })
+    const api = fakeApi({
+      uploadClip: vi.fn(async () => aClipJob({ status: 'queued' })),
+      clipJob: vi.fn(async () => aClipJob({ status: 'running' })),
+    })
+    renderUpload(api)
+
+    await userEvent.upload(screen.getByLabelText(fr.upload.addClip), aClipFile())
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSend }))
+
+    // The window between the upload and the photo is real, and a guest who cannot tell
+    // whether it worked sends the same file again.
+    expect(await screen.findByText(fr.upload.clipRunning)).toBeVisible()
+  })
+
+  it('stops offering to cancel once the bytes are on the box', async () => {
+    // "Annuler l'envoi" is true while the request is in flight and a lie afterwards: the
+    // queue deduplicates per event, so a cancellation could delete a clip a *different*
+    // guest also sent, `queued` may only become `running`, and no route lets a guest
+    // touch a job. So the screen says what happens next instead of promising a
+    // withdrawal this surface cannot perform.
+    havingJoined({ allowClips: true })
+    const api = fakeApi({
+      uploadClip: vi.fn(async () => aClipJob({ status: 'queued' })),
+      clipJob: vi.fn(async () => aClipJob({ status: 'running' })),
+    })
+    renderUpload(api)
+
+    await userEvent.upload(screen.getByLabelText(fr.upload.addClip), aClipFile())
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSend }))
+
+    expect(await screen.findByText(fr.upload.clipAlreadySent)).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.upload.clipCancel })).toBeNull()
+  })
+
+  it('offers to cancel while the bytes are still going up, because then it is true', async () => {
+    havingJoined({ allowClips: true })
+    const api = fakeApi({ uploadClip: vi.fn(() => new Promise<never>(() => {})) })
+    renderUpload(api)
+
+    await userEvent.upload(screen.getByLabelText(fr.upload.addClip), aClipFile())
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSend }))
+
+    // The `XMLHttpRequest` is aborted and the box never sees the file.
+    expect(await screen.findByRole('button', { name: fr.upload.clipCancel })).toBeVisible()
+  })
+
+  it('tells the guest a video is not kept for later when the network drops', async () => {
+    havingJoined({ allowClips: true })
+    const api = fakeApi({ uploadClip: vi.fn(() => Promise.reject(ApiError.network())) })
+    renderUpload(api)
+
+    await userEvent.upload(screen.getByLabelText(fr.upload.addClip), aClipFile())
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSend }))
+
+    // A phone holding eighty megabytes it can never drain is a phone that never sends
+    // anything else either, so the outbox refuses it — and this is the sentence that
+    // makes the refusal honest rather than silent.
+    expect(await screen.findByText(fr.upload.clipNotQueued)).toBeVisible()
   })
 })

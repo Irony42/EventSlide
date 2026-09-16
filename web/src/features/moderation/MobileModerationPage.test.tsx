@@ -4,7 +4,12 @@ import userEvent from '@testing-library/user-event'
 import { MobileModerationPage } from './MobileModerationPage'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
-import { aModerationPhoto, fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
+import {
+  aModerationClip,
+  aModerationPhoto,
+  fakeApi,
+  renderWithProviders,
+} from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
 import type { ModerationPhotoDto, ModerationQueueResponse } from '../../lib/api/dto'
 
@@ -517,5 +522,196 @@ describe('MobileModerationPage', () => {
     unmount()
 
     expect(stream().readyState).toBe(2)
+  })
+})
+
+/**
+ * A clip on the phone: playing it must not fight the gesture that decides it.
+ *
+ * The card is a drag surface, so nothing inside it is pressable — native video controls
+ * there would turn every tap near the bottom of the card into a scrub and every swipe
+ * that began there into one too. Playback is requested from the action bar, which is also
+ * the path a screen reader takes.
+ */
+describe('a clip on the phone', () => {
+  beforeEach(() => {
+    FakeEventSource.instances = []
+    vi.stubGlobal('EventSource', FakeEventSource)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  const aClip = (overrides: Partial<ModerationPhotoDto> = {}): ModerationPhotoDto =>
+    aModerationClip({ authorName: 'Léa', caption: 'La première danse', ...overrides })
+
+  /** jsdom implements no media pipeline: `play()` and `pause()` are not there at all. */
+  const stubMediaElement = () => {
+    const play = vi.fn(() => Promise.resolve())
+    const pause = vi.fn()
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(play)
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(pause)
+    return { play, pause }
+  }
+
+  it('puts the clip on the card without native controls', async () => {
+    stubMediaElement()
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderPhone(api)
+
+    const player = await screen.findByLabelText(
+      fr.moderation.videoAltWithCaption('La première danse', 'Léa'),
+    )
+    expect(player.tagName).toBe('VIDEO')
+    // Controls inside a drag surface are the defect: every tap near the bottom of the
+    // card would be a scrub rather than a swipe.
+    expect(player).not.toHaveAttribute('controls')
+    // Without `playsinline` iOS takes the video fullscreen the instant it starts, and
+    // the host is then looking at a player instead of the card they were about to swipe.
+    expect(player).toHaveAttribute('playsinline')
+  })
+
+  it('plays and pauses it from a real button in the action bar', async () => {
+    const media = stubMediaElement()
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderPhone(api)
+
+    const play = await screen.findByRole('button', { name: fr.moderation.playVideo('Léa') })
+    await userEvent.click(play)
+    expect(media.play).toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.moderation.pauseVideo('Léa') }))
+    expect(media.pause).toHaveBeenCalled()
+  })
+
+  it('still decides on a swipe while the clip is playing', async () => {
+    stubMediaElement()
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderPhone(api)
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.moderation.playVideo('Léa') }),
+    )
+
+    swipe(FAR)
+
+    // The gesture is the point of this surface, and a card that stops responding once
+    // something on it is moving is a card the host cannot use.
+    await waitFor(() => expect(api.moderate).toHaveBeenCalledWith(SLUG, 'clip-1', 'publish'))
+  })
+
+  it('does not carry playback over to the next clip', async () => {
+    // The second item is a **clip**, deliberately. With a photograph behind it there is
+    // no media element for `play()` to be called on at all, and the assertion below
+    // passes just as well against the bug it is named for.
+    const media = stubMediaElement()
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () =>
+        queueOf([aClip(), aClip({ id: 'clip-2', authorName: 'Tom', caption: 'Le gâteau' })]),
+      ),
+    })
+    renderPhone(api)
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.moderation.playVideo('Léa') }),
+    )
+    media.play.mockClear()
+
+    swipe(FAR)
+
+    // A card that begins with sound the host did not ask for, in a room, is the failure
+    // a stored boolean would have produced.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: fr.moderation.playVideo('Tom') })).toBeVisible(),
+    )
+    expect(media.play).not.toHaveBeenCalled()
+  })
+
+  it('stops playing the clip the host has just decided about', async () => {
+    // The status is applied optimistically, so a refusal the server sends back puts this
+    // same clip in hand again. With the id still stored, the remounted card would start
+    // playing, with sound, in a room, without anybody asking.
+    const media = stubMediaElement()
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => queueOf([aClip()])),
+      moderate: vi.fn(() => Promise.reject(new ApiError(409, 'photo.illegalTransition'))),
+    })
+    renderPhone(api)
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.moderation.playVideo('Léa') }),
+    )
+    media.play.mockClear()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.moderation.publishPhoto('Léa') }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: fr.moderation.playVideo('Léa') })).toBeVisible(),
+    )
+    expect(media.play).not.toHaveBeenCalled()
+  })
+
+  it('says so when the phone cannot play the clip, instead of a button that does nothing', async () => {
+    const media = stubMediaElement()
+    media.play.mockRejectedValue(new DOMException('no decoder', 'NotSupportedError'))
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderPhone(api)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.moderation.playVideo('Léa') }),
+    )
+
+    // Otherwise the only control on the screen reads "mettre en pause" for the rest of
+    // the evening, toggling a state nothing acts on — on the surface whose whole premise
+    // is that the host is not looking at it.
+    expect(await screen.findByText(fr.moderation.videoUnplayable)).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.moderation.pauseVideo('Léa') })).toBeNull()
+    // Beside the control, never instead of it. `preload="metadata"` means a dropped
+    // fetch on a venue phone can report this before the host has pressed anything, and
+    // taking the button away would make one network blip cost them that clip for the
+    // rest of the session.
+    expect(screen.getByRole('button', { name: fr.moderation.playVideo('Léa') })).toBeEnabled()
+  })
+
+  it('lets the host try again after a blip, and stops saying it failed', async () => {
+    const media = stubMediaElement()
+    media.play.mockRejectedValueOnce(new DOMException('network', 'NotSupportedError'))
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderPhone(api)
+
+    const play = await screen.findByRole('button', { name: fr.moderation.playVideo('Léa') })
+    await userEvent.click(play)
+    expect(await screen.findByText(fr.moderation.videoUnplayable)).toBeVisible()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.moderation.playVideo('Léa') }))
+
+    // MEDIA_ERR_NETWORK is transient. A host left reading a stale refusal over a clip
+    // that now plays is deciding on a poster frame for no reason.
+    await waitFor(() => expect(screen.queryByText(fr.moderation.videoUnplayable)).toBeNull())
+    expect(screen.getByRole('button', { name: fr.moderation.pauseVideo('Léa') })).toBeVisible()
+  })
+
+  it('plays a clip the browser refused to unmute, and says the sound is missing', async () => {
+    const media = stubMediaElement()
+    media.play.mockRejectedValueOnce(new DOMException('gesture', 'NotAllowedError'))
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderPhone(api)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.moderation.playVideo('Léa') }),
+    )
+
+    // A silent clip is a far better decision than a poster frame — but a moderator
+    // judging fifteen seconds of a speech has to know they are getting half the evidence.
+    expect(await screen.findByText(fr.moderation.videoMuted)).toBeVisible()
+    expect(screen.getByRole('button', { name: fr.moderation.pauseVideo('Léa') })).toBeVisible()
+    expect(media.play).toHaveBeenCalledTimes(2)
+  })
+
+  it('offers no play control for a photograph', async () => {
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+    renderPhone(api)
+    await screen.findByTestId('mobile-moderation-card')
+
+    expect(screen.queryByRole('button', { name: fr.moderation.playVideo('Léa') })).toBeNull()
   })
 })

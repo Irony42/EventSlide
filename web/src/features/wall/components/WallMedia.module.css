@@ -1,0 +1,17 @@
+/**
+ * A playing clip, sized and framed exactly as the still it replaces.
+ *
+ * The layout's own class already carries the box — `object-fit`, the letterbox ground,
+ * the border radius — because a clip has to occupy the same slot a photograph does or the
+ * wall reflows every time one comes round. What is left here is the handful of things
+ * that are true of a `<video>` and of nothing else.
+ */
+.video {
+  /* A `<video>` is `inline` by default, so a baseline descender opens a few pixels under
+     it — invisible on a laptop and a bright line across a three-metre projection. */
+  display: block;
+  /* Inherited from the layout class in every current caller, and declared again because a
+     `<video>` with no intrinsic box would otherwise fall back to its own 300x150. */
+  max-inline-size: 100%;
+  max-block-size: 100%;
+}

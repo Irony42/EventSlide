@@ -67,6 +67,31 @@ export function MobileModerationPage() {
   const [lastDecision, setLastDecision] = useState<ModerationDecision | null>(null)
 
   /**
+   * Which clip is running, named by its photo rather than held as a boolean.
+   *
+   * Derived comparison rather than stored state, for the same reason `current` is
+   * derived: the card advances the instant a decision lands, and a boolean would leave
+   * the next clip already "playing" — a card that begins with sound the host did not ask
+   * for, in a room. Naming the photo means the answer resets itself.
+   */
+  const [playingId, setPlayingId] = useState<string | null>(null)
+  /**
+   * What playback did that the host did not ask for, and which photo it happened to.
+   *
+   * Named by photo for the same reason `playingId` is: the card advances on its own, and
+   * a flag would carry one clip's trouble onto the next one's.
+   *
+   * It is a **notice, never a replacement for the control**. A failed metadata fetch on a
+   * venue phone is transient and arrives before the host has pressed anything, so
+   * swapping the button out for a sentence would make one network blip cost them the
+   * ability to watch that clip for the rest of the session.
+   */
+  const [notice, setNotice] = useState<{ photoId: string; kind: 'failed' | 'muted' } | null>(null)
+  const isClip = current !== null && current.kind === 'clip' && current.videoUrl !== null
+  const playing = current !== null && playingId === current.id
+  const currentNotice = current !== null && notice?.photoId === current.id ? notice.kind : null
+
+  /**
    * Take a decision on a named photo, and on that photo only.
    *
    * Two guards, both of which exist because the card advances *before* the server
@@ -88,6 +113,12 @@ export function MobileModerationPage() {
     if (queue.busy) return
     if (current === null || current.id !== photoId) return
     setLastDecision(decision)
+    // Playback stops with the decision, and this is not tidiness. The status is applied
+    // optimistically, so a refusal the server sends back — `photo.illegalTransition`, a
+    // dropped connection — rolls the photo back to `pending` and puts *this* clip in hand
+    // again. With the id still stored, the remounted card would start playing, with
+    // sound, in a room, without anybody asking for it.
+    setPlayingId(null)
     void queue.decide(photoId, decision)
   }
 
@@ -101,10 +132,18 @@ export function MobileModerationPage() {
   const announcement = (): string => {
     if (queue.items.length === 0 && (queue.loading || queue.error !== null)) return ''
     if (current === null || authorInName === null) return fr.moderation.empty
+    // "Vidéo" rather than "photo" where it is one: a host who cannot see the screen has
+    // to know that what is in hand has fifteen seconds in it before they decide, and the
+    // play button below is announced only after they have heard what it is for.
+    const describe = current.kind === 'clip' ? fr.moderation.videoAlt : fr.moderation.photoAlt
+    const describeWithCaption =
+      current.kind === 'clip'
+        ? fr.moderation.videoAltWithCaption
+        : fr.moderation.photoAltWithCaption
     return fr.mobileModeration.nowDeciding(
       current.caption === null
-        ? fr.moderation.photoAlt(authorInName)
-        : fr.moderation.photoAltWithCaption(current.caption, authorInName),
+        ? describe(authorInName)
+        : describeWithCaption(current.caption, authorInName),
     )
   }
 
@@ -180,7 +219,23 @@ export function MobileModerationPage() {
           // `disabled` while a decision is in flight: the card must not move for a
           // gesture the page is about to refuse. Two quick swipes are the same hazard as
           // two quick taps.
-          <SwipeCard key={current.id} photo={current} disabled={queue.busy} onDecide={decide} />
+          <SwipeCard
+            key={current.id}
+            photo={current}
+            disabled={queue.busy}
+            onDecide={decide}
+            playing={playing}
+            onPlaybackEnded={(reason) => {
+              // `muted` is the one that keeps playing: the browser refused sound and the
+              // clip is running without it, so the button stays "mettre en pause".
+              if (reason === 'muted') {
+                setNotice({ photoId: current.id, kind: 'muted' })
+                return
+              }
+              setPlayingId(null)
+              if (reason === 'failed') setNotice({ photoId: current.id, kind: 'failed' })
+            }}
+          />
         )}
       </div>
 
@@ -194,6 +249,55 @@ export function MobileModerationPage() {
         the photo they meant to refuse.
       */}
       <div className={styles['actions']}>
+        {/*
+          The play control, and it is here rather than on the card for a reason that is
+          not cosmetic: the card is a drag surface, and a button inside one fires on a
+          gesture meant for the card — an aborted swipe becomes a tap, and a tap near the
+          bottom of the card becomes a scrub. So playback is requested from the action
+          bar, at the same 44 px target as every decision beside it.
+
+          It is also the accessible path rather than a fallback. A swipe is invisible to
+          a screen reader and native video controls inside a drag surface would be worse
+          than none; a real button with a real label is the only way this clip can be
+          watched without sight or without fine motor control.
+
+          Rendered only for a clip, and above the decisions so the host's thumb does not
+          pass over "Refuser" on its way to "Lire".
+        */}
+        {isClip && current !== null && authorInName !== null ? (
+          <>
+            <Button
+              variant="secondary"
+              size="lg"
+              block
+              aria-label={
+                playing
+                  ? fr.moderation.pauseVideo(authorInName)
+                  : fr.moderation.playVideo(authorInName)
+              }
+              onClick={() => {
+                // A fresh attempt clears what the last one said. A phone that dropped a
+                // metadata fetch a moment ago will very often manage it now, and the host
+                // must not be left reading a stale refusal over a clip that plays.
+                setNotice(null)
+                setPlayingId(playing ? null : current.id)
+              }}
+            >
+              {playing
+                ? fr.moderation.pauseVideo(authorInName)
+                : fr.moderation.playVideo(authorInName)}
+            </Button>
+            {/* Beside the control, never instead of it. */}
+            {currentNotice === null ? null : (
+              <p className={styles['undoHint']} role="status">
+                {currentNotice === 'muted'
+                  ? fr.moderation.videoMuted
+                  : fr.moderation.videoUnplayable}
+              </p>
+            )}
+          </>
+        ) : null}
+
         <div className={styles['decisions']}>
           {/*
             `loading` while a decision is in flight, which is what `Button` turns into

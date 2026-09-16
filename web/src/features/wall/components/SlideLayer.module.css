@@ -51,6 +51,22 @@
  * scale mid-slide. The scale is a visual constant and mirrors
  * `src/domain/slideshow/kenBurns.ts`; only the duration crosses the wire, because only
  * the duration can disagree with the slideshow.
+ *
+ * **It applies to a clip as well, and that is a decision rather than an oversight.**
+ * `.image` is the class `WallMedia` puts on whichever element it renders, so on the
+ * spotlight a playing `<video>` is slowly scaled by the compositor while the same box
+ * decodes it. That is the cost: a composited transform on a layer that is already being
+ * repainted every frame, on the one machine in the building that is also driving the
+ * projector.
+ *
+ * It is kept because the alternative is worse to look at. A wall where the photographs
+ * drift and the videos sit still reads as a fault — the motion is what makes an
+ * eight-hour slideshow feel alive, and a clip that stops it every few slides is the
+ * jarring thing the room notices. The budget is one decoder at a time
+ * (`WallLayoutSpec.playsVideo`, `SlideLayer`'s `paused`), and one composited scale on top
+ * of one decode is what a venue mini-PC was measured against. If that ever stops being
+ * true, the fix is here — exclude `video` from this selector — and not in the layout
+ * table, which answers a different question.
  */
 .slide[data-motion='kenburns'] .image {
   animation: ken-burns var(--wall-kenburns-duration) var(--ease-linear) both;

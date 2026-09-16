@@ -23,6 +23,9 @@ const COUNTED: readonly CountedPhrase[] = [
   ['upload.queueSummary', (count) => fr.upload.queueSummary(count, 3)],
   ['upload.queueFailed', fr.upload.queueFailed],
   ['upload.offlineTitle', fr.upload.offlineTitle],
+  // The server's own `Retry-After`, which is one second at its floor: "réessayez dans 1
+  // secondes" on the one screen a guest reads while standing in a room.
+  ['upload.clipQueueFullRetry', fr.upload.clipQueueFullRetry],
   ['moderation.pending', fr.moderation.pending],
   ['moderation.bulkSkipped', fr.moderation.bulkSkipped],
   ['moderation.selected', fr.moderation.selected],

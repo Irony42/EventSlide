@@ -62,6 +62,7 @@ const P = {
 const PRESENTER: PresenterContext = {
   publicUrl: 'http://localhost:4300',
   uploadLimits: { maxBytes: 25_000_000, maxFiles: 20 },
+  clipLimits: { maxBytes: 80_000_000, maxSeconds: 15, supported: true },
 }
 
 /**

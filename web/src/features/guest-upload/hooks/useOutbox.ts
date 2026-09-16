@@ -5,6 +5,7 @@ import { apiOutboxSender } from '../../../lib/offline/apiSender'
 import { drainOutbox } from '../../../lib/offline/drainOutbox'
 import { isOfflineQueueEnabled } from '../../../lib/offline/killSwitch'
 import { openOutbox } from '../../../lib/offline/openOutbox'
+import { acceptsFileType } from '../../../lib/offline/outboxPolicy'
 import { requestBackgroundSync } from '../../../lib/offline/serviceWorker'
 import type { DrainReport } from '../../../lib/offline/drainOutbox'
 import type { OutboxStore } from '../../../lib/offline/outbox'
@@ -292,6 +293,22 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
     async (file: File, caption: string | null): Promise<string | null> => {
       const opened = store.current
       if (opened === null) return null
+      if (!acceptsFileType(file.type)) {
+        // Refused before a byte is read, and said out loud rather than swallowed. The
+        // drain sends to the photo route, which would refuse a clip for ever — and
+        // entries drain oldest first, so eighty unsendable megabytes sit in front of
+        // every photograph behind them. `outboxPolicy.acceptsFileType` holds the
+        // reasoning.
+        //
+        // The caller sees the same `null` every other refusal produces, and reports it
+        // the same generic way — `useUploadQueue.storeForLater` has no vocabulary for
+        // *why* the store said no. That is acceptable only because nothing routes a
+        // video here: the guest surface sends clips through `useClipUpload`, which says
+        // `fr.upload.clipNotQueued` in its own words. This is the backstop for a caller
+        // that has not been written yet, and it is a log line rather than a sentence.
+        console.warn('the outbox does not keep video for later; it is sent now or not at all')
+        return null
+      }
       let id: string
       try {
         // Read here rather than in the store, so the one place that touches a `File` is

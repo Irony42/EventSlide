@@ -12,6 +12,9 @@ const anItem = (overrides: Partial<WallItemDto> = {}): WallItemDto => ({
   caption: 'Les confettis',
   authorName: 'Léa',
   createdAt: '2026-06-20T21:04:11.031Z',
+  kind: 'photo',
+  videoUrl: null,
+  durationMs: null,
   ...overrides,
 })
 

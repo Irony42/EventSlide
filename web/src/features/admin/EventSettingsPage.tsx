@@ -83,6 +83,7 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.moderation,
     settings.allowCaptions,
     settings.allowReactions,
+    settings.allowClips,
     settings.allowGuestSelfDelete,
     settings.guestSelfDeleteGraceSeconds,
     settings.retentionDays,
@@ -305,6 +306,24 @@ export function EventSettingsPage() {
           checked={settings.allowReactions}
           disabled={readOnly}
           onChange={(allowReactions) => update({ allowReactions })}
+        />
+
+        {/*
+          The host's switch over video, and the reason it carries a hint where
+          "Autoriser les réactions" does not: **it reads off on every gallery that
+          existed before clips shipped.** The persistence fallback answers `false` for a
+          settings blob written without the field — deliberately, because a deploy must
+          not start accepting eighty-megabyte uploads on a wedding that is live at that
+          moment — so for exactly the events this feature was built for, nothing happens
+          until a host comes here and ticks it. Without this control there is no way to
+          reach that state from any screen at all.
+        */}
+        <CheckboxField
+          label={fr.admin.allowClips}
+          hint={fr.admin.allowClipsHint}
+          checked={settings.allowClips}
+          disabled={readOnly}
+          onChange={(allowClips) => update({ allowClips })}
         />
 
         <CheckboxField
