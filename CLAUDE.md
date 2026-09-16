@@ -238,8 +238,16 @@ that renders guest-supplied content. The short version:
   An event that hits its quota stops accepting uploads instead of filling the disk.
 - Media is served through the application, never by `express.static`, so authorization
   and event scoping apply to every byte.
-- `helmet` sets a strict CSP. There is **no CDN** — Bootstrap is gone; fonts and CSS
-  are bundled. Do not reintroduce a remote `<script>` or `<link>`.
+- `helmet` sets a strict CSP. There is **no CDN** — Bootstrap is gone and the CSS is
+  bundled. Do not reintroduce a remote `<script>` or `<link>`.
+- **No web font is shipped.** This file used to say fonts were bundled; nothing in the
+  tree ever loaded one — there is no `.woff2`, no `fonts/` directory and no
+  `@font-face` anywhere. `--font-sans` opens with `'InterVariable', 'Inter'`, which is
+  opportunistic rather than a dependency: it picks those up on a machine that already
+  has them installed and falls through to `ui-sans-serif`/`system-ui` everywhere else,
+  which is what every guest actually sees. Bundling one is a real decision with a real
+  cost — roughly 100 kB per family against a 245 kB initial bundle, on a phone over
+  venue Wi-Fi — so it gets argued, not assumed.
 
 ---
 
