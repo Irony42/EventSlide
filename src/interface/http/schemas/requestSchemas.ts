@@ -35,11 +35,23 @@ export const eventSlugParams = z.object({ eventSlug: slug })
 
 export const photoParams = z.object({ eventSlug: slug, photoId: uuid })
 
+/**
+ * The renditions a client may ask for.
+ *
+ * `source` — a clip's un-stripped upload, waiting for the transcoder — is deliberately
+ * absent, and its absence is a security control rather than an omission. Those bytes
+ * still carry whatever the phone wrote into the container, including location, and they
+ * live inside the media store so the event's purge and the reconciliation figure reach
+ * them. The use case takes a `ServedVariant`, so even if this enum grew the value by
+ * accident it would not compile.
+ */
 export const photoVariantParams = z.object({
   eventSlug: slug,
   photoId: uuid,
-  variant: z.enum(['thumb', 'display', 'original']),
+  variant: z.enum(['thumb', 'display', 'original', 'video', 'poster']),
 })
+
+export const clipJobParams = z.object({ eventSlug: slug, clipJobId: uuid })
 
 export const reactionParams = z.object({
   eventSlug: slug,
@@ -70,6 +82,17 @@ export const joinBody = z
  * multi-megabyte field cannot reach the domain.
  */
 export const uploadFields = z
+  .object({
+    caption: z.string().max(1_000).nullish(),
+  })
+  .strict()
+
+/**
+ * The one text part a clip upload carries. Same bound and same reasoning as
+ * {@link uploadFields}: the exact limit is `Caption`'s, this only keeps a multi-megabyte
+ * field out of the domain.
+ */
+export const clipUploadFields = z
   .object({
     caption: z.string().max(1_000).nullish(),
   })
@@ -131,6 +154,7 @@ export const updateSettingsBody = z
     moderation: z.enum(['manual', 'auto']).optional(),
     allowCaptions: z.boolean().optional(),
     allowReactions: z.boolean().optional(),
+    allowClips: z.boolean().optional(),
     allowGuestSelfDelete: z.boolean().optional(),
     guestSelfDeleteGraceSeconds: z.number().int().min(0).max(86_400).optional(),
     retentionDays: z.number().int().min(1).max(3_650).nullable().optional(),

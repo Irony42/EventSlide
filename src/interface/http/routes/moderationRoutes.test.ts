@@ -7,7 +7,7 @@ import type { PresenterContext } from '../presenters/presenters'
 import { sendNoContent } from '../presenters/send'
 import type { HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
-import type { MediaMetadata, MediaStore } from '../../../application/ports/mediaStore'
+import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
 import {
   AT,
   aGuest,
@@ -21,6 +21,7 @@ import { FakeReactionRepository } from '../../../application/testing/fakeReactio
 import { makeGetModerationQueue } from '../../../application/usecases/moderation/getModerationQueue'
 import { makeModeratePhoto } from '../../../application/usecases/moderation/moderatePhoto'
 import { makeModeratePhotosBulk } from '../../../application/usecases/moderation/moderatePhotosBulk'
+import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListEventPhotos } from '../../../application/usecases/photos/listEventPhotos'
 import { makeGetTopPhotos } from '../../../application/usecases/reactions/getTopPhotos'
@@ -99,6 +100,14 @@ class RecordingMediaStore implements MediaStore {
   async usedBytes(): Promise<number> {
     return 0
   }
+
+  async listEvents(): Promise<readonly EventId[]> {
+    return []
+  }
+
+  async list(): Promise<readonly StoredObject[]> {
+    return []
+  }
 }
 
 interface Adapters {
@@ -144,9 +153,18 @@ const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): Ht
     uploadPhotos: notWired,
     listEventPhotos: makeListEventPhotos({ events, photos }),
     listGuestPhotos: notWired,
-    deletePhoto: makeDeletePhoto({ events, photos, media, bus, clock }),
+    deletePhoto: makeDeletePhoto({
+      events,
+      photos,
+      clips: new FakeClipJobRepository(),
+      media,
+      bus,
+      clock,
+    }),
     setPhotoCaption: notWired,
     getPhotoMedia: notWired,
+    uploadClip: notWired,
+    getClipJob: notWired,
     exportAlbum: notWired,
     getModerationQueue: makeGetModerationQueue({ events, photos, guests, memberships }),
     moderatePhoto: makeModeratePhoto({ events, photos, memberships, bus, clock }),
@@ -293,6 +311,11 @@ describe('GET /api/events/:eventSlug/moderation', () => {
       caption: 'Les confettis',
       authorName: 'Léa',
       createdAt: AT.toISOString(),
+      // The clip facet, on a row a host is about to decide about. `videoUrl` is what
+      // lets the console play a clip instead of judging it from a still frame.
+      kind: 'photo',
+      videoUrl: null,
+      durationMs: null,
     })
   })
 
@@ -460,6 +483,9 @@ describe('GET /api/events/:eventSlug/photos', () => {
       authorName: null,
       byteSize: 2_400_000,
       createdAt: atPlus(1_000).toISOString(),
+      kind: 'photo',
+      videoUrl: null,
+      durationMs: null,
     })
   })
 

@@ -3,6 +3,7 @@ import type { DomainError } from '../shared/errors'
 import { asEventId, asGuestId, asPhotoId, asUserId } from '../shared/ids'
 import type { EventId, PhotoId } from '../shared/ids'
 import type { Result } from '../shared/result'
+import { ClipDuration } from '../clips/clipDuration'
 import { Caption } from './caption'
 import { ContentHash } from './contentHash'
 import { Dimensions } from './dimensions'
@@ -405,5 +406,107 @@ describe('Photo identity', () => {
     const stored = aHiddenPhoto()
 
     expect(Photo.restore(stored.toProps()).equals(stored)).toBe(true)
+  })
+})
+
+// ------------------------------------------------------------------- the facet --
+
+/**
+ * A clip is a **facet** of a photo, not a second aggregate: the same status machine, the
+ * same ownership rules, the same quota line. What the facet adds is the two things a
+ * still does not have, and what these tests pin is that asking a row for something its
+ * kind does not have is answered by the row rather than by the disk.
+ */
+const A_CLIP_SIZE = unwrap(Dimensions.create(720, 1280))
+
+const aClipPhoto = (): Photo =>
+  unwrap(
+    Photo.create(
+      {
+        eventId: MARIAGE,
+        author: guestAuthor,
+        contentHash: hashOf('a'),
+        dimensions: A_CLIP_SIZE,
+        byteSize: 3_000_000,
+        caption: null,
+        facet: {
+          kind: 'clip',
+          duration: unwrap(ClipDuration.create(9_000, 15_000)),
+          posterHash: hashOf('b'),
+        },
+      },
+      FIRST_PHOTO,
+      UPLOADED_AT,
+    ),
+  )
+
+describe('Photo facets', () => {
+  it('is a photograph when nothing says otherwise', () => {
+    expect(aPendingPhoto().kind).toBe('photo')
+    expect(aPendingPhoto().facet).toEqual({ kind: 'photo' })
+  })
+
+  it('carries a duration and a poster when it is a clip', () => {
+    const clip = aClipPhoto()
+
+    expect(clip.kind).toBe('clip')
+    expect(clip.facet.kind === 'clip' && clip.facet.duration.ms).toBe(9_000)
+  })
+
+  it('starts pending like anything else, so a host still decides', () => {
+    expect(aClipPhoto().status).toBe('pending')
+  })
+
+  it('keeps its facet across a moderation decision', () => {
+    expect(unwrap(aClipPhoto().publish(byTheHost, DECIDED_AT)).kind).toBe('clip')
+  })
+
+  it('offers a photograph only the renditions a photograph has', () => {
+    const photo = aPendingPhoto()
+
+    expect(photo.hasVariant('thumb')).toBe(true)
+    expect(photo.hasVariant('video')).toBe(false)
+  })
+
+  it('offers a clip only the renditions a clip has', () => {
+    // A clip asked for `display` must miss on the **row**: answering `mediaMissing` would
+    // use the code that means "a row points at bytes that are gone", which is a
+    // corruption an operator should look at.
+    const clip = aClipPhoto()
+
+    expect(clip.hasVariant('poster')).toBe(true)
+    expect(clip.hasVariant('display')).toBe(false)
+  })
+
+  it('addresses every rendition of a photograph by its own digest', () => {
+    const photo = aPendingPhoto()
+
+    expect(photo.hashFor('thumb').equals(photo.contentHash)).toBe(true)
+    expect(photo.hashFor('original').equals(photo.contentHash)).toBe(true)
+  })
+
+  it('addresses a clip’s poster by the poster’s own digest', () => {
+    // The media store's one invariant: the name of a file is the hash of that file.
+    const clip = aClipPhoto()
+
+    expect(clip.hashFor('video').equals(clip.contentHash)).toBe(true)
+    expect(clip.hashFor('poster').equals(hashOf('b'))).toBe(true)
+    expect(clip.hashFor('poster').equals(clip.contentHash)).toBe(false)
+  })
+
+  it('never hands a photograph a poster digest it does not have', () => {
+    const photo = aPendingPhoto()
+
+    expect(photo.hashFor('poster').equals(photo.contentHash)).toBe(true)
+  })
+
+  it('owns one digest as a photograph and two as a clip', () => {
+    expect(aPendingPhoto().storageHashes.map((hash) => hash.value)).toEqual([
+      hashOf('a').value,
+    ])
+    expect(aClipPhoto().storageHashes.map((hash) => hash.value)).toEqual([
+      hashOf('a').value,
+      hashOf('b').value,
+    ])
   })
 })

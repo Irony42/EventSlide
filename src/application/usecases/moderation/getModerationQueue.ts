@@ -6,6 +6,7 @@ import {
   type QueueItem,
   type QueueOrder,
 } from '../../../domain/moderation/moderationQueue'
+import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { Photo, PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId } from '../../../domain/shared/ids'
@@ -73,6 +74,18 @@ export interface ModerationQueueRow extends QueueItem {
    * UI copy in a use case and make two clients disagree about it.
    */
   readonly authorName: string | null
+  /**
+   * Whether this row is a photograph or a clip, and how long the clip runs.
+   *
+   * The console needs both to decide what control to render, and a moderator deciding
+   * about a clip has to be able to watch it — a poster frame is not a decision about
+   * fifteen seconds of video. Carried on the row rather than looked up again by the
+   * presenter, for the same reason `authorName` is: a presenter that reached for a
+   * repository would be a controller doing a second read.
+   */
+  readonly kind: MediaKind
+  /** `null` for a photograph. Milliseconds, measured on the stored file. */
+  readonly durationMs: number | null
 }
 
 export interface ModerationQueueView {
@@ -101,6 +114,8 @@ const toRow = (photo: Photo, names: ReadonlyMap<GuestId, string>): ModerationQue
   // guest who stayed anonymous or whose row is gone. Both are "no name", never a
   // fabricated one.
   authorName: photo.author.kind === 'guest' ? (names.get(photo.author.guestId) ?? null) : null,
+  kind: photo.kind,
+  durationMs: photo.facet.kind === 'clip' ? photo.facet.duration.ms : null,
 })
 
 /**

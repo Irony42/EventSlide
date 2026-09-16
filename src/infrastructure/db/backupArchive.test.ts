@@ -285,6 +285,122 @@ describe('backup and restore', () => {
       expect((await verify()).ok).toBe(true)
     })
 
+    it('captures both of a clip’s files, under both of its digests', async () => {
+      // A clip is a facet of a photo, and its two renditions are addressed by two
+      // different digests — the mp4 by the row's own and the poster by its second. A
+      // backup that walked the three photo variants would have reported the clip as
+      // three missing files and accounted for neither of the two it really has, which
+      // is a whole kind of content disappearing from the archive with nothing to say so.
+      const db = openLive()
+      insertOwner(db)
+      insertEvent(db)
+      insertGuest(db, 'guest-1')
+      const videoHash = hashOf('a-clip')
+      const posterHash = hashOf('a-clip-poster')
+      db.prepare(
+        `INSERT INTO photos (id, event_id, author_guest_id, status, content_hash,
+                             width, height, byte_size, created_at,
+                             media_kind, duration_ms, poster_hash)
+         VALUES ('clip-1', ?, 'guest-1', 'published', ?, 720, 1280, 4321,
+                 '2026-09-01T20:05:00.000Z', 'clip', 9000, ?)`,
+      ).run(EVENT, videoHash, posterHash)
+      db.close()
+
+      const videoDirectory = join(mediaRoot, EVENT, 'video', videoHash.slice(0, 2))
+      await mkdir(videoDirectory, { recursive: true })
+      await writeFile(join(videoDirectory, `${videoHash}.mp4`), 'mp4-bytes')
+      await writeMedia(EVENT, posterHash, 'poster', 'poster-bytes')
+
+      const { manifest } = await backup()
+
+      expect(manifest.missingMedia).toEqual([])
+      expect(manifest.counts.mediaFiles).toBe(2)
+      expect(manifest.unreferencedMediaFiles).toBe(0)
+      expect((await verify()).ok).toBe(true)
+    })
+
+    it('accounts for a clip still in the transcode queue, which no photo row names', async () => {
+      // A staged source is on the disk with no `photos` row at all — that is the design.
+      // Before `clip_jobs` was read here, every backup taken while the queue was
+      // draining reported the whole of it as `unreferencedMediaFiles`, which is the
+      // number an operator is told to investigate as a leak.
+      const db = openLive()
+      insertOwner(db)
+      insertEvent(db)
+      insertGuest(db, 'guest-1')
+      const sourceHash = hashOf('a-clip-source')
+      db.prepare(
+        `INSERT INTO clip_jobs (id, event_id, photo_id, author_guest_id, status,
+                                source_hash, source_byte_size, attempts,
+                                created_at, updated_at, not_before)
+         VALUES ('clip-job-1', ?, 'photo-to-be', 'guest-1', 'queued', ?, 9, 0,
+                 '2026-09-01T20:05:00.000Z', '2026-09-01T20:05:00.000Z',
+                 '2026-09-01T20:05:00.000Z')`,
+      ).run(EVENT, sourceHash)
+      db.close()
+
+      const directory = join(mediaRoot, EVENT, 'source', sourceHash.slice(0, 2))
+      await mkdir(directory, { recursive: true })
+      await writeFile(join(directory, `${sourceHash}.bin`), 'the guest original')
+
+      const { manifest } = await backup()
+
+      expect(manifest.counts.mediaFiles).toBe(1)
+      expect(manifest.unreferencedMediaFiles).toBe(0)
+      expect(manifest.missingMedia).toEqual([])
+      expect((await verify()).ok).toBe(true)
+    })
+
+    it('says nothing about a source a finished job has already given back', async () => {
+      // The other side of it. A `done` job's bytes are gone on purpose, and naming them
+      // would turn a correct archive into a `missingMedia` report about a clip that was
+      // transcoded successfully hours earlier.
+      const db = openLive()
+      insertOwner(db)
+      insertEvent(db)
+      insertGuest(db, 'guest-1')
+      db.prepare(
+        `INSERT INTO clip_jobs (id, event_id, photo_id, author_guest_id, status,
+                                source_hash, source_byte_size, attempts,
+                                created_at, updated_at, not_before)
+         VALUES ('clip-job-1', ?, 'photo-1', 'guest-1', 'done', ?, 9, 1,
+                 '2026-09-01T20:05:00.000Z', '2026-09-01T20:05:00.000Z',
+                 '2026-09-01T20:05:00.000Z')`,
+      ).run(EVENT, hashOf('a-spent-source'))
+      db.close()
+
+      const { manifest } = await backup()
+
+      expect(manifest.missingMedia).toEqual([])
+      expect(manifest.counts.mediaFiles).toBe(0)
+    })
+
+    it('leaves the scratch directories out of the archive entirely', async () => {
+      // `.uploads` is whatever multer is receiving right now and `.scratch` is whatever
+      // ffmpeg is writing right now. Both live under MEDIA_ROOT because the container is
+      // read-only with a tmpfs on the memory cgroup, and both are emptied at the next
+      // boot. Archived, they carried a guest's un-stripped original into the archive a
+      // second time and then counted as `unreferencedMediaFiles` — the number the docs
+      // tell an operator to investigate as a leak.
+      await seedAnEvening()
+      await mkdir(join(mediaRoot, '.uploads'), { recursive: true })
+      await writeFile(join(mediaRoot, '.uploads', 'a1b2c3'), 'an upload in flight')
+      await mkdir(join(mediaRoot, '.scratch', 'job-1'), { recursive: true })
+      await writeFile(join(mediaRoot, '.scratch', 'job-1', 'output.mp4'), 'mid-transcode')
+
+      const { manifest } = await backup()
+
+      expect(manifest.counts.mediaFiles).toBe(3)
+      expect(manifest.unreferencedMediaFiles).toBe(0)
+      expect(manifest.media.entries.some((entry) => entry.path.startsWith('.'))).toBe(false)
+      // Deliberately **not** reported as skipped either: these two are there on every
+      // healthy boot, and `skipped` is the channel an operator reads for real problems —
+      // a file that is not a regular file, a name no archive path can hold.
+      expect(manifest.skipped.join('\n')).not.toContain('.scratch')
+      expect(manifest.skipped.join('\n')).not.toContain('.uploads')
+      expect((await verify()).ok).toBe(true)
+    })
+
     it('leaves an upload still being staged out of the archive', async () => {
       await seedAnEvening()
       const directory = join(mediaRoot, EVENT, 'original', 'ff')

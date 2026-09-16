@@ -394,6 +394,33 @@ describe('SqliteEventRepository', () => {
       await expect(repo.findById(asEventId('evt-1'))).rejects.toThrow()
     })
 
+    it('leaves clips off on an event created before clips existed', async () => {
+      // The upgrade path, and the one field whose absence is **not** read as its default.
+      // A settings blob with no `allowClips` was written by a host who was never asked,
+      // and the deploy that adds video must not start accepting 80 MB uploads on an event
+      // that may be live at that moment. A host who wants it turns it on, once.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ allowClips: undefined }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.allowClips).toBe(false)
+    })
+
+    it('keeps the choice of a host who did answer the question', async () => {
+      // The other half: the absent key is the only thing that means "off by default".
+      // A stored `true` is a decision, and a fallback that overrode it would be the
+      // failure the strict reading of every other field exists to prevent.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ allowClips: true }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.allowClips).toBe(true)
+    })
+
     it('refuses to hydrate an event whose status is outside the lifecycle', async () => {
       await repo.save(anEvent({ id: 'evt-1' }))
       // The column carries a CHECK, so only a hand-edited database reaches this state —

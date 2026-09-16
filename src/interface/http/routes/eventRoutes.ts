@@ -210,6 +210,7 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
           ...(body.moderation === undefined ? {} : { moderation: body.moderation }),
           ...(body.allowCaptions === undefined ? {} : { allowCaptions: body.allowCaptions }),
           ...(body.allowReactions === undefined ? {} : { allowReactions: body.allowReactions }),
+          ...(body.allowClips === undefined ? {} : { allowClips: body.allowClips }),
           ...(body.allowGuestSelfDelete === undefined
             ? {}
             : { allowGuestSelfDelete: body.allowGuestSelfDelete }),

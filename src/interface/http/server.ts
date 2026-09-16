@@ -5,8 +5,10 @@ import type { Store } from 'express-session'
 import { errorHandler, requestContext } from './middleware/errorHandler'
 import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
 import { attachUser } from './middleware/authz'
+import { uploadLimiter } from './middleware/rateLimit'
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
 import { authRoutes } from './routes/authRoutes'
+import { clipRoutes } from './routes/clipRoutes'
 import { eventRoutes } from './routes/eventRoutes'
 import { guestRoutes } from './routes/guestRoutes'
 import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
@@ -116,7 +118,32 @@ export const buildServer = ({
   const routeDeps = { deps, usecases, presenter }
   app.use('/api', publicRoutes(routeDeps))
   app.use('/api', authRoutes(routeDeps))
-  app.use('/api', guestRoutes(routeDeps))
+
+  /**
+   * **One upload bucket, built here and shared by both upload routes.**
+   *
+   * `express-rate-limit` gives every call its own `MemoryStore`, so calling
+   * `uploadLimiter(...)` inside each router was two independent allowances wearing one
+   * configuration key: a guest who had spent `UPLOAD_RATE_LIMIT_PER_MINUTE` on
+   * photographs still had the whole of it again for clips. A guest sending both is one
+   * guest, and the limit is meant to be what the variable says it is.
+   */
+  const uploadRateLimiter = uploadLimiter(config.rateLimits.uploadPerMinute)
+
+  app.use('/api', guestRoutes({ ...routeDeps, uploadRateLimiter }))
+  // Its own router, its own multer, its own byte limit — see `clipRoutes.ts`. Mounted
+  // beside the guest routes rather than inside them so that neither upload path can
+  // inherit the other's parser by accident.
+  app.use(
+    '/api',
+    clipRoutes({
+      deps,
+      usecases,
+      uploadTempDir: config.clips.uploadTempDir,
+      maxClipBytes: config.clips.maxBytes,
+      uploadRateLimiter,
+    }),
+  )
   app.use('/api', mediaRoutes(routeDeps))
   app.use('/api', moderationRoutes(routeDeps))
   app.use('/api', eventRoutes(routeDeps))

@@ -24,6 +24,9 @@ import type { GetModerationQueue } from '../../application/usecases/moderation/g
 import type { ModeratePhoto } from '../../application/usecases/moderation/moderatePhoto'
 import type { ModeratePhotosBulk } from '../../application/usecases/moderation/moderatePhotosBulk'
 
+import type { GetClipJob } from '../../application/usecases/clips/getClipJob'
+import type { UploadClip } from '../../application/usecases/clips/uploadClip'
+
 import type { DeletePhoto } from '../../application/usecases/photos/deletePhoto'
 import type { ExportAlbum } from '../../application/usecases/photos/exportAlbum'
 import type { GetPhotoMedia } from '../../application/usecases/photos/getPhotoMedia'
@@ -51,6 +54,10 @@ import type { GetWallPlaylist } from '../../application/usecases/slideshow/getWa
  * absent: they are startup and scheduled work, with no route, and listing them here
  * would invite one. `scheduleEvent` is the host-facing half of the last of those, and
  * that one does have a route.
+ *
+ * `transcodeNextClip` and `recoverClipJobs` are absent for the same reason, and the
+ * reason is sharper for them: both drain a queue across **every** event on the box, so a
+ * route in front of either would be an endpoint with no tenant to scope it to.
  */
 export interface HttpUseCases {
   // auth
@@ -84,6 +91,10 @@ export interface HttpUseCases {
   readonly setPhotoCaption: SetPhotoCaption
   readonly getPhotoMedia: GetPhotoMedia
   readonly exportAlbum: ExportAlbum
+
+  // clips
+  readonly uploadClip: UploadClip
+  readonly getClipJob: GetClipJob
 
   // moderation
   readonly getModerationQueue: GetModerationQueue

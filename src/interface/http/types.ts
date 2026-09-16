@@ -77,6 +77,19 @@ export interface HttpConfig {
     readonly maxBytes: number
     readonly maxFiles: number
   }
+  /**
+   * The clip half, deliberately separate from `uploads`.
+   *
+   * `guestRoutes.ts` derives the heap a single photo request may hold from
+   * `uploads.maxBytes`, and `compose.yaml`'s memory limit was reasoned against that
+   * number — so a clip's much larger ceiling cannot share the field without silently
+   * raising one somebody else calculated.
+   */
+  readonly clips: {
+    readonly maxBytes: number
+    /** Where multer writes a clip before it is staged. Under `MEDIA_ROOT`. */
+    readonly uploadTempDir: string
+  }
   readonly rateLimits: {
     readonly uploadPerMinute: number
     readonly joinPerMinute: number

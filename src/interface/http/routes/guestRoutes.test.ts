@@ -6,11 +6,12 @@ import { GUEST_COOKIE, requireRole, resolvePublicEvent } from '../middleware/aut
 import { sendNoContent } from '../presenters/send'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
-import type { MediaMetadata, MediaStore } from '../../../application/ports/mediaStore'
+import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
 import { AT, aGuest, aPhoto, aReaction, anEvent } from '../../../application/testing/builders'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
+import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListGuestPhotos } from '../../../application/usecases/photos/listGuestPhotos'
 import { makeSetPhotoCaption } from '../../../application/usecases/photos/setPhotoCaption'
@@ -81,11 +82,14 @@ const unreached = (method: string): string =>
   `MediaStore.${method} is not reached from the guest surface`
 
 /**
- * A `MediaStore` that records deletions and refuses everything else.
+ * A `MediaStore` that records deletions, answers how old an object is, and refuses
+ * everything else.
  *
- * Only `delete` is reachable from here — a guest taking a photo back. The rest throw
- * rather than answering politely, so a route that started reading or writing bytes
- * itself fails loudly instead of passing against a store that shrugs.
+ * Two methods are reachable from here — a guest taking a photo back is a `delete`, and
+ * `deletePhoto` asks `stat` how recently the bytes were written before it unlinks them,
+ * because bytes written moments ago may belong to a row that has not committed yet. The
+ * rest throw rather than answering politely, so a route that started reading or writing
+ * bytes itself fails loudly instead of passing against a store that shrugs.
  */
 class RecordingMediaStore implements MediaStore {
   readonly deleted: string[] = []
@@ -103,7 +107,9 @@ class RecordingMediaStore implements MediaStore {
   }
 
   async stat(): Promise<MediaMetadata | null> {
-    throw new Error(unreached('stat'))
+    // Written at the epoch: old enough that the concurrent-writer guard has nothing to
+    // say, so what these tests are about — who may delete what — is what decides.
+    return { byteSize: 1, contentType: 'image/jpeg', modifiedAt: new Date(0) }
   }
 
   async openRead(): Promise<AsyncIterable<Uint8Array> | null> {
@@ -120,6 +126,14 @@ class RecordingMediaStore implements MediaStore {
 
   async usedBytes(): Promise<number> {
     throw new Error(unreached('usedBytes'))
+  }
+
+  async listEvents(): Promise<readonly EventId[]> {
+    throw new Error(unreached('listEvents'))
+  }
+
+  async list(): Promise<readonly StoredObject[]> {
+    throw new Error(unreached('list'))
   }
 }
 
@@ -234,6 +248,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
             deletePhoto: makeDeletePhoto({
               events: deps.events,
               photos,
+              clips: new FakeClipJobRepository(),
               media,
               bus: deps.bus,
               clock: deps.clock,
@@ -697,6 +712,11 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       caption: null,
       createdAt: AT.toISOString(),
       canDelete: true,
+      // The clip facet, `null` on a photograph rather than absent, so no client has to
+      // test for a missing key before deciding what to render.
+      kind: 'photo',
+      videoUrl: null,
+      durationMs: null,
     })
   })
 

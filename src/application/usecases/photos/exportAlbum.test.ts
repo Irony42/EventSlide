@@ -10,6 +10,8 @@ import {
   type MediaMetadata,
   type MediaStore,
   type MediaVariant,
+  type StoredObject,
+  type PhotoVariant,
 } from '../../ports/mediaStore'
 import { anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -17,7 +19,7 @@ import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { makeExportAlbum, type ExportAlbum } from './exportAlbum'
 
 /** One byte per unit of length, so a test can tell the variants apart by size. */
-const BYTES_PER_VARIANT: Readonly<Record<MediaVariant, number>> = {
+const BYTES_PER_VARIANT: Readonly<Record<PhotoVariant, number>> = {
   original: 9,
   display: 3,
   thumb: 1,
@@ -57,7 +59,12 @@ class InMemoryMediaStore implements MediaStore {
     variant: MediaVariant,
   ): Promise<MediaMetadata | null> {
     const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined ? null : { byteSize: bytes.length, contentType: 'image/jpeg' }
+    return bytes === undefined ? null : {
+            byteSize: bytes.length,
+            contentType: 'image/jpeg',
+            // Not a fact any of these tests depends on; the sweep is the only reader.
+            modifiedAt: new Date(0),
+          }
   }
 
   async openRead(
@@ -89,6 +96,16 @@ class InMemoryMediaStore implements MediaStore {
     for (const key of [...this.objects.keys()]) {
       if (key.startsWith(`${eventId}|`)) this.objects.delete(key)
     }
+  }
+
+  // Reconciliation only. A use case that started enumerating the store would fail
+  // loudly here rather than pass against a permissive stub.
+  async listEvents(): Promise<readonly EventId[]> {
+    throw new Error(`listEvents is not part of an album export`)
+  }
+
+  async list(): Promise<readonly StoredObject[]> {
+    throw new Error(`list is not part of an album export`)
   }
 
   async usedBytes(eventId: EventId): Promise<number> {

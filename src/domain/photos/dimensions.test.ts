@@ -142,6 +142,28 @@ describe('Dimensions.scaleToFit', () => {
   })
 })
 
+describe('Dimensions.evenEdges', () => {
+  it('leaves an already-even frame alone', () => {
+    const even = dimensions(1280, 720).evenEdges()
+
+    expect([even.width, even.height]).toEqual([1280, 720])
+  })
+
+  it('rounds an odd edge down, because yuv420p cannot represent one', () => {
+    // `scale=-1:720` against a 9:16 source is exactly how an odd width arrives, and
+    // libx264 refuses the frame rather than rounding it for you.
+    const even = dimensions(405, 721).evenEdges()
+
+    expect([even.width, even.height]).toEqual([404, 720])
+  })
+
+  it('never rounds an edge down to nothing', () => {
+    const even = dimensions(1, 1).evenEdges()
+
+    expect([even.width, even.height]).toEqual([2, 2])
+  })
+})
+
 describe('Dimensions identity', () => {
   it('considers two identical sizes equal', () => {
     expect(dimensions(1920, 1080).equals(dimensions(1920, 1080))).toBe(true)

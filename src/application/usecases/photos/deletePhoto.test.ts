@@ -1,92 +1,32 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { PhotoActor } from '../../../domain/photos/photo'
-import { asEventId, asGuestId, asPhotoId, asUserId, type EventId } from '../../../domain/shared/ids'
+import { asClipJobId, asEventId, asGuestId, asPhotoId, asUserId } from '../../../domain/shared/ids'
+import { MEDIA_VARIANTS } from '../../ports/mediaStore'
 import {
-  MEDIA_VARIANTS,
-  type MediaMetadata,
-  type MediaStore,
-  type MediaVariant,
-} from '../../ports/mediaStore'
-import { anEvent, aPhoto, type EventInput, type PhotoInput } from '../../testing/builders'
+  anEvent,
+  aClip,
+  aClipJob,
+  aPhoto,
+  type EventInput,
+  type PhotoInput,
+} from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
+import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makeDeletePhoto, type DeletePhoto } from './deletePhoto'
 
-/** Byte buffers keyed by `(eventId, hash, variant)`, as the filesystem store is. */
-class InMemoryMediaStore implements MediaStore {
-  private readonly objects = new Map<string, Uint8Array>()
-
-  variantsOf(eventId: EventId, hash: ContentHash): readonly MediaVariant[] {
-    return MEDIA_VARIANTS.filter((variant) => this.objects.has(this.key(eventId, hash, variant)))
-  }
-
-  private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
-    return `${eventId}|${hash.value}|${variant}`
-  }
-
-  async put(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-    bytes: Uint8Array,
-  ): Promise<void> {
-    this.objects.set(this.key(eventId, hash, variant), bytes)
-  }
-
-  async exists(eventId: EventId, hash: ContentHash, variant: MediaVariant): Promise<boolean> {
-    return this.objects.has(this.key(eventId, hash, variant))
-  }
-
-  async stat(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<MediaMetadata | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined ? null : { byteSize: bytes.length, contentType: 'image/jpeg' }
-  }
-
-  async openRead(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<AsyncIterable<Uint8Array> | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    if (bytes === undefined) return null
-    return (async function* () {
-      yield bytes
-    })()
-  }
-
-  async read(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<Uint8Array | null> {
-    return this.objects.get(this.key(eventId, hash, variant)) ?? null
-  }
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    for (const variant of MEDIA_VARIANTS) this.objects.delete(this.key(eventId, hash, variant))
-  }
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    for (const key of [...this.objects.keys()]) {
-      if (key.startsWith(`${eventId}|`)) this.objects.delete(key)
-    }
-  }
-
-  async usedBytes(eventId: EventId): Promise<number> {
-    let total = 0
-    for (const [key, bytes] of this.objects) {
-      if (key.startsWith(`${eventId}|`)) total += bytes.length
-    }
-    return total
-  }
-}
+/**
+ * The shared in-memory store, not a local one.
+ *
+ * This file used to carry its own, and it deleted only the three photo renditions — so a
+ * clip's poster survived `delete` in the double while the filesystem adapter removed it,
+ * and the test that should have caught the production leak could not have. A fake that
+ * differs from the adapter on the operation under test is worse than no fake.
+ */
 
 const EVENT = asEventId('event-1')
 const PHOTO = asPhotoId('photo-1')
@@ -101,6 +41,7 @@ const GRACE_MS = 900_000
 describe('deletePhoto', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository
+  let clips: FakeClipJobRepository
   let media: InMemoryMediaStore
   let bus: RecordingEventBus
   let clock: FakeClock
@@ -109,10 +50,11 @@ describe('deletePhoto', () => {
   beforeEach(() => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
+    clips = new FakeClipJobRepository()
     media = new InMemoryMediaStore()
     bus = new RecordingEventBus()
     clock = new FakeClock()
-    deletePhoto = makeDeletePhoto({ events, photos, media, bus, clock })
+    deletePhoto = makeDeletePhoto({ events, photos, clips, media, bus, clock })
   })
 
   const seedEvent = (input: EventInput = {}): void => {
@@ -249,6 +191,145 @@ describe('deletePhoto', () => {
     await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: AUTHOR })
 
     expect(bus.published).toEqual([])
+  })
+
+  it('removes both of a clip’s files, not only the one the row is named after', async () => {
+    // A clip owns two digests — the mp4 under its own and the poster under a second —
+    // and deleting `contentHash` alone left the poster on the disk on every guest
+    // self-delete and every host delete. `Photo.storageHashes` exists for exactly this.
+    seedEvent()
+    const clip = aClip({ id: 'photo-1', eventId: 'event-1', status: 'pending' })
+    photos.seed(clip)
+    const facet = clip.facet
+    expect(facet.kind).toBe('clip')
+    if (facet.kind !== 'clip') return
+    await media.put(clip.eventId, clip.contentHash, 'video', Uint8Array.of(1, 2, 3))
+    await media.put(clip.eventId, facet.posterHash, 'poster', Uint8Array.of(4))
+
+    await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect(await media.usedBytes(EVENT)).toBe(0)
+    expect(await media.exists(EVENT, facet.posterHash, 'poster')).toBe(false)
+  })
+
+  it('leaves a poster another clip is still showing', async () => {
+    // Two clips whose opening second looks the same hash to the same poster: it is a
+    // deterministic 640-max-edge JPEG of a frame one second in — or the midpoint of a
+    // shorter clip, because a phone's first frame is usually black — and unlike
+    // `content_hash` it carries no unique index. A clip's `thumbUrl` and `displayUrl`
+    // both point at it, so an unguarded delete turned the survivor into a broken tile on
+    // the wall, in the grid and in the album, while its mp4 went on playing.
+    seedEvent()
+    const shared = 'b'.repeat(64)
+    const going = aClip({
+      id: 'photo-1',
+      eventId: 'event-1',
+      status: 'pending',
+      clip: { posterHash: shared },
+    })
+    const staying = aClip({
+      id: 'photo-2',
+      eventId: 'event-1',
+      status: 'published',
+      clip: { posterHash: shared },
+    })
+    photos.seed(going, staying)
+    const facet = going.facet
+    expect(facet.kind).toBe('clip')
+    if (facet.kind !== 'clip') return
+    await media.put(going.eventId, going.contentHash, 'video', Uint8Array.of(1, 2, 3))
+    await media.put(staying.eventId, staying.contentHash, 'video', Uint8Array.of(5, 6))
+    await media.put(going.eventId, facet.posterHash, 'poster', Uint8Array.of(4))
+
+    await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect(await media.exists(EVENT, facet.posterHash, 'poster')).toBe(true)
+    // Its own video still goes: that digest is the one nothing else can hold.
+    expect(await media.exists(EVENT, going.contentHash, 'video')).toBe(false)
+  })
+
+  it('leaves a poster written moments ago, because its row may not have committed yet', async () => {
+    /**
+     * **The window `findIdsReferencing` cannot see into.**
+     *
+     * Clip B writing its poster and inserting its row are two operations. Between them
+     * nothing in the database names those bytes — so clip A, deleted in that window, was
+     * told the shared poster was unreferenced, unlinked it, and B committed pointing at a
+     * file that is gone. `sweepOrphanedMedia` only deletes and nothing rebuilds a poster,
+     * so the tile was broken for the rest of the event and in the album afterwards.
+     *
+     * Recency is the only evidence there is of a writer that has not committed, which is
+     * exactly why the sweep refuses to collect anything recent. This is the same rule at
+     * the other site that deletes by digest, and the store is given the clock so the test
+     * states an age rather than hoping for one.
+     */
+    media = new InMemoryMediaStore(clock)
+    deletePhoto = makeDeletePhoto({ events, photos, clips, media, bus, clock })
+    seedEvent()
+    const clip = aClip({ id: 'photo-1', eventId: 'event-1', status: 'pending' })
+    photos.seed(clip)
+    const facet = clip.facet
+    if (facet.kind !== 'clip') throw new Error('fixture is not a clip')
+    await media.put(clip.eventId, clip.contentHash, 'video', Uint8Array.of(1, 2, 3))
+    await media.put(clip.eventId, facet.posterHash, 'poster', Uint8Array.of(4))
+
+    // The guest changes their mind a second later, while another transcode is mid-commit.
+    clock.advance(1_000)
+    await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect(await media.exists(EVENT, facet.posterHash, 'poster')).toBe(true)
+    // The row goes regardless: it is the row that frees the quota and clears the wall,
+    // and the bytes left behind are the reconciliation sweep's to collect.
+    expect(await photos.findById(EVENT, PHOTO)).toBeNull()
+  })
+
+  it('deletes bytes old enough that nothing can still be committing a row for them', async () => {
+    // The other side of the same rule: past the window, the age check says nothing about
+    // this digest and `findIdsReferencing` is the whole of the decision again. Without
+    // this pair, "leaves a poster" and "deletes a poster" could both be satisfied by a
+    // delete that had simply stopped working.
+    media = new InMemoryMediaStore(clock)
+    deletePhoto = makeDeletePhoto({ events, photos, clips, media, bus, clock })
+    seedEvent()
+    const clip = aClip({ id: 'photo-1', eventId: 'event-1', status: 'pending' })
+    photos.seed(clip)
+    const facet = clip.facet
+    if (facet.kind !== 'clip') throw new Error('fixture is not a clip')
+    await media.put(clip.eventId, clip.contentHash, 'video', Uint8Array.of(1, 2, 3))
+    await media.put(clip.eventId, facet.posterHash, 'poster', Uint8Array.of(4))
+
+    clock.advance(10 * 60_000)
+    await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect(await media.exists(EVENT, facet.posterHash, 'poster')).toBe(false)
+    expect(await media.exists(EVENT, clip.contentHash, 'video')).toBe(false)
+  })
+
+  it('retires the clip job that produced the photo, so the clip can be sent again', async () => {
+    // A `done` job blocks the dedupe. Without this, a guest who deleted their own clip by
+    // mistake and sent it again was answered `duplicate: true`, `status: done`, and the
+    // id of a photo row that no longer existed — the clip never came back, and nothing in
+    // the product could bring it.
+    seedEvent()
+    const clip = aClip({ id: 'photo-1', eventId: 'event-1', status: 'pending' })
+    photos.seed(clip)
+    clips.seed(aClipJob({ id: 'job-1', eventId: 'event-1', status: 'done', photoId: 'photo-1' }))
+
+    await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect(await clips.findById(EVENT, asClipJobId('job-1'))).toBeNull()
+  })
+
+  it('leaves the queue alone when the photo was never a clip', async () => {
+    // Every delete calls it, and most of them are photographs. A job belonging to some
+    // other row must not go with them.
+    seedEvent()
+    await seedPhoto({ status: 'pending' })
+    clips.seed(aClipJob({ id: 'job-1', eventId: 'event-1', status: 'done', photoId: 'photo-9' }))
+
+    await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect((await clips.findById(EVENT, asClipJobId('job-1')))?.id).toBe('job-1')
   })
 
   it('removes the files as well as the row, so nothing is left on the disk', async () => {

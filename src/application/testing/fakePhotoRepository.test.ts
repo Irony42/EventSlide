@@ -1,10 +1,34 @@
 import { describe, expect, it } from 'vitest'
-import { asEventId, asPhotoId } from '../../domain/shared/ids'
+import { asEventId, asPhotoId, type ClipJobId, type EventId } from '../../domain/shared/ids'
 import { photoRepositoryContract } from './contracts/photoRepositoryContract'
-import { aPhoto, atPlus } from './builders'
+import { aClipJob, aPhoto, atPlus } from './builders'
+import { FakeClipJobRepository } from './fakeClipJobRepository'
 import { FakePhotoRepository } from './fakePhotoRepository'
 
-photoRepositoryContract('fake', async () => ({ repo: new FakePhotoRepository() }))
+photoRepositoryContract('fake', async () => {
+  // Wired exactly as a use-case test wires it, because that is the arrangement under
+  // test: the fake cannot reach a second table on its own, so the queue is handed to it
+  // and the two must then answer the same number the SQLite adapter's single statement
+  // does.
+  const clips = new FakeClipJobRepository()
+  const repo = new FakePhotoRepository().chargeStagedBytesFrom(clips)
+  let staged = 0
+
+  return {
+    repo,
+    stageClipBytes: async (eventId: EventId, byteSize: number): Promise<ClipJobId> => {
+      staged += 1
+      const job = aClipJob({
+        id: `clip-${staged}`,
+        eventId,
+        sourceByteSize: byteSize,
+        status: 'queued',
+      })
+      clips.seed(job)
+      return job.id
+    },
+  }
+})
 
 const WEDDING = asEventId('evt-wedding')
 

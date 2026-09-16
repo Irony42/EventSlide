@@ -41,6 +41,25 @@ export interface EventSettingsProps {
   readonly moderation: ModerationMode
   readonly allowCaptions: boolean
   readonly allowReactions: boolean
+  /**
+   * Whether guests may send short video clips as well as photographs.
+   *
+   * The host's veto over the feature, and separate from whether the box *can* transcode
+   * one: a deployment with no encoder refuses a clip with `clip.transcoderUnavailable`,
+   * which is an apology, while this is a decision — some rooms do not want video on the
+   * wall, and the guest is entitled to be told which of the two it was.
+   *
+   * Default on, like captions and reactions — but read that as "a host who has not
+   * thought about it gets the feature", which is not the same sentence as "an upgraded
+   * event gets it". An event created before migration 003 has a settings blob with no
+   * such key, and `sqliteEventRepository.settingsOf` deliberately reads an **absent key
+   * as `false`**: switching an 80 MB upload path and a CPU-bound encoder onto a wedding
+   * that may be live right now is a change its host never consented to. The two answers
+   * differ on purpose, and the adapter is where that difference is explained.
+   *
+   * Every clip still waits for a moderation decision like everything else.
+   */
+  readonly allowClips: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   /** `null` keeps the album forever. */
@@ -60,6 +79,7 @@ const DEFAULTS: EventSettingsProps = {
   moderation: 'manual',
   allowCaptions: true,
   allowReactions: true,
+  allowClips: true,
   allowGuestSelfDelete: true,
   guestSelfDeleteGraceSeconds: 900,
   retentionDays: null,
@@ -101,6 +121,7 @@ export class EventSettings {
       moderation: pick(patch.moderation, base.moderation),
       allowCaptions: pick(patch.allowCaptions, base.allowCaptions),
       allowReactions: pick(patch.allowReactions, base.allowReactions),
+      allowClips: pick(patch.allowClips, base.allowClips),
       allowGuestSelfDelete: pick(patch.allowGuestSelfDelete, base.allowGuestSelfDelete),
       guestSelfDeleteGraceSeconds: pick(
         patch.guestSelfDeleteGraceSeconds,
@@ -140,6 +161,10 @@ export class EventSettings {
 
   get allowReactions(): boolean {
     return this.props.allowReactions
+  }
+
+  get allowClips(): boolean {
+    return this.props.allowClips
   }
 
   get allowGuestSelfDelete(): boolean {

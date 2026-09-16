@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { asEventId, asGuestId, asPhotoId, asUserId } from '../../../domain/shared/ids'
+import {
+  asEventId,
+  asGuestId,
+  asPhotoId,
+  asUserId,
+  type ClipJobId,
+  type EventId,
+} from '../../../domain/shared/ids'
 import type { Photo, PhotoReview } from '../../../domain/photos/photo'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type {
@@ -7,7 +14,17 @@ import type {
   PhotoAdmissionLimits,
   PhotoRepository,
 } from '../../ports/photoRepository'
-import { AT, aPhoto, atPlus } from '../builders'
+import { ContentHash } from '../../../domain/photos/contentHash'
+import { AT, aClip, aPhoto, atPlus } from '../builders'
+
+/** A stable 64-hex digest for a seed, as the builders take it: a plain string. */
+const hexOf = (seed: string): string => seed.padEnd(64, '0').slice(0, 64)
+
+const hashOf = (seed: string): ContentHash => {
+  const result = ContentHash.create(hexOf(seed))
+  if (!result.ok) throw new Error(`bad fixture hash: ${seed}`)
+  return result.value
+}
 
 /**
  * The shared `PhotoRepository` contract.
@@ -53,17 +70,44 @@ const requireCursor = (page: { readonly nextCursor: string | null }): string => 
   return page.nextCursor
 }
 
+/**
+ * What a subject must provide beyond the port itself.
+ *
+ * `stageClipBytes` is here because the event byte quota is **one number over two
+ * tables**, and only half of it belongs to this port. The SQLite adapter reads
+ * `clip_jobs` inside the same statement as its `SUM(byte_size)`; the fake is handed the
+ * clip queue through `chargeStagedBytesFrom`. Those are two different mechanisms for one
+ * rule, which is exactly the shape of drift this suite exists to catch — and until this
+ * existed, every use-case test in the repository ran against a fake that could disagree
+ * with production about the one number the quota is.
+ *
+ * Required rather than optional on purpose: an implementation that cannot answer it
+ * cannot be trusted with a quota.
+ */
+export interface PhotoRepositorySubject {
+  readonly repo: PhotoRepository
+  /**
+   * Put a staged clip source of this size on the event's disk, queued and unfinished,
+   * and answer with the job holding it — so a caller can name it as the one a batch is
+   * replacing rather than adding to.
+   */
+  stageClipBytes: (eventId: EventId, byteSize: number) => Promise<ClipJobId>
+  readonly dispose?: () => Promise<void>
+}
+
 export const photoRepositoryContract = (
   name: string,
-  makeSubject: () => Promise<{ repo: PhotoRepository; dispose?: () => Promise<void> }>,
+  makeSubject: () => Promise<PhotoRepositorySubject>,
 ): void => {
   describe(`PhotoRepository contract: ${name}`, () => {
     let repo: PhotoRepository
+    let stageClipBytes: (eventId: EventId, byteSize: number) => Promise<ClipJobId>
     let dispose: (() => Promise<void>) | undefined
 
     beforeEach(async () => {
       const subject = await makeSubject()
       repo = subject.repo
+      stageClipBytes = subject.stageClipBytes
       dispose = subject.dispose
     })
 
@@ -177,6 +221,69 @@ export const photoRepositoryContract = (
       await repo.save(photo)
 
       expect((await repo.findByContentHash(WEDDING, photo.contentHash))?.id).toBe('p1')
+    })
+
+    // ---------------------------------------------- who still names these bytes --
+
+    it('names the row that holds a digest as its own content', async () => {
+      const photo = aPhoto({ id: 'p1', eventId: WEDDING })
+      await repo.save(photo)
+
+      expect(await repo.findIdsReferencing(WEDDING, photo.contentHash)).toEqual(['p1'])
+    })
+
+    it('names every clip that shares a poster, which is the digest that can be shared', async () => {
+      // A poster is a deterministic 640-max-edge JPEG of a frame one second in — or the
+      // midpoint of a shorter clip, since a phone's first frame is usually black — so two
+      // clips whose opening second looks the same are byte-identical. `content_hash` has
+      // a unique index and can never collide; this one has none, and a delete that did not
+      // ask turned the surviving clip into a broken tile while its mp4 still played.
+      await saveAll([
+        aClip({ id: 'c1', eventId: WEDDING, clip: { posterHash: hexOf('beef') } }),
+        aClip({ id: 'c2', eventId: WEDDING, clip: { posterHash: hexOf('beef') } }),
+      ])
+
+      const holders = await repo.findIdsReferencing(WEDDING, hashOf('beef'))
+
+      expect([...holders].sort()).toEqual(['c1', 'c2'])
+    })
+
+    it('never names another event’s row, so one event cannot free another’s file', async () => {
+      const gala = aClip({
+        id: 'c1',
+        eventId: GALA,
+        author: { kind: 'guest', id: SAM },
+        clip: { posterHash: hexOf('beef') },
+      })
+      await repo.save(gala)
+
+      expect(await repo.findIdsReferencing(WEDDING, hashOf('beef'))).toEqual([])
+    })
+
+    it('names nothing for a digest this event has never held', async () => {
+      expect(await repo.findIdsReferencing(WEDDING, hashOf('beef'))).toEqual([])
+    })
+
+    it('names every digest this event’s rows hold, in one answer', async () => {
+      // The set form the reconciliation sweep reads, instead of one seek per object on the
+      // connection that is also serving uploads and the projector.
+      const photo = aPhoto({ id: 'p1', eventId: WEDDING })
+      const clip = aClip({ id: 'c1', eventId: WEDDING, clip: { posterHash: hexOf('beef') } })
+      await saveAll([photo, clip])
+
+      const digests = await repo.listReferencedDigests(WEDDING)
+
+      expect(digests.has(photo.contentHash.value)).toBe(true)
+      expect(digests.has(clip.contentHash.value)).toBe(true)
+      // The poster too: it is the digest with no unique index, and the one a delete can
+      // take from another clip.
+      expect(digests.has(hexOf('beef'))).toBe(true)
+    })
+
+    it('names nothing from another event', async () => {
+      await repo.save(aPhoto({ id: 'p1', eventId: GALA, author: { kind: 'guest', id: SAM } }))
+
+      expect((await repo.listReferencedDigests(WEDDING)).size).toBe(0)
     })
 
     // --------------------------------------------------------------- ordering --
@@ -420,6 +527,67 @@ export const photoRepositoryContract = (
 
     it('reports zero bytes for an event with no photos', async () => {
       expect(await repo.totalBytes(WEDDING)).toBe(0)
+    })
+
+    it('counts a clip still waiting to be transcoded, which has no photo row at all', async () => {
+      // The quota is "bytes on this event's disk", and a staged source is on the disk
+      // from the moment it lands. Counting only `photos` under-reports an event by the
+      // whole contents of its queue — and `MediaStore.usedBytes` would then disagree with
+      // the database by that amount, which the media store's contract says means a leak.
+      await repo.save(aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 1_000 }))
+      await stageClipBytes(WEDDING, 5_000)
+
+      expect(await repo.totalBytes(WEDDING)).toBe(6_000)
+    })
+
+    it('counts a staged clip against its own event only', async () => {
+      await stageClipBytes(GALA, 5_000)
+
+      expect(await repo.totalBytes(WEDDING)).toBe(0)
+    })
+
+    it('credits the staged clip a batch says it is replacing', async () => {
+      // The transcode worker's case, and only its case: a clip's output is inserted while
+      // that clip's own job is still `running`, so the plain sum charges the event for the
+      // guest's original *and* the result it became. A source is routinely twenty times
+      // its 720p output, so an event with room refused a clip that fitted — permanently.
+      const jobId = await stageClipBytes(WEDDING, 900)
+
+      const [admission] = await repo.saveManyWithinLimits(
+        WEDDING,
+        [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 200 })],
+        { quotaBytes: 1_000, maxPhotosPerGuest: null, replacesStagedClip: jobId },
+      )
+
+      expect(admission?.refusal).toBeNull()
+    })
+
+    it('credits only the named job, never the rest of the queue', async () => {
+      const jobId = await stageClipBytes(WEDDING, 500)
+      await stageClipBytes(WEDDING, 500)
+
+      const [admission] = await repo.saveManyWithinLimits(
+        WEDDING,
+        [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 600 })],
+        { quotaBytes: 1_000, maxPhotosPerGuest: null, replacesStagedClip: jobId },
+      )
+
+      expect(admission?.refusal).toEqual({ reason: 'quotaExceeded', remaining: 500 })
+    })
+
+    it('refuses a photo that only fits if the transcode queue is ignored', async () => {
+      // The enforcing check, not the advisory one: this runs inside the insert's own
+      // transaction, so a fake that forgets the queue here would let every use-case test
+      // in the suite pass a quota production refuses.
+      await stageClipBytes(WEDDING, 900)
+
+      const [admission] = await repo.saveManyWithinLimits(
+        WEDDING,
+        [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 200 })],
+        { quotaBytes: 1_000, maxPhotosPerGuest: null },
+      )
+
+      expect(admission?.refusal).toEqual({ reason: 'quotaExceeded', remaining: 100 })
     })
 
     it('counts a guest own photos', async () => {

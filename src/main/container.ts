@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { access, constants, mkdir, rm, writeFile } from 'node:fs/promises'
+import { access, constants, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import type { Express } from 'express'
@@ -14,8 +14,16 @@ import { SqliteGuestRepository } from '../infrastructure/db/sqliteGuestRepositor
 import { SqliteReactionRepository } from '../infrastructure/db/sqliteReactionRepository'
 import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { SqliteMembershipRepository } from '../infrastructure/db/sqliteMembershipRepository'
+import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepository'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
+import { probeFfmpegCapability } from '../infrastructure/media/ffmpegBinaries'
+import {
+  createFfmpegVideoTranscoder,
+  type FfmpegVideoTranscoder,
+} from '../infrastructure/media/ffmpegVideoTranscoder'
+import { nullVideoTranscoder } from '../infrastructure/media/nullVideoTranscoder'
+import { detectVideoContainer } from '../infrastructure/media/magicBytes'
 import { archiverWriter } from '../infrastructure/media/archiverWriter'
 import { createBcryptPasswordHasher } from '../infrastructure/crypto/bcryptPasswordHasher'
 import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestTokenService'
@@ -30,6 +38,10 @@ import { buildServer } from '../interface/http/server'
 import type { HttpConfig, HttpDeps } from '../interface/http/types'
 import type { PresenterContext } from '../interface/http/presenters/presenters'
 import { buildUseCases, type Adapters, type UseCases } from './usecases'
+import { createClipWorker, type ClipWorker } from './clipWorker'
+import { clipUploadTempDir } from '../interface/http/routes/clipRoutes'
+import { createMediaSweeper, isTooDangerousToSweep, type MediaSweeper } from './mediaSweeper'
+import { createReservationReaper, type ReservationReaper } from './reservationReaper'
 import { createRetentionSweeper, type RetentionSweeper } from './retentionSweeper'
 import { createScheduleSweeper, type ScheduleSweeper } from './scheduleSweeper'
 
@@ -55,20 +67,137 @@ export interface Container {
    */
   readonly retention: RetentionSweeper | null
   /**
+   * The media reconciliation timer, built here and started by `index.ts` like the other
+   * two. It collects stored objects nothing names, which is what makes it safe for the
+   * clip upload never to delete media itself. `null` on the same dial as `retention`.
+   */
+  readonly mediaReconciliation: MediaSweeper | null
+  /**
    * The timer that opens and closes events on their schedule. Built here and started by
    * `index.ts`, exactly like `retention` above. `null` when an operator has turned the
    * automatic sweep off, in which case the two fields stay settable and visible and
    * nothing ever acts on them.
    */
   readonly schedule: ScheduleSweeper | null
+  /**
+   * The transcode queue's drain loop, built here and started by `index.ts` like the two
+   * sweeps — except that this one's first pass is immediate, because it is also crash
+   * recovery. Never `null`: with no encoder on the box the worker still runs and every
+   * job it takes is refused with `clip.transcoderUnavailable`, which is what turns a
+   * queue of clips nobody can process into a queue that empties and tells the guests why.
+   */
+  readonly clipWorker: ClipWorker
+  /**
+   * The reservation reaper, built here and started by `index.ts` like the rest.
+   *
+   * Never `null`: a reservation nothing reaps charges its event for bytes that do not
+   * exist, holds a global queue slot and locks its digest, so there is no configuration
+   * under which not running it is the right answer.
+   */
+  readonly reservationReaper: ReservationReaper
   dispose(): Promise<void>
 }
 
 const VERSION = '2.0.0'
 
+/**
+ * How often the worker looks for a clip nobody announced.
+ *
+ * A drain normally starts from the bus, within milliseconds of the upload. This is the
+ * backstop for the announcement that was missed — a publish with no subscriber at that
+ * instant, a job put back by a retry's backoff — so it is measured in seconds rather
+ * than the minutes the sweeps use: a guest is watching.
+ */
+const CLIP_WORKER_INTERVAL_MS = 15_000
+
+/**
+ * The ceiling on one clip's output.
+ *
+ * Passed to the encoder as `-fs`, so a pathological source cannot fill a disk however
+ * long it claims to be. Generous against what 720p H.264 actually produces for fifteen
+ * seconds (two to four megabytes) because the bound is a backstop, not a target.
+ */
+const CLIP_MAX_OUTPUT_BYTES = 40_000_000
+
+/**
+ * How long a clip reservation may sit before the reaper treats it as wreckage.
+ *
+ * Doubles as that reaper interval, so the worst case is two windows rather than an
+ * evening: it ran only inside crash recovery once, and a row stranded ten seconds before
+ * a restart was then correctly spared and never asked about again.
+ *
+ * The window it covers is a single `media.put` — milliseconds for anything a phone
+ * uploads. Five minutes is generous on purpose: the one case where a reservation is
+ * legitimately still being filled is a `--force-recreate` overlapping two containers,
+ * and deleting the old one's upload would cost that guest their clip for nothing.
+ */
+const CLIP_RESERVATION_TIMEOUT_MS = 5 * 60 * 1000
+
+/** The longest edge of the still frame the grid, the album and the wall render. */
+const CLIP_POSTER_MAX_EDGE = 640
+
+/**
+ * How recently written an object must be for the reconciliation sweep to spare it.
+ *
+ * Every write path in the product is bytes first, row second, so there is always an
+ * instant in which an object exists and nothing names it. Fifteen minutes is a hundred
+ * times the longest of those gaps and costs only that a leak survives one more sweep,
+ * which is the right direction to be wrong in: the other direction deletes a guest's
+ * photograph a millisecond before the row that would have saved it.
+ *
+ * Exported because `scripts/purge.ts` runs the same use case from a terminal and had its
+ * own copy of the number, with a comment saying it matched this one — which is a claim a
+ * reader has to verify and an edit here would quietly falsify. The CLI is a different
+ * trigger, never a second policy.
+ */
+export const MEDIA_SWEEP_MIN_AGE_MS = 15 * 60 * 1000
+
+/**
+ * The most digests one reconciliation pass considers, across every event.
+ *
+ * A pass walks the disk and holds the database connection that is also serving uploads
+ * and the projector. Fifty thousand is several times a full venue and still a bounded
+ * amount of work; an installation larger than that gets through it over successive
+ * passes, and the skipped count says so.
+ *
+ * **It must stay well above any single event's digest count, and that is a real
+ * constraint rather than a comfortable margin.** The cursor advances only past an event
+ * the pass *finished*, so an event whose digests alone meet this budget is never
+ * finished — and everything behind it is then starved for ever, which is the exact
+ * failure the cursor exists to prevent, one level down. At `DEFAULT_EVENT_QUOTA_BYTES`
+ * (5 GB) an event cannot hold fifty thousand distinct digests without averaging 100 kB
+ * each across photographs and clips, so the default is safe by a wide margin. An operator
+ * who raises the quota substantially should raise this with it; the alternative — a
+ * cursor *inside* an event — is real work and buys nothing at any size this product is
+ * deployed at.
+ */
+const MEDIA_SWEEP_MAX_DIGESTS = 50_000
+
 /** A minute is plenty for a reaction: the domain owns the arithmetic, this is the window. */
 const REACTION_WINDOW_MS = 60_000
 const REACTION_MAX_PER_WINDOW = 20
+
+/**
+ * An empty directory, whatever was there before.
+ *
+ * Only ever pointed at the two scratch directories, which hold work in progress and
+ * never anything addressable — so "delete it and make it again" is the whole of the
+ * sweep. Deliberately not a filter over file ages, because age is not the question: what
+ * is in there was being written by a process that is no longer writing it.
+ *
+ * That premise is per-process, and it is worth being exact about the one case where it
+ * is not quite true. A `docker compose up --force-recreate` can overlap containers, so a
+ * new one may sweep while an old one is still finishing a request. The consequence is
+ * bounded to that overlap — the losing request answers `clip.stageFailed`, or a transcode
+ * answers `clip.transcodeFailed`, both transient, both retried — and the alternative is
+ * leaking up to `MAX_CLIP_BYTES` per interrupted upload forever, because nothing else
+ * collects these: the retention sweep deletes an event's media by content hash and
+ * neither of these files has one.
+ */
+const recreateDirectory = async (path: string): Promise<void> => {
+  await rm(path, { recursive: true, force: true })
+  await mkdir(path, { recursive: true })
+}
 
 export const createContainer = async (config: AppConfig): Promise<Container> => {
   const logger = createPinoLogger({
@@ -82,6 +211,36 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   const mediaRoot = resolve(config.storage.mediaRoot)
   await mkdir(mediaRoot, { recursive: true })
+  // multer writes a clip here before it is staged, and the encoder writes its scratch
+  // files beside it. Both are under MEDIA_ROOT rather than os.tmpdir(), because the
+  // container runs read-only with a tmpfs charged to the same memory cgroup.
+  //
+  // **Emptied, not merely created.** Both hold work in progress and nothing else: what
+  // survives a restart is what a `SIGKILL`, an OOM kill or a power cut left — up to
+  // `MAX_CLIP_BYTES` per interrupted upload, on the disk the byte quota exists to
+  // protect, charged to no event and invisible to `MediaStore.usedBytes`. Nothing else
+  // would ever collect them: the retention sweep deletes an event's media by content
+  // hash, and neither of these files has one.
+  //
+  // Skipped — loudly — when `MEDIA_ROOT` resolves somewhere shared, where a `.uploads`
+  // is far more likely to be somebody else's than ours. Starting without the sweep is a
+  // deliberate leak; starting with it there would be a deletion.
+  //
+  // **`realpath` first, because `resolve` does not follow symlinks.** A media root that
+  // is a link to `$HOME` would walk straight past a comparison of resolved strings. It
+  // falls back to the resolved path when the directory cannot be read, which is the
+  // conservative direction: an unreadable root sweeps nothing either way.
+  const realMediaRoot = await realpath(mediaRoot).catch(() => mediaRoot)
+  if (isTooDangerousToSweep(realMediaRoot)) {
+    logger.warn('not sweeping the scratch directories: MEDIA_ROOT is not a directory of its own', {
+      mediaRoot,
+    })
+    await mkdir(clipUploadTempDir(mediaRoot), { recursive: true })
+    await mkdir(resolve(mediaRoot, '.scratch'), { recursive: true })
+  } else {
+    await recreateDirectory(clipUploadTempDir(mediaRoot))
+    await recreateDirectory(resolve(mediaRoot, '.scratch'))
+  }
 
   const db = openDatabase({ path: config.storage.databasePath })
 
@@ -102,6 +261,47 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // no business tearing the bus down.
   const bus = createInMemoryEventBus({ logger })
 
+  // ------------------------------------------------------------------- video --
+
+  /**
+   * Asked once, at boot, and never again.
+   *
+   * **It does not fail the boot and it does not fail `/api/ready`.** A photo wall with no
+   * video still serves the room, and taking a venue's wall out of service over a missing
+   * codec would be a far worse outage than the one it reports — so the answer is a
+   * readiness *detail* beside `mediaWritable`, one log line, and a Null Object in place
+   * of the encoder. Photo ingest never learns that any of this happened.
+   *
+   * The check is the encoder list, never a version string: a distribution's patched build
+   * reports its own version, and one compiled without the non-free encoders reports a
+   * perfectly modern one right up until the first transcode fails.
+   */
+  const capability = await probeFfmpegCapability({
+    ffmpegPath: config.clips.ffmpegPath ?? undefined,
+    ffprobePath: config.clips.ffprobePath ?? undefined,
+    search: config.clips.executableSearch,
+  })
+
+  const ffmpeg: FfmpegVideoTranscoder | null = capability.available
+    ? createFfmpegVideoTranscoder({
+        paths: capability.paths,
+        // Under MEDIA_ROOT, never os.tmpdir(): the container is read-only with a small
+        // tmpfs charged to the same memory cgroup as the process.
+        scratchRoot: resolve(mediaRoot, '.scratch'),
+      })
+    : null
+
+  if (ffmpeg === null) {
+    // Once, at `warn`: it is a degraded capability rather than a misconfiguration, and an
+    // operator who wanted video needs to be able to find out why they have none.
+    logger.warn('no usable video encoder; clip uploads will be refused', {
+      reason: capability.available ? '' : capability.reason,
+      detail: 'photo uploads are unaffected; install ffmpeg or set FFMPEG_PATH',
+    })
+  }
+
+  const videoTranscoder = ffmpeg ?? nullVideoTranscoder(detectVideoContainer)
+
   const adapters: Adapters = {
     clock: systemClock,
     /**
@@ -119,12 +319,14 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     bus,
     events: new SqliteEventRepository(db),
     photos: new SqlitePhotoRepository(db),
+    clips: new SqliteClipJobRepository(db),
     guests: new SqliteGuestRepository(db),
     reactions: new SqliteReactionRepository(db),
     users: new SqliteUserRepository(db),
     memberships: new SqliteMembershipRepository(db),
     media: createFsMediaStore({ root: mediaRoot }),
     imageProcessor: createSharpImageProcessor({ maxPixels: config.uploads.maxPixels }),
+    videoTranscoder,
     contentHasher: sha256ContentHasher,
     archive: archiverWriter,
     passwordHasher: createBcryptPasswordHasher({ cost: config.crypto.bcryptCost }),
@@ -135,6 +337,17 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     defaultEventQuotaBytes: config.uploads.defaultEventQuotaBytes,
     maxImagePixels: config.uploads.maxPixels,
     reactionBudget: { windowMs: REACTION_WINDOW_MS, maxPerWindow: REACTION_MAX_PER_WINDOW },
+    mediaSweepMinimumAgeMs: MEDIA_SWEEP_MIN_AGE_MS,
+    mediaSweepMaxDigestsPerPass: MEDIA_SWEEP_MAX_DIGESTS,
+    clips: {
+      maxQueuedClips: config.clips.maxQueuedClips,
+      reservationTimeoutMs: CLIP_RESERVATION_TIMEOUT_MS,
+      maxHeight: config.clips.maxHeight,
+      maxDurationMs: config.clips.maxDurationMs,
+      maxOutputBytes: CLIP_MAX_OUTPUT_BYTES,
+      posterMaxEdge: CLIP_POSTER_MAX_EDGE,
+      maxPixels: config.clips.maxPixels,
+    },
   })
 
   // ------------------------------------------------------------- retention --
@@ -166,6 +379,59 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     })
   }
 
+  /**
+   * Media reconciliation, on the retention interval and for the same reason retention
+   * has one: a leak that is only collected at the next boot is a disk that fills during
+   * the evening rather than after it.
+   *
+   * A second sweeper rather than a second job inside the first, because the two answer
+   * different questions and fail differently — this one collects objects nothing names,
+   * that one deletes whole events a host asked to expire — and a shared outcome type
+   * would make both harder to read. They share the operator's one dial.
+   */
+  //
+  // **And not at all under a root it is not safe to delete under.** The boot sweep only
+  // ever targets two named directories; this one deletes objects it decides are orphaned,
+  // anywhere under the root — so it is the higher-risk deleter of the two, and gets the
+  // same guard.
+  const mediaReconciliation =
+    config.retention.sweepIntervalMs === null || isTooDangerousToSweep(realMediaRoot)
+      ? null
+      : createMediaSweeper({
+          sweep: usecases.sweepOrphanedMedia,
+          logger,
+          clock: adapters.clock,
+          intervalMs: config.retention.sweepIntervalMs,
+          // Half an interval behind the purge, so the routine case is not the two of them
+          // walking and deleting the same tree at once.
+          firstDelayMs: Math.max(1, Math.floor(config.retention.sweepIntervalMs / 2)),
+        })
+
+  if (mediaReconciliation === null) {
+    logger.info('automatic media reconciliation is off', {
+      detail:
+        config.retention.sweepIntervalMs === null
+          ? 'orphaned media is collected only when npm run purge is run, which also sweeps'
+          : 'MEDIA_ROOT is not a directory of its own, so nothing here will delete under it',
+    })
+  }
+
+  /**
+   * Reservations, on their own short cadence.
+   *
+   * Not on the retention dial and not optional: a stranded reservation charges its event
+   * for bytes that do not exist, holds one of `MAX_QUEUED_CLIPS` slots and locks its
+   * digest against the guest own retry, so an installation that switched this off would
+   * simply be broken. The interval is the timeout itself, which makes the worst case two
+   * windows rather than an evening.
+   */
+  const reservationReaper = createReservationReaper({
+    reap: usecases.reapStaleReservations,
+    logger,
+    clock: adapters.clock,
+    intervalMs: CLIP_RESERVATION_TIMEOUT_MS,
+  })
+
   // -------------------------------------------------------------- scheduling --
 
   /**
@@ -191,6 +457,26 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     })
   }
 
+  // ------------------------------------------------------------ transcoding --
+
+  /**
+   * Always built, even with no encoder on the box.
+   *
+   * A worker that did not run would leave every queued clip `queued` forever — charged
+   * to the event's quota, invisible to the guest who sent it, and waiting for a
+   * capability that will not appear before the next boot. Running it means each job is
+   * claimed, refused with `clip.transcoderUnavailable`, and the guest is told; the queue
+   * empties instead of silently filling.
+   */
+  const clipWorker = createClipWorker({
+    transcodeNext: usecases.transcodeNextClip,
+    recover: usecases.recoverClipJobs,
+    bus,
+    logger,
+    clock: adapters.clock,
+    intervalMs: CLIP_WORKER_INTERVAL_MS,
+  })
+
   // ------------------------------------------------------------- first run --
 
   await bootstrapFirstOwner(config, usecases, logger)
@@ -205,6 +491,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secureCookie: config.session.secureCookie,
     e2eHooks: config.e2eHooks,
     uploads: { maxBytes: config.uploads.maxBytes, maxFiles: config.uploads.maxFiles },
+    clips: {
+      maxBytes: config.clips.maxBytes,
+      uploadTempDir: clipUploadTempDir(mediaRoot),
+    },
     rateLimits: config.rateLimits,
   }
 
@@ -248,6 +538,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
         return true
       },
       mediaWritable: async () => probeWritable(mediaRoot),
+      // The boot answer, handed back unchanged. Never a fresh probe: starting a
+      // subprocess on a readiness path is how a probe becomes the thing that takes a
+      // box down.
+      videoTranscoding: () => (ffmpeg === null ? 'unavailable' : 'ok'),
     },
     ...(hasClient ? { clientDir } : {}),
   })
@@ -258,13 +552,24 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     usecases,
     db,
     retention,
+    mediaReconciliation,
+    reservationReaper,
     schedule,
+    clipWorker,
     dispose: async () => {
       // First: a sweep that started after the database was closed would log a failure
       // for every expired event and delete none of them. An already-running one is
       // abandoned rather than awaited — see the reasoning in `retentionSweeper.stop`.
       retention?.stop()
+      mediaReconciliation?.stop()
+      reservationReaper.stop()
       schedule?.stop()
+      clipWorker.stop()
+      // **Then the encoder itself.** `stop()` above abandons the drain, which leaves the
+      // ffmpeg process it started running: a container stop orphans a child rather than
+      // stopping it, so a new container would start the same job while the old encoder
+      // holds a core for the rest of the evening.
+      ffmpeg?.close()
       sessionStore.close()
       bus.close()
       // Last, and synchronous: it checkpoints the WAL so the `.sqlite` file is

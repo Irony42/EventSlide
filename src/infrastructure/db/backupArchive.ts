@@ -5,7 +5,8 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { Transform, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { z } from 'zod'
-import { MEDIA_VARIANTS } from '../../application/ports/mediaStore'
+import { MEDIA_VARIANTS, STAGED_SOURCE } from '../../application/ports/mediaStore'
+import { HOLDING_BYTES_SQL } from './clipJobStatusSql'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { checksumOf, migrate, MigrationError, type Migration } from './migrator'
 
@@ -358,6 +359,24 @@ const walkFiles = async (
   for (const entry of [...entries].sort((a, b) => (a.name < b.name ? -1 : 1))) {
     const relative = prefix === '' ? entry.name : join(prefix, entry.name)
     if (entry.isDirectory()) {
+      /**
+       * **A dot-directory at the top of `MEDIA_ROOT` is scratch, not content.**
+       *
+       * An event id is the only thing that belongs there, and none begins with a dot.
+       * `.uploads` holds whatever multer is receiving right now and `.scratch` holds
+       * whatever ffmpeg is writing right now — both emptied at the next boot, neither
+       * addressable, and neither named by any row. Copied, they put the guest's
+       * un-stripped original into the archive a **second** time (the staged source is
+       * already there under its digest) and then counted as `unreferencedMediaFiles`,
+       * which is the number the operator is told means a leak.
+       */
+      if (prefix === '' && entry.name.startsWith('.')) {
+        // **Not `skipped`.** That channel carries things an operator should look at —
+        // a file that is not a regular file, a name that cannot be written as an archive
+        // path. These two directories are there on every healthy boot, so listing them
+        // would put two permanent lines of noise in front of the real problems.
+        continue
+      }
       found.push(...(await walkFiles(root, skipped, relative)))
       continue
     }
@@ -391,6 +410,23 @@ interface PhotoRow {
   readonly id: string
   readonly eventId: string
   readonly contentHash: string
+  /** `photo` or `clip`, which decides which renditions this row owns. */
+  readonly mediaKind: string
+  /** A clip's poster is a second file under a second digest; `null` on a photograph. */
+  readonly posterHash: string | null
+}
+
+/**
+ * A clip that is still in the queue: a staged source on the disk with no photos row.
+ *
+ * It has to be read, or every mid-event backup reports the whole contents of the queue
+ * as unreferencedMediaFiles — which is the number an operator is told to investigate as
+ * a leak. The bytes are also copied by the media walk either way, so omitting them would
+ * be an archive that carries a file its own manifest calls unaccounted for.
+ */
+interface StagedClipRow {
+  readonly eventId: string
+  readonly sourceHash: string
 }
 
 interface LedgerRow {
@@ -399,9 +435,41 @@ interface LedgerRow {
   readonly checksum: string
 }
 
+/** Every rendition is a JPEG except the one that is an mp4, as `fsMediaStore` names it. */
+const MEDIA_EXTENSION: Readonly<Record<string, string>> = { video: 'mp4', source: 'bin' }
+
 /** The path `fsMediaStore` lays an object down at, relative to the media root. */
 const mediaPathOf = (eventId: string, contentHash: string, variant: string): string =>
-  `${eventId}/${variant}/${contentHash.slice(0, 2)}/${contentHash}.jpg`
+  `${eventId}/${variant}/${contentHash.slice(0, 2)}/${contentHash}.${MEDIA_EXTENSION[variant] ?? 'jpg'}`
+
+/**
+ * Every file one row owns, as the media store laid it down.
+ *
+ * A photograph has three renditions under one digest; a clip has an mp4 under its own
+ * and a poster under a **second** one, because the store's invariant is that the name of
+ * a file is the hash of that file. Walking `MEDIA_VARIANTS` alone would have reported
+ * every clip in an album as three missing photo files while quietly not accounting for
+ * the two real ones — and a backup that silently omits a kind of content is precisely
+ * what the reconciliation below exists to make impossible.
+ */
+const expectedPathsOf = (
+  photo: PhotoRow,
+): readonly { readonly variant: string; readonly path: string }[] => {
+  if (photo.mediaKind !== 'clip') {
+    return MEDIA_VARIANTS.map((variant) => ({
+      variant,
+      path: mediaPathOf(photo.eventId, photo.contentHash, variant),
+    }))
+  }
+  // A clip row with no poster digest is a corrupt row; the repository refuses it on
+  // read. Here the archive is the last chance to notice, so it falls back to the
+  // video's digest and lets the missing-media list report what is not there.
+  const poster = photo.posterHash ?? photo.contentHash
+  return [
+    { variant: 'video', path: mediaPathOf(photo.eventId, photo.contentHash, 'video') },
+    { variant: 'poster', path: mediaPathOf(photo.eventId, poster, 'poster') },
+  ]
+}
 
 /**
  * Everything read out of the snapshot, in one open/close.
@@ -418,6 +486,7 @@ const readSnapshot = (
   migrations: LedgerRow[]
   counts: BackupManifest['counts']
   photos: PhotoRow[]
+  stagedClips: StagedClipRow[]
 } => {
   const db = openDatabase({ path, readonly: true })
   try {
@@ -428,11 +497,34 @@ const readSnapshot = (
       .all() as LedgerRow[]
 
     const photos = db
-      .prepare('SELECT id, event_id AS eventId, content_hash AS contentHash FROM photos')
+      .prepare(
+        `SELECT id, event_id AS eventId, content_hash AS contentHash,
+                media_kind AS mediaKind, poster_hash AS posterHash
+           FROM photos`,
+      )
       .all() as PhotoRow[]
+
+    // Only the statuses that still hold a source — a reservation included, whose bytes
+    // may be landing as this runs. A `done` job's source is deleted the moment the
+    // transcode succeeds, and naming it here would turn a correct archive into a
+    // `missingMedia` entry for a clip that worked hours ago.
+    //
+    // A `failed` one is less tidy and deliberately so: `transcodeNextClip` deletes the
+    // source when the clip's own content is at fault, but `recoverClipJobs` **keeps** it
+    // when the box was, because that delete cannot be walked back. Those bytes are
+    // therefore real and unnamed — copied by the media walk, reported in
+    // `unreferencedMediaFiles`, and collected by `sweepOrphanedMedia` rather than here.
+    const stagedClips = db
+      .prepare(
+        `SELECT event_id AS eventId, source_hash AS sourceHash
+           FROM clip_jobs
+          WHERE status IN (${HOLDING_BYTES_SQL})`,
+      )
+      .all() as StagedClipRow[]
 
     return {
       integrityCheck: verdict,
+      stagedClips,
       migrations: migrationRows,
       counts: {
         users: countRows(db, 'users'),
@@ -569,8 +661,7 @@ export const createBackup = async ({
   const missingMedia: BackupManifest['missingMedia'] = []
 
   for (const photo of snapshot.photos) {
-    for (const variant of MEDIA_VARIANTS) {
-      const path = mediaPathOf(photo.eventId, photo.contentHash, variant)
+    for (const { variant, path } of expectedPathsOf(photo)) {
       expected.add(path)
       if (!captured.has(path)) {
         missingMedia.push({
@@ -582,6 +673,19 @@ export const createBackup = async ({
       }
     }
   }
+
+  // The queue's half. A staged source is named by a `clip_jobs` row rather than by a
+  // `photos` one, so without this every clip waiting when the backup ran was reported as
+  // an unreferenced file — the number an operator is told means a leak.
+  //
+  // Deliberately **not** added to `missingMedia`: the window between a job being marked
+  // `done` and its source being deleted is a few statements wide, and a backup that
+  // happens to open inside it would otherwise report a fault in an archive that has
+  // everything anybody will ever need.
+  for (const clip of snapshot.stagedClips) {
+    expected.add(mediaPathOf(clip.eventId, clip.sourceHash, STAGED_SOURCE))
+  }
+
   const unreferencedMediaFiles = entries.filter((entry) => !expected.has(entry.path)).length
 
   const manifest: BackupManifest = {

@@ -47,7 +47,27 @@ export const errorBody = (error: DomainError): ErrorBody => ({
   },
 })
 
+/**
+ * A refusal that says when to come back writes the header that says so.
+ *
+ * Any error whose details carry `retryAfterSeconds` gets a `Retry-After`, rather than
+ * each route remembering to set one. The detail is minted where the decision is made —
+ * `src/domain/clips/clipQueue.ts` computes both the code and the wait from the queue's
+ * depth — so the number in the body and the number in the header cannot drift apart.
+ *
+ * It matters most for the case it was written for. A full transcode queue is a `429` that
+ * clears in ninety seconds; without a `Retry-After` a client either gives up or retries
+ * immediately, and twenty clients retrying immediately is a second flood on top of the
+ * first.
+ */
+const retryAfterSeconds = (error: DomainError): number | null => {
+  const value = error.details['retryAfterSeconds']
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.ceil(value) : null
+}
+
 export const sendError = (res: Response, error: DomainError): void => {
+  const retry = retryAfterSeconds(error)
+  if (retry !== null) res.setHeader('Retry-After', String(retry))
   res.status(statusForKind(error.kind)).json(errorBody(error))
 }
 

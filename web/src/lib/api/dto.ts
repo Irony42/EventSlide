@@ -12,7 +12,16 @@ export type EventStatus = 'draft' | 'live' | 'closed' | 'archived'
 export type ModerationDecision = 'publish' | 'reject' | 'hide'
 export type ReactionKind = 'love' | 'laugh' | 'wow' | 'cheers' | 'clap'
 export type WallLayout = 'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'collage' | 'split'
-export type MediaVariant = 'thumb' | 'display' | 'original'
+/**
+ * What `GET /media/:photoId/:variant` will serve.
+ *
+ * The clip pair is here because a clip is a facet of a photo and not a parallel thing:
+ * the same row, the same moderation queue, two renditions instead of three. The staged
+ * upload's `source` is deliberately **absent** — it is outside the server's
+ * `SERVED_VARIANTS`, so no route can parse it, and a name for it here would be a name
+ * for something a client can never ask for.
+ */
+export type MediaVariant = 'thumb' | 'display' | 'original' | 'video' | 'poster'
 export type EventRole = 'owner' | 'moderator'
 
 export type ReactionCounts = Record<ReactionKind, number>

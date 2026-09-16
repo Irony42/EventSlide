@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { MigrationError, migrate, status, type Migration } from './migrator'
 import { migrations } from './migrations'
+import { BLOCKING_REUPLOAD_SQL, HOLDING_BYTES_SQL } from './clipJobStatusSql'
+import { CLIP_JOB_STATUSES } from '../../domain/clips/clipJobStatus'
 
 const freshDb = (): Db => openDatabase({ path: ':memory:' })
 
@@ -162,6 +164,7 @@ describe('the real schema', () => {
     migrate(db, migrations)
 
     expect(tableNames(db)).toEqual([
+      'clip_jobs',
       'event_memberships',
       'events',
       'guests',
@@ -279,6 +282,250 @@ describe('migration 002, the scheduled opening and closing', () => {
       scheduled_open_at: null,
       scheduled_close_at: null,
       schedule_discarded_at: null,
+    })
+    closeDatabase(db)
+  })
+})
+
+describe('migration 003, short video clips', () => {
+  const columnNames = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
+
+  /** One photograph, in an album as 002 alone could hold it: no clip columns anywhere. */
+  const seedPreClips = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'hote@example.test', 'hash:x', '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'live',
+                    '{"moderation":"manual"}', 1000, '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO guests (id, event_id, joined_at, last_seen_at)
+            VALUES ('g1', 'e1', '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO photos (id, event_id, author_guest_id, status, content_hash, width, height,
+                           byte_size, created_at)
+            VALUES ('p1', 'e1', 'g1', 'published', '${'a'.repeat(64)}', 1200, 800, 90000,
+                    '2026-06-20T21:05:00.000Z')`,
+    ).run()
+  }
+
+  it('gives photos the three facet columns', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'photos')).toEqual(
+      expect.arrayContaining(['media_kind', 'duration_ms', 'poster_hash']),
+    )
+    closeDatabase(db)
+  })
+
+  it('creates the queue as a table of its own, because a transcoding clip is not a photo', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(tableNames(db)).toContain('clip_jobs')
+    closeDatabase(db)
+  })
+
+  it('pins the frozen status literals in the schema to the predicates that define them', () => {
+    // **One rule, three spellings, and only two of them can move.** The live queries are
+    // rendered from `holdsStagedBytes` and `blocksReupload` (`clipJobStatusSql.ts`); the
+    // migration's `CHECK` and partial indexes are append-only and carry frozen literals.
+    // A sixth status added to the domain and to one predicate would otherwise be counted
+    // by the quota and rejected by the CHECK, or blocked by the unique index and
+    // invisible to the dedupe — and nothing would say so until a venue.
+    //
+    // Each object is read **separately**. Concatenating them and asking whether a status
+    // appeared anywhere passed a schema whose index knew a status its `CHECK` did not,
+    // which is the likeliest drift of the three: adding a status to a partial index is a
+    // DROP/CREATE in a new migration, while changing a `CHECK` in SQLite needs a table
+    // rebuild. The symptom would have been every write of such a row failing with
+    // "CHECK constraint failed" at a venue, with this suite green.
+    const db = freshDb()
+    migrate(db, migrations)
+
+    const ddlOf = (name: string): string => {
+      const row = db
+        .prepare<[string], { readonly sql: string }>(`SELECT sql FROM sqlite_master WHERE name = ?`)
+        .get(name)
+      if (row === undefined) throw new Error(`no schema object named ${name}`)
+      return row.sql
+    }
+
+    // The status `CHECK` on the table itself, and nothing else in the DDL.
+    const check = /CHECK \(status IN \(([^)]*)\)\)/.exec(ddlOf('clip_jobs'))
+    expect(check).not.toBeNull()
+    const admitted = (check?.[1] ?? '')
+      .split(',')
+      .map((part) => part.trim().replaceAll("'", ''))
+      .filter((part) => part.length > 0)
+      .sort()
+
+    // Both directions: every status the domain has is admitted, and the column admits
+    // nothing the domain has never heard of.
+    expect(admitted).toEqual([...CLIP_JOB_STATUSES].sort())
+
+    // The two partial indexes carry exactly the two predicates' sets, each asserted
+    // against its own object.
+    expect(ddlOf('idx_clip_jobs_event_source')).toContain(
+      `WHERE status IN (${BLOCKING_REUPLOAD_SQL})`,
+    )
+    expect(ddlOf('idx_clip_jobs_active')).toContain(`WHERE status IN (${HOLDING_BYTES_SQL})`)
+    closeDatabase(db)
+  })
+
+  it('creates every index the queue’s queries are written against', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(indexNames(db)).toEqual(
+      expect.arrayContaining([
+        'idx_clip_jobs_event_source',
+        'idx_clip_jobs_due',
+        'idx_clip_jobs_active',
+        'idx_clip_jobs_running',
+        'idx_clip_jobs_event_created',
+        'idx_photos_event_poster',
+      ]),
+    )
+    closeDatabase(db)
+  })
+
+  it('plans every queue query against an index rather than a table scan', () => {
+    // Existence is not the property that matters — **use** is. An index the planner
+    // declines to take is a row in `sqlite_master` and a full scan of every clip the
+    // venue has ever accepted. That is exactly what happened when recovery was asked to
+    // borrow the `status IN (...)` partial index: `SCAN clip_jobs`, plus a temp B-tree
+    // for the ORDER BY, at every boot. So each of the five queries below is asserted by
+    // its plan, in the shape the repository actually writes it.
+    const db = freshDb()
+    migrate(db, migrations)
+
+    const planOf = (sql: string): string =>
+      (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all() as { detail: string }[])
+        .map((row) => row.detail)
+        .join('; ')
+
+    // The retry on venue Wi-Fi. The status filter is in the query because the index is
+    // partial: SQLite takes a partial index only when the query's WHERE implies the
+    // index's, so dropping those three statuses here would silently turn this back into
+    // a scan of every clip the venue has ever accepted.
+    expect(
+      planOf(
+        `SELECT id FROM clip_jobs
+          WHERE event_id = 'e1' AND source_hash = 'x'
+            AND status IN ('reserved', 'queued', 'running', 'done')`,
+      ),
+    ).toContain('idx_clip_jobs_event_source')
+
+    // And the shape that must **not** be written: the same query with the status filter
+    // dropped. SQLite takes a partial index only when the query's WHERE implies the
+    // index's, so this one cannot seek the digest at all — it falls back to the
+    // event_id-led index and walks every clip that event has ever accepted. Asserting the
+    // negative is what catches the next caller who writes it that way.
+    expect(
+      planOf(`SELECT id FROM clip_jobs WHERE event_id = 'e1' AND source_hash = 'x'`),
+    ).not.toContain('idx_clip_jobs_event_source')
+
+    // The worker asking what is due.
+    expect(
+      planOf(
+        `SELECT id FROM clip_jobs
+          WHERE status = 'queued' AND not_before <= '2026-06-20T21:00:00.000Z'
+          ORDER BY not_before ASC, created_at ASC, id ASC
+          LIMIT 1`,
+      ),
+    ).toContain('idx_clip_jobs_due')
+
+    // Backpressure, on a guest's upload.
+    expect(
+      planOf(`SELECT COUNT(*) FROM clip_jobs WHERE status IN ('reserved', 'queued', 'running')`),
+    ).toContain('idx_clip_jobs_active')
+
+    // The quota's half over the queue, on the same request.
+    expect(
+      planOf(
+        `SELECT SUM(source_byte_size) FROM clip_jobs
+          WHERE event_id = 'e1' AND status IN ('reserved', 'queued', 'running')`,
+      ),
+    ).toContain('idx_clip_jobs_active')
+
+    // "Who else names these bytes?", on every photo delete and every object the media
+    // sweep considers. Two seeks rather than one `OR`, because SQLite will not take two
+    // different indexes for an `OR` across two columns — it scanned the whole album.
+    const referencing = planOf(
+      `SELECT id FROM photos WHERE event_id = 'e1' AND content_hash = 'x'
+        UNION
+       SELECT id FROM photos WHERE event_id = 'e1' AND poster_hash = 'x'`,
+    )
+    expect(referencing).toContain('idx_photos_event_hash')
+    expect(referencing).toContain('idx_photos_event_poster')
+    expect(referencing).not.toContain('SCAN photos')
+
+    // Crash recovery, at every boot. The ordering comes from the index rather than from
+    // a temp B-tree, which is what `created_at` is doing in it.
+    const recovery = planOf(
+      `SELECT id FROM clip_jobs WHERE status = 'running' ORDER BY created_at ASC`,
+    )
+    expect(recovery).toContain('idx_clip_jobs_running')
+    expect(recovery).not.toContain('TEMP B-TREE')
+    expect(recovery).not.toContain('SCAN clip_jobs')
+    closeDatabase(db)
+  })
+
+  it('refuses a queue row that names neither a guest nor a host', () => {
+    // The same one-author rule `photos` carries. A job with no author is a job whose
+    // clip nobody can be told about, and whose deletion follows nobody's erasure.
+    const db = freshDb()
+    migrate(db, migrations)
+    seedPreClips(db)
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO clip_jobs (id, event_id, photo_id, status, source_hash, source_byte_size,
+                                  attempts, created_at, updated_at, not_before)
+                VALUES ('c1', 'e1', 'p9', 'queued', '${'b'.repeat(64)}', 100, 0,
+                        '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z',
+                        '2026-06-20T21:00:00.000Z')`,
+        )
+        .run(),
+    ).toThrow(/CHECK constraint failed: clip_jobs_one_author/)
+    closeDatabase(db)
+  })
+
+  it('keeps a photograph that existed before clips did, and calls it a photograph', () => {
+    // The upgrade path, on somebody's wedding album. `media_kind` has to arrive as
+    // `'photo'` on every existing row with no backfill, or the mapper refuses a row that
+    // carries half a clip facet and the album stops loading.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 3),
+    )
+    seedPreClips(db)
+
+    migrate(db, migrations)
+
+    expect(
+      db
+        .prepare(
+          `SELECT status, byte_size, media_kind, duration_ms, poster_hash
+             FROM photos WHERE id = 'p1'`,
+        )
+        .get(),
+    ).toEqual({
+      status: 'published',
+      byte_size: 90000,
+      media_kind: 'photo',
+      duration_ms: null,
+      poster_hash: null,
     })
     closeDatabase(db)
   })

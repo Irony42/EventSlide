@@ -7,8 +7,10 @@
  * uploader's raw EXIF. Note what is absent from every DTO below.
  */
 
+import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import type { EventRole } from '../../../domain/events/eventRole'
+import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { ReactionKind } from '../../../domain/reactions/reactionKind'
 import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
@@ -30,6 +32,22 @@ export interface JoinResponseDto {
   readonly event: PublicEventDto
 }
 
+/**
+ * The three fields a clip adds to a row, repeated on each shape that carries them.
+ *
+ * **Written out rather than inherited from one shared interface**, deliberately.
+ * `dtoContract.test.ts` compares each declaration's own members, so an `extends` would
+ * hide these fields from it entirely — and hiding them is precisely the wrong outcome
+ * while the web app has not been taught to read them: the record that it has not is
+ * `UNREAD_BY_CLIENT` in that test, and there is nothing to record if the comparison
+ * cannot see the field.
+ *
+ * Two properties matter, and both are about what an *older* client does with them.
+ * `displayUrl` and `thumbUrl` point at the clip's **poster** rather than at a rendition
+ * it does not have, so a client that has never heard of video renders a still frame
+ * rather than a broken image. And `videoUrl` is `null` for a photograph rather than
+ * absent, so nothing has to test for the key's existence.
+ */
 export interface WallItemDto {
   readonly id: string
   readonly displayUrl: string
@@ -39,6 +57,27 @@ export interface WallItemDto {
   readonly caption: string | null
   readonly authorName: string | null
   readonly createdAt: string
+  readonly kind: MediaKind
+  /** `null` for a photograph. The mp4, which answers `Range` requests. */
+  readonly videoUrl: string | null
+  /** `null` for a photograph. Milliseconds, measured on the stored file. */
+  readonly durationMs: number | null
+}
+
+/**
+ * What a guest is told about a clip that has no `photos` row yet.
+ *
+ * It exists because that window is real: between the upload and the transcode there is
+ * nothing in the album to show them, and a guest who cannot tell whether it worked sends
+ * it again. `photoId` names the row the job will produce and is present whatever the
+ * status — it is fixed at staging — so a client can start watching for it immediately.
+ */
+export interface ClipJobDto {
+  readonly clipJobId: string
+  readonly status: ClipJobStatus
+  readonly photoId: string
+  /** The stable code behind a `failed` status; the client picks its French from it. */
+  readonly failureCode: string | null
 }
 
 export interface WallResponseDto {
@@ -84,6 +123,10 @@ export interface GuestPhotoDto {
    * button is enabled for an action the server will refuse.
    */
   readonly canDelete: boolean
+  /** See {@link WallItemDto}. `thumbUrl` is the poster when this row is a clip. */
+  readonly kind: MediaKind
+  readonly videoUrl: string | null
+  readonly durationMs: number | null
 }
 
 export interface ModerationPhotoDto {
@@ -97,6 +140,10 @@ export interface ModerationPhotoDto {
   readonly authorName: string | null
   readonly byteSize: number
   readonly createdAt: string
+  /** See {@link WallItemDto}. A host moderating a clip watches it before deciding. */
+  readonly kind: MediaKind
+  readonly videoUrl: string | null
+  readonly durationMs: number | null
 }
 
 export interface BulkModerationResponseDto {
@@ -108,6 +155,12 @@ export interface EventSettingsDto {
   readonly moderation: 'manual' | 'auto'
   readonly allowCaptions: boolean
   readonly allowReactions: boolean
+  /**
+   * The host's veto over video, and separate from whether the box *can* transcode one:
+   * a deployment with no encoder refuses a clip with `clip.transcoderUnavailable`, which
+   * is an apology, while this is a decision.
+   */
+  readonly allowClips: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null
@@ -227,6 +280,13 @@ export interface ModerationQueueItemDto {
   /** `null` for an anonymous guest or a host's own upload; the client words that. */
   readonly authorName: string | null
   readonly createdAt: string
+  /**
+   * See {@link WallItemDto}. A moderator deciding about a clip has to be able to watch
+   * it — a poster frame is not a decision about fifteen seconds of video.
+   */
+  readonly kind: MediaKind
+  readonly videoUrl: string | null
+  readonly durationMs: number | null
 }
 
 export interface ModerationQueuePageDto {

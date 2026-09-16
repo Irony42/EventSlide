@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { EventId } from '../../../domain/shared/ids'
 import { asEventId } from '../../../domain/shared/ids'
-import type { MediaMetadata, MediaStore } from '../../ports/mediaStore'
+import type { MediaMetadata, MediaStore, StoredObject } from '../../ports/mediaStore'
 import { anEvent, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -40,6 +40,8 @@ class RecordingMediaStore implements MediaStore {
   read = async (): Promise<Uint8Array | null> => notPartOfASweep('read')
   delete = async (): Promise<void> => notPartOfASweep('delete')
   usedBytes = async (): Promise<number> => notPartOfASweep('usedBytes')
+  listEvents = async (): Promise<readonly EventId[]> => notPartOfASweep('listEvents')
+  list = async (): Promise<readonly StoredObject[]> => notPartOfASweep('list')
 }
 
 describe('purgeExpiredEvents', () => {

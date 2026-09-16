@@ -1,7 +1,7 @@
 import type { Photo, PhotoReview } from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import type { ContentHash } from '../../domain/photos/contentHash'
-import type { EventId, GuestId, PhotoId } from '../../domain/shared/ids'
+import type { ClipJobId, EventId, GuestId, PhotoId } from '../../domain/shared/ids'
 
 /**
  * Every method takes `eventId` first.
@@ -44,6 +44,24 @@ export interface PhotoAdmissionLimits {
   readonly quotaBytes: number
   /** `settings.maxPhotosPerGuest`; `null` is no cap. Never applies to a host author. */
   readonly maxPhotosPerGuest: number | null
+  /**
+   * A clip job whose staged source these rows are **replacing**, not adding to.
+   *
+   * The event's byte total spans `photos` and the staged sources in `clip_jobs`, which is
+   * right for every other caller and wrong for exactly one: the transcode worker, which
+   * inserts a clip's output while that clip's own job is still `running`. Its source is
+   * therefore counted alongside the result it became — and a source is typically twenty
+   * times the output, so an event anywhere near its quota refused a clip that plainly
+   * fits. `event.quotaExceeded` is permanent here, so the outputs were unwound, the source
+   * was deleted and the row went terminal; the host freeing space did not help, because a
+   * re-upload deduped onto that terminal row.
+   *
+   * Naming the job rather than passing a number keeps the correction impossible to misuse:
+   * the repository credits back what that job is actually charged, and nothing else. It is
+   * credited only while the job still holds bytes — a `done` or `failed` job is charged
+   * nothing, and crediting it twice would let the quota drift.
+   */
+  readonly replacesStagedClip?: ClipJobId
 }
 
 /**
@@ -73,6 +91,42 @@ export interface PhotoRepository {
    * duplicate slide.
    */
   findByContentHash(eventId: EventId, hash: ContentHash): Promise<Photo | null>
+
+  /**
+   * Every row in this event that still names these bytes — as its own content **or as a
+   * clip's poster**.
+   *
+   * The media store is content-addressed, so a digest is shared by everything that hashes
+   * to it, and deleting a file is only safe once nothing points at it. `contentHash` is
+   * protected by `idx_photos_event_hash` and can never be shared; a **poster** has no
+   * such index and is genuinely shareable: a poster is a deterministic 640-max-edge JPEG
+   * of a frame taken one second in — or at the midpoint of a shorter clip, because a
+   * phone recording's **first** frame is usually black — so two clips whose opening
+   * second looks the same hash the same. A dark room, a stage before the lights, a hand
+   * over the lens. Deleting one of them then turned the other into a broken tile on the
+   * wall, in the grid and in the album, while its mp4 still played.
+   *
+   * Ids rather than a count, so a caller can ask the question it actually has — "is
+   * anything **other than this row** holding them" — without arithmetic about whether it
+   * is counting itself.
+   */
+  findIdsReferencing(eventId: EventId, hash: ContentHash): Promise<readonly PhotoId[]>
+
+  /**
+   * Every digest this event's rows name, as lower-case hex.
+   *
+   * The set form of the method above, for the reconciliation sweep. Asking per object was
+   * one synchronous better-sqlite3 seek per digest on the connection that is also serving
+   * uploads and the projector's range requests — forty events of six thousand files is
+   * eighty thousand of them an hour, to re-confirm objects that were referenced last time
+   * too. One query per event and a comparison in memory is the same answer for the cost
+   * of one round trip.
+   *
+   * Strings rather than `ContentHash`, because the caller is comparing rather than
+   * addressing, and hydrating forty thousand value objects to run `.has()` would put the
+   * cost straight back.
+   */
+  listReferencedDigests(eventId: EventId): Promise<ReadonlySet<string>>
 
   /** Newest first, with ties broken by id so two clients agree on the order. */
   list(eventId: EventId, query?: PhotoQuery): Promise<PhotoPage>

@@ -147,7 +147,12 @@ describe('buildServer: liveness and readiness', () => {
     const response = await request(buildServerHarness().app).get('/api/ready')
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ status: 'ready', checks: { database: 'ok', media: 'ok' } })
+    expect(response.body).toEqual({
+      status: 'ready',
+      // `video` is reported and never acted on: a photo wall with no encoder still serves
+      // the room, so a missing codec must not take a venue's wall out of service.
+      checks: { database: 'ok', media: 'ok', video: 'ok' },
+    })
   })
 
   it('answers 503 naming the database when only the database is unavailable', async () => {
@@ -159,7 +164,11 @@ describe('buildServer: liveness and readiness', () => {
     const response = await request(subject.app).get('/api/ready')
 
     expect(response.status).toBe(503)
-    expect(response.body.error.details).toEqual({ database: 'unavailable', media: 'ok' })
+    expect(response.body.error.details).toEqual({
+      database: 'unavailable',
+      media: 'ok',
+      video: 'ok',
+    })
   })
 
   it('answers 503 naming the media root when only the media root is unavailable', async () => {
@@ -171,7 +180,11 @@ describe('buildServer: liveness and readiness', () => {
     const response = await request(subject.app).get('/api/ready')
 
     expect(response.status).toBe(503)
-    expect(response.body.error.details).toEqual({ database: 'ok', media: 'unavailable' })
+    expect(response.body.error.details).toEqual({
+      database: 'ok',
+      media: 'unavailable',
+      video: 'ok',
+    })
   })
 
   it('answers with service.notReady rather than a 500 when a dependency is down', async () => {
@@ -295,6 +308,36 @@ describe('buildServer: which client a rate limit is counting', () => {
 
     expect(second.status).toBe(429)
     expect(second.body.error.code).toBe('rate.limited')
+  })
+
+  it('spends one upload allowance across photos and clips, not one each', async () => {
+    // `express-rate-limit` mints a fresh `MemoryStore` per instance, so a
+    // `uploadLimiter(...)` call inside each router was two independent allowances and a
+    // guest could send `UPLOAD_RATE_LIMIT_PER_MINUTE` photographs *and* as many clips.
+    // `buildServer` is the only place that can hold the one instance, so this is the
+    // only ring that can see it. Both limiters run ahead of `requireGuest`, so a 401
+    // means "the bucket had room" and only the bucket is under test.
+    const subject = buildServerHarness({
+      config: {
+        rateLimits: {
+          joinPerMinute: 10,
+          uploadPerMinute: 1,
+          loginPerMinute: 10,
+          reactionPerMinute: 30,
+        },
+      },
+    })
+    const agent = request.agent(subject.app)
+    const token = csrfTokenFrom((await agent.get(ANY_GET)).headers)
+    const spend = (path: string): request.Test =>
+      agent.post(`/api/events/mariage/${path}`).set(CSRF_HEADER, token).send()
+
+    expect((await spend('photos')).status).toBe(401)
+
+    const clip = await spend('clips')
+
+    expect(clip.status).toBe(429)
+    expect(clip.body.error.code).toBe('rate.limited')
   })
 
   it('counts two clients behind the proxy apart, so one guest cannot lock out the venue', async () => {

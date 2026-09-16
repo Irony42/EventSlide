@@ -7,7 +7,13 @@ import {
 import type { PhotoAdmissionLimits, PhotoPage } from '../../application/ports/photoRepository'
 import { AT, aPhoto, atPlus, type AuthorInput } from '../../application/testing/builders'
 import type { Photo, PhotoReview } from '../../domain/photos/photo'
-import { asEventId, asPhotoId } from '../../domain/shared/ids'
+import {
+  asClipJobId,
+  asEventId,
+  asPhotoId,
+  type ClipJobId,
+  type EventId,
+} from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrate } from './migrator'
 import { migrations } from './migrations'
@@ -65,8 +71,35 @@ const migratedDatabase = (): Db => {
 
 photoRepositoryContract('sqlite', async () => {
   const db = migratedDatabase()
+  let staged = 0
+
   return {
     repo: new SqlitePhotoRepository(db),
+    /**
+     * A clip source on the disk with no `photos` row, which is what a queued transcode
+     * is. Raw SQL and a host author: this is a fixture for the *photo* contract, so it
+     * must not depend on the clip repository being correct, and `user-host` is seeded
+     * for every event while a guest is seeded only for its own.
+     */
+    stageClipBytes: async (eventId: EventId, byteSize: number): Promise<ClipJobId> => {
+      staged += 1
+      db.prepare<[string, string, string, string, number, string, string, string]>(
+        `INSERT INTO clip_jobs (id, event_id, photo_id, author_user_id, status,
+                                source_hash, source_byte_size, attempts,
+                                created_at, updated_at, not_before)
+              VALUES (?, ?, ?, 'user-host', 'queued', ?, ?, 0, ?, ?, ?)`,
+      ).run(
+        `clip-${staged}`,
+        eventId,
+        `clip-photo-${staged}`,
+        String(staged).padStart(64, 'c'),
+        byteSize,
+        ISO_AT,
+        ISO_AT,
+        ISO_AT,
+      )
+      return asClipJobId(`clip-${staged}`)
+    },
     dispose: async () => closeDatabase(db),
   }
 })
