@@ -300,7 +300,24 @@ export const photoRepositoryContract = (
       expect(page.items.map((photo) => photo.id)).toEqual(['p-new', 'p-mid', 'p-old'])
     })
 
-    it('breaks a timestamp tie by ascending id, so two clients agree on the order', async () => {
+    it('breaks a timestamp tie by descending id, in the same direction as the clock', async () => {
+      /**
+       * Two clients agreeing is half the requirement, and it is the half this test used
+       * to state. The other half is that the tie-break runs the **same way** as the
+       * primary sort, and it did not: the list is newest-first while ties came out
+       * oldest-id-first, so a burst of uploads inside one millisecond appeared reversed
+       * against everything around it.
+       *
+       * Worse for anyone trying to photograph a wall: whether two photos tie at all
+       * depends on how fast the machine is, so the *relative* order of two uploads
+       * flipped between runs. That cost three red visual jobs before it was understood —
+       * the wall rendered a different composition, which reads as "78% of pixels
+       * changed" on a branch that touched no rendering.
+       *
+       * With both keys descending the order no longer depends on whether the clock
+       * separated them. Production ids are random UUIDs, so within a tie the order is
+       * arbitrary either way; what changes is that it is now *stable*.
+       */
       await saveAll([
         aPhoto({ id: 'p-b', eventId: WEDDING, createdAt: AT }),
         aPhoto({ id: 'p-a', eventId: WEDDING, createdAt: AT }),
@@ -309,7 +326,28 @@ export const photoRepositoryContract = (
 
       const page = await repo.list(WEDDING)
 
-      expect(page.items.map((photo) => photo.id)).toEqual(['p-a', 'p-b', 'p-c'])
+      expect(page.items.map((photo) => photo.id)).toEqual(['p-c', 'p-b', 'p-a'])
+    })
+
+    it('puts a tied photo in the same place as one the clock did separate', async () => {
+      // The property the direction buys, stated on its own: the order of two uploads
+      // must not depend on whether the machine was fast enough to give them the same
+      // timestamp. `p-2` is the later upload in both arrangements and leads in both.
+      await saveAll([
+        aPhoto({ id: 'p-1', eventId: WEDDING, createdAt: AT }),
+        aPhoto({ id: 'p-2', eventId: WEDDING, createdAt: AT }),
+      ])
+      const tied = (await repo.list(WEDDING)).items.map((photo) => photo.id)
+
+      await repo.delete(WEDDING, asPhotoId('p-1'))
+      await repo.delete(WEDDING, asPhotoId('p-2'))
+      await saveAll([
+        aPhoto({ id: 'p-1', eventId: WEDDING, createdAt: AT }),
+        aPhoto({ id: 'p-2', eventId: WEDDING, createdAt: atPlus(1) }),
+      ])
+      const separated = (await repo.list(WEDDING)).items.map((photo) => photo.id)
+
+      expect(tied).toEqual(separated)
     })
 
     it('lists only the requested event', async () => {

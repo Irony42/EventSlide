@@ -37,7 +37,7 @@ const compareIds = (left: string, right: string): number =>
   Number(left > right) - Number(left < right)
 
 const newestFirst = (left: Photo, right: Photo): number =>
-  right.createdAt.getTime() - left.createdAt.getTime() || compareIds(left.id, right.id)
+  right.createdAt.getTime() - left.createdAt.getTime() || compareIds(right.id, left.id)
 
 interface Cursor {
   readonly createdAt: number
