@@ -68,8 +68,9 @@ Every failure has the same body:
 ```
 
 `code` is a **stable machine string** and part of this contract; renaming one is a
-breaking change. `message` is for logs and developers — the client picks French copy
-from `code` via `web/src/lib/i18n/fr.ts` and must never display `message`. `details`
+breaking change. `message` is for logs and developers — the client picks the sentence
+from `code` via `web/src/lib/i18n/`, in the language the reader is in, and must never
+display `message`. `details`
 carries structured context (`{ "max": 140 }`) and never a path, a SQL fragment, or
 personal data.
 
@@ -101,9 +102,10 @@ answers, so the rule holds even when one of them is called from somewhere else.
 
 ### Cross-cutting error codes
 
-These are not attached to one endpoint and every client must handle them. Each has
-French copy in `web/src/lib/i18n/fr.ts`; a code with none renders the generic fallback
-sentence to a guest, which is why the two lists are kept in step.
+These are not attached to one endpoint and every client must handle them. Each has copy
+in `web/src/lib/i18n/fr.ts` — and, because `errors` is one of the translated sections,
+in the other four tables too, which the build enforces. A code with none renders the
+generic fallback sentence to a guest, which is why the lists are kept in step.
 
 | Code                      | Status | When                                                            |
 | ------------------------- | ------ | --------------------------------------------------------------- |

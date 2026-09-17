@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, http } from './http'
 import { fr } from './i18n/fr'
+import { TRANSLATIONS, messageForCode } from './i18n/translations'
 
 /**
  * The real transport, against stood-in browser primitives.
@@ -201,9 +202,15 @@ describe('the error contract', () => {
     expect(failure.status).toBe(409)
   })
 
-  it('shows French copy chosen from the code, never the message the server sent', async () => {
+  it('keeps the code and drops the sentence the server sent', async () => {
     // docs/API.md: `message` is for logs and developers. A guest's phone must never
     // render it — it is English, and behind a proxy it is not even necessarily ours.
+    //
+    // What this class carries is the code, and nothing else. Since roadmap 1.5 the
+    // sentence is chosen at the moment it is rendered rather than at the moment the
+    // failure is constructed, because the guest can change language while a failed
+    // upload is still on screen — so `message` is the code, for a stack trace, and
+    // `messageForCode` is where copy happens.
     answerWith(() =>
       jsonBody(413, {
         error: { code: 'event.quotaExceeded', message: 'event byte quota reached' },
@@ -212,7 +219,11 @@ describe('the error contract', () => {
 
     const failure = asApiError(await failed(http.post('/api/events/gala/photos', {})))
 
-    expect(failure.message).toBe(fr.errors['event.quotaExceeded'])
+    expect(failure.code).toBe('event.quotaExceeded')
+    expect(failure.message).not.toContain('byte quota')
+    // And the copy is still one lookup away, in whichever language the reader is in.
+    expect(messageForCode(failure.code, fr)).toBe(fr.errors['event.quotaExceeded'])
+    expect(messageForCode(failure.code, TRANSLATIONS.de)).not.toBe(fr.errors['event.quotaExceeded'])
   })
 
   it('carries the structured details alongside the code', async () => {
@@ -303,7 +314,10 @@ describe('failures that are not the server’s answer', () => {
     const failure = asApiError(await failed(http.get('/api/events/gala/wall')))
 
     expect(failure.isNetwork).toBe(true)
-    expect(failure.message).toBe(fr.errors.network)
+    // The code, which is what a renderer turns into 'Connexion interrompue…' — or into
+    // the German for it, on a phone whose guest asked for German.
+    expect(failure.code).toBe('network')
+    expect(messageForCode(failure.code, fr)).toBe(fr.errors.network)
   })
 
   it('lets a cancellation through instead of reporting it as a server failure', async () => {

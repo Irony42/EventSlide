@@ -1,5 +1,3 @@
-import { messageForCode } from './i18n/fr'
-
 /**
  * The only place in the web app that calls `fetch`.
  *
@@ -17,8 +15,21 @@ export interface ApiErrorBody {
 }
 
 /**
- * A failure the server described. `code` is the stable machine string; `message` is the
- * French sentence chosen locally from it, never text the server sent.
+ * A failure the server described, carrying the stable machine code and nothing else.
+ *
+ * **`message` is the code, deliberately.** It used to be the French sentence, chosen in
+ * this constructor — which stopped being possible once the guest surface grew languages:
+ * the transport has no locale, and reaching for one here would make the one module that
+ * wraps `fetch` depend on the copy tables and on React's context. So this class carries
+ * what the wire said and nothing else, the caller resolves `code` against the table it
+ * already holds, and `message` is what a developer sees in a stack trace — the same split
+ * the server itself makes between `error.code` and `error.message`.
+ *
+ * The resolution still happens where the failure is *caught*, not where it is rendered:
+ * `useJoin`, `useMyPhotos` and `useUploadQueue` each store a finished sentence in state.
+ * A guest who changes language while a failed upload is still on screen therefore keeps
+ * the old sentence until the next attempt. Known, and left: carrying the code through
+ * three hooks' state shapes to re-word a message nobody is reading is not worth it.
  */
 export class ApiError extends Error {
   readonly status: number
@@ -26,7 +37,7 @@ export class ApiError extends Error {
   readonly details: Readonly<Record<string, unknown>>
 
   constructor(status: number, code: string, details: Readonly<Record<string, unknown>> = {}) {
-    super(messageForCode(code))
+    super(code)
     this.name = 'ApiError'
     this.status = status
     this.code = code

@@ -4,8 +4,10 @@ import type { ReactElement, ReactNode } from 'react'
 import { vi } from 'vitest'
 import { ApiProvider } from '../app/ApiProvider'
 import { ToastProvider } from '../design-system/components/ToastProvider'
+import { LocaleProvider } from '../lib/i18n/LocaleProvider'
 import { installDialogStub } from './dialogStub'
 import type { Api, ModeratorInviteResponse } from '../lib/api/client'
+import type { Locale } from '../lib/i18n/locale'
 import type {
   ClipJobDto,
   EventDto,
@@ -289,6 +291,15 @@ export interface RenderWithProvidersOptions {
    * Without it the element is rendered directly and `useParams` is empty.
    */
   readonly path?: string
+  /**
+   * The language to render in. **French unless a test says otherwise**, which is what
+   * keeps every test written before roadmap 1.5 asserting the copy it always did.
+   *
+   * Passed explicitly rather than detected, so no assertion depends on the language the
+   * machine running the suite happens to have configured — the same reason `CREATED_AT`
+   * above is a fixed instant.
+   */
+  readonly locale?: Locale
 }
 
 export interface RenderWithProvidersResult extends RenderResult {
@@ -308,21 +319,24 @@ export const renderWithProviders = (
   const api = options.api ?? fakeApi()
   const route = options.route ?? '/'
   const path = options.path
+  const locale = options.locale ?? 'fr'
 
   const Providers = ({ children }: { readonly children: ReactNode }) => (
-    <MemoryRouter initialEntries={[route]}>
-      <ApiProvider api={api}>
-        <ToastProvider>
-          {path === undefined ? (
-            children
-          ) : (
-            <Routes>
-              <Route path={path} element={children} />
-            </Routes>
-          )}
-        </ToastProvider>
-      </ApiProvider>
-    </MemoryRouter>
+    <LocaleProvider initialLocale={locale}>
+      <MemoryRouter initialEntries={[route]}>
+        <ApiProvider api={api}>
+          <ToastProvider>
+            {path === undefined ? (
+              children
+            ) : (
+              <Routes>
+                <Route path={path} element={children} />
+              </Routes>
+            )}
+          </ToastProvider>
+        </ApiProvider>
+      </MemoryRouter>
+    </LocaleProvider>
   )
 
   // `Object.assign` rather than a spread: Testing Library's `RenderResult` is an

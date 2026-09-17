@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import { ApiError } from '../../../lib/http'
-import { fr, messageForCode } from '../../../lib/i18n/fr'
+import { messageForCode } from '../../../lib/i18n/translations'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { shouldQueue } from '../../../lib/offline/outboxPolicy'
 import { downscaleImage } from './downscaleImage'
 import type { DrainReport } from '../../../lib/offline/drainOutbox'
@@ -99,6 +100,7 @@ const SETTLED: readonly UploadItemState[] = ['done', 'duplicate']
 
 export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
   const { slug, resize = downscaleImage, onSettled, outbox } = options
+  const t = useTranslations()
   const api = useApi()
 
   const [items, setItems] = useState<readonly UploadItem[]>([])
@@ -240,13 +242,13 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
 
         const outcome = response.results[0]
         if (outcome === undefined) {
-          patch(id, { state: 'failed', progress: 0, error: fr.errors.unknown, retryable: true })
+          patch(id, { state: 'failed', progress: 0, error: t.errors.unknown, retryable: true })
           return
         }
         if (outcome.status === 'rejected') {
           // The server judged the file itself: an unsupported format, too many pixels.
           // The same bytes fail the same way, so no retry is offered for it.
-          patch(id, { state: 'failed', error: messageForCode(outcome.code), retryable: false })
+          patch(id, { state: 'failed', error: messageForCode(outcome.code, t), retryable: false })
           return
         }
         patch(id, {
@@ -270,7 +272,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
         patch(id, {
           state: 'failed',
           progress: 0,
-          error: cause instanceof ApiError ? cause.message : fr.errors.unknown,
+          error: cause instanceof ApiError ? messageForCode(cause.code, t) : t.errors.unknown,
           // A dropped connection is worth another press. A request the server refused
           // on its merits is not: it fails identically the second time.
           retryable: !(cause instanceof ApiError && cause.isClientFault),
@@ -279,7 +281,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
         controllers.current.delete(id)
       }
     },
-    [api, patch, resize, slug, storeForLater],
+    [api, patch, resize, slug, storeForLater, t],
   )
 
   const run = useCallback(
@@ -338,7 +340,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
               ...item,
               state: 'failed',
               progress: 0,
-              error: fr.upload.itemExpiredHint,
+              error: t.upload.itemExpiredHint,
               retryable: false,
               outboxId: null,
             }
@@ -347,7 +349,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
         }),
       )
     },
-    [commit],
+    [commit, t],
   )
 
   useEffect(() => {

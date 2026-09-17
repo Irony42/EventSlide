@@ -6,8 +6,8 @@ import './design-system/base.css'
 import { ApiProvider } from './app/ApiProvider'
 import { ErrorBoundary } from './app/ErrorBoundary'
 import { AppRoutes } from './app/router'
-import { ToastProvider } from './design-system/components/ToastProvider'
 import { api } from './lib/api/client'
+import { LocaleProvider } from './lib/i18n/LocaleProvider'
 import { resolveOfflineQueue } from './lib/offline/killSwitch'
 import { watchForInstall } from './lib/pwa/install'
 import { registerUploadWorker, removeUploadWorker } from './lib/offline/serviceWorker'
@@ -60,16 +60,29 @@ watchForInstall()
 
 createRoot(container).render(
   <StrictMode>
-    {/* Outermost, so a crash inside a provider is still caught and still shows a way
-        back rather than a white screen on a projector. */}
-    <ErrorBoundary>
-      <ApiProvider api={api}>
-        <ToastProvider>
+    {/* Above the crash boundary, and only for that: the boundary is the one screen a
+        guest can reach that no layout owns, and "nothing is lost, your photos are on the
+        server" is worth nothing in a language they do not read. It holds no state a
+        crash could corrupt — a locale and a lookup table — so putting it outside costs
+        nothing the boundary was protecting.
+
+        What this boundary cannot do is speak French to the other two audiences. It reads
+        the locale where it sits, which is above the route table and therefore above every
+        FrenchSurface, so a crash under /admin or /e/:slug/display would render here in
+        the guest's language — on a console, or on a projector with a room in front of it.
+        That is why HostLayout and WallLayout each carry a boundary of their own, inside
+        their FrenchSurface, and catch first. This one covers what is left: the guest
+        surface, and anything that fails above the router. */}
+    <LocaleProvider>
+      {/* Outermost of the rest, so a crash inside a provider is still caught and still
+          shows a way back rather than a white screen on a projector. */}
+      <ErrorBoundary>
+        <ApiProvider api={api}>
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
-        </ToastProvider>
-      </ApiProvider>
-    </ErrorBoundary>
+        </ApiProvider>
+      </ErrorBoundary>
+    </LocaleProvider>
   </StrictMode>,
 )

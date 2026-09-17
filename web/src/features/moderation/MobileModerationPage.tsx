@@ -7,7 +7,7 @@ import { Spinner } from '../../design-system/components/Spinner'
 import { VisuallyHidden } from '../../design-system/components/VisuallyHidden'
 import { fr } from '../../lib/i18n/fr'
 import { SwipeCard } from './components/SwipeCard'
-import { useModerationQueue } from './hooks/useModerationQueue'
+import { queueErrorMessage, useModerationQueue } from './hooks/useModerationQueue'
 import type { ModerationDecision } from '../../lib/api/dto'
 import styles from './MobileModerationPage.module.css'
 
@@ -189,7 +189,7 @@ export function MobileModerationPage() {
           on screen, rather than replacing a usable queue with an error page. */}
       {queue.error !== null && queue.items.length > 0 ? (
         <p role="alert" className={styles['staleError']}>
-          {queue.error.message}
+          {queueErrorMessage(queue.error)}
         </p>
       ) : null}
 
@@ -202,7 +202,7 @@ export function MobileModerationPage() {
           <EmptyState
             as="h2"
             title={fr.moderation.loadFailed}
-            description={queue.error.message}
+            description={queueErrorMessage(queue.error)}
             action={
               <Button variant="primary" onClick={queue.refresh}>
                 {fr.app.retry}

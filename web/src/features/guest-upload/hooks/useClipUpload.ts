@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import { ApiError } from '../../../lib/http'
-import { fr, messageForCode } from '../../../lib/i18n/fr'
+import { messageForCode, type UiText } from '../../../lib/i18n/translations'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import {
   mayAnswerDifferently,
   megabytes,
@@ -136,11 +137,16 @@ const FALLBACK_RETRY_SECONDS = 1
  */
 const MAX_WATCH_MS = 3 * 60 * 1000
 
-const REFUSAL_MESSAGE: Readonly<Record<ClipRefusal, (limits: ClipLimits) => string>> = {
-  notAVideo: () => fr.upload.clipNotAVideo,
-  empty: () => messageForCode('clip.sourceByteSizeInvalid'),
-  tooLarge: (limits) => fr.upload.clipTooLarge(megabytes(limits.maxBytes)),
-  tooLong: (limits) => fr.upload.clipTooLong(limits.maxSeconds),
+const refusalMessage = (refusal: ClipRefusal, limits: ClipLimits, t: UiText): string => {
+  const messages: Readonly<Record<ClipRefusal, () => string>> = {
+    notAVideo: () => t.upload.clipNotAVideo,
+    // The server answers this one with a code of its own, so the phone says what the
+    // server would have said rather than inventing a second sentence for it.
+    empty: () => messageForCode('clip.sourceByteSizeInvalid', t),
+    tooLarge: () => t.upload.clipTooLarge(megabytes(limits.maxBytes)),
+    tooLong: () => t.upload.clipTooLong(limits.maxSeconds),
+  }
+  return messages[refusal]()
 }
 
 interface Snapshot {
@@ -155,6 +161,7 @@ const IDLE: Snapshot = { file: null, stage: 'idle', progress: 0, message: null, 
 
 export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
   const { slug, limits, onArrived, probe = probeClipDuration, pollIntervalMs } = options
+  const t = useTranslations()
   const api = useApi()
 
   const [state, setState] = useState<Snapshot>(IDLE)
@@ -226,7 +233,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
           file,
           stage: 'failed',
           progress: 0,
-          message: REFUSAL_MESSAGE[refusal](limits),
+          message: refusalMessage(refusal, limits, t),
           retryable: false,
         })
         return
@@ -254,12 +261,12 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
           file,
           stage: 'failed',
           progress: 0,
-          message: REFUSAL_MESSAGE[tooLong](limits),
+          message: refusalMessage(tooLong, limits, t),
           retryable: false,
         })
       })
     },
-    [abandon, limits, probe],
+    [abandon, limits, probe, t],
   )
 
   const clear = useCallback(() => {
@@ -297,7 +304,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
         setState((previous) => ({
           ...previous,
           stage: 'failed',
-          message: fr.upload.clipStillWorking,
+          message: t.upload.clipStillWorking,
           // **No retry offered here.** The stated reason for giving up is a box that is
           // still working, and pushing the whole clip at that same box again is the one
           // remedy guaranteed to make it worse. The clip is very likely still coming.
@@ -325,7 +332,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
             setState((previous) => ({
               ...previous,
               stage: 'failed',
-              message: cause.message,
+              message: messageForCode(cause.code, t),
               retryable: true,
             }))
             return
@@ -341,7 +348,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
             ...previous,
             stage: 'done',
             progress: 100,
-            message: fr.upload.clipDone,
+            message: t.upload.clipDone,
             retryable: false,
           }))
           latest.current.onArrived?.()
@@ -356,7 +363,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
             // `fr.test.ts` fails otherwise — because a clip that silently stays "en cours
             // de traitement" for the rest of the evening is the failure the status
             // endpoint exists to prevent.
-            message: messageForCode(job.failureCode ?? undefined),
+            message: messageForCode(job.failureCode ?? undefined, t),
             // A `failed` row never blocks a re-upload, so sending the same file again
             // always starts a fresh job — but "allowed to" and "worth offering" are
             // different questions, and only the second one belongs on a button.
@@ -371,7 +378,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
 
       void ask()
     },
-    [api, pollIntervalMs, slug],
+    [api, pollIntervalMs, slug, t],
   )
 
   /**
@@ -381,28 +388,31 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
    * running — a guest who took the recording back and picked another one. Both have to
    * produce the same screen, or the wait is bypassable by doing the obvious thing twice.
    */
-  const beginWait = useCallback((seconds: number, mine: number) => {
-    blockedUntil.current = Date.now() + seconds * 1_000
-    setState((previous) => ({
-      ...previous,
-      stage: 'waiting',
-      progress: 0,
-      message: fr.upload.clipQueueFullRetry(seconds),
-      retryable: false,
-    }))
-    // Not an automatic retry: the guest chose to send this once, and pushing eighty
-    // megabytes again without being asked is their data spent on a guess. What the timer
-    // does is give the button back.
-    backoff.current = setTimeout(() => {
-      backoff.current = null
-      if (run.current !== mine) return
-      setState((previous) =>
-        previous.stage === 'waiting'
-          ? { ...previous, stage: 'ready', message: fr.upload.clipQueueFreed }
-          : previous,
-      )
-    }, seconds * 1_000)
-  }, [])
+  const beginWait = useCallback(
+    (seconds: number, mine: number) => {
+      blockedUntil.current = Date.now() + seconds * 1_000
+      setState((previous) => ({
+        ...previous,
+        stage: 'waiting',
+        progress: 0,
+        message: t.upload.clipQueueFullRetry(seconds),
+        retryable: false,
+      }))
+      // Not an automatic retry: the guest chose to send this once, and pushing eighty
+      // megabytes again without being asked is their data spent on a guess. What the timer
+      // does is give the button back.
+      backoff.current = setTimeout(() => {
+        backoff.current = null
+        if (run.current !== mine) return
+        setState((previous) =>
+          previous.stage === 'waiting'
+            ? { ...previous, stage: 'ready', message: t.upload.clipQueueFreed }
+            : previous,
+        )
+      }, seconds * 1_000)
+    },
+    [t],
+  )
 
   const send = useCallback(
     (caption: string | null) => {
@@ -442,14 +452,14 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
           setState((previous) => ({ ...previous, stage: job.status, progress: 100 }))
           if (job.status === 'done') {
             // A repeat of bytes already transcoded. Nothing to watch.
-            setState((previous) => ({ ...previous, message: fr.upload.clipDone }))
+            setState((previous) => ({ ...previous, message: t.upload.clipDone }))
             latest.current.onArrived?.()
             return
           }
           if (job.status === 'failed') {
             setState((previous) => ({
               ...previous,
-              message: messageForCode(job.failureCode ?? undefined),
+              message: messageForCode(job.failureCode ?? undefined, t),
               retryable: true,
             }))
             return
@@ -479,10 +489,10 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
             stage: 'failed',
             progress: 0,
             message: networkFault
-              ? fr.upload.clipNotQueued
+              ? t.upload.clipNotQueued
               : cause instanceof ApiError
-                ? cause.message
-                : fr.errors.unknown,
+                ? messageForCode(cause.code, t)
+                : t.errors.unknown,
             /**
              * A dropped connection is worth another press. A refusal on the merits is
              * not — the same bytes fail the same way — except a `429`, handled above.
@@ -506,7 +516,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
         // run.
       })()
     },
-    [abandon, api, beginWait, slug, state.file, state.stage, watch],
+    [abandon, api, beginWait, slug, state.file, state.stage, t, watch],
   )
 
   const cancel = useCallback(() => {

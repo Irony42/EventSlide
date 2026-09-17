@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { Button } from '../design-system/components/Button'
-import { fr } from '../lib/i18n/fr'
+import { localeContext, type LocaleState } from '../lib/i18n/localeContext'
 import styles from './ErrorBoundary.module.css'
 
 export interface ErrorBoundaryProps {
@@ -25,6 +25,18 @@ interface ErrorBoundaryState {
  * React: there is no hook equivalent.
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  /**
+   * `contextType` rather than `useTranslations`, because a class cannot call a hook and
+   * only a class can catch a render error.
+   *
+   * It is worth the ceremony: this boundary sits above the router, so it is the one
+   * screen a guest can reach that no layout is responsible for, and a guest whose phone
+   * has just shown them a crash is exactly the person who should be told "nothing is
+   * lost" in a language they read.
+   */
+  static override contextType = localeContext
+  declare context: LocaleState
+
   constructor(props: ErrorBoundaryProps) {
     super(props)
     this.state = { error: null }
@@ -48,13 +60,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   override render(): ReactNode {
     if (this.state.error === null) return this.props.children
 
+    const { text } = this.context
+
     return (
       <div className={styles['boundary']}>
         <div className={styles['panel']} role="alert">
-          <h1 className={styles['title']}>{fr.shell.crashTitle}</h1>
-          <p className={styles['hint']}>{fr.shell.crashHint}</p>
+          <h1 className={styles['title']}>{text.shell.crashTitle}</h1>
+          <p className={styles['hint']}>{text.shell.crashHint}</p>
           <Button variant="primary" onClick={this.handleReset}>
-            {fr.app.retry}
+            {text.app.retry}
           </Button>
         </div>
       </div>

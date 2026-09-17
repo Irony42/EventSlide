@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 
 export interface ConfirmDialogProps {
   readonly open: boolean
@@ -28,12 +28,13 @@ export function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = fr.app.confirm,
-  cancelLabel = fr.app.cancel,
+  confirmLabel,
+  cancelLabel,
   busy = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const t = useTranslations()
   const cancelRef = useRef<HTMLButtonElement>(null)
 
   return (
@@ -48,10 +49,10 @@ export function ConfirmDialog({
       footer={
         <>
           <Button ref={cancelRef} variant="secondary" onClick={onCancel}>
-            {cancelLabel}
+            {cancelLabel ?? t.app.cancel}
           </Button>
           <Button variant="danger" loading={busy} onClick={onConfirm}>
-            {confirmLabel}
+            {confirmLabel ?? t.app.confirm}
           </Button>
         </>
       }

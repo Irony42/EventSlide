@@ -7,6 +7,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#101725" />
+    <!-- French, and it stays French. This document is served as a static file to every
+         request, so there is nothing here that could read `Accept-Language`: the app
+         negotiates a language once React has mounted and then sets `<html lang>` from
+         `AppShell`. `lang="fr"` above is the honest value for the markup that ships in
+         this file — the French `<noscript>` below is the only sentence in it.
+
+         **Known limit, and it is not only this line.** This description is what a guest
+         sees in a link preview when somebody forwards the join link in a group chat, and
+         `manifest.webmanifest` carries the same sentence plus `"lang": "fr"`, which is
+         what they see in the install sheet on their home screen. Both stay French for
+         every guest, in every language, and both are read by the browser *before* any of
+         this app's code runs — so no amount of client-side negotiation can reach them.
+
+         Fixing it means the server answering these two requests itself, negotiating on
+         the `Accept-Language` header it does receive and serving a per-language body.
+         That is a new route for the manifest, a templated `index.html` instead of a
+         static file, and a `Vary: Accept-Language` on both — real server work, on the
+         one part of the delivery path that is deliberately dumb today. It is written
+         down here rather than done because roadmap 1.5 is a client change, and because a
+         wrong `Vary` in front of a CDN-less single box is a caching bug nobody would see
+         until a French guest got a German install sheet. -->
     <meta name="description" content="Partagez vos photos, elles s'affichent dans la salle." />
     <!-- No CDN. Every stylesheet, font and script is bundled, which is what lets the
          server ship a strict CSP and what makes first paint work on venue Wi-Fi. -->
@@ -20,8 +41,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Two languages and not five. Everything else a guest reads is chosen after the
+         bundle runs; this sentence is the one they can reach when it does not, so it
+         cannot use the tables and cannot be negotiated. French because that is this
+         app's default, English beside it because it is the widest second language at the
+         kind of event this is for — and a third and fourth line of the same sentence on
+         a phone is a wall of text, not a translation. -->
     <noscript>
-      EventSlide a besoin de JavaScript pour envoyer vos photos. Activez-le puis rechargez la page.
+      <p lang="fr">
+        EventSlide a besoin de JavaScript pour envoyer vos photos. Activez-le puis rechargez la
+        page.
+      </p>
+      <p lang="en">
+        EventSlide needs JavaScript to send your photos. Turn it on and reload the page.
+      </p>
     </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>

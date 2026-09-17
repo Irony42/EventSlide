@@ -1,6 +1,6 @@
 import { Button } from '../../../design-system/components/Button'
 import { StatusIcon } from '../../../design-system/components/StatusIcon'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './OfflineNotice.module.css'
 
 /**
@@ -22,6 +22,7 @@ export interface OfflineNoticeProps {
 }
 
 export function OfflineNotice({ waiting, draining, onSendNow }: OfflineNoticeProps) {
+  const t = useTranslations()
   // Rendered only when there is something to say. An empty reassurance sitting above
   // the picker all evening would be noise, and it would push the composer down.
   if (waiting === 0) return null
@@ -37,17 +38,17 @@ export function OfflineNotice({ waiting, draining, onSendNow }: OfflineNoticePro
 
       <div className={styles['body']}>
         <p className={styles['title']} data-testid="offline-waiting">
-          {fr.upload.offlineTitle(waiting)}
+          {t.upload.offlineTitle(waiting)}
         </p>
         <p className={styles['hint']}>
-          {draining ? fr.upload.offlineSending : fr.upload.offlineHint}
+          {draining ? t.upload.offlineSending : t.upload.offlineHint}
         </p>
       </div>
 
       {/* A guest who can see a bar of signal should not have to wait for the browser to
           agree. The drain is idempotent, so pressing it while offline costs nothing. */}
       <Button size="sm" variant="secondary" loading={draining} onClick={onSendNow}>
-        {fr.upload.offlineRetry}
+        {t.upload.offlineRetry}
       </Button>
     </section>
   )

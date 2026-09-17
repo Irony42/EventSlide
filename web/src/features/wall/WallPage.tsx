@@ -6,7 +6,8 @@ import { Spinner } from '../../design-system/components/Spinner'
 import { StatusIcon, type StatusTone } from '../../design-system/components/StatusIcon'
 import type { WallItemDto, WallLayout } from '../../lib/api/dto'
 import { ApiError } from '../../lib/http'
-import { fr, messageForCode } from '../../lib/i18n/fr'
+import { fr } from '../../lib/i18n/fr'
+import { messageForCode } from '../../lib/i18n/translations'
 import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallLayouts } from './components/WallLayouts'
@@ -197,7 +198,7 @@ export function WallPage() {
             <div className={styles['failure']} role="alert">
               <StatusIcon tone="danger" className={classes(styles['failureIcon'])} />
               <h1 className={styles['failureTitle']}>
-                {error instanceof ApiError ? messageForCode(error.code) : fr.wall.errorTitle}
+                {error instanceof ApiError ? messageForCode(error.code, fr) : fr.wall.errorTitle}
               </h1>
               <p className={styles['failureHint']}>{fr.wall.errorHint}</p>
               {/* The wall retries on its own; this is for the host who walked over

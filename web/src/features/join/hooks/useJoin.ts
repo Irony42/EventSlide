@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useApi } from '../../../app/useApi'
 import { rememberGuestSession } from '../../../lib/guestSession'
 import { ApiError } from '../../../lib/http'
-import { fr } from '../../../lib/i18n/fr'
+import { messageForCode, type UiText } from '../../../lib/i18n/translations'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { PublicEventDto } from '../../../lib/api/dto'
 
 /**
@@ -26,18 +27,25 @@ export interface JoinState {
   readonly phase: 'idle' | 'joining' | 'resolved'
   /** The event, once a code has resolved. `null` while the guest still has to type one. */
   readonly event: PublicEventDto | null
-  /** A French sentence, ready to render. `null` when nothing has failed. */
+  /** A sentence in the guest's language, ready to render. `null` when nothing failed. */
   readonly error: string | null
   readonly join: (input: JoinInput) => void
   readonly continueToUpload: (slug: string) => void
 }
 
-const messageFor = (cause: unknown): string =>
-  // `ApiError.message` is already the French sentence for the server's error code, so
-  // there is nothing to look up here and nothing the server sent to render.
-  cause instanceof ApiError ? cause.message : fr.errors.unknown
+/**
+ * The sentence for a failure, in the language the guest is reading.
+ *
+ * The table is a parameter rather than something this reads for itself, because it is
+ * resolved at the moment the failure is caught: `ApiError` carries only the server's
+ * stable code, which is what lets the same refusal render in whichever language is
+ * active. Anything that is not an `ApiError` is a bug in this build.
+ */
+const messageFor = (cause: unknown, text: UiText): string =>
+  cause instanceof ApiError ? messageForCode(cause.code, text) : text.errors.unknown
 
 export const useJoin = (): JoinState => {
+  const text = useTranslations()
   const api = useApi()
   const navigate = useNavigate()
   const [state, setState] = useState<Omit<JoinState, 'join' | 'continueToUpload'>>({
@@ -94,12 +102,12 @@ export const useJoin = (): JoinState => {
           setState((previous) => ({
             phase: previous.event === null ? 'idle' : 'resolved',
             event: previous.event,
-            error: messageFor(cause),
+            error: messageFor(cause, text),
           }))
         },
       )
     },
-    [api, continueToUpload],
+    [api, continueToUpload, text],
   )
 
   return { ...state, join, continueToUpload }

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import { ApiError } from '../../../lib/http'
-import { fr } from '../../../lib/i18n/fr'
+import { messageForCode } from '../../../lib/i18n/translations'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { GuestPhotoDto } from '../../../lib/api/dto'
 
 /**
@@ -19,18 +20,43 @@ import type { GuestPhotoDto } from '../../../lib/api/dto'
 export interface MyPhotosState {
   readonly photos: readonly GuestPhotoDto[]
   readonly loading: boolean
-  /** A French sentence, ready to render. `null` when nothing has failed. */
+  /**
+   * A sentence in the guest's current language, ready to render. `null` when nothing
+   * has failed.
+   */
   readonly error: string | null
   readonly refresh: () => void
   readonly remove: (photoId: string) => Promise<void>
 }
 
+/**
+ * What went wrong, kept as a fact rather than as a sentence.
+ *
+ * The sentence is composed at render, from {@link Failure} and the active table, and
+ * that is the whole reason this type exists: storing the finished French put the copy
+ * table into the read effect's dependencies, so changing language re-read the list. On
+ * venue Wi-Fi that is a round trip for a word — and when it failed, the error branch
+ * replaced the thumbnails with an empty list and told the guest their uploads could not
+ * be shown, for no reason except that they had tapped the language picker.
+ *
+ * `code` is the server's own, so a refused deletion still says *why* it was refused,
+ * in whichever language the guest is reading when they look at it.
+ */
+type Failure = { readonly kind: 'load' } | { readonly kind: 'action'; readonly code: string | null }
+
+interface Loaded {
+  readonly photos: readonly GuestPhotoDto[]
+  readonly loading: boolean
+  readonly failure: Failure | null
+}
+
 export const useMyPhotos = (slug: string): MyPhotosState => {
+  const t = useTranslations()
   const api = useApi()
-  const [state, setState] = useState<Pick<MyPhotosState, 'photos' | 'loading' | 'error'>>({
+  const [state, setState] = useState<Loaded>({
     photos: [],
     loading: true,
-    error: null,
+    failure: null,
   })
   const [attempt, setAttempt] = useState(0)
 
@@ -40,7 +66,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
    * already starts from `loading: true`.
    */
   const refresh = useCallback(() => {
-    setState((previous) => ({ ...previous, loading: true, error: null }))
+    setState((previous) => ({ ...previous, loading: true, failure: null }))
     setAttempt((current) => current + 1)
   }, [])
 
@@ -50,14 +76,14 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
 
     api.myPhotos(slug, controller.signal).then(
       (response) => {
-        if (current) setState({ photos: response.items, loading: false, error: null })
+        if (current) setState({ photos: response.items, loading: false, failure: null })
       },
       (cause: unknown) => {
         if (!current) return
         // The abort is this effect's own cleanup — StrictMode mounts twice — and not
         // a failure to report to the guest.
         if (cause instanceof DOMException && cause.name === 'AbortError') return
-        setState({ photos: [], loading: false, error: fr.upload.mineFailed })
+        setState({ photos: [], loading: false, failure: { kind: 'load' } })
       },
     )
 
@@ -77,12 +103,25 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
         // that tells the guest their photos arrived.
         setState((previous) => ({
           ...previous,
-          error: cause instanceof ApiError ? cause.message : fr.errors.unknown,
+          failure: { kind: 'action', code: cause instanceof ApiError ? cause.code : null },
         }))
       }
     },
     [api, refresh, slug],
   )
 
-  return { ...state, refresh, remove }
+  /**
+   * The sentence, composed here rather than where the failure was caught.
+   *
+   * This is what lets the read effect above depend on nothing but the request, and it is
+   * also the honest behaviour: a guest who changes language while a refusal is on screen
+   * reads the refusal in the language they just chose.
+   */
+  const error = useMemo<string | null>(() => {
+    if (state.failure === null) return null
+    if (state.failure.kind === 'load') return t.upload.mineFailed
+    return state.failure.code === null ? t.errors.unknown : messageForCode(state.failure.code, t)
+  }, [state.failure, t])
+
+  return { photos: state.photos, loading: state.loading, error, refresh, remove }
 }

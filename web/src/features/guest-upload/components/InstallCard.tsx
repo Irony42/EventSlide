@@ -1,7 +1,7 @@
 import { Button } from '../../../design-system/components/Button'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
 import { IconButton } from '../../../design-system/components/IconButton'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { InstallOffer } from '../hooks/useInstallPrompt'
 import styles from './InstallCard.module.css'
 
@@ -25,6 +25,7 @@ export interface InstallCardProps {
 }
 
 export function InstallCard({ offer, onInstall, onDismiss }: InstallCardProps) {
+  const t = useTranslations()
   if (offer.kind === 'none') return null
 
   return (
@@ -38,23 +39,23 @@ export function InstallCard({ offer, onInstall, onDismiss }: InstallCardProps) {
     >
       <div className={styles['body']}>
         <p className={styles['title']} id="install-title">
-          {fr.upload.installTitle}
+          {t.upload.installTitle}
         </p>
         <p className={styles['hint']}>
-          {offer.kind === 'prompt' ? fr.upload.installHint : fr.upload.installIosHint}
+          {offer.kind === 'prompt' ? t.upload.installHint : t.upload.installIosHint}
         </p>
         {/* Only where there is something to press. On iOS the sentence above is the
             instruction, and a button that did nothing would be worse than none. */}
         {offer.kind === 'prompt' ? (
           <Button variant="secondary" size="sm" onClick={onInstall}>
-            {fr.upload.installAction}
+            {t.upload.installAction}
           </Button>
         ) : null}
       </div>
 
       {/* Dismissal is remembered across visits: a guest who said no at 21:00 must not be
           asked again at midnight. */}
-      <IconButton aria-label={fr.upload.installDismiss} icon={<CloseIcon />} onClick={onDismiss} />
+      <IconButton aria-label={t.upload.installDismiss} icon={<CloseIcon />} onClick={onDismiss} />
     </section>
   )
 }

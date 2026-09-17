@@ -1,10 +1,14 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { Spinner } from '../design-system/components/Spinner'
+import { ToastProvider } from '../design-system/components/ToastProvider'
 import { fr } from '../lib/i18n/fr'
+import { FrenchSurface } from '../lib/i18n/LocaleProvider'
 import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
 import { JoinPage } from '../features/join/JoinPage'
 import { AppShell } from './AppShell'
+import { ErrorBoundary } from './ErrorBoundary'
+import { LanguagePicker } from './LanguagePicker'
 import { NotFoundView } from './NotFoundView'
 import { RequireAuth } from './RequireAuth'
 import styles from './router.module.css'
@@ -89,22 +93,71 @@ const RouteFallback = () => (
   </div>
 )
 
+/**
+ * The guest surface, with the language picker in its header.
+ *
+ * Here rather than inside `JoinPage` and `GuestUploadPage`, because it belongs to both
+ * and to nothing else: a feature folder never imports from another feature, and the
+ * layout is the one place that already knows "these routes are the guest's".
+ *
+ * **`ToastProvider` is inside each layout and not above the router**, and that placement
+ * is a correctness fix rather than tidying. The toast region is rendered by the provider
+ * itself, so a provider above the router renders its region above every `FrenchSurface`
+ * — and `Toast` reads its own copy from the active table. A host whose browser is set to
+ * German would have got a German dismiss control inside an otherwise French moderation
+ * toast, without ever choosing anything, which is precisely what `FrenchSurface` exists
+ * to prevent. Inside the layout, the region is in the same language as the screen that
+ * raised it, whichever screen that is.
+ */
 const GuestLayout = () => (
-  <AppShell surface="guest">
-    <Outlet />
-  </AppShell>
+  <ToastProvider>
+    <AppShell surface="guest" header={<LanguagePicker />}>
+      <Outlet />
+    </AppShell>
+  </ToastProvider>
 )
 
+/**
+ * The host console and the projected wall speak French, and say so here.
+ *
+ * `main.tsx` provides the guest's language to the whole tree, because the crash boundary
+ * above the router has to be readable on a guest's phone too. These two layouts put it
+ * back to French for everything underneath them, which is the whole of the admin surface
+ * and the whole of the wall. See `web/src/lib/i18n/translations.ts` for why they are not
+ * translated, and `FrenchSurface` for what would otherwise go half-translated.
+ *
+ * **Each carries its own `ErrorBoundary`, and that is not belt-and-braces.** A boundary
+ * reads the locale context at *its own* position in the tree, and the outer one in
+ * `main.tsx` sits above the router — above `FrenchSurface` — so it renders the guest's
+ * language whatever surface crashed under it. Every non-guest screen here is a lazily
+ * loaded chunk, so a host who left a tab open across a deploy, or a projector on venue
+ * Wi-Fi, gets a loader rejection as a matter of course: that is the failure the lazy
+ * split buys and has to pay for. Before this, the answer on both was a German crash
+ * screen in front of a French console, or in front of a room. The inner boundary catches
+ * first, inside French, and the outer one is still there for anything above it.
+ */
 const HostLayout = () => (
-  <AppShell surface="host">
-    <Outlet />
-  </AppShell>
+  <FrenchSurface>
+    <ErrorBoundary>
+      <ToastProvider>
+        <AppShell surface="host">
+          <Outlet />
+        </AppShell>
+      </ToastProvider>
+    </ErrorBoundary>
+  </FrenchSurface>
 )
 
 const WallLayout = () => (
-  <AppShell surface="wall">
-    <Outlet />
-  </AppShell>
+  <FrenchSurface>
+    <ErrorBoundary>
+      <ToastProvider>
+        <AppShell surface="wall">
+          <Outlet />
+        </AppShell>
+      </ToastProvider>
+    </ErrorBoundary>
+  </FrenchSurface>
 )
 
 export function AppRoutes() {
@@ -121,6 +174,15 @@ export function AppRoutes() {
               so every guest silently uploaded to the default event. */}
           <Route path="/join/:code" element={<JoinPage />} />
           <Route path="/e/:slug/upload" element={<GuestUploadPage />} />
+          {/* The guest's own dead ends, answered on the guest's own surface.
+              A card printed against an older URL shape, a link forwarded through a
+              group chat, a path that gained a segment: the reader is holding a phone
+              and may not read French, and "this address does not exist, go here
+              instead" is the whole value of the screen. The host catch-all below still
+              answers everything else, in French and at host width, which is right for a
+              mistyped `/admin` address. */}
+          <Route path="/join/*" element={<NotFoundView />} />
+          <Route path="/e/*" element={<NotFoundView />} />
         </Route>
 
         {/* Public, and behind no session: a projector has nobody to log it in. */}

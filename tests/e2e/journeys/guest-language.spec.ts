@@ -1,0 +1,79 @@
+import { expect, test } from '../fixtures/app'
+import { de } from '../../../web/src/lib/i18n/de'
+import { fr } from '../../../web/src/lib/i18n/fr'
+import { it as italian } from '../../../web/src/lib/i18n/it'
+
+/**
+ * A guest whose phone is not in French, from the QR code to a refusal they can read.
+ *
+ * What earns ring 6 here, and what cheaper rings genuinely cannot cover:
+ *
+ * - **The browser's own preference.** Ring 5 stubs `navigator.languages`; only a real
+ *   browser started in a real locale proves that the signal this app negotiates on is
+ *   the one a phone actually sends. Playwright's `locale` option sets both that list and
+ *   the `Accept-Language` header, which is the pair the roadmap item names.
+ * - **A refusal that crossed HTTP.** The whole reason this point is cheap is that the
+ *   server answers with `event.notFound` and the client owns the sentence. That claim is
+ *   only worth anything against a real server: a route that ever composed prose would
+ *   send French here and every unit test would still be green.
+ * - **A real reload.** `localStorage` in jsdom is a dictionary. The requirement is that a
+ *   guest who picks a language and drops the page comes back to the same one, on a phone,
+ *   with no account — and a reload is the cheapest way that gets tested for real.
+ * - **`<html lang>` on a real document**, which is what decides the voice a screen reader
+ *   pronounces the page with.
+ */
+
+test.describe('a guest whose phone is in German', () => {
+  test.use({ locale: 'de-DE' })
+
+  test('reads the join screen, and the server’s refusal, in German @smoke', async ({
+    app,
+    page,
+  }) => {
+    const event = await app.seedEvent({ slug: 'hochzeit', name: 'Camille & Sacha' })
+
+    await page.goto(app.url('/join'))
+
+    // Nothing was chosen and nothing was stored: this is `navigator.languages` alone.
+    await expect(page.getByRole('heading', { name: de.join.title })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de')
+
+    // A code that resolves to nothing. The server answers `404 event.notFound` with an
+    // English developer message in the body, and the phone renders the German sentence
+    // for the code — which is the indirection this whole roadmap point rests on.
+    await page.getByLabel(de.join.codeLabel).fill('ZZZZZZ')
+    await page.getByRole('button', { name: de.join.submit }).click()
+    await expect(page.getByText(de.errors['event.notFound'])).toBeVisible()
+
+    // And then the real one, through to the screen a guest actually uploads from.
+    await page.getByLabel(de.join.codeLabel).fill(event.joinCode)
+    await page.getByRole('button', { name: de.join.submit }).click()
+    await page.waitForURL(/\/e\/[^/]+\/upload/)
+    await expect(page.getByRole('button', { name: de.upload.addPhotos })).toBeVisible()
+  })
+
+  test('keeps a language the guest picked across a reload', async ({ app, page }) => {
+    await page.goto(app.url('/join'))
+
+    await page.getByRole('combobox', { name: de.app.language }).selectOption('it')
+    await expect(page.getByRole('heading', { name: italian.join.title })).toBeVisible()
+
+    // The phone goes back in a pocket, the venue's Wi-Fi drops the page, the guest opens
+    // it again. No account was involved in any of that.
+    await page.reload()
+
+    await expect(page.getByRole('heading', { name: italian.join.title })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('lang', 'it')
+  })
+
+  test('leaves the host console in French on the same browser', async ({ app, page }) => {
+    // The scope decision, end to end. The host console has one operator, who set the box
+    // up; it is not translated, and a browser asking for German must not half-translate
+    // it through the shared primitives. There is no language control there either.
+    await page.goto(app.url('/login'))
+
+    await expect(page.getByRole('heading', { name: fr.auth.title })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('lang', 'fr')
+    await expect(page.getByRole('combobox', { name: de.app.language })).toHaveCount(0)
+  })
+})
