@@ -35,17 +35,37 @@
  * Sticky rather than fixed: it is the last child, so it already paints over the
  * content above it without a z-index, and it stays inside the shell's bottom padding
  * — which is what keeps it clear of the iOS home indicator.
+ *
+ * **It is glass, and this is the surface the material was designed for** (roadmap 11.1).
+ * Everything a guest presses is in this box, and what is behind it is the guest's own
+ * photographs scrolling past — which is exactly the case the tint floor exists for, since
+ * one of those thumbnails may be a white dress in full sun. It was opaque
+ * `--surface-base` before, so the photos disappeared under a black bar at the moment the
+ * guest was looking for proof that they had arrived.
+ *
+ * The bar lifts off the bottom edge rather than sitting flush to it. A translucent pane
+ * welded to the viewport edge reads as a gradient someone forgot to finish; one with a
+ * gutter under it reads as a sheet, and the gutter is where the photos travel.
+ *
+ * The inline padding is `--space-3` and not `--space-4`, and the asymmetry is the
+ * measurement rather than a slip. The bar now has an edge of its own, so its content
+ * cannot sit against it — but every pixel it takes comes off `Envoyer`, on the narrowest
+ * screen this product is designed for. The shell already spends `--space-4` inline
+ * (`AppShell.module.css`), and box sizing is `border-box`, so at 360 px a second
+ * `--space-4` would leave the primary control 294 px against the 328 px it had. One step
+ * down costs 24 px instead of 34 and still keeps the two picker buttons well clear of
+ * `--touch-min`.
  */
 .composer {
+  composes: sheet from '../../design-system/glass.module.css';
   position: sticky;
-  inset-block-end: 0;
+  inset-block-end: var(--space-2);
   margin-block-start: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding-block: var(--space-4);
-  background: var(--surface-base);
-  border-block-start: 1px solid var(--border-subtle);
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-lg);
 }
 
 /* A link, not a button: it navigates. Sized to the touch floor all the same. */

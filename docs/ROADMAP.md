@@ -448,6 +448,17 @@ makes redesigns fail:
   some machines, and the budget below will switch it off on others. The fallback is an
   opaque token from the same family, not a transparent pane that becomes unreadable.
 
+**Found while building the floor, and still open: `--surface-scrim` does not meet the bar
+this product already published for it.** Measuring a translucent ground over a photograph
+needed arithmetic `tokens.contrast.test.ts` did not have — every ratio it compared was
+between two _declared_ colours — and pointing the new arithmetic at the existing palette
+says that over a bright photograph the wall's caption scrim gives `--text-primary` 4.36:1
+and `--text-secondary` 2.38:1, against `docs/DESIGN-SYSTEM.md` §8's "anything on the wall
+≥ 7:1 regardless of size". Every wall caption sits on it. Raising the scrim changes what
+the projector renders, so it is **a re-baseline with a human looking at every image** and
+belongs with the wall work below, not in the change that defined the material. The number
+is pinned by a test in the meantime, so it cannot quietly get worse.
+
 ### 11.2 Motion that answers the hand (P1, effort M, risk: medium)
 
 The animation work is not "add transitions". It is: what does the interface do when a guest

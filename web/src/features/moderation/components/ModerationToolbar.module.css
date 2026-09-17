@@ -1,4 +1,18 @@
+/**
+ * Glass, because a hundred guest photos scroll under it (roadmap 11.1).
+ *
+ * The host's one sticky pane, and the only place on their console where something is
+ * continuously moving behind a surface — which is the whole argument for the material
+ * being here and not on the six other panels this screen draws. It was
+ * `--surface-raised`, so a tile passing behind it vanished and reappeared; now it passes
+ * as a blur, which is also the cheapest possible cue that the grid is still scrolling.
+ *
+ * `--text-muted` on `.shortcuts` is the tightest pair on this pane and it is measured:
+ * over the brightest photograph that can exist it holds 4.64:1, against 4.62 on
+ * `--surface-overlay`, which is the ground the design system already permits it on.
+ */
 .toolbar {
+  composes: sheet from '../../../design-system/glass.module.css';
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -8,8 +22,6 @@
   inset-block-start: 0;
   z-index: var(--z-wall-caption);
   padding: var(--space-4);
-  background: var(--surface-raised);
-  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
 }
 

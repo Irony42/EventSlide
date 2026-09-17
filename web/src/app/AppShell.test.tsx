@@ -87,4 +87,32 @@ describe('AppShell', () => {
       expect(document.documentElement).toHaveAttribute('lang', locale)
     },
   )
+
+  /**
+   * The glass budget reaches the DOM here and nowhere else — roadmap 11.3.
+   *
+   * On the shell rather than on `<main>`, because the skip link and any header the
+   * surface renders are outside `<main>` and they have to inherit the same material.
+   */
+  it('marks the wall as the surface that cannot afford the blur', () => {
+    render(
+      <AppShell surface="wall">
+        <p>Contenu</p>
+      </AppShell>,
+    )
+
+    expect(screen.getByRole('main').closest('[data-glass]')).toHaveAttribute('data-glass', 'opaque')
+  })
+
+  it.each(['guest', 'host'] as const)('leaves the %s surface DOM untouched', (surface) => {
+    // Absent, not `data-glass="blur"`. A surface on the default tier renders exactly what
+    // it rendered before the material existed.
+    render(
+      <AppShell surface={surface}>
+        <p>Contenu</p>
+      </AppShell>,
+    )
+
+    expect(screen.getByRole('main').closest('[data-glass]')).toBeNull()
+  })
 })
