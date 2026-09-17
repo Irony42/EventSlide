@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { glassSurfaceProps } from '../design-system/glass'
 import { useLocale } from '../lib/i18n/useTranslations'
 import styles from './AppShell.module.css'
 
@@ -18,8 +19,9 @@ export interface AppShellProps {
 /**
  * The layout wrapper.
  *
- * It owns three things a page must not reinvent: the skip link, the container width for
- * the surface, and `<html lang>`.
+ * It owns four things a page must not reinvent: the skip link, the container width for
+ * the surface, `<html lang>`, and which tier of the glass material the surface may
+ * afford (roadmap 11.3 — `design-system/glass.ts` holds the rule).
  *
  * A control that is comfortable on a laptop is unusable at arm's length on a phone, so
  * the width comes from the surface rather than from the page.
@@ -41,7 +43,11 @@ export function AppShell({ surface, header, children, className }: AppShellProps
   }, [locale])
 
   return (
-    <div className={styles['shell']}>
+    /* The glass tier goes on the shell rather than on `<main>`, because the skip link is
+       outside `<main>` and a header may be too: everything the surface renders has to
+       inherit the same material. A surface on the blur tier spreads nothing, so the DOM
+       is unchanged for the guest and the host. */
+    <div className={styles['shell']} {...glassSurfaceProps(surface)}>
       <a className={styles['skipLink']} href={`#${MAIN_CONTENT_ID}`}>
         {text.shell.skipToContent}
       </a>

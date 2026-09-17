@@ -198,7 +198,7 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
       {/* Everything to press, kept together at the bottom of the screen: a control in
           the top half of a phone needs a second hand, and the guest is holding a
           drink with the other one. */}
-      <div className={styles['composer']}>
+      <div data-testid="upload-composer" className={styles['composer']}>
         {/* Above the queue: it is the answer to "did my photos go?", and a guest who
             reads it stops pressing "Envoyer" again. */}
         <OfflineNotice
