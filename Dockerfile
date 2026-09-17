@@ -10,10 +10,24 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 
-# Native prebuilds cover better-sqlite3, sharp and bcrypt on linux/amd64 and
-# linux/arm64 (which is what a Raspberry Pi wall needs), so no build toolchain is
-# installed here. If a prebuild is ever missing the install fails loudly rather than
-# silently pulling in gcc.
+# A build toolchain, in the stage that is thrown away.
+#
+# This said the opposite until CI built the image for the first time: "prebuilds cover
+# better-sqlite3, sharp and bcrypt, so no toolchain is installed here — if a prebuild is
+# ever missing the install fails loudly rather than silently pulling in gcc." It failed
+# loudly, on every build, because one of them compiles from source on this base and
+# `node-gyp` needs Python. Nothing had ever run `docker build`, so the promise that
+# `docker compose up` is the whole install had never been true.
+#
+# The fear behind the old comment was bloat, and that fear is answered by the staging
+# rather than by the absence: `deps` is a builder, the runtime copies only the pruned
+# `node_modules` out of it, and `python3`/`make`/`g++` never reach the image a venue
+# runs. `scripts/verify-image.sh` asserts that — it refuses an image carrying a
+# compiler — so this cannot quietly become a fat runtime.
+RUN apt-get update \
+  && apt-get install --no-install-recommends -y python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev
 

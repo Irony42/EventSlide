@@ -120,6 +120,19 @@ for pkg in ffmpeg-static ffprobe-static; do
   fi
 done
 
+# The build toolchain belongs to the `deps` stage and must not reach the runtime.
+# `deps` installs python3, make and g++ because a native dependency compiles from
+# source on this base; the runtime is a fresh image that copies only the pruned
+# node_modules out of it. If a future edit collapses the two stages, a venue box
+# starts carrying a compiler, and this is the line that says so.
+for tool in g++ gcc make python3; do
+  if in_image "! command -v $tool >/dev/null 2>&1"; then
+    pass "$tool is not in the runtime image"
+  else
+    fail "$tool shipped — the build toolchain escaped the deps stage into the runtime"
+  fi
+done
+
 for pkg in typescript vitest @playwright/test eslint prettier tsx; do
   if in_image "[ ! -e node_modules/$pkg ]"; then
     pass "$pkg is not in the image"
