@@ -691,7 +691,11 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       .set('Cookie', cookie(subject.token))
 
     expect(response.status).toBe(200)
-    expect(response.body.items.map((item: { status: string }) => item.status)).toEqual([
+    // Sorted, because what this route promises is *which* photos come back and not the
+    // order they arrive in: the three fixtures share a timestamp, so their order is the
+    // repository's tie-break, which `photoRepositoryContract` asserts on its own terms.
+    // Pinning it here as well made this test fail for a change it is not about.
+    expect(response.body.items.map((item: { status: string }) => item.status).sort()).toEqual([
       'pending',
       'published',
       'rejected',
@@ -705,7 +709,11 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       .get(`${BASE}/photos/mine`)
       .set('Cookie', cookie(subject.token))
 
-    expect(response.body.items[0]).toEqual({
+    // Found by id rather than by position: the three fixtures share a timestamp, so
+    // which one leads is the repository's tie-break and not this route's promise.
+    const pending = response.body.items.find((item: { id: string }) => item.id === PENDING)
+
+    expect(pending).toEqual({
       id: PENDING,
       status: 'pending',
       thumbUrl: `/api/events/mariage/photos/${PENDING}/thumb`,

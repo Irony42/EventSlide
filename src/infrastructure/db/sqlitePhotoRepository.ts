@@ -492,9 +492,9 @@ export class SqlitePhotoRepository implements PhotoRepository {
       params.push(query.authoredBy)
     }
     if (cursor !== null) {
-      // The keyset predicate, matching `ORDER BY created_at DESC, id ASC`. An OFFSET
+      // The keyset predicate, matching `ORDER BY created_at DESC, id DESC`. An OFFSET
       // here would skip or repeat a photo every time a guest uploads mid-scroll.
-      filters.push('(created_at < ? OR (created_at = ? AND id > ?))')
+      filters.push('(created_at < ? OR (created_at = ? AND id < ?))')
       params.push(cursor.createdAt, cursor.createdAt, cursor.id)
     }
 
@@ -507,7 +507,7 @@ export class SqlitePhotoRepository implements PhotoRepository {
         `SELECT ${PHOTO_COLUMNS}
            FROM photos
           WHERE ${filters.join(' AND ')}
-          ORDER BY created_at DESC, id ASC${limit === undefined ? '' : ' LIMIT ?'}`,
+          ORDER BY created_at DESC, id DESC${limit === undefined ? '' : ' LIMIT ?'}`,
       )
       .all(...params)
 
@@ -532,7 +532,7 @@ export class SqlitePhotoRepository implements PhotoRepository {
         `SELECT id
            FROM photos
           WHERE event_id = ? AND status = ?
-          ORDER BY created_at DESC, id ASC
+          ORDER BY created_at DESC, id DESC
           LIMIT ?`,
       )
       .all(eventId, status, limit)
@@ -746,7 +746,7 @@ export class SqlitePhotoRepository implements PhotoRepository {
         `SELECT ${PHOTO_COLUMNS}
            FROM photos
           WHERE event_id = ? AND status IN (${placeholders(statuses.length)})
-          ORDER BY created_at DESC, id ASC`,
+          ORDER BY created_at DESC, id DESC`,
       )
       .iterate(eventId, ...statuses)
 
