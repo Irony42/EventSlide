@@ -30,10 +30,14 @@ phone. Design for the surface, not for the average.
   --text-secondary: oklch(78% 0.015 265);
   --text-muted: oklch(62% 0.02 265);
 
-  /* Accent — one hue, used sparingly, reserved for the primary action */
-  --accent: oklch(72% 0.17 305);
-  --accent-strong: oklch(64% 0.19 305);
-  --accent-contrast: oklch(18% 0.02 305);
+  /* Accent — one hue, used sparingly, reserved for the primary action.
+     The hue is the one value an event's theme may move (DESIGN-SYSTEM.md §12), so the
+     three states below are declared for `:root, [data-event-accent]` rather than inside
+     this block. Consume them as `var(--accent)`; never spell a hue in a component. */
+  --accent-hue: 305;
+  --accent: oklch(72% 0.17 var(--accent-hue));
+  --accent-strong: oklch(64% 0.19 var(--accent-hue));
+  --accent-contrast: oklch(18% 0.02 var(--accent-hue));
 
   /* Semantic */
   --success: oklch(76% 0.16 155);

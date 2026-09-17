@@ -106,6 +106,36 @@ test.describe('the projected wall @visual', () => {
     return event
   }
 
+  /**
+   * The host choosing the event's look, through the form a host actually uses.
+   *
+   * Driven through the UI rather than through the API, because the point of a baseline
+   * here is the path a real event takes: the picker offers four colours and two faces,
+   * and a snapshot taken from a value the console could never produce would photograph
+   * something nobody can reach.
+   *
+   * Only the choices a shot can actually show are passed. A baseline that also varied the
+   * two it cannot is a diff that names no cause — the reader cannot tell whether the
+   * frame moved or the font did, and half the changes are invisible either way.
+   */
+  const applyTheme = async (
+    host: Parameters<typeof signInAsHost>[0],
+    app: Parameters<typeof signInAsHost>[1],
+    slug: string,
+    theme: { colour?: string; fonts?: string; frame?: string },
+  ) => {
+    await host.goto(app.url(`/admin/events/${slug}/settings`))
+    if (theme.colour !== undefined) await host.getByRole('radio', { name: theme.colour }).check()
+    if (theme.fonts !== undefined) {
+      await host.getByLabel('Typographie').selectOption({ label: theme.fonts })
+    }
+    if (theme.frame !== undefined) {
+      await host.getByLabel('Cadre des photos').selectOption({ label: theme.frame })
+    }
+    await host.getByRole('button', { name: 'Enregistrer', exact: true }).click()
+    await expect(host.getByText('Réglages enregistrés.')).toBeVisible()
+  }
+
   test('the empty state, which is what the room sees first', async ({ app, surfaces }) => {
     // Twenty minutes of an evening are spent looking at this screen. It is the most
     // seen view in the product and the one with no data to hide behind.
@@ -277,5 +307,69 @@ test.describe('the projected wall @visual', () => {
     })
 
     await context.close()
+  })
+
+  /**
+   * Per-event theming, roadmap 2.2 — the one feature in this file whose whole
+   * requirement is "looks right", and therefore the one with the strongest claim on a
+   * baseline.
+   *
+   * Two shots, because no single frame shows all three choices: the accent appears only
+   * where the wall speaks in its own voice (the invitation), and the frame style only
+   * where a layout draws a frame at all. The caption's face is not photographed a third
+   * time — it is `--font-display`, the same token the event's name below resolves, and
+   * one proof that the substitution reaches the projector is enough.
+   *
+   * Every other baseline in this file photographs an event that chose nothing, which is
+   * what makes them the evidence that the default is unchanged.
+   */
+  test('the invitation in the event’s own colour and face', async ({ app, surfaces }) => {
+    const event = await app.seedEvent({ slug: 'theme-vide', name: 'Camille & Sacha' })
+    const { host, projector } = surfaces
+
+    await signInAsHost(host, app)
+    // The two this frame shows: the accent on the invitation's first line, and the
+    // display face on the event's name. The frame style is left alone — the empty state
+    // draws no frame, so varying it here would be a change the baseline cannot see.
+    await applyTheme(host, app, event.slug, { colour: 'Rose', fonts: 'Classique' })
+
+    await projector.goto(wallUrl(app, event.slug, { transitionMs: 0 }))
+    await expect(projector.getByTestId('wall-empty')).toBeVisible()
+
+    // The same element the unthemed baseline photographs, for the same reason — the join
+    // code is random per event, and a full-page shot moves with it.
+    await expect(projector.getByTestId('wall-empty-copy')).toHaveScreenshot(
+      'wall-empty-themed.png',
+      { animations: 'disabled' },
+    )
+  })
+
+  test('the mosaic with the frames the event asked for', async ({ app, surfaces }) => {
+    const event = await seedAlbum(app, surfaces, 'theme-mosaique')
+    const { host, projector } = surfaces
+
+    // The frame style alone. The mosaic's in-tile credit is the only text it prints and
+    // it stays in the sans by design, and no accent reaches this layout at all — so a
+    // colour or a face set here would be two more ways for this diff to move without
+    // meaning anything.
+    await applyTheme(host, app, event.slug, { frame: 'Coins droits' })
+
+    await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic', intervalMs: 600_000 }))
+    await expect(projector.locator('[data-wall-layout]')).toHaveAttribute(
+      'data-wall-layout',
+      'mosaic',
+    )
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(6)
+
+    // The join card is put away first, which the unthemed layout baselines do not do.
+    // Its QR and its six characters are derived from a code that is random per event, so
+    // a full-page baseline that keeps them is a baseline that only ever matches the run
+    // that produced it — the empty-state test above dodges the same hazard by
+    // photographing one element instead. Here the whole frame is the subject, so the
+    // random part is dismissed rather than cropped out.
+    await projector.keyboard.press('Escape')
+    await expect(projector.getByTestId('wall-join')).toHaveCount(0)
+
+    await expect(projector).toHaveScreenshot('wall-mosaic-themed.png', { animations: 'disabled' })
   })
 })

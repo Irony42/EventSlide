@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { DomainError } from '../shared/errors'
 import type { Result } from '../shared/result'
 import { EventSettings, isModerationMode } from './eventSettings'
+import { DEFAULT_EVENT_THEME } from './eventTheme'
 
 const unwrap = (result: Result<EventSettings, DomainError>): EventSettings => {
   if (!result.ok) throw new Error(`unexpected domain error: ${result.error.code}`)
@@ -26,6 +27,29 @@ describe('EventSettings defaults', () => {
 
     expect(settings.retentionDays).toBeNull()
     expect(settings.maxPhotosPerGuest).toBeNull()
+  })
+
+  it('looks exactly as the product did before theming existed', () => {
+    // The whole point of the default theme: an event nobody themed must render byte for
+    // byte what it rendered yesterday, or every committed wall baseline is wrong.
+    //
+    // The literal, not `DEFAULT_EVENT_THEME` — `DEFAULTS.theme` *is* that constant, so
+    // comparing the two would pass whatever either of them became. 305 is the hue
+    // `tokens.css` declares, `sans` the stack it already resolves to, `soft` the radius
+    // the wall already draws.
+    expect(EventSettings.default().theme).toEqual({
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'soft',
+    })
+  })
+
+  it('hands out a default theme nothing can edit under another event', () => {
+    // `{ ...DEFAULTS }` is a shallow copy, so every unthemed event shares one theme
+    // object. Frozen, that sharing is free; unfrozen it is a mutation away from
+    // recolouring every event on the box at once.
+    expect(Object.isFrozen(EventSettings.default().theme)).toBe(true)
+    expect(EventSettings.default().theme).toBe(DEFAULT_EVENT_THEME)
   })
 
   it('hands each caller its own props, so nothing can edit the defaults themselves', () => {
@@ -63,6 +87,7 @@ describe('EventSettings.create', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 30,
         maxPhotosPerGuest: 20,
+        theme: { accentHue: 345, fonts: 'serif', frame: 'round' },
       }),
     )
 
@@ -75,6 +100,7 @@ describe('EventSettings.create', () => {
       guestSelfDeleteGraceSeconds: 60,
       retentionDays: 30,
       maxPhotosPerGuest: 20,
+      theme: { accentHue: 345, fonts: 'serif', frame: 'round' },
     })
   })
 
@@ -211,6 +237,36 @@ describe('EventSettings.with', () => {
 
     expect(!result.ok && result.error.code).toBe('eventSettings.maxPhotosPerGuestInvalid')
   })
+
+  it('takes a theme as one decision, never half of one', () => {
+    // Replaced whole rather than merged: the legibility rule judges the three choices
+    // together, so a patch carrying only a hue must not leave a font behind from before.
+    const before = unwrap(
+      EventSettings.create({ theme: { accentHue: 250, fonts: 'serif', frame: 'round' } }),
+    )
+
+    const after = unwrap(before.with({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft' } }))
+
+    expect(after.theme).toEqual({ accentHue: 345, fonts: 'sans', frame: 'soft' })
+  })
+
+  it('keeps the theme when the patch does not mention it', () => {
+    const before = unwrap(
+      EventSettings.create({ theme: { accentHue: 250, fonts: 'serif', frame: 'round' } }),
+    )
+
+    const after = unwrap(before.with({ allowCaptions: false }))
+
+    expect(after.theme.accentHue).toBe(250)
+  })
+
+  it('refuses a theme the legibility rule rejects, and says which rule', () => {
+    const result = EventSettings.default().with({
+      theme: { accentHue: 160, fonts: 'sans', frame: 'soft' },
+    })
+
+    expect(!result.ok && result.error.code).toBe('eventTheme.accentTooCloseToStatus')
+  })
 })
 
 describe('isModerationMode', () => {
@@ -224,4 +280,51 @@ describe('isModerationMode', () => {
       expect(isModerationMode(value)).toBe(false)
     },
   )
+})
+
+describe('a theme the current rule would refuse, on an event that already has one', () => {
+  /**
+   * The asymmetry between `createEventTheme` and `restoreEventTheme` exists so that a
+   * legibility rule tightened on Tuesday does not take somebody's Saturday wedding off
+   * the screen. It was defeated on the one path a host uses every day: `with` judged the
+   * *stored* theme as a fresh choice on every save, so an unrelated patch answered
+   * `eventTheme.accentTooCloseToStatus` and made every setting on the page unsavable
+   * until the host also changed a colour they never chose.
+   *
+   * Hue 30 stands in for "legal when it was chosen, refused by today's rule" — it is
+   * eight degrees from `--danger`, which `restore` accepts on shape and `create`
+   * refuses on legibility.
+   */
+  const stored = { accentHue: 30, fonts: 'sans', frame: 'soft' } as const
+
+  it('is read back without being re-judged', () => {
+    const restored = EventSettings.restore({
+      ...EventSettings.default().toProps(),
+      theme: stored,
+    })
+
+    expect(restored.ok).toBe(true)
+  })
+
+  it('does not block a patch that changes something else entirely', () => {
+    const settings = unwrap(
+      EventSettings.restore({ ...EventSettings.default().toProps(), theme: stored }),
+    )
+
+    const saved = settings.with({ allowReactions: false })
+
+    expect(saved.ok).toBe(true)
+    expect(unwrap(saved).theme.accentHue).toBe(30)
+  })
+
+  it('still refuses the host who chooses that colour themselves', () => {
+    const settings = unwrap(
+      EventSettings.restore({ ...EventSettings.default().toProps(), theme: stored }),
+    )
+
+    const chosen = settings.with({ theme: { accentHue: 30, fonts: 'serif', frame: 'soft' } })
+
+    expect(chosen.ok).toBe(false)
+    expect(!chosen.ok && chosen.error.code).toBe('eventTheme.accentTooCloseToStatus')
+  })
 })

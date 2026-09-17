@@ -64,7 +64,12 @@
   min-inline-size: 0;
 }
 
+/* The guest's words, in the event's face. `--font-display` is `--font-sans` until a host
+   picks the other pairing, so this is unchanged for an unthemed wall — and the credit
+   below stays in the sans on purpose: a pairing is two faces doing different jobs, not
+   one face applied to everything. */
 .text {
+  font-family: var(--font-display);
   font-size: var(--text-xl);
   line-height: var(--leading-snug);
   color: var(--text-primary);

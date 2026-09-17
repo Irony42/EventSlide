@@ -404,6 +404,7 @@ tests assert on codes and never on messages.
 | VO     | `ImageDimensions`            | `photos/imageDimensions.ts`                     | Both edges positive, `width * height` under the pixel ceiling                                      |
 | VO     | `QuotaBytes` + `remaining()` | `events/quota.ts`                               | Non-negative; a quota decision is arithmetic, not a query                                          |
 | VO     | `EventSettings`              | `events/eventSettings.ts`                       | Slide interval, layout, moderation mode, reactions on/off                                          |
+| Rule   | `EventTheme`                 | `events/eventTheme.ts`, `events/contrast.ts`    | Which accent hue, font pairing and frame style a host may choose — and the contrast the room needs |
 | Type   | `Result`, `DomainError`      | `shared/result.ts`, `shared/errors.ts`          | Error **kind** (→ HTTP status) and stable machine `code`                                           |
 | Type   | Branded ids                  | `shared/ids.ts`                                 | `EventId`, `PhotoId`, `GuestId`, `UserId` are not interchangeable at compile time                  |
 

@@ -7,10 +7,12 @@ import type { User } from '../../../domain/users/user'
 import type { EventSummary } from '../../../application/ports/eventRepository'
 import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
+import type { EventThemeProps } from '../../../domain/events/eventTheme'
 import type {
   EventDto,
   EventSettingsDto,
   EventSummaryDto,
+  EventThemeDto,
   GuestDto,
   GuestPhotoDto,
   ModerationPhotoDto,
@@ -120,6 +122,19 @@ export const toMediaFacetDto = (
 export const joinUrl = (publicUrl: string, joinCode: string): string =>
   `${publicUrl}/join/${encodeURIComponent(joinCode)}`
 
+/**
+ * The event's look, copied field for field.
+ *
+ * Deliberately not `{ ...theme }`: a spread would put whatever the domain grows next on
+ * the public wire without anybody deciding to, and two of the three responses carrying
+ * this are readable by a stranger holding a join code.
+ */
+export const toEventThemeDto = (theme: EventThemeProps): EventThemeDto => ({
+  accentHue: theme.accentHue,
+  fonts: theme.fonts,
+  frame: theme.frame,
+})
+
 export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto => ({
   moderation: settings.moderation,
   allowCaptions: settings.allowCaptions,
@@ -129,6 +144,7 @@ export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto =>
   guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
   retentionDays: settings.retentionDays,
   maxPhotosPerGuest: settings.maxPhotosPerGuest,
+  theme: toEventThemeDto(settings.theme),
 })
 
 /**
@@ -153,6 +169,9 @@ export const toPublicEventDto = (event: Event, context: PresenterContext): Publi
   allowClips: event.settings.allowClips && context.clipLimits.supported,
   maxClipBytes: context.clipLimits.maxBytes,
   maxClipSeconds: context.clipLimits.maxSeconds,
+  // Unlike the switches above, this is not a permission: it is what the host's event
+  // looks like, and the guest's screen is one of the three places it looks like it.
+  theme: toEventThemeDto(event.settings.theme),
 })
 
 export const toEventSummaryDto = (summary: EventSummary): EventSummaryDto => ({
@@ -538,6 +557,10 @@ export const toWallResponseDto = (view: WallPlaylistView): WallResponseDto => {
     kenBurnsDurationMs: view.kenBurnsDurationMs,
     layout: view.layout,
     reactionsEnabled: view.event.settings.allowReactions,
+    // Unlike the layout, the theme *is* a property of the event rather than of the
+    // screen: two projectors in the same room must agree about the colour even when one
+    // of them is showing a mosaic and the other a spotlight.
+    theme: toEventThemeDto(view.event.settings.theme),
   }
 }
 

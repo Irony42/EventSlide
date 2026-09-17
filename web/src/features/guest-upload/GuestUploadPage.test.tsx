@@ -576,4 +576,51 @@ describe('sending a video', () => {
     // makes the refusal honest rather than silent.
     expect(await screen.findByText(fr.upload.clipNotQueued)).toBeVisible()
   })
+
+  /* ---- Per-event theming (roadmap 2.2). ---- */
+
+  it('wears the event’s colour on the very first frame', async () => {
+    // The guest surface has no loading state to hide a repaint behind: the event comes
+    // out of the session the join wrote, and `sessionStorage` is synchronous. So the
+    // colour is on the element the first time it renders, not one round trip later
+    // under the guest's thumb.
+    havingJoined({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft' } })
+    renderUpload(fakeApi())
+
+    const page = (await screen.findByRole('heading', { name: 'Camille & Sacha' })).closest('div')
+
+    expect(page).toHaveStyle({ '--accent-hue': '345' })
+    // And the marker `tokens.css` re-derives the accent on: without it the hue moves and
+    // the palette does not, because a custom property that references another is resolved
+    // on the element it is declared on.
+    expect(page).toHaveAttribute('data-event-accent', '345')
+  })
+
+  it('takes the colour and leaves the typography on the projector', async () => {
+    // A display face is a projector decision: this screen's largest type is `--text-lg`,
+    // and had the pairings been bundled rather than built from system faces, this is the
+    // surface that would have paid for them.
+    havingJoined({ theme: { accentHue: 345, fonts: 'serif', frame: 'round' } })
+    renderUpload(fakeApi())
+
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+
+    expect(document.querySelector('[data-event-fonts]')).toBeNull()
+    expect(document.querySelector('[data-event-frame]')).toBeNull()
+  })
+
+  it('renders an unthemed event exactly as it did before theming existed', async () => {
+    havingJoined()
+    renderUpload(fakeApi())
+
+    const page = (await screen.findByRole('heading', { name: 'Camille & Sacha' })).closest('div')
+
+    // Scoped to the page rather than to the document: a `Progress` bar legitimately sets
+    // `--progress-value` inline, and a document-wide assertion would fail on that and
+    // read as a theming regression.
+    expect(page?.getAttribute('style')).toBeNull()
+    expect(page).not.toHaveAttribute('data-event-accent')
+    expect(page).not.toHaveAttribute('data-event-fonts')
+    expect(page).not.toHaveAttribute('data-event-frame')
+  })
 })

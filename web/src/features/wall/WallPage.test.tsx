@@ -841,4 +841,93 @@ describe('WallPage', () => {
     })
     expect(within(screen.getByTestId('wall-slide')).getByText('Photo 1')).toBeVisible()
   })
+
+  /* ---- Per-event theming (roadmap 2.2). ---- */
+
+  describe('the event’s own look', () => {
+    it('wears the accent as an angle, on the element that renders the photos', async () => {
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft' } }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      await screen.findByTestId('wall-slide')
+
+      // An angle, not a colour: `tokens.css` is still the only file in the product that
+      // declares one, and the wall only says which way round the wheel to go.
+      expect(theWall().style.getPropertyValue('--accent-hue')).toBe('345')
+      // And the marker the stylesheet re-derives `--accent` on. Without it the hue moves
+      // and nothing changes, because a custom property referencing another is resolved
+      // where it is declared.
+      expect(theWall()).toHaveAttribute('data-event-accent', '345')
+    })
+
+    it('wears the font pairing and the frame style the host chose', async () => {
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ theme: { accentHue: 305, fonts: 'serif', frame: 'square' } }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      await screen.findByTestId('wall-slide')
+
+      expect(theWall()).toHaveAttribute('data-event-fonts', 'serif')
+      expect(theWall()).toHaveAttribute('data-event-frame', 'square')
+    })
+
+    it('renders an unthemed event exactly as it did before theming existed', async () => {
+      // The assertion the committed visual baselines rest on. Not "the default values on
+      // the element" — nothing on the element, so the DOM the suite photographs is the
+      // DOM it photographed before this feature.
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ theme: { accentHue: 305, fonts: 'sans', frame: 'soft' } }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      await screen.findByTestId('wall-slide')
+
+      expect(theWall().getAttribute('style')).toBeNull()
+      expect(theWall()).not.toHaveAttribute('data-event-accent')
+      expect(theWall()).not.toHaveAttribute('data-event-fonts')
+      expect(theWall()).not.toHaveAttribute('data-event-frame')
+    })
+
+    it('carries no theme from a server build that does not send one', async () => {
+      // A projector on an old bundle against a new server, or the reverse: the wall shows
+      // the product's look rather than failing to render.
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      await screen.findByTestId('wall-slide')
+
+      expect(theWall().getAttribute('style')).toBeNull()
+    })
+
+    it('paints nothing in the product’s colours before the event’s own arrive', async () => {
+      // Why the theme is a prop on this element rather than a `:root` write: there is no
+      // frame between "the response landed" and "the theme applied" for a room to notice.
+      // While the wall is still waiting, the only chrome on screen is the loading state,
+      // which is `--text-primary` on `--surface-base` — neither of which a theme moves.
+      const pending = pendingWall()
+      const api = fakeApi({ wall: vi.fn(() => pending.promise) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      expect(document.querySelector('[data-event-fonts]')).toBeNull()
+
+      await act(async () => {
+        pending.arrives(
+          aPopulatedWall({ theme: { accentHue: 345, fonts: 'serif', frame: 'soft' } }),
+        )
+      })
+
+      // One render, one paint: the attribute and the photos it themes arrive together.
+      expect(theWall().style.getPropertyValue('--accent-hue')).toBe('345')
+      expect(await screen.findByTestId('wall-slide')).toBeVisible()
+    })
+  })
 })

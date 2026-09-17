@@ -291,5 +291,10 @@ export const en: GuestTranslations = {
     'clipJob.notFound': 'This video no longer exists.',
     'clipJob.illegalTransition': 'This action is not possible on this video.',
     'photo.rangeNotSatisfiable': 'That part of the file does not exist.',
+    'eventTheme.accentHueInvalid': 'That colour is not recognised. Choose one from the list.',
+    'eventTheme.accentUnreadable':
+      'That colour would not be readable on the screen in the room. Choose one from the list.',
+    'eventTheme.accentTooCloseToStatus':
+      'That colour is too close to the application’s status colours. Choose another one.',
   },
 }

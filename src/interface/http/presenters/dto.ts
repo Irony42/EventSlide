@@ -9,6 +9,7 @@
 
 import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import type { EventStatus } from '../../../domain/events/eventStatus'
+import type { ThemeFonts, ThemeFrame } from '../../../domain/events/eventTheme'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
@@ -32,6 +33,27 @@ import type { WallLayout } from '../../../domain/slideshow/wallLayout'
  * `403 event.clipsNotAllowed` after the upload, on exactly the events — the ones that
  * predate the feature — where the persistence fallback reads `false`.
  */
+/**
+ * How one event looks (roadmap 2.2), as three settled choices rather than as colours.
+ *
+ * **No colour crosses this wire, and that is the design.** `accentHue` is an angle; the
+ * lightness and chroma that turn it into a palette live in `tokens.css`, which is still
+ * the only file in the product that declares a colour. A client applies the hue as
+ * `--accent-hue` — the one category of custom property the design system lets JavaScript
+ * set, beside a duration and a tilt — and the stylesheet does the rest.
+ *
+ * It travels on three responses because three different surfaces need it and each one
+ * learns about its event from a different place: the wall from `GET /wall`, the guest's
+ * phone from the join it already performed, the host's console from the event it is
+ * editing.
+ */
+export interface EventThemeDto {
+  /** Degrees on the oklch hue circle, 0-359. Validated for legibility server-side. */
+  readonly accentHue: number
+  readonly fonts: ThemeFonts
+  readonly frame: ThemeFrame
+}
+
 export interface PublicEventDto {
   readonly slug: string
   readonly name: string
@@ -45,6 +67,14 @@ export interface PublicEventDto {
   readonly maxClipBytes: number
   /** `MAX_CLIP_SECONDS`. Seconds, because that is the unit a guest is told about. */
   readonly maxClipSeconds: number
+  /**
+   * The event's look, so the upload screen is the host's event rather than the product.
+   *
+   * It rides on the join response because the guest surface has no other way to learn it
+   * — there is deliberately no readable "event by slug" — and because a theme that
+   * arrived a network round trip later would repaint the screen under a guest's thumb.
+   */
+  readonly theme: EventThemeDto
 }
 
 export interface JoinResponseDto {
@@ -121,6 +151,15 @@ export interface WallResponseDto {
   readonly kenBurnsDurationMs: number
   readonly layout: WallLayout
   readonly reactionsEnabled: boolean
+  /**
+   * What the room is meant to look like.
+   *
+   * On this response rather than on a second request, because the wall must not paint a
+   * frame in the product's colours and then repaint in the host's: a projector that
+   * blinks on every reload is a defect two hundred people notice. Arriving here, the
+   * theme and the photos it themes are rendered together.
+   */
+  readonly theme: EventThemeDto
 }
 
 export type UploadOutcomeDto =
@@ -186,6 +225,8 @@ export interface EventSettingsDto {
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null
   readonly maxPhotosPerGuest: number | null
+  /** The host's own copy: what the picker on the settings form is showing. */
+  readonly theme: EventThemeDto
 }
 
 export interface EventSummaryDto {

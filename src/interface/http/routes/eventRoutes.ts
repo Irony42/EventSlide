@@ -221,6 +221,12 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
           ...(body.maxPhotosPerGuest === undefined
             ? {}
             : { maxPhotosPerGuest: body.maxPhotosPerGuest }),
+          // The one field that is an object, and it is forwarded whole for the same
+          // reason the others are forwarded singly: the three choices are one decision,
+          // and `eventTheme.ts` judges them together. Nothing here decides whether the
+          // palette is legible — that is the domain's answer, and this handler only
+          // carries the question.
+          ...(body.theme === undefined ? {} : { theme: body.theme }),
         },
       })
 

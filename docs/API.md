@@ -256,13 +256,22 @@ which is allowed.
     "maxFilesPerUpload": 20,
     "allowClips": true,
     "maxClipBytes": 80000000,
-    "maxClipSeconds": 15
+    "maxClipSeconds": 15,
+    "theme": { "accentHue": 345, "fonts": "serif", "frame": "round" }
   }
 }
 ```
 
 Only what a guest may know before joining. The owner, the quota, the counts and the
 settings that are none of their business are absent.
+
+`theme` is not a permission like the two switches above it — it is what the host's event
+_looks_ like (§7), and the guest's phone is one of the three screens it looks like it on.
+It rides here because there is deliberately no readable "event by slug", so the upload
+screen learns it from the session the join wrote: a `sessionStorage` read is synchronous,
+which is what puts the right colour on the first frame instead of repainting one round
+trip later under a guest's thumb. A client that has never heard of it renders the
+product's own look.
 
 `allowClips` here is **the host's switch and the box's capability together** — it answers
 "may a guest send a video to this event, on this deployment", which is a different
@@ -337,9 +346,18 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
   "slideIntervalMs": 8000,
   "kenBurnsDurationMs": 8520,
   "layout": "spotlight",
-  "reactionsEnabled": true
+  "reactionsEnabled": true,
+  "theme": { "accentHue": 345, "fonts": "serif", "frame": "round" }
 }
 ```
+
+`theme` is here and not behind a second request for the reason the timings are: the wall
+must not paint a frame in the product's colours and then repaint in the host's. A
+projector that blinks on every reload is a defect two hundred people notice, and arriving
+on this response the theme and the photos it themes are rendered together. Unlike
+`layout` it is a property of the **event** rather than of the screen — two projectors in
+one room must agree about the colour even when one is showing a mosaic and the other a
+spotlight — so nothing in the browser may override it.
 
 `revision` is an order-sensitive fingerprint of `items`. The client refetches when an
 SSE signal arrives and compares revisions to decide whether the playlist actually
@@ -944,7 +962,8 @@ The shape every route in the table that answers `200` returns.
     "allowGuestSelfDelete": true,
     "guestSelfDeleteGraceSeconds": 900,
     "retentionDays": 30,
-    "maxPhotosPerGuest": null
+    "maxPhotosPerGuest": null,
+    "theme": { "accentHue": 305, "fonts": "sans", "frame": "soft" }
   },
   "startsAt": null,
   "closedAt": null,
@@ -993,20 +1012,22 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
   "allowGuestSelfDelete": true,
   "guestSelfDeleteGraceSeconds": 900,
   "retentionDays": 30,
-  "maxPhotosPerGuest": 20
+  "maxPhotosPerGuest": 20,
+  "theme": { "accentHue": 345, "fonts": "serif", "frame": "round" }
 }
 ```
 
-| Field                         | Accepted                                 |
-| ----------------------------- | ---------------------------------------- |
-| `moderation`                  | `manual` \| `auto`                       |
-| `allowCaptions`               | boolean                                  |
-| `allowReactions`              | boolean                                  |
-| `allowClips`                  | boolean — see below                      |
-| `allowGuestSelfDelete`        | boolean                                  |
-| `guestSelfDeleteGraceSeconds` | integer 0..86400                         |
-| `retentionDays`               | integer 1..3650, or `null` for "keep"    |
-| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap" |
+| Field                         | Accepted                                    |
+| ----------------------------- | ------------------------------------------- |
+| `moderation`                  | `manual` \| `auto`                          |
+| `allowCaptions`               | boolean                                     |
+| `allowReactions`              | boolean                                     |
+| `allowClips`                  | boolean — see below                         |
+| `allowGuestSelfDelete`        | boolean                                     |
+| `guestSelfDeleteGraceSeconds` | integer 0..86400                            |
+| `retentionDays`               | integer 1..3650, or `null` for "keep"       |
+| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"    |
+| `theme`                       | object — all three keys required, see below |
 
 `allowClips` is `true` for an event **created** after video shipped and `false` for one
 that existed before it. The two are deliberately different: an event created today is
@@ -1022,9 +1043,44 @@ writes `allowClips: false` into its blob, after which it is indistinguishable fr
 who chose no — which is why the checkbox ships in the same form as every other setting
 rather than behind one of its own.
 
+#### `theme` — how the event looks
+
+`{ "accentHue": 0..359, "fonts": "sans" | "serif", "frame": "soft" | "square" | "round" }`
+
+The one field here that is **not** a partial update: absent leaves the theme alone, but a
+`theme` that is present must carry all three keys, and anything else is
+`400 request.invalid`. The three are one decision made on one form — the same argument
+`PATCH /schedule` makes about its two instants — and the legibility rule below judges them
+together, so merging half a theme into a stored one would produce a palette nobody chose.
+
+`accentHue` is a **hue angle**, not a colour: the lightness and chroma are the design
+system's and cannot be moved, which is the whole reason a host cannot make the wall
+unreadable. No colour is ever sent or received by this API.
+
+**Contrast is validated server-side against the token contract.** A hue is refused when
+its ink fails 7:1 on the accent, when it fails 4.5:1 on the pressed state, or when it sits
+within 30° of `--success`, `--danger` or `--warning` — at which point "press this" and
+"that went wrong" read as one signal from the back of a room. The refusal names what was
+broken; the host is told rather than silently moved to a colour they did not pick.
+
+The console offers four named hues (violet 305, rose 345, azure 250, teal 195) and this
+endpoint accepts any angle it can prove legible. The list is an affordance; the rule is
+the guard.
+
+An event whose stored settings predate this field reads the product's own look —
+`{ "accentHue": 305, "fonts": "sans", "frame": "soft" }` — which is exactly what it has
+been rendering, so nothing changes on any screen at the deploy. That is deliberately
+_not_ the shape of the `allowClips` fallback above: this one consents to nothing and
+costs nothing, so the absent-key answer and the default answer coincide.
+
+The theme also rides on `POST /api/join` (§3) and `GET /api/events/:slug/wall` (§4), so
+the guest's phone and the projector paint the right colour on their first frame instead of
+repainting one round trip later.
+
 **200** with the event. **Errors** — `409 event.immutable`,
 `400 eventSettings.graceSecondsInvalid`, `400 eventSettings.retentionDaysInvalid`,
-`400 eventSettings.maxPhotosPerGuestInvalid`.
+`400 eventSettings.maxPhotosPerGuestInvalid`, `400 eventTheme.accentHueInvalid`,
+`400 eventTheme.accentUnreadable`, `400 eventTheme.accentTooCloseToStatus`.
 
 There is no per-event wall `layout` here, and no API accepts one anywhere: the layout is
 chosen at the screen — `?layout=` on the display URL, or the host's `L` key — and

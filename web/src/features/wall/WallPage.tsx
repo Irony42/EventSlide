@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { readEventTheme, themeSurfaceProps } from '../../design-system/eventTheme'
 import { Button } from '../../design-system/components/Button'
 import { Dialog } from '../../design-system/components/Dialog'
 import { Spinner } from '../../design-system/components/Spinner'
@@ -174,8 +175,28 @@ export function WallPage() {
   const joinCode = wall?.joinCode ?? null
   const showsOverlay = joinCode !== null && !joinCardDismissed && items.length > 0
 
+  /**
+   * The event's own look, worn by the element that renders it (roadmap 2.2).
+   *
+   * Not a `:root` write from an effect, which would land after React had already produced
+   * a frame and make the projector blink the product's violet before the host's rose on
+   * every reload. Here the attributes and the photos they theme are one render, so there
+   * is no frame in between to be wrong — and before the response arrives there is nothing
+   * accent-coloured on screen at all: the loading state is a `--text-primary` spinner on
+   * `--surface-base`, neither of which a theme touches.
+   *
+   * Empty for an event that chose nothing, so an unthemed wall renders the DOM the
+   * committed baselines were taken from.
+   */
+  // Narrowed rather than trusted, exactly as the guest path narrows a stored session:
+  // the projector runs unattended, and a hue the wire says is 4000 makes
+  // `oklch(72% 0.17 var(--accent-hue))` invalid at computed-value time, which strips the
+  // colour from every `--accent` consumer on the wall rather than failing loudly.
+  const theme = themeSurfaceProps(readEventTheme(wall?.theme ?? null), 'wall')
+
   return (
     <div
+      {...theme}
       className={styles['wall']}
       data-wall-layout={layout ?? undefined}
       // The bottom-right corner is spoken for while the invitation is up, and a layout

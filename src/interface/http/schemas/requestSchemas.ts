@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { accentHueRange, THEME_FONTS, THEME_FRAMES } from '../../../domain/events/eventTheme'
 
 /**
  * Boundary parsing. Every part of a request a route reads is parsed here first.
@@ -159,6 +160,28 @@ export const updateSettingsBody = z
     guestSelfDeleteGraceSeconds: z.number().int().min(0).max(86_400).optional(),
     retentionDays: z.number().int().min(1).max(3_650).nullable().optional(),
     maxPhotosPerGuest: z.number().int().min(1).max(10_000).nullable().optional(),
+    /**
+     * The event's look (roadmap 2.2). One object with three required keys, which is not
+     * the partial-update shape its neighbours use.
+     *
+     * Same argument as `eventScheduleBody` below: this is one decision made on one form,
+     * and the legibility rule in `src/domain/events/eventTheme.ts` judges the three
+     * together. Sending an accent without saying which font it goes with would make the
+     * server merge half a theme, which is a palette nobody chose.
+     *
+     * The bounds and the vocabularies come from the domain rather than being restated —
+     * a second copy of `0-359` here is a second thing to forget. What this schema does
+     * *not* do is decide legibility: `z.number().int().min(0).max(359)` is the shape of a
+     * hue, and whether a hue can be read at ten metres is a rule, not a shape.
+     */
+    theme: z
+      .object({
+        accentHue: z.number().int().min(accentHueRange.min).max(accentHueRange.max),
+        fonts: z.enum(THEME_FONTS),
+        frame: z.enum(THEME_FRAMES),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
 

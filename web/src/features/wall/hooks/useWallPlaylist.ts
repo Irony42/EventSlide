@@ -38,16 +38,57 @@ const INITIAL: Fetched = { wall: null, loading: true, error: null }
 const RETRY_DELAY_MS = 10_000
 
 /**
+ * Everything on a wall response that is **not** the playlist, compared.
+ *
+ * `revision` fingerprints `items` and nothing else, which is exactly right for deciding
+ * whether the room's photos moved — and exactly wrong for deciding whether the response
+ * is worth keeping. A host who changes a setting produces `event.settingsChanged`, the
+ * wall refetches, and every field below comes back different while `revision` does not.
+ *
+ * That was a real defect in per-event theming (roadmap 2.2): a host picking a colour saw
+ * nothing happen on the projector until somebody reloaded it — and on the empty wall,
+ * which is the screen they are looking at while they choose, `revision` never changes at
+ * all, so it would never have arrived. The same staleness applied to the slide interval
+ * and to `reactionsEnabled` before that; it is fixed here for all of them rather than for
+ * the field that happened to expose it.
+ */
+/**
+ * Exported for the test that enumerates the response rather than trusting this list.
+ *
+ * Nine hand-written comparisons are complete today and silently incomplete the day a
+ * tenth field is added — which is exactly the defect the docblock above describes,
+ * reappearing one field later. `useWallPlaylist.settings.test.ts` walks `WallResponse`
+ * and fails naming any key that is neither compared here nor deliberately exempted.
+ */
+export const SETTINGS_EXEMPT: readonly string[] = ['items', 'revision']
+
+export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =>
+  kept.joinCode === fresh.joinCode &&
+  kept.slideIntervalMs === fresh.slideIntervalMs &&
+  kept.kenBurnsDurationMs === fresh.kenBurnsDurationMs &&
+  kept.layout === fresh.layout &&
+  kept.reactionsEnabled === fresh.reactionsEnabled &&
+  kept.event.name === fresh.event.name &&
+  kept.theme?.accentHue === fresh.theme?.accentHue &&
+  kept.theme?.fonts === fresh.theme?.fonts &&
+  kept.theme?.frame === fresh.theme?.frame
+
+/**
  * The wall's playlist, kept current over SSE.
  *
  * Two rules make this survive an eight-hour evening:
  *
- * 1. **The revision decides.** A signal is an invalidation, not data, so every signal
- *    on the event's channel — a guest joining, a photo submitted for moderation, a
- *    settings change — provokes one refetch. Most of them come back with the same
- *    `revision`, and an unchanged revision leaves the state object untouched, so React
- *    bails out and the room sees nothing at all. Without that check the wall would
- *    jump every time anything happened at the event.
+ * 1. **The revision decides where the photos are.** A signal is an invalidation, not
+ *    data, so every signal on the event's channel — a guest joining, a photo submitted
+ *    for moderation, a settings change — provokes one refetch. Most come back with the
+ *    same `revision`, and an unchanged revision leaves the playlist untouched, so React
+ *    bails out and the room sees nothing at all. Without that check the wall would jump
+ *    every time anything happened at the event.
+ *
+ *    It decides the *playlist* and nothing else, though: `revision` fingerprints `items`,
+ *    so everything else on the response is compared separately by `sameSettings` and
+ *    taken fresh when it moved. A wall that discarded those would never learn that the
+ *    host had just changed the event's colour.
  * 2. **A failure never blanks the screen.** A refetch that fails keeps the playlist it
  *    already has and reports the error alongside it. A venue's network drops for
  *    thirty seconds several times an evening, and the correct behaviour is to carry on
@@ -96,12 +137,19 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
       (response) => {
         if (!live) return
         setState((previous) => {
-          if (previous.wall !== null && previous.wall.revision === response.revision) {
+          const kept = previous.wall
+          if (kept !== null && kept.revision === response.revision) {
             // Same playlist. Returning the identical object is what makes this a
             // non-event for React — and what keeps the cursor, the slide clock and the
             // Ken Burns animation exactly where they were.
-            if (!previous.loading && previous.error === null) return previous
-            return { wall: previous.wall, loading: false, error: null }
+            if (sameSettings(kept, response)) {
+              if (!previous.loading && previous.error === null) return previous
+              return { wall: kept, loading: false, error: null }
+            }
+            // The photos did not move but something the room reads did. The fresh
+            // response is taken whole **except** for `items`, which keeps its identity
+            // so the slideshow does not restart under a host who only changed a colour.
+            return { wall: { ...response, items: kept.items }, loading: false, error: null }
           }
           return { wall: response, loading: false, error: null }
         })

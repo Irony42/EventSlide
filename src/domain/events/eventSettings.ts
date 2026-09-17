@@ -1,5 +1,11 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
+import {
+  createEventTheme,
+  DEFAULT_EVENT_THEME,
+  restoreEventTheme,
+  type EventThemeProps,
+} from './eventTheme'
 
 /**
  * The per-event policy a host can change without touching code.
@@ -66,6 +72,19 @@ export interface EventSettingsProps {
   readonly retentionDays: number | null
   /** `null` is unlimited. */
   readonly maxPhotosPerGuest: number | null
+  /**
+   * How the event looks: an accent hue, a font pairing and a frame style (roadmap 2.2).
+   *
+   * One object rather than three sibling fields, and read together the way
+   * `eventScheduleBody` reads its two instants: they are one decision made on one form,
+   * and the legibility rule is about the palette as a whole rather than about a field.
+   *
+   * Validated by `eventTheme.ts`, which is where the rule lives. An event that never
+   * chose one holds `DEFAULT_EVENT_THEME`, which renders exactly as the product did
+   * before this field existed — see `sqliteEventRepository.settingsOf` for what an
+   * absent key means, which is a different question.
+   */
+  readonly theme: EventThemeProps
 }
 
 /**
@@ -84,6 +103,7 @@ const DEFAULTS: EventSettingsProps = {
   guestSelfDeleteGraceSeconds: 900,
   retentionDays: null,
   maxPhotosPerGuest: null,
+  theme: DEFAULT_EVENT_THEME,
 }
 
 const pick = <T>(update: T | undefined, current: T): T => (update === undefined ? current : update)
@@ -96,6 +116,35 @@ const violation = (value: number, range: Range, code: string): DomainError | nul
 const nullableViolation = (value: number | null, range: Range, code: string): DomainError | null =>
   value === null ? null : violation(value, range, code)
 
+/**
+ * Which of the theme's two checks apply, in `eventTheme.ts`.
+ *
+ * A host **choosing** a theme is judged on legibility; a theme **read back** is judged
+ * only on shape. That asymmetry has one reason and it is written out where the two
+ * functions are defined: a legibility rule somebody tightens must refuse the next choice,
+ * not brick the events that were configured under the old one.
+ */
+type ThemeCheck = (theme: EventThemeProps) => Result<EventThemeProps, DomainError>
+
+/**
+ * The checked theme, or the error that refused it.
+ *
+ * The value matters, not only the verdict: the read path answers `ok` with the **default
+ * theme** for a stored hue that is not a point on the circle, because a cosmetic field
+ * must not be able to fail `findById` and take the wall, the join page and the settings
+ * page down with it. Dropping the returned value and keeping the merged one would store
+ * the malformed hue anyway and make that fallback a no-op.
+ */
+const checkedTheme = (
+  theme: EventThemeProps,
+  check: ThemeCheck,
+): { theme: EventThemeProps; failure: null } | { theme: null; failure: DomainError } => {
+  const validated = check(theme)
+  return validated.ok
+    ? { theme: validated.value, failure: null }
+    : { theme: null, failure: validated.error }
+}
+
 export class EventSettings {
   private constructor(private readonly props: EventSettingsProps) {}
 
@@ -105,17 +154,47 @@ export class EventSettings {
   }
 
   static create(patch: EventSettingsPatch): Result<EventSettings, DomainError> {
-    return EventSettings.build(DEFAULTS, patch)
+    return EventSettings.build(DEFAULTS, patch, createEventTheme)
   }
 
-  /** A partial update, validated as a whole so one field cannot be saved out of range. */
+  /**
+   * A partial update, validated as a whole so one field cannot be saved out of range.
+   *
+   * **The theme is judged as a choice only when the patch makes one.** A host saving
+   * "allow reactions: off" has chosen nothing about colour, so their stored theme is
+   * rebuilt on the read path's terms — shape, not legibility.
+   *
+   * Without that distinction the split between `createEventTheme` and
+   * `restoreEventTheme` is defeated on the one path a host uses every day. Raise
+   * `MIN_STATUS_SEPARATION`, or move `--success` a few degrees, and an event themed
+   * under the old rule keeps rendering — the read path is lenient by design — while
+   * every save on its settings page answers `400 eventTheme.accentTooCloseToStatus`
+   * about a field the host did not touch. Moderation mode, retention, the per-guest
+   * cap and the self-delete window all become unsavable, and the lenient read path is
+   * what makes it silent: nothing else in the product complains.
+   */
   with(patch: EventSettingsPatch): Result<EventSettings, DomainError> {
-    return EventSettings.build(this.props, patch)
+    const check = patch.theme === undefined ? restoreEventTheme : createEventTheme
+    return EventSettings.build(this.props, patch, check)
+  }
+
+  /**
+   * Rebuild what a repository read back, rather than what a host is choosing.
+   *
+   * Every range is still enforced — a stored policy the domain refuses means the file was
+   * hand-edited or written by another program, and defaulting it silently is the failure
+   * this strictness exists to prevent. The theme is the one field judged differently, and
+   * `restoreEventTheme` says why: a legibility rule somebody tightens must refuse the
+   * next choice, not take a wedding that is live right now off the screen.
+   */
+  static restore(props: EventSettingsProps): Result<EventSettings, DomainError> {
+    return EventSettings.build(DEFAULTS, props, restoreEventTheme)
   }
 
   private static build(
     base: EventSettingsProps,
     patch: EventSettingsPatch,
+    checkTheme: ThemeCheck,
   ): Result<EventSettings, DomainError> {
     const merged: EventSettingsProps = {
       moderation: pick(patch.moderation, base.moderation),
@@ -129,6 +208,9 @@ export class EventSettings {
       ),
       retentionDays: pick(patch.retentionDays, base.retentionDays),
       maxPhotosPerGuest: pick(patch.maxPhotosPerGuest, base.maxPhotosPerGuest),
+      // Replaced whole, never merged field by field: a half-applied theme is a palette
+      // nobody chose, and the rule below judges the three together.
+      theme: pick(patch.theme, base.theme),
     }
 
     const failure =
@@ -148,7 +230,12 @@ export class EventSettings {
         'eventSettings.maxPhotosPerGuestInvalid',
       )
 
-    return failure === null ? ok(new EventSettings(merged)) : err(failure)
+    if (failure !== null) return err(failure)
+
+    const theme = checkedTheme(merged.theme, checkTheme)
+    if (theme.failure !== null) return err(theme.failure)
+
+    return ok(new EventSettings({ ...merged, theme: theme.theme }))
   }
 
   get moderation(): ModerationMode {
@@ -186,6 +273,10 @@ export class EventSettings {
 
   get maxPhotosPerGuest(): number | null {
     return this.props.maxPhotosPerGuest
+  }
+
+  get theme(): EventThemeProps {
+    return this.props.theme
   }
 
   /** Snapshot for the repository to serialise into the `settings` JSON column. */

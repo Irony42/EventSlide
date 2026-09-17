@@ -50,7 +50,25 @@ const parseTokens = (css: string): ReadonlyMap<string, Oklch> => {
   return found
 }
 
-const tokens = parseTokens(TOKENS)
+/**
+ * `--accent-hue` is substituted before anything else is read.
+ *
+ * Per-event theming (roadmap 2.2) made the accent's hue a variable so that an event can
+ * move it and nothing else — which is what keeps every palette a host can ask for
+ * decidable in advance. The consequence here is that `--accent` no longer spells its own
+ * hue, so the file is resolved once, the way the browser would, before the parser sees
+ * it. Everything below then measures the default palette exactly as it always did.
+ */
+const DECLARED_HUE = /--accent-hue:\s*([\d.]+)\s*;/.exec(TOKENS)
+
+if (DECLARED_HUE?.[1] === undefined) {
+  throw new Error('tokens.css declares no --accent-hue; the accent tokens cannot be resolved.')
+}
+
+/** The hue an event with no theme renders, and the one every assertion here measures. */
+const DEFAULT_HUE = Number(DECLARED_HUE[1])
+
+const tokens = parseTokens(TOKENS.replaceAll('var(--accent-hue)', DECLARED_HUE[1]))
 
 const token = (name: string): Oklch => {
   const value = tokens.get(name)
@@ -180,11 +198,149 @@ describe('token contrast', () => {
     expect(declarations).toEqual([])
   })
 
+  it('resolves the accent from the hue an unthemed event renders', () => {
+    // The substitution above is load-bearing: if it ever stopped matching, `--accent`
+    // would fall out of the map and the three assertions about it would throw instead of
+    // measuring anything. Naming the value also pins the default — this is the hue
+    // `DEFAULT_EVENT_THEME` carries, and the two agreeing is what makes an event with no
+    // theme render what it rendered before theming existed.
+    expect(DEFAULT_HUE).toBe(305)
+    expect(token('--accent').h).toBe(305)
+  })
+
   it.each(SURFACES)('--border-strong stays visible against %s', (surface) => {
     // An input's rest state is a border and nothing else. WCAG 1.4.11 puts the floor for
     // a UI component's boundary at 3:1, and below that it reads as an absent field — a
     // guest does not tap what does not look tappable. Checked on all three surfaces
     // because inputs appear inside cards and dialogs, not only on the page ground.
     expect(contrast(token('--border-strong'), token(surface))).toBeGreaterThanOrEqual(3)
+  })
+})
+
+/**
+ * The same targets, for every accent a host could be given.
+ *
+ * Roadmap 2.2 lets a host move `--accent-hue`, and the rule that decides which angles are
+ * allowed lives in `src/domain/events/eventTheme.ts` — where it belongs, because refusing
+ * a host is a product decision and a stylesheet can only render. What this file adds is
+ * the other half of the claim: that the *stylesheet* holds up all the way round the
+ * circle, measured on the real declarations rather than on the derivation the domain
+ * restates. If the two ever disagree, `eventThemeContract.test.ts` says so; if the
+ * declarations themselves stop clearing the bar at some angle, it is said here.
+ *
+ * The whole circle, not the four hues the picker offers, because the boundary schema
+ * accepts any of the 360 and the rule refuses only those that crowd a status colour.
+ * One assertion per target rather than one per hue: a failure should name the worst
+ * angle, not bury it in 360 green results.
+ */
+describe('every accent hue an event can carry', () => {
+  const HUES = Array.from({ length: 360 }, (_unused, hue) => hue)
+
+  /** The token as declared, with only its hue moved — which is all a theme may move. */
+  const atHue = (name: string, hue: number): Oklch => ({ ...token(name), h: hue })
+
+  /** The angle where a pair is at its worst, so a failure names a hue to go and look at. */
+  const worst = (measure: (hue: number) => number): { hue: number; ratio: number } =>
+    HUES.map((hue) => ({ hue, ratio: measure(hue) })).reduce((low, next) =>
+      next.ratio < low.ratio ? next : low,
+    )
+
+  it('keeps the button label readable at rest, at every angle', () => {
+    const { hue, ratio } = worst((h) =>
+      contrast(atHue('--accent-contrast', h), atHue('--accent', h)),
+    )
+
+    expect(ratio, `--accent-contrast on --accent is worst at hue ${hue}`).toBeGreaterThanOrEqual(7)
+  })
+
+  it('keeps the button label readable under a finger, at every angle', () => {
+    const { hue, ratio } = worst((h) =>
+      contrast(atHue('--accent-contrast', h), atHue('--accent-strong', h)),
+    )
+
+    expect(
+      ratio,
+      `--accent-contrast on --accent-strong is worst at hue ${hue}`,
+    ).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('keeps the accent readable from the back of the room, at every angle', () => {
+    // The wall's bar, and the surface the wall actually uses: the empty state's
+    // invitation is `--accent` on `--surface-base`, projected, so it is held to 7:1
+    // regardless of size like everything else the room reads.
+    const { hue, ratio } = worst((h) => contrast(atHue('--accent', h), token('--surface-base')))
+
+    expect(ratio, `--accent on --surface-base is worst at hue ${hue}`).toBeGreaterThanOrEqual(7)
+  })
+
+  it.each(['--surface-raised', '--surface-overlay'] as const)(
+    'keeps an accent-coloured link readable on %s, at every angle',
+    (surface) => {
+      // Body text's bar, not the wall's: a link inside a Card or a Dialog is read at
+      // arm's length. 7:1 is not reachable here at any angle — the default palette
+      // measures 6.69 on --surface-raised — which is why this is the pair the design
+      // system holds to AA.
+      const { hue, ratio } = worst((h) => contrast(atHue('--accent', h), token(surface)))
+
+      expect(ratio, `--accent on ${surface} is worst at hue ${hue}`).toBeGreaterThanOrEqual(4.5)
+    },
+  )
+})
+
+/**
+ * The two pairs the sweep above did not cover, both found by review rather than by a
+ * failure: one became hue-dependent in this change and was not added to it, and one is
+ * a surface the sweep's name implies and its list omits.
+ */
+describe('the accent on the surfaces the sweep forgot', () => {
+  const HUES = Array.from({ length: 360 }, (_unused, hue) => hue)
+  const atHue = (name: string, hue: number): Oklch => ({ ...token(name), h: hue })
+  const worst = (measure: (hue: number) => number): { hue: number; ratio: number } =>
+    HUES.map((hue) => ({ hue, ratio: measure(hue) })).reduce((low, next) =>
+      next.ratio < low.ratio ? next : low,
+    )
+
+  it.each(['--surface-base', '--surface-raised', '--surface-overlay'] as const)(
+    'keeps the focus ring visible on %s, at every angle',
+    (surface) => {
+      /**
+       * `--focus-ring` moved into the hue-derived block in this change, so it is now the
+       * one accent-derived token an event can move that is drawn on the guest's only
+       * control. WCAG 1.4.11 asks 3:1 of a focus indicator, and the ring is painted at
+       * 0.65 alpha — so the pair is measured composited, not at full strength.
+       *
+       * The headroom is thin on purpose to be visible: the worst angle lands near 3.2,
+       * and dropping the alpha to 0.60 would put it under the bar. Without this the
+       * suite would stay green while it did.
+       */
+      const ring = (hue: number): Oklch => {
+        const over = token(surface)
+        const ink = atHue('--accent', hue)
+        const alpha = 0.65
+        return {
+          l: ink.l * alpha + over.l * (1 - alpha),
+          c: ink.c * alpha + over.c * (1 - alpha),
+          h: hue,
+          // Composited already: the ring is compared as it is painted, not at full strength.
+          alpha: 1,
+        }
+      }
+
+      const { hue, ratio } = worst((h) => contrast(ring(h), token(surface)))
+
+      expect(ratio, `--focus-ring on ${surface} is worst at hue ${hue}`).toBeGreaterThanOrEqual(3)
+    },
+  )
+
+  it('is never drawn on the polaroid mat, which no hue can make readable', () => {
+    /**
+     * `--surface-print` is the product's one light ground, and `--accent` on it measures
+     * 2.29:1 at the default hue and 1.88 at its worst — under 3:1 at all 360 angles.
+     * Nothing draws accent there today and nothing may start: this asserts the trap
+     * rather than a ratio, because the honest bar here is "do not".
+     */
+    const { ratio } = worst((h) => contrast(atHue('--accent', h), token('--surface-print')))
+
+    expect(ratio).toBeLessThan(3)
   })
 })
