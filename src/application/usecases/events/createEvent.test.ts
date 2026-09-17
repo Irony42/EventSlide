@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Event } from '../../../domain/events/event'
+import { EventSettings } from '../../../domain/events/eventSettings'
+import { eventTemplateSettings } from '../../../domain/events/eventTemplate'
 import type { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
@@ -262,6 +264,73 @@ describe('createEvent', () => {
     const result = await createEvent({ ownerId: OWNER, name: 'Camille & Sacha' })
 
     expect(unwrap(result).startsAt).toBeNull()
+  })
+
+  // --------------------------------------------------------------- templates --
+
+  it('starts from the product defaults when the host picked no template', async () => {
+    // The shape every event created before roadmap 3.5 has, and the one a host who does
+    // not want an opinion still gets.
+    const result = await createEvent({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+    expect(unwrap(result).settings.toProps()).toEqual(EventSettings.default().toProps())
+  })
+
+  it('starts from the template the host picked', async () => {
+    const result = await createEvent({
+      ownerId: OWNER,
+      name: 'Camille & Sacha',
+      template: 'wedding',
+    })
+
+    // The catalogue owns which values these are; this owns that they arrive at all.
+    expect(unwrap(result).settings.toProps()).toEqual(eventTemplateSettings('wedding').toProps())
+  })
+
+  it('copies the template rather than attaching the event to it', async () => {
+    // The whole design in one assertion. Nothing on the saved event names a template, so
+    // there is nothing a later edit to the catalogue could reach — and nothing that could
+    // re-assert a value on a host who has since changed it.
+    await createEvent({ ownerId: OWNER, name: 'Camille & Sacha', template: 'conference' })
+
+    const stored = await events.findBySlug(slug('camille-sacha'))
+    expect(stored).not.toBeNull()
+    expect(JSON.stringify(stored)).not.toContain('conference')
+  })
+
+  it('lets a host depart from the template immediately, and keeps the departure', async () => {
+    // "I picked wedding and then changed moderation" is a first-class outcome: the
+    // settings are the host's the instant the event exists, and `with` is the ordinary
+    // path `updateEventSettings` takes.
+    const created = unwrap(
+      await createEvent({ ownerId: OWNER, name: 'Camille & Sacha', template: 'wedding' }),
+    )
+
+    const departed = created.settings.with({ moderation: 'auto' })
+
+    expect(departed.ok && departed.value.moderation).toBe('auto')
+    // And the other template values are still there: departing from one is not
+    // abandoning the rest.
+    expect(departed.ok && departed.value.retentionDays).toBe(365)
+  })
+
+  it('gives two events from one template settings that cannot affect each other', async () => {
+    // The two events share one `EventSettings` instance — `eventTemplateSettings` resolves
+    // each template once — so this is what says that sharing is safe.
+    const asShipped = eventTemplateSettings('party').retentionDays
+    const first = unwrap(await createEvent({ ownerId: OWNER, name: 'Fête un', template: 'party' }))
+    const second = unwrap(
+      await createEvent({ ownerId: OWNER, name: 'Fête deux', template: 'party' }),
+    )
+
+    // Deliberately not a number written out here. It was `30` against a template that
+    // then became `30`, which changed nothing and left the assertion below passing for
+    // no reason — the exact way a test stops being able to fail.
+    const changed = second.settings.with({ retentionDays: 1 })
+
+    expect(changed.ok && changed.value.retentionDays).toBe(1)
+    expect(first.settings.retentionDays).toBe(asShipped)
+    expect(eventTemplateSettings('party').retentionDays).toBe(asShipped)
   })
 
   // ------------------------------------------------------------ owner grant --

@@ -49,6 +49,17 @@ export type ThemeFonts = 'sans' | 'serif'
 export type ThemeFrame = 'soft' | 'square' | 'round'
 
 /**
+ * The preset an event's settings are created from (roadmap 3.5).
+ *
+ * A **request** vocabulary and nothing else. It rides on `POST /api/events`, is applied
+ * once, and never comes back: no response in this file carries it, because the event
+ * stores the values rather than the name of where they came from. If one ever appears on
+ * an `EventDto`, the template has stopped being a copy and started being an attachment —
+ * see `src/domain/events/eventTemplate.ts` for why that is the wrong product.
+ */
+export type EventTemplateKey = 'wedding' | 'birthday' | 'conference' | 'party'
+
+/**
  * How one event looks, as three settled choices rather than as colours.
  *
  * **No colour crosses this wire.** `accentHue` is an angle; the lightness and chroma that

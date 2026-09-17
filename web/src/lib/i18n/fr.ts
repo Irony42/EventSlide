@@ -27,7 +27,7 @@
 
 import { formattersFor } from './formatters'
 import type { CuratedAccent } from '../../design-system/eventTheme'
-import type { ThemeFonts, ThemeFrame, WallLayout } from '../api/dto'
+import type { EventTemplateKey, ThemeFonts, ThemeFrame, WallLayout } from '../api/dto'
 
 /**
  * French counting, from `Intl` rather than from a hand-written ternary.
@@ -548,22 +548,40 @@ export const fr = {
     moderationMode: 'Modération',
     moderationManual: 'Valider chaque photo',
     moderationAuto: 'Publier automatiquement',
+    /**
+     * "Les photos et les vidéos", because both are true.
+     *
+     * `transcodeNextClip` publishes a finished clip with an `automatic` reviewer under
+     * `auto` exactly as photo ingest does, so a guest's video reaches the projector with
+     * nobody having watched it. The sentence said "les photos" and a host reading it had
+     * no reason to think a clip was covered — and a clip is the one that runs for six
+     * seconds with sound in front of the room.
+     *
+     * Shown on the settings page the moment `auto` is selected, and on the two template
+     * cards that set it. One string for one choice: a second wording for the create form
+     * would be the same disclosure said two ways, and the weaker one would win by
+     * arriving first.
+     */
     moderationAutoWarning:
-      'Les photos apparaîtront à l’écran sans validation. À réserver aux évènements entre proches.',
+      'Les photos et les vidéos apparaîtront à l’écran sans validation. À réserver aux évènements entre proches.',
     allowCaptions: 'Autoriser les légendes',
     allowReactions: 'Autoriser les réactions',
     /**
      * The host's switch over video (roadmap 1.4).
      *
-     * The hint says the part a host cannot guess: the setting reads *off* on every
-     * gallery that existed before video shipped, because a deploy must not start
-     * accepting eighty-megabyte uploads on a wedding that is live at that moment. So
-     * for exactly the events this feature was built for, nothing happens until the host
-     * comes here and ticks it.
+     * The hint used to name **one** cause for the box being unticked — "créées avant
+     * l’arrivée de cette fonctionnalité" — which was the only cause there was until
+     * roadmap 3.5 shipped a Conférence template that unticks it deliberately. A host who
+     * created that event this morning was then told its gallery predated a release from
+     * last year, which is simply false and is the kind of sentence that makes a host stop
+     * believing the rest of the page.
+     *
+     * So it now explains the *state* and lists the causes rather than asserting one. It
+     * is written for any deliberately-off event, not only for the template's.
      */
     allowClips: 'Autoriser les vidéos',
     allowClipsHint:
-      'Les invités peuvent envoyer de courtes vidéos, en plus des photos. Désactivé sur les galeries créées avant l’arrivée de cette fonctionnalité : cochez la case pour l’activer.',
+      'Les invités peuvent envoyer de courtes vidéos, en plus des photos. Quand la case est décochée, les vidéos sont refusées : parce que vous l’avez décochée, parce que le modèle choisi à la création l’a réglé ainsi, ou parce que la galerie est antérieure à cette fonctionnalité. Cochez-la pour les autoriser.',
     allowGuestSelfDelete: 'Autoriser les invités à supprimer leurs photos',
 
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,
@@ -592,13 +610,71 @@ export const fr = {
       round: 'Coins très arrondis',
     } satisfies Record<ThemeFrame, string>,
 
+    /* ---- Event templates (roadmap 3.5). The names of the four evenings, plus the two
+            sentences that carry the whole feature: a template is a starting point, and
+            nothing here is final. The per-setting wording is reused from the settings
+            form below, so the create card and the settings page cannot describe the same
+            value differently. ---- */
+    template: 'Type d’évènement',
+    templateHint:
+      'Un point de départ, adapté au genre de soirée. Tous ces réglages restent modifiables à tout moment, avant comme pendant l’évènement.',
+    templateNone: 'Sans modèle',
+    /**
+     * The pre-selected option, which was the only one that said nothing about itself.
+     *
+     * "Réglages par défaut" describes where the values come from and not what they are,
+     * and the value it was quietest about is the one ROADMAP section 7 names as a
+     * decision rather than a default: `retentionDays: null` keeps photographs of other
+     * people's families indefinitely. The other four cards list their consequences
+     * precisely so a preset is not a box whose effects are discovered later; the option a
+     * host lands on owes them the same.
+     *
+     * Both halves are pinned against the domain's own defaults by
+     * `eventTemplateContract.test.ts`, so a changed default cannot leave this sentence
+     * quietly false.
+     */
+    templateNoneSummary:
+      'Réglages par défaut : chaque photo validée avant l’écran, conservation illimitée.',
+    templateChanges: 'Ce modèle règle :',
+    templateClipsOn: 'Vidéos autorisées',
+    templateClipsOff: 'Vidéos désactivées',
+    templateNames: {
+      wedding: 'Mariage',
+      birthday: 'Anniversaire',
+      conference: 'Conférence',
+      party: 'Soirée',
+    } satisfies Record<EventTemplateKey, string>,
+
     retention: 'Suppression automatique',
     retentionNever: 'Jamais',
+    /**
+     * "après la clôture", not "après la fin", and counted by `Intl` rather than by hand.
+     *
+     * The retention clock starts at `closedAt` and `Event.expiresAt` answers `null` until
+     * the host closes the event, so "la fin" named something the server does not measure:
+     * the same five words meant "never" to a host who leaves the wall open and a real
+     * countdown to one who closes it that night. "Clôture" is the word the button
+     * ("Clore l’évènement") and the hint below already use for the act that starts it.
+     *
+     * The plural goes through `t.count` because French agrees zero and one with the
+     * singular: a hand-written `${days} jours` reads "1 jours" on the one-day option.
+     */
     retentionDays: (days: number) =>
       t.count(days, {
-        one: `${t.number(days)} jour après la fin`,
-        other: `${t.number(days)} jours après la fin`,
+        one: `${t.number(days)} jour après la clôture`,
+        other: `${t.number(days)} jours après la clôture`,
       }),
+    /**
+     * What `retentionDays: null` actually is, said as a consequence rather than as
+     * "Jamais".
+     *
+     * `retentionNever` is the right word for an *option* in a list headed "Suppression
+     * automatique" — the question there is when it happens and the answer is never. On a
+     * card with no such heading it is a bare word that could mean anything, and what it
+     * means is that photographs of other people's families are kept indefinitely, which
+     * ROADMAP section 7 calls out as a decision rather than a neutral default.
+     */
+    retentionUnlimited: 'Conservation illimitée',
     moderators: 'Modérateurs',
     inviteModerator: 'Inviter un modérateur',
 

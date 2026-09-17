@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
 import { accentHueRange, THEME_FONTS, THEME_FRAMES } from '../../../domain/events/eventTheme'
 
 /**
@@ -139,6 +140,22 @@ export const createEventBody = z
     slug: slug.optional(),
     startsAt: z.string().datetime().nullish(),
     quotaBytes: z.number().int().positive().nullish(),
+    /**
+     * Which preset the event's settings start from (roadmap 3.5).
+     *
+     * `.optional()` and deliberately **not** `.nullish()`, unlike the two fields above
+     * it. Those carry a "no limit" or "no printed start" intent that `null` spells; this
+     * one does not — "no template" is the absence of a choice, and offering two spellings
+     * of it would mean a client sending `null` and a client sending nothing having to be
+     * shown to mean the same thing by a test rather than by the type.
+     *
+     * The vocabulary comes from the domain rather than a second `z.enum(['wedding', …])`
+     * here: a fifth template would otherwise be accepted by the use case and refused at
+     * the boundary, with nothing in either build noticing. A name outside it is
+     * `400 request.invalid`, which is the answer every unknown enum value in this file
+     * already gets — no new error code, and nothing for roadmap 1.5 to translate.
+     */
+    template: z.enum(EVENT_TEMPLATE_KEYS).optional(),
   })
   .strict()
 

@@ -919,12 +919,16 @@ live, and it needs a role in the event to answer.
 
 ### `POST /api/events`
 
+The request body — and `template` is the one field here that is **not** echoed back, for
+the reason below:
+
 ```json
 {
   "name": "Camille & Sacha",
   "slug": "camille-et-sacha",
   "startsAt": null,
-  "quotaBytes": null
+  "quotaBytes": null,
+  "template": "wedding"
 }
 ```
 
@@ -935,6 +939,56 @@ positive integer or `null`, and `null` or absent takes the configured default. *
 with the full event including its join code.
 
 **Errors** — `409 event.slugTaken`, `400 eventName.*`, `400 slug.*`.
+
+#### `template` — what the settings start from
+
+`"wedding" | "birthday" | "conference" | "party"`, optional. Absent means the product
+defaults, which is what every event created before this field existed has. Unlike
+`startsAt` and `quotaBytes` it is **not nullable**: there is no "no template" value to
+send, only the absence of one, and `"template": null` is `400 request.invalid` like any
+other unexpected shape. A name outside the four is the same refusal — no error code of its
+own, because an unknown enum value already has one.
+
+**The template is applied once and then does not exist.** The response carries the
+settings it produced and no `template` key, nothing stores which template an event came
+from, and no later request re-applies one. That is the design rather than an omission: a
+host who picks `wedding` and then changes `moderation` on the settings page has changed
+their event, not departed from something that will argue back. `src/domain/events/eventTemplate.ts`
+holds the reasoning and the alternative it rejects.
+
+What each one sets — and it sets **only** these, leaving every other setting at its
+default:
+
+| Template     | Changes                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| `wedding`    | `guestSelfDeleteGraceSeconds: 3600`, `retentionDays: 365`, theme rose / serif / round          |
+| `birthday`   | `moderation: "auto"`, `retentionDays: 90`, theme violet / sans / round                         |
+| `conference` | `allowClips: false`, `retentionDays: 30`, `maxPhotosPerGuest: 25`, theme azure / sans / square |
+| `party`      | `moderation: "auto"`, `retentionDays: 30`, theme teal / sans / soft                            |
+
+Nothing here restates a default, which is why `wedding` and `conference` say nothing about
+`moderation`: `manual` is already the default and both want it. Every accent is one of the
+four hues the console's picker names, so the settings page can show a host what their own
+event is set to — and every one passes the legibility rule in §8, asserted rather than
+assumed.
+
+Two of these values are worth reading twice before copying them into a client.
+
+`retentionDays` is a **deletion**, and its clock starts at `closedAt` rather than at
+creation: `Event.expiresAt` answers `null` until the event is closed, so a template's
+retention is inert on an event the host never closes and a real countdown on one they
+close that night. When it passes, `purgeExpiredEvents` removes the media tree and the
+event row. Nothing in the product notifies anybody beforehand, so a client that surfaces
+these templates must say what the number does rather than printing the duration alone.
+
+`moderation: "auto"` publishes without review, and that covers **clips as well as
+photographs** — `transcodeNextClip` stamps a finished clip with an `automatic` reviewer
+under `auto` exactly as photo ingest does, and neither template touches `allowClips`. The
+console discloses this on the two cards that set it, in the same words the settings page
+uses when a host selects `auto` there.
+
+There is no `layout` in this table although the roadmap entry names one: no event stores a
+wall layout at all, here or anywhere (§8).
 
 ### `GET /api/events/:slug` — the event
 
