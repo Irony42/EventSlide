@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './Progress.module.css'
 
 export type ProgressTone = 'accent' | 'success' | 'danger' | 'warning'
@@ -37,6 +37,7 @@ export function Progress({
   announce = false,
   className,
 }: ProgressProps) {
+  const t = useTranslations()
   // A zero or negative max would divide by zero; a byte quota of 0 is a real server
   // response for an event whose quota was never set.
   const safeMax = max > 0 ? max : 1
@@ -56,13 +57,13 @@ export function Progress({
         aria-valuenow={clamped}
         aria-valuemin={0}
         aria-valuemax={safeMax}
-        aria-valuetext={fr.ui.percent(percent)}
+        aria-valuetext={t.ui.percent(percent)}
       >
         <div className={styles['fill']} style={trackStyle} />
       </div>
       {showValue || announce ? (
         <span className={showValue ? styles['value'] : 'visually-hidden'} {...liveProps}>
-          {fr.ui.percent(percent)}
+          {t.ui.percent(percent)}
         </span>
       ) : null}
     </div>

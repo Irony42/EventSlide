@@ -7,7 +7,7 @@ import { fr } from '../../lib/i18n/fr'
 import { ModerationGrid } from './components/ModerationGrid'
 import { ModerationToolbar } from './components/ModerationToolbar'
 import { PhotoLightbox } from './components/PhotoLightbox'
-import { useModerationQueue } from './hooks/useModerationQueue'
+import { queueErrorMessage, useModerationQueue } from './hooks/useModerationQueue'
 import { useModerationShortcuts } from './hooks/useModerationShortcuts'
 import { useQueueSelection } from './hooks/useQueueSelection'
 import type { ModerationDecision } from '../../lib/api/dto'
@@ -119,7 +119,7 @@ export function ModerationPage() {
       */}
       {queue.error !== null && queue.items.length > 0 ? (
         <p role="alert" className={styles['staleError']}>
-          {queue.error.message}
+          {queueErrorMessage(queue.error)}
         </p>
       ) : null}
 
@@ -131,7 +131,7 @@ export function ModerationPage() {
         <EmptyState
           as="h2"
           title={fr.moderation.loadFailed}
-          description={queue.error.message}
+          description={queueErrorMessage(queue.error)}
           action={
             <Button variant="primary" onClick={queue.refresh}>
               {fr.app.retry}

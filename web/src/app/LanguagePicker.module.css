@@ -1,0 +1,52 @@
+/**
+ * A native `<select>`, styled with tokens and nothing else.
+ *
+ * Native because of who uses it: a guest, one-handed, in a dark room, on a phone whose
+ * operating system already knows how to render a list of five things — an iOS wheel, an
+ * Android sheet. A custom listbox would be a popover to position, a focus trap to write
+ * and a screen-reader pattern to get right, for no gain a guest could see.
+ */
+
+.picker {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+.select {
+  min-height: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.select:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.select:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/*
+ * The list itself is drawn by the platform, which on a desktop browser inherits the
+ * page's dark background for the popup and its own colour for the text. Naming both
+ * keeps the options legible instead of dark-on-dark.
+ */
+.select option {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}

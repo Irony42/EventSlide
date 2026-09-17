@@ -1,7 +1,7 @@
 import type { ChangeEvent } from 'react'
 import { Field } from '../../../design-system/components/Field'
 import { Textarea } from '../../../design-system/components/Textarea'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 
 /**
  * One caption for the batch, not one per photo.
@@ -29,16 +29,17 @@ export interface CaptionFieldProps {
 }
 
 export function CaptionField({ value, onChange }: CaptionFieldProps) {
+  const t = useTranslations()
   // The hint starts as the rule and becomes the countdown, so the remaining count is
   // read out with the field instead of living in a live region that would interrupt
   // on every keystroke.
   const hint =
     value.length === 0
-      ? fr.upload.captionHint(MAX_LENGTH)
-      : fr.upload.captionRemaining(MAX_LENGTH - value.length)
+      ? t.upload.captionHint(MAX_LENGTH)
+      : t.upload.captionRemaining(MAX_LENGTH - value.length)
 
   return (
-    <Field label={fr.upload.captionLabel} hint={hint} optional>
+    <Field label={t.upload.captionLabel} hint={hint} optional>
       {(control) => (
         <Textarea
           {...control}

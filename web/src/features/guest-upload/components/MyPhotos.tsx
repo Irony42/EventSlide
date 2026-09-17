@@ -8,7 +8,8 @@ import { EmptyState } from '../../../design-system/components/EmptyState'
 import { IconButton } from '../../../design-system/components/IconButton'
 import { Spinner } from '../../../design-system/components/Spinner'
 import { StatusIcon } from '../../../design-system/components/StatusIcon'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
+import type { UiText } from '../../../lib/i18n/translations'
 import type { StatusTone } from '../../../design-system/components/StatusIcon'
 import type { GuestPhotoDto, PhotoStatus } from '../../../lib/api/dto'
 import styles from './MyPhotos.module.css'
@@ -25,12 +26,12 @@ import styles from './MyPhotos.module.css'
  * any part of it here is what made 1.0 offer a button that answered 403.
  */
 
-const LABELS: Record<PhotoStatus, string> = {
-  pending: fr.upload.statusPending,
-  published: fr.upload.statusPublished,
-  rejected: fr.upload.statusRejected,
-  hidden: fr.upload.statusHidden,
-}
+const labelsFor = (t: UiText): Readonly<Record<PhotoStatus, string>> => ({
+  pending: t.upload.statusPending,
+  published: t.upload.statusPublished,
+  rejected: t.upload.statusRejected,
+  hidden: t.upload.statusHidden,
+})
 
 const TONES: Record<PhotoStatus, StatusTone> = {
   // Waiting is the normal case, not a warning: nothing is wrong and there is nothing
@@ -51,6 +52,8 @@ export interface MyPhotosProps {
 }
 
 export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotosProps) {
+  const t = useTranslations()
+  const labels = labelsFor(t)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -66,7 +69,7 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
   }
 
   return (
-    <Card as="h2" title={fr.upload.mine} className={styles['mine']}>
+    <Card as="h2" title={t.upload.mine} className={styles['mine']}>
       {error === null ? null : (
         <div className={styles['failure']}>
           <p className={styles['error']} role="alert">
@@ -74,19 +77,19 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
             {error}
           </p>
           <Button variant="secondary" onClick={onRetry}>
-            {fr.app.retry}
+            {t.app.retry}
           </Button>
         </div>
       )}
 
       {loading ? (
         <div className={styles['loading']}>
-          <Spinner label={fr.app.loading} />
+          <Spinner label={t.app.loading} />
         </div>
       ) : null}
 
       {!loading && error === null && photos.length === 0 ? (
-        <EmptyState as="h3" title={fr.upload.mineEmpty} />
+        <EmptyState as="h3" title={t.upload.mineEmpty} />
       ) : null}
 
       {photos.length === 0 ? null : (
@@ -117,7 +120,7 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
                   poster={photo.thumbUrl}
                   controls
                   preload="none"
-                  aria-label={photo.caption ?? fr.upload.mineClipAlt}
+                  aria-label={photo.caption ?? t.upload.mineClipAlt}
                 />
               ) : (
                 /* The caption is the photo's own description; without one the fallback
@@ -125,18 +128,18 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
                 <img
                   className={styles['thumb']}
                   src={photo.thumbUrl}
-                  alt={photo.caption ?? fr.upload.mineAlt}
+                  alt={photo.caption ?? t.upload.mineAlt}
                 />
               )}
               <div className={styles['detail']}>
-                <Badge tone={TONES[photo.status]}>{LABELS[photo.status]}</Badge>
+                <Badge tone={TONES[photo.status]}>{labels[photo.status]}</Badge>
                 {/* Said as well as shown: the host's decision and "this one is a video"
                     are different facts, and the badge above only carries the first. */}
                 {photo.kind === 'clip' ? (
                   <Badge tone="neutral">
                     {photo.durationMs === null
-                      ? fr.upload.mineClipBadge
-                      : fr.moderation.videoLength(Math.round(photo.durationMs / 1_000))}
+                      ? t.upload.mineClipBadge
+                      : t.upload.mineClipLength(Math.round(photo.durationMs / 1_000))}
                   </Badge>
                 ) : null}
                 {photo.caption === null ? null : (
@@ -145,7 +148,7 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
               </div>
               {photo.canDelete ? (
                 <IconButton
-                  aria-label={fr.upload.deleteOwnNumbered(index + 1)}
+                  aria-label={t.upload.deleteOwnNumbered(index + 1)}
                   icon={<CloseIcon />}
                   variant="danger"
                   onClick={() => setPendingDelete(photo.id)}
@@ -161,8 +164,8 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
           reaches this page through after scanning a QR code from a message. */}
       <ConfirmDialog
         open={pendingDelete !== null}
-        title={fr.upload.deleteOwnConfirm}
-        confirmLabel={fr.upload.deleteOwn}
+        title={t.upload.deleteOwnConfirm}
+        confirmLabel={t.upload.deleteOwn}
         busy={deleting}
         onConfirm={() => {
           void confirmDelete()

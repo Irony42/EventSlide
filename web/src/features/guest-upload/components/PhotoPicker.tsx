@@ -1,5 +1,5 @@
 import { useId, type ChangeEvent } from 'react'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './PhotoPicker.module.css'
 
 /**
@@ -20,6 +20,7 @@ export interface PhotoPickerProps {
 }
 
 export function PhotoPicker({ onPick }: PhotoPickerProps) {
+  const t = useTranslations()
   const libraryId = useId()
   const cameraId = useId()
 
@@ -34,7 +35,7 @@ export function PhotoPicker({ onPick }: PhotoPickerProps) {
   return (
     <div className={styles['picker']}>
       <label className={`${styles['action']} ${styles['library']}`} htmlFor={libraryId}>
-        <span>{fr.upload.addPhotos}</span>
+        <span>{t.upload.addPhotos}</span>
         <input
           id={libraryId}
           className={styles['input']}
@@ -47,7 +48,7 @@ export function PhotoPicker({ onPick }: PhotoPickerProps) {
       </label>
 
       <label className={styles['action']} htmlFor={cameraId}>
-        <span>{fr.upload.takePhoto}</span>
+        <span>{t.upload.takePhoto}</span>
         <input
           id={cameraId}
           className={styles['input']}

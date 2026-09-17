@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import { ErrorBoundary } from './ErrorBoundary'
 import { AppRoutes } from './router'
+import { de } from '../lib/i18n/de'
 import { fr } from '../lib/i18n/fr'
 import { aSessionUser, fakeApi, renderWithProviders } from '../testing/renderWithProviders'
 import type { SessionResponse } from '../lib/api/dto'
+import type { Locale } from '../lib/i18n/locale'
 
 /**
  * A host surface whose JavaScript chunk never arrives.
@@ -24,7 +26,18 @@ vi.mock('../features/admin/DashboardPage', () => {
   throw new Error('Failed to fetch dynamically imported module: /assets/DashboardPage-3f9a2c.js')
 })
 
-const asHost = (route: string) => {
+/**
+ * The same failure on the projected surface.
+ *
+ * The wall is the audience this matters most to and the one least able to react: it runs
+ * unattended for eight hours, its chunk is lazy like every other non-guest screen, and
+ * there is nobody at the laptop at 2 a.m. to read whatever appears.
+ */
+vi.mock('../features/wall/WallPage', () => {
+  throw new Error('Failed to fetch dynamically imported module: /assets/WallPage-8c1d04.js')
+})
+
+const asHost = (route: string, locale: Locale = 'fr') => {
   const api = fakeApi({
     session: vi.fn(async (): Promise<SessionResponse> => ({
       authenticated: true,
@@ -35,7 +48,7 @@ const asHost = (route: string) => {
     <ErrorBoundary>
       <AppRoutes />
     </ErrorBoundary>,
-    { api, route },
+    { api, route, locale },
   )
 }
 
@@ -61,6 +74,47 @@ describe('AppRoutes with a chunk that cannot be loaded', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.shell.crashHint)
     expect(screen.queryByText(/dynamically imported module/)).toBeNull()
+    log.mockRestore()
+  })
+})
+
+/**
+ * The crash screen is the one surface that sits above the route table, so it is the one
+ * place `FrenchSurface` cannot reach — and until this test it was the one place the guest's
+ * language leaked onto the other two audiences.
+ *
+ * A host in a German browser whose admin chunk fails to load read
+ * "Dieser Bildschirm wurde unerwartet beendet"; so did a projector at 2 a.m., in front
+ * of a room. Neither of those people chose anything: detection reads
+ * `navigator.languages`.
+ *
+ * The locale is passed explicitly here for the same reason it is in the toast case: a
+ * guard that renders French under French asserts nothing at all, and that is exactly
+ * what the two cases above were doing.
+ */
+describe('the crash screen speaks the language of the surface it covers', () => {
+  it('stays French on the host console, in a browser asking for German', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    asHost('/admin', 'de')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
+    expect(screen.queryByText(de.shell.crashTitle)).toBeNull()
+    log.mockRestore()
+  })
+
+  it('stays French on the projected wall, where nobody chose a language at all', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    renderWithProviders(
+      <ErrorBoundary>
+        <AppRoutes />
+      </ErrorBoundary>,
+      { route: '/e/camille-et-sacha/display', locale: 'de' },
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
+    expect(screen.queryByText(de.shell.crashTitle)).toBeNull()
     log.mockRestore()
   })
 })

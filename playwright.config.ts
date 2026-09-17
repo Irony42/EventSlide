@@ -45,6 +45,30 @@ export default defineConfig({
     trace: 'retain-on-failure',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    /**
+     * French, pinned — and the reason is bigger than the line.
+     *
+     * **This suite's browsers have always inherited the machine's locale.** Playwright
+     * sets no default, so every context has been started in whatever language the person
+     * running it had configured. That did not matter while the app answered in French
+     * whoever asked; since roadmap 1.5 the browser's own preference decides what the
+     * guest surface says, and the moment it did, sixty-six specs went red on this machine
+     * — every journey that types into `getByLabel(/Votre prénom/i)` waiting fifteen
+     * seconds for a field that now says "Your first name".
+     *
+     * Read the other way round, that is the finding: **the end-to-end signal on this
+     * repository was machine-dependent, and nothing said so.** It was invisible only
+     * because one language made every browser locale equivalent. A suite whose result
+     * depends on the operating system of whoever ran it is not a suite; it just had no
+     * way to demonstrate that until now.
+     *
+     * So the locale is part of the fixture, like the throwaway SQLite file and the fixed
+     * `CREATED_AT` in the component harness — a stated input rather than an ambient one.
+     * Same decision `renderWithProviders` makes at ring 5: French unless a test says
+     * otherwise. A spec that is *about* a language sets its own with
+     * `test.use({ locale })` — see `tests/e2e/journeys/guest-language.spec.ts`.
+     */
+    locale: 'fr-FR',
     // The suite drives the wall's timing through query hooks rather than real
     // waiting; those hooks only exist when the server is started with E2E_HOOKS=1.
     actionTimeout: 15_000,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { fr, messageForCode } from './fr'
+import { fr } from './fr'
+import { messageForCode } from './translations'
 
 /**
  * The copy table is the subject here, not a source of expected values, so this is the
@@ -195,25 +196,25 @@ describe('messageForCode', () => {
   it.each(DOCUMENTED_CODES)('says something specific about %s', (code) => {
     // The generic sentence is a fallback, not an answer: a guest told only "une erreur
     // est survenue" cannot tell a disabled feature from a dropped connection.
-    expect(messageForCode(code)).not.toBe(fr.errors.unknown)
+    expect(messageForCode(code, fr)).not.toBe(fr.errors.unknown)
   })
 
   it('falls back to a generic sentence for a code this build has never heard of', () => {
     // A newer server is allowed to grow codes, and `event.somethingNew` rendered raw on
     // a phone would be worse than a vague sentence.
-    expect(messageForCode('event.somethingNew')).toBe(fr.errors.unknown)
+    expect(messageForCode('event.somethingNew', fr)).toBe(fr.errors.unknown)
   })
 
   it('falls back when the failure carried no code at all', () => {
-    expect(messageForCode(undefined)).toBe(fr.errors.unknown)
+    expect(messageForCode(undefined, fr)).toBe(fr.errors.unknown)
   })
 
   it('refuses a code that names an inherited property instead of a message', () => {
     // A bare lookup resolves `constructor` to `Object` and `__proto__` to a prototype,
     // neither of which is a sentence — and the code comes from whatever answered the
     // request, which behind a misconfigured proxy is not necessarily this server.
-    expect(messageForCode('constructor')).toBe(fr.errors.unknown)
-    expect(messageForCode('__proto__')).toBe(fr.errors.unknown)
-    expect(messageForCode('toString')).toBe(fr.errors.unknown)
+    expect(messageForCode('constructor', fr)).toBe(fr.errors.unknown)
+    expect(messageForCode('__proto__', fr)).toBe(fr.errors.unknown)
+    expect(messageForCode('toString', fr)).toBe(fr.errors.unknown)
   })
 })

@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from 'react'
 import { StatusIcon } from './StatusIcon'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './Field.module.css'
 
 /**
@@ -35,6 +35,7 @@ export interface FieldProps {
  * to a screen reader as a name, and fails contrast on every phone in sunlight.
  */
 export function Field({ label, hint, error, optional = false, className, children }: FieldProps) {
+  const t = useTranslations()
   const generated = useId()
   const hintId = `${generated}-hint`
   const errorId = `${generated}-error`
@@ -56,7 +57,7 @@ export function Field({ label, hint, error, optional = false, className, childre
     <div className={classes}>
       <label className={styles['label']} htmlFor={generated}>
         {label}
-        {optional ? <span className={styles['optional']}>{fr.ui.optional}</span> : null}
+        {optional ? <span className={styles['optional']}>{t.ui.optional}</span> : null}
       </label>
       {children(control)}
       {hint === undefined ? null : (

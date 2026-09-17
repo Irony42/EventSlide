@@ -17,6 +17,15 @@ import { afterEach, beforeAll, vi } from 'vitest'
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  // jsdom keeps one `localStorage` for a whole file, so a test that picks a language
+  // would otherwise decide the starting language of every test after it. The guest's
+  // language preference is the only thing in there today; clearing all of it is the
+  // rule that stays true when something else is added.
+  try {
+    localStorage.clear()
+  } catch {
+    // A browser with site data blocked throws. Nothing to clean up in that case.
+  }
 })
 
 beforeAll(() => {

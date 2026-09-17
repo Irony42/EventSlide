@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { ApiProvider } from '../../../app/ApiProvider'
+import { LocaleProvider } from '../../../lib/i18n/LocaleProvider'
+import { useLocale } from '../../../lib/i18n/useTranslations'
+import { de } from '../../../lib/i18n/de'
 import { fr } from '../../../lib/i18n/fr'
 import { aGuestPhoto, fakeApi } from '../../../testing/renderWithProviders'
 import { useMyPhotos } from './useMyPhotos'
@@ -121,5 +124,77 @@ describe('useMyPhotos', () => {
     // The list is kept: a refused deletion is not a reason to blank the one screen
     // that tells the guest their photos arrived.
     expect(result.current.photos).toHaveLength(1)
+  })
+})
+
+/**
+ * Changing language is a copy change, not a reason to go back to the server.
+ *
+ * "Vos envois" is the one screen that tells a guest their photos arrived, and the guest
+ * is on venue Wi-Fi. Re-reading it because they tapped the language picker costs a round
+ * trip for nothing — and when that round trip fails, the error branch replaces the list
+ * with an empty one, so the thumbnails that were the whole point of the screen disappear
+ * and the guest is told their uploads could not be shown. They uploaded nothing and lost
+ * nothing; only the language changed.
+ */
+describe('useMyPhotos when the guest changes language', () => {
+  const mountWithLocale = (api: Api) => {
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+      <LocaleProvider initialLocale="fr">
+        <ApiProvider api={api}>{children}</ApiProvider>
+      </LocaleProvider>
+    )
+    return renderHook(() => ({ mine: useMyPhotos(SLUG), locale: useLocale() }), { wrapper })
+  }
+
+  it('does not read the list again', async () => {
+    const api = fakeApi({
+      myPhotos: vi.fn(async () => ({ items: [aGuestPhoto({ id: 'photo-1' })] })),
+    })
+    const { result } = mountWithLocale(api)
+    await waitFor(() => expect(result.current.mine.photos).toHaveLength(1))
+
+    act(() => result.current.locale.setLocale('de'))
+
+    await waitFor(() => expect(result.current.locale.locale).toBe('de'))
+    expect(api.myPhotos).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the photos on screen', async () => {
+    // The consequence, stated as the guest sees it: whatever the re-read would have
+    // done, the thumbnails that say "your photos arrived" are still there.
+    const answers = [
+      async () => ({ items: [aGuestPhoto({ id: 'photo-1' })] }),
+      async () => {
+        throw new Error('the venue Wi-Fi went away')
+      },
+    ]
+    const api = fakeApi({
+      myPhotos: vi.fn(() => (answers.shift() ?? (async () => ({ items: [] })))()),
+    })
+    const { result } = mountWithLocale(api)
+    await waitFor(() => expect(result.current.mine.photos).toHaveLength(1))
+
+    act(() => result.current.locale.setLocale('de'))
+    await waitFor(() => expect(result.current.locale.locale).toBe('de'))
+
+    expect(result.current.mine.photos).toHaveLength(1)
+    expect(result.current.mine.error).toBeNull()
+  })
+
+  it('words a failure in the language the guest is reading now', async () => {
+    // The other half: the message must not be frozen at the moment the read failed, or
+    // a guest who switches language keeps reading the old one.
+    const api = fakeApi({
+      myPhotos: vi.fn(async () => {
+        throw new Error('the venue Wi-Fi went away')
+      }),
+    })
+    const { result } = mountWithLocale(api)
+    await waitFor(() => expect(result.current.mine.error).toBe(fr.upload.mineFailed))
+
+    act(() => result.current.locale.setLocale('de'))
+
+    await waitFor(() => expect(result.current.mine.error).toBe(de.upload.mineFailed))
   })
 })

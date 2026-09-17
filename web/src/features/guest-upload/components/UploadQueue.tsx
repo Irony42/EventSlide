@@ -3,7 +3,8 @@ import { Button } from '../../../design-system/components/Button'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
 import { IconButton } from '../../../design-system/components/IconButton'
 import { Progress } from '../../../design-system/components/Progress'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
+import type { UiText } from '../../../lib/i18n/translations'
 import type { StatusTone } from '../../../design-system/components/StatusIcon'
 import type { UploadItem, UploadItemState } from '../hooks/useUploadQueue'
 import styles from './UploadQueue.module.css'
@@ -20,15 +21,15 @@ import styles from './UploadQueue.module.css'
  * the queue rather than sitting at index 0 forever.
  */
 
-const LABELS: Record<UploadItemState, string> = {
-  pending: fr.upload.itemPending,
-  preparing: fr.upload.itemPreparing,
-  uploading: fr.upload.itemUploading,
-  done: fr.upload.itemDone,
-  duplicate: fr.upload.itemDuplicate,
-  queued: fr.upload.itemQueued,
-  failed: fr.upload.itemFailed,
-}
+const labelsFor = (t: UiText): Readonly<Record<UploadItemState, string>> => ({
+  pending: t.upload.itemPending,
+  preparing: t.upload.itemPreparing,
+  uploading: t.upload.itemUploading,
+  done: t.upload.itemDone,
+  duplicate: t.upload.itemDuplicate,
+  queued: t.upload.itemQueued,
+  failed: t.upload.itemFailed,
+})
 
 /**
  * Colour is never the only signal: `Badge` pairs each tone with its own glyph and the
@@ -60,24 +61,27 @@ export interface UploadQueueProps {
   readonly onRemove: (id: string) => void
 }
 
-const summaryFor = (items: readonly UploadItem[]): string => {
-  if (items.length === 0) return fr.upload.queueEmpty
+const summaryFor = (items: readonly UploadItem[], t: UiText): string => {
+  if (items.length === 0) return t.upload.queueEmpty
 
   const arrived = items.filter((item) => SETTLED.includes(item.state)).length
-  if (arrived === items.length) return fr.upload.thanks
+  if (arrived === items.length) return t.upload.thanks
 
   const failed = items.filter((item) => item.state === 'failed').length
-  const progress = fr.upload.queueSummary(arrived, items.length)
-  return failed === 0 ? progress : `${progress} ${fr.upload.queueFailed(failed)}`
+  const progress = t.upload.queueSummary(arrived, items.length)
+  return failed === 0 ? progress : `${progress} ${t.upload.queueFailed(failed)}`
 }
 
 export function UploadQueue({ items, onRetry, onRemove }: UploadQueueProps) {
+  const t = useTranslations()
+  const labels = labelsFor(t)
+
   return (
-    <section className={styles['queue']} aria-label={fr.upload.queueLabel}>
+    <section className={styles['queue']} aria-label={t.upload.queueLabel}>
       {/* Rendered even when empty: a live region has to exist before its content
           changes, or the first announcement is swallowed. */}
       <p className={styles['summary']} aria-live="polite">
-        {summaryFor(items)}
+        {summaryFor(items, t)}
       </p>
 
       {items.length === 0 ? null : (
@@ -96,13 +100,13 @@ export function UploadQueue({ items, onRetry, onRemove }: UploadQueueProps) {
                 <img
                   className={styles['thumb']}
                   src={item.previewUrl}
-                  alt={fr.upload.itemAlt(position)}
+                  alt={t.upload.itemAlt(position)}
                 />
 
                 <div className={styles['detail']}>
-                  <Badge tone={TONES[item.state]}>{LABELS[item.state]}</Badge>
+                  <Badge tone={TONES[item.state]}>{labels[item.state]}</Badge>
                   {item.state === 'uploading' ? (
-                    <Progress value={item.progress} label={fr.upload.itemProgress(position)} />
+                    <Progress value={item.progress} label={t.upload.itemProgress(position)} />
                   ) : null}
                   {item.error === null ? null : <p className={styles['error']}>{item.error}</p>}
                 </div>
@@ -115,14 +119,14 @@ export function UploadQueue({ items, onRetry, onRemove }: UploadQueueProps) {
                     <Button
                       size="sm"
                       variant="secondary"
-                      aria-label={fr.upload.retryItem(position)}
+                      aria-label={t.upload.retryItem(position)}
                       onClick={() => onRetry(item.id)}
                     >
-                      {fr.app.retry}
+                      {t.app.retry}
                     </Button>
                   ) : null}
                   <IconButton
-                    aria-label={fr.upload.removeItem(position)}
+                    aria-label={t.upload.removeItem(position)}
                     icon={<CloseIcon />}
                     onClick={() => onRemove(item.id)}
                   />

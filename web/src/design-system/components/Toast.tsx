@@ -2,7 +2,7 @@ import { Button } from './Button'
 import { CloseIcon } from './CloseIcon'
 import { IconButton } from './IconButton'
 import { StatusIcon, type StatusTone } from './StatusIcon'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './Toast.module.css'
 
 export type ToastTone = StatusTone
@@ -28,6 +28,7 @@ export interface ToastProps {
  * decisions is announced by one region instead of six competing ones.
  */
 export function Toast({ tone, message, action, onDismiss, className }: ToastProps) {
+  const t = useTranslations()
   const classes = [styles['toast'], styles[tone], className].filter(Boolean).join(' ')
 
   return (
@@ -42,7 +43,7 @@ export function Toast({ tone, message, action, onDismiss, className }: ToastProp
         </Button>
       )}
       <IconButton
-        aria-label={fr.ui.dismissNotification}
+        aria-label={t.ui.dismissNotification}
         icon={<CloseIcon />}
         variant="ghost"
         onClick={onDismiss}

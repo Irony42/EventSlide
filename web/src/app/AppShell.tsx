@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { fr } from '../lib/i18n/fr'
+import { useEffect, type ReactNode } from 'react'
+import { useLocale } from '../lib/i18n/useTranslations'
 import styles from './AppShell.module.css'
 
 /** Which of the three surfaces this page is. It decides the container, nothing else. */
@@ -18,17 +18,32 @@ export interface AppShellProps {
 /**
  * The layout wrapper.
  *
- * It owns two things a page must not reinvent: the skip link, and the container width
- * for the surface. A control that is comfortable on a laptop is unusable at arm's
- * length on a phone, so the width comes from the surface rather than from the page.
+ * It owns three things a page must not reinvent: the skip link, the container width for
+ * the surface, and `<html lang>`.
+ *
+ * A control that is comfortable on a laptop is unusable at arm's length on a phone, so
+ * the width comes from the surface rather than from the page.
+ *
+ * `lang` is here and nowhere else because this is the innermost component that every
+ * screen renders through, so whatever language is in scope *at this point in the tree*
+ * is the language actually on screen — French under the host and wall layouts, the
+ * guest's own under theirs. Setting it higher up would announce the guest's German to a
+ * screen reader on a French admin console. It is not cosmetic: it is what decides which
+ * voice a screen reader pronounces the page with, and `index.html` ships `lang="fr"` so
+ * the first paint is right before React has mounted anything.
  */
 export function AppShell({ surface, header, children, className }: AppShellProps) {
+  const { locale, text } = useLocale()
   const classes = [styles['main'], styles[surface], className].filter(Boolean).join(' ')
+
+  useEffect(() => {
+    document.documentElement.lang = locale
+  }, [locale])
 
   return (
     <div className={styles['shell']}>
       <a className={styles['skipLink']} href={`#${MAIN_CONTENT_ID}`}>
-        {fr.shell.skipToContent}
+        {text.shell.skipToContent}
       </a>
       {header}
       <main id={MAIN_CONTENT_ID} className={classes}>

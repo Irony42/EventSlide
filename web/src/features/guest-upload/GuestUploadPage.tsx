@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { readGuestSession } from '../../lib/guestSession'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { CaptionField } from './components/CaptionField'
 import { ClipComposer } from './components/ClipComposer'
 import { InstallCard } from './components/InstallCard'
@@ -46,14 +46,16 @@ export function GuestUploadPage() {
 
 /** Reached by a bookmark, or after the tab was closed and reopened. */
 function NotJoined() {
+  const t = useTranslations()
+
   return (
     <EmptyState
       as="h1"
-      title={fr.upload.notJoinedTitle}
-      description={fr.upload.notJoinedHint}
+      title={t.upload.notJoinedTitle}
+      description={t.upload.notJoinedHint}
       action={
         <Link className={styles['rejoin']} to="/join">
-          {fr.upload.notJoinedAction}
+          {t.upload.notJoinedAction}
         </Link>
       }
     />
@@ -67,6 +69,7 @@ interface UploadScreenProps {
 }
 
 function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
+  const t = useTranslations()
   const mine = useMyPhotos(slug)
   const [caption, setCaption] = useState('')
 
@@ -148,9 +151,9 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
             event from a query parameter the QR page never set, so every photo went to
             the default event and nothing on the page would have shown it. */}
         <h1 className={styles['title']}>{event.name}</h1>
-        <p className={styles['intro']}>{fr.upload.intro}</p>
+        <p className={styles['intro']}>{t.upload.intro}</p>
         <p className={styles['signature']}>
-          {displayName === null ? fr.upload.signedAnonymous : fr.upload.signedAs(displayName)}
+          {displayName === null ? t.upload.signedAnonymous : t.upload.signedAs(displayName)}
         </p>
       </header>
 
@@ -218,7 +221,7 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
           disabled={queue.sendableCount === 0}
           onClick={() => queue.send(trimmedCaption.length === 0 ? null : trimmedCaption)}
         >
-          {queue.sendableCount === 0 ? fr.upload.send : fr.upload.sendCount(queue.sendableCount)}
+          {queue.sendableCount === 0 ? t.upload.send : t.upload.sendCount(queue.sendableCount)}
         </Button>
       </div>
     </div>

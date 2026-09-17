@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, type MouseEvent, type ReactNode } from 'react'
 import { CloseIcon } from './CloseIcon'
 import { IconButton } from './IconButton'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './Dialog.module.css'
 
 const FOCUSABLE = [
@@ -67,6 +67,7 @@ export function Dialog({
   children,
   className,
 }: DialogProps) {
+  const t = useTranslations()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const openerRef = useRef<Element | null>(null)
   const generated = useId()
@@ -184,7 +185,7 @@ export function Dialog({
             </h2>
             {dismissible ? (
               <IconButton
-                aria-label={fr.ui.dialogClose}
+                aria-label={t.ui.dialogClose}
                 icon={<CloseIcon />}
                 variant="ghost"
                 onClick={onClose}

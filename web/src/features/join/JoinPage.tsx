@@ -7,7 +7,7 @@ import { Spinner } from '../../design-system/components/Spinner'
 import { Stack } from '../../design-system/components/Stack'
 import { StatusIcon } from '../../design-system/components/StatusIcon'
 import { TextInput } from '../../design-system/components/TextInput'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { useJoin } from './hooks/useJoin'
 import styles from './JoinPage.module.css'
 
@@ -30,6 +30,7 @@ import styles from './JoinPage.module.css'
  * every guest silently uploaded to the default event.
  */
 export function JoinPage() {
+  const t = useTranslations()
   const { code: codeFromPath } = useParams()
   const { phase, event, error, join, continueToUpload } = useJoin()
 
@@ -76,7 +77,7 @@ export function JoinPage() {
   }
 
   const nameField = (
-    <Field label={fr.join.nameLabel} hint={fr.join.nameHint} optional>
+    <Field label={t.join.nameLabel} hint={t.join.nameHint} optional>
       {(control) => (
         <TextInput
           {...control}
@@ -92,12 +93,12 @@ export function JoinPage() {
   const actions = (
     <Stack gap="3">
       <Button type="submit" variant="primary" size="lg" block loading={busy}>
-        {fr.join.submit}
+        {t.join.submit}
       </Button>
       {/* Anonymity is a supported choice, so it gets its own control rather than
           being something a guest has to infer from leaving a field empty. */}
       <Button variant="ghost" size="lg" block disabled={busy} onClick={() => submit(false)}>
-        {fr.join.anonymous}
+        {t.join.anonymous}
       </Button>
     </Stack>
   )
@@ -110,7 +111,7 @@ export function JoinPage() {
           {/* role="status" rather than a Spinner label: on a phone the wait needs to
               be readable, not only announced. */}
           <p className={styles['resolving']} role="status">
-            {fr.join.submitting}
+            {t.join.submitting}
           </p>
         </Stack>
       </Card>
@@ -119,7 +120,7 @@ export function JoinPage() {
 
   if (event !== null) {
     return (
-      <Card as="h1" title={fr.join.welcome(event.name)} className={styles['card']}>
+      <Card as="h1" title={t.join.welcome(event.name)} className={styles['card']}>
         <form className={styles['form']} onSubmit={handleSubmit} noValidate>
           {error === null ? null : (
             <p className={styles['error']} role="alert">
@@ -135,11 +136,11 @@ export function JoinPage() {
   }
 
   return (
-    <Card as="h1" title={fr.join.title} className={styles['card']}>
+    <Card as="h1" title={t.join.title} className={styles['card']}>
       <form className={styles['form']} onSubmit={handleSubmit} noValidate>
         <Field
-          label={fr.join.codeLabel}
-          hint={fr.join.codeHint}
+          label={t.join.codeLabel}
+          hint={t.join.codeHint}
           {...(error === null ? {} : { error })}
         >
           {(control) => (
@@ -170,7 +171,7 @@ export function JoinPage() {
             loading={busy}
             disabled={code.trim().length === 0}
           >
-            {fr.join.submit}
+            {t.join.submit}
           </Button>
           <Button
             variant="ghost"
@@ -179,7 +180,7 @@ export function JoinPage() {
             disabled={busy || code.trim().length === 0}
             onClick={() => submit(false)}
           >
-            {fr.join.anonymous}
+            {t.join.anonymous}
           </Button>
         </Stack>
       </form>

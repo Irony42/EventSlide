@@ -200,6 +200,15 @@ npm run verify:full   # verify + test:e2e                         <- before open
 - **French is the UI language, English is the code language.** Identifiers, comments,
   commit messages, and docs in English. User-facing strings live in
   `web/src/lib/i18n/` and are French — with correct accents.
+- **The guest surface is translated; the host surface is not.** `fr.ts` decides which
+  keys exist. Its `app`, `join`, `upload`, `ui`, `shell` and `errors` sections are
+  carried by `de.ts`, `en.ts`, `es.ts` and `it.ts` as well, and adding a key to one of
+  them fails the build until all four have it. `moderation`, `wall`, `admin`, `auth` and
+  `mobileModeration` are French in every language, by decision, which
+  `web/src/lib/i18n/translations.ts` argues. A guest-facing component reads
+  `useTranslations()`; a host-facing one imports `fr` directly. `<html lang>` follows the
+  language actually on screen and is set by `AppShell`, the one component every surface
+  renders through. See §1.5 of the roadmap.
 
 ---
 

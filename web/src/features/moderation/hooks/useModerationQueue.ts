@@ -3,6 +3,7 @@ import { useApi } from '../../../app/useApi'
 import { useToast } from '../../../design-system/components/useToast'
 import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
+import { messageForCode } from '../../../lib/i18n/translations'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 import type { ModerationDecision, ModerationPhotoDto, PhotoStatus } from '../../../lib/api/dto'
 
@@ -166,13 +167,26 @@ const asError = (cause: unknown): Error =>
 /**
  * The sentence to show for a failure.
  *
- * An `ApiError` carries French copy chosen locally from the server's error code, which
- * is more useful than a generic line — "cette action n'est pas possible sur cette
- * photo" tells the host what happened. Anything else is a bug in this build, and its
- * message is an English internal string that must not reach a host mid-event.
+ * An `ApiError` carries the server's stable error code, and the French copy for it is
+ * more useful than a generic line — "cette action n'est pas possible sur cette photo"
+ * tells the host what happened. French unconditionally: the moderation console is not
+ * translated (`web/src/lib/i18n/translations.ts`). Anything else is a bug in this build,
+ * and its message is an English internal string that must not reach a host mid-event.
  */
 const failureMessage = (cause: unknown, fallback: string): string =>
-  cause instanceof ApiError ? cause.message : fallback
+  cause instanceof ApiError ? messageForCode(cause.code, fr) : fallback
+
+/**
+ * The sentence for a failed load, for the two consoles that render one.
+ *
+ * Exported because `ModerationQueue.error` is an `Error` — the consoles branch on its
+ * presence and one of them keeps the stale queue on screen beside it — and an `Error`
+ * no longer carries copy. Rendering `error.message` printed the French sentence until
+ * roadmap 1.5 moved the sentence to the render, and now prints `photo.notFound`. This is
+ * the one lookup those two components need, kept beside the hook that produced the
+ * failure rather than repeated in each of them.
+ */
+export const queueErrorMessage = (error: Error): string => failureMessage(error, fr.errors.unknown)
 
 export const useModerationQueue = (
   slug: string | undefined,

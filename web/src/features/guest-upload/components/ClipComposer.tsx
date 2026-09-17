@@ -2,7 +2,8 @@ import { useId, type ChangeEvent } from 'react'
 import { Button } from '../../../design-system/components/Button'
 import { Progress } from '../../../design-system/components/Progress'
 import { StatusIcon } from '../../../design-system/components/StatusIcon'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
+import type { UiText } from '../../../lib/i18n/translations'
 import { megabytes, type ClipLimits } from '../clipFile'
 import type { ClipStage, ClipUpload } from '../hooks/useClipUpload'
 import styles from './ClipComposer.module.css'
@@ -31,22 +32,22 @@ export interface ClipComposerProps {
 }
 
 /** What the screen says at each stage. `null` where the surface says it another way. */
-const STAGE_LABEL: Readonly<Record<ClipStage, string | null>> = {
+const stageLabelsFor = (t: UiText): Readonly<Record<ClipStage, string | null>> => ({
   idle: null,
-  ready: fr.upload.clipChosen,
-  uploading: fr.upload.clipUploading,
+  ready: t.upload.clipChosen,
+  uploading: t.upload.clipUploading,
   // The server's own three, said as the guest experiences them. `reserved` is a window
   // of milliseconds nobody normally sees, and it means the same thing to them as the
   // wait that follows it.
-  reserved: fr.upload.clipQueued,
-  queued: fr.upload.clipQueued,
-  running: fr.upload.clipRunning,
+  reserved: t.upload.clipQueued,
+  queued: t.upload.clipQueued,
+  running: t.upload.clipRunning,
   done: null,
   // Both carry their own sentence in `clip.message`; a second line above it would say
   // the same thing twice on a 360 px screen.
   waiting: null,
   failed: null,
-}
+})
 
 /**
  * Stages during which nothing may be sent.
@@ -93,6 +94,8 @@ const TONE: Readonly<Record<ClipStage, 'danger' | 'warning' | 'success' | null>>
 }
 
 export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
+  const t = useTranslations()
+  const stageLabel = stageLabelsFor(t)
   const libraryId = useId()
   const cameraId = useId()
 
@@ -105,7 +108,7 @@ export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
   }
 
   const busy = BUSY.includes(clip.stage)
-  const label = STAGE_LABEL[clip.stage]
+  const label = stageLabel[clip.stage]
   const tone = TONE[clip.stage]
 
   return (
@@ -114,13 +117,13 @@ export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
           and the picker's label would otherwise be the same string, so a screen reader
           announces the heading and the control it contains identically. */}
       <h2 className={styles['heading']} id={`${libraryId}-heading`}>
-        {fr.upload.clipSection}
+        {t.upload.clipSection}
       </h2>
 
       {/* The limits, before the picker opens. A guest who reads "15 secondes, 80 Mo"
           films a shorter sequence; a guest who does not reads it as a refusal later. */}
       <p className={styles['hint']}>
-        {fr.upload.clipHint(limits.maxSeconds, megabytes(limits.maxBytes))}
+        {t.upload.clipHint(limits.maxSeconds, megabytes(limits.maxBytes))}
       </p>
 
       <div className={styles['picker']}>
@@ -128,7 +131,7 @@ export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
             transparent over their label — the pattern `PhotoPicker` documents. A
             `<div onClick>` calling `input.click()` is unreachable by keyboard. */}
         <label className={styles['action']} htmlFor={libraryId}>
-          <span>{clip.file === null ? fr.upload.addClip : fr.upload.clipChange}</span>
+          <span>{clip.file === null ? t.upload.addClip : t.upload.clipChange}</span>
           <input
             id={libraryId}
             className={styles['input']}
@@ -141,7 +144,7 @@ export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
         </label>
 
         <label className={styles['action']} htmlFor={cameraId}>
-          <span>{fr.upload.recordClip}</span>
+          <span>{t.upload.recordClip}</span>
           {/* `capture="environment"` keeps the recording inside the page. Without it the
               guest leaves for the camera app, comes back to a reloaded page, and the
               queue behind them is gone. */}
@@ -160,7 +163,7 @@ export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
       {clip.file === null ? null : (
         <div className={styles['chosen']} data-testid="clip-state" data-stage={clip.stage}>
           <p className={styles['name']}>{clip.file.name}</p>
-          <p className={styles['size']}>{fr.upload.clipSize(megabytes(clip.file.size))}</p>
+          <p className={styles['size']}>{t.upload.clipSize(megabytes(clip.file.size))}</p>
 
           {/*
             One live region for the whole flow, so the four states are announced in turn
@@ -173,7 +176,7 @@ export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
           </p>
 
           {clip.stage === 'uploading' ? (
-            <Progress value={clip.progress} label={fr.upload.clipProgress} showValue />
+            <Progress value={clip.progress} label={t.upload.clipProgress} showValue />
           ) : null}
 
           {clip.message === null || tone === null ? null : (
@@ -204,24 +207,24 @@ export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
             {ON_THE_BOX.includes(clip.stage) ? (
               /* Nothing to offer, and saying so. A button here would promise a
                  withdrawal this surface cannot perform — see `ON_THE_BOX`. */
-              <p className={styles['notice']}>{fr.upload.clipAlreadySent}</p>
+              <p className={styles['notice']}>{t.upload.clipAlreadySent}</p>
             ) : clip.stage === 'done' ||
               clip.stage === 'waiting' ||
               (clip.stage === 'failed' && !clip.retryable) ? (
               <Button variant="secondary" block onClick={clip.clear}>
-                {fr.upload.clipDiscard}
+                {t.upload.clipDiscard}
               </Button>
             ) : busy ? (
               <Button variant="ghost" block onClick={clip.cancel}>
-                {fr.upload.clipCancel}
+                {t.upload.clipCancel}
               </Button>
             ) : (
               <>
                 <Button variant="primary" size="lg" block onClick={() => clip.send(caption)}>
-                  {clip.stage === 'failed' ? fr.app.retry : fr.upload.clipSend}
+                  {clip.stage === 'failed' ? t.app.retry : t.upload.clipSend}
                 </Button>
                 <Button variant="ghost" block onClick={clip.clear}>
-                  {fr.app.cancel}
+                  {t.app.cancel}
                 </Button>
               </>
             )}

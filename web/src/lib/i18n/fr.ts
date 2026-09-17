@@ -1,7 +1,7 @@
 /**
- * Every user-facing string, in one place.
+ * Every user-facing string, in one place, and the source of truth for what a string is.
  *
- * Two rules the rest of the app depends on:
+ * Three rules the rest of the app depends on:
  *
  * 1. **The server never sends French.** It sends a stable machine code
  *    (`photo.notFound`, `event.quotaExceeded`); this file decides the wording. 1.0
@@ -10,12 +10,33 @@
  * 2. **Vouvoiement throughout.** A guest is somebody else's guest at somebody else's
  *    wedding — the app is the host's voice, not a friend's. Mixed registers read as
  *    sloppy, so the choice is made once, here.
+ * 3. **This file decides which keys exist.** `de.ts`, `en.ts`, `es.ts` and `it.ts` are
+ *    typed from `typeof fr`, so a key added here that they do not carry fails
+ *    `npm run typecheck` (`translations.ts` explains the derivation). Only the sections
+ *    listed in `GUEST_SECTIONS` are translated; the rest are French on every language,
+ *    by design and not by omission.
  *
  * Tone: sentence case, no exclamation-mark inflation, and an error says what to do
  * next rather than what went wrong internally.
+ *
+ * **Adding a string.** Put it in the section it belongs to, as here. If the section is
+ * host-facing (`admin`, `moderation`, `mobileModeration`, `auth`, `wall`) there is
+ * nothing else to do. If it is guest-facing (`app`, `join`, `upload`, `ui`, `shell`,
+ * `errors`) the four other tables stop compiling until they carry it too.
  */
 
+import { formattersFor } from './formatters'
 import type { WallLayout } from '../api/dto'
+
+/**
+ * French counting, from `Intl` rather than from a hand-written ternary.
+ *
+ * The ternaries this replaces were the English rule: `count === 1 ? singular : plural`
+ * puts zero in the plural, and French puts zero in the singular — so every counted
+ * phrase in this file read "0 photos" where French wants "0 photo". Each of the five
+ * tables holds its own set of formatters and the phrases read identically across them.
+ */
+const t = formattersFor('fr')
 
 export const fr = {
   app: {
@@ -27,6 +48,15 @@ export const fr = {
     save: 'Enregistrer',
     back: 'Retour',
     confirm: 'Confirmer',
+    /**
+     * The accessible name of the language picker (roadmap 1.5).
+     *
+     * Translated like everything else in this section, even though the control it names
+     * shows every language in its own name: a guest using a screen reader hears this
+     * label, and hearing it in a language they do not read is the same failure the
+     * picker exists to fix.
+     */
+    language: 'Langue',
   },
 
   join: {
@@ -47,11 +77,14 @@ export const fr = {
     addPhotos: 'Ajouter des photos',
     takePhoto: 'Prendre une photo',
     captionLabel: 'Légende',
-    captionHint: (max: number) => `${max} caractères maximum. Facultatif.`,
+    captionHint: (max: number) => `${t.number(max)} caractères maximum. Facultatif.`,
     send: 'Envoyer',
     sending: 'Envoi…',
     sendCount: (count: number) =>
-      count === 1 ? 'Envoyer la photo' : `Envoyer les ${count} photos`,
+      t.count(count, {
+        one: 'Envoyer la photo',
+        other: `Envoyer les ${t.number(count)} photos`,
+      }),
     queueEmpty: 'Aucune photo sélectionnée pour le moment.',
     itemPending: 'En attente',
     itemUploading: 'Envoi en cours',
@@ -77,14 +110,24 @@ export const fr = {
     itemPreparing: 'Préparation…',
     queueLabel: 'Photos à envoyer',
     queueSummary: (done: number, total: number) =>
-      `${done} envoyée${done > 1 ? 's' : ''} sur ${total}`,
+      t.count(done, {
+        one: `${t.number(done)} envoyée sur ${t.number(total)}`,
+        other: `${t.number(done)} envoyées sur ${t.number(total)}`,
+      }),
     queueFailed: (count: number) =>
-      count === 1 ? 'Un envoi a échoué.' : `${count} envois ont échoué.`,
+      t.count(count, {
+        one: 'Un envoi a échoué.',
+        other: `${t.number(count)} envois ont échoué.`,
+      }),
     itemAlt: (position: number) => `Photo ${position} à envoyer`,
     itemProgress: (position: number) => `Envoi de la photo ${position}`,
     removeItem: (position: number) => `Retirer la photo ${position}`,
     retryItem: (position: number) => `Réessayer l’envoi de la photo ${position}`,
-    captionRemaining: (remaining: number) => `${remaining} caractères restants.`,
+    captionRemaining: (remaining: number) =>
+      t.count(remaining, {
+        one: `${t.number(remaining)} caractère restant.`,
+        other: `${t.number(remaining)} caractères restants.`,
+      }),
     signedAs: (name: string) => `Vos photos apparaîtront sous le nom ${name}.`,
     signedAnonymous: 'Vos photos apparaîtront sans nom.',
     mineEmpty: 'Vous n’avez encore envoyé aucune photo.',
@@ -111,7 +154,10 @@ export const fr = {
      */
     itemExpiredHint: 'Cette photo n’a pas pu être envoyée. Renvoyez-la si vous l’avez encore.',
     offlineTitle: (count: number) =>
-      count === 1 ? '1 photo attend le réseau' : `${count} photos attendent le réseau`,
+      t.count(count, {
+        one: `${t.number(count)} photo attend le réseau`,
+        other: `${t.number(count)} photos attendent le réseau`,
+      }),
     offlineHint:
       'Elles sont enregistrées sur votre téléphone et partiront dès que la connexion revient. Vous pouvez fermer cette page.',
     offlineSending: 'Envoi des photos en attente…',
@@ -167,7 +213,7 @@ export const fr = {
      * it rather than after it is on the screen.
      */
     clipHint: (seconds: number, megabytes: number) =>
-      `${seconds} secondes et ${megabytes} Mo maximum. La vidéo est diffusée sans le son.`,
+      `${t.number(seconds)} secondes et ${t.number(megabytes)} Mo maximum. La vidéo est diffusée sans le son.`,
     clipSend: 'Envoyer la vidéo',
     /** The picker's label once a recording is in hand: pressing it opens the picker. */
     clipChange: 'Choisir une autre vidéo',
@@ -194,7 +240,7 @@ export const fr = {
       'Cette vidéo est déjà sur le serveur. Elle sera traitée, puis proposée à l’organisateur.',
     /** The chosen file, before anything has been sent. */
     clipChosen: 'Vidéo prête à être envoyée',
-    clipSize: (megabytes: number) => `${megabytes} Mo`,
+    clipSize: (megabytes: number) => `${t.number(megabytes)} Mo`,
     /**
      * The refusals this surface makes for itself, before a byte leaves the phone.
      *
@@ -202,9 +248,9 @@ export const fr = {
      * number can act on it, and the number is the one this deployment actually enforces.
      */
     clipTooLarge: (megabytes: number) =>
-      `Cette vidéo dépasse ${megabytes} Mo. Filmez une séquence plus courte.`,
+      `Cette vidéo dépasse ${t.number(megabytes)} Mo. Filmez une séquence plus courte.`,
     clipTooLong: (seconds: number) =>
-      `Cette vidéo dépasse ${seconds} secondes. Filmez une séquence plus courte.`,
+      `Cette vidéo dépasse ${t.number(seconds)} secondes. Filmez une séquence plus courte.`,
     clipNotAVideo: 'Ce fichier n’est pas une vidéo.',
     /**
      * The four states the job actually has, in the guest's words.
@@ -229,7 +275,7 @@ export const fr = {
     clipQueueFullRetry: (seconds: number) =>
       seconds <= 1
         ? 'Beaucoup de vidéos sont en cours de traitement. Réessayez dans un instant.'
-        : `Beaucoup de vidéos sont en cours de traitement. Réessayez dans ${seconds} secondes.`,
+        : `Beaucoup de vidéos sont en cours de traitement. Réessayez dans ${t.number(seconds)} secondes.`,
     /** The wait is over and the button is back. Said, so the change is not silent. */
     clipQueueFreed: 'La file s’est libérée. Vous pouvez renvoyer la vidéo.',
     /**
@@ -257,6 +303,16 @@ export const fr = {
     /** In "Vos envois", where a clip's thumbnail is its image d’aperçu. */
     mineClipAlt: 'Votre vidéo',
     mineClipBadge: 'Vidéo',
+    /**
+     * The same badge once the duration is known.
+     *
+     * It reads identically to `moderation.videoLength`, which is what "Vos envois" used
+     * to render — and that was a scope bug rather than reuse: `moderation` is host copy
+     * and stays French in every language, so a guest reading this app in German had one
+     * French badge in their own list of uploads. Two identical sentences owned by the
+     * two audiences that read them is the cheaper mistake.
+     */
+    mineClipLength: (seconds: number) => `Vidéo · ${t.number(seconds)} s`,
 
     /* -------------------------- end guest surface --------------------------- */
   },
@@ -264,7 +320,11 @@ export const fr = {
   moderation: {
     title: 'Modération',
     intro: 'Rien n’apparaît à l’écran sans votre validation.',
-    pending: (count: number) => (count === 1 ? '1 photo en attente' : `${count} photos en attente`),
+    pending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo en attente`,
+        other: `${t.number(count)} photos en attente`,
+      }),
     empty: 'Rien à valider pour l’instant.',
     emptyHint: 'Les nouvelles photos arrivent ici automatiquement.',
     publish: 'Publier',
@@ -274,12 +334,13 @@ export const fr = {
     undone: 'Décision annulée.',
     selectAll: 'Tout sélectionner',
     clearSelection: 'Tout désélectionner',
-    bulkPublish: (count: number) => `Publier (${count})`,
-    bulkReject: (count: number) => `Refuser (${count})`,
+    bulkPublish: (count: number) => `Publier (${t.number(count)})`,
+    bulkReject: (count: number) => `Refuser (${t.number(count)})`,
     bulkSkipped: (count: number) =>
-      count === 1
-        ? '1 photo ignorée : action impossible.'
-        : `${count} photos ignorées : action impossible.`,
+      t.count(count, {
+        one: `${t.number(count)} photo ignorée : action impossible.`,
+        other: `${t.number(count)} photos ignorées : action impossible.`,
+      }),
     filterAll: 'Toutes',
     filterPending: 'En attente',
     filterPublished: 'À l’écran',
@@ -307,7 +368,10 @@ export const fr = {
     stateRejected: 'Refusée',
     stateHidden: 'Retirée de l’écran',
     selected: (count: number) =>
-      count === 1 ? '1 photo sélectionnée' : `${count} photos sélectionnées`,
+      t.count(count, {
+        one: `${t.number(count)} photo sélectionnée`,
+        other: `${t.number(count)} photos sélectionnées`,
+      }),
     /**
      * Goes inside "la photo de …", where `byAnonymous` would read as "de Invité
      * anonyme". The standalone caption line keeps `byAnonymous`.
@@ -324,11 +388,22 @@ export const fr = {
       `${caption} — photo envoyée par ${author}`,
     previousPhoto: 'Photo précédente',
     nextPhoto: 'Photo suivante',
-    bulkHide: (count: number) => `Retirer de l’écran (${count})`,
-    published: (count: number) => (count === 1 ? '1 photo publiée.' : `${count} photos publiées.`),
-    refused: (count: number) => (count === 1 ? '1 photo refusée.' : `${count} photos refusées.`),
+    bulkHide: (count: number) => `Retirer de l’écran (${t.number(count)})`,
+    published: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo publiée.`,
+        other: `${t.number(count)} photos publiées.`,
+      }),
+    refused: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo refusée.`,
+        other: `${t.number(count)} photos refusées.`,
+      }),
     removed: (count: number) =>
-      count === 1 ? '1 photo retirée de l’écran.' : `${count} photos retirées de l’écran.`,
+      t.count(count, {
+        one: `${t.number(count)} photo retirée de l’écran.`,
+        other: `${t.number(count)} photos retirées de l’écran.`,
+      }),
     decisionFailed: 'La décision n’a pas pu être enregistrée. Réessayez.',
     undoFailed: 'L’annulation n’a pas pu être enregistrée. Réessayez.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
@@ -463,8 +538,10 @@ export const fr = {
     closeEvent: 'Clore l’évènement',
     reopenEvent: 'Réouvrir',
     archiveEvent: 'Archiver',
-    photos: (count: number) => (count === 1 ? '1 photo' : `${count} photos`),
-    guests: (count: number) => (count === 1 ? '1 invité' : `${count} invités`),
+    photos: (count: number) =>
+      t.count(count, { one: `${t.number(count)} photo`, other: `${t.number(count)} photos` }),
+    guests: (count: number) =>
+      t.count(count, { one: `${t.number(count)} invité`, other: `${t.number(count)} invités` }),
     storageUsed: (used: string, total: string) => `${used} sur ${total}`,
     settings: 'Réglages',
     moderationMode: 'Modération',
@@ -489,7 +566,11 @@ export const fr = {
     allowGuestSelfDelete: 'Autoriser les invités à supprimer leurs photos',
     retention: 'Suppression automatique',
     retentionNever: 'Jamais',
-    retentionDays: (days: number) => `${days} jours après la fin`,
+    retentionDays: (days: number) =>
+      t.count(days, {
+        one: `${t.number(days)} jour après la fin`,
+        other: `${t.number(days)} jours après la fin`,
+      }),
     moderators: 'Modérateurs',
     inviteModerator: 'Inviter un modérateur',
 
@@ -522,9 +603,18 @@ export const fr = {
     selfDeleteGrace: 'Délai de suppression',
     selfDeleteGraceHint: 'Pendant ce délai, un invité peut retirer lui-même sa photo.',
     graceNone: 'Aucun délai',
-    graceSeconds: (seconds: number) => (seconds === 1 ? '1 seconde' : `${seconds} secondes`),
-    graceMinutes: (minutes: number) => (minutes === 1 ? '1 minute' : `${minutes} minutes`),
-    graceHours: (hours: number) => (hours === 1 ? '1 heure' : `${hours} heures`),
+    graceSeconds: (seconds: number) =>
+      t.count(seconds, {
+        one: `${t.number(seconds)} seconde`,
+        other: `${t.number(seconds)} secondes`,
+      }),
+    graceMinutes: (minutes: number) =>
+      t.count(minutes, {
+        one: `${t.number(minutes)} minute`,
+        other: `${t.number(minutes)} minutes`,
+      }),
+    graceHours: (hours: number) =>
+      t.count(hours, { one: `${t.number(hours)} heure`, other: `${t.number(hours)} heures` }),
     maxPhotosPerGuest: 'Photos par invité',
     maxPhotosUnlimited: 'Sans limite',
     guestList: 'Invités',
@@ -794,7 +884,11 @@ export const fr = {
     dialogClose: 'Fermer la fenêtre',
     notifications: 'Notifications',
     dismissNotification: 'Masquer cette notification',
-    percent: (value: number) => `${value} %`,
+    /**
+     * The narrow space before the sign is French and not universal: English writes
+     * "80%". `Intl` owns that difference, so no table has to remember it.
+     */
+    percent: (value: number) => t.percent(value),
     optional: 'Facultatif',
   },
 
@@ -858,23 +952,11 @@ export const fr = {
   },
 } as const
 
-export type Translations = typeof fr
-
 /**
- * French for a server error code, falling back to a generic message.
+ * The shape every other table has to have.
  *
- * Unknown codes are expected: a newer server may return a code this build has never
- * heard of, and showing a guest a raw `event.somethingNew` would be worse than a
- * generic sentence.
+ * `messageForCode` used to live here and now lives in `translations.ts`, with the rest
+ * of what knows about more than one language: resolving a server error code takes a
+ * table, and a table takes a locale.
  */
-export const messageForCode = (code: string | undefined): string => {
-  const table: Record<string, string | undefined> = fr.errors
-  /**
-   * `Object.hasOwn` rather than a bare lookup. `code` is a string chosen by whatever
-   * answered the request — the server, or a proxy in front of it — so a body carrying
-   * `{"error":{"code":"constructor"}}` would otherwise resolve to `Object` itself and
-   * hand a guest a function where a sentence belongs.
-   */
-  const message = code !== undefined && Object.hasOwn(fr.errors, code) ? table[code] : undefined
-  return message ?? fr.errors.unknown
-}
+export type Translations = typeof fr
