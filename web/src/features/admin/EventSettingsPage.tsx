@@ -12,6 +12,9 @@ import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
 import { isMutable } from './eventLifecycle'
 import { toInstant, toLocalInput } from './eventSchedule'
+// Shared with the create form's template card, so the two screens cannot word the same
+// window differently.
+import { graceLabel } from './settingsLabels'
 import { useEvent } from './hooks/useEventData'
 import { useSaveSchedule, useSaveSettings } from './hooks/useEventActions'
 import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
@@ -25,13 +28,6 @@ const numberOrNull = (value: string): number | null =>
   value === NO_LIMIT ? null : Number.parseInt(value, 10)
 
 const asOption = (value: number, label: string): SelectOption => ({ value: String(value), label })
-
-const graceLabel = (seconds: number): string => {
-  if (seconds === 0) return fr.admin.graceNone
-  if (seconds < 60) return fr.admin.graceSeconds(seconds)
-  if (seconds % 3600 === 0) return fr.admin.graceHours(seconds / 3600)
-  return fr.admin.graceMinutes(Math.round(seconds / 60))
-}
 
 const GRACE_OPTIONS = [0, 60, 300, 900, 3600].map((seconds) =>
   asOption(seconds, graceLabel(seconds)),

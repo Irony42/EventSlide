@@ -123,4 +123,63 @@ describe('NewEventPage', () => {
 
     expect(screen.getByText(fr.admin.slugPreviewEmpty)).toBeVisible()
   })
+
+  // ---------------------------------------------------------------- templates --
+
+  it('sends no template when the host picked none, because absence is how it is said', async () => {
+    // There is no "no template" value on the wire. A `null` here would be an unexpected
+    // key and a `400 request.invalid` on the one form a host meets first.
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.type(screen.getByLabelText(fr.admin.eventName), 'Camille & Sacha')
+    await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
+
+    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha' })
+  })
+
+  it('sends the template the host picked', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.type(screen.getByLabelText(fr.admin.eventName), 'Camille & Sacha')
+    await userEvent.click(
+      screen.getByRole('radio', { name: new RegExp(fr.admin.templateNames.wedding) }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
+
+    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha', template: 'wedding' })
+  })
+
+  it('sends a template alongside a hand-written address', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.type(screen.getByLabelText(fr.admin.eventName), 'Séminaire')
+    await userEvent.type(screen.getByLabelText(fr.admin.slug), 'Séminaire 2026')
+    await userEvent.click(
+      screen.getByRole('radio', { name: new RegExp(fr.admin.templateNames.conference) }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
+
+    expect(api.createEvent).toHaveBeenCalledWith({
+      name: 'Séminaire',
+      slug: 'seminaire-2026',
+      template: 'conference',
+    })
+  })
+
+  it('lets the host change their mind back to no template before creating', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.type(screen.getByLabelText(fr.admin.eventName), 'Camille & Sacha')
+    await userEvent.click(
+      screen.getByRole('radio', { name: new RegExp(fr.admin.templateNames.party) }),
+    )
+    await userEvent.click(screen.getByRole('radio', { name: new RegExp(fr.admin.templateNone) }))
+    await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
+
+    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha' })
+  })
 })

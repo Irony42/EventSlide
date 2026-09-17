@@ -426,6 +426,14 @@ const INVALID_INPUTS: readonly InputCase[] = [
     call: (client) => client.post('/api/events').send({ name: 'Un mariage', ownerId: OWNER }),
   },
   {
+    // No new error code for this: an unknown template is `request.invalid`, exactly like
+    // every other unknown enum value at this boundary — which is what keeps roadmap 1.5
+    // from having to translate a fifth string for it.
+    name: 'POST /events with a template outside the catalogue',
+    call: (client) =>
+      client.post('/api/events').send({ name: 'Un mariage', template: 'graduation' }),
+  },
+  {
     name: 'PATCH /events/:slug with an empty name',
     call: (client) => client.patch(`/api/events/${SLUG}`).send({ name: '' }),
   },
@@ -668,6 +676,89 @@ describe('the host event routes', () => {
 
       expect(response.status).toBe(409)
       expect(response.body.error.code).toBe('event.slugTaken')
+    })
+
+    it('starts from the product defaults when no template is named', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent.post('/api/events').send({ name: 'Un mariage en juin' })
+
+      expect(response.body.settings).toMatchObject({
+        moderation: 'manual',
+        retentionDays: null,
+        maxPhotosPerGuest: null,
+        theme: { accentHue: 305, fonts: 'sans', frame: 'soft' },
+      })
+    })
+
+    it.each([
+      ['wedding', { moderation: 'manual', retentionDays: 365, guestSelfDeleteGraceSeconds: 3_600 }],
+      ['birthday', { moderation: 'auto', retentionDays: 90 }],
+      ['conference', { retentionDays: 30, allowClips: false, maxPhotosPerGuest: 25 }],
+      ['party', { moderation: 'auto', retentionDays: 30 }],
+    ])('applies the %s template to the settings it answers with', async (template, expected) => {
+      // The wire half of roadmap 3.5: the host is shown what they got in the same
+      // response that created it, so the first screen after the form is already the truth.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .post('/api/events')
+        .send({ name: `Un évènement ${template}`, template })
+
+      expect(response.status).toBe(201)
+      expect(response.body.settings).toMatchObject(expected)
+    })
+
+    it('applies the template’s theme, so the first frame is already the right colour', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .post('/api/events')
+        .send({ name: 'Un mariage en juin', template: 'wedding' })
+
+      expect(response.body.settings.theme).toEqual({
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+      })
+    })
+
+    it('answers with no trace of the template, because nothing stores one', async () => {
+      // The escape hatch as a wire contract. If a template key ever appeared on the
+      // event, something downstream would eventually read it — and a value a host did not
+      // choose would come back at them later.
+      const agent = await signedIn(world, 'owner')
+
+      // A name whose slug does not itself contain the template's name, so the assertion
+      // below is about the template and not about the address.
+      const response = await agent
+        .post('/api/events')
+        .send({ name: 'Séminaire annuel', template: 'conference' })
+
+      expect(response.body).not.toHaveProperty('template')
+      expect(JSON.stringify(response.body)).not.toContain('conference')
+    })
+
+    it('lets the host depart from the template immediately, with no fight', async () => {
+      // "I picked wedding and then changed moderation", end to end and in the order a
+      // host actually does it.
+      const agent = await signedIn(world, 'owner')
+      const created = await agent
+        .post('/api/events')
+        .send({ name: 'Un mariage en juin', template: 'wedding' })
+
+      const patched = await agent
+        .patch(`/api/events/${String(created.body.slug)}/settings`)
+        .send({ moderation: 'auto' })
+
+      expect(patched.status).toBe(200)
+      expect(patched.body.settings.moderation).toBe('auto')
+      // The rest of the template is untouched by the departure, and nothing puts the
+      // moderation mode back on the next read.
+      expect(patched.body.settings.retentionDays).toBe(365)
+
+      const reread = await agent.get(`/api/events/${String(created.body.slug)}`)
+      expect(reread.body.settings.moderation).toBe('auto')
     })
   })
 

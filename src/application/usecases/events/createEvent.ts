@@ -1,6 +1,7 @@
 import { Event } from '../../../domain/events/event'
 import { EventName } from '../../../domain/events/eventName'
 import { EventSettings } from '../../../domain/events/eventSettings'
+import { eventTemplateSettings, type EventTemplateKey } from '../../../domain/events/eventTemplate'
 import { DomainError } from '../../../domain/shared/errors'
 import type { UserId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
@@ -25,6 +26,20 @@ export interface CreateEventInput {
   readonly slug?: string
   readonly startsAt?: Date | null
   readonly quotaBytes?: number
+  /**
+   * Which of the four presets to start this event's settings from (roadmap 3.5).
+   *
+   * Absent means the product defaults, which is what every event created before this
+   * field existed got and what a host who picks nothing still gets.
+   *
+   * **Read exactly once, here.** The chosen values are copied into the event's settings
+   * and the key is not stored — no column, no DTO field, nothing to consult later. That
+   * is the whole design: a host who picks "wedding" and then changes moderation has
+   * changed their event and not departed from anything, because there is nothing left to
+   * depart from. See `src/domain/events/eventTemplate.ts` for why the alternative — an
+   * event that stays attached to a living template — is a worse product.
+   */
+  readonly template?: EventTemplateKey
 }
 
 export interface CreateEventDeps {
@@ -93,7 +108,13 @@ export const makeCreateEvent =
         name: name.value,
         slug: slug.value,
         joinCode: joinCode.value,
-        settings: EventSettings.default(),
+        // The template is applied here and then forgotten. `eventTemplateSettings` is
+        // total — the catalogue is validated at import, so a preset can never reach a
+        // host as a 400 on a form with no field to correct.
+        settings:
+          input.template === undefined
+            ? EventSettings.default()
+            : eventTemplateSettings(input.template),
         quotaBytes: input.quotaBytes ?? defaultQuotaBytes,
         startsAt: input.startsAt ?? null,
       },

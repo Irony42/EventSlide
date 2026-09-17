@@ -6,6 +6,7 @@ import type {
   EventSettingsDto,
   EventStatus,
   EventSummaryDto,
+  EventTemplateKey,
   GuestListResponse,
   GuestPhotoDto,
   JoinResponse,
@@ -37,6 +38,15 @@ export interface CreateEventInput {
   readonly slug?: string
   readonly startsAt?: string | null
   readonly quotaBytes?: number | null
+  /**
+   * The preset the event's settings start from (roadmap 3.5), or absent for the product
+   * defaults.
+   *
+   * Optional and never `null`, unlike the two fields above it: those spell "no limit" and
+   * "no printed start", and this one has no such value to spell. Absent is the only way
+   * to say "no template", and it is what the server's schema accepts.
+   */
+  readonly template?: EventTemplateKey
 }
 
 /**

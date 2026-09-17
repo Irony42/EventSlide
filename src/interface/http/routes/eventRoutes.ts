@@ -150,6 +150,9 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
         ...(body.quotaBytes === undefined || body.quotaBytes === null
           ? {}
           : { quotaBytes: body.quotaBytes }),
+        // Same conditional spread and the same reason: absent means "the product
+        // defaults", which is a different thing from any template name.
+        ...(body.template === undefined ? {} : { template: body.template }),
       })
 
       // The creator is the owner: `createEvent` grants that membership as part of

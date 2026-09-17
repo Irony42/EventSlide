@@ -1,0 +1,121 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0;
+  font-weight: 650;
+  font-size: var(--text-sm);
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/**
+ * One option: the control, then what it does.
+ *
+ * A `div` rather than the `label` it used to be, because the description below holds a
+ * list and a warning — invalid inside a label, and worse than invalid, since everything
+ * inside one is folded into the radio's accessible name.
+ */
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+/** The label proper: the radio and the name of the evening, and nothing else. */
+.control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--touch-min);
+  cursor: pointer;
+}
+
+.radio {
+  accent-color: var(--accent);
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  flex: none;
+  cursor: pointer;
+}
+
+.name {
+  font-weight: 650;
+}
+
+/**
+ * The description, indented past the radio so it reads as belonging to the option rather
+ * than to the card. The inline size of the radio plus the control's gap.
+ */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-inline-start: calc(var(--space-4) + var(--space-3));
+}
+
+.summary {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  padding-inline-start: calc(var(--space-4) + var(--space-3));
+}
+
+/* Inside the description block, which already carries the indent. */
+.body .summary {
+  padding-inline-start: 0;
+}
+
+/**
+ * What the template changes.
+ *
+ * Unbulleted: the marker would sit outside the card's padding on a narrow laptop window,
+ * and the heading directly above already says what the list is.
+ */
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/**
+ * Publishing without validation, said the way the settings page says it.
+ *
+ * Same tokens as `EventSettingsPage.module.css`'s own warning, because it is the same
+ * disclosure about the same setting and a second visual language for it would read as a
+ * different, lesser caution.
+ */
+.warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.warningGlyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--warning);
+  margin-block-start: var(--space-1);
+}

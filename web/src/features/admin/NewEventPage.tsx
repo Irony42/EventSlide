@@ -7,8 +7,10 @@ import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { fr } from '../../lib/i18n/fr'
 import { slugify } from '../../lib/slugify'
+import { EventTemplatePicker } from './components/EventTemplatePicker'
 import { useCreateEvent } from './hooks/useEventActions'
 import styles from './NewEventPage.module.css'
+import type { EventTemplateKey } from '../../lib/api/dto'
 
 /** Surface: the host's laptop, usually the day before the event. */
 export function NewEventPage() {
@@ -18,6 +20,8 @@ export function NewEventPage() {
 
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
+  /** `null` is "Sans modèle", which is what a host who does not choose one gets. */
+  const [template, setTemplate] = useState<EventTemplateKey | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
 
   /**
@@ -34,12 +38,15 @@ export function NewEventPage() {
     setFailure(null)
 
     void create
-      .run(
-        'create',
+      .run('create', {
+        name: name.trim(),
         // Absent, not empty: the server derives the slug from the name when the field
         // is omitted, and an empty string would be a validation failure instead.
-        slug.trim().length > 0 ? { name: name.trim(), slug: slugify(slug) } : { name: name.trim() },
-      )
+        ...(slug.trim().length > 0 ? { slug: slugify(slug) } : {}),
+        // Same shape and the same reason. There is no "no template" value on the wire —
+        // absence is what says it — so nothing is sent when the host picked none.
+        ...(template === null ? {} : { template }),
+      })
       .then((result) => {
         if (!result.ok) {
           setFailure(result.message)
@@ -97,6 +104,14 @@ export function NewEventPage() {
             <span className={styles['previewValue']}>{`/e/${preview}`}</span>
           )}
         </div>
+
+        {/*
+          After the address rather than before it: the name is what the form is for and
+          the address is derived from it, so the two stay together at the top and the
+          policy decision — which is optional, and which the host may not have an opinion
+          about — comes last.
+        */}
+        <EventTemplatePicker value={template} disabled={create.busy} onChange={setTemplate} />
 
         {failure === null ? null : (
           <p className={styles['alert']} role="alert">
