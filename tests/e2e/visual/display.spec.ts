@@ -80,7 +80,29 @@ test.describe('the projected wall @visual', () => {
         .first()
         .getByRole('button', { name: /Publier/i })
         .click()
+      // Awaited one at a time, and this is the load-bearing line. Clicking `.first()`
+      // six times only publishes six photos if the queue has actually shrunk between
+      // the clicks; without the wait the loop can hit a card that is still on screen
+      // and leave the last photo pending.
+      await expect(surfaces.host.getByTestId('moderation-card')).toHaveCount(
+        album.length - index - 1,
+      )
     }
+
+    /**
+     * **Every visual test depends on this line, and it was missing.**
+     *
+     * The wall shows one photo in `spotlight`, and which one is decided by the playlist
+     * — so a helper that returns while a photo is still pending hands the screenshot a
+     * different composition than the run before. That is not a flake that costs a
+     * re-run: the baseline is rendered by one commit and compared by another, so the
+     * two sides can disagree about *which photograph the wall is showing* and report it
+     * as 78% of pixels changed, on a branch that touched no rendering at all.
+     *
+     * It cost exactly that on the i18n branch, whose extra work at boot moved the
+     * timing enough to land on the other side of the race.
+     */
+    await expect(surfaces.host.getByTestId('moderation-card')).toHaveCount(0)
     return event
   }
 
