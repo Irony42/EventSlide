@@ -6,6 +6,7 @@ import type { ContentHasher } from '../../ports/contentHasher'
 import type { LogContext, Logger } from '../../ports/logger'
 import type { TranscodeSpec } from '../../ports/videoTranscoder'
 import { anEvent, aPhoto, type EventInput } from '../../testing/builders'
+import { CallLog } from '../../testing/callLog'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -633,6 +634,30 @@ describe('uploadClip', () => {
       expect(clips.all).toEqual([])
       expect(await photos.totalBytes(EVENT)).toBe(0)
       expect(bus.published).toEqual([])
+    })
+
+    it('unlinks the source before it releases the row, so a re-upload keeps its own bytes', async () => {
+      // **An ordering rule, and the committed state is identical either way** — which is
+      // why nothing else in this suite can see it. Deleting the row first releases this
+      // digest from the partial unique index, so the guest's immediate retry can reserve
+      // it in the gap and the unlink below then takes *that* reservation's source. The
+      // new job goes `queued` pointing at nothing, `clip.sourceMissing` is permanent, and
+      // every later attempt dedupes onto the dead row. While the reservation is still
+      // committed no other request can be holding the digest, so this order has no window
+      // at all. `transcodeNextClip.giveUpOn` is ordered the same way for the same reason.
+      seedEvent()
+      const calls = new CallLog()
+      media = calls.watch('media', media)
+      clips = calls.watch('clips', clips)
+      build()
+      media.failWritesAfter(0)
+
+      await upload()
+
+      expect(calls.sequenceOf('media.delete', 'clips.deleteForPhoto')).toEqual([
+        'media.delete',
+        'clips.deleteForPhoto',
+      ])
     })
 
     it('still reports a failure when the reservation’s bytes cannot be taken back', async () => {

@@ -293,6 +293,73 @@ export const clipJobRepositoryContract = (
       })
     })
 
+    /**
+     * The reaper's only statement, and the two halves of it are both load-bearing.
+     *
+     * **The status.** Without it the reaper is a timer that deletes the queue: a `queued`
+     * clip waiting behind twenty others, and a `running` one ffmpeg is working on right
+     * now, are both older than any sane cutoff. Guests' clips would vanish mid-queue all
+     * evening.
+     *
+     * **The direction of the comparison.** Inverted, it reaps everything except the rows
+     * it exists for, and a stranded reservation becomes permanent — each one holds a
+     * global queue slot, a charge against the event's quota and its digest in the partial
+     * unique index, so every clip upload on the box answers `429` for the rest of the
+     * night and the guest's own retry dedupes onto a row that will never move.
+     */
+    describe('deleteStaleReservations', () => {
+      it('deletes a reservation whose bytes never arrived, and says which', async () => {
+        await insertJob(aClipJob({ id: 'job-1', eventId: 'evt-wedding', status: 'reserved' }))
+
+        const reaped = await repo.deleteStaleReservations(atPlus(5 * 60_000))
+
+        expect(reaped.map((job) => job.id)).toEqual(['job-1'])
+        expect(await repo.findById(WEDDING, asClipJobId('job-1'))).toBeNull()
+      })
+
+      it('leaves a reservation younger than the cutoff alone, because its bytes may be landing now', async () => {
+        await insertJob(
+          aClipJob({
+            id: 'job-1',
+            eventId: 'evt-wedding',
+            status: 'reserved',
+            createdAt: atPlus(5 * 60_000),
+          }),
+        )
+
+        expect(await repo.deleteStaleReservations(AT)).toEqual([])
+        expect((await repo.findById(WEDDING, asClipJobId('job-1')))?.id).toBe('job-1')
+      })
+
+      it('never touches a job that is past its reservation, however old it is', async () => {
+        for (const status of ['queued', 'running', 'done', 'failed'] as const) {
+          await insertJob(aClipJob({ id: `job-${status}`, eventId: 'evt-wedding', status }))
+        }
+
+        const reaped = await repo.deleteStaleReservations(atPlus(60 * 60_000))
+
+        expect(reaped).toEqual([])
+        for (const status of ['queued', 'running', 'done', 'failed'] as const) {
+          expect((await repo.findById(WEDDING, asClipJobId(`job-${status}`)))?.status).toBe(status)
+        }
+      })
+
+      it('reaps another event’s reservation too, because there is one reaper for the box', async () => {
+        await insertJob(
+          aClipJob({
+            id: 'job-1',
+            eventId: 'evt-gala',
+            author: { kind: 'guest', id: 'guest-sam' },
+            status: 'reserved',
+          }),
+        )
+
+        expect(
+          (await repo.deleteStaleReservations(atPlus(5 * 60_000))).map((job) => job.id),
+        ).toEqual(['job-1'])
+      })
+    })
+
     describe('claimNext', () => {
       it('answers null when nothing is queued', async () => {
         // The ordinary case: the queue is empty for most of an evening.
