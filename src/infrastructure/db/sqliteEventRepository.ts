@@ -7,6 +7,12 @@ import {
   isModerationMode,
   type EventSettingsProps,
 } from '../../domain/events/eventSettings'
+import {
+  DEFAULT_EVENT_THEME,
+  isThemeFonts,
+  isThemeFrame,
+  type EventThemeProps,
+} from '../../domain/events/eventTheme'
 import { isEventStatus, type EventStatus } from '../../domain/events/eventStatus'
 import type { DomainError } from '../../domain/shared/errors'
 import { asEventId, asUserId, type EventId, type UserId } from '../../domain/shared/ids'
@@ -145,6 +151,40 @@ const settingsNullableInteger = (value: unknown, field: string): number | null =
 const settingsBooleanAddedLater = (value: unknown, field: string, fallback: boolean): boolean =>
   value === undefined ? fallback : settingsBoolean(value, field)
 
+/**
+ * The event's theme, added by roadmap 2.2, and the second field to need the treatment
+ * above.
+ *
+ * **Its answer to "what does an absent key mean" is the opposite shape of `allowClips`'
+ * and for the same reason.** That one had to differ from the domain default because
+ * switching an 80 MB upload path onto a live wedding is a change nobody consented to.
+ * A theme consents to nothing and costs nothing: `DEFAULT_EVENT_THEME` is the accent
+ * `tokens.css` has always declared, the face it has always resolved to and the radius the
+ * wall has always
+ * drawn, so an event written before this field renders exactly what it rendered
+ * yesterday. The two answers coincide here, and writing that down is the point — the
+ * question still had to be asked.
+ *
+ * Present but malformed is still corruption: a blob carrying `theme` with a frame style
+ * this build has never heard of was written by another program, and defaulting it would
+ * show a host a wall they did not configure.
+ */
+const settingsThemeAddedLater = (value: unknown): EventThemeProps => {
+  if (value === undefined) return DEFAULT_EVENT_THEME
+  if (!isRecord(value)) throw corrupt('settings', 'theme is not a JSON object')
+
+  const fonts = value['fonts']
+  if (!isThemeFonts(fonts)) throw corrupt('settings', 'unknown theme font pairing')
+  const frame = value['frame']
+  if (!isThemeFrame(frame)) throw corrupt('settings', 'unknown theme frame style')
+
+  return {
+    accentHue: settingsInteger(value['accentHue'], 'theme.accentHue'),
+    fonts,
+    frame,
+  }
+}
+
 const decodeJson = (raw: string): unknown => {
   try {
     return JSON.parse(raw)
@@ -202,9 +242,19 @@ const settingsOf = (raw: string): EventSettings => {
     ),
     retentionDays: settingsNullableInteger(decoded['retentionDays'], 'retentionDays'),
     maxPhotosPerGuest: settingsNullableInteger(decoded['maxPhotosPerGuest'], 'maxPhotosPerGuest'),
+    /**
+     * Added by roadmap 2.2, and the default when the key is absent — which is not the
+     * concession `allowClips` above makes, because here the default *is* what the event
+     * already renders. See `settingsThemeAddedLater`.
+     */
+    theme: settingsThemeAddedLater(decoded['theme']),
   }
 
-  const settings = EventSettings.create(props)
+  // `restore`, not `create`: a stored theme is judged on its shape and not on the
+  // legibility rule it was chosen under. Tightening that rule must refuse a host's next
+  // choice, never make an existing event unreadable — `restoreEventTheme` has the
+  // argument. Every other field is still validated exactly as strictly as before.
+  const settings = EventSettings.restore(props)
   if (!settings.ok) throw corrupt('settings', settings.error.code)
   return settings.value
 }

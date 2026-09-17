@@ -190,6 +190,13 @@ const DOCUMENTED_CODES: readonly string[] = [
   'clipJob.notFound',
   'clipJob.illegalTransition',
   'photo.rangeNotSatisfiable',
+
+  // Per-event theming (roadmap 2.2). The host's picker cannot produce any of these —
+  // every option in it is one the domain accepts — so they are what a request made
+  // outside the console is answered with, and each has to name the way out.
+  'eventTheme.accentHueInvalid',
+  'eventTheme.accentUnreadable',
+  'eventTheme.accentTooCloseToStatus',
 ]
 
 describe('messageForCode', () => {

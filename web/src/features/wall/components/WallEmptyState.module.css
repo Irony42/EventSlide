@@ -28,7 +28,12 @@
   color: var(--accent);
 }
 
+/* The event's own name, in the event's own face. `--font-display` is `--font-sans` until
+   a host picks the other pairing (roadmap 2.2), so an unthemed wall is unchanged — and
+   the pairing is applied here, at `--text-display` on a projector, because that is the
+   one place in the product where a second face is large enough to be worth having. */
 .name {
+  font-family: var(--font-display);
   font-size: var(--text-display);
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-tight);
@@ -60,7 +65,12 @@
 }
 
 /* The code is read out loud across a table and typed on a phone in the dark, so it
-   gets the display size and figures that do not reflow. */
+   gets the display size and figures that do not reflow.
+
+   Deliberately **not** `--font-display`: this is the one piece of type on the wall that
+   has to be transcribed character by character by somebody squinting from a table, and a
+   host's choice of face is not worth a `1` that could be an `l`. The event's name beside
+   it carries the pairing; the code carries the job. */
 .code {
   font-size: var(--text-display);
   line-height: var(--leading-tight);

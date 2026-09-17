@@ -5,6 +5,7 @@ import {
   EVENT_CONTRACT_FIXTURES,
   eventRepositoryContract,
 } from '../../application/testing/contracts/eventRepositoryContract'
+import { DEFAULT_EVENT_THEME } from '../../domain/events/eventTheme'
 import { asEventId, asUserId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrations } from './migrations'
@@ -387,11 +388,40 @@ describe('SqliteEventRepository', () => {
       { holds: 'a missing flag', stored: json({ allowGuestSelfDelete: undefined }) },
       { holds: 'a non-numeric window', stored: json({ guestSelfDeleteGraceSeconds: '900' }) },
       { holds: 'a retention the domain refuses', stored: json({ retentionDays: 0 }) },
+      { holds: 'a theme that is not an object', stored: json({ theme: 'rose' }) },
+      {
+        holds: 'an unknown font pairing',
+        stored: json({ theme: { accentHue: 305, fonts: 'comic', frame: 'soft' } }),
+      },
+      {
+        holds: 'an unknown frame style',
+        stored: json({ theme: { accentHue: 305, fonts: 'sans', frame: 'oval' } }),
+      },
+      {
+        holds: 'a hue that is not a number',
+        stored: json({ theme: { accentHue: 'rose', fonts: 'sans', frame: 'soft' } }),
+      },
     ])('refuses to hydrate an event whose stored settings hold $holds', async ({ stored }) => {
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(stored, 'evt-1')
 
       await expect(repo.findById(asEventId('evt-1'))).rejects.toThrow()
+    })
+
+    it('renders a hue off the circle as the default rather than failing the event', async () => {
+      // The one stored value in this block that does **not** make a row corrupt, and the
+      // asymmetry is deliberate: a theme is cosmetic, and refusing here would fail
+      // `findById` — taking the wall, the join page and the settings page down for that
+      // event over a colour, including the page its host would use to pick another one.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ theme: { accentHue: 400, fonts: 'sans', frame: 'soft' } }),
+        'evt-1',
+      )
+
+      const event = await repo.findById(asEventId('evt-1'))
+
+      expect(event?.settings.theme).toEqual(DEFAULT_EVENT_THEME)
     })
 
     it('leaves clips off on an event created before clips existed', async () => {
@@ -419,6 +449,43 @@ describe('SqliteEventRepository', () => {
       )
 
       expect((await repo.findById(asEventId('evt-1')))?.settings.allowClips).toBe(true)
+    })
+
+    it('still serves an event whose stored hue the legibility rule would now refuse', async () => {
+      // The one field hydration judges differently, and the reason is a deploy that
+      // nobody would connect to the outage. `MIN_STATUS_SEPARATION` and the accent tones
+      // are numbers somebody will one day tighten, and every stored theme was chosen
+      // under the old ones. Re-running the rule on read would make that edit throw here —
+      // taking the wall, the join and the settings page down for the event, including the
+      // page its host would have used to pick another colour.
+      //
+      // 160 degrees is inside `--success`: a hue `EventSettings.create` refuses outright.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ theme: { accentHue: 160, fonts: 'sans', frame: 'soft' } }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme.accentHue).toBe(160)
+    })
+
+    it('renders an event created before theming exactly as it rendered then', async () => {
+      // The other shape of "the key is absent", and deliberately not the one above.
+      // A theme consents to nothing and costs nothing, so the fallback is the product's
+      // own look — which is what that event has been showing all along. If this ever
+      // returned anything else, every wall that predates this deploy would change colour
+      // on restart.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ theme: undefined }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme).toEqual({
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
+      })
     })
 
     it('refuses to hydrate an event whose status is outside the lifecycle', async () => {

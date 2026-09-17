@@ -1,0 +1,60 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0;
+  border: none;
+}
+
+.colours {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0;
+  font-weight: 650;
+  font-size: var(--text-sm);
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--touch-min);
+  cursor: pointer;
+}
+
+.radio {
+  accent-color: var(--accent);
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  flex: none;
+  cursor: pointer;
+}
+
+/**
+ * The preview.
+ *
+ * The row it sits in carries the option's `--accent-hue`, so this paints with
+ * `var(--accent)` and runs exactly the derivation the wall will — and the radio beside it
+ * takes the same hue through `accent-color`, instead of showing the product's violet next
+ * to four different names. This file declares no colour of its own, which is the point of
+ * the hue being the only thing an event moves.
+ */
+.swatch {
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  flex: none;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  border: 1px solid var(--border-subtle);
+}

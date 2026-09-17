@@ -26,7 +26,8 @@
  */
 
 import { formattersFor } from './formatters'
-import type { WallLayout } from '../api/dto'
+import type { CuratedAccent } from '../../design-system/eventTheme'
+import type { ThemeFonts, ThemeFrame, WallLayout } from '../api/dto'
 
 /**
  * French counting, from `Intl` rather than from a hand-written ternary.
@@ -564,6 +565,33 @@ export const fr = {
     allowClipsHint:
       'Les invités peuvent envoyer de courtes vidéos, en plus des photos. Désactivé sur les galeries créées avant l’arrivée de cette fonctionnalité : cochez la case pour l’activer.',
     allowGuestSelfDelete: 'Autoriser les invités à supprimer leurs photos',
+
+    /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,
+            because a single choice with four options does not deserve four strings. ---- */
+    theme: 'Apparence',
+    themeHint:
+      'Visible par vos invités et sur l’écran de la salle. Les couleurs proposées restent lisibles à dix mètres.',
+    themeAccent: 'Couleur',
+    themeAccentNames: {
+      violet: 'Violet',
+      rose: 'Rose',
+      azure: 'Bleu',
+      teal: 'Turquoise',
+    } satisfies Record<CuratedAccent, string>,
+    themeFonts: 'Typographie',
+    /** The honest scope, said once: a guest's phone downloads nothing for this. */
+    themeFontsHint: 'Appliquée à l’écran de la salle uniquement.',
+    themeFontsNames: {
+      sans: 'Moderne',
+      serif: 'Classique',
+    } satisfies Record<ThemeFonts, string>,
+    themeFrame: 'Cadre des photos',
+    themeFrameNames: {
+      soft: 'Coins arrondis',
+      square: 'Coins droits',
+      round: 'Coins très arrondis',
+    } satisfies Record<ThemeFrame, string>,
+
     retention: 'Suppression automatique',
     retentionNever: 'Jamais',
     retentionDays: (days: number) =>
@@ -833,6 +861,16 @@ export const fr = {
     'event.scheduleInPast':
       'Cette heure est déjà passée. Vérifiez la date : pour la fin de soirée, choisissez le lendemain.',
     'event.scheduleInvalid': 'Ces dates ne sont pas lisibles. Choisissez-les à nouveau.',
+
+    /* ---- Per-event theming (roadmap 2.2). The picker offers only choices the server
+            accepts, so a host meets these through the API or a build one deploy ahead —
+            and each still says which way to move rather than only that it refused. ---- */
+    'eventTheme.accentHueInvalid':
+      'Cette couleur n’est pas reconnue. Choisissez-en une dans la liste.',
+    'eventTheme.accentUnreadable':
+      'Cette couleur ne serait pas lisible à l’écran de la salle. Choisissez-en une dans la liste.',
+    'eventTheme.accentTooCloseToStatus':
+      'Cette couleur ressemble trop aux couleurs d’état de l’application. Choisissez-en une autre dans la liste.',
 
     /* ---- Added by the short video clips (docs/ROADMAP.md 1.4). They live here and not
             in a feature block because `messageForCode` resolves a server error code

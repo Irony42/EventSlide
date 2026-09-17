@@ -1,8 +1,14 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { WallResponse } from '../../../lib/api/dto'
-import { aWallResponse, fakeApi, renderWithProviders } from '../../../testing/renderWithProviders'
+import { useState } from 'react'
+import type { WallItemDto, WallResponse } from '../../../lib/api/dto'
+import {
+  aWallItem,
+  aWallResponse,
+  fakeApi,
+  renderWithProviders,
+} from '../../../testing/renderWithProviders'
 import { useWallPlaylist } from './useWallPlaylist'
 
 /**
@@ -21,10 +27,30 @@ interface ProbeProps {
 function Probe({ slug }: ProbeProps) {
   const { wall, loading, error, refresh } = useWallPlaylist(slug)
 
+  /**
+   * How many distinct `items` arrays this probe has been handed.
+   *
+   * The slideshow's cursor, its clock and the Ken Burns animation all hang off that
+   * array, so "the playlist did not move" has to mean the same array and not merely an
+   * equal one — which is a property no rendered value can otherwise show.
+   */
+  const [seen, setSeen] = useState<readonly WallItemDto[] | null>(null)
+  const [playlists, setPlaylists] = useState(0)
+  // Adjusted during render against the value last seen, which is React's own shape for
+  // "derive state from a prop that changed" and the one `EventSettingsPage` uses. A ref
+  // would be the obvious reach and `react-hooks/refs` rejects it, rightly: a value read
+  // during render is state.
+  if (wall !== null && seen !== wall.items) {
+    setSeen(wall.items)
+    setPlaylists((count) => count + 1)
+  }
+
   return (
     <div>
       <p>évènement {wall === null ? 'aucun' : wall.event.name}</p>
       <p>révision {wall === null ? 'aucune' : wall.revision}</p>
+      <p>teinte {wall?.theme === undefined ? 'aucune' : String(wall.theme.accentHue)}</p>
+      <p>listes {playlists}</p>
       <p>lecture {loading ? 'en cours' : 'terminée'}</p>
       <p>échec {error === null ? 'aucun' : error.message}</p>
       <button onClick={refresh}>réessayer</button>
@@ -191,5 +217,63 @@ describe('useWallPlaylist', () => {
     // behaviour is to carry on showing the photos the projector already holds.
     expect(await screen.findByText('échec Le réseau a lâché')).toBeInTheDocument()
     expect(screen.getByText('évènement Camille & Sacha')).toBeInTheDocument()
+  })
+
+  /* ---- What the revision does not fingerprint (roadmap 2.2). ---- */
+
+  it('takes a setting the host just changed, although the playlist did not move', async () => {
+    // `event.settingsChanged` provokes a refetch that comes back on the same revision,
+    // because `revision` fingerprints `items` and a colour is not a photo. Discarding it
+    // is what left a host picking a colour looking at a projector that never changed —
+    // and on the empty wall, the screen they are actually looking at while they choose,
+    // the revision can never change at all.
+    const api = fakeApi({
+      wall: reads(
+        aWallResponse({
+          revision: 'rev-1',
+          theme: { accentHue: 305, fonts: 'sans', frame: 'soft' },
+        }),
+        aWallResponse({
+          revision: 'rev-1',
+          theme: { accentHue: 345, fonts: 'sans', frame: 'soft' },
+        }),
+      ),
+    })
+    renderWithProviders(<Probe slug="camille-et-sacha" />, { api })
+    await screen.findByText('teinte 305')
+
+    await retry()
+
+    expect(await screen.findByText('teinte 345')).toBeInTheDocument()
+  })
+
+  it('keeps the playlist itself untouched while it does so', async () => {
+    // The other half, and the reason this is a merge rather than "take the new response".
+    // The slideshow's cursor, its clock and the Ken Burns animation all hang off `items`;
+    // handing it a fresh array because somebody changed a colour would restart the photo
+    // on screen in front of the room. The server sends a new array every time, so the
+    // second response carries one — equal, and not the same object.
+    const items = [aWallItem()]
+    const api = fakeApi({
+      wall: reads(
+        aWallResponse({
+          revision: 'rev-1',
+          items,
+          theme: { accentHue: 305, fonts: 'sans', frame: 'soft' },
+        }),
+        aWallResponse({
+          revision: 'rev-1',
+          items: [...items],
+          theme: { accentHue: 345, fonts: 'sans', frame: 'soft' },
+        }),
+      ),
+    })
+    renderWithProviders(<Probe slug="camille-et-sacha" />, { api })
+    await screen.findByText('teinte 305')
+
+    await retry()
+    await screen.findByText('teinte 345')
+
+    expect(screen.getByText('listes 1')).toBeInTheDocument()
   })
 })

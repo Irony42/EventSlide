@@ -772,6 +772,7 @@ describe('the host event routes', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
         maxPhotosPerGuest: 5,
+        theme: { accentHue: 345, fonts: 'serif', frame: 'round' },
       })
 
       expect(response.status).toBe(200)
@@ -784,6 +785,75 @@ describe('the host event routes', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
         maxPhotosPerGuest: 5,
+        theme: { accentHue: 345, fonts: 'serif', frame: 'round' },
+      })
+    })
+
+    /* ---- Per-event theming (roadmap 2.2). ---- */
+
+    it('refuses a palette the room could not read, and says which rule it broke', async () => {
+      // The whole point of the constraint: a host may pick the look, and may not pick a
+      // look that makes the wall unreadable. 160 degrees is `--success`, so the accent
+      // and "published" would be the same signal to a room ten metres away.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ theme: { accentHue: 160, fonts: 'sans', frame: 'soft' } })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('eventTheme.accentTooCloseToStatus')
+      // A reason the host can act on: which colour it clashed with, and by how much. The
+      // number is an Oklab distance rather than an angle, because that is the scale the
+      // rule judges on — `--warning` is light and weak where `--danger` is dark and
+      // strong, so degrees compare three targets on three different scales.
+      expect(response.body.error.details).toMatchObject({ conflictsWith: 'success', minimum: 0.11 })
+    })
+
+    it('leaves the stored theme alone when it refuses one', async () => {
+      // A refusal is not a partial save. The event is still the event it was, which is
+      // what lets the console show the failure beside the values it is still holding.
+      const agent = await signedIn(world, 'owner')
+
+      await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ theme: { accentHue: 160, fonts: 'serif', frame: 'round' } })
+
+      expect((await world.events.findById(WEDDING))?.settings.theme).toEqual({
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
+      })
+    })
+
+    it('refuses half a theme rather than merging one', async () => {
+      // `.strict()` plus three required keys. A patch carrying only a hue would make the
+      // server pair it with whatever face happened to be stored, which is a palette
+      // nobody chose and the one thing the legibility rule cannot judge.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ theme: { accentHue: 345 } })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+    })
+
+    it('leaves an event nobody themed on the look it already had', async () => {
+      // Every committed wall baseline photographs this event. A save of some unrelated
+      // setting must not move it.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ allowCaptions: false })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.theme).toEqual({
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
       })
     })
   })

@@ -60,16 +60,13 @@ token exactly.
   --text-secondary: oklch(78% 0.015 265);
   --text-muted: oklch(64% 0.02 265);
 
-  /* ---- Accent. One hue. Reserved for the primary action and nothing else. ---- */
-  --accent: oklch(72% 0.17 305);
-  --accent-strong: oklch(64% 0.19 305); /* hover / pressed */
-  --accent-contrast: oklch(18% 0.02 305); /* text on top of --accent */
-  /* ---- Semantic ---- */
+  /* ---- Accent. One hue, and it is the one thing an event may move (§12). ---- */
+  --accent-hue: 305;
+  /* ---- Semantic. Fixed hues: an event's accent may not crowd them. ---- */
   --success: oklch(76% 0.16 155);
   --danger: oklch(68% 0.19 22);
   --warning: oklch(82% 0.15 85);
-  /* ---- Focus ---- */
-  --focus-ring: 0 0 0 3px oklch(72% 0.17 305 / 0.65);
+  /* ---- Focus. The ring is derived from the accent, so it is declared with it. ---- */
   --focus-offset: 2px;
 
   /* ---- Space. 4 px base. No in-between values. ---- */
@@ -86,6 +83,7 @@ token exactly.
   --font-sans:
     'InterVariable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
     Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --font-display: var(--font-sans); /* the wall's display face; §12 moves it */
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -98,10 +96,12 @@ token exactly.
   --tracking-tight: -0.02em; /* --text-display only */
 
   /* ---- Radii ---- */
+  --radius-none: 0;
   --radius-sm: 0.375rem;
   --radius-md: 0.75rem;
   --radius-lg: 1.25rem;
   --radius-full: 999px;
+  --wall-frame-radius: var(--radius-md); /* a framed photo's corner; §12 moves it */
 
   /* ---- Shadows. Elevation is the only thing shadows encode. ---- */
   --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
@@ -128,6 +128,29 @@ token exactly.
   /* ---- Targets. 44 px is the floor, not the aspiration. ---- */
   --touch-min: 2.75rem;
 }
+
+/* The accent, derived wherever a hue is in force. Two selectors, one rule — see §12:
+   a custom property that references another is resolved on the element it is declared
+   on, so `:root` alone would freeze the palette at the product's own hue. */
+:root,
+[data-event-accent] {
+  --accent: oklch(72% 0.17 var(--accent-hue));
+  --accent-strong: oklch(64% 0.19 var(--accent-hue)); /* hover / pressed */
+  --accent-contrast: oklch(18% 0.02 var(--accent-hue)); /* text on top of --accent */
+  --focus-ring: 0 0 0 3px oklch(72% 0.17 var(--accent-hue) / 0.65);
+}
+
+/* The two per-event choices that are a closed set rather than a number (§12). */
+[data-event-fonts='serif'] {
+  --font-display:
+    ui-serif, Georgia, 'Iowan Old Style', Cambria, 'Times New Roman', serif;
+}
+[data-event-frame='square'] {
+  --wall-frame-radius: var(--radius-none);
+}
+[data-event-frame='round'] {
+  --wall-frame-radius: var(--radius-lg);
+}
 ```
 
 Rules for changing this file:
@@ -142,9 +165,10 @@ Rules for changing this file:
   **computed**, and every one of them is a duration, a position or an angle — never a
   colour, a size or a spacing. Today: `--progress-value`, and on the wall
   `--wall-kenburns-duration` (§7), `--wall-transition`, `--wall-drift-duration` (the
-  filmstrip's travel, timed from the slide interval) and `--wall-tilt` (a polaroid's
-  angle, derived from the photo id so two projectors agree). Everything else is static
-  CSS.
+  filmstrip's travel, timed from the slide interval), `--wall-tilt` (a polaroid's
+  angle, derived from the photo id so two projectors agree) and `--accent-hue` (§12 —
+  an angle, which is the whole reason an event's colour can be one number). Everything
+  else is static CSS.
 
 ---
 
@@ -167,25 +191,35 @@ in `tokens.css` behind `@supports not (color: oklch(0% 0 0))`, nowhere else.
 
 ## 4. Typography
 
-**Face: Inter Variable, self-hosted.** SIL Open Font License, one variable `woff2`,
-readable at 14 px on a phone and at 8 m on a wall. No CDN — the `helmet` CSP forbids a
-remote `<link>`, and a venue's Wi-Fi will drop it anyway.
+> **This section described a font that is not in the tree, and the correction is the
+> interesting part.** It specified Inter Variable, self-hosted, with an `@font-face` block
+> and a path — and `web/src/design-system/fonts/` does not exist, there is no `.woff2`
+> anywhere in the repository, and `grep -rn "@font-face" web/` is empty. `'InterVariable'`
+> survives only as the first name in `--font-sans`, where it matches nothing and falls
+> through. **Every surface of this product renders in a system face today**, and has since
+> 2.0 shipped. Corrected while roadmap 2.2 was deciding what a "font pairing" costs, where
+> the difference between one bundled family and none is the whole decision.
 
-```css
-/* web/src/design-system/fonts.css — file in web/src/design-system/fonts/ */
-@font-face {
-  font-family: 'InterVariable';
-  src: url('./fonts/inter-latin-ext.woff2') format('woff2-variations');
-  font-weight: 400 700;
-  font-display: swap; /* the fallback stack renders first; nothing waits on a font */
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+20AC;
-}
-```
+**Face: the system UI face, through a stack.** `--font-sans` names `InterVariable` and
+`Inter` first, so a machine that happens to have Inter installed uses it; everything else
+resolves to `ui-sans-serif` / `system-ui` — Segoe UI on Windows, SF on Apple, Roboto on
+Android. Nothing is downloaded, and no CDN: the `helmet` CSP forbids a remote `<link>` and
+a venue's Wi-Fi would drop it anyway.
+
+**Bundling Inter is still the right change, and it is not free.** A latin + latin-ext
+variable `woff2` is on the order of 100 KB, against an initial JavaScript bundle measured
+at 245 KB — so one face is roughly 40% of what a guest downloads today, on the surface
+whose whole design constraint is a saturated access point. That is a decision with a
+number attached, and it belongs in a change of its own rather than inside a theming point.
+Whoever makes it needs the two notes the old block got right:
 
 - Subset **latin + latin-ext**: French needs `é è ê à â ç î ï ô ù û œ` and the narrow
   no-break space; a `latin`-only subset drops `œ` and falls back mid-word.
-- The fallback stack is load-bearing: `font-display: swap` means somebody reads
-  `system-ui` / `Segoe UI` first.
+- `font-display: swap`, so the stack above renders first and nothing waits on a font.
+
+Until then, two rules that hold either way:
+
+- The fallback stack is load-bearing, because today it is the _only_ stack.
 - `font-variant-numeric: tabular-nums` on every counter (queue, quota, progress), so
   digits do not reflow as they change.
 
@@ -200,6 +234,15 @@ remote `<link>`, and a venue's Wi-Fi will drop it anyway.
 
 Projector minimums, non-negotiable: nothing below `--text-xl` on `/e/:slug/display`,
 join code and event name at `--text-display`, captions under 40 characters per line.
+
+**`--font-display` is the wall's display face, and it is a role rather than a second
+family.** It resolves to `--font-sans` until an event's theme moves it (§12), and it is
+consumed by exactly two declarations: the event name on the invitation
+(`WallEmptyState.module.css`) and the caption text shared by every layout that prints one
+(`SlideCaption.module.css`). Not the join code — that is transcribed character by
+character from across a room, and a host's taste is not worth a `1` that could be an `l`
+— and not the credit under a caption, because a pairing is two faces doing different
+jobs rather than one face applied to everything.
 
 ---
 
@@ -465,3 +508,106 @@ already does. The filmstrip and the collage show no captions at all.
 | Add a shade that duplicates an existing role                                       | `#cbd5e1`, `#e2e8f0`, `#94a3b8` and `#f8fafc` all coexisted in 1.0 as "light text". Three text tokens is the whole budget.                                                                            |
 | Ship a screen without empty, loading and error states                              | They are the states people actually hit at an event, and 1.0 shipped none of them.                                                                                                                    |
 | Encode meaning in colour alone, or add a second accent hue                         | See §8; and one accent, used sparingly, is what keeps the photo the hero.                                                                                                                             |
+
+---
+
+## 12. Per-event theming
+
+Roadmap 2.2. A host gives one event a look: an **accent hue**, a **font pairing** and a
+**frame style**. A wedding in rose and a corporate launch in a company blue should not
+look like the same product, and before this they did.
+
+### The one degree of freedom
+
+An event moves **`--accent-hue` and nothing else.** Lightness and chroma stay where §2
+put them, so the palette a hue produces is a function — which is what makes "can the room
+read this" answerable before it is stored, and what makes it impossible for a host to
+choose an unreadable lightness. Nothing else in the product gains a knob: there is no
+per-event surface colour, no per-event spacing, no second accent.
+
+That is also why no colour crosses the wire. An angle does, and `tokens.css` turns it into
+three colours, so §2's rule — one file holds every raw value — survives the feature that
+was most likely to break it.
+
+### Where the rule lives
+
+**In the domain, not here.** `src/domain/events/eventTheme.ts` decides which hues are
+allowed and returns a `DomainError` for the ones that are not; a stylesheet cannot refuse
+anything, it can only render badly. The rule is three checks:
+
+| Check                                              | Bar   | Why                                                                       |
+| -------------------------------------------------- | ----- | ------------------------------------------------------------------------- |
+| `--accent-contrast` on `--accent`                  | 7:1   | §8's target for the label on every primary button                         |
+| `--accent-contrast` on `--accent-strong`           | 4.5:1 | §8's recorded concession: 7:1 is unreachable at 64% lightness, at any hue |
+| Distance from `--success`, `--danger`, `--warning` | 30°   | Otherwise "press this" and "that went wrong" are one signal at ten metres |
+
+A refusal names what was broken and by how much, and the host is told rather than
+silently moved to a colour they did not pick — a host who sees an unasked-for colour
+cannot tell whether the form saved.
+
+Two things are checked here rather than there, because they are properties of the
+stylesheet: `tokens.contrast.test.ts` sweeps the whole hue circle against the real
+declarations, and `eventThemeContract.test.ts` fails if the lightness and chroma the rule
+computes with ever stop matching the ones `tokens.css` declares.
+
+### Where it is applied
+
+On the **surface element**, as props rendered with the content they theme — never on
+`:root` from an effect. Two reasons, both about a defect somebody notices:
+
+- The host's console is deliberately **not** themed. It is one operator's tool across many
+  events, and `--success`/`--danger` there are a working vocabulary rather than
+  decoration. A `:root` override cannot say "these surfaces and not that one".
+- A `:root` write lands _after_ React has produced a frame, so the wall would paint the
+  product's violet and repaint in the host's rose on every reload, for eight hours, in
+  front of two hundred people. As props there is no frame in between. Before the wall's
+  first response there is nothing accent-coloured on screen either — the loading state is
+  a `--text-primary` spinner on `--surface-base` — so the projector has nothing to blink.
+  (The one exception is the paused glyph, which needs somebody standing at the projector
+  pressing Space in the two hundred milliseconds before the playlist lands.)
+
+`--accent` is declared for `:root` **and** for `[data-event-accent]` in one rule, and that
+is a correctness fix rather than a style: a custom property that references another is
+resolved on the element it is declared on, and descendants inherit the substituted result.
+Declared only on `:root`, `--accent` would keep hue 305 however far down the tree
+`--accent-hue` moved. This was written that way first and a Chromium end-to-end check
+caught it.
+
+### What each surface takes
+
+| Surface | Accent | Font pairing | Frame style |
+| ------- | ------ | ------------ | ----------- |
+| Room    | yes    | yes          | yes         |
+| Guest   | yes    | no           | no          |
+| Host    | no     | no           | no          |
+
+**The pairing costs zero bytes, and that is the decision rather than a happy accident.**
+There is no CDN here (§11) and the CSP forbids one, so a downloaded face means a bundled
+one. §4 is the number: nothing is bundled today, a latin + latin-ext variable `woff2` runs
+about 100 KB, and a _pairing_ is two of them — roughly 200 KB against an initial JavaScript
+bundle of 245 KB, paid by a guest on a saturated access point for a display face their
+screen is not large enough to show off.
+
+So both pairings are built from faces the device already has: the system UI stack for body
+text, and a system serif for display type. `ui-serif` first, then Georgia and the faces a
+desktop actually has. What that buys is real on a projector at `--text-display` and
+nothing at all on a phone, which is exactly why the pairing is applied to the wall and not
+to the guest. What it costs is that two machines may render the same wedding in two
+different serifs — accepted, because the alternative is 200 KB on the one surface this
+product cannot afford to slow down.
+
+Two pairings and not four, for the same reason: a third would have to be a bundled family
+or a stack that silently resolves to the sans on half the machines it meets.
+
+The frame style moves `--wall-frame-radius`, consumed by the three layouts that draw a
+frame: the mosaic's tile, the filmstrip's frame and the collage's cell. The spotlight and
+the split `contain` a photo against black and draw none. The polaroid is untouched on
+purpose — that layout _is_ a frame style, and its mat is a material (§2) rather than a
+corner.
+
+### The default
+
+An event that chose nothing renders **the DOM that shipped**: no attribute, no inline
+style, no theme block matching. Not "the default values on the element" — nothing. That is
+what the nine committed wall baselines in `tests/e2e/visual/` photograph, and why they did
+not move when this landed.

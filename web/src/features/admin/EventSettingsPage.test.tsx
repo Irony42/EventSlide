@@ -247,6 +247,76 @@ describe('EventSettingsPage', () => {
     )
   })
 
+  it('saves the event’s look as one theme rather than three loose fields', async () => {
+    // Roadmap 2.2. The endpoint refuses half a theme — the legibility rule judges the
+    // three together — so the form has to send all of them whichever one the host moved.
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.click(
+      await screen.findByRole('radio', { name: fr.admin.themeAccentNames.rose }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      'camille-et-sacha',
+      expect.objectContaining({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft' } }),
+    )
+  })
+
+  it('leaves the console itself in the product’s colours, whatever the event wears', async () => {
+    // The most-repeated promise of roadmap 2.2 and, until this test, the one nothing
+    // enforced: adding `themeSurfaceProps` to `AppShell` would have broken nothing. The
+    // console is one operator's tool across many events, and `--success`/`--danger` in
+    // the moderation queue are a working vocabulary rather than decoration.
+    //
+    // The colour picker's own rows are the deliberate exception: each previews one
+    // option's hue on itself, and a row contains a radio and a swatch and nothing else.
+    const api = fakeApi({
+      getEvent: vi.fn(async () =>
+        anEventDto({
+          settings: eventSettings({ theme: { accentHue: 345, fonts: 'serif', frame: 'round' } }),
+        }),
+      ),
+    })
+
+    renderPage(api)
+    await screen.findByRole('heading', { name: fr.admin.settings })
+
+    expect(document.querySelectorAll('[data-event-fonts]')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-event-frame]')).toHaveLength(0)
+
+    // Nothing carries the event's hue except the picker's own rows — and they carry one
+    // option's hue each, which is never the event's.
+    const picker = screen.getByTestId('theme-accents')
+    const marked = [...document.querySelectorAll('[data-event-accent]')]
+    expect(marked).toHaveLength(4)
+    for (const row of marked) expect(picker.contains(row)).toBe(true)
+    expect(marked.map((row) => row.getAttribute('data-event-accent'))).toEqual([
+      '305',
+      '345',
+      '250',
+      '195',
+    ])
+  })
+
+  it('shows the theme the server already holds', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () =>
+        anEventDto({
+          settings: eventSettings({ theme: { accentHue: 250, fonts: 'serif', frame: 'square' } }),
+        }),
+      ),
+    })
+
+    renderPage(api)
+
+    expect(
+      await screen.findByRole('radio', { name: fr.admin.themeAccentNames.azure }),
+    ).toBeChecked()
+    expect(screen.getByLabelText(fr.admin.themeFrame)).toHaveValue('square')
+  })
+
   it('says why the switch is off on an older gallery', async () => {
     // A host who finds an unticked box with no explanation reads it as a choice somebody
     // made, not as a default they were never asked about.

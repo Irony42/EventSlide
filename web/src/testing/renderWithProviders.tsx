@@ -4,6 +4,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { vi } from 'vitest'
 import { ApiProvider } from '../app/ApiProvider'
 import { ToastProvider } from '../design-system/components/ToastProvider'
+import { DEFAULT_EVENT_THEME } from '../design-system/eventTheme'
 import { LocaleProvider } from '../lib/i18n/LocaleProvider'
 import { installDialogStub } from './dialogStub'
 import type { Api, ModeratorInviteResponse } from '../lib/api/client'
@@ -49,6 +50,9 @@ export const aPublicEvent = (overrides: Partial<PublicEventDto> = {}): PublicEve
   allowClips: true,
   maxClipBytes: 80_000_000,
   maxClipSeconds: 15,
+  // The default theme, so a component test asserts the product's own look unless it
+  // says otherwise — the same starting point an event that chose nothing has.
+  theme: DEFAULT_EVENT_THEME,
   ...overrides,
 })
 
@@ -159,6 +163,7 @@ export const eventSettings = (overrides: Partial<EventSettingsDto> = {}): EventS
   guestSelfDeleteGraceSeconds: 300,
   retentionDays: null,
   maxPhotosPerGuest: null,
+  theme: DEFAULT_EVENT_THEME,
   ...overrides,
 })
 

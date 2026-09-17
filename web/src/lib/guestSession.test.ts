@@ -27,8 +27,19 @@ const OLDER_THAN_VIDEO: readonly string[] = ['allowClips', 'maxClipBytes', 'maxC
  * nothing at all on size — which is the whole defect this narrowing exists to prevent,
  * reintroduced by the compatibility fix.
  */
+/**
+ * `theme` joins `allowClips` in the exemption, and for the same reason with a different
+ * answer.
+ *
+ * A session written before roadmap 2.2 has no theme, and refusing it would send every
+ * guest in the room back to the join screen the moment the build is deployed. The
+ * difference is what it is filled in with: `allowClips: false` is deliberately narrower
+ * than the truth, while the default theme *is* the look that session was already
+ * rendering — so nothing changes on screen at all. A theme that is present and malformed
+ * is still refused, which the test below pins separately.
+ */
 const EVENT_FIELDS: readonly string[] = Object.keys(aPublicEvent()).filter(
-  (field) => field !== 'allowClips',
+  (field) => field !== 'allowClips' && field !== 'theme',
 )
 
 describe('guestSession', () => {
@@ -72,6 +83,38 @@ describe('guestSession', () => {
     // Off rather than guessed: the composer keys off this, so the guest keeps sending
     // photos and video appears the next time they scan the code.
     expect(session?.event.allowClips).toBe(false)
+  })
+
+  it('keeps a guest on the product’s own look when their session predates theming', () => {
+    // The same forgiveness, for roadmap 2.2. The value filled in is the look that
+    // session was already showing, so a reload changes nothing on the guest's screen —
+    // and the host's colour reaches them on their next join, which is one scan away.
+    const older: Record<string, unknown> = { ...aPublicEvent({ slug: 'gala' }) }
+    delete older['theme']
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({ event: older, displayName: 'Léa' }),
+    )
+
+    expect(readGuestSession('gala')?.event.theme).toEqual({
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'soft',
+    })
+  })
+
+  it('still refuses an entry whose theme is present and unreadable', () => {
+    // A version is forgiven, a fault is not. A hue stored as text reaches `--accent-hue`
+    // as a value the browser cannot parse, and every primary button on the screen —
+    // which on this surface is the only control there is — loses its colour.
+    const corrupted: Record<string, unknown> = { ...aPublicEvent({ slug: 'gala' }) }
+    corrupted['theme'] = { accentHue: 'rose', fonts: 'sans', frame: 'soft' }
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({ event: corrupted, displayName: null }),
+    )
+
+    expect(readGuestSession('gala')).toBeNull()
   })
 
   it('still refuses an entry that kept the clip limits but lost their types', () => {

@@ -163,6 +163,7 @@ describe('POST /api/join', () => {
         allowClips: true,
         maxClipBytes: 80_000_000,
         maxClipSeconds: 15,
+        theme: { accentHue: 305, fonts: 'sans', frame: 'soft' },
       },
     })
   })
@@ -383,6 +384,9 @@ describe('POST /api/join', () => {
       'maxUploadBytes',
       'name',
       'slug',
+      // Three enum-ish values describing how the event looks. No colour, no host, no
+      // policy a guest has no business knowing — an angle, a face and a corner.
+      'theme',
     ])
     // Not the join code back, not the quota, not the owner, not a count of anything.
     expect(JSON.stringify(response.body)).not.toContain('H7K2QM')
@@ -497,6 +501,31 @@ describe('GET /api/events/:eventSlug/wall', () => {
     expect(response.body.layout).toBe('spotlight')
     expect(response.body.reactionsEnabled).toBe(true)
     expect(response.body.revision).toEqual(expect.any(String))
+    // The default look, for an event whose host chose nothing.
+    expect(response.body.theme).toEqual({ accentHue: 305, fonts: 'sans', frame: 'soft' })
+  })
+
+  it('carries the event’s own look to the projector', async () => {
+    // Populated, not merely declared. `dtoContract.test.ts` compares the two declarations
+    // of this response and says in its own header that it cannot see a presenter that
+    // declares a field and never fills it — and a projector showing the product's violet
+    // at a wedding in rose is precisely a field that arrived as `undefined`.
+    const { subject, photos } = world()
+    seedWall(photos)
+    subject.events.seed(
+      anEvent({
+        id: WEDDING,
+        slug: 'mariage',
+        name: 'Camille & Sacha',
+        joinCode: 'H7K2QM',
+        status: 'live',
+        settings: { theme: { accentHue: 345, fonts: 'serif', frame: 'square' } },
+      }),
+    )
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.theme).toEqual({ accentHue: 345, fonts: 'serif', frame: 'square' })
   })
 
   it('is structurally incapable of showing a photo the host has not published', async () => {

@@ -21,16 +21,20 @@
   --text-secondary: oklch(78% 0.015 265);
   --text-muted: oklch(64% 0.02 265);
 
-  /* ---- Accent. One hue. Reserved for the primary action and nothing else. ---- */
-  --accent: oklch(72% 0.17 305);
-  --accent-strong: oklch(64% 0.19 305); /* hover / pressed */
-  --accent-contrast: oklch(18% 0.02 305); /* text on top of --accent */
-  /* ---- Semantic ---- */
+  /* ---- Accent. One hue. Reserved for the primary action and nothing else.
+
+         The hue is a variable and the lightness and chroma are not, which is what makes
+         per-event theming (roadmap 2.2) safe: an event has exactly one degree of freedom
+         and it is an angle, so no host can pick an unreadable lightness. The states
+         derived from it are declared just below this block rather than here — see the
+         comment there, it is not a style choice. ---- */
+  --accent-hue: 305;
+  /* ---- Semantic. Fixed hues: an event's accent may not crowd them, or "press this"
+         and "that went wrong" become one signal to a room ten metres away. ---- */
   --success: oklch(76% 0.16 155);
   --danger: oklch(68% 0.19 22);
   --warning: oklch(82% 0.15 85);
-  /* ---- Focus ---- */
-  --focus-ring: 0 0 0 3px oklch(72% 0.17 305 / 0.65);
+  /* ---- Focus. The ring is derived from the accent, so it is declared with it. ---- */
   --focus-offset: 2px;
 
   /* ---- Space. 4 px base. No in-between values. ---- */
@@ -47,6 +51,9 @@
   --font-sans:
     'InterVariable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  /* The face for --text-display and --text-xl on the wall. The same stack as --font-sans
+     until an event asks for the other pairing, so an unthemed wall is unchanged. */
+  --font-display: var(--font-sans);
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -59,10 +66,15 @@
   --tracking-tight: -0.02em; /* --text-display only */
 
   /* ---- Radii ---- */
+  --radius-none: 0;
   --radius-sm: 0.375rem;
   --radius-md: 0.75rem;
   --radius-lg: 1.25rem;
   --radius-full: 999px;
+  /* The corner of a photo in the wall layouts that draw a frame at all. A role rather
+     than a shade: it is what the event's frame style moves, and it starts where the wall
+     already was. The polaroid's mat is not this — that layout *is* a frame style. */
+  --wall-frame-radius: var(--radius-md);
 
   /* ---- Shadows. Elevation is the only thing shadows encode. ---- */
   --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
@@ -88,4 +100,70 @@
 
   /* ---- Targets. 44 px is the floor, not the aspiration. ---- */
   --touch-min: 2.75rem;
+}
+
+/**
+ * The accent, derived from whichever hue is in force where it is read.
+ *
+ * **The two selectors are one rule, and splitting this out of `:root` is a correctness
+ * fix rather than a tidy-up.** A custom property that references another is resolved at
+ * computed-value time *on the element it is declared on*, and what descendants inherit is
+ * the already-substituted result. So `--accent` declared only on `:root` would keep
+ * `oklch(72% 0.17 305)` forever, however far down the tree an event moved `--accent-hue`
+ * — which is exactly what happened the first time this was written, and what a Chromium
+ * end-to-end check caught. Re-declaring the derivation on the element that carries the
+ * event's hue is what makes the substitution run again, there, with that hue.
+ *
+ * Nothing is duplicated to achieve it: one declaration block, two selectors, one set of
+ * raw values. `src/domain/events/eventTheme.ts` holds the rule that decides which hues
+ * may reach `--accent-hue` at all, and `eventThemeContract.test.ts` fails if the
+ * lightness and chroma here and the ones that rule computes with ever disagree.
+ */
+:root,
+[data-event-accent] {
+  --accent: oklch(72% 0.17 var(--accent-hue));
+  --accent-strong: oklch(64% 0.19 var(--accent-hue)); /* hover / pressed */
+  --accent-contrast: oklch(18% 0.02 var(--accent-hue)); /* text on top of --accent */
+  --focus-ring: 0 0 0 3px oklch(72% 0.17 var(--accent-hue) / 0.65);
+}
+
+/**
+ * Per-event theming, roadmap 2.2. The two choices that are a set rather than a number.
+ *
+ * The accent is not here: it is one angle, so it arrives as a computed `--accent-hue` on
+ * the surface that carries it, exactly like `--wall-kenburns-duration` and `--wall-tilt`,
+ * and the rule above re-derives the palette where it lands. A font pairing and a frame
+ * style are closed vocabularies, so they arrive as an attribute and select a declaration
+ * that was written here, where raw values belong.
+ *
+ * **Attribute selectors rather than `:root` overrides, deliberately.** Two of the three
+ * surfaces carry a theme and the host's console must not: it is one operator's tool
+ * across many events, and a moderation queue that changes colour per event is the one
+ * screen where consistency is worth more than personality. A rule scoped to `:root`
+ * cannot express that, and a `:root` written from JavaScript is a second mutation that
+ * lands after React has already produced a frame — which is exactly the flash of the
+ * wrong colour a projector must never show. Custom properties inherit, so setting them
+ * on the surface element themes everything inside it in the same paint.
+ *
+ * The default of each is absent rather than declared: an event with no theme sets no
+ * attribute at all, so these blocks never match and the wall is byte for byte the wall
+ * that shipped.
+ */
+
+/* The wedding's typeset feel, for zero bytes. Nothing is bundled in this product today
+   (DESIGN-SYSTEM.md §4) and the CSP forbids a CDN, so a downloaded face would be two
+   bundled families at roughly 100 KB each — on a guest's phone, over venue Wi-Fi, for a
+   face only a projector is big enough to show. Both pairings are therefore built from
+   what the device already has: `ui-serif` first, then the faces a desktop actually
+   carries. Applied on the wall alone. */
+[data-event-fonts='serif'] {
+  --font-display: ui-serif, Georgia, 'Iowan Old Style', Cambria, 'Times New Roman', serif;
+}
+
+[data-event-frame='square'] {
+  --wall-frame-radius: var(--radius-none);
+}
+
+[data-event-frame='round'] {
+  --wall-frame-radius: var(--radius-lg);
 }

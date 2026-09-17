@@ -9,6 +9,7 @@ import { LoadFailure, Pending } from './components/AsyncState'
 import { CheckboxField } from './components/CheckboxField'
 import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
+import { ThemeFieldset } from './components/ThemeFieldset'
 import { isMutable } from './eventLifecycle'
 import { toInstant, toLocalInput } from './eventSchedule'
 import { useEvent } from './hooks/useEventData'
@@ -88,6 +89,12 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.guestSelfDeleteGraceSeconds,
     settings.retentionDays,
     settings.maxPhotosPerGuest,
+    // The theme is three values, so it is flattened here like everything else: without
+    // it a host who changed only the colour would have their unsaved choice survive a
+    // background refresh that moved it underneath them.
+    settings.theme.accentHue,
+    settings.theme.fonts,
+    settings.theme.frame,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
@@ -357,6 +364,17 @@ export function EventSettingsPage() {
           options={withCurrent(MAX_PHOTOS_OPTIONS, maxPhotos, fr.admin.photos)}
           disabled={readOnly}
           onChange={(value) => update({ maxPhotosPerGuest: numberOrNull(value) })}
+        />
+
+        {/*
+          How the event looks (roadmap 2.2). Last in the form, and the only block here
+          that changes nothing about what guests may do — a host scanning for the
+          moderation switch should not have to read past three colours to find it.
+        */}
+        <ThemeFieldset
+          theme={settings.theme}
+          disabled={readOnly}
+          onChange={(theme) => update({ theme })}
         />
 
         {failure === null ? null : (

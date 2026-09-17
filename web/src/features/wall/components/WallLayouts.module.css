@@ -53,11 +53,15 @@
   grid-area: f;
 }
 
+/* `--wall-frame-radius` rather than a radius of its own: the corner of a framed photo is
+   what an event's frame style moves (roadmap 2.2), and it resolves to `--radius-md` — the
+   value that was written here — until an event asks for another. The spotlight and the
+   split draw no frame at all, so they have nothing for a frame style to say. */
 .tile {
   position: relative;
   margin: 0;
   overflow: hidden;
-  border-radius: var(--radius-md);
+  border-radius: var(--wall-frame-radius);
   background: var(--surface-raised);
 }
 
@@ -255,7 +259,7 @@
   inline-size: 100%;
   block-size: 100%;
   object-fit: cover;
-  border-radius: var(--radius-md);
+  border-radius: var(--wall-frame-radius);
   background: var(--surface-raised);
 }
 
@@ -308,7 +312,7 @@
   position: relative;
   margin: 0;
   overflow: hidden;
-  border-radius: var(--radius-md);
+  border-radius: var(--wall-frame-radius);
   background: var(--surface-raised);
   animation: cell-arrives var(--wall-transition, var(--duration-slow)) var(--ease-out) both;
   will-change: opacity, transform;

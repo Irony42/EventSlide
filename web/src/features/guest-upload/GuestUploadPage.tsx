@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
+import { themeSurfaceProps } from '../../design-system/eventTheme'
 import { readGuestSession } from '../../lib/guestSession'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { CaptionField } from './components/CaptionField'
@@ -145,7 +146,20 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
   const trimmedCaption = caption.trim()
 
   return (
-    <div className={styles['page']}>
+    /**
+     * The host's event rather than the product (roadmap 2.2).
+     *
+     * The accent only: a phone has no photo frames to style, and a font pairing is a
+     * choice about `--text-display` on a projector, while this screen's largest type is
+     * `--text-lg`. The pairings cost nothing because they are built from system faces
+     * (DESIGN-SYSTEM.md §12); had they been bundled instead, this is the surface — a
+     * phone on venue Wi-Fi — that would have paid for a face too small here to show off.
+     *
+     * Applied on the element rather than on `:root`, and read out of the session the join
+     * already wrote, so the first frame is the right colour: a `sessionStorage` read is
+     * synchronous, and nothing here waits on a request.
+     */
+    <div {...themeSurfaceProps(event.theme, 'guest')} className={styles['page']}>
       <header className={styles['header']}>
         {/* The event name, on the screen the guest actually uploads from. 1.0 read the
             event from a query parameter the QR page never set, so every photo went to

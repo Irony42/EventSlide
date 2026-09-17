@@ -44,6 +44,25 @@ export type ClipJobStatus = 'reserved' | 'queued' | 'running' | 'done' | 'failed
 
 export type ReactionCounts = Record<ReactionKind, number>
 
+/** The font pairing and the frame style an event's theme selects (roadmap 2.2). */
+export type ThemeFonts = 'sans' | 'serif'
+export type ThemeFrame = 'soft' | 'square' | 'round'
+
+/**
+ * How one event looks, as three settled choices rather than as colours.
+ *
+ * **No colour crosses this wire.** `accentHue` is an angle; the lightness and chroma that
+ * turn it into a palette are declared once in `tokens.css`, which stays the only file in
+ * the product holding a raw colour. `design-system/eventTheme.ts` applies it as
+ * `--accent-hue` on the surface that carries it.
+ */
+export interface EventThemeDto {
+  /** Degrees on the oklch hue circle, 0-359. The server refuses one it cannot read. */
+  readonly accentHue: number
+  readonly fonts: ThemeFonts
+  readonly frame: ThemeFrame
+}
+
 /** What a guest may know about an event before and after joining. */
 export interface PublicEventDto {
   readonly slug: string
@@ -61,6 +80,15 @@ export interface PublicEventDto {
    */
   readonly maxClipBytes: number
   readonly maxClipSeconds: number
+  /**
+   * The event's look, so the upload screen is the host's event rather than the product.
+   *
+   * It arrives with the join because there is deliberately no readable "event by slug":
+   * the upload screen reads this out of the session the join wrote, which is why the
+   * guest's phone paints the right colour on the first frame instead of repainting one
+   * round trip later, under their thumb.
+   */
+  readonly theme: EventThemeDto
 }
 
 export interface JoinResponse {
@@ -126,6 +154,17 @@ export interface WallResponse {
   readonly kenBurnsDurationMs: number
   readonly layout: WallLayout
   readonly reactionsEnabled: boolean
+  /**
+   * What the room is meant to look like.
+   *
+   * On this response rather than behind a second request, so the wall never paints a
+   * frame in the product's colours and then repaints in the host's — a projector that
+   * blinks on every reload is a defect the room notices.
+   *
+   * Optional, like `joinCode` above and for the same reason: a server build that predates
+   * theming leaves the projector on the default look rather than crashing it.
+   */
+  readonly theme?: EventThemeDto
 }
 
 /** `duplicate` is a success: the same bytes already exist in this event. */
@@ -218,6 +257,8 @@ export interface EventSettingsDto {
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null
   readonly maxPhotosPerGuest: number | null
+  /** The host's own copy: what the picker on the settings form is showing. */
+  readonly theme: EventThemeDto
 }
 
 export interface EventSummaryDto {

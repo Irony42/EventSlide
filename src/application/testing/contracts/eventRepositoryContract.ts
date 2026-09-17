@@ -105,6 +105,9 @@ export const eventRepositoryContract = (
             guestSelfDeleteGraceSeconds: 60,
             retentionDays: 30,
             maxPhotosPerGuest: 5,
+            // A theme that is not the default, so a store that dropped the field would
+            // fail here rather than quietly agreeing with it.
+            theme: { accentHue: 345, fonts: 'serif', frame: 'round' },
           },
         }),
       )
@@ -120,6 +123,7 @@ export const eventRepositoryContract = (
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 30,
         maxPhotosPerGuest: 5,
+        theme: { accentHue: 345, fonts: 'serif', frame: 'round' },
       })
     })
 

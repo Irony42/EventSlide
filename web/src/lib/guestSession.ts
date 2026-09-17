@@ -1,3 +1,4 @@
+import { DEFAULT_EVENT_THEME, readEventTheme } from '../design-system/eventTheme'
 import type { PublicEventDto } from './api/dto'
 
 /**
@@ -48,7 +49,11 @@ const isPublicEvent = (value: unknown): value is PublicEventDto => {
     hasClipFields(value) &&
     typeof field(value, 'maxClipBytes') === 'number' &&
     typeof field(value, 'maxClipSeconds') === 'number' &&
-    typeof field(value, 'allowClips') === 'boolean'
+    typeof field(value, 'allowClips') === 'boolean' &&
+    // Narrowed like everything else: a stored theme with a hue of `"rose"` would reach
+    // `--accent-hue` as a string the browser cannot parse, and the whole accent — every
+    // primary button on the screen — would fall back to an invalid value.
+    readEventTheme(field(value, 'theme')) !== null
   )
 }
 
@@ -91,6 +96,25 @@ const withClipDefaults = (event: object): PublicEventDto | null => {
 }
 
 /**
+ * What the theme is, for a session written before events had one.
+ *
+ * The same forgiveness {@link withClipDefaults} makes and for the same reason: refusing
+ * the entry would send every guest already in the room back to the join screen the
+ * moment the new build is deployed, mid-evening, with photos in their queue.
+ *
+ * The filled-in value is different in kind, though. `allowClips: false` is a *narrower*
+ * answer than the truth, chosen because switching on an upload path nobody consented to
+ * is worse than a missing feature. Here the fill-in is the product's own look, which is
+ * exactly what that session was already rendering — so a guest who reloads sees no
+ * change at all, and the host's colour arrives for them on their next join, which is one
+ * QR scan away.
+ *
+ * An entry that carries a theme and gets it *wrong* is still refused, by `isPublicEvent`.
+ */
+const withThemeDefault = (event: object): object =>
+  field(event, 'theme') === undefined ? { ...event, theme: DEFAULT_EVENT_THEME } : event
+
+/**
  * The stored entry, narrowed to what the upload screen may read.
  *
  * The event goes through {@link withClipDefaults} rather than straight through
@@ -104,7 +128,7 @@ const readSession = (value: unknown): GuestSession | null => {
 
   const stored = field(value, 'event')
   if (typeof stored !== 'object' || stored === null) return null
-  const event = withClipDefaults(stored)
+  const event = withClipDefaults(withThemeDefault(stored))
   if (event === null) return null
 
   return { event, displayName: displayName ?? null }
