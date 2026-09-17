@@ -13,6 +13,7 @@ import {
   type ClipJobInput,
   type EventInput,
 } from '../../testing/builders'
+import { CallLog } from '../../testing/callLog'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -441,6 +442,28 @@ describe('transcodeNextClip', () => {
       expect(bus.published).toEqual([
         { type: 'clip.failed', eventId: EVENT, clipJobId: 'clip-job-1' },
       ])
+    })
+
+    it('unlinks the source before it commits the failure, so a re-upload keeps its own bytes', async () => {
+      // **An ordering rule, and the committed state is identical either way** — which is
+      // why nothing else in this suite can see it. A `failed` row deliberately does not
+      // block a re-upload, so committing the failure first releases this digest from the
+      // partial unique index and the guest, who has just been told their clip failed,
+      // sends it again into that gap. Their fresh reservation holds the digest, the
+      // unlink below then takes *their* source, the new job goes `queued` pointing at
+      // nothing, and `clip.sourceMissing` is permanent. While this job is still `running`
+      // no other row can hold the digest, so unlinking first has no window at all.
+      // `uploadClip.releaseReservation` is ordered the same way for the same reason.
+      seedEvent()
+      await stage(notAClip())
+      const calls = new CallLog()
+      media = calls.watch('media', media)
+      clips = calls.watch('clips', clips)
+      build()
+
+      await transcodeNextClip()
+
+      expect(calls.sequenceOf('media.delete', 'clips.save')).toEqual(['media.delete', 'clips.save'])
     })
 
     it('gives up when the staged bytes are gone', async () => {

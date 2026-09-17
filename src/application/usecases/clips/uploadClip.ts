@@ -32,9 +32,7 @@ import type { VideoTranscoder } from '../../ports/videoTranscoder'
  * 2. the **signature** check, which starts no process, so a renamed PDF is refused
  *    before a byte reaches the disk — the same ordering as magic bytes before `sharp`;
  * 3. backpressure, which is a `429` and never the quota's `413`;
- * 4. the source written to the media store, **then** the job row, because a row pointing
- *    at bytes that do not exist is the failure 1.0 shipped;
- * 5. one fact on the bus, which is what wakes the worker rather than making it wait for
+ * 4. one fact on the bus, which is what wakes the worker rather than making it wait for
  *    a tick sized for an idle evening.
  *
  * The `photos` row does not exist yet and will not until the transcode succeeds. That is

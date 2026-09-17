@@ -4,6 +4,7 @@ import { asEventId } from '../../../domain/shared/ids'
 import type { LogContext, Logger } from '../../ports/logger'
 import { AT, aClip, aClipJob, anEvent, aPhoto, atPlus } from '../../testing/builders'
 import type { ContentHasher } from '../../ports/contentHasher'
+import { CallLog } from '../../testing/callLog'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeVideoTranscoder } from '../../testing/fakeVideoTranscoder'
@@ -239,6 +240,11 @@ describe('sweepOrphanedMedia', () => {
     it('judges a digest by its newest rendition, not its oldest', async () => {
       // A clip's video and poster are written moments apart. Judging them apart would
       // let one half go and leave the other, which is a broken tile rather than a leak.
+      //
+      // **This asserts the outcome, and the outcome is safe either way**: judging by the
+      // oldest still ends at `stillCollectable`, which stats every rendition and refuses.
+      // So the rule the name claims is pinned in `what one pass costs` instead — by the
+      // bill, which is the only thing the bulk filter actually changes.
       written.set(AT)
       await media.put(EVENT, hashOf('dad'), 'thumb', Uint8Array.of(1))
       written.set(atPlus(59 * 60 * 1000))
@@ -351,6 +357,46 @@ describe('sweepOrphanedMedia', () => {
   })
 
 describe('what one pass costs', () => {
+    it('asks the disk and the database only about the digests it is about to delete', async () => {
+      // **The whole reason the bulk pass exists, and it is a performance guarantee rather
+      // than a correctness one** — which is exactly why nothing could see it. Every filter
+      // below is shadowed by `stillCollectable`, so breaking one leaves `collected`
+      // unchanged and every assertion in this file green; what changes is the bill. A
+      // referenced digest that falls through costs two queries plus one `stat` per
+      // rendition, on the connection already serving uploads and the projector's range
+      // requests, for every referenced digest on every event, every pass. Forty events of
+      // six thousand files is the box the module's own header cites.
+      //
+      // So this counts the calls. Four digests go in and exactly one is collectable, so
+      // the per-digest confirmation must run exactly once — and it is the only assertion
+      // that can tell the difference.
+      const referenced = aPhoto({ id: 'photo-1', eventId: 'event-1', contentHash: hexOf('aa1') })
+      photos.seed(referenced)
+      written.set(AT)
+      await media.put(EVENT, hashOf('aa1'), 'display', Uint8Array.of(1))
+      // The orphan: old, named by nothing. The one digest this pass has business with.
+      await media.put(EVENT, hashOf('dd4'), 'display', Uint8Array.of(4))
+      // Old enough to look collectable, and the newest rendition under it is not.
+      await media.put(EVENT, hashOf('cc3'), 'thumb', Uint8Array.of(3))
+      written.set(atPlus(59 * 60 * 1000))
+      await media.put(EVENT, hashOf('cc3'), 'display', Uint8Array.of(3))
+      // Written moments ago: bytes whose row has not landed yet.
+      await media.put(EVENT, hashOf('bb2'), 'display', Uint8Array.of(2))
+
+      const calls = new CallLog()
+      photos = calls.watch('photos', photos)
+      clips = calls.watch('clips', clips)
+      media = calls.watch('media', media)
+      build()
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ scanned: 4, collected: 1 })
+      expect(
+        calls.sequenceOf('photos.findIdsReferencing', 'clips.findBySourceHash', 'media.stat'),
+      ).toEqual(['photos.findIdsReferencing', 'clips.findBySourceHash', 'media.stat'])
+    })
+
     it('stops at its budget and says which events it did not reach', async () => {
       // A pass walks the disk and holds the connection serving uploads and the projector.
       // An installation with more events than an interval can get through must not hold
