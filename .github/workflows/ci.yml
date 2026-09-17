@@ -57,6 +57,31 @@ jobs:
           path: coverage/
           retention-days: 7
 
+  image:
+    # The container is the install story, and none of the six test rings can reach it:
+    # `npm run test:coverage` is green on a tree whose image has no ffmpeg in it, ships
+    # ninety megabytes of devDependencies, or runs as root. Those are promises about the
+    # artefact rather than about the code, so they get a job rather than a seventh ring.
+    #
+    # scripts/verify-image.sh holds every assertion and is the same command an operator
+    # or a maintainer runs locally — the job is deliberately a one-liner so that what CI
+    # checks and what a person can check cannot drift apart.
+    name: Container image
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+
+      # The image build runs `npm ci` and `npm run build` inside itself; nothing here
+      # needs Node on the runner.
+      #
+      # Invoked as `bash <script>` rather than `./<script>` on purpose: this repository
+      # is developed on Windows, where the filesystem has no executable bit for git to
+      # record, so a checkout can arrive at mode 100644 and `./` would be a permission
+      # error that has nothing to do with the image.
+      - name: Build the image and check what it promises
+        run: bash ./scripts/verify-image.sh
+
   e2e:
     name: End-to-end (${{ matrix.project }})
     runs-on: ubuntu-latest

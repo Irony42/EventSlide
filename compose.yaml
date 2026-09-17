@@ -3,19 +3,50 @@
 #   1. Generate two secrets:
 #        node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 #   2. Put them in a `.env` next to this file, along with PUBLIC_URL.
-#   3. docker compose up -d
+#   3. docker compose up          <- the first time, in the foreground. See below.
+#   4. docker compose up -d       <- once it has booted cleanly.
 #
-# PUBLIC_URL must be the address a guest's phone can actually reach — the machine's LAN
-# address or a domain, never localhost. It is what the QR code encodes, and a QR code
-# pointing at localhost is the most common way a setup fails on the night.
+# Run it in the foreground once. `restart: unless-stopped` is right for the evening of
+# the party and wrong for the first boot: a missing or malformed variable makes the
+# server exit 78 with a list of every problem at once, and detached that list scrolls
+# past into `docker compose logs` while the container restarts forever. The first run is
+# the one where you want to read it.
+#
+# PUBLIC_URL must be the address a guest's phone can actually reach — a domain, never
+# localhost. It is what the QR code encodes, and a QR code pointing at localhost is the
+# most common way a setup fails on the night.
+#
+# **It must be https.** The server speaks plain HTTP and never terminates TLS, so a
+# reverse proxy in front of this container is part of the install and not an
+# optimisation: NODE_ENV=production refuses a non-localhost http PUBLIC_URL at boot,
+# because the host's session cookie is `Secure` and a browser will not send it over
+# http — a host who got past that refusal would meet a login form that silently never
+# logs in. `ports:` below therefore binds to loopback, and TRUST_PROXY_HOPS says one
+# proxy. The two go together; changing either without the other is a misconfiguration.
+# See docs/SECURITY.md §11.
 
 services:
   eventslide:
     build: .
     image: eventslide:2.0.0
     restart: unless-stopped
+    # Loopback, because the reverse proxy above is the only thing that should reach this
+    # port — docs/SECURITY.md §11 says bind to 127.0.0.1 and this is where that happens.
+    # Publishing on every interface while TRUST_PROXY_HOPS says `1` is the worst of both:
+    # Express then believes an `X-Forwarded-For` that nothing in the deployment wrote, so
+    # a guest sends one header and gets a fresh rate-limit bucket per request. The
+    # limiter becomes decorative, which is the exact failure §11 names.
+    #
+    # Set BIND_ADDRESS=0.0.0.0 only if the proxy is on another machine, and then firewall
+    # the port. If the proxy is a container on the same Docker network, delete this block
+    # entirely and let it reach `eventslide:4300` directly.
     ports:
-      - '${PORT:-4300}:4300'
+      - '${BIND_ADDRESS:-127.0.0.1}:${PORT:-4300}:4300'
+    # Docker's default is 10s and `index.ts` gives in-flight requests 15s before it
+    # forces the exit, so the default would SIGKILL the process 5s before its own
+    # backstop — the WAL unbrought to a checkpoint and whatever was mid-upload lost.
+    # Twenty gives the backstop room to run and still return the prompt promptly.
+    stop_grace_period: 20s
     environment:
       NODE_ENV: production
       PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL to the address guests will reach, e.g. https://photos.example.com}

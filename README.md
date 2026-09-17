@@ -6,8 +6,8 @@ within seconds.
 
 Self-hosted. The photos stay on your machine.
 
-> **2.0 is in progress on the `deuxpointzero` branch.** 1.0 is on `main`. This README
-> describes 2.0; the architecture and its reasoning are in [docs/](docs/).
+> **2.0 is on `main`** — this README describes it, and the `git clone` below gets it.
+> The architecture and its reasoning are in [docs/](docs/).
 
 ---
 
@@ -39,6 +39,8 @@ Pi under the projector — and nothing leaves it.
 
 ## Install
 
+You need Docker, and an HTTPS address for the box. Both are explained below the box.
+
 ```bash
 git clone https://github.com/Irony42/EventSlide.git
 cd EventSlide
@@ -46,19 +48,51 @@ cd EventSlide
 # Two secrets, and the address your guests' phones will reach.
 node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
-echo "PUBLIC_URL=http://192.168.1.20:4300" >> .env
+echo "PUBLIC_URL=https://photos.example.com" >> .env
 echo "BOOTSTRAP_OWNER_EMAIL=you@example.com" >> .env
 echo "BOOTSTRAP_OWNER_PASSWORD=choose-a-long-passphrase" >> .env
 
-docker compose up -d
+docker compose up            # the first time, and read what it says
+docker compose up -d         # once it has booted cleanly
 ```
 
 Then open `PUBLIC_URL/login`.
 
-**`PUBLIC_URL` must be an address a phone on the venue Wi-Fi can actually reach** — the
-machine's LAN address or a domain, never `localhost`. It is what the QR code encodes,
-and a QR code pointing at `localhost` is the most common way a setup fails on the night.
-Test it by scanning your own QR code from your phone before the guests arrive.
+**Run it in the foreground the first time.** A missing or malformed variable makes the
+server print every problem at once and exit rather than start — which is what you want,
+and what you will not see if the first run is detached, because the container restarts
+on its own and the list scrolls away. Once it boots, `-d` is the right way to leave it.
+
+**`PUBLIC_URL` must be an https address a phone on the venue Wi-Fi can actually reach**,
+never `localhost`. It is what the QR code encodes, and a QR code pointing at `localhost`
+is the most common way a setup fails on the night. Test it by scanning your own QR code
+from your phone before the guests arrive.
+
+**https is not optional, and this is the one part of the install that is not one
+command.** EventSlide speaks plain HTTP and never terminates TLS itself, so something in
+front of it does — Caddy, nginx or Traefik, whichever you already run. The reason is not
+ceremony: a host's login cookie is marked `Secure`, so a browser will not send it back
+over plain http, and a server that let you configure that would hand you a login form
+that never logs in. Rather than fail there, it refuses at boot and says so. `compose.yaml`
+binds the port to `127.0.0.1` for the proxy to reach and sets `TRUST_PROXY_HOPS=1` to
+match; if your proxy is a container on the same Docker network, delete the `ports:` block
+and point it at `eventslide:4300`.
+
+With Caddy, the whole proxy is one line in a `Caddyfile` next to the compose file:
+
+```
+photos.example.com {
+  reverse_proxy 127.0.0.1:4300
+}
+```
+
+**A venue with no domain name is the case this does not cover.** A box on a LAN with no
+DNS and no certificate cannot serve https that a guest's phone will trust, and EventSlide
+will not run over plain http in production. Today the answer is a real domain pointed at
+the machine — which works over the venue's Wi-Fi as long as the phones have any route to
+it — or a `--network host` proxy with a certificate you already own. If you need a purely
+offline wall, say so on the issue tracker; the constraint is deliberate but it is not
+free, and it is written down as an open question rather than as a solved problem.
 
 <details>
 <summary>Without Docker</summary>
