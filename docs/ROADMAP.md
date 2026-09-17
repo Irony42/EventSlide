@@ -20,7 +20,11 @@ and the **risk** that makes it harder than it looks.
 > under, so §9.1 is still "1.1" in every commit message and review that referred to it,
 > and the gaps left in §§1–3 are the point rather than an oversight.
 >
-> Everything still under §§1–6 is unbuilt, and still reads as sensible.
+> Everything still under §§1–6 is unbuilt, and still reads as sensible — with one
+> exception, left in place deliberately. **"Docker image and one-file compose" in
+> [§6](#6-operations) is largely built**, and its note said otherwise for several
+> releases. It stays in §6 rather than moving to §9 because the part of it that matters
+> to an operator is not finished: see the paragraphs under that table.
 
 ---
 
@@ -233,14 +237,39 @@ machine is not physically secure. The `MediaStore` port makes it an adapter.
 
 A self-hosted product lives or dies on whether one person can run it.
 
-| Item                              | P   | Effort | Note                                                                                                                                                                                                                                               |
-| --------------------------------- | --- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Docker image and one-file compose | P1  | S      | `docker compose up` should be the whole install. Today it is Node, a build and a `.env`.                                                                                                                                                           |
-| Prometheus metrics                | P2  | S      | Upload latency, queue depth, SSE subscribers, quota headroom.                                                                                                                                                                                      |
-| Raspberry Pi kiosk image          | P2  | M      | The wall's natural hardware: boot straight into the display URL in kiosk mode.                                                                                                                                                                     |
-| S3 / MinIO media adapter          | P2  | M      | The `MediaStore` port exists for this. Needed by anyone running more than a handful of events.                                                                                                                                                     |
-| 1.0 migration script              | P2  | S      | Reads a 1.0 SQLite file and photo directory, creates one event per `partyId`, re-ingests through the 2.0 pipeline — which is what finally strips the EXIF that 1.0 stored.                                                                         |
-| Multi-event workspace             | P3  | L      | **Superseded by [§10](#10-running-a-box-for-other-people--site-administration).** This row said "a different product shape; only worth it with real demand" — the demand arrived, so it is argued properly there rather than as a line in a table. |
+| Item                              | P   | Effort | Note                                                                                                                                                                                                                                                 |
+| --------------------------------- | --- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Docker image and one-file compose | P1  | S      | **The row was stale, not the work undone.** The image, `compose.yaml` and the README install shipped with 2.0; this note went on saying "today it is Node, a build and a `.env`" long after they did. What was genuinely missing is below the table. |
+| Prometheus metrics                | P2  | S      | Upload latency, queue depth, SSE subscribers, quota headroom.                                                                                                                                                                                        |
+| Raspberry Pi kiosk image          | P2  | M      | The wall's natural hardware: boot straight into the display URL in kiosk mode.                                                                                                                                                                       |
+| S3 / MinIO media adapter          | P2  | M      | The `MediaStore` port exists for this. Needed by anyone running more than a handful of events.                                                                                                                                                       |
+| 1.0 migration script              | P2  | S      | Reads a 1.0 SQLite file and photo directory, creates one event per `partyId`, re-ingests through the 2.0 pipeline — which is what finally strips the EXIF that 1.0 stored.                                                                           |
+| Multi-event workspace             | P3  | L      | **Superseded by [§10](#10-running-a-box-for-other-people--site-administration).** This row said "a different product shape; only worth it with real demand" — the demand arrived, so it is argued properly there rather than as a line in a table.   |
+
+**What the Docker row was actually missing was proof, and one honest gap.** The image
+made seven promises that nothing checked: the distribution's `ffmpeg` with the two
+encoders `probeFfmpegCapability` names, native modules that load in the runtime rather
+than only in the builder, no devDependencies and neither static ffmpeg package, a first
+boot against an empty volume, a readable refusal when a secret is missing, a working
+healthcheck, and a non-root process. All seven are properties of the artefact, so none of
+the six rings can reach them — `npm run verify` is green on a tree whose image has no
+`ffmpeg` in it. `scripts/verify-image.sh` now asserts each one and CI runs it on every
+push. Three real defects turned up while writing it: `compose.yaml` published on every
+interface while telling Express there was one proxy in front (a guest could forge
+`X-Forwarded-For` and mint a fresh rate-limit bucket per request), it inherited Docker's
+10 s stop timeout against a 15 s shutdown backstop, and the README's install block set a
+plain-http `PUBLIC_URL` that `NODE_ENV=production` refuses at boot — so the documented
+one-command install did not start. All three are fixed.
+
+**The gap that is left is real and is not a Docker problem.** The server never terminates
+TLS and production refuses a non-localhost `http://` `PUBLIC_URL`, because the host's
+session cookie is `Secure`. Together those mean **a venue with no domain name and no
+certificate cannot run EventSlide**, which is precisely the Raspberry-Pi-under-the-
+projector case two rows below. The refusal is correct — the alternative is a login form
+that never logs in — but "self-hosted on one box in a building" and "you must have public
+DNS and a certificate" are in tension, and the resolution is a product decision rather
+than a packaging one. It belongs on this list as its own item before the kiosk image is
+worth building.
 
 **Retention scheduling is no longer on this list — it shipped.** It was the ugliest gap
 here, because its absence was not a missing feature but a false statement: the setting

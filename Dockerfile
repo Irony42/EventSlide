@@ -61,7 +61,13 @@ COPY package.json ./
 
 # The album and the database belong to the operator. One volume, so a backup is one
 # path and a host can copy the whole event to a USB stick.
-RUN mkdir -p /data/media && chown -R node:node /data
+#
+# `0700` because docs/SECURITY.md §11 asks for it and the reason is real: the SQLite file
+# holds every session row and every password hash, and the media root holds photographs
+# of people who never signed up for anything. Docker copies an image's ownership and mode
+# at this path into a fresh named volume, so this is what a default install gets. A bind
+# mount keeps the host directory's own permissions instead — set them yourself there.
+RUN mkdir -p /data/media && chown -R node:node /data && chmod 700 /data /data/media
 VOLUME ["/data"]
 
 USER node
