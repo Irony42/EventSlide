@@ -94,4 +94,25 @@ describe('.github/dependabot.yml', () => {
     // which is the opposite of what a security pull request is for.
     expect(valuesOf('applies-to', yaml)).not.toContain('security-updates')
   })
+
+  it('keeps vite out of the development group, where a minor hides a bundler swap', () => {
+    // vite 8.0.16 -> 8.3.0 moves rolldown from 1.0.0-rc.17 to 1.2.9. That is an engine
+    // change arriving on a *minor*, which `update-types: ['minor', 'patch']` cannot tell
+    // from a patch, so the group would carry the exact bump #46 declined with reasons.
+    // Excluded rather than ignored: it still gets a pull request, just its own.
+    expect(valuesOf('exclude-patterns', yaml).join(' ')).toContain('vite')
+  })
+
+  it('holds @types/node below 25, because types describe the runtime that executes', () => {
+    // The runtime is Node 22 in CI and in the image. Types ahead of it make the compiler
+    // believe in APIs that are not there — a green typecheck for code that throws at a
+    // wedding. The day the runtime moves, this pin moves with it and this test says so.
+    const ignored = yaml
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n')
+
+    expect(ignored).toContain('@types/node')
+    expect(valuesOf('versions', ignored).join(' ')).toContain('>=25')
+  })
 })
