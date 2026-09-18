@@ -51,7 +51,7 @@ If a guest gives up, nothing else in this document matters. At a wedding the med
 guest spends **under a minute** in the app, once, on a phone with two bars of a
 saturated access point.
 
-_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa), [1.4](#97-short-video-clips). Considered and declined: [1.6](#96-spoken-captions)._
+_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa), [1.4](#97-short-video-clips). Considered and declined: [1.6](#96-spoken-captions). **[1.5](#15-guest-ui-languages-p2-effort-s-risk-low) is shipped and stayed in place.**_
 
 ### 1.3 Camera-first capture (P1, effort M, risk: low)
 
@@ -64,6 +64,8 @@ two after this**.
 
 ### 1.5 Guest UI languages (P2, effort S, risk: low)
 
+> **Shipped** in [#25](https://github.com/Irony42/EventSlide/pull/25). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
+
 `web/src/lib/i18n/` is already a single French table with a code-to-message map. English,
 Spanish, German and Italian are a mechanical addition, chosen from `Accept-Language` with
 a manual override. International weddings are common and a guest who cannot read the
@@ -74,7 +76,7 @@ upload button does not upload.
 The wall is what two hundred people look at all evening. It is also the surface with the
 least engineering attention in most tools of this kind.
 
-_Shipped and moved to §9: [2.3](#93-more-wall-layouts)._
+_Shipped and moved to §9: [2.3](#93-more-wall-layouts). **[2.2](#22-per-event-theming-p1-effort-s-risk-low) is shipped and stayed in place.**_
 
 ### 2.1 Photo missions (P1, effort M, risk: low)
 
@@ -87,6 +89,8 @@ this", there is something to do. It reliably multiplies photo volume at events t
 it, and mechanically it is a table, a checklist screen and a wall overlay.
 
 ### 2.2 Per-event theming (P1, effort S, risk: low)
+
+> **Shipped** in [#27](https://github.com/Irony42/EventSlide/pull/27). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 The token architecture makes this nearly free: a host picks an accent hue, a font pairing
 and a frame style, stored in event settings and applied as a `:root` override. A wedding
@@ -132,7 +136,7 @@ announce something, and hosts currently do it by shouting.
 
 ## 3. Host control
 
-_Shipped and moved to §9: [3.1](#94-moderation-on-a-phone), [3.4](#95-scheduled-open-and-close)._
+_Shipped and moved to §9: [3.1](#94-moderation-on-a-phone), [3.4](#95-scheduled-open-and-close). **[3.5](#35-event-templates-p3-effort-s-risk-low) is shipped and stayed in place.**_
 
 ### 3.2 Pre-sorted moderation queue (P2, effort L, risk: medium)
 
@@ -152,6 +156,8 @@ SSE channel already exists; broadcasting "someone is looking at this one" is a s
 addition to it.
 
 ### 3.5 Event templates (P3, effort S, risk: low)
+
+> **Shipped** in [#28](https://github.com/Irony42/EventSlide/pull/28). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 Wedding, birthday, conference and party presets: moderation mode, retention, layout,
 theme, mission list. A host creating their first event should not have to have opinions
@@ -316,6 +322,8 @@ room, and is exactly what will not do when the invitee is a bride you have never
 
 ### 10.1 A site-level role, distinct from an event role (P1, effort M, risk: medium)
 
+> **Shipped** in [#55](https://github.com/Irony42/EventSlide/pull/55). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
+
 The foundation, and the item every other one waits on. An account needs to say what it may
 do **on the box** — operate it, or merely own events on it — separately from what it may do
 inside any given event. Two roles, not a permission matrix: an operator, and everyone else.
@@ -425,6 +433,8 @@ impresses and then loses a photo is worse than the plain one it replaced.
 
 ### 11.1 A glass material, as tokens rather than as CSS sprinkled per component (P1, effort M, risk: medium)
 
+> **Shipped** in [#32](https://github.com/Irony42/EventSlide/pull/32). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
+
 Glass is a **material**, not an effect: a blur radius, a tint, a saturation lift, a hairline
 border, an inner highlight and a shadow, which together make a pane read as a physical
 sheet. Defined once in `tokens.css` as a set, applied by primitives, and refused everywhere
@@ -486,6 +496,8 @@ near-white `--text-primary` field.
 
 ### 11.2 Motion that answers the hand (P1, effort M, risk: medium)
 
+> **Shipped** in [#48](https://github.com/Irony42/EventSlide/pull/48). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
+
 The animation work is not "add transitions". It is: what does the interface do when a guest
 presses a button, when a photo arrives on a moderator's queue over SSE, when the wall
 changes slide, when an upload fails? Each of those is a moment where motion carries meaning
@@ -522,6 +534,8 @@ with `motion.budget.test.ts` failing on any animation that gives none — which 
 health requirement stops depending on whoever reviews the diff.
 
 ### 11.3 The budget that keeps it usable (P1, effort S, risk: low)
+
+> **Shipped** in [#58](https://github.com/Irony42/EventSlide/pull/58). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 The item that makes the other two safe, and the one most likely to be skipped. A redesign
 of this kind is judged on two machines nobody develops on:
@@ -666,6 +680,28 @@ answer coincide — `glass` is what every stored theme has been rendering all al
 backfill would rewrite every row of every album to write a value those rows already behave
 as. That also closes the trap `allowClips` recorded: absent and chosen never have to be told
 apart here, so there is no one-way door.
+
+### 11.5 Turning it off (P2, effort S, risk: low)
+
+> **Shipped** in [#61](https://github.com/Irony42/EventSlide/pull/61).
+
+Some couples want the effect and some want the plainer surface, and a venue machine may
+simply look better without it. So the material is a fourth field on the event's theme,
+beside the accent hue, the font pairing and the frame style: `material: 'glass' | 'plain'`.
+
+What made it small is that **the plain rendering already existed and was already
+reviewed**. `--glass-opaque` _is_ `--surface-raised`, the panel this product ships on every
+non-glass surface, and three paths already arrived there — `@supports not
+(backdrop-filter)`, `prefers-reduced-transparency`, and the first rung of 11.3's ladder.
+The change touches no CSS file at all, and a test now fails if anyone adds one.
+
+Two rules decide who wins, and both are pinned by a mutation rather than by a comment.
+**The budget outranks the host**, because a wall holding its frame rate in front of a
+hundred people is a health answer and a preference is not. **The host's "off" is final** —
+no capable device, recovered frame rate or later route may give the material back, which
+is the same one-way property degradation already has.
+
+Honest scope: it is visible on exactly one pane today, the guest's upload composer.
 
 ### What this is not
 

@@ -9,6 +9,16 @@ Self-hosted. The photos stay on your machine.
 > **2.0 is on `main`** — this README describes it, and the `git clone` below gets it.
 > The architecture and its reasoning are in [docs/](docs/).
 
+<p align="center">
+  <img src="docs/images/wall-spotlight.jpg" width="49%" alt="The wall on a projector, one photograph full-bleed with the sender's caption and the join code in the corner">
+  <img src="docs/images/wall-mosaic.jpg" width="49%" alt="The same wall in its mosaic layout, several photographs at once">
+</p>
+<p align="center">
+  <img src="docs/images/guest-upload.jpg" width="19%" alt="A guest's phone: pick a photo, add a caption, send">
+  <img src="docs/images/moderation-phone.jpg" width="19%" alt="Moderation on a phone: one photograph, swipe right to publish, left to refuse">
+  <img src="docs/images/moderation.jpg" width="58%" alt="The moderation console on a laptop, the queue and the keyboard shortcuts">
+</p>
+
 ---
 
 ## Why
@@ -36,6 +46,29 @@ Pi under the projector — and nothing leaves it.
   wherever they are standing, and that is often somebody's home.
 - **The album is yours afterwards.** One ZIP, full resolution, and an automatic purge
   when you choose one.
+
+And the parts that only show up on the night:
+
+- **Short video clips too**, not only photographs. Fifteen seconds, transcoded on the
+  box, played on the wall without sound — because a room already has music.
+- **Moderate from your phone.** One photograph at a time, swipe right to publish, left
+  to refuse. The person deciding is usually standing up with a drink, not sitting at a
+  laptop.
+- **The upload survives the venue Wi-Fi.** A photo picked with no signal is queued on
+  the phone and sent when there is some, even if the guest has closed the page —
+  EventSlide installs as an app if they let it, and keeps working when the network does
+  not.
+- **It speaks the guest's language.** French, English, Spanish, German and Italian,
+  chosen from the phone and overridable. International weddings are the normal case.
+- **It looks like the evening it is running.** The host picks an accent colour, a font
+  pairing and a frame style; the wall and the guest screens follow. Contrast is checked
+  against the accessibility contract server-side, so a hue that would make captions
+  unreadable at ten metres is refused rather than rendered.
+- **Translucent surfaces that give way before the wall does.** The interface uses a
+  glass material over photographs — and it is measured: if the machine driving the
+  projector cannot hold its frame rate, the blur is given up before the animation, and
+  the animation before the crossfade. A host who prefers the plainer surface turns it
+  off per event.
 
 ## Install
 
