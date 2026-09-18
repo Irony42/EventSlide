@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { glassSurfaceProps, type GlassBackdrop } from '../design-system/glass'
 import { useLocale } from '../lib/i18n/useTranslations'
+import { useInteractionBudget } from './useInteractionBudget'
 import styles from './AppShell.module.css'
 
 /** Which of the three surfaces this page is. It decides the container, nothing else. */
@@ -47,6 +48,18 @@ export function AppShell({ surface, backdrop, header, children, className }: App
   const { locale, text } = useLocale()
   const classes = [styles['main'], styles[surface], className].filter(Boolean).join(' ')
 
+  /**
+   * What this machine has turned out to be able to afford — roadmap 11.3.
+   *
+   * The third input to the material, beside "which surface is this" and "what can be painted
+   * underneath it". The first two are answered before anything renders; this one can only be
+   * answered by the phone in somebody's hand, and on a venue's Wi-Fi mid-encode the answer is
+   * sometimes no. The rule is `design-system/budget.ts` and the measurement is the browser's
+   * own event timing; what arrives here is a rung, and `glassSurfaceProps` composes it with
+   * the other two.
+   */
+  const budget = useInteractionBudget(surface)
+
   useEffect(() => {
     document.documentElement.lang = locale
   }, [locale])
@@ -57,7 +70,7 @@ export function AppShell({ surface, backdrop, header, children, className }: App
        inherit the same material. A surface on the default tier spreads nothing, so the DOM
        is unchanged wherever a photograph can appear — which includes the wall's baselines,
        and the two panes that wear the material today. */
-    <div className={styles['shell']} {...glassSurfaceProps(surface, backdrop)}>
+    <div className={styles['shell']} {...glassSurfaceProps(surface, backdrop, budget)}>
       <a className={styles['skipLink']} href={`#${MAIN_CONTENT_ID}`}>
         {text.shell.skipToContent}
       </a>

@@ -61,6 +61,10 @@
  * `:root` write from an effect that lands a frame late.
  */
 
+// Type-only in the other direction, so the two files do not form a cycle at run time:
+// `budget.ts` needs to name a surface and this file needs the ladder's answers.
+import { affords, budgetFloorFor, type BudgetLevel } from './budget'
+
 /**
  * The three surfaces of CLAUDE.md §1, restated here rather than imported from
  * `app/AppShell`.
@@ -105,11 +109,18 @@ export type GlassTier = 'ground' | 'photo' | 'opaque'
  * table of six cases. The wall is `photo` by backdrop as well — it is nothing but guest
  * photographs — and it never gets to matter, because a surface that cannot afford the
  * filter has no tint to choose.
+ *
+ * **"The room cannot afford it" is not written here any more; it is the first rung of
+ * `budget.ts`.** That matters because roadmap 11.3 added a second way to arrive at the same
+ * place — a machine measured, at runtime, as not coping — and two spellings of one decision
+ * is how they come to disagree. `budgetFloorFor` says where a surface starts and `level`
+ * says where it has got to; both answer the one question `affords` asks.
  */
 export const glassTierFor = (
   surface: GlassSurface,
   backdrop: GlassBackdrop = 'photo',
-): GlassTier => (surface === 'wall' ? 'opaque' : backdrop)
+  level: BudgetLevel = budgetFloorFor(surface),
+): GlassTier => (affords(level, 'glass') ? backdrop : 'opaque')
 
 /**
  * The marker `tokens.css` re-declares the material on.
@@ -134,7 +145,8 @@ export interface GlassSurfaceProps {
 export const glassSurfaceProps = (
   surface: GlassSurface,
   backdrop: GlassBackdrop = 'photo',
+  level: BudgetLevel = budgetFloorFor(surface),
 ): GlassSurfaceProps => {
-  const tier = glassTierFor(surface, backdrop)
+  const tier = glassTierFor(surface, backdrop, level)
   return tier === 'photo' ? {} : { 'data-glass': tier }
 }

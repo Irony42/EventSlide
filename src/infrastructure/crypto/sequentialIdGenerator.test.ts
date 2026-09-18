@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { JoinCode } from '../../domain/shared/joinCode'
 import { createSequentialIdGenerator } from './sequentialIdGenerator'
 
 /**
@@ -63,6 +64,34 @@ describe('createSequentialIdGenerator', () => {
     const ids = createSequentialIdGenerator()
 
     expect([...ids.bytes(8)]).not.toEqual([...ids.bytes(8)])
+  })
+
+  it('gives a different join code to every event a worker seeds, not just to two in a row', () => {
+    /**
+     * The rule this generator's own comment states — "two join codes in one run still
+     * differ" — checked at the level it is about, which is the code rather than the bytes.
+     *
+     * The assertion above it compares one call to the next and passed for a generator
+     * whose seventeenth code was its first one again. A walking byte sequence aliases
+     * against the alphabet: six consecutive integers, thirty-two characters, and a step of
+     * six means the cursor returns to the same residues after ninety-six bytes. So the
+     * seventeenth event created on an end-to-end worker drew a code the first event already
+     * held, the four retries after it drew events two to five, and `createEvent` gave up
+     * with `event.joinCodeExhausted` — a 500 out of the seed endpoint, on a suite where a
+     * worker routinely seeds more than sixteen events.
+     *
+     * A hundred rather than seventeen, because the next aliasing period would be just as
+     * invisible to a test that stopped at the first one.
+     */
+    const ids = createSequentialIdGenerator()
+
+    const codes = Array.from({ length: 100 }, () => {
+      const code = JoinCode.fromBytes(ids.bytes(JoinCode.entropyBytes))
+      if (!code.ok) throw new Error(`the generator produced bytes no join code accepts`)
+      return code.value.value
+    })
+
+    expect(new Set(codes).size).toBe(codes.length)
   })
 
   it('refuses to hand out zero bytes of entropy', () => {

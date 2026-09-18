@@ -81,3 +81,40 @@
     transform: scale(1.08) translate3d(-1%, -1%, 0);
   }
 }
+
+/**
+ * The rungs below the room's floor — roadmap 11.3.
+ *
+ * The room has already given up the blur before it renders a frame (`budget.ts`, and
+ * `tokens.css`'s `[data-glass='opaque']`). These are what is left, in the order the ladder
+ * fixes: the zoom first, because it runs on every frame of every slide, and the crossfade
+ * last, because a second in eight is the cheapest thing here and a cut is the most
+ * noticeable loss. `WallPage` puts the attribute on the wall's root when the wall's own
+ * frame monitor says the machine cannot hold its cadence.
+ *
+ * Neither rung is a look nobody has reviewed, and the bottom one is a look this product
+ * already ships: at `cut` every animation on the wall is switched off — here, in
+ * `WallLayouts.module.css`, in the reaction layer and in the offline notice, which
+ * `motion.budget.test.ts` sweeps for — so what is on screen is what a viewer who asked for
+ * no motion sees. `still` is the half-step between: the zoom and the filmstrip's drift are
+ * gone and everything at a slide change still moves, which is a rendering of its own and is
+ * not the reduced-motion one. The earlier version of this comment claimed both rungs landed
+ * where the preference lands, which was true of neither: reduced motion collapses `*` in
+ * `base.css` and is declined per layout in JavaScript, and an attribute collapses only the
+ * selectors somebody wrote.
+ *
+ * `will-change` goes back to `auto` on the way down, and that is the point rather than
+ * tidiness: it pins a compositing layer for the lifetime of the element, so leaving it
+ * declared would keep paying the memory for a layer nothing animates any more — on the
+ * machine that has just said it cannot afford what it was paying for.
+ */
+[data-wall-budget='still'] .slide[data-motion='kenburns'] .image,
+[data-wall-budget='cut'] .slide[data-motion='kenburns'] .image {
+  animation: none;
+  will-change: auto;
+}
+
+[data-wall-budget='cut'] .slide {
+  transition-duration: 0s;
+  will-change: auto;
+}

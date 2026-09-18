@@ -384,3 +384,49 @@
   animation: tile-in var(--wall-transition, var(--duration-slow)) var(--ease-in-out) both;
   will-change: opacity;
 }
+
+/**
+ * The rungs, for the five layouts that are not the spotlight — roadmap 11.3.
+ *
+ * **These were missing, and the miss is the interesting part.** The ladder landed with its
+ * two wall rungs declared only in `SlideLayer.module.css`, which is the spotlight and the
+ * split's panes — so on the mosaic, the polaroid pile, the filmstrip and the collage a
+ * machine that had run out concluded there was nothing left to give up while still paying
+ * for every animation on screen. `WallPage.tsx`'s layout cycle makes the mosaic the first
+ * thing a host reaches for during a cocktail hour, so the layout with no rungs was the one
+ * most likely to be on the projector when the budget was needed.
+ *
+ * `motion.budget.test.ts` now sweeps for exactly this: a wall stylesheet that animates and
+ * declares no `[data-wall-budget]` answer fails the build.
+ *
+ * ## `animation: none` and not a collapsed duration, in all four cases
+ *
+ * Which of the two is correct depends on where the animation comes to rest, and it is the
+ * same distinction §7's `survives-collapsed` bucket makes. `none` removes the animation
+ * outright, so the element renders its own declarations: `opacity: 1` for the three
+ * entrances, and — the one worth checking rather than assuming — the polaroid's tilt, which
+ * `.print` declares for itself at `transform: rotate(var(--wall-tilt))` rather than only
+ * inside the keyframe. A collapsed duration would have been wrong for the drift, which ends
+ * a frame's width to the left of where the strip belongs.
+ */
+[data-wall-budget='still'] .track[data-motion='drift'],
+[data-wall-budget='cut'] .track[data-motion='drift'] {
+  animation: none;
+  will-change: auto;
+}
+
+/**
+ * The bottom rung: the wall stops moving at a slide change too.
+ *
+ * Every one of these is an entrance — a tile fading in, a print landing, a cell arriving —
+ * which is the mosaic, polaroid, collage and split's version of what the crossfade is to
+ * the spotlight. They go together for that reason and not because they happen to be in one
+ * file.
+ */
+[data-wall-budget='cut'] .image,
+[data-wall-budget='cut'] .polaroid[data-motion='landing'] .print,
+[data-wall-budget='cut'] .cell,
+[data-wall-budget='cut'] .paneImage {
+  animation: none;
+  will-change: auto;
+}
