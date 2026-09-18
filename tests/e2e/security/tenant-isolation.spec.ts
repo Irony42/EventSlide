@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3'
 import type { APIRequestContext, Browser } from '@playwright/test'
 import { csrfHeaders, expect, test } from '../fixtures/app'
 import type { TestApp } from '../fixtures/startTestApp'
@@ -254,8 +255,33 @@ test.describe('upload hardening', () => {
  * impossible; support access is §10.6, and it ships time-boxed, announced in the client's
  * own interface and written to a log the client can read. None of that exists yet, so
  * neither does the access.
+ *
+ * **"The bootstrap account is the operator" is checked here, not assumed.** It used to be
+ * assumed, and that made the rest of this describe worth less than it looked: every 404
+ * below is what any signed-in non-member gets, nothing in the HTTP surface carries a site
+ * role, so the whole block stayed green with `bootstrapOwner` writing `siteRole: 'none'`
+ * — the elevation it exists to catch never ran end to end at all, while
+ * docs/SECURITY.md and docs/TESTING.md both named it as the ring-6 half of the invariant.
+ * `siteRoleOf` reads the fact out of the server's own SQLite file, which is the only place
+ * it exists, and `signedInAsOperator` refuses to hand back a session that is not one.
  */
 test.describe('site operator scope', () => {
+  test('the account these specs sign in as is really the box’s operator', async ({ app }) => {
+    // The premise every refusal below rests on, and it was an unchecked one: nothing on
+    // the HTTP surface carries an account's site role — `/api/auth/me` does not — so this
+    // spec could not tell the operator from any signed-in stranger. Every 404 it asserts
+    // is what a non-member gets, so `bootstrapOwner` writing `siteRole: 'none'` would
+    // have left the whole describe green while the elevation it exists to catch was never
+    // exercised end to end. docs/SECURITY.md and docs/TESTING.md both name this spec as
+    // the ring-6 half of the invariant, which is what made the gap worth closing rather
+    // than documenting.
+    //
+    // So the premise is read from the same SQLite file the running server is reading,
+    // which is the only place the fact exists. Read-only, and it is the one thing in this
+    // suite that does not go through HTTP.
+    expect(siteRoleOf(app, app.owner.email)).toBe('operator')
+  })
+
   test('the operator cannot reach a client’s event on the box they run @smoke', async ({
     app,
     browser,
@@ -349,13 +375,44 @@ interface OperatorContext {
 }
 
 /**
- * A real session for the account the box bootstrapped, which migration 004 and
- * `bootstrapOwner` between them make the operator.
+ * The site role stored for an account, read from the running server's own database.
+ *
+ * `readonly`, and the only read in this suite that does not go through HTTP — because the
+ * fact exists nowhere else: no response carries a site role. Opened and closed per call
+ * rather than held, so nothing here keeps a handle on a file a worker is about to delete.
+ */
+const siteRoleOf = (app: TestApp, email: string): string | null => {
+  const db = new Database(app.databasePath, { readonly: true, fileMustExist: true })
+  try {
+    const row = db.prepare('SELECT site_role FROM users WHERE email = ?').get(email) as
+      { readonly site_role: string } | undefined
+    return row?.site_role ?? null
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * A real session for the account the box bootstrapped, which `bootstrapOwner` makes the
+ * operator on a fresh install.
  *
  * Its own browser context, so the operator's cookie jar is nobody else's — the whole
  * point being what this session cannot do.
+ *
+ * The site role is checked before the session is handed back, so a spec below can never
+ * report "the operator is refused" about an account that is not one. It is a throw rather
+ * than an expectation: this is the fixture's precondition, and a failure here should name
+ * itself instead of appearing as a puzzling 404 three assertions later.
  */
 const signedInAsOperator = async (app: TestApp, browser: Browser): Promise<OperatorContext> => {
+  const role = siteRoleOf(app, app.owner.email)
+  if (role !== 'operator') {
+    throw new Error(
+      `the account this fixture signs in as holds site_role=${String(role)}, not 'operator' — ` +
+        'every refusal asserted against it would be a stranger’s refusal, not an operator’s',
+    )
+  }
+
   const context = await browser.newContext({ baseURL: app.baseUrl })
   const login = await context.request.post(app.url('/api/auth/login'), {
     headers: await csrfHeaders(context.request, app),
