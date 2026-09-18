@@ -573,6 +573,49 @@ suite whose job is to make a wall change visible to a human could not see this o
 a twelfth baseline now, of a caption over a photograph at the top of the sRGB gamut, which is
 the backdrop the alpha is derived against.
 
+### 11.4 Something behind the glass (P2, effort M, risk: medium)
+
+Photograph the product with and without everything above and four surfaces come back
+**pixel-identical**: the join screen, the phone moderation console, login, the dashboard. The
+wall moves 0.04%. The guest's upload screen moves the most, and even there the difference is
+mostly the composer becoming a pane and pushing the content down. The redesign is real — the
+motion, the budget, the material — and almost none of it is legible in a still.
+
+The reason is arithmetic rather than taste. **A pane is 92–95% opaque** (`--glass-tint-ground`
+0.92, `--glass-tint-photo` 0.95), so whatever sits behind it comes through at five to eight
+percent. Glass over a flat ground shows nothing because there is nothing to show; glass over a
+photograph shows five percent of a photograph.
+
+So the tempting version of this item — let a host upload a background image, or ship one per
+event template — is the **second** half of it, and on its own it makes the product worse:
+
+- A host's own photograph is by definition an unknown backdrop, so every surface that can
+  reach it goes to the strict floor. `app/glassBackdrop.test.ts` already enforces exactly
+  this, and it is right to. Uploading a background makes the panes **more** opaque, not the
+  glass more visible.
+- A background we ship has an enumerable worst case, which is what a lower floor needs. It can
+  be measured once, per theme, and the floor argued per image rather than against the whole
+  sRGB gamut.
+
+**The first half is buying the headroom.** §11.1 measured it and left it: `--text-muted`
+clears 4.62:1 on `--surface-overlay` against a 4.5 target, so the palette holds about a tenth
+of a ratio point whatever is behind the pane, and the three points of alpha between the two
+floors spend nearly all of it. A markedly more translucent tier needs an ink moved, or a
+pane's ink budget narrowed — deciding that a glass pane may not carry `--text-muted` at all,
+for instance. That is a change with its own argument, and nobody has made it. Until somebody
+does, a richer backdrop buys five percent of a prettier picture.
+
+In order, then: narrow what a glass pane may carry and re-derive the floors from that;
+then curated backgrounds per event template (§3.5 already ships the templates and §2.2 the
+accent hue, so this is a field on a concept that exists, not a new one); then a host's own
+image last, behind the strict floor, documented as costing translucency everywhere rather
+than sold as the feature that delivers it.
+
+One thing this finally makes load-bearing: a full-screen image under blurred panes on a
+mid-range phone mid-upload is the exact load §11.3's ladder was built for and has never
+actually met. Expect the shed order to earn its keep here, and expect the first honest
+measurement of it to come from this item rather than from a synthetic throttle.
+
 ### What this is not
 
 - **Not a component rewrite.** The primitive catalogue and the token architecture are the
