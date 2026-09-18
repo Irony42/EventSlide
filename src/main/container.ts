@@ -507,6 +507,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     events: adapters.events,
     guests: adapters.guests,
     memberships: adapters.memberships,
+    // Narrowed by `HttpDeps` to `siteRoleFor` and `isActive`: the whole adapter is passed,
+    // and the HTTP layer can still only ask who operates the box and whether the account
+    // behind a session may act at all. Never a password hash, a rename or a delete.
+    users: adapters.users,
     guestTokens: adapters.guestTokens,
     config: httpConfig,
   }

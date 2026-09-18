@@ -81,6 +81,16 @@ membershipRepositoryContract('sqlite', async () => {
 
   return {
     repo: new SqliteMembershipRepository(db),
+    // The column the contract's disabled cases are about. Written here rather than
+    // through `SqliteUserRepository` so that the arrangement stays one statement against
+    // the fixture rows this file already seeded, and cannot drift into asserting
+    // something about a second adapter.
+    setDisabled: async (userId, at) => {
+      db.prepare<[string | null, string]>(`UPDATE users SET disabled_at = ? WHERE id = ?`).run(
+        at === null ? null : at.toISOString(),
+        userId,
+      )
+    },
     dispose: async () => closeDatabase(db),
   }
 })

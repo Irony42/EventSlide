@@ -1,3 +1,4 @@
+import type { Locator } from '@playwright/test'
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
 import { aPhoto } from '../fixtures/media'
@@ -9,6 +10,19 @@ import { aPhoto } from '../fixtures/media'
  * testing are not "does it render" but "does it still work at 1 a.m." — after a
  * reconnect, after fifty photos, after the playlist changed under it.
  */
+
+/**
+ * Where an element actually is, narrowed rather than asserted non-null.
+ *
+ * `boundingBox()` answers `null` for an element with no box at all, which for a wall
+ * frame means the layout collapsed — a failure worth naming here rather than a `!` that
+ * turns into "cannot read property x of null" three lines later.
+ */
+const boxOf = async (locator: Locator) => {
+  const box = await locator.boundingBox()
+  if (box === null) throw new Error('the element has no box on screen')
+  return box
+}
 
 /** Publishes `count` photos into a fresh event and returns it. */
 const anEventWithPublishedPhotos = async (
@@ -39,6 +53,12 @@ const anEventWithPublishedPhotos = async (
       .first()
       .getByRole('button', { name: /Publier/i })
       .click()
+    // Awaited one at a time. Clicking `.first()` n times only publishes n photos if the
+    // queue has actually shrunk between the clicks; without this the loop can hit a card
+    // that is still on screen and return an event with fewer published photos than the
+    // caller asked for. `seedAlbum` in the visual suite learned this the hard way (#26)
+    // and this helper had the same shape.
+    await expect(surfaces.host.getByTestId('moderation-card')).toHaveCount(count - index - 1)
   }
   return event
 }
@@ -261,4 +281,70 @@ test('the Ken Burns duration comes from the server, not a constant', async ({ ap
   // finishes first leaves the last of every photo frozen, and one that is restarted
   // part-way is the 1.0 snap.
   expect(ms).toBeGreaterThan(slideIntervalMs)
+})
+
+test('the filmstrip drifts by exactly one frame, and no snapshot is asked to prove it', async ({
+  app,
+  surfaces,
+}) => {
+  // The band holds six frames and shows five: each slide the track travels exactly one
+  // frame width while the window it renders advances by exactly one photo, and the two
+  // cancel, which is what makes the strip appear to move continuously while the DOM holds
+  // six figures all evening. Two declarations have to agree for that — `.frame`'s width
+  // and the `strip-drift` keyframe, both `100% / var(--filmstrip-frames)` — and a drift
+  // of any other distance is a band creeping out of alignment over an evening, or a tenth
+  // of the wall going black at the end of every slide.
+  //
+  // Until now the only thing comparing the two was `wall-filmstrip.png`, and it was
+  // comparing them by accident: the shutter fast-forwards the drift to its end frame, so
+  // the baseline happened to hold the travelled band. That made the distance a fact a
+  // screenshot asserted only when the harness happened to photograph the far end of it,
+  // and it is exactly why that baseline disagreed with itself across machines. The rule
+  // deserves an assertion of its own, so here it is: geometry, read off the real engine,
+  // with no pixels involved.
+  //
+  // It has to be ring 6. jsdom runs no keyframes and computes no layout, so ring 5 can
+  // assert that the drift is declared and how long it lasts — it does, in
+  // `WallLayouts.test.tsx` — but not how far it goes.
+  const event = await anEventWithPublishedPhotos(app, surfaces, 6, 'pellicule-derive')
+  const { projector } = surfaces
+
+  // A ten-minute slide, so the drift the wall makes on its own between two measurements
+  // below is a fraction of a pixel rather than a term in the answer.
+  await projector.goto(
+    wallUrl(app, event.slug, { layout: 'filmstrip', intervalMs: 600_000, transitionMs: 0 }),
+  )
+  await expect(projector.locator('[data-wall-layout]')).toHaveAttribute(
+    'data-wall-layout',
+    'filmstrip',
+  )
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(6)
+
+  // Six photos is one more than the strip shows, so this wall is a drifting one. Stated,
+  // not assumed: a strip the playlist cannot fill stands still, and would pass every
+  // assertion below by never moving at all.
+  const track = projector.locator('[data-motion]')
+  await expect(track).toHaveAttribute('data-motion', 'drift')
+
+  const frames = projector.getByTestId('wall-slide')
+  const restedFirst = await boxOf(frames.nth(0))
+  const restedSecond = await boxOf(frames.nth(1))
+
+  // To the end of the slide, through the animation itself rather than through the clock:
+  // waiting ten real minutes is not a test, and a fast interval would put the answer back
+  // in the hands of whichever frame the machine rendered.
+  await track.evaluate((node) => {
+    for (const animation of node.getAnimations()) animation.finish()
+  })
+
+  const travelledSecond = await boxOf(frames.nth(1))
+
+  // One frame width apart on the band, and one frame width of travel. The second frame
+  // has come to rest exactly where the first one stood: the distance in the keyframe and
+  // the width in `.frame` are the same number, which is the rule `--filmstrip-frames`
+  // exists to keep and which no snapshot should have been carrying.
+  const pitch = restedSecond.x - restedFirst.x
+  const travelled = restedSecond.x - travelledSecond.x
+  expect(Math.round(pitch)).toBeGreaterThan(0)
+  expect(Math.round(travelled)).toBe(Math.round(pitch))
 })

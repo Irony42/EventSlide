@@ -30,6 +30,23 @@ export interface TestApp {
   seedEvent(input: { slug?: string; name?: string }): Promise<SeededEvent>
   /** The owner account the server bootstrapped, for signing in. */
   readonly owner: { readonly email: string; readonly password: string }
+  /**
+   * The SQLite file this server is actually running on, for **reading** a fact the HTTP
+   * surface does not expose.
+   *
+   * Exactly one thing needs it today, and it is the premise of the site-operator spec:
+   * nothing in the API carries an account's site role — `/api/auth/me` does not — so a
+   * spec asserting that "the operator" is refused had no way to establish that the
+   * account it signed in as was an operator at all, and asserted 404s that any signed-in
+   * stranger produces just as well. The same suite would have stayed green with
+   * `bootstrapOwner` writing `'none'`.
+   *
+   * Reading is not the shortcut `apiSession` refuses. Writing rows would let a fixture
+   * build state the application cannot, and a journey on impossible state proves nothing;
+   * reading one back is what ring 6 already does to the media root when it checks that a
+   * stored file carries no EXIF. Nothing in this suite may write through it.
+   */
+  readonly databasePath: string
   dispose(): Promise<void>
 }
 
@@ -172,6 +189,7 @@ export interface StartOptions {
 
 export const startTestApp = async ({ worker, env = {} }: StartOptions): Promise<TestApp> => {
   const root = await mkdtemp(join(tmpdir(), `eventslide-e2e-${worker}-`))
+  const databasePath = join(root, 'eventslide.sqlite')
   const port = await freePort()
   const baseUrl = `http://127.0.0.1:${port}`
 
@@ -188,7 +206,7 @@ export const startTestApp = async ({ worker, env = {} }: StartOptions): Promise<
         // worker's secret, and so a fixture can be reasoned about.
         SESSION_SECRET: `e2e-session-secret-worker-${worker}-padding-padding`,
         GUEST_TOKEN_SECRET: `e2e-guest-secret-worker-${worker}-padding-padding`,
-        DATABASE_PATH: join(root, 'eventslide.sqlite'),
+        DATABASE_PATH: databasePath,
         MEDIA_ROOT: join(root, 'media'),
         // The wall's timing hooks, so a visual test does not wait ten real seconds per
         // slide. The config module refuses to boot production with this set.
@@ -301,6 +319,7 @@ export const startTestApp = async ({ worker, env = {} }: StartOptions): Promise<
     url: (path) => `${baseUrl}${path}`,
     seedEvent,
     owner: { email: OWNER.email, password: OWNER_SETTLED_PASSWORD },
+    databasePath,
     dispose,
   }
 }

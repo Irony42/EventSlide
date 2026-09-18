@@ -1,0 +1,52 @@
+# Dependabot has two engines, and only one of them is configured here.
+#
+# **Security updates** come from this repository's Dependabot alerts. They do not read
+# the `updates:` block below to decide whether to run: they opened nine pull requests —
+# sharp, qs/express, react-router, brace-expansion, postcss, browserslist,
+# baseline-browser-mapping and nanoid — while this file contained nothing capable of
+# producing one, and they will open more the next time an advisory lands. They stay
+# ungrouped on purpose. One advisory, one pull request, one thing to read, and no chance
+# of a single red member holding somebody else's fix hostage.
+#
+# **Version updates** are what the block below schedules, and until now it scheduled
+# none. `package-ecosystem` said `node`, which is not an ecosystem Dependabot has; the
+# name for a `package.json` tree is `npm`. A wrong value is silent here in exactly the
+# way CLAUDE.md §9 describes a tsconfig `include` that matches nothing — no error, no
+# warning, and a file that reads as configured while doing nothing at all. The giveaway
+# was in the pull requests themselves: five of the nine bumped transitive packages that
+# are not in `package.json`, which version updates never do.
+#
+# `scripts/dependabotConfig.test.ts` fails if the ecosystem name stops being one
+# Dependabot recognises, so the next typo is caught the day it is made rather than by
+# somebody noticing months of silence.
+
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    # Correcting the name above takes this repository from no scheduled pull requests to
+    # one per outdated package, and there are majors already waiting: typescript 6 -> 7,
+    # zod 3 -> 4, express 4 -> 5. So the grouping lands in the same change as the fix,
+    # rather than after a week of proving the point.
+    #
+    # Two groups, split by what a failure costs rather than by how big the number is. A
+    # devDependency that breaks turns the pipeline red on a workstation. A production
+    # dependency that breaks is a photo that does not reach the wall at somebody's
+    # wedding, found by the host and not by CI. Those deserve separate reads, so they get
+    # separate pull requests.
+    #
+    # Majors belong to neither group: `update-types` lists only `minor` and `patch`, so a
+    # major falls out of both and is opened on its own. That is the point of writing them
+    # out rather than grouping everything — express 4 to 5 rewrites the router, and it
+    # must not arrive inside a batch whose title says "weekly".
+    groups:
+      production:
+        applies-to: version-updates
+        dependency-type: 'production'
+        update-types: ['minor', 'patch']
+      development:
+        applies-to: version-updates
+        dependency-type: 'development'
+        update-types: ['minor', 'patch']

@@ -759,12 +759,12 @@ browser — and `/auth/me` exists to answer whether there is a principal at all.
 here so that an absent authorization middleware in `routes/authRoutes.ts` is a
 documented decision rather than an omission a reader has to judge.
 
-| Method | Path                 | Principal                                |
-| ------ | -------------------- | ---------------------------------------- |
-| `POST` | `/api/auth/login`    | none                                     |
-| `POST` | `/api/auth/logout`   | none                                     |
-| `GET`  | `/api/auth/me`       | none                                     |
-| `POST` | `/api/auth/password` | any signed-in user; no event, so no role |
+| Method | Path                 | Principal                                                               |
+| ------ | -------------------- | ----------------------------------------------------------------------- |
+| `POST` | `/api/auth/login`    | none                                                                    |
+| `POST` | `/api/auth/logout`   | none                                                                    |
+| `GET`  | `/api/auth/me`       | none                                                                    |
+| `POST` | `/api/auth/password` | any signed-in user whose account is still enabled; no event, so no role |
 
 ### `POST /api/auth/login`
 
@@ -827,9 +827,12 @@ one host's session to whoever asks next.
 ```
 
 **204**. **Errors** — `401 auth.invalidCredentials`, `400 password.*`,
-`400 password.unchanged`, and `404 user.notFound` when the session outlived the
-account it names — the id comes from the session, so a miss means the account was
-deleted underneath it and never that the caller guessed wrong.
+`400 password.unchanged`, and `401 auth.required` when the session outlived the account it
+names or that account has been disabled. Both are refused by `requireUser` before the
+handler runs, and they are one answer on purpose: the id comes from the session, so either
+case means the session no longer names anybody, and a browser holding a dead session should
+be sent back to the login form rather than told the route is missing. (It used to answer
+`404 user.notFound` here; the use case still returns that code, and nothing routes to it.)
 
 ---
 

@@ -7,7 +7,7 @@ import type { Logger } from '../../application/ports/logger'
 import type { EventBus } from '../../application/ports/eventBus'
 import type { EventRepository } from '../../application/ports/eventRepository'
 import type { GuestRepository } from '../../application/ports/guestRepository'
-import type { MembershipRepository } from '../../application/ports/userRepository'
+import type { MembershipRepository, UserRepository } from '../../application/ports/userRepository'
 import type { GuestTokenService } from '../../application/ports/guestTokenService'
 
 /**
@@ -58,6 +58,15 @@ export interface HttpDeps {
   readonly events: EventRepository
   readonly guests: GuestRepository
   readonly memberships: MembershipRepository
+  /**
+   * Two methods, deliberately: what the caller may do on the box, and whether the
+   * account behind the session may still act at all.
+   *
+   * Neither has any business being able to read an account's hash, rename it or delete
+   * it. `SqliteUserRepository` satisfies this structurally, so the composition root
+   * passes the whole adapter and the HTTP layer still cannot reach the rest of it.
+   */
+  readonly users: Pick<UserRepository, 'siteRoleFor' | 'isActive'>
   readonly guestTokens: GuestTokenService
   readonly config: HttpConfig
 }
@@ -136,4 +145,18 @@ export interface SessionPayload {
   userId?: string
   email?: string
   mustChangePassword?: boolean
+  /**
+   * When this session was established, in epoch milliseconds, written once at login and
+   * never refreshed.
+   *
+   * The one thing `rolling: true` cannot tell you. The cookie's `maxAge` is an *idle*
+   * timeout, and the store pushes `expires_at` forward on every request, so a session
+   * that keeps being used never expires — which is what made "a disabled host's session
+   * lasts 12 hours" wrong in the reassuring direction. `enforceSessionAge` compares this
+   * against the clock and ends the session once, whatever the idle timer says.
+   *
+   * Written at login rather than derived from the row because the row's `expires_at` is
+   * the idle deadline: the two are different questions and one column cannot answer both.
+   */
+  issuedAt?: number
 }

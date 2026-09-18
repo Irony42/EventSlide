@@ -242,7 +242,19 @@ that renders guest-supplied content. The short version:
   in an `HttpOnly` cookie. It grants upload rights to exactly one event and lets a
   guest delete their own photo within a grace window. It grants nothing else.
 - Hosts and moderators are **session-authenticated** with a SQLite-backed session
-  store, session regeneration on login, and role checks per route.
+  store, session regeneration on login, and role checks per route. The role is read from
+  storage on the request that uses it, never from the session, so disabling an account
+  ends its authority on the next request rather than at its next login; the session also
+  carries an absolute 7-day cap on top of the 12 h rolling idle timeout.
+- **`NODE_ENV` defaults to `production`.** Saying nothing is the strict posture, and a
+  boot with no `SESSION_SECRET` / `GUEST_TOKEN_SECRET` is refused rather than downgraded.
+  Development declares itself through `scripts/dev.env`, which the npm scripts that run
+  from a source checkout load with `--env-file`.
+- An account also carries a **site role** (`none` / `operator`, roadmap §10.1) saying
+  whether it operates the box. It is not a rung above `owner`: it grants nothing inside
+  any event, `requireRole` never reads it, and a route that would let an operator see a
+  client's photographs is a different item (§10.6) with a time-box and an audit trail.
+  There are named tests at rings 4 and 6; do not "fix" them by widening a check.
 - Public write endpoints are rate-limited per IP **and** per event, with a byte quota.
   An event that hits its quota stops accepting uploads instead of filling the disk.
 - Media is served through the application, never by `express.static`, so authorization
@@ -308,6 +320,28 @@ Learned the hard way. Do not rediscover them.
    `.js`/`.mjs` file needs `allowJs` to be in the program and `checkJs` to be _checked_ —
    `--listFiles` lists it either way, which is why "typecheck passes" and "the file is
    type-checked" are different claims, and only the second one is the guard.
+10. **A screenshot does not freeze an animation. It fast-forwards it.** Playwright's
+    `animations: 'disabled'` reads as "hold everything still" and does the opposite: it
+    calls `finish()` on every finite animation on the page, photographs the **end** frame,
+    and leaves it there for the rest of the test. That is harmless while an animation's end
+    frame is also its resting one — the visual suite sets `--wall-transition` to `0`, so
+    the mosaic's fade and the polaroid's landing are over before the shutter either way.
+    The filmstrip's drift is the exception, because it is timed from
+    `--wall-drift-duration`, which is the **slide interval** and not `--wall-transition`
+    (trap 6 is why), so nothing the other baselines set reaches it — and its end frame is a
+    whole frame of travel. Measured: one `page.screenshot({ animations: 'disabled' })`
+    takes the track from `matrix(…, -0.3, 0)` to `matrix(…, -384, 0)` and the first
+    photograph's box from `x: 8` to `x: -384`, clean off a 1920 screen. So
+    `wall-filmstrip.png` was one of two images **34% of the screen apart, rendered from
+    identical DOM**, and which one a machine produced was decided by the runner rather than
+    by the spec: four pull requests that touched no rendering went red on it, every one of
+    them green on a re-run, and the first diagnosis blamed photo ordering because the
+    ratios varied the way an ordering race does. The rule that comes out of it: **a visual
+    baseline over an animated surface pins the input that drives the animation, and asserts
+    the surface is at rest before the shutter** — here `e2e_interval=0`, which mounts no
+    drift at all, then `data-motion="still"` — instead of trusting the screenshot to hold
+    it still. What the animation itself does belongs one ring down, or in a journey
+    assertion that measures geometry rather than pixels.
 
 ---
 

@@ -14,7 +14,7 @@
 import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { loadConfig } from '../src/infrastructure/config/env'
+import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { migrations } from '../src/infrastructure/db/migrations'
 import {
   BackupError,
@@ -113,7 +113,7 @@ const runVerify = async (argv: readonly string[], archive: string): Promise<numb
 }
 
 const runBackup = async (argv: readonly string[]): Promise<number> => {
-  const config = loadConfig()
+  const config = loadMaintenanceConfig()
   // Only the config module reads the environment; the flags exist so an operator can
   // point this at a container volume without editing their .env.
   const databasePath = option(argv, 'database') ?? config.storage.databasePath

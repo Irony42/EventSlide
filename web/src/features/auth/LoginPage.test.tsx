@@ -125,6 +125,17 @@ describe('LoginPage', () => {
     expect(await screen.findByText(DASHBOARD)).toBeVisible()
   })
 
+  it('ignores a destination opening with a backslash, which a browser reads as a slash', async () => {
+    // One character apart from the case above and it used to pass: `/\ailleurs.example`
+    // resolves to `//ailleurs.example`, so refusing only `//` refused nothing. It is the
+    // bypass react-router hardened against in 7.18.0, and the value reaches this
+    // function out of history state before any router has looked at it.
+    renderArrivingFrom(fakeApi(), '/\\ailleurs.example/phishing')
+    await signIn()
+
+    expect(await screen.findByText(DASHBOARD)).toBeVisible()
+  })
+
   it('keeps the button labelled while the request is in flight', async () => {
     const api = fakeApi({ login: vi.fn(() => new Promise<SessionUserDto>(() => {})) })
 

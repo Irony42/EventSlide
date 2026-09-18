@@ -38,17 +38,34 @@ const membership = (
   grantedAt: Date = AT,
 ): Membership => ({ eventId, userId, role, grantedAt })
 
+/**
+ * Switching one of the fixture accounts off and back on.
+ *
+ * `roleFor` answers `null` for a disabled account, and that rule spans two tables, so
+ * arranging it needs a hand on `users` — which this port does not have and a contract
+ * suite may not reach around. So each implementation supplies the arrangement, the same
+ * way it already supplies `dispose`: SQLite through its own user repository, the fake
+ * through the one linked into it. The assertion stays inside the port.
+ */
+export type SetAccountDisabled = (userId: UserId, at: Date | null) => Promise<void>
+
 export const membershipRepositoryContract = (
   name: string,
-  makeSubject: () => Promise<{ repo: MembershipRepository; dispose?: () => Promise<void> }>,
+  makeSubject: () => Promise<{
+    repo: MembershipRepository
+    setDisabled: SetAccountDisabled
+    dispose?: () => Promise<void>
+  }>,
 ): void => {
   describe(`MembershipRepository contract: ${name}`, () => {
     let repo: MembershipRepository
+    let setDisabled: SetAccountDisabled
     let dispose: (() => Promise<void>) | undefined
 
     beforeEach(async () => {
       const subject = await makeSubject()
       repo = subject.repo
+      setDisabled = subject.setDisabled
       dispose = subject.dispose
     })
 
@@ -74,6 +91,95 @@ export const membershipRepositoryContract = (
       await repo.grant(membership(GALA, MOD, 'moderator'))
 
       expect(await repo.roleFor(WEDDING, MOD)).toBeNull()
+    })
+
+    // ------------------------------------------------------ a disabled account --
+
+    /**
+     * The event-level half of what `siteRoleFor` already does for the box. Before it,
+     * `disabled_at` was consulted on exactly one line in the product — inside
+     * `authenticateUser` — so switching a host off stopped them signing in again and
+     * stopped nothing they were already doing. The session is rolling, so "already
+     * doing" had no end.
+     */
+    it('reports no role for an account that has been disabled', async () => {
+      await repo.grant(membership(WEDDING, HOST, 'owner'))
+
+      await setDisabled(HOST, AT)
+
+      expect(await repo.roleFor(WEDDING, HOST)).toBeNull()
+    })
+
+    it('reports the role again once the account is enabled, so the membership row survived', async () => {
+      await repo.grant(membership(WEDDING, HOST, 'owner'))
+      await setDisabled(HOST, AT)
+
+      await setDisabled(HOST, null)
+
+      expect(await repo.roleFor(WEDDING, HOST)).toBe('owner')
+    })
+
+    it('leaves the other members of the event holding their roles', async () => {
+      await repo.grant(membership(WEDDING, HOST, 'owner'))
+      await repo.grant(membership(WEDDING, MOD, 'moderator'))
+
+      await setDisabled(HOST, AT)
+
+      expect(await repo.roleFor(WEDDING, MOD)).toBe('moderator')
+    })
+
+    /**
+     * The other side of the same distinction. `roleFor` is authority and misses a
+     * disabled account; `membershipFor` is the row and must not. While `registerModerator`
+     * asked `roleFor` for this, a disabled **co-owner** looked like a stranger and was
+     * silently re-granted as a moderator — losing, permanently, the role that re-enabling
+     * the account was supposed to give back.
+     */
+    it('still reports the membership row of a disabled account, because the row is not the authority', async () => {
+      await repo.grant(membership(WEDDING, HOST, 'owner'))
+
+      await setDisabled(HOST, AT)
+
+      expect(await repo.membershipFor(WEDDING, HOST)).toEqual({
+        eventId: WEDDING,
+        userId: HOST,
+        role: 'owner',
+        grantedAt: AT,
+      })
+    })
+
+    it('reports no membership row for a user with no part in the event', async () => {
+      expect(await repo.membershipFor(WEDDING, HOST)).toBeNull()
+    })
+
+    it('reports no membership row for a member of another event', async () => {
+      await repo.grant(membership(GALA, MOD, 'moderator'))
+
+      expect(await repo.membershipFor(WEDDING, MOD)).toBeNull()
+    })
+
+    it('reports no membership row once the membership is revoked', async () => {
+      await repo.grant(membership(WEDDING, MOD, 'moderator'))
+
+      await repo.revoke(WEDDING, MOD)
+
+      expect(await repo.membershipFor(WEDDING, MOD)).toBeNull()
+    })
+
+    it('still lists a disabled member, because the owner looking at the list needs to see them', async () => {
+      await repo.grant(membership(WEDDING, MOD, 'moderator'))
+
+      await setDisabled(MOD, AT)
+
+      expect((await repo.listForEvent(WEDDING)).map((member) => member.userId)).toEqual([MOD])
+    })
+
+    it('still counts a disabled owner, so the last-owner rule is about rows and not about who is switched on', async () => {
+      await repo.grant(membership(WEDDING, HOST, 'owner'))
+
+      await setDisabled(HOST, AT)
+
+      expect(await repo.countByRole(WEDDING, 'owner')).toBe(1)
     })
 
     it('replaces the role when a membership is granted again', async () => {

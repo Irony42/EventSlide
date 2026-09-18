@@ -201,13 +201,25 @@ test.describe('backup and restore', () => {
     }
   }
 
-  /** Runs one of the two commands under test, as an operator would. */
+  /**
+   * Runs one of the two commands under test, as an operator would.
+   *
+   * `NODE_ENV: 'test'` for the same reason the server above is given it: this suite runs
+   * under a workflow that sets `E2E_HOOKS=1` for every job, and `NODE_ENV` now defaults to
+   * `production`, where enabling the display hooks is a boot refusal. Inheriting the
+   * ambient environment unchanged therefore ran the backup against a *different*
+   * environment than the server it was backing up — which is the bug, not the refusal.
+   */
   const run = (script: string, args: readonly string[]): Promise<{ code: number; out: string }> =>
     new Promise((resolve, reject) => {
       const child: ChildProcess = spawn(
         process.execPath,
         ['--import', 'tsx', join(process.cwd(), 'scripts', script), ...args],
-        { cwd: process.cwd(), env: { ...process.env }, stdio: ['ignore', 'pipe', 'pipe'] },
+        {
+          cwd: process.cwd(),
+          env: { ...process.env, NODE_ENV: 'test' },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
       )
       const lines: string[] = []
       child.stdout?.on('data', (chunk: Buffer) => lines.push(chunk.toString()))

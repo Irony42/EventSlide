@@ -19,7 +19,7 @@
   "main": "dist/server/main/index.js",
   "scripts": {
     "dev": "concurrently -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:api": "tsx watch --clear-screen=false src/main/index.ts",
+    "dev:api": "tsx watch --env-file=scripts/dev.env --clear-screen=false src/main/index.ts",
     "dev:web": "vite --config web/vite.config.ts",
     "build": "npm run build:web && npm run build:api",
     "build:api": "tsc -p tsconfig.build.json",
@@ -27,7 +27,7 @@
     "build:client": "vite build --config web/vite.config.ts",
     "build:sw": "vite build --config web/vite.sw.config.ts",
     "build:icons": "tsx scripts/generateIcons.ts",
-    "start": "node dist/server/main/index.js",
+    "start": "node --env-file-if-exists=.env dist/server/main/index.js",
     "preview": "vite preview --config web/vite.config.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -67,7 +67,7 @@
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
     "cookie-parser": "^1.4.7",
-    "express": "^4.22.2",
+    "express": "^4.22.3",
     "express-rate-limit": "^8.7.0",
     "express-session": "^1.19.0",
     "helmet": "^8.3.0",
@@ -77,8 +77,8 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "react-router-dom": "^7.14.2",
-    "sharp": "^0.34.5",
+    "react-router-dom": "^7.18.4",
+    "sharp": "^0.35.4",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -116,7 +116,7 @@
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.1",
-    "vite": "^8.0.10",
+    "vite": "^8.0.16",
     "vitest": "^5.0.0"
   }
 }

@@ -103,12 +103,93 @@ describe('registerModerator', () => {
     ])
   })
 
+  /**
+   * The escalation that turned a bounded window into permanent access: a disabled owner
+   * reached this use case, `User.create` wrote `disabledAt: null`, and the host read the
+   * temporary password out to themselves. One account switched off, another one on, with
+   * a password the disabled owner knows.
+   *
+   * What stops it is the actor's own role read, not a rule written here: `roleFor`
+   * answers `null` for a disabled account, so this is the ordinary "no part in this
+   * event" path and gets the same 404 a stranger gets.
+   */
+  it('refuses an owner whose account has been disabled, so a switched-off host cannot mint an enabled one', async () => {
+    const owner = aUser({ id: 'owner-1', email: 'camille@example.test', displayName: 'Camille' })
+    await users.save(owner.disable(AT))
+
+    const result = await invite()
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
+  /**
+   * The mirror image, and the one that bites quietly. `roleFor` refuses a disabled
+   * account, so asking it here would have made a disabled **co-owner** look like a
+   * stranger: the invitation would have re-granted them as a moderator, and re-enabling
+   * the account later would have given back the wrong role, permanently. This is why the
+   * "already a member" question asks for the row rather than for the authority.
+   */
+  it('refuses to re-invite a disabled co-owner rather than downgrading them to moderator', async () => {
+    const colleague = aUser({ id: 'owner-2', email: 'lea@example.test' })
+    await users.save(colleague.disable(AT))
+    memberships.seed({
+      eventId: asEventId('event-1'),
+      userId: asUserId('owner-2'),
+      role: 'owner',
+      grantedAt: AT,
+    })
+
+    const result = await invite()
+
+    expect(!result.ok && result.error.code).toBe('membership.alreadyExists')
+    expect(
+      await memberships.membershipFor(asEventId('event-1'), asUserId('owner-2')),
+    ).toMatchObject({ role: 'owner' })
+  })
+
+  it('creates no account at all for a disabled owner, so nothing is left to sign in with', async () => {
+    const owner = aUser({ id: 'owner-1', email: 'camille@example.test', displayName: 'Camille' })
+    await users.save(owner.disable(AT))
+
+    await invite()
+
+    expect(await storedInvitee()).toBeNull()
+  })
+
   it('forces the invitee to replace the password their host chose for them', async () => {
     await invite()
 
     const invitee = await storedInvitee()
     expect(invitee?.mustChangePassword).toBe(true)
     expect(invitee?.passwordHash).toBe(hashOf(TEMPORARY))
+  })
+
+  it('creates an account with no authority over the box, whoever did the inviting', async () => {
+    // The host doing the inviting may be the box's operator — on a one-operator
+    // instance they usually are. An invitation that carried a site role across would
+    // hand the whole box to someone lent a laptop for one evening (docs/ROADMAP.md
+    // §10.1). Asserted through `siteRoleFor`, which is the read authorization makes.
+    users.seed(aUser({ id: 'operator-1', email: 'ops@example.test', siteRole: 'operator' }))
+    memberships.seed({
+      eventId: asEventId('event-1'),
+      userId: asUserId('operator-1'),
+      role: 'owner',
+      grantedAt: AT,
+    })
+
+    await invite({ actorId: asUserId('operator-1') })
+
+    expect(await users.siteRoleFor(asUserId('user-1'))).toBe('none')
+  })
+
+  it('leaves an existing operator account its own site role, which this never touches', async () => {
+    // The other direction of the same rule: inviting someone who happens to operate the
+    // box makes them a moderator of one event and changes nothing else about them.
+    users.seed(aUser({ id: 'user-9', email: 'lea@example.test', siteRole: 'operator' }))
+
+    await invite()
+
+    expect(await users.siteRoleFor(asUserId('user-9'))).toBe('operator')
   })
 
   it('leaves an existing account its own password when granting it the role', async () => {

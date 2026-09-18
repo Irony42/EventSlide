@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ConfigError, loadConfig } from './env'
+import { ConfigError, loadConfig, loadMaintenanceConfig } from './env'
 import { Password } from '../../domain/users/password'
 
 /**
@@ -19,6 +19,17 @@ const A_REAL_SECRET = 'f3b1c9d7e5a2408c9b6d1e4f7a0c3b5d8e2f6a19c4d7b0e3'
 const ANOTHER_REAL_SECRET = '9a7c5e3b1d8f6042ae1c3b5d7f9014682a4c6e8b0d2f4a6c'
 
 type Source = Record<string, string | undefined>
+
+/**
+ * Development has to say so now.
+ *
+ * `NODE_ENV` defaults to `production`, so an empty source is a production boot and is
+ * refused for want of secrets — which is the point of the default and has a test of its
+ * own below. Every case here that is about a coercion, a ceiling or a default rather than
+ * about the environment spreads this first, and any case that names its own `NODE_ENV`
+ * overrides it.
+ */
+const DEV: Source = { NODE_ENV: 'development' }
 
 /** A production environment that boots, so a test can break exactly one thing in it. */
 const aProductionEnv = (overrides: Source = {}): Source => ({
@@ -59,7 +70,7 @@ const parseDotEnv = (contents: string): Source =>
 describe('loadConfig', () => {
   describe('defaults', () => {
     it('boots a development server from an empty environment, with every documented default', () => {
-      const config = loadConfig({})
+      const config = loadConfig({ ...DEV })
 
       expect(config).toEqual({
         env: 'development',
@@ -68,9 +79,13 @@ describe('loadConfig', () => {
         publicUrl: 'http://localhost:5173',
         logLevel: 'info',
         trustProxyHops: 0,
+        // Generated for this boot, so there is no constant to write down here. The two
+        // properties that matter — that they differ, and that they are not a value this
+        // repository publishes — have tests of their own below.
         secrets: {
-          session: 'development-only-session-secret-not-for-production',
-          guestToken: 'development-only-guest-token-secret-not-for-prod',
+          session: expect.any(String),
+          guestToken: expect.any(String),
+          generated: ['SESSION_SECRET', 'GUEST_TOKEN_SECRET'],
         },
         session: { secureCookie: false },
         storage: { databasePath: './data/eventslide.sqlite', mediaRoot: './media' },
@@ -111,13 +126,46 @@ describe('loadConfig', () => {
     })
 
     it('gives development two different fallback secrets, so a guest cookie cannot be replayed as a session', () => {
-      const config = loadConfig({})
+      const config = loadConfig({ ...DEV })
 
       expect(config.secrets.session).not.toBe(config.secrets.guestToken)
     })
 
+    it('never signs a development boot with a value this repository publishes', () => {
+      // The defect this replaced: two constants lived in env.ts, so every reader of the
+      // repository held the key to any instance that reached them. A generated secret is
+      // what makes "a box booting with a repo-public secret" impossible rather than
+      // discouraged — there is no longer such a value for any configuration to select.
+      const first = loadConfig({ ...DEV })
+      const second = loadConfig({ ...DEV })
+
+      expect(first.secrets.session).not.toBe(second.secrets.session)
+      expect(first.secrets.guestToken).not.toBe(second.secrets.guestToken)
+    })
+
+    it('names both secrets as generated when a boot configures neither', () => {
+      // `src/main/index.ts` turns this into the one boot line that says which
+      // arrangement is in force — docs/SECURITY.md §14.7 recorded that nothing did.
+      expect(loadConfig({ ...DEV }).secrets.generated).toEqual([
+        'SESSION_SECRET',
+        'GUEST_TOKEN_SECRET',
+      ])
+    })
+
+    it('names nothing when both are configured, so the warning is silent where it should be', () => {
+      expect(loadConfig(aProductionEnv()).secrets.generated).toEqual([])
+    })
+
+    it('names only the half that was generated, because only that half dies with the process', () => {
+      // A developer who set SESSION_SECRET keeps their sign-in across a reload and loses
+      // every guest token. One boolean told them both were going.
+      expect(loadConfig({ ...DEV, SESSION_SECRET: A_REAL_SECRET }).secrets.generated).toEqual([
+        'GUEST_TOKEN_SECRET',
+      ])
+    })
+
     it('makes both development fallback secrets long enough for the HMAC token service to accept', () => {
-      const config = loadConfig({})
+      const config = loadConfig({ ...DEV })
 
       // createHmacGuestTokenService refuses a secret under 32 characters, so a
       // fallback shorter than that would make `npm run dev` crash on the first join.
@@ -126,13 +174,13 @@ describe('loadConfig', () => {
     })
 
     it('strips a trailing slash from PUBLIC_URL, so a join QR code cannot contain a double slash', () => {
-      const config = loadConfig({ PUBLIC_URL: 'https://photos.example.com///' })
+      const config = loadConfig({ ...DEV, PUBLIC_URL: 'https://photos.example.com///' })
 
       expect(config.publicUrl).toBe('https://photos.example.com')
     })
 
     it('converts the guest self-delete grace period from seconds to milliseconds', () => {
-      const config = loadConfig({ GUEST_SELF_DELETE_GRACE_SECONDS: '60' })
+      const config = loadConfig({ ...DEV, GUEST_SELF_DELETE_GRACE_SECONDS: '60' })
 
       expect(config.guests.selfDeleteGraceMs).toBe(60_000)
     })
@@ -151,6 +199,7 @@ describe('loadConfig', () => {
 
     it('passes through the bootstrap owner credentials that create the first account', () => {
       const config = loadConfig({
+        ...DEV,
         BOOTSTRAP_OWNER_EMAIL: 'host@example.com',
         BOOTSTRAP_OWNER_PASSWORD: 'a-first-owner-password',
       })
@@ -167,7 +216,7 @@ describe('loadConfig', () => {
       ['false', false],
       ['0', false],
     ])('reads E2E_HOOKS=%s as %s', (given, expected) => {
-      const config = loadConfig({ NODE_ENV: 'test', E2E_HOOKS: given })
+      const config = loadConfig({ ...DEV, NODE_ENV: 'test', E2E_HOOKS: given })
 
       expect(config.e2eHooks).toBe(expected)
     })
@@ -179,6 +228,7 @@ describe('loadConfig', () => {
       // MAX_FILES_PER_UPLOAD and JOIN_RATE_LIMIT_PER_MINUTE both default to 20, so a
       // test built from defaults would pass with those two swapped.
       const config = loadConfig({
+        ...DEV,
         PORT: '4301',
         TRUST_PROXY_HOPS: '3',
         MAX_UPLOAD_BYTES: '1111',
@@ -249,6 +299,63 @@ describe('loadConfig', () => {
       const config = loadConfig(aProductionEnv({ PUBLIC_URL: 'http://localhost:4300' }))
 
       expect(config.publicUrl).toBe('http://localhost:4300')
+    })
+  })
+
+  describe('the environment nobody named', () => {
+    /**
+     * The security default of the whole module, and the one an operator reaches by
+     * saying nothing at all. It used to be `development`, which turned off five controls
+     * at once: both signing secrets fell back to constants published in this repository,
+     * the session cookie lost `Secure`, HSTS and `upgrade-insecure-requests` were not
+     * sent, and `script-src` admitted `'unsafe-inline'`.
+     */
+    it('is production, so a box that was never told which environment it is in gets the strict posture', () => {
+      const config = loadConfig({
+        SESSION_SECRET: A_REAL_SECRET,
+        GUEST_TOKEN_SECRET: ANOTHER_REAL_SECRET,
+      })
+
+      expect(config.env).toBe('production')
+      expect(config.isProduction).toBe(true)
+    })
+
+    it('carries the strict posture into the session cookie, which is the control an operator cannot see is off', () => {
+      const config = loadConfig({
+        SESSION_SECRET: A_REAL_SECRET,
+        GUEST_TOKEN_SECRET: ANOTHER_REAL_SECRET,
+      })
+
+      expect(config.session.secureCookie).toBe(true)
+    })
+
+    it('refuses to boot at all when it has no secrets either, rather than inventing two', () => {
+      const issues = refusalIssues({})
+
+      expect(issues).toContain('SESSION_SECRET: SESSION_SECRET is required in production')
+      expect(issues).toContain('GUEST_TOKEN_SECRET: GUEST_TOKEN_SECRET is required in production')
+    })
+
+    it.each(['SESSION_SECRET', 'GUEST_TOKEN_SECRET'])(
+      'reads a blank %s as absent, so a dangling variable is named as missing rather than as short',
+      (name) => {
+        // `scripts/verify-image.sh` greps the image's refusal for "is required in
+        // production". A blank that fell through to the 32-character floor would leave
+        // that check reading as one assertion and making another.
+        const issues = refusalIssues({ [name]: '' })
+
+        expect(issues).toContain(`${name}: ${name} is required in production`)
+      },
+    )
+
+    it('reads a blank NODE_ENV as absent, so a dangling compose variable cannot relax the posture', () => {
+      // The `Number('')` lesson from the sweep intervals, applied to the one variable
+      // whose absence used to be the weak answer: a template that rendered empty must
+      // land on the strict default like any other absence, not on an enum error and not
+      // on development.
+      const issues = refusalIssues({ NODE_ENV: '' })
+
+      expect(issues).toContain('SESSION_SECRET: SESSION_SECRET is required in production')
     })
   })
 
@@ -509,7 +616,7 @@ describe('loadConfig', () => {
       // `docker compose up` sends. Treated as a value it made the container log
       // "could not create the first owner account" on every boot; treated as a policy
       // failure it would now refuse to boot at all.
-      const config = loadConfig({ BOOTSTRAP_OWNER_EMAIL: '', BOOTSTRAP_OWNER_PASSWORD: '' })
+      const config = loadConfig({ ...DEV, BOOTSTRAP_OWNER_EMAIL: '', BOOTSTRAP_OWNER_PASSWORD: '' })
 
       expect(config.bootstrap).toEqual({ ownerEmail: null, ownerPassword: null })
     })
@@ -528,6 +635,7 @@ describe('loadConfig', () => {
 
     it('accepts a pair that satisfies the policy, which is the case an operator actually sets', () => {
       const config = loadConfig({
+        ...DEV,
         BOOTSTRAP_OWNER_EMAIL: 'host@example.com',
         BOOTSTRAP_OWNER_PASSWORD: A_GOOD_PASSWORD,
       })
@@ -546,7 +654,7 @@ describe('loadConfig', () => {
       // The whole point of the setting: `docker compose up` and nothing else must act on
       // a host's "delete after 30 days". A default of off would ship the same lie the
       // product told before there was a trigger at all.
-      const config = loadConfig({})
+      const config = loadConfig({ ...DEV })
 
       expect(config.retention.sweepIntervalMs).toBe(3_600_000)
     })
@@ -561,32 +669,32 @@ describe('loadConfig', () => {
       // tests/e2e/fixtures/startTestApp.ts boots this binary with NODE_ENV=test and no
       // retention variable. A background sweep firing mid-journey would delete the event
       // a spec is asserting on, on a timer nothing in the test can see.
-      const config = loadConfig({ NODE_ENV: 'test' })
+      const config = loadConfig({ ...DEV, NODE_ENV: 'test' })
 
       expect(config.retention.sweepIntervalMs).toBeNull()
     })
 
     it('converts the configured interval from minutes to milliseconds', () => {
-      const config = loadConfig({ [NAME]: '15' })
+      const config = loadConfig({ ...DEV, [NAME]: '15' })
 
       expect(config.retention.sweepIntervalMs).toBe(900_000)
     })
 
     it('accepts an explicit interval under NODE_ENV=test, for a test that is about the sweep', () => {
-      const config = loadConfig({ NODE_ENV: 'test', [NAME]: '5' })
+      const config = loadConfig({ ...DEV, NODE_ENV: 'test', [NAME]: '5' })
 
       expect(config.retention.sweepIntervalMs).toBe(300_000)
     })
 
     it("turns the sweep off for the word 'off', which is the only way to turn it off", () => {
-      const config = loadConfig({ [NAME]: 'off' })
+      const config = loadConfig({ ...DEV, [NAME]: 'off' })
 
       expect(config.retention.sweepIntervalMs).toBeNull()
     })
 
     it("ignores surrounding whitespace, which a compose file's quoting adds easily", () => {
-      expect(loadConfig({ [NAME]: ' off ' }).retention.sweepIntervalMs).toBeNull()
-      expect(loadConfig({ [NAME]: ' 30 ' }).retention.sweepIntervalMs).toBe(1_800_000)
+      expect(loadConfig({ ...DEV, [NAME]: ' off ' }).retention.sweepIntervalMs).toBeNull()
+      expect(loadConfig({ ...DEV, [NAME]: ' 30 ' }).retention.sweepIntervalMs).toBe(1_800_000)
     })
 
     it.each(['0', '', '  ', 'false', 'no', '-1', '1.5', 'never', 'OFF'])(
@@ -609,8 +717,8 @@ describe('loadConfig', () => {
     })
 
     it('accepts the boundaries', () => {
-      expect(loadConfig({ [NAME]: '1' }).retention.sweepIntervalMs).toBe(60_000)
-      expect(loadConfig({ [NAME]: '1440' }).retention.sweepIntervalMs).toBe(86_400_000)
+      expect(loadConfig({ ...DEV, [NAME]: '1' }).retention.sweepIntervalMs).toBe(60_000)
+      expect(loadConfig({ ...DEV, [NAME]: '1440' }).retention.sweepIntervalMs).toBe(86_400_000)
     })
 
     it('names the variable and both accepted shapes when it refuses', () => {
@@ -632,26 +740,26 @@ describe('loadConfig', () => {
       // 18:00-18:05, and anyone scanning the QR code before it does is told the party
       // has not started. A default of off would ship the same lie retention told before
       // it had a trigger — two fields the host can set and nothing that acts on them.
-      expect(loadConfig({}).schedule.sweepIntervalMs).toBe(300_000)
+      expect(loadConfig({ ...DEV }).schedule.sweepIntervalMs).toBe(300_000)
       expect(loadConfig(aProductionEnv()).schedule.sweepIntervalMs).toBe(300_000)
     })
 
     it('never sweeps under NODE_ENV=test unless asked', () => {
       // A sweep firing between two steps of a journey would open — or close — the event
       // the spec is asserting on, on a timer nothing in the test can see.
-      expect(loadConfig({ NODE_ENV: 'test' }).schedule.sweepIntervalMs).toBeNull()
+      expect(loadConfig({ ...DEV, NODE_ENV: 'test' }).schedule.sweepIntervalMs).toBeNull()
     })
 
     it('converts the configured interval from minutes to milliseconds', () => {
-      expect(loadConfig({ [NAME]: '15' }).schedule.sweepIntervalMs).toBe(900_000)
+      expect(loadConfig({ ...DEV, [NAME]: '15' }).schedule.sweepIntervalMs).toBe(900_000)
     })
 
     it("turns the sweep off for the word 'off', which is the only way to turn it off", () => {
-      expect(loadConfig({ [NAME]: 'off' }).schedule.sweepIntervalMs).toBeNull()
+      expect(loadConfig({ ...DEV, [NAME]: 'off' }).schedule.sweepIntervalMs).toBeNull()
     })
 
     it('leaves the retention sweep alone, because they are two separate decisions', () => {
-      const config = loadConfig({ [NAME]: 'off' })
+      const config = loadConfig({ ...DEV, [NAME]: 'off' })
 
       expect(config.retention.sweepIntervalMs).toBe(3_600_000)
     })
@@ -666,8 +774,8 @@ describe('loadConfig', () => {
     )
 
     it('accepts the boundaries', () => {
-      expect(loadConfig({ [NAME]: '1' }).schedule.sweepIntervalMs).toBe(60_000)
-      expect(loadConfig({ [NAME]: '1440' }).schedule.sweepIntervalMs).toBe(86_400_000)
+      expect(loadConfig({ ...DEV, [NAME]: '1' }).schedule.sweepIntervalMs).toBe(60_000)
+      expect(loadConfig({ ...DEV, [NAME]: '1440' }).schedule.sweepIntervalMs).toBe(86_400_000)
     })
 
     it('names the variable and both accepted shapes when it refuses', () => {
@@ -677,5 +785,62 @@ describe('loadConfig', () => {
       expect(issue).toContain('1 to 1440')
       expect(issue).toContain("'off'")
     })
+  })
+})
+
+/**
+ * `npm run db:migrate`, `purge`, `backup`, `restore`, `db:seed:demo`.
+ *
+ * They open the database and exit, so the two secrets are not a precondition for them —
+ * docs/SECURITY.md §11 promises those commands need no configuration beyond `--database`
+ * and `--media`, and a restore at two in the morning must not fail for want of a value the
+ * operator keeps in a compose file. Everything else about the posture is identical, which
+ * is the part that has to be pinned: the first attempt at this handed those scripts
+ * `NODE_ENV=development` instead, which inverted the whole point of the default on exactly
+ * the box §11 sends the operator to.
+ */
+describe('loadMaintenanceConfig', () => {
+  it('boots with no secrets at all, because nothing it runs signs anything', () => {
+    const config = loadMaintenanceConfig({})
+
+    expect(config.storage.databasePath).toBe('./data/eventslide.sqlite')
+  })
+
+  it('still calls an unnamed environment production, so a script cannot mistake a venue box for a laptop', () => {
+    // `seedDemo` used to refuse on `isProduction`, and the refusal died the moment an npm
+    // script could hand it `NODE_ENV=development`. This keeps the reading honest; the
+    // guard that actually protects a real database is now a question about the database.
+    expect(loadMaintenanceConfig({}).isProduction).toBe(true)
+  })
+
+  it('generates the secrets it was not given rather than reaching for a constant', () => {
+    const first = loadMaintenanceConfig({})
+    const second = loadMaintenanceConfig({})
+
+    expect(first.secrets.session).not.toBe(second.secrets.session)
+  })
+
+  it('still refuses every other production rule, so only the secrets differ', () => {
+    try {
+      loadMaintenanceConfig({ PUBLIC_URL: 'http://photos.example.com', E2E_HOOKS: '1' })
+    } catch (error) {
+      const issues = error instanceof ConfigError ? error.issues : []
+      expect(issues.map((issue) => issue.split(':')[0]).sort()).toEqual(['E2E_HOOKS', 'PUBLIC_URL'])
+      return
+    }
+    throw new Error('loadMaintenanceConfig accepted a configuration it should have refused')
+  })
+
+  it('still refuses a placeholder secret, which is the one a copied .env.example carries', () => {
+    try {
+      loadMaintenanceConfig({ SESSION_SECRET: 'change-me-in-production-at-least-32-characters' })
+    } catch (error) {
+      const issues = error instanceof ConfigError ? error.issues : []
+      expect(issues).toContain(
+        'SESSION_SECRET: SESSION_SECRET is still the example value from .env.example',
+      )
+      return
+    }
+    throw new Error('loadMaintenanceConfig accepted a placeholder secret')
   })
 })

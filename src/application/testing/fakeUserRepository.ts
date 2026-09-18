@@ -1,4 +1,5 @@
 import type { EmailAddress } from '../../domain/users/emailAddress'
+import { DEFAULT_SITE_ROLE, type SiteRole } from '../../domain/users/siteRole'
 import type { User } from '../../domain/users/user'
 import type { UserId } from '../../domain/shared/ids'
 import type { UserRepository } from '../ports/userRepository'
@@ -38,6 +39,28 @@ export class FakeUserRepository implements UserRepository {
 
   async findByEmail(email: EmailAddress): Promise<User | null> {
     return [...this.rows.values()].find((user) => user.email.equals(email)) ?? null
+  }
+
+  /**
+   * The same narrowing the adapter's `WHERE disabled_at IS NULL` makes, and for the same
+   * reason: an account nobody can sign into operates nothing, and a session that outlived
+   * its account names nobody at all. Both are `none` here, because authorization has one
+   * question and these are two spellings of the same answer.
+   */
+  async siteRoleFor(id: UserId): Promise<SiteRole> {
+    const user = this.rows.get(id)
+    if (user === undefined || user.isDisabled()) return DEFAULT_SITE_ROLE
+    return user.siteRole
+  }
+
+  /**
+   * The same narrowing as the adapter's `WHERE id = ? AND disabled_at IS NULL`: an
+   * account that is gone and one that was switched off are one answer, because a session
+   * that outlived its account names nobody either.
+   */
+  async isActive(id: UserId): Promise<boolean> {
+    const user = this.rows.get(id)
+    return user !== undefined && !user.isDisabled()
   }
 
   async save(user: User): Promise<void> {

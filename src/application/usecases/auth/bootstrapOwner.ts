@@ -44,6 +44,14 @@ const passwordContext = (email: EmailAddress, displayName: string | null): Passw
  * changing the account only bought until the next restart. So this does its work once,
  * gated on an empty `users` table, from values the operator supplied — and it never
  * touches an existing account.
+ *
+ * **The account it creates is the box's operator** (docs/ROADMAP.md §10.1). Whoever
+ * filled in `BOOTSTRAP_OWNER_EMAIL` installed this instance, which is the whole of what
+ * a site role says. On a box nobody wanted to run for anybody else that changes nothing
+ * observable: an operator holds no authority inside any event, and every route a host
+ * uses is still answered from `event_memberships` alone. The upgrade path for a box that
+ * already has accounts is migration 004, not this — by then the table is not empty and
+ * this use case correctly does nothing.
  */
 export const makeBootstrapOwner =
   ({ users, hasher, ids, clock }: BootstrapOwnerDeps): BootstrapOwner =>
@@ -72,6 +80,9 @@ export const makeBootstrapOwner =
         // This value lives in a deployment manifest and in shell history, so it is
         // shared configuration rather than a secret only the owner knows.
         mustChangePassword: true,
+        // The one account on the box that is created as its operator. Every other path
+        // that makes an account passes `none`, and there is no route that changes this.
+        siteRole: 'operator',
       },
       ids.userId(),
       clock.now(),

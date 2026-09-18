@@ -78,6 +78,22 @@ describe('bootstrapOwner', () => {
     expect((await users.findById(asUserId('user-1')))?.mustChangePassword).toBe(true)
   })
 
+  it('makes the first account the operator of the box, because whoever ran this installed it', async () => {
+    await bootstrap()
+
+    expect((await users.findById(asUserId('user-1')))?.isOperator()).toBe(true)
+  })
+
+  it('reports that operator through the read authorization actually makes', async () => {
+    // `siteRoleFor` is what `requireOperator` calls, and it is a different code path from
+    // the aggregate above — the adapter answers it with its own statement. A bootstrap
+    // that wrote the role somewhere the authorization read cannot see would be an
+    // operator nobody can be.
+    await bootstrap()
+
+    expect(await users.siteRoleFor(asUserId('user-1'))).toBe('operator')
+  })
+
   it('does nothing on a database that already has an account', async () => {
     users.seed(aUser({ id: 'user-9', email: 'hote@example.test' }))
 
