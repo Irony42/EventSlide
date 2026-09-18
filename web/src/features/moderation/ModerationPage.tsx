@@ -7,6 +7,7 @@ import { fr } from '../../lib/i18n/fr'
 import { ModerationGrid } from './components/ModerationGrid'
 import { ModerationToolbar } from './components/ModerationToolbar'
 import { PhotoLightbox } from './components/PhotoLightbox'
+import { useArrivals } from './hooks/useArrivals'
 import { queueErrorMessage, useModerationQueue } from './hooks/useModerationQueue'
 import { useModerationShortcuts } from './hooks/useModerationShortcuts'
 import { useQueueSelection } from './hooks/useQueueSelection'
@@ -24,6 +25,17 @@ export function ModerationPage() {
   const { slug } = useParams()
   const queue = useModerationQueue(slug)
   const selection = useQueueSelection(queue.items)
+  /**
+   * Above the grid, not inside it — roadmap 11.2.
+   *
+   * The grid is replaced by an `EmptyState` while the queue is empty, so a hook inside it
+   * would be mounted fresh by the first photo of the evening and treat it as a screen it
+   * had always been showing. That photo is the arrival most worth marking.
+   */
+  const arrivedIds = useArrivals(
+    queue.items.map((item) => item.id),
+    !queue.loading,
+  )
   const [lightboxOpen, setLightboxOpen] = useState(false)
 
   const focused = queue.items.find((item) => item.id === selection.focusedId) ?? null
@@ -147,6 +159,7 @@ export function ModerationPage() {
         <ModerationGrid
           photos={queue.items}
           selectedIds={selection.selectedIds}
+          arrivedIds={arrivedIds}
           focusedId={selection.focusedId}
           onSelectToggle={selection.toggle}
           onFocusCard={(photoId) => selection.focus(photoId, { moveDomFocus: false })}

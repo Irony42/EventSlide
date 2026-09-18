@@ -1,0 +1,59 @@
+/**
+ * The glass material — roadmap 11.1.
+ *
+ * `tokens.css` is the only file allowed to declare the material's values; this is the
+ * only file allowed to read them. Everything else asks for the material by name:
+ *
+ *     .composer {
+ *       composes: sheet from '../../design-system/glass.module.css';
+ *     }
+ *
+ * `composes` rather than a copied block, because that is the difference between a
+ * material and an effect. A component that spells out `backdrop-filter` for itself owns
+ * a blur radius, and the twentieth one to do it owns a different blur radius;
+ * `glass.material.test.ts` fails the build if `var(--glass-…)` is read anywhere but
+ * here. It is also compile-time: the class list is resolved by the bundler, so there is
+ * no runtime cost and nothing to keep in sync.
+ *
+ * `sheet` and not `pane`: the wall already has two `.pane` classes of its own
+ * (`SlideCaption`, `WallLayouts`), and the wall is the one surface this material must
+ * never reach. CSS Modules would scope the collision away; a reader would not.
+ *
+ * ## What a sheet owns, and what it does not
+ *
+ * The material owns the four declarations its six parts need — tint, filter (blur plus
+ * saturation), hairline, and a `box-shadow` carrying the inner highlight and the
+ * elevation — and nothing else. No padding, no radius, no layout, no z-index. A consumer
+ * therefore has nothing to override, which matters more than it looks: CSS Modules emits
+ * this file's rules wherever the bundler chooses, and in a code-split chunk that can land
+ * *after* the consumer's own rule, so the material would win a tie rather than lose one.
+ * `glass.material.test.ts` fails the build on a consumer that declares any of the four.
+ * The same separation `WallOverlay.module.css` states for a primitive's layout, for a
+ * related reason.
+ *
+ * ## No motion, and no `will-change`
+ *
+ * Nothing here transitions or animates, **and neither may anything wearing it** — which
+ * is the harder half, and the one a first draft of this got wrong. A blurred element that
+ * animates `opacity` or `transform` is a backdrop re-filtered every frame for the length
+ * of the animation, so the design system's "animate `opacity` and `transform` only" is
+ * not a licence here. `will-change: backdrop-filter` is worse again: it pins a full-size
+ * layer for the lifetime of the sheet rather than for the length of an animation there is
+ * not. The wall spends `will-change` on the things that genuinely move (`SlideLayer`,
+ * `WallLayouts`) and the budget in `tokens.css` keeps this material off that surface
+ * entirely.
+ */
+.sheet {
+  background: var(--glass-tint);
+  /**
+   * Prefixed first, unprefixed second, so the unprefixed one wins where both are
+   * understood. Safari shipped `backdrop-filter` only behind `-webkit-` until 18 and the
+   * browsers in scope start at 15.4 (DESIGN-SYSTEM.md §3) — that is a large share of the
+   * guests this product is for, and the `@supports` query in `tokens.css` asks about both
+   * for the same reason.
+   */
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}

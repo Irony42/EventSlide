@@ -65,7 +65,12 @@ describe('ThemeFieldset', () => {
 
     await userEvent.click(screen.getByRole('radio', { name: fr.admin.themeAccentNames.azure }))
 
-    expect(onChange).toHaveBeenCalledWith({ accentHue: 250, fonts: 'serif', frame: 'round' })
+    expect(onChange).toHaveBeenCalledWith({
+      accentHue: 250,
+      fonts: 'serif',
+      frame: 'round',
+      material: 'glass',
+    })
   })
 
   it('reports a font pairing the same way', async () => {
@@ -76,7 +81,12 @@ describe('ThemeFieldset', () => {
       'serif',
     )
 
-    expect(onChange).toHaveBeenCalledWith({ accentHue: 305, fonts: 'serif', frame: 'soft' })
+    expect(onChange).toHaveBeenCalledWith({
+      accentHue: 305,
+      fonts: 'serif',
+      frame: 'soft',
+      material: 'glass',
+    })
   })
 
   it('reports a frame style the same way', async () => {
@@ -84,7 +94,41 @@ describe('ThemeFieldset', () => {
 
     await userEvent.selectOptions(screen.getByLabelText(fr.admin.themeFrame), 'square')
 
-    expect(onChange).toHaveBeenCalledWith({ accentHue: 305, fonts: 'sans', frame: 'square' })
+    expect(onChange).toHaveBeenCalledWith({
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'square',
+      material: 'glass',
+    })
+  })
+
+  it('reports the material the same way', async () => {
+    // Roadmap 11.5, and a select rather than a checkbox for the reason the pairing is
+    // one: a theme names a face, a corner and a surface, and none of the three is an
+    // on-off switch. The whole theme travels, because the server replaces it whole.
+    const onChange = renderFieldset(aTheme())
+
+    await userEvent.selectOptions(
+      screen.getByLabelText(fr.admin.themeMaterial, { exact: false }),
+      'plain',
+    )
+
+    expect(onChange).toHaveBeenCalledWith({
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'soft',
+      material: 'plain',
+    })
+  })
+
+  it('says how little the material changes, because the name promises more', () => {
+    // A pane is opaque to 92–95%, so turning the glass off changes the five to eight per
+    // cent that showed through it (roadmap 11.4). A host who reads "verre" and expects the
+    // room to transform will otherwise think the save failed — and the hint also says the
+    // one thing they cannot see from here, which is that the wall is already plain.
+    renderFieldset(aTheme())
+
+    expect(screen.getByText(fr.admin.themeMaterialHint)).toBeVisible()
   })
 
   it('says where the typography is applied, because a host cannot see it from here', () => {

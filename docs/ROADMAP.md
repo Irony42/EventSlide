@@ -448,6 +448,42 @@ makes redesigns fail:
   some machines, and the budget below will switch it off on others. The fallback is an
   opaque token from the same family, not a transparent pane that becomes unreadable.
 
+**Found while building the floor, and still open: `--surface-scrim` does not meet the bar
+this product already published for it.** Measuring a translucent ground over a photograph
+needed arithmetic `tokens.contrast.test.ts` did not have — every ratio it compared was
+between two _declared_ colours — and pointing the new arithmetic at the existing palette
+says that over a bright photograph the wall's caption scrim gives `--text-primary` 4.36:1
+and `--text-secondary` 2.38:1, against `docs/DESIGN-SYSTEM.md` §8's "anything on the wall
+≥ 7:1 regardless of size". Every wall caption sits on it. Raising the scrim changes what
+the projector renders, so it is **a re-baseline with a human looking at every image** and
+belongs with the wall work below, not in the change that defined the material. The number
+is pinned by a test in the meantime, so it cannot quietly get worse.
+
+**Closed under [11.3](#113-the-budget-that-keeps-it-usable-p1-effort-s-risk-low), at 0.83.**
+The pin is gone with it: what stands in its place is not two numbers held in the direction
+they were wrong in but §8's sentence swept over every ink the wall paints.
+
+**Corrected under 11.2: one floor was one too few, and the correction is smaller than it
+looks.** Deriving the tint from the worst possible backdrop and applying it everywhere held
+most of this product — login, the dashboard, the create form, the settings page, the join
+screen — to a number a white dress demands, on screens that never show a photograph. There
+are now two floors: `0.95` over an unknown photograph, and `0.92` over our own ground, where
+the backdrop is a colour this design system declares and the worst case is therefore
+enumerable. Which one a surface gets is decided structurally — `app/glassBackdrop.test.ts`
+walks the real import graph and refuses the translucent floor to any address that can reach
+an `<img>`, a `<video>`, or a fill brighter than the backdrop that floor was derived
+against.
+
+**And the measurement is the interesting part, because it is small: three points of alpha,
+5% of the backdrop against 8%.** The photograph was never what made the material opaque.
+`--text-muted` clears 4.62:1 on `--surface-overlay` against a 4.5 target, so the palette has
+about a tenth of a ratio point of headroom whatever is behind the pane; narrowing the
+backdrop spends nearly all of it. A markedly more translucent tier needs an ink moved or a
+pane's ink budget narrowed, which is a change with its own argument and nobody has made it.
+The guard also found a case the obvious rule would have missed: `/admin/events/:slug` shows
+no guest photograph and is on the strict floor anyway, because the join QR's plate is a
+near-white `--text-primary` field.
+
 ### 11.2 Motion that answers the hand (P1, effort M, risk: medium)
 
 The animation work is not "add transitions". It is: what does the interface do when a guest
@@ -466,6 +502,24 @@ The specific trap, learned here: the wall now runs Ken Burns over a playing `<vi
 adding a blurred pane over that means the compositor is scaling, decoding and blurring at
 once. Animate `transform` and `opacity` only, never layout properties, and treat
 `will-change` as a scarce resource rather than a default.
+
+**Done, and the list of what was left still is longer than the list of what moves.** Two
+moments gained motion: a photo arriving on the moderation queue over SSE, where the one new
+tile fades and rises and nothing else on the list does; and an upload failing, where the
+row's border goes to `--danger` and the sentence saying why rises as it mounts. Two already
+had their answer and were not touched: a guest pressing a button, and the wall changing
+slide. What was deliberately left still, with the reason, is the table in
+`docs/DESIGN-SYSTEM.md` §7 — the guest's own uploads list above all, because it scrolls
+_under_ the glass composer and a thumbnail travelling behind a blurred pane is a backdrop
+re-filtered every frame, on the one machine that is also encoding a photograph.
+
+Two corrections came out of it. **§7's rule as written was broken by the design system's own
+`Button`**, which has transitioned `background-color` since 2.0: the reason the rule gives
+is layout, and a colour is not a layout, so the budget is now three tiers — compositor,
+paint, layout — and the layout tier is empty and mechanically enforced. And
+`prefers-reduced-motion` is now answered per animation out of a closed set of three answers,
+with `motion.budget.test.ts` failing on any animation that gives none — which is how the
+health requirement stops depending on whoever reviews the diff.
 
 ### 11.3 The budget that keeps it usable (P1, effort S, risk: low)
 
@@ -486,6 +540,132 @@ switched off first when a device cannot afford it.
 The visual regression baselines will move, deliberately and all at once. That is a
 re-baseline with a human looking at every image, not a `--update-snapshots` in a hurry: the
 suite exists because a wall regression is invisible in a diff.
+
+**Done, and the honest version of "asserted" turned out to be that the machine asserts it.**
+A frame-rate floor taken on a CI runner is a number about the runner, so the floor ships
+instead of being checked: the wall reads the interval between its own paints, judges windows
+of ninety of them on how many frames a second they add up to, and gives something up when
+two in a row fall under 24. That floor is the third rule that was tried — a dropped-frame
+count and a delivered-frame share were both measured against real walls first, and neither
+could separate a healthy wall on a loaded machine from a wall in trouble. The rule for _what_
+it gives up is a list —
+`design-system/budget.ts` — with one entry per cost in the order they go: **glass, then Ken
+Burns, then the crossfade**, one ladder for every surface, with the room starting one rung
+down because it can never afford the first. The guest's half is not a frame rate at all: an
+upload screen is still between taps, so what is measured there is how long the interface
+takes to answer a thumb, against Interaction to Next Paint's published 200 ms. Both feed one
+reducer that needs two consecutive bad verdicts, because one is a decode.
+
+What makes that safe enough to do automatically is that **no rung is a new rendering**. Each
+lands exactly where `prefers-reduced-motion` and the capability fallbacks already land, both
+of which have committed baselines. A preference and an exhausted mini-PC arrive at the same
+screen for different reasons.
+
+**And `--surface-scrim`, 11.1's open finding, is closed at 0.83** — the lowest alpha at which
+every ink the wall paints clears §8's 7:1 over pure white, with 0.82 failing. `Dialog`'s
+backdrop, which had borrowed the same token to dim a page it writes nothing on, moved to
+`--surface-dim` and kept 0.55.
+
+**The baselines did not move, and that was the finding rather than the relief.** All eleven
+are pixel-identical, because `aPhoto` derives its colour from its label and every colour it
+happened to draw came out dark — where 55% black and 83% black are the same picture. The one
+suite whose job is to make a wall change visible to a human could not see this one. There is
+a twelfth baseline now, of a caption over a photograph at the top of the sRGB gamut, which is
+the backdrop the alpha is derived against.
+
+### 11.4 Something behind the glass (P2, effort M, risk: medium)
+
+Photograph the product with and without everything above and four surfaces come back
+**pixel-identical**: the join screen, the phone moderation console, login, the dashboard. The
+wall moves 0.04%. The guest's upload screen moves the most, and even there the difference is
+mostly the composer becoming a pane and pushing the content down. The redesign is real — the
+motion, the budget, the material — and almost none of it is legible in a still.
+
+The reason is arithmetic rather than taste. **A pane is 92–95% opaque** (`--glass-tint-ground`
+0.92, `--glass-tint-photo` 0.95), so whatever sits behind it comes through at five to eight
+percent. Glass over a flat ground shows nothing because there is nothing to show; glass over a
+photograph shows five percent of a photograph.
+
+So the tempting version of this item — let a host upload a background image, or ship one per
+event template — is the **second** half of it, and on its own it makes the product worse:
+
+- A host's own photograph is by definition an unknown backdrop, so every surface that can
+  reach it goes to the strict floor. `app/glassBackdrop.test.ts` already enforces exactly
+  this, and it is right to. Uploading a background makes the panes **more** opaque, not the
+  glass more visible.
+- A background we ship has an enumerable worst case, which is what a lower floor needs. It can
+  be measured once, per theme, and the floor argued per image rather than against the whole
+  sRGB gamut.
+
+**The first half is buying the headroom.** §11.1 measured it and left it: `--text-muted`
+clears 4.62:1 on `--surface-overlay` against a 4.5 target, so the palette holds about a tenth
+of a ratio point whatever is behind the pane, and the three points of alpha between the two
+floors spend nearly all of it. A markedly more translucent tier needs an ink moved, or a
+pane's ink budget narrowed — deciding that a glass pane may not carry `--text-muted` at all,
+for instance. That is a change with its own argument, and nobody has made it. Until somebody
+does, a richer backdrop buys five percent of a prettier picture.
+
+In order, then: narrow what a glass pane may carry and re-derive the floors from that;
+then curated backgrounds per event template (§3.5 already ships the templates and §2.2 the
+accent hue, so this is a field on a concept that exists, not a new one); then a host's own
+image last, behind the strict floor, documented as costing translucency everywhere rather
+than sold as the feature that delivers it.
+
+One thing this finally makes load-bearing: a full-screen image under blurred panes on a
+mid-range phone mid-upload is the exact load §11.3's ladder was built for and has never
+actually met. Expect the shed order to earn its keep here, and expect the first honest
+measurement of it to come from this item rather than from a synthetic throttle.
+
+### 11.5 A switch the host owns (P2, effort S, risk: low)
+
+The other answer to what [11.4](#114-something-behind-the-glass-p2-effort-m-risk-medium)
+measured. That item asks how to make the material more visible; this one accepts that some
+hosts will not want it visible at all, and gives them the switch rather than an argument.
+Some couples want the effect, some want the plainer surface, and a venue's machine in a
+bright room may simply read better without one.
+
+It belongs to the **event** and not to the device, and that is the whole of the design.
+A device already has three answers of its own — `@supports`, `prefers-reduced-transparency`,
+and 11.3's measured budget — and every one of them is about what a machine can do or what
+its owner asked it for. None can answer "what should my evening look like", which is a
+decision about the room rather than about the hardware in it: two phones at the same table
+must not disagree about how the product looks.
+
+**What makes it cheap is that the no-glass rendering already exists and has already been
+reviewed.** `--glass-opaque` _is_ `--surface-raised`, and three paths already arrive there.
+So this is the preference and its plumbing — a field on the theme §2.2 already stores,
+beside the accent hue, the font pairing and the frame style — and not a second look. A
+branch that writes new CSS for how a pane appears without glass has taken a wrong turn.
+
+The one thing it does need decided in advance is **who wins when three answers disagree**,
+and it is two sentences: the budget outranks a host who asked for glass, because holding a
+frame rate in front of a hundred people is a health answer and not a taste one; and a host's
+"off" is final, because degradation here is one-way and a wall that oscillates is worse than
+one that is plainly simpler.
+
+**Done. Both halves of that precedence are a failing test rather than a paragraph**, which
+is what the 55-mutation audit says a rule of this shape needs: dropping the host's answer
+reds 12 cases, and letting it overrule the budget reds 27 including the wall's own floor.
+They collapse into one sentence — _every answer may take the material away and none may give
+it back_ — so the shell carries the machine's verdict, the themed surface below it carries
+the host's, and the only value that surface may declare is the opaque one. A type whose sole
+value is `'opaque'` is what stops the tidy-looking edit that would put a blur back on a
+projector.
+
+**And the honest size of it, because 11.4 is next door.** A pane is opaque to 92–95%, so the
+switch changes the five to eight per cent that showed through, plus the blur and the
+saturation over it. Today it is visible on exactly one pane — the guest's upload composer —
+because the other pane wearing the material is on the host's console, which §2.2 does not
+theme, and the wall gave the material up before any of this. The settings form says so in
+its own hint rather than letting a host discover it. Nothing about that makes the switch
+wrong; it makes the claim it advertises a small one, and the form should not advertise a
+large one.
+
+No migration. `settings` is an opaque JSON column, the absent-key answer and the default
+answer coincide — `glass` is what every stored theme has been rendering all along — so a
+backfill would rewrite every row of every album to write a value those rows already behave
+as. That also closes the trap `allowClips` recorded: absent and chosen never have to be told
+apart here, so there is no one-way door.
 
 ### What this is not
 

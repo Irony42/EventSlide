@@ -192,7 +192,15 @@ export const listPhotos = (slug: string, query: ListPhotosQuery) =>
 - Live regions: upload progress and moderation counts use `aria-live="polite"`; errors
   use `role="alert"`.
 - **Respect `prefers-reduced-motion`.** Ken Burns, crossfades, and confetti are all
-  disabled under it. This is a health requirement, not a preference.
+  disabled under it. This is a health requirement, not a preference. An `animation:` you
+  add has to say how, out of three answers, and `design-system/motion.budget.test.ts`
+  fails the build until it does: declared inside `@media (prefers-reduced-motion:
+no-preference)` (the right answer for anything that appears); declined in the component
+  via `usePrefersReducedMotion` (needed when the keyframe's end frame is not the resting
+  state, because `base.css` collapses the duration and `both` then holds the final frame);
+  or replaced by the file's own `reduce` branch (only `Spinner`, which cannot simply
+  stop). That test also refuses any `transition` or `@keyframes` naming a layout property
+  — see docs/DESIGN-SYSTEM.md §7 for the three-tier property budget.
 - Forms: `<label for>` always. Placeholder is never a label.
 - Colour is never the only signal. The moderation grid pairs its green/red border with
   an icon and text, so it works for a red-green colourblind host under stage lighting.

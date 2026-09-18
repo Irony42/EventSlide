@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_EVENT_THEME } from '../../../design-system/eventTheme'
 import { aWallResponse } from '../../../testing/renderWithProviders'
 import { SETTINGS_EXEMPT, sameSettings } from './useWallPlaylist'
+import type { EventThemeDto } from '../../../lib/api/dto'
 
 /**
  * The guard on the guard.
@@ -32,13 +34,32 @@ describe('every field of the wall response is accounted for', () => {
             ? `${current}-moved`
             : typeof current === 'boolean'
               ? !current
-              : current === null || current === undefined
-                ? { accentHue: 250, fonts: 'serif', frame: 'round' }
-                : { ...(current as object), name: 'Une autre soirée', accentHue: 250 }
+              : { ...(current as object), name: 'Une autre soirée', accentHue: 250 }
 
       expect(sameSettings(kept, changed as unknown as typeof fresh)).toBe(false)
     },
   )
+
+  /**
+   * And one level down, because the theme is an object and the walk above is not recursive.
+   *
+   * This is the hole roadmap 11.5 fell into and the reason it is worth writing out: the
+   * enumeration only ever saw the response's top level, `theme` arrives there as one value,
+   * and `material` was added to the wire and compared nowhere while this file stayed green.
+   * A change to it would then have reached a running projector only when the next
+   * photograph moved `revision` — which on the empty wall a host is looking at while they
+   * choose is never.
+   */
+  it.each(Object.keys(DEFAULT_EVENT_THEME))('notices a change to theme.%s', (key) => {
+    const kept = aWallResponse()
+    const theme: Record<string, unknown> = { ...DEFAULT_EVENT_THEME }
+    const current: unknown = theme[key]
+    theme[key] = typeof current === 'number' ? current + 1 : `${String(current)}-moved`
+
+    const changed = { ...aWallResponse(), theme: theme as unknown as EventThemeDto }
+
+    expect(sameSettings(kept, changed)).toBe(false)
+  })
 
   it('says nothing changed when nothing did', () => {
     expect(sameSettings(aWallResponse(), aWallResponse())).toBe(true)

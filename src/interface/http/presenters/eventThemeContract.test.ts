@@ -11,6 +11,7 @@ import {
   STATUS_HUES,
   THEME_FONTS,
   THEME_FRAMES,
+  THEME_MATERIALS,
 } from '../../../domain/events/eventTheme'
 
 /**
@@ -205,6 +206,16 @@ describe('the vocabularies a theme selects from', () => {
 
     expect([...themedValues('frame')].sort()).toEqual([...themed].sort())
   })
+
+  it('declares no block of its own for the material, because one already exists', () => {
+    // Roadmap 11.5, and the whole reason it is a cheap change. A host turning the material
+    // off lands on the tier `@supports not (backdrop-filter)`, `prefers-reduced-transparency`
+    // and the first rung of the budget already land on — so there is no `[data-event-material]`
+    // to declare, and a second rendering of a pane without glass would be a second thing to
+    // review and keep in step with the first. The day somebody writes that block, this fails.
+    expect(themedValues('material')).toEqual([])
+    expect(TOKENS).toMatch(/\[data-glass='opaque'\]\s*\{/)
+  })
 })
 
 describe('the picker the host actually uses', () => {
@@ -225,12 +236,14 @@ describe('the picker the host actually uses', () => {
       accentHue: Number(client.get('accentHue')),
       fonts: client.get('fonts'),
       frame: client.get('frame'),
+      material: client.get('material'),
     }).toEqual(DEFAULT_EVENT_THEME)
   })
 
   it.each([
     ['THEME_FONTS', THEME_FONTS],
     ['THEME_FRAMES', THEME_FRAMES],
+    ['THEME_MATERIALS', THEME_MATERIALS],
   ])('offers exactly the %s the domain accepts', (name, vocabulary) => {
     // The two closed vocabularies. An option in the picker the schema refuses is a
     // control that answers 400 whatever the host does with it, and a value the domain

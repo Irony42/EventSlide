@@ -48,6 +48,35 @@ export const aPhoto = async (label = 'photo', width = 1600, height = 1200): Prom
   write(`${label}.jpg`, await canvas(width, height, label).jpeg().toBuffer())
 
 /**
+ * A white dress in full sun — the photograph the wall's caption contract is written for.
+ *
+ * `aPhoto` derives its colour from its label, which is what makes it deterministic and is
+ * also why it is no use here: every fixture the visual suite happens to have drawn came out
+ * dark, so the caption scrim rendered against near-black in all eleven committed baselines
+ * and **a change to it was invisible in the one suite that exists to make wall changes
+ * visible.** Raising `--surface-scrim` from 0.55 to 0.83 under roadmap 11.3 moved not one
+ * pixel of them.
+ *
+ * Pure white rather than merely bright: it is the ceiling of the sRGB gamut, so a caption
+ * that reads here reads over every photograph a guest can send. It is the same backdrop
+ * `tokens.contrast.test.ts` derives the scrim's alpha and the glass tint's floor against,
+ * which is what makes the baseline beside it a picture of that arithmetic.
+ */
+export const aBrightPhoto = async (
+  label = 'robe-blanche',
+  width = 1600,
+  height = 1200,
+): Promise<string> =>
+  write(
+    `${label}.jpg`,
+    await sharp({
+      create: { width, height, channels: 3, background: { r: 255, g: 255, b: 255 } },
+    })
+      .jpeg()
+      .toBuffer(),
+  )
+
+/**
  * A photo carrying an EXIF orientation tag, as every phone produces.
  *
  * Orientation 6 means "rotate 90° clockwise to display": the stored pixels are

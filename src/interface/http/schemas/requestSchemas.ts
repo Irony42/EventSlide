@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
-import { accentHueRange, THEME_FONTS, THEME_FRAMES } from '../../../domain/events/eventTheme'
+import {
+  accentHueRange,
+  THEME_FONTS,
+  THEME_FRAMES,
+  THEME_MATERIALS,
+} from '../../../domain/events/eventTheme'
 
 /**
  * Boundary parsing. Every part of a request a route reads is parsed here first.
@@ -178,11 +183,11 @@ export const updateSettingsBody = z
     retentionDays: z.number().int().min(1).max(3_650).nullable().optional(),
     maxPhotosPerGuest: z.number().int().min(1).max(10_000).nullable().optional(),
     /**
-     * The event's look (roadmap 2.2). One object with three required keys, which is not
-     * the partial-update shape its neighbours use.
+     * The event's look (roadmap 2.2, and the material since 11.5). One object with four
+     * required keys, which is not the partial-update shape its neighbours use.
      *
      * Same argument as `eventScheduleBody` below: this is one decision made on one form,
-     * and the legibility rule in `src/domain/events/eventTheme.ts` judges the three
+     * and the legibility rule in `src/domain/events/eventTheme.ts` judges them
      * together. Sending an accent without saying which font it goes with would make the
      * server merge half a theme, which is a palette nobody chose.
      *
@@ -190,12 +195,21 @@ export const updateSettingsBody = z
      * a second copy of `0-359` here is a second thing to forget. What this schema does
      * *not* do is decide legibility: `z.number().int().min(0).max(359)` is the shape of a
      * hue, and whether a hue can be read at ten metres is a rule, not a shape.
+     *
+     * **`material` is required like the other three, and that has a cost worth naming.** A
+     * tab left open across the deploy that adds it sends three keys and is answered
+     * `400 request.invalid` on save, until it is reloaded. The alternative — accepting a
+     * theme without it — is worse in the direction this repository cares about: absent
+     * would have to mean something, the only sane meaning is `glass`, and a host who chose
+     * `plain` would have it silently undone by an old tab saving an unrelated checkbox.
+     * A refusal a reload fixes beats a choice quietly reverted.
      */
     theme: z
       .object({
         accentHue: z.number().int().min(accentHueRange.min).max(accentHueRange.max),
         fonts: z.enum(THEME_FONTS),
         frame: z.enum(THEME_FRAMES),
+        material: z.enum(THEME_MATERIALS),
       })
       .strict()
       .optional(),

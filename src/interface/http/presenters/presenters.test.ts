@@ -65,7 +65,7 @@ describe('toPublicEventDto', () => {
       maxClipSeconds: 15,
       // Not a permission like the two above: it is what the host's event looks like, and
       // the guest's phone is one of the three screens it looks like it on.
-      theme: { accentHue: 305, fonts: 'sans', frame: 'soft' },
+      theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
     })
   })
 
@@ -197,7 +197,7 @@ describe('toEventSettingsDto', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 30,
         maxPhotosPerGuest: 10,
-        theme: { accentHue: 250, fonts: 'serif', frame: 'square' },
+        theme: { accentHue: 250, fonts: 'serif', frame: 'square', material: 'glass' },
       },
     })
 
@@ -210,7 +210,7 @@ describe('toEventSettingsDto', () => {
       guestSelfDeleteGraceSeconds: 60,
       retentionDays: 30,
       maxPhotosPerGuest: 10,
-      theme: { accentHue: 250, fonts: 'serif', frame: 'square' },
+      theme: { accentHue: 250, fonts: 'serif', frame: 'square', material: 'glass' },
     })
   })
 

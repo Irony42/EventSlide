@@ -1,6 +1,6 @@
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
-import { aPhoto } from '../fixtures/media'
+import { aBrightPhoto, aPhoto } from '../fixtures/media'
 
 /**
  * Visual regression, and only where "looks right" *is* the requirement.
@@ -172,6 +172,52 @@ test.describe('the projected wall @visual', () => {
 
     // A very long interval, so the wall is not mid-advance when the shot is taken.
     await expect(projector).toHaveScreenshot('wall-spotlight.png', { animations: 'disabled' })
+  })
+
+  /**
+   * The caption over a white dress in full sun — roadmap 11.3.
+   *
+   * **The baseline this suite did not have, and the gap is worth recording.** `aPhoto`
+   * derives its colour from its label, and every colour it happened to draw for the album
+   * above came out dark — so all eleven committed baselines showed the caption scrim over
+   * near-black, where 55% black and 83% black are the same picture. Raising the scrim to
+   * the alpha §8's contrast contract actually requires therefore moved **not one pixel** of
+   * this suite, on the one change the suite exists to make a human look at.
+   *
+   * A scrim's whole job is the photograph that is brighter than its text. So the case is
+   * here now, at the top of the gamut, which is the backdrop `tokens.contrast.test.ts`
+   * derives the alpha against: this baseline is a picture of that arithmetic, and the next
+   * person to reach for the scrim to make the photo show through more sees what it costs.
+   */
+  test('the caption over a photograph brighter than the text on it', async ({ app, surfaces }) => {
+    const event = await app.seedEvent({ slug: 'robe-blanche', name: 'Camille & Sacha' })
+    const { guest, host, projector } = surfaces
+
+    await signInAsHost(host, app)
+    await joinAndUpload(guest, app, event.joinCode, {
+      displayName: 'Léa',
+      caption: 'La robe en plein soleil',
+      file: await aBrightPhoto('robe-blanche'),
+    })
+
+    await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+    await host
+      .getByTestId('moderation-card')
+      .getByRole('button', { name: /Publier/i })
+      .click()
+    await expect(host.getByTestId('moderation-card')).toHaveCount(0)
+
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+    // The join card is dismissed rather than masked: it carries a random code, and the
+    // block is content-sized, so its width moves its siblings — which is the failure the
+    // empty-state test above records in full.
+    await projector.keyboard.press('Escape')
+    await expect(projector.getByTestId('wall-join')).toHaveCount(0)
+
+    await expect(projector).toHaveScreenshot('wall-spotlight-bright.png', {
+      animations: 'disabled',
+    })
   })
 
   test('the mosaic layout', async ({ app, surfaces }) => {

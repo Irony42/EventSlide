@@ -9,7 +9,7 @@
 
 import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import type { EventStatus } from '../../../domain/events/eventStatus'
-import type { ThemeFonts, ThemeFrame } from '../../../domain/events/eventTheme'
+import type { ThemeFonts, ThemeFrame, ThemeMaterial } from '../../../domain/events/eventTheme'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
@@ -52,6 +52,17 @@ export interface EventThemeDto {
   readonly accentHue: number
   readonly fonts: ThemeFonts
   readonly frame: ThemeFrame
+  /**
+   * Whether the event's panes wear the glass material (roadmap 11.5).
+   *
+   * It travels with the rest of the look rather than as a client concern, because it is the
+   * host's decision about their evening and not the viewer's about their phone. What the
+   * viewer's machine has to say about it — a missing capability, a stated preference, a
+   * frame rate that stopped holding — is decided in the browser and outranks this, so
+   * `plain` here means "never the material" and `glass` means "the material, if this
+   * machine can hold it".
+   */
+  readonly material: ThemeMaterial
 }
 
 export interface PublicEventDto {

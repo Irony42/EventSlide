@@ -6,7 +6,23 @@
   --surface-base: oklch(16% 0.02 265); /* page background, wall letterbox */
   --surface-raised: oklch(21% 0.025 265); /* Card, toolbar, moderation tile */
   --surface-overlay: oklch(26% 0.03 265); /* Dialog, Toast, popover */
-  --surface-scrim: oklch(0% 0 0 / 0.55); /* behind wall captions, over photos */
+  /* ---- Two translucent blacks, because they were one and they are two different jobs.
+
+         `--surface-scrim` is a **ground**: text sits on it, over a photograph nobody has
+         taken yet, so its alpha is derived exactly as the glass tints are — the lowest one
+         at which every ink the wall paints clears section 8's "anything on the wall ≥ 7:1
+         regardless of size" over a white dress in full sun. At the 0.55 it carried since
+         2.0 that sentence was false: `--text-primary` measured 4.36:1 and
+         `--text-secondary` 2.38:1. 0.83 is where both hold and 0.82 is where they stop,
+         which `tokens.contrast.test.ts` asserts in both directions — a scrim is a grey slab
+         over somebody's photograph, so it may not be one point denser than it has to be.
+
+         `--surface-dim` dims the page behind a modal and carries no text at all. It has no
+         contrast contract, which is why it could keep the 0.55 the scrim had to leave: a
+         `Dialog` backdrop at 83% would have made every modal on a guest's phone a black
+         screen to buy legibility for text that is not on it. ---- */
+  --surface-scrim: oklch(0% 0 0 / 0.83); /* behind wall captions, over photos */
+  --surface-dim: oklch(0% 0 0 / 0.55); /* behind a Dialog, over the page */
   /* ---- Print. A material, not a panel: the paper the polaroid layout mounts a photo
          on. It is the one light ground in a dark palette, so it gets its own ink token
          rather than borrowing a text colour that was chosen against a dark surface. ---- */
@@ -80,6 +96,70 @@
   --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
   --shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.45);
   --shadow-lg: 0 24px 60px -12px oklch(0% 0 0 / 0.55);
+
+  /* ---- Glass. A material, which is why it is a set and not a value (roadmap 11.1).
+
+         Six parts make a pane read as a sheet of glass rather than as a panel with an
+         effect on it: a blur radius, a saturation lift, a tint, a hairline border, an
+         inner highlight and a shadow. They are declared here once and read in exactly
+         one other file, `glass.module.css`. A component that spells any of them out for
+         itself is the failure this set exists to prevent — a pane whose blur differs by
+         four pixels from the one beside it reads as a mistake to somebody who cannot say
+         why — and `glass.material.test.ts` fails the build on it.
+
+         **The tint is a floor, and both floors are derived rather than chosen.** A pane
+         is legible because of its alpha and nothing else — a blurred white field is still
+         white, and saturation is a rotation that leaves white where it was — so the only
+         question is what can be painted underneath. That question has two answers in this
+         product, which is why there are two tints and not one:
+
+         - **Over an unknown photograph**, the brightest possible backdrop is pure white:
+           a white dress in full sun, and also the ceiling of the sRGB gamut, so nothing a
+           camera can produce is worse. 0.95 is the lowest alpha that holds there.
+         - **Over our own ground**, the backdrop is a colour this product chose, so the
+           worst case is enumerable instead of unbounded: the brightest *field* a
+           stylesheet paints on a non-wall surface, which today is a primary button's
+           `--accent` at whichever of the 360 hues an event may pick renders lightest.
+           0.92 is the lowest alpha that holds there.
+
+         Both are derived against the same bar, so the only thing that differs between
+         them is the backdrop: the lowest alpha at which the material is at least as good
+         a ground as `--surface-overlay` — the darkest surface this design system already
+         permits text on — for `--text-primary`, `--text-secondary` and `--text-muted` at
+         once, while keeping an accent link, the focus ring and the status glyphs above
+         their own bars. `tokens.contrast.test.ts` measures every one of those pairs, for
+         both tints, over all 360 accents an event can carry.
+
+         **Two floors three points apart is the measurement, not a disappointment**, and
+         it says where the opacity actually comes from: `--text-muted` clears 4.62:1 on
+         `--surface-overlay` against a 4.5 target, so the whole palette has about a tenth
+         of a ratio point of headroom before a translucent ground stops being one this
+         product would accept. Removing the photograph from the worst case buys three
+         points of alpha; nothing buys more without moving an ink.
+
+         The colour is `--surface-raised` in every tier, and that is what makes the no-blur
+         fallback honest: `--glass-opaque` is not a new shade invented for a degraded mode,
+         it is a surface this product already ships and already tests. One colour, three
+         alphas. ---- */
+  --glass-blur: 20px;
+  --glass-saturate: 180%;
+  /* Declared whole so a tier can switch it off in one word. `none` is not a zero-radius
+     blur: a filter that runs still promotes a compositing layer, and the point of the
+     fallback is to stop paying for one. */
+  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  --glass-tint-photo: oklch(21% 0.025 265 / 0.95); /* --surface-raised, over a photograph */
+  --glass-tint-ground: oklch(21% 0.025 265 / 0.92); /* --surface-raised, over our own ground */
+  /* The tint in force, and the conservative one by default: a surface that declares
+     nothing at all is held to the floor that survives an unknown photograph. Every tier
+     below is an alias of one of the two above, so a raw alpha exists once. */
+  --glass-tint: var(--glass-tint-photo);
+  --glass-opaque: var(--surface-raised);
+  /* The edge and the highlight are the product's own light at a hairline's strength —
+     `--text-primary`'s colour, not a new one. Glass is lit from the top, so the
+     highlight is inset and the border is not. */
+  --glass-border: oklch(97% 0.005 265 / 0.16);
+  --glass-highlight: oklch(97% 0.005 265 / 0.1);
+  --glass-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--shadow-lg);
 
   /* ---- Motion ---- */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* things entering */
@@ -166,4 +246,86 @@
 
 [data-event-frame='round'] {
   --wall-frame-radius: var(--radius-lg);
+}
+
+/**
+ * The glass budget, roadmap 11.3: what is switched off first, decided here rather than
+ * at a wedding.
+ *
+ * Every tier below lands on the same two declarations, because there is one fallback and
+ * not four. Blur is cheap over still content — the compositor blurs once and keeps the
+ * layer — and expensive over content that changes every frame, because then it blurs
+ * every frame. That single sentence is the whole rule, and it is what decides which
+ * surface loses the effect: the wall is the only surface in this product whose content
+ * moves continuously, and since roadmap 1.4 it may be scaling, decoding a clip and
+ * crossfading at the same time. So **the room gets the opaque fallback and the guest
+ * keeps the blur**, which is the outcome roadmap 11.3 asks to be chosen in advance.
+ *
+ * The switch is a custom property on the surface element and not a second stylesheet,
+ * for the same reason the event's theme is (section 12): properties inherit, so one
+ * attribute on the surface decides the material for everything inside it, in the same
+ * paint, with no component knowing that a tier exists.
+ *
+ * The conditions are not the same kind of thing and are deliberately listed apart: one is
+ * a capability, two are preferences a person set, and the last is this product's own
+ * decision about the room.
+ */
+
+/**
+ * The capability. Safari carried `backdrop-filter` behind `-webkit-` until 18 and the
+ * browsers in scope start at 15.4 (section 3), so asking only about the unprefixed
+ * property would send several years of iPhones to a fallback they do not need — on the
+ * surface where most guests actually are.
+ */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-filter: none;
+    --glass-tint-photo: var(--glass-opaque);
+    --glass-tint-ground: var(--glass-opaque);
+  }
+}
+
+/**
+ * The preferences. Reduced transparency is the same category of request as reduced
+ * motion — a person telling the machine that a visual effect costs them something — and
+ * `prefers-contrast: more` is the tint floor taken to its conclusion: somebody who has
+ * asked for more contrast should not be handed the one ground in the product whose
+ * contrast depends on a photograph. Both land on the opaque tier, which is a surface
+ * this design system already ships, so neither is a degraded look.
+ */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root {
+    --glass-filter: none;
+    --glass-tint-photo: var(--glass-opaque);
+    --glass-tint-ground: var(--glass-opaque);
+  }
+}
+
+/**
+ * The two blocks above move the *named* tints rather than `--glass-tint`, and that is the
+ * difference between a fallback that works and one that is overruled.
+ *
+ * A tier below is a declaration on a descendant element — the surface — and a descendant
+ * always wins over `:root` for itself and its subtree, whatever the specificity of the two
+ * selectors. So a `:root` block that set `--glass-tint` directly would be silently
+ * discarded on every surface carrying a tier, and a guest who asked for more contrast
+ * would be handed the translucent pane they asked not to have. Moving the named tints
+ * instead means every tier keeps pointing at the same alias it always did and follows the
+ * fallback without knowing it exists.
+ */
+
+/**
+ * Our own ground, roadmap 11.2. The pane cannot meet a pixel this product did not choose,
+ * so the floor is the exact one calculated above instead of the one white demands.
+ * `app/glassBackdrop.ts` decides which addresses may claim it, and a test walks the real
+ * import graph rather than trusting the claim.
+ */
+[data-glass='ground'] {
+  --glass-tint: var(--glass-tint-ground);
+}
+
+/** The room, by the budget above. `AppShell` sets it; `glass.ts` holds the rule. */
+[data-glass='opaque'] {
+  --glass-filter: none;
+  --glass-tint: var(--glass-opaque);
 }

@@ -36,6 +36,15 @@ import {
  * different path from production.
  */
 
+/**
+ * The size of the join code's alphabet, which is what `bytes` has to count in.
+ *
+ * Not imported from `JoinCode`: an infrastructure adapter may read the domain, but the
+ * number that matters here is a property of the mapping in `fromBytes`, and a test in
+ * `sequentialIdGenerator.test.ts` holds the two together by generating real codes.
+ */
+const JOIN_CODE_ALPHABET_SIZE = 32
+
 /** One counter per kind, so a photo and a guest do not share a sequence. */
 type Kind = 'event' | 'photo' | 'guest' | 'user' | 'reaction' | 'clipJob'
 
@@ -78,13 +87,29 @@ export const createSequentialIdGenerator = (): IdGenerator => {
         // produce a constant join code, which is a bug rather than a state to model.
         throw new Error(`sequentialIdGenerator.bytes requires a positive integer, got ${count}`)
       }
-      // A walking sequence rather than a constant, so two join codes in one run still
-      // differ — several specs seed more than one event and would otherwise collide on
-      // the unique join-code column.
+      /**
+       * The call's own number, written in the base the join code reads its bytes in.
+       *
+       * **A walking sequence was here and it aliased.** `JoinCode.fromBytes` maps each
+       * byte through a 32-character alphabet, so six *consecutive* integers advancing six
+       * per call return to the same residues every sixteen calls: the seventeenth event
+       * seeded on an end-to-end worker drew the first event's code, its four retries drew
+       * events two to five, and `createEvent` gave up with `event.joinCodeExhausted` — a
+       * 500 out of the seed fixture, twelve to fourteen times in every CI run, absorbed by
+       * Playwright starting a fresh worker on retry and therefore never traced back.
+       *
+       * Each byte is a digit below 32, so the modulo in `fromBytes` is the identity and a
+       * distinct call cannot produce a repeated code until the counter wraps 32^6 — a
+       * billion events, against a suite that seeds tens. It also keeps what the generator
+       * is for: the same run twice still produces the same codes, and the first ones are
+       * readable in a trace.
+       */
+      byteCursor += 1
       const out = new Uint8Array(count)
-      for (let index = 0; index < count; index += 1) {
-        byteCursor = (byteCursor + 1) % 251
-        out[index] = byteCursor
+      let remaining = byteCursor
+      for (let index = count - 1; index >= 0; index -= 1) {
+        out[index] = remaining % JOIN_CODE_ALPHABET_SIZE
+        remaining = Math.floor(remaining / JOIN_CODE_ALPHABET_SIZE)
       }
       return out
     },

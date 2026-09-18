@@ -584,7 +584,7 @@ describe('sending a video', () => {
     // out of the session the join wrote, and `sessionStorage` is synchronous. So the
     // colour is on the element the first time it renders, not one round trip later
     // under the guest's thumb.
-    havingJoined({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft' } })
+    havingJoined({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' } })
     renderUpload(fakeApi())
 
     const page = (await screen.findByRole('heading', { name: 'Camille & Sacha' })).closest('div')
@@ -600,7 +600,7 @@ describe('sending a video', () => {
     // A display face is a projector decision: this screen's largest type is `--text-lg`,
     // and had the pairings been bundled rather than built from system faces, this is the
     // surface that would have paid for them.
-    havingJoined({ theme: { accentHue: 345, fonts: 'serif', frame: 'round' } })
+    havingJoined({ theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' } })
     renderUpload(fakeApi())
 
     await screen.findByRole('heading', { name: 'Camille & Sacha' })
@@ -622,5 +622,34 @@ describe('sending a video', () => {
     expect(page).not.toHaveAttribute('data-event-accent')
     expect(page).not.toHaveAttribute('data-event-fonts')
     expect(page).not.toHaveAttribute('data-event-frame')
+    expect(page).not.toHaveAttribute('data-glass')
+  })
+
+  /* ---- The material the host chose for their evening (roadmap 11.5). ---- */
+
+  it('wears the plain surface the host chose for the event, not the phone’s opinion', async () => {
+    // The only screen in the product where this choice is visible: the upload composer is
+    // one of the two panes that wear the material, and the other one is the host's own
+    // console, which is not themed. The marker goes on the page element — inside the shell
+    // — so it inherits down to the composer without a second copy of the material and
+    // without anything travelling back up the tree.
+    havingJoined({ theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'plain' } })
+    renderUpload(fakeApi())
+
+    const page = (await screen.findByRole('heading', { name: 'Camille & Sacha' })).closest('div')
+
+    expect(page).toHaveAttribute('data-glass', 'opaque')
+  })
+
+  it('leaves the page unmarked for a host who kept the glass', async () => {
+    // The other half, and the one that keeps the choice one-way. `data-glass` here would
+    // override whatever the shell decided for this machine, so a host who chose glass has
+    // to spread nothing at all and let the shell's answer stand.
+    havingJoined({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' } })
+    renderUpload(fakeApi())
+
+    const page = (await screen.findByRole('heading', { name: 'Camille & Sacha' })).closest('div')
+
+    expect(page).not.toHaveAttribute('data-glass')
   })
 })

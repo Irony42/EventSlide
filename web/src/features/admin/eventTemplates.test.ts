@@ -149,7 +149,11 @@ describe('the template summary', () => {
   it('names a theme by the names the settings form shows for it', () => {
     // Not by its hue angle: 345 is not something a host can act on, and "Rose" is the
     // word the appearance section will use for the same choice.
-    expect(templateSummary({ theme: { accentHue: 345, fonts: 'serif', frame: 'round' } })).toEqual([
+    expect(
+      templateSummary({
+        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+      }),
+    ).toEqual([
       `${fr.admin.theme} : ${fr.admin.themeAccentNames.rose}, ${fr.admin.themeFontsNames.serif}, ${fr.admin.themeFrameNames.round}`,
     ])
   })
@@ -162,7 +166,7 @@ describe('the template summary', () => {
     // Coins très arrondis", two thirds of which is no change: the same "promises a change
     // and makes none" the catalogue's own rule 1 forbids, one level below where ring 1
     // can see it.
-    const frameOnly = { accentHue: 305, fonts: 'sans', frame: 'round' } as const
+    const frameOnly = { accentHue: 305, fonts: 'sans', frame: 'round', material: 'glass' } as const
 
     expect(templateSummary({ theme: frameOnly })).toEqual([
       `${fr.admin.theme} : ${fr.admin.themeFrameNames.round}`,
@@ -173,7 +177,11 @@ describe('the template summary', () => {
     // Not reachable from the catalogue — a theme identical to the default is a restated
     // default and ring 1 refuses it — but the alternative to answering `null` here is a
     // dangling "Apparence : " on a card.
-    expect(templateSummary({ theme: { accentHue: 305, fonts: 'sans', frame: 'soft' } })).toEqual([])
+    expect(
+      templateSummary({
+        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
+      }),
+    ).toEqual([])
   })
 
   it.each(EVENT_TEMPLATE_KEYS)('claims no unchanged part of %s’s theme', (key) => {
@@ -198,7 +206,12 @@ describe('the template summary', () => {
     // Unreachable from the catalogue — the domain's own tests refuse a preset on an
     // uncurated hue, precisely so the settings form can show what was chosen — but the
     // type allows any angle, and a bare "137" on a card would be worse than silence.
-    const theme: EventSettingsDto['theme'] = { accentHue: 137, fonts: 'serif', frame: 'round' }
+    const theme: EventSettingsDto['theme'] = {
+      accentHue: 137,
+      fonts: 'serif',
+      frame: 'round',
+      material: 'glass',
+    }
 
     expect(templateSummary({ theme })).toEqual([
       `${fr.admin.theme} : ${fr.admin.themeFontsNames.serif}, ${fr.admin.themeFrameNames.round}`,
