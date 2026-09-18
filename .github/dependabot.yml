@@ -50,3 +50,20 @@ updates:
         applies-to: version-updates
         dependency-type: 'development'
         update-types: ['minor', 'patch']
+        exclude-patterns: ['vite']
+    # Two pins, for opposite reasons.
+    #
+    # `vite` is excluded from the development group rather than ignored. Its
+    # 8.0.16 -> 8.3.0 bump drags rolldown from 1.0.0-rc.17 to 1.2.9 — a bundler-engine
+    # change arriving on a *minor*, which the `update-types` filter above cannot tell
+    # from a patch. Declining it once (#46) settled nothing, because the weekly dev group
+    # would have carried it in anyway. It still gets a pull request; it just stops
+    # arriving inside a batch whose title says "weekly".
+    #
+    # `@types/node` is held below 25. Types describe the runtime that executes, and this
+    # one is Node 22 in CI and in the image. Types ahead of the runtime make the compiler
+    # believe in APIs that are not there, which is a green typecheck for code that throws
+    # at a wedding. Raise this the day the runtime moves, and not before.
+    ignore:
+      - dependency-name: '@types/node'
+        versions: ['>=25']
