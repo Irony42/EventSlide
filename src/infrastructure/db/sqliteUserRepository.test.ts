@@ -31,6 +31,10 @@ interface FlagRow {
   readonly must_change_password: number
 }
 
+interface SiteRoleRow {
+  readonly site_role: string
+}
+
 interface CountRow {
   readonly total: number
 }
@@ -146,6 +150,40 @@ describe('SqliteUserRepository', () => {
       expect(row?.must_change_password).toBe(stored)
     },
   )
+
+  it('stores the site role in its own column, where the CHECK constraint can refuse it', async () => {
+    await repo.save(aUser({ id: 'user-host', siteRole: 'operator' }))
+
+    const row = db
+      .prepare<[string], SiteRoleRow>(`SELECT site_role FROM users WHERE id = ?`)
+      .get(HOST)
+
+    expect(row?.site_role).toBe('operator')
+  })
+
+  it('refuses to hydrate an account whose stored site role the domain rejects', async () => {
+    // The CHECK refuses one on the way in, so this row can only exist if somebody wrote
+    // around the application — and reading an unrecognised value as an operator, or
+    // quietly as nothing, are both worse answers than failing.
+    db.prepare<[string]>(
+      `INSERT INTO users (id, email, password_hash, created_at, site_role)
+            VALUES ('user-odd', 'odd@example.test', 'hash:seed', ?, 'none')`,
+    ).run(AT.toISOString())
+    db.prepare(`PRAGMA ignore_check_constraints = ON`).run()
+    db.prepare(`UPDATE users SET site_role = 'root' WHERE id = 'user-odd'`).run()
+    db.prepare(`PRAGMA ignore_check_constraints = OFF`).run()
+
+    await expect(repo.findById(asUserId('user-odd'))).rejects.toThrow(/site_role/)
+  })
+
+  it('answers the authorization read without hydrating the account', async () => {
+    // A different statement from `findById`, so it gets its own case at this ring as well
+    // as in the contract: a bcrypt hash has no business on the heap of a request that
+    // only asked whether the caller runs the box.
+    await repo.save(aUser({ id: 'user-host', siteRole: 'operator' }))
+
+    expect(await repo.siteRoleFor(HOST)).toBe('operator')
+  })
 
   // ------------------------------------------------------------------ deletion --
 

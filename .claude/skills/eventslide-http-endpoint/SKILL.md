@@ -85,17 +85,25 @@ export const moderationRoutes = ({ usecases }: HttpDeps): Router => {
 
 ## 3. Authorization — declare it, per route
 
-| Middleware                 | Grants                                                              |
-| -------------------------- | ------------------------------------------------------------------- |
-| `requireRole('owner')`     | event owner only                                                    |
-| `requireRole('moderator')` | owner or moderator of **that** event                                |
-| `requireGuest()`           | a valid HMAC device token scoped to **that** event                  |
-| `requireGuestOwnsPhoto()`  | guest token + photo authored by that token, inside the grace window |
-| _(none)_                   | genuinely public — join lookup, health                              |
+| Middleware                 | Grants                                                                 |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `requireRole('owner')`     | event owner only                                                       |
+| `requireRole('moderator')` | owner or moderator of **that** event                                   |
+| `requireGuest()`           | a valid HMAC device token scoped to **that** event                     |
+| `requireGuestOwnsPhoto()`  | guest token + photo authored by that token, inside the grace window    |
+| `requireOperator(deps)`    | the account that operates the **box** — never anything inside an event |
+| _(none)_                   | genuinely public — join lookup, health                                 |
 
 There is no ambient "logged in means allowed". `requireRole` resolves the event from
 `:eventSlug` and checks membership **of that event**. A route with no explicit
 authorization decision is a review blocker.
+
+`requireOperator` is a different axis, not a higher rung. It gates an operator's own
+surface (roadmap §10.2 onwards) and grants nothing inside anybody's event: an
+event-scoped route is `requireRole`, always, and `siteOperatorScope.test.ts` sweeps every
+one of them to prove an operator with no membership is refused. If a route you are adding
+seems to need both, you are writing §10.6 (support access), which is time-boxed,
+announced and logged — stop and say so.
 
 ## 4. Error mapping — one place, exhaustive
 

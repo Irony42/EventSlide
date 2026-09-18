@@ -4,6 +4,7 @@ import { asUserId } from '../shared/ids'
 import type { UserId } from '../shared/ids'
 import type { Result } from '../shared/result'
 import { EmailAddress } from './emailAddress'
+import type { SiteRole } from './siteRole'
 import { User } from './user'
 import type { PasswordHash, UserProps } from './user'
 
@@ -33,6 +34,7 @@ interface UserOverrides {
   readonly displayName?: string | null
   readonly passwordHash?: PasswordHash
   readonly mustChangePassword?: boolean
+  readonly siteRole?: SiteRole
 }
 
 const createUser = (overrides: UserOverrides = {}): Result<User, DomainError> =>
@@ -42,6 +44,7 @@ const createUser = (overrides: UserOverrides = {}): Result<User, DomainError> =>
       displayName: overrides.displayName === undefined ? 'Claire Martin' : overrides.displayName,
       passwordHash: overrides.passwordHash ?? STORED_HASH,
       mustChangePassword: overrides.mustChangePassword ?? false,
+      siteRole: overrides.siteRole ?? 'none',
     },
     overrides.id ?? CLAIRE,
     CREATED_AT,
@@ -62,6 +65,7 @@ const snapshot = (user: User): Record<string, unknown> => ({
   lastLoginAt: user.lastLoginAt,
   mustChangePassword: user.mustChangePassword,
   disabledAt: user.disabledAt,
+  siteRole: user.siteRole,
 })
 
 describe('User.create', () => {
@@ -131,11 +135,79 @@ describe('User.restore', () => {
       lastLoginAt: SIGNED_IN_AT,
       mustChangePassword: true,
       disabledAt: DISABLED_AT,
+      siteRole: 'operator',
     }
 
     const user = User.restore(stored)
 
     expect(snapshot(user)).toEqual(stored)
+  })
+})
+
+describe('User site role', () => {
+  it('is nothing at all unless the account was created as the operator', () => {
+    expect(aUser().isOperator()).toBe(false)
+  })
+
+  it('carries the operator role the first account on a box is created with', () => {
+    const user = aUser({ siteRole: 'operator' })
+
+    expect({ siteRole: user.siteRole, isOperator: user.isOperator() }).toEqual({
+      siteRole: 'operator',
+      isOperator: true,
+    })
+  })
+
+  it('operates nothing while the account is switched off, whatever the row says', () => {
+    // The same distinction the port makes: `siteRole` is what is stored, `isOperator()`
+    // is what the account may do. A dismissed operator is disabled, and the box has to
+    // stop being theirs at that moment rather than at the next login.
+    const disabled = aUser({ siteRole: 'operator' }).disable(DISABLED_AT)
+
+    expect({ siteRole: disabled.siteRole, isOperator: disabled.isOperator() }).toEqual({
+      siteRole: 'operator',
+      isOperator: false,
+    })
+  })
+
+  it('operates the box again once the account is put back in service', () => {
+    // Why the stored role stays faithful rather than being cleared on `disable`: taking
+    // an account out of service and taking the box away from it are two decisions, and
+    // re-enabling must not silently be the second one.
+    const restored = aUser({ siteRole: 'operator' }).disable(DISABLED_AT).enable()
+
+    expect(restored.isOperator()).toBe(true)
+  })
+
+  const transitions: readonly [string, (user: User) => User][] = [
+    ['recording a login', (user) => user.recordLogin(SIGNED_IN_AT)],
+    ['requiring a password change', (user) => user.requirePasswordChange()],
+    ['renaming', (user) => user.rename('Claire M.')],
+    ['disabling', (user) => user.disable(DISABLED_AT)],
+    ['enabling', (user) => user.disable(DISABLED_AT).enable()],
+  ]
+
+  it.each(transitions)(
+    'survives %s, so what an account may do on the box changes only when somebody says so',
+    (_name, transition) => {
+      // Not a formality: every transition rebuilds the props object, so a field left out
+      // of one spread silently demotes — or promotes — an account as a side effect of a
+      // rename. There is no route that changes a site role at all today, which makes any
+      // change in one a defect by definition.
+      expect(transition(aUser({ siteRole: 'operator' })).siteRole).toBe('operator')
+    },
+  )
+
+  it('survives a password change, which is the one transition that rebuilds two fields', () => {
+    const rotated = aUser({ siteRole: 'operator' }).withPasswordHash(ROTATED_HASH)
+
+    expect(rotated.ok && rotated.value.siteRole).toBe('operator')
+  })
+
+  it('stays nothing across a password change, so choosing a password promotes nobody', () => {
+    const rotated = aUser().withPasswordHash(ROTATED_HASH)
+
+    expect(rotated.ok && rotated.value.isOperator()).toBe(false)
   })
 })
 

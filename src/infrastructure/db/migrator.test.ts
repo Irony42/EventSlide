@@ -530,3 +530,170 @@ describe('migration 003, short video clips', () => {
     closeDatabase(db)
   })
 })
+
+describe('migration 004, the site-level role', () => {
+  const columnNames = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
+
+  const siteRoles = (db: Db): { id: string; site_role: string }[] =>
+    db.prepare(`SELECT id, site_role FROM users ORDER BY id`).all() as {
+      id: string
+      site_role: string
+    }[]
+
+  /**
+   * A box that has been running since before any of this existed: the account the
+   * bootstrap created, and a second one it invited afterwards.
+   *
+   * The insert order is deliberately the reverse of the creation order, because the
+   * backfill must pick the oldest account rather than the first row SQLite happens to
+   * return.
+   */
+  const seedPreSiteRole = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u-invited', 'lea@example.test', 'hash:y', '2026-06-20T11:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at, last_login_at,
+                          must_change_password)
+            VALUES ('u-bootstrap', 'hote@example.test', 'hash:x', '2026-06-20T09:00:00.000Z',
+                    '2026-06-20T10:00:00.000Z', 1)`,
+    ).run()
+  }
+
+  it('adds the column, and an account created before it arrives as an ordinary one', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'users')).toEqual(expect.arrayContaining(['site_role']))
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u9', 'neuf@example.test', 'hash:z', '2026-06-20T09:00:00.000Z')`,
+    ).run()
+
+    expect(siteRoles(db)).toEqual([{ id: 'u9', site_role: 'none' }])
+    closeDatabase(db)
+  })
+
+  it('refuses a site role the domain does not have, in the database rather than only in code', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO users (id, email, password_hash, created_at, site_role)
+                VALUES ('u9', 'neuf@example.test', 'hash:z', '2026-06-20T09:00:00.000Z', 'admin')`,
+        )
+        .run(),
+    ).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('makes the oldest account the operator, and leaves every other account alone', () => {
+    // The upgrade path, on a box that has been running weddings for a year. The oldest
+    // account is the one `bootstrapOwner` created — it only ever runs against an empty
+    // table — and the invited moderator beside it must gain nothing.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 4),
+    )
+    seedPreSiteRole(db)
+
+    migrate(db, migrations)
+
+    expect(siteRoles(db)).toEqual([
+      { id: 'u-bootstrap', site_role: 'operator' },
+      { id: 'u-invited', site_role: 'none' },
+    ])
+    closeDatabase(db)
+  })
+
+  it('keeps every other field of the account it promotes', () => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 4),
+    )
+    seedPreSiteRole(db)
+
+    migrate(db, migrations)
+
+    expect(
+      db
+        .prepare(
+          `SELECT email, password_hash, created_at, last_login_at, must_change_password,
+                  disabled_at
+             FROM users WHERE id = 'u-bootstrap'`,
+        )
+        .get(),
+    ).toEqual({
+      email: 'hote@example.test',
+      password_hash: 'hash:x',
+      created_at: '2026-06-20T09:00:00.000Z',
+      last_login_at: '2026-06-20T10:00:00.000Z',
+      must_change_password: 1,
+      disabled_at: null,
+    })
+    closeDatabase(db)
+  })
+
+  it('skips a first account somebody switched off, so the box is not left unoperable', () => {
+    // Promoting a disabled account would leave an operator nobody can sign in as, and
+    // until §10.4 ships a way to grant the role there would be no way to appoint another.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 4),
+    )
+    seedPreSiteRole(db)
+    db.prepare(
+      `UPDATE users SET disabled_at = '2026-06-21T09:00:00.000Z' WHERE id = 'u-bootstrap'`,
+    ).run()
+
+    migrate(db, migrations)
+
+    expect(siteRoles(db)).toEqual([
+      { id: 'u-bootstrap', site_role: 'none' },
+      { id: 'u-invited', site_role: 'operator' },
+    ])
+    closeDatabase(db)
+  })
+
+  it('picks one account deterministically when two share a creation instant', () => {
+    // A restored or seeded database can hold two accounts stamped the same second, and a
+    // migration that then depends on SQLite's row order promotes a different account on
+    // two machines from the same backup. The tie-break on `id` is what makes the answer
+    // the same one twice, and it is a rule with no guard if nothing asserts it.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 4),
+    )
+    for (const id of ['u-b', 'u-a']) {
+      db.prepare<[string, string]>(
+        `INSERT INTO users (id, email, password_hash, created_at)
+              VALUES (?, ?, 'hash:x', '2026-06-20T09:00:00.000Z')`,
+      ).run(id, `${id}@example.test`)
+    }
+
+    migrate(db, migrations)
+
+    expect(siteRoles(db)).toEqual([
+      { id: 'u-a', site_role: 'operator' },
+      { id: 'u-b', site_role: 'none' },
+    ])
+    closeDatabase(db)
+  })
+
+  it('promotes nobody on a fresh install, where first-run bootstrap creates the operator', () => {
+    const db = freshDb()
+
+    migrate(db, migrations)
+
+    expect(siteRoles(db)).toEqual([])
+    closeDatabase(db)
+  })
+})

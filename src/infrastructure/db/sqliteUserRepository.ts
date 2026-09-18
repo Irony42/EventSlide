@@ -9,15 +9,19 @@ import {
 import type { UserRepository } from '../../application/ports/userRepository'
 import { asUserId, type UserId } from '../../domain/shared/ids'
 import { EmailAddress } from '../../domain/users/emailAddress'
+import { DEFAULT_SITE_ROLE, isSiteRole, type SiteRole } from '../../domain/users/siteRole'
 import { User } from '../../domain/users/user'
 
 /**
  * `UserRepository` over SQLite.
  *
  * Accounts are the one thing in this schema that is not event-scoped: a host runs
- * several weddings from one login, and a role is granted per event by
- * `event_memberships`. So there is no `eventId` argument here, and there is no global
- * admin flag on the row for one to be inferred from.
+ * several weddings from one login, and a role *inside an event* is granted by
+ * `event_memberships`. So there is no `eventId` argument here.
+ *
+ * `users.site_role` is the one column that says anything about authority, and it says it
+ * about **the box**: who operates this instance, never who may touch an event on it
+ * (docs/ROADMAP.md §10.1). Nothing infers an event role from it, here or anywhere.
  */
 
 interface UserRow {
@@ -29,6 +33,7 @@ interface UserRow {
   readonly last_login_at: string | null
   readonly must_change_password: number
   readonly disabled_at: string | null
+  readonly site_role: string
 }
 
 const SELECT_USER = `
@@ -39,7 +44,8 @@ const SELECT_USER = `
          created_at,
          last_login_at,
          must_change_password,
-         disabled_at
+         disabled_at,
+         site_role
     FROM users
 `
 
@@ -58,15 +64,16 @@ const SELECT_USER = `
  */
 const UPSERT_USER = `
   INSERT INTO users (id, email, display_name, password_hash, created_at,
-                     last_login_at, must_change_password, disabled_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     last_login_at, must_change_password, disabled_at, site_role)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT (id) DO UPDATE SET email                = excluded.email,
                                  display_name         = excluded.display_name,
                                  password_hash        = excluded.password_hash,
                                  created_at           = excluded.created_at,
                                  last_login_at        = excluded.last_login_at,
                                  must_change_password = excluded.must_change_password,
-                                 disabled_at          = excluded.disabled_at
+                                 disabled_at          = excluded.disabled_at,
+                                 site_role            = excluded.site_role
 `
 
 /**
@@ -82,6 +89,21 @@ const toEmail = (raw: string): EmailAddress => {
   return parsed.value
 }
 
+/**
+ * A site role the domain does not know is a corrupt row, exactly as a bad address is.
+ *
+ * The `CHECK` constraint refuses one on the way in, so reaching this means the column was
+ * written around the application. Failing loudly beats hydrating an account whose
+ * authority nobody can state — and, in the other direction, beats quietly reading an
+ * unknown value as `operator`.
+ */
+const toSiteRole = (raw: string): SiteRole => {
+  if (!isSiteRole(raw)) {
+    throw new Error(`users.site_role holds a value the domain rejects (${raw})`)
+  }
+  return raw
+}
+
 const toUser = (row: UserRow): User =>
   User.restore({
     id: asUserId(row.id),
@@ -92,6 +114,7 @@ const toUser = (row: UserRow): User =>
     lastLoginAt: fromNullableIsoText(row.last_login_at),
     mustChangePassword: fromSqliteBoolean(row.must_change_password),
     disabledAt: fromNullableIsoText(row.disabled_at),
+    siteRole: toSiteRole(row.site_role),
   })
 
 export class SqliteUserRepository implements UserRepository {
@@ -114,12 +137,44 @@ export class SqliteUserRepository implements UserRepository {
     return row === undefined ? null : toUser(row)
   }
 
+  /**
+   * The authorization read, answered by its own statement rather than by hydrating the
+   * account.
+   *
+   * `WHERE disabled_at IS NULL` is part of the question, not an optimisation: an account
+   * somebody switched off operates nothing, and a session that outlives its account names
+   * nobody. Both answer `none`, and so does a row that is simply not an operator — every
+   * refusal is the same refusal.
+   *
+   * It reads one small column, so an operator gate never puts a bcrypt hash on the heap
+   * of a request that has no use for one.
+   */
+  async siteRoleFor(id: UserId): Promise<SiteRole> {
+    const row = this.db
+      .prepare<[string], { readonly site_role: string }>(
+        `SELECT site_role FROM users WHERE id = ? AND disabled_at IS NULL`,
+      )
+      .get(id)
+
+    return row === undefined ? DEFAULT_SITE_ROLE : toSiteRole(row.site_role)
+  }
+
   async save(user: User): Promise<void> {
     const props = user.toProps()
 
     this.db
       .prepare<
-        [string, string, string | null, string, string, string | null, number, string | null]
+        [
+          string,
+          string,
+          string | null,
+          string,
+          string,
+          string | null,
+          number,
+          string | null,
+          SiteRole,
+        ]
       >(UPSERT_USER)
       .run(
         props.id,
@@ -130,6 +185,7 @@ export class SqliteUserRepository implements UserRepository {
         props.lastLoginAt === null ? null : toIsoText(props.lastLoginAt),
         toSqliteBoolean(props.mustChangePassword),
         props.disabledAt === null ? null : toIsoText(props.disabledAt),
+        props.siteRole,
       )
   }
 

@@ -117,6 +117,11 @@ export const makeRegisterModerator =
         // Someone else chose this password and said it out loud. The invitee replaces
         // it before they can do anything with the account.
         mustChangePassword: true,
+        // Never the inviter's. This is a person handed a laptop for one evening, and the
+        // host doing the inviting may well be the operator of the box — an invitation
+        // that carried that across would hand the box to a moderator (docs/ROADMAP.md
+        // §10.1). Written out rather than defaulted, and asserted by name.
+        siteRole: 'none',
       },
       ids.userId(),
       now,

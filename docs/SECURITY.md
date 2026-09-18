@@ -60,6 +60,10 @@ Two principals, no third, and no ambient "logged in means allowed".
 | Host / moderator | `express-session` cookie, SQLite-backed store | idle 12 h, rolling; absolute cap **(defect)**, below | per-event role from the membership table                          |
 | Guest            | HMAC-signed device token in a cookie          | 36 h from issue, enforced at verification            | upload to **one** event; delete own photo inside the grace window |
 
+Still two principals. The account behind the first of them now also carries a **site
+role** — see below — which is authority over the box and never over an event, so it adds
+no third kind of caller and grants nothing any row in this table does not.
+
 **(defect)** An absolute session lifetime is the intent — a projector laptop is left
 unlocked at a venue, and `rolling: true` alone never expires a session that keeps being
 used. No such cap exists in the code: `server.ts` sets `rolling: true` with a 12 h
@@ -161,6 +165,7 @@ Everything in `src/interface/http/middleware/authz.ts`:
 | `requireUser`                    | any authenticated user, for the two routes that are not event-scoped                                                                  |
 | `requireRole('owner', deps)`     | event owner only                                                                                                                      |
 | `requireRole('moderator', deps)` | owner or moderator of **that** event                                                                                                  |
+| `requireOperator(deps)`          | the account that operates the **box** — and nothing inside any event. No route uses it yet; see the site role below                   |
 | `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                         |
 | `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                     |
 | _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` |
@@ -181,6 +186,33 @@ an anonymous request cannot be used to discover which slugs are on the box.
 **A route with no explicit authorization decision is a review blocker** — reject the diff
 rather than ask what was intended. Public is a decision too, written as a comment on the
 route, and `eventRoutes.test.ts` asserts that a route mounted without one fails loudly.
+
+### The site role, and what it deliberately does not grant
+
+An account carries one more thing since roadmap §10.1: `users.site_role`, either `none` or
+`operator`. It says what the account may do **on the box** — an operator is the person who
+runs this instance for other people — and it is answered from a different table, by a
+different middleware, from the question of what anybody may do inside an event.
+
+| Rule                                                                   | Why, and where it is held                                                                                                                                                          |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A site role grants **nothing** inside an event                         | an operator who could accidentally moderate a client's photographs is worse than one who cannot help at all. Support access is §10.6: time-boxed, announced and logged             |
+| `requireRole` never reads it                                           | `authz.test.ts` asserts the refusals **and**, through `CallLog`, that the question is never even asked — including on the path where the membership is missing                     |
+| Every event-scoped route refuses an operator who is not a member       | `siteOperatorScope.test.ts` enumerates the routes off the assembled server, so a route added later is covered the day it is mounted rather than the day somebody adds it to a list |
+| Media is reached as a member of the public                             | `mediaRoutes` resolves its own viewer, so an operator asking for a photograph is `{kind:'public'}` and a pending photo stays unreadable — asserted at rings 4 and 6                |
+| It is read from storage on every request, never carried in the session | a capability in a cookie outlives the account being switched off. `siteRoleFor` answers `none` for an unknown **or disabled** account                                              |
+| Only `bootstrapOwner` ever creates an operator                         | an invitation creates `none` explicitly (`registerModerator`), and there is no route that changes a site role at all today                                                         |
+
+Upgrade path: migration `004_site_role` gives the role to the **oldest account that is not
+disabled**, which on any existing box is the one `bootstrapOwner` created for whoever
+installed it. Nothing observable changes for an install that wanted none of this, because
+an operator holds no authority inside any event and there is no operator-only route yet.
+
+Ring 6 holds the same line end to end, in
+`tests/e2e/security/tenant-isolation.spec.ts`: a client creates their own event on the
+operator's box, and the operator — signed in, on the server they run — is answered 404 for
+its settings, 404 for its queue, and 404 for a photograph the client has not published,
+which the client themselves reads at the same URL.
 
 ## 3. Tenant isolation as an invariant
 

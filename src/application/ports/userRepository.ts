@@ -1,5 +1,6 @@
 import type { User } from '../../domain/users/user'
 import type { EmailAddress } from '../../domain/users/emailAddress'
+import type { SiteRole } from '../../domain/users/siteRole'
 import type { EventRole } from '../../domain/events/eventRole'
 import type { EventId, UserId } from '../../domain/shared/ids'
 
@@ -8,6 +9,22 @@ export interface UserRepository {
 
   /** The login lookup. A unique index on the normalised address backs it. */
   findByEmail(email: EmailAddress): Promise<User | null>
+
+  /**
+   * The authority this account has **over the box**, right now.
+   *
+   * The site-level twin of `MembershipRepository.roleFor`, and it exists for the same
+   * reason: authorization is answered from storage on the request that needs it, never
+   * from a capability copied into a session at login. An account demoted at 19:00 must
+   * not still be operating the box at 23:00 because its cookie says so.
+   *
+   * Total rather than nullable, because every answer other than `operator` is the same
+   * answer. An account that does not exist and one that has been switched off both
+   * report `none`: a session outliving its account grants nothing, and a disabled
+   * account operates nothing. Reading the whole `User` and asking it instead would hand
+   * the HTTP layer a password hash it has no business holding.
+   */
+  siteRoleFor(id: UserId): Promise<SiteRole>
 
   save(user: User): Promise<void>
 

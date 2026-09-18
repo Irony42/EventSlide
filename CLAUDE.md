@@ -243,6 +243,11 @@ that renders guest-supplied content. The short version:
   guest delete their own photo within a grace window. It grants nothing else.
 - Hosts and moderators are **session-authenticated** with a SQLite-backed session
   store, session regeneration on login, and role checks per route.
+- An account also carries a **site role** (`none` / `operator`, roadmap §10.1) saying
+  whether it operates the box. It is not a rung above `owner`: it grants nothing inside
+  any event, `requireRole` never reads it, and a route that would let an operator see a
+  client's photographs is a different item (§10.6) with a time-box and an audit trail.
+  There are named tests at rings 4 and 6; do not "fix" them by widening a check.
 - Public write endpoints are rate-limited per IP **and** per event, with a byte quota.
   An event that hits its quota stops accepting uploads instead of filling the disk.
 - Media is served through the application, never by `express.static`, so authorization

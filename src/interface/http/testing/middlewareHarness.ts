@@ -7,6 +7,7 @@ import { FakeClock } from '../../../application/testing/fakeClock'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../../application/testing/fakeMembershipRepository'
+import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
 import { AT } from '../../../application/testing/builders'
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
@@ -72,6 +73,8 @@ export interface TestWorld {
   readonly events: FakeEventRepository
   readonly guests: FakeGuestRepository
   readonly memberships: FakeMembershipRepository
+  /** Accounts, for the one thing the HTTP layer asks them: who operates the box. */
+  readonly users: FakeUserRepository
   readonly bus: RecordingEventBus
   readonly clock: FakeClock
   /** Issues a real, correctly signed guest token for the given event and guest. */
@@ -88,6 +91,7 @@ export const buildTestWorld = (config: Partial<HttpConfig> = {}): TestWorld => {
   const events = new FakeEventRepository()
   const guests = new FakeGuestRepository()
   const memberships = new FakeMembershipRepository()
+  const users = new FakeUserRepository()
   const bus = new RecordingEventBus()
   const logger = silentLogger()
   const guestTokens = createHmacGuestTokenService({ secret: TEST_GUEST_SECRET })
@@ -99,6 +103,7 @@ export const buildTestWorld = (config: Partial<HttpConfig> = {}): TestWorld => {
     events,
     guests,
     memberships,
+    users,
     guestTokens,
     config: testHttpConfig(config),
   }
@@ -108,6 +113,7 @@ export const buildTestWorld = (config: Partial<HttpConfig> = {}): TestWorld => {
     events,
     guests,
     memberships,
+    users,
     bus,
     clock,
     issueGuestToken: (eventId, guestId) =>
