@@ -197,21 +197,76 @@ test.describe('the projected wall @visual', () => {
    * The album is six photos, which is deliberately more than the polaroid and the split
    * show and fewer than the collage can hold: what each layout does with a playlist that
    * does not match its grid is precisely what a snapshot is for here.
+   *
+   * `intervalMs` is what stops the clock, and `0` is not the same instruction as a very
+   * long number.
+   *
+   * **A screenshot does not freeze a running animation — it fast-forwards it.**
+   * `animations: 'disabled'` calls `finish()` on every finite animation on the page, so
+   * the shutter photographs the animation's *last* frame and holds it there for the rest
+   * of the test. For every other layout here that is harmless: the polaroid's landing and
+   * the mosaic's fade are timed from `--wall-transition`, which these tests set to `0`,
+   * and Ken Burns only scales a photograph that already covers the screen.
+   *
+   * The filmstrip's drift is the exception, because it is timed from
+   * `--wall-drift-duration` — the *slide interval*, deliberately, so it can never outlast
+   * its slide (trap 6) — and `transitionMs: 0` therefore does not touch it. Its end frame
+   * is one whole frame width of travel: the band slides 384px left on a 1920 screen and
+   * the first photograph leaves the screen entirely. So `wall-filmstrip.png` was a
+   * photograph of *either* end of that travel, and which one a machine produced was
+   * decided by the harness rather than by this file. It cost four red visual jobs on four
+   * unrelated pull requests, every one of them reporting 34% of the screen changed on a
+   * branch that had not touched the wall, and every one of them green on a re-run.
+   *
+   * `intervalMs: 0` is the honest version of what `600_000` was reaching for. A wall that
+   * is not advancing declares `data-motion="still"` and mounts no animation at all, so
+   * there is nothing for the shutter to move and both ends of the travel stop being
+   * possible. The motion each layout is in is asserted below rather than assumed, which
+   * is what makes this comment a rule and not a hope: put `600_000` back and the
+   * filmstrip's assertion fails on `drift` before any pixel is compared.
+   *
+   * The drift is not left untested by that. Its presence, its duration and its anchoring
+   * are ring 5 (`WallLayouts.test.tsx`), and the distance it travels — the one fact only
+   * a real engine can check — is asserted without a snapshot in
+   * `tests/e2e/journeys/display-wall.spec.ts`.
    */
   const LAYOUTS = [
-    { layout: 'polaroid', slug: 'polaroid', slides: 3, file: 'wall-polaroid.png' },
-    { layout: 'filmstrip', slug: 'pellicule', slides: 6, file: 'wall-filmstrip.png' },
-    { layout: 'split', slug: 'cote-a-cote', slides: 2, file: 'wall-split.png' },
+    {
+      layout: 'polaroid',
+      slug: 'polaroid',
+      slides: 3,
+      file: 'wall-polaroid.png',
+      intervalMs: 600_000,
+      // A 0ms landing, so its end frame is the print at rest whether or not it is
+      // fast-forwarded. Asserted, because that is the property this shot depends on.
+      motion: 'landing',
+    },
+    {
+      layout: 'filmstrip',
+      slug: 'pellicule',
+      slides: 6,
+      file: 'wall-filmstrip.png',
+      intervalMs: 0,
+      motion: 'still',
+    },
+    // The split declares no motion at all; its fade is the mosaic's, timed from
+    // `--wall-transition`.
+    {
+      layout: 'split',
+      slug: 'cote-a-cote',
+      slides: 2,
+      file: 'wall-split.png',
+      intervalMs: 600_000,
+      motion: null,
+    },
   ] as const
 
-  for (const { layout, slug, slides, file } of LAYOUTS) {
+  for (const { layout, slug, slides, file, intervalMs, motion } of LAYOUTS) {
     test(`the ${layout} layout`, async ({ app, surfaces }) => {
       const event = await seedAlbum(app, surfaces, slug)
       const { projector } = surfaces
 
-      await projector.goto(
-        wallUrl(app, event.slug, { layout, intervalMs: 600_000, transitionMs: 0 }),
-      )
+      await projector.goto(wallUrl(app, event.slug, { layout, intervalMs, transitionMs: 0 }))
 
       // Named, then counted. A slot count alone cannot tell a filmstrip from a mosaic —
       // both can be holding six photos — and a silent fall back between two layouts
@@ -221,6 +276,12 @@ test.describe('the projected wall @visual', () => {
         layout,
       )
       await expect(projector.getByTestId('wall-slide')).toHaveCount(slides)
+
+      // And then: what is moving. See the note above `LAYOUTS` — a baseline taken while
+      // something is animating is a baseline of whichever frame the shutter reached.
+      if (motion !== null) {
+        await expect(projector.locator('[data-motion]')).toHaveAttribute('data-motion', motion)
+      }
 
       await expect(projector).toHaveScreenshot(file, { animations: 'disabled' })
     })
