@@ -101,9 +101,15 @@ authorization decision is a review blocker.
 `requireOperator` is a different axis, not a higher rung. It gates an operator's own
 surface (roadmap §10.2 onwards) and grants nothing inside anybody's event: an
 event-scoped route is `requireRole`, always, and `siteOperatorScope.test.ts` sweeps every
-one of them to prove an operator with no membership is refused. If a route you are adding
-seems to need both, you are writing §10.6 (support access), which is time-boxed,
+route the server mounts to prove an operator with no membership is refused. If a route you
+are adding seems to need both, you are writing §10.6 (support access), which is time-boxed,
 announced and logged — stop and say so.
+
+Your new route is in that sweep whatever it calls its event, because the sweep no longer
+filters on `:eventSlug` — so if it is genuinely public, or genuinely reaches no event, say
+so in `PUBLIC_ROUTES` or `NOT_EVENT_SCOPED` with a reason. Both lists are checked against
+behaviour, not against the reason you wrote, so neither is a way to make a failing case go
+away.
 
 ## 4. Error mapping — one place, exhaustive
 
