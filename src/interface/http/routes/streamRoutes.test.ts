@@ -178,6 +178,31 @@ describe('streamRoutes', () => {
     expect(stream.frames.join('')).toContain('"type":"photo.moderated"')
   })
 
+  it('tells the public channel that a photo was moderated, and nothing about which one', async () => {
+    // The ground for an exemption written down elsewhere, so it is asserted here rather
+    // than asserted nowhere.
+    //
+    // `siteOperatorScope.test.ts` lets `GET /events/:eventSlug/stream` out of its sweep
+    // on the reasoning that the box's operator reaching it learns only what anybody
+    // holding the slug learns. That is true of the *channel* — `streamRoutes` mounts one
+    // `streamHandler` behind both routes and `openStream` subscribes with no filter, so
+    // this public channel really does carry the moderator channel's frames, moderation
+    // decisions included — and it is the payload that keeps it harmless: a type, and not
+    // one identifier. Widening `writeSignal` to carry the photo id would turn a signal
+    // that something changed into a live feed of which of the couple's photographs were
+    // refused and when, readable by any guest who scanned the QR code. That change would
+    // be one line and would look like a client convenience, so it fails here.
+    const stream = await open('/api/events/mariage/stream')
+    await stream.waitFor((text) => text.includes(': connected'), 'connection')
+
+    subject.deps.bus.publish(photoPublished(WEDDING))
+    await stream.waitFor((text) => text.includes('event: change'), 'a change signal')
+
+    const data = [...stream.frames.join('').matchAll(/^data: (.*)$/gm)].map(([, line]) => line)
+    expect(data).toContain('{"type":"photo.moderated"}')
+    expect(stream.frames.join('')).not.toContain('photo-1')
+  })
+
   it('carries an id on every frame, so a reconnect can resume', async () => {
     const stream = await open('/api/events/mariage/stream')
     await stream.waitFor((text) => text.includes(': connected'), 'connection')
