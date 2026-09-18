@@ -114,7 +114,7 @@
     "prettier": "^3.9.6",
     "supertest": "^7.2.2",
     "tsx": "^4.23.13",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.59.1",
     "vite": "^8.0.16",
     "vitest": "^5.0.0"
