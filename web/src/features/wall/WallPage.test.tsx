@@ -861,7 +861,9 @@ describe('WallPage', () => {
     it('wears the accent as an angle, on the element that renders the photos', async () => {
       const api = fakeApi({
         wall: wallSequence(
-          aPopulatedWall({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft' } }),
+          aPopulatedWall({
+            theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' },
+          }),
         ),
       })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
@@ -880,7 +882,9 @@ describe('WallPage', () => {
     it('wears the font pairing and the frame style the host chose', async () => {
       const api = fakeApi({
         wall: wallSequence(
-          aPopulatedWall({ theme: { accentHue: 305, fonts: 'serif', frame: 'square' } }),
+          aPopulatedWall({
+            theme: { accentHue: 305, fonts: 'serif', frame: 'square', material: 'glass' },
+          }),
         ),
       })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
@@ -897,7 +901,9 @@ describe('WallPage', () => {
       // DOM it photographed before this feature.
       const api = fakeApi({
         wall: wallSequence(
-          aPopulatedWall({ theme: { accentHue: 305, fonts: 'sans', frame: 'soft' } }),
+          aPopulatedWall({
+            theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
+          }),
         ),
       })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
@@ -908,6 +914,31 @@ describe('WallPage', () => {
       expect(theWall()).not.toHaveAttribute('data-event-accent')
       expect(theWall()).not.toHaveAttribute('data-event-fonts')
       expect(theWall()).not.toHaveAttribute('data-event-frame')
+      expect(theWall()).not.toHaveAttribute('data-glass')
+    })
+
+    it('marks the wall for a host who turned the material off, and changes nothing', async () => {
+      // Roadmap 11.5 on the surface where it is already true. `AppShell` gives the wall
+      // `data-glass="opaque"` on every machine (§13: the room's backdrop never stops
+      // moving), so the host's choice takes nothing away here that the budget's own floor
+      // had not already taken. It is carried all the same, because the wall wears the
+      // event's look and a marker that lied would become wrong the day the room could
+      // afford a filter — the argument `glassBackdrop.ts` already makes for this address.
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({
+            theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'plain' },
+          }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      await screen.findByTestId('wall-slide')
+
+      expect(theWall()).toHaveAttribute('data-glass', 'opaque')
+      // And nothing else moved: the host chose a surface finish, not a layout or a colour.
+      expect(theWall().getAttribute('style')).toBeNull()
+      expect(theWall()).not.toHaveAttribute('data-event-accent')
     })
 
     it('carries no theme from a server build that does not send one', async () => {
@@ -934,7 +965,9 @@ describe('WallPage', () => {
 
       await act(async () => {
         pending.arrives(
-          aPopulatedWall({ theme: { accentHue: 345, fonts: 'serif', frame: 'soft' } }),
+          aPopulatedWall({
+            theme: { accentHue: 345, fonts: 'serif', frame: 'soft', material: 'glass' },
+          }),
         )
       })
 

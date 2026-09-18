@@ -689,7 +689,7 @@ describe('the host event routes', () => {
         moderation: 'manual',
         retentionDays: null,
         maxPhotosPerGuest: null,
-        theme: { accentHue: 305, fonts: 'sans', frame: 'soft' },
+        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
       })
     })
 
@@ -722,6 +722,7 @@ describe('the host event routes', () => {
         accentHue: 345,
         fonts: 'serif',
         frame: 'round',
+        material: 'glass',
       })
     })
 
@@ -865,7 +866,7 @@ describe('the host event routes', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
         maxPhotosPerGuest: 5,
-        theme: { accentHue: 345, fonts: 'serif', frame: 'round' },
+        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
       })
 
       expect(response.status).toBe(200)
@@ -878,7 +879,7 @@ describe('the host event routes', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
         maxPhotosPerGuest: 5,
-        theme: { accentHue: 345, fonts: 'serif', frame: 'round' },
+        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
       })
     })
 
@@ -892,7 +893,7 @@ describe('the host event routes', () => {
 
       const response = await agent
         .patch(`/api/events/${SLUG}/settings`)
-        .send({ theme: { accentHue: 160, fonts: 'sans', frame: 'soft' } })
+        .send({ theme: { accentHue: 160, fonts: 'sans', frame: 'soft', material: 'glass' } })
 
       expect(response.status).toBe(400)
       expect(response.body.error.code).toBe('eventTheme.accentTooCloseToStatus')
@@ -910,17 +911,18 @@ describe('the host event routes', () => {
 
       await agent
         .patch(`/api/events/${SLUG}/settings`)
-        .send({ theme: { accentHue: 160, fonts: 'serif', frame: 'round' } })
+        .send({ theme: { accentHue: 160, fonts: 'serif', frame: 'round', material: 'glass' } })
 
       expect((await world.events.findById(WEDDING))?.settings.theme).toEqual({
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
+        material: 'glass',
       })
     })
 
     it('refuses half a theme rather than merging one', async () => {
-      // `.strict()` plus three required keys. A patch carrying only a hue would make the
+      // `.strict()` plus four required keys. A patch carrying only a hue would make the
       // server pair it with whatever face happened to be stored, which is a palette
       // nobody chose and the one thing the legibility rule cannot judge.
       const agent = await signedIn(world, 'owner')
@@ -928,6 +930,50 @@ describe('the host event routes', () => {
       const response = await agent
         .patch(`/api/events/${SLUG}/settings`)
         .send({ theme: { accentHue: 345 } })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+    })
+
+    it('refuses a theme with no material rather than guessing at one', async () => {
+      // The shape a tab left open across this deploy still sends. It is a refusal on
+      // purpose, and the cost is a reload: the alternative is that absent has to mean
+      // something, the only sane meaning is `glass`, and a host who chose the plain
+      // surface would have it silently undone by an old tab saving an unrelated checkbox.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ theme: { accentHue: 345, fonts: 'serif', frame: 'round' } })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+    })
+
+    it('stores the material a host turned off, and answers with it', async () => {
+      // Roadmap 11.5. The wire half: the host's choice about how their evening looks has
+      // to survive the round trip, or the settings form is showing something the guests'
+      // phones will not.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'plain' } })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.theme.material).toBe('plain')
+      expect((await world.events.findById(WEDDING))?.settings.theme.material).toBe('plain')
+    })
+
+    it('refuses a material the design system has no tier for', async () => {
+      // A closed vocabulary at the boundary, like the pairing and the frame. The value
+      // reaches a CSS attribute selector; an unknown one matches no block at all, so the
+      // event would render the material its host had just tried to turn off.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'opaque' } })
 
       expect(response.status).toBe(400)
       expect(response.body.error.code).toBe('request.invalid')
@@ -947,6 +993,7 @@ describe('the host event routes', () => {
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
+        material: 'glass',
       })
     })
   })

@@ -133,6 +133,7 @@ export const toEventThemeDto = (theme: EventThemeProps): EventThemeDto => ({
   accentHue: theme.accentHue,
   fonts: theme.fonts,
   frame: theme.frame,
+  material: theme.material,
 })
 
 export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto => ({

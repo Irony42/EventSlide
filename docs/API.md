@@ -257,7 +257,12 @@ which is allowed.
     "allowClips": true,
     "maxClipBytes": 80000000,
     "maxClipSeconds": 15,
-    "theme": { "accentHue": 345, "fonts": "serif", "frame": "round" }
+    "theme": {
+      "accentHue": 345,
+      "fonts": "serif",
+      "frame": "round",
+      "material": "glass"
+    }
   }
 }
 ```
@@ -347,7 +352,7 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
   "kenBurnsDurationMs": 8520,
   "layout": "spotlight",
   "reactionsEnabled": true,
-  "theme": { "accentHue": 345, "fonts": "serif", "frame": "round" }
+  "theme": { "accentHue": 345, "fonts": "serif", "frame": "round", "material": "glass" }
 }
 ```
 
@@ -1020,7 +1025,7 @@ The shape every route in the table that answers `200` returns.
     "guestSelfDeleteGraceSeconds": 900,
     "retentionDays": 30,
     "maxPhotosPerGuest": null,
-    "theme": { "accentHue": 305, "fonts": "sans", "frame": "soft" }
+    "theme": { "accentHue": 305, "fonts": "sans", "frame": "soft", "material": "glass" }
   },
   "startsAt": null,
   "closedAt": null,
@@ -1070,21 +1075,21 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
   "guestSelfDeleteGraceSeconds": 900,
   "retentionDays": 30,
   "maxPhotosPerGuest": 20,
-  "theme": { "accentHue": 345, "fonts": "serif", "frame": "round" }
+  "theme": { "accentHue": 345, "fonts": "serif", "frame": "round", "material": "glass" }
 }
 ```
 
-| Field                         | Accepted                                    |
-| ----------------------------- | ------------------------------------------- |
-| `moderation`                  | `manual` \| `auto`                          |
-| `allowCaptions`               | boolean                                     |
-| `allowReactions`              | boolean                                     |
-| `allowClips`                  | boolean — see below                         |
-| `allowGuestSelfDelete`        | boolean                                     |
-| `guestSelfDeleteGraceSeconds` | integer 0..86400                            |
-| `retentionDays`               | integer 1..3650, or `null` for "keep"       |
-| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"    |
-| `theme`                       | object — all three keys required, see below |
+| Field                         | Accepted                                   |
+| ----------------------------- | ------------------------------------------ |
+| `moderation`                  | `manual` \| `auto`                         |
+| `allowCaptions`               | boolean                                    |
+| `allowReactions`              | boolean                                    |
+| `allowClips`                  | boolean — see below                        |
+| `allowGuestSelfDelete`        | boolean                                    |
+| `guestSelfDeleteGraceSeconds` | integer 0..86400                           |
+| `retentionDays`               | integer 1..3650, or `null` for "keep"      |
+| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"   |
+| `theme`                       | object — all four keys required, see below |
 
 `allowClips` is `true` for an event **created** after video shipped and `false` for one
 that existed before it. The two are deliberately different: an event created today is
@@ -1102,13 +1107,22 @@ rather than behind one of its own.
 
 #### `theme` — how the event looks
 
-`{ "accentHue": 0..359, "fonts": "sans" | "serif", "frame": "soft" | "square" | "round" }`
+```
+{ "accentHue": 0..359, "fonts": "sans" | "serif",
+  "frame": "soft" | "square" | "round", "material": "glass" | "plain" }
+```
 
 The one field here that is **not** a partial update: absent leaves the theme alone, but a
-`theme` that is present must carry all three keys, and anything else is
-`400 request.invalid`. The three are one decision made on one form — the same argument
+`theme` that is present must carry all four keys, and anything else is
+`400 request.invalid`. They are one decision made on one form — the same argument
 `PATCH /schedule` makes about its two instants — and the legibility rule below judges them
 together, so merging half a theme into a stored one would produce a palette nobody chose.
+
+`material` arrived after the other three, so a client written against the older shape sends
+three keys and is refused until it is reloaded. That is the intended trade: the alternative
+is for an absent `material` to mean something, the only sane meaning is `glass`, and a host
+who chose `plain` would then have it silently undone by a stale tab saving an unrelated
+checkbox. A refusal a reload fixes beats a choice quietly reverted.
 
 `accentHue` is a **hue angle**, not a colour: the lightness and chroma are the design
 system's and cannot be moved, which is the whole reason a host cannot make the wall
@@ -1124,11 +1138,29 @@ The console offers four named hues (violet 305, rose 345, azure 250, teal 195) a
 endpoint accepts any angle it can prove legible. The list is an affordance; the rule is
 the guard.
 
+`material` is whether the event's panes wear the liquid-glass material or the opaque
+surface the product already ships everywhere else. It is the host's decision about their
+evening, not the viewer's about their phone: a device's own answers — a missing
+`backdrop-filter`, `prefers-reduced-transparency`, a frame rate that stopped holding — are
+decided in the browser and **outrank** it, so `plain` means "never the material" while
+`glass` means "the material, where this machine can hold it". It never reaches the wall's
+rendering, which gave the material up on every machine before this field existed.
+
 An event whose stored settings predate this field reads the product's own look —
-`{ "accentHue": 305, "fonts": "sans", "frame": "soft" }` — which is exactly what it has
-been rendering, so nothing changes on any screen at the deploy. That is deliberately
-_not_ the shape of the `allowClips` fallback above: this one consents to nothing and
-costs nothing, so the absent-key answer and the default answer coincide.
+`{ "accentHue": 305, "fonts": "sans", "frame": "soft", "material": "glass" }` — which is
+exactly what it has been rendering, so nothing changes on any screen at the deploy. The
+same holds one level down for an event themed before `material` existed: the key is filled
+in as `glass`, which is what that blob was already rendering. That is deliberately _not_
+the shape of the `allowClips` fallback above: these consent to nothing and cost nothing, so
+the absent-key answer and the default answer coincide — which is also why neither of them
+needed a migration.
+
+**A downgrade past this field discards it, and that is worth knowing before an event rather
+than after one.** An older build hydrates a `"material": "plain"` event happily, because it
+ignores the key — but the first save of any setting on that build re-serialises the whole
+blob without it, so rolling forward again reads the host's choice as `glass`. Self-hosted
+operators do roll back on the day; if one does, the host's surface finish is the thing to
+re-pick afterwards.
 
 The theme also rides on `POST /api/join` (§3) and `GET /api/events/:slug/wall` (§4), so
 the guest's phone and the projector paint the right colour on their first frame instead of

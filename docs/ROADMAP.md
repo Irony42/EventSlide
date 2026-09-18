@@ -616,6 +616,57 @@ mid-range phone mid-upload is the exact load §11.3's ladder was built for and h
 actually met. Expect the shed order to earn its keep here, and expect the first honest
 measurement of it to come from this item rather than from a synthetic throttle.
 
+### 11.5 A switch the host owns (P2, effort S, risk: low)
+
+The other answer to what [11.4](#114-something-behind-the-glass-p2-effort-m-risk-medium)
+measured. That item asks how to make the material more visible; this one accepts that some
+hosts will not want it visible at all, and gives them the switch rather than an argument.
+Some couples want the effect, some want the plainer surface, and a venue's machine in a
+bright room may simply read better without one.
+
+It belongs to the **event** and not to the device, and that is the whole of the design.
+A device already has three answers of its own — `@supports`, `prefers-reduced-transparency`,
+and 11.3's measured budget — and every one of them is about what a machine can do or what
+its owner asked it for. None can answer "what should my evening look like", which is a
+decision about the room rather than about the hardware in it: two phones at the same table
+must not disagree about how the product looks.
+
+**What makes it cheap is that the no-glass rendering already exists and has already been
+reviewed.** `--glass-opaque` _is_ `--surface-raised`, and three paths already arrive there.
+So this is the preference and its plumbing — a field on the theme §2.2 already stores,
+beside the accent hue, the font pairing and the frame style — and not a second look. A
+branch that writes new CSS for how a pane appears without glass has taken a wrong turn.
+
+The one thing it does need decided in advance is **who wins when three answers disagree**,
+and it is two sentences: the budget outranks a host who asked for glass, because holding a
+frame rate in front of a hundred people is a health answer and not a taste one; and a host's
+"off" is final, because degradation here is one-way and a wall that oscillates is worse than
+one that is plainly simpler.
+
+**Done. Both halves of that precedence are a failing test rather than a paragraph**, which
+is what the 55-mutation audit says a rule of this shape needs: dropping the host's answer
+reds 12 cases, and letting it overrule the budget reds 27 including the wall's own floor.
+They collapse into one sentence — _every answer may take the material away and none may give
+it back_ — so the shell carries the machine's verdict, the themed surface below it carries
+the host's, and the only value that surface may declare is the opaque one. A type whose sole
+value is `'opaque'` is what stops the tidy-looking edit that would put a blur back on a
+projector.
+
+**And the honest size of it, because 11.4 is next door.** A pane is opaque to 92–95%, so the
+switch changes the five to eight per cent that showed through, plus the blur and the
+saturation over it. Today it is visible on exactly one pane — the guest's upload composer —
+because the other pane wearing the material is on the host's console, which §2.2 does not
+theme, and the wall gave the material up before any of this. The settings form says so in
+its own hint rather than letting a host discover it. Nothing about that makes the switch
+wrong; it makes the claim it advertises a small one, and the form should not advertise a
+large one.
+
+No migration. `settings` is an opaque JSON column, the absent-key answer and the default
+answer coincide — `glass` is what every stored theme has been rendering all along — so a
+backfill would rewrite every row of every album to write a value those rows already behave
+as. That also closes the trap `allowClips` recorded: absent and chosen never have to be told
+apart here, so there is no one-way door.
+
 ### What this is not
 
 - **Not a component rewrite.** The primitive catalogue and the token architecture are the

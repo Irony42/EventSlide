@@ -90,6 +90,34 @@ export type GlassSurface = 'guest' | 'host' | 'wall'
 export type GlassBackdrop = 'ground' | 'photo'
 
 /**
+ * The host's answer for their own event: whether it wears the material at all.
+ *
+ * Roadmap 11.5, and the third input to a decision that had two. `glass` is what every
+ * event renders today and the default a host who never opened the settings page keeps;
+ * `plain` is the opaque tier, which is not a degraded look — `--glass-opaque` **is**
+ * `--surface-raised`, the panel this product ships on every other screen.
+ *
+ * It is per **event** and not per device on purpose. A device already has three answers of
+ * its own — `@supports`, `prefers-reduced-transparency`, and the runtime budget below —
+ * and every one of them is about what this machine can do or what this person asked the
+ * machine for. None of them can answer "what should my evening look like", which is a
+ * decision about the room rather than about the hardware in it, and two phones in the same
+ * room must not disagree about it.
+ *
+ * Named for the material rather than as a boolean, so it reads beside `fonts` and `frame`:
+ * a theme names the face, the frame and the surface, and none of the three is an on-off
+ * switch wearing a costume.
+ *
+ * **Declared here rather than imported from `lib/api/dto`**, the way `GlassSurface` above is
+ * restated rather than imported from the shell: the design system's rule does not depend on
+ * the shape of a wire. What binds the two spellings is the one call site that joins them,
+ * `eventTheme.ts`' `glassMaterialProps(theme.material)` — so a value added to the wire's
+ * vocabulary and not to this one is a compile error there, which is the only direction that
+ * could reach a screen. A value added here and nowhere else has no producer.
+ */
+export type GlassMaterial = 'glass' | 'plain'
+
+/**
  * What the material costs on a surface, and which floor its tint is held to.
  *
  * `photo` is the material at the floor that survives an unknown photograph — the tier
@@ -115,12 +143,36 @@ export type GlassTier = 'ground' | 'photo' | 'opaque'
  * place — a machine measured, at runtime, as not coping — and two spellings of one decision
  * is how they come to disagree. `budgetFloorFor` says where a surface starts and `level`
  * says where it has got to; both answer the one question `affords` asks.
+ *
+ * ## Three answers, and the order they are taken in
+ *
+ * Roadmap 11.5 adds the host's, so three things now want a say. The precedence is decided
+ * here rather than discovered, and `glass.test.ts` holds both halves of it:
+ *
+ * 1. **The host's `plain` is final.** Nothing puts the material back — not a device that
+ *    can afford the filter, not a frame rate that recovered, not an address that earns the
+ *    translucent floor. Degradation is one-way in this file's neighbour and it is one-way
+ *    here, for a related reason: a host who chose the plainer surface for their evening is
+ *    not asking to be second-guessed by whichever machine is holding the page.
+ * 2. **The budget outranks the host's `glass`.** Shedding the material is a health answer,
+ *    not a taste one — a wall holding its frame rate in front of a hundred people, and an
+ *    upload screen that answers a thumb. A host who asked for glass on a machine that
+ *    cannot afford it gets the opaque tier, and is not told, because there is nothing they
+ *    could usefully do about it at 23:00.
+ *
+ * Read together the two say the same thing: **every answer may take the material away and
+ * none may give it back.** That is why the composition needs no table of twelve cases, and
+ * why the marker a themed surface spreads is `opaque` or nothing at all.
  */
 export const glassTierFor = (
   surface: GlassSurface,
   backdrop: GlassBackdrop = 'photo',
   level: BudgetLevel = budgetFloorFor(surface),
-): GlassTier => (affords(level, 'glass') ? backdrop : 'opaque')
+  material: GlassMaterial = 'glass',
+): GlassTier => {
+  if (material === 'plain') return 'opaque'
+  return affords(level, 'glass') ? backdrop : 'opaque'
+}
 
 /**
  * The marker `tokens.css` re-declares the material on.
@@ -132,6 +184,17 @@ export const glassTierFor = (
  */
 export interface GlassSurfaceProps {
   readonly 'data-glass'?: Exclude<GlassTier, 'photo'>
+}
+
+/**
+ * The same marker, narrowed to the one value a themed surface is allowed to declare.
+ *
+ * A separate type rather than a reuse of the one above, and the narrowing is the point: it
+ * is `glassMaterialProps`' one-way rule expressed where the compiler can hold it, so the
+ * tidy-looking edit that spells the tier out in full does not typecheck.
+ */
+export interface GlassMaterialProps {
+  readonly 'data-glass'?: 'opaque'
 }
 
 /**
@@ -147,6 +210,28 @@ export const glassSurfaceProps = (
   backdrop: GlassBackdrop = 'photo',
   level: BudgetLevel = budgetFloorFor(surface),
 ): GlassSurfaceProps => {
-  const tier = glassTierFor(surface, backdrop, level)
+  // As if the host had asked for the material, because the shell cannot know whether they
+  // did: it renders above the page that fetches the event, and nothing travels up a React
+  // tree in the same paint. What the host chose is declared on the themed surface below,
+  // by `glassMaterialProps`, and can only take this answer further down.
+  const tier = glassTierFor(surface, backdrop, level, 'glass')
   return tier === 'photo' ? {} : { 'data-glass': tier }
 }
+
+/**
+ * The marker a **themed surface** spreads, below the shell — roadmap 11.5.
+ *
+ * `opaque`, or nothing at all, and the return type is what says so. A themed surface is a
+ * descendant of the shell, and a tier declared on a descendant wins for its own subtree
+ * whatever the specificity of the two selectors (§13). So a surface that spelled its tier
+ * out in full — `data-glass="ground"` for a host who chose glass, which is the tidy-looking
+ * version of this function — would put a blur back on a machine that had already given it
+ * up, and on the projector. The asymmetry is the feature: **the host may take the material
+ * away and may not give it back.**
+ *
+ * It is spread by `eventTheme.ts` with the rest of the event's look rather than by
+ * `AppShell`, for the reason that file gives for the accent: the theme and the content it
+ * themes are one render and one paint, so nothing blinks.
+ */
+export const glassMaterialProps = (material: GlassMaterial): GlassMaterialProps =>
+  material === 'plain' ? { 'data-glass': 'opaque' } : {}

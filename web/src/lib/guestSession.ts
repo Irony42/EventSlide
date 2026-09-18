@@ -110,9 +110,23 @@ const withClipDefaults = (event: object): PublicEventDto | null => {
  * QR scan away.
  *
  * An entry that carries a theme and gets it *wrong* is still refused, by `isPublicEvent`.
+ *
+ * **It hands on the narrowed theme rather than the stored one, and that is not tidying.**
+ * `readEventTheme` fills in a field an older entry is missing — `material`, for a tab that
+ * joined between roadmap 2.2 and 11.5 — and `isPublicEvent` calls it only for its verdict,
+ * throwing the value away. So the stored object was reaching `GuestUploadPage` with three
+ * keys where `PublicEventDto` promises four: harmless for the one reader there is today,
+ * and `undefined` the first time somebody indexes a copy table by it.
  */
-const withThemeDefault = (event: object): object =>
-  field(event, 'theme') === undefined ? { ...event, theme: DEFAULT_EVENT_THEME } : event
+const withNarrowedTheme = (event: object): object => {
+  const stored = field(event, 'theme')
+  if (stored === undefined) return { ...event, theme: DEFAULT_EVENT_THEME }
+
+  const theme = readEventTheme(stored)
+  // `null` is left alone rather than defaulted: deciding whether a malformed entry
+  // survives is `isPublicEvent`'s job, and it refuses this one.
+  return theme === null ? event : { ...event, theme }
+}
 
 /**
  * The stored entry, narrowed to what the upload screen may read.
@@ -128,7 +142,7 @@ const readSession = (value: unknown): GuestSession | null => {
 
   const stored = field(value, 'event')
   if (typeof stored !== 'object' || stored === null) return null
-  const event = withClipDefaults(withThemeDefault(stored))
+  const event = withClipDefaults(withNarrowedTheme(stored))
   if (event === null) return null
 
   return { event, displayName: displayName ?? null }

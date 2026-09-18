@@ -136,6 +136,11 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       // A rounded print reads as a keepsake. It is also the frame the polaroid layout
       // was drawn for, which is the layout a small wedding ends the evening on.
       frame: 'round',
+      // The material every event wears unless its host says otherwise, restated here
+      // because `EventSettings` replaces a theme whole rather than merging it. None of the
+      // four presets has an opinion about it: a preset is an occasion, and no occasion
+      // implies a surface finish the way a wedding implies a serif.
+      material: 'glass',
     },
   },
 
@@ -160,6 +165,7 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       // The preset's opinion here is the frame, not the colour. Rounded corners read as
       // a photo album rather than a feed, which is what a family evening's wall is.
       frame: 'round',
+      material: 'glass',
     },
   },
 
@@ -191,6 +197,11 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       fonts: 'sans',
       // A square corner reads as a slide or a badge rather than a scrapbook.
       frame: 'square',
+      // Not `plain`, although a conference is the one occasion where somebody will argue
+      // for it. The reason to turn the material off is a machine or a taste, and a preset
+      // knows neither: the host's console runs on the same laptop whatever the occasion,
+      // and the projector has already given the material up (DESIGN-SYSTEM.md §13).
+      material: 'glass',
     },
   },
 
@@ -221,6 +232,7 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       accentHue: CURATED_ACCENT_HUES.teal,
       fonts: 'sans',
       frame: 'soft',
+      material: 'glass',
     },
   },
 }
