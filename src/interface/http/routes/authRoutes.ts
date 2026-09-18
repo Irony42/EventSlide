@@ -119,6 +119,11 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
         userId: result.value.userId,
         email: result.value.email,
         mustChangePassword: result.value.mustChangePassword,
+        // Written here and nowhere else. `enforceSessionAge` reads it to end a session
+        // that has been alive too long however busy it has been, which the rolling idle
+        // timeout cannot do — and refreshing it anywhere would turn the absolute cap
+        // back into the idle one it exists to sit behind.
+        issuedAt: deps.clock.now().getTime(),
       }
       // The entire session: an identity, nothing worth stealing, and nothing that goes
       // stale. 1.0's `deserializeUser` did a `SELECT *` and hung the whole user row,
@@ -169,20 +174,28 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
     // requiring one would make the question unanswerable. 200 with
     // `{ authenticated: false }` rather than 401 — the client asks this on every page
     // load, and a 401 in the console on a first visit is noise (docs/API.md §5).
-    (req, res) => {
+    asyncHandler(async (req, res) => {
       // Never stored. This read carries the identity itself, and `rolling: true` on the
       // session means an authenticated one also carries a fresh `Set-Cookie` — so a
       // shared cache holding this response would hand one host's session to whoever
       // asks next. Every principal-scoped read in this API says so explicitly.
       res.setHeader('Cache-Control', 'no-store')
 
-      sendJson(res, toSessionResponseDto(req.context.user))
-    },
+      // The account, not only the session. This is the answer the admin shell routes
+      // on, so a disabled host who is told `authenticated: true` is let into a console
+      // where every request then fails — the shape of the defect rather than a cosmetic
+      // wart. One read, on the one route whose whole job is to say whether the caller
+      // has a session worth having.
+      const user = req.context.user
+      const usable = user !== undefined && (await deps.users.isActive(user.userId))
+
+      sendJson(res, toSessionResponseDto(usable ? user : undefined))
+    }),
   )
 
   router.post(
     '/auth/password',
-    requireUser,
+    requireUser(deps),
     asyncHandler(async (req, res) => {
       const user = req.context.user
       if (!user) {

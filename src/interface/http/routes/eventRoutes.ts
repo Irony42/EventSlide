@@ -114,7 +114,7 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
 
   router.get(
     '/events',
-    requireUser,
+    requireUser(deps),
     asyncHandler(async (req, res) => {
       const user = currentUser(req.context)
 
@@ -130,7 +130,7 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
 
   router.post(
     '/events',
-    requireUser,
+    requireUser(deps),
     asyncHandler(async (req, res) => {
       const user = currentUser(req.context)
       const body = createEventBody.parse(req.body)

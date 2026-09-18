@@ -53,6 +53,16 @@ export class FakeUserRepository implements UserRepository {
     return user.siteRole
   }
 
+  /**
+   * The same narrowing as the adapter's `WHERE id = ? AND disabled_at IS NULL`: an
+   * account that is gone and one that was switched off are one answer, because a session
+   * that outlived its account names nobody either.
+   */
+  async isActive(id: UserId): Promise<boolean> {
+    const user = this.rows.get(id)
+    return user !== undefined && !user.isDisabled()
+  }
+
   async save(user: User): Promise<void> {
     this.insert(user)
   }

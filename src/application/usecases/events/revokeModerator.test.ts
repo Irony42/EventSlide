@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
-import { AT } from '../../testing/builders'
+import { AT, aUser } from '../../testing/builders'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
+import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { makeRevokeModerator, type RevokeModerator } from './revokeModerator'
 
 const WEDDING = asEventId('evt-wedding')
@@ -35,6 +36,23 @@ describe('revokeModerator', () => {
 
     expect(result.ok).toBe(true)
     expect(await memberships.roleFor(WEDDING, MODERATOR)).toBeNull()
+  })
+
+  it('removes a moderator whose account has been disabled, which is the tidying-up case', async () => {
+    // `roleFor` refuses a disabled account, and asking it for the row about to be deleted
+    // would have answered `membership.notFound` about somebody the owner's moderator list
+    // is still showing them — a dead end with no way out short of re-enabling the account.
+    const users = new FakeUserRepository().seed(aUser({ id: MODERATOR }).disable(AT))
+    memberships = new FakeMembershipRepository({ users }).seed(
+      { eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT },
+      { eventId: WEDDING, userId: MODERATOR, role: 'moderator', grantedAt: AT },
+    )
+    revokeModerator = makeRevokeModerator({ memberships })
+
+    const result = await revokeModerator({ eventId: WEDDING, actorId: OWNER, userId: MODERATOR })
+
+    expect(result.ok).toBe(true)
+    expect(await memberships.membershipFor(WEDDING, MODERATOR)).toBeNull()
   })
 
   it('leaves the account alone elsewhere: only this event loses the membership', async () => {

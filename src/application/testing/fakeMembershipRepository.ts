@@ -23,9 +23,16 @@ const compareIds = (left: string, right: string): number =>
 const key = (eventId: EventId, userId: UserId): string => `${eventId}:${userId}`
 
 /**
- * `listForEvent` is a join over `users` in SQLite, so the email and display name come
- * from there. Passing the user repository in keeps that honest rather than inventing
- * identity; it is optional so a test about roles alone needs no user fixtures.
+ * `roleFor` and `listForEvent` are both joins over `users` in SQLite, so the account's
+ * state and its identity columns come from there. Passing the user repository in keeps
+ * that honest rather than inventing either.
+ *
+ * It stays optional, and what that means is narrow: a test world with no user repository
+ * has no accounts in it, so there is nobody in it to disable and `roleFor` answers from
+ * the membership alone. A test that seeds a **disabled** account and expects it to hold
+ * no authority has to link the two, which is what the shared contract does and what
+ * `middlewareHarness` does for every HTTP test. The adapter cannot reach the unlinked
+ * state at all: `event_memberships.user_id` is a foreign key.
  */
 export interface FakeMembershipRepositoryLinks {
   readonly users?: UserRepository
@@ -51,9 +58,29 @@ export class FakeMembershipRepository implements MembershipRepository {
     return this
   }
 
-  /** `null` is what authorization turns into a 403, so the miss is the important case. */
+  /**
+   * `null` is what authorization turns into a 404, so the miss is the important case —
+   * and a **disabled** account is one of the misses, exactly as the adapter's
+   * `JOIN users … AND u.disabled_at IS NULL` makes it one. A fake that answered `owner`
+   * here would make every test of that rule pass while the product was broken, which is
+   * the failure docs/TESTING.md §3 is written about.
+   */
   async roleFor(eventId: EventId, userId: UserId): Promise<EventRole | null> {
-    return this.rows.get(key(eventId, userId))?.role ?? null
+    const role = this.rows.get(key(eventId, userId))?.role ?? null
+    if (role === null) return null
+
+    const user = await this.links.users?.findById(userId)
+    return user?.isDisabled() === true ? null : role
+  }
+
+  /**
+   * The row, not the authority, so the linked users repository is deliberately **not**
+   * consulted here: a disabled account's membership still exists, and the two callers
+   * that ask this are asking about the event's records rather than about what anybody
+   * may do. See the port.
+   */
+  async membershipFor(eventId: EventId, userId: UserId): Promise<Membership | null> {
+    return this.rows.get(key(eventId, userId)) ?? null
   }
 
   async listForEvent(eventId: EventId): Promise<readonly MembershipWithUser[]> {

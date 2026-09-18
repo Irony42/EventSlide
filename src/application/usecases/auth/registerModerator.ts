@@ -92,9 +92,15 @@ export const makeRegisterModerator =
     const now = clock.now()
 
     if (existing !== null) {
-      const role = await memberships.roleFor(eventId, existing.id)
+      // The **row**, not the authority. `roleFor` refuses a disabled account, which is
+      // right where authority is the question and wrong here: a disabled co-owner would
+      // have looked like a stranger and been re-granted as a moderator, so re-enabling
+      // them later would have given back the wrong role. See `MembershipRepository`.
+      const held = await memberships.membershipFor(eventId, existing.id)
       // Re-inviting would otherwise silently downgrade a co-owner to moderator.
-      if (role !== null) return err(DomainError.conflict('membership.alreadyExists', { role }))
+      if (held !== null) {
+        return err(DomainError.conflict('membership.alreadyExists', { role: held.role }))
+      }
 
       // The existing account keeps its own password. An invitation that reset it would
       // let one host take over a colleague's account, and with it every other event

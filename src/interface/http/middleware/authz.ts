@@ -34,6 +34,96 @@ import type { GuestPrincipal, HttpDeps, SessionPayload, UserPrincipal } from '..
  * request never so much as asks what the caller's site role is.
  */
 
+/**
+ * How long a host session may live from the moment it was established, however busy it
+ * has been.
+ *
+ * Seven days, and the number is chosen so that it **can never fire during an event**.
+ * The control that acts on the laptop somebody walked away from is the idle timeout —
+ * 12 h, `rolling: true` — and a shorter absolute cap would buy very little against it
+ * while guaranteeing that a host who signed in for Friday's setup is logged out in the
+ * middle of Saturday evening. A wedding weekend is the longest thing this product is
+ * used for; a week clears it and still makes "indefinitely" false.
+ *
+ * Because it is written into the session at login and never refreshed, it is also the
+ * only backstop that does not depend on anybody remembering to check something: a
+ * session nothing else refuses still ends.
+ */
+export const ABSOLUTE_SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Ends a session that has been alive too long, whatever it has been doing.
+ *
+ * This is what `docs/SECURITY.md` §2 and §6 described and the code did not have.
+ * `rolling: true` plus a 12 h cookie is an *idle* timeout, and `sqliteSessionStore.touch`
+ * pushes `expires_at` forward on every single request, so a session that keeps being used
+ * never expired at all. The window was not twelve hours; it had no end.
+ *
+ * A session with **no** `issuedAt` is treated as expired rather than as fresh. Sessions
+ * written before this middleware existed have none, so the first request each of them
+ * makes after an upgrade ends it and the host signs in again — once. Fresh is the
+ * dangerous default here and absent is exactly the case that used to be unbounded.
+ *
+ * Mounted ahead of `attachUser`, so by the time identity is resolved there is no session
+ * left to resolve and every downstream gate answers its own ordinary refusal. It does
+ * nothing at all to an anonymous request: the wall, the join page and a guest's upload
+ * carry no `userId`, and ageing a session nobody signed into would only churn rows.
+ */
+export const enforceSessionAge =
+  (deps: HttpDeps): RequestHandler =>
+  (req, _res, next) => {
+    const session = (req.session ?? {}) as SessionPayload
+    if (typeof session.userId !== 'string') {
+      next()
+      return
+    }
+
+    const issuedAt = session.issuedAt
+    const now = deps.clock.now().getTime()
+    // A stamp in the future is expired, not fresh — the same rule the guest token takes
+    // on a negative age, and for a stronger reason here: the server wrote this value, so
+    // a session claiming to start later than now is a box whose clock moved (an appliance
+    // with no RTC, corrected by NTP after boot), and the skew would be added to the cap.
+    const withinCap =
+      typeof issuedAt === 'number' &&
+      Number.isFinite(issuedAt) &&
+      issuedAt <= now &&
+      now - issuedAt < ABSOLUTE_SESSION_LIFETIME_MS
+
+    if (withinCap) {
+      next()
+      return
+    }
+
+    // The row goes, not just the principal: leaving it would let the same cookie keep
+    // being touched forward by the store for as long as anything used it, which is the
+    // behaviour this middleware exists to end.
+    //
+    // `regenerate` rather than `destroy`, and the difference is load-bearing.
+    // `Session.destroy` does `delete req.session` before it calls the store, so every
+    // handler downstream would meet `req.session === undefined` — which `attachUser`
+    // survives and `authRoutes` does not: `regenerateSession(req.session)` on the login
+    // and `destroySession(req.session)` on the logout both dereference it, so the request
+    // that tripped the cap answered **500** on exactly the two routes a host reaches when
+    // their session has just ended. `regenerate` destroys the same row and leaves a fresh
+    // empty session in its place, so there is no hole to step in: the old row is gone,
+    // `saveUninitialized: false` means the empty one is never written, and the login that
+    // follows regenerates again and writes its own.
+    //
+    // A store that cannot delete is logged and not thrown. The session on this request is
+    // empty either way, so every gate below refuses it — answering 500 instead would turn
+    // a read-only disk into an outage for a refusal that has already happened, and the
+    // next request tries again anyway.
+    req.session.regenerate((error: unknown) => {
+      if (error) {
+        req.context.logger.warn('an expired session could not be discarded', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+      next()
+    })
+  }
+
 /** Reads the session cookie into a principal. Establishes identity, not permission. */
 export const attachUser = (): RequestHandler => (req, _res, next) => {
   const session = (req.session ?? {}) as SessionPayload
@@ -49,14 +139,42 @@ export const attachUser = (): RequestHandler => (req, _res, next) => {
   next()
 }
 
-/** Any authenticated user, for the routes that are not event-scoped (`/api/events`). */
-export const requireUser: RequestHandler = (req, res, next) => {
-  if (!req.context.user) {
-    sendError(res, DomainError.unauthenticated('auth.required'))
-    return
+/**
+ * Any authenticated user **whose account is still switched on**, for the routes that are
+ * not event-scoped (`GET`/`POST /api/events`, `POST /api/auth/password`).
+ *
+ * The account read is the point, and it is the same read the other two gates make: an
+ * authority is resolved from storage on the request that uses it, never from what the
+ * session said at login. These routes ask nothing about an event, so `roleFor` — which
+ * is where a disabled account loses its authority everywhere else — is never consulted
+ * on them, and without this a host disabled at 19:00 went on creating events from the
+ * tab they already had open.
+ *
+ * The refusal is `401 auth.required`, byte for byte what a caller with no session at all
+ * gets. Two reasons: there is nothing here worth distinguishing — the account may not
+ * act, and why is its owner's business, not the browser's — and 401 is the answer the
+ * admin console already knows how to handle, so a disabled host is returned to the login
+ * form rather than left on a console where everything fails. The login then refuses
+ * them with the same `auth.invalidCredentials` an unknown address gets.
+ */
+export const requireUser =
+  (deps: HttpDeps): RequestHandler =>
+  (req, res, next) => {
+    void (async () => {
+      const user = req.context.user
+      if (!user) {
+        sendError(res, DomainError.unauthenticated('auth.required'))
+        return
+      }
+
+      if (!(await deps.users.isActive(user.userId))) {
+        sendError(res, DomainError.unauthenticated('auth.required'))
+        return
+      }
+
+      next()
+    })().catch(next)
   }
-  next()
-}
 
 /**
  * Resolves `:eventSlug` and the caller's role in it, then checks the requirement.
@@ -71,6 +189,12 @@ export const requireUser: RequestHandler = (req, res, next) => {
  * event role, and not used as a fallback when the membership is missing. An operator
  * asking about a client's event is a caller with no membership, and gets the 404 anybody
  * else gets.
+ *
+ * That one read also answers "has this account been switched off", because `roleFor`
+ * itself does — the port says so, and both implementations run the contract case that
+ * pins it. It is deliberately not a second check here: sixteen use cases ask the same
+ * question for themselves, `registerModerator` among them, and a rule written in this
+ * middleware would have been a rule those sixteen did not have.
  */
 export const requireRole =
   (required: EventRole, deps: HttpDeps): RequestHandler =>

@@ -133,6 +133,39 @@ export const userRepositoryContract = (
       expect((await repo.findById(asUserId('user-operator')))?.siteRole).toBe('operator')
     })
 
+    // ----------------------------------------------------------- may it act --
+
+    /**
+     * The read the two routes that are not event-scoped make: `POST /api/events` and
+     * `POST /api/auth/password` ask nothing about an event, so no role lookup would ever
+     * notice that the account behind the session has been switched off. The same three
+     * answers collapse as they do for `siteRoleFor` — gone and disabled are both `false`.
+     */
+    it('reports an ordinary account as active', async () => {
+      await repo.save(aUser({ id: 'user-host' }))
+
+      expect(await repo.isActive(asUserId('user-host'))).toBe(true)
+    })
+
+    it('reports a disabled account as inactive, so its open tab stops creating events', async () => {
+      await repo.save(aUser({ id: 'user-host', disabledAt: atPlus(4_000) }))
+
+      expect(await repo.isActive(asUserId('user-host'))).toBe(false)
+    })
+
+    it('reports an account that does not exist as inactive, so a session outliving it grants nothing', async () => {
+      expect(await repo.isActive(asUserId('nobody'))).toBe(false)
+    })
+
+    it('reports an account as active again once it is enabled', async () => {
+      const user = aUser({ id: 'user-host' })
+      await repo.save(user.disable(AT))
+
+      await repo.save(user.disable(AT).enable())
+
+      expect(await repo.isActive(asUserId('user-host'))).toBe(true)
+    })
+
     it('replaces the stored row when the same account is saved again', async () => {
       const user = aUser({ id: 'user-host' })
       await repo.save(user)

@@ -42,12 +42,17 @@ export const makeRevokeModerator =
       return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
     }
 
-    const targetRole = await memberships.roleFor(eventId, userId)
+    // The **row**, not the authority, because this is the row about to be deleted.
+    // `roleFor` refuses a disabled account, which would leave an owner unable to tidy a
+    // switched-off moderator out of their own event — told `membership.notFound` about a
+    // person their moderator list is still showing them.
+    //
     // Scoped by `(eventId, userId)`, so a membership this person holds on another event
     // is a miss here rather than a row this owner can delete.
-    if (targetRole === null) return err(DomainError.notFound('membership.notFound'))
+    const target = await memberships.membershipFor(eventId, userId)
+    if (target === null) return err(DomainError.notFound('membership.notFound'))
 
-    if (targetRole === 'owner' && (await memberships.countByRole(eventId, 'owner')) <= 1) {
+    if (target.role === 'owner' && (await memberships.countByRole(eventId, 'owner')) <= 1) {
       return err(DomainError.conflict('membership.lastOwner'))
     }
 

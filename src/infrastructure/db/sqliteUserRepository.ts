@@ -171,6 +171,24 @@ export class SqliteUserRepository implements UserRepository {
     return row === undefined ? DEFAULT_SITE_ROLE : toSiteRole(row.site_role)
   }
 
+  /**
+   * The narrowest authorization read on this adapter, and the same `WHERE` clause as
+   * `siteRoleFor` for the same reason.
+   *
+   * `SELECT 1` rather than the row: the question is whether the account may act, and the
+   * two routes that ask it are not event-scoped, so there is nothing else about the
+   * account they need — least of all its password hash.
+   */
+  async isActive(id: UserId): Promise<boolean> {
+    const row = this.db
+      .prepare<[string], { readonly present: number }>(
+        `SELECT 1 AS present FROM users WHERE id = ? AND disabled_at IS NULL`,
+      )
+      .get(id)
+
+    return row !== undefined
+  }
+
   async save(user: User): Promise<void> {
     const props = user.toProps()
 

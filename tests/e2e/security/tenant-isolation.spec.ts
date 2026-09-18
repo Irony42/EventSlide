@@ -364,6 +364,87 @@ test.describe('site operator scope', () => {
   })
 })
 
+/**
+ * Disabling a host, end to end, against the real server.
+ *
+ * Every one of these was reachable before this branch. `disabled_at` was read on exactly
+ * one line in the product — inside `authenticateUser` — so switching an account off
+ * stopped the next sign-in and stopped nothing at all that the account was already doing,
+ * on a session that renews for as long as it is used. The third case is the one that made
+ * a bounded window unbounded: a disabled owner could invite a moderator and read out a
+ * password to a brand new **enabled** account.
+ */
+test.describe('an account that has been disabled', () => {
+  test('loses its own event the moment it is switched off @smoke', async ({ app, browser }) => {
+    const client = await aClientWithTheirOwnEvent(app, browser)
+    try {
+      // The session is live and working before the account is touched, so the refusal
+      // below cannot be a session that never worked.
+      const before = await client.request.get(app.url(`/api/events/${client.slug}/moderation`))
+      expect(before.status()).toBe(200)
+
+      setAccountDisabled(app, client.email, new Date())
+
+      const after = await client.request.get(app.url(`/api/events/${client.slug}/moderation`))
+      expect(after.status()).toBe(404)
+      expect((await after.json()).error.code).toBe('event.notFound')
+    } finally {
+      await client.dispose()
+    }
+  })
+
+  test('cannot create another event from the tab it already had open', async ({ app, browser }) => {
+    const client = await aClientWithTheirOwnEvent(app, browser)
+    try {
+      setAccountDisabled(app, client.email, new Date())
+
+      const created = await client.request.post(app.url('/api/events'), {
+        headers: await csrfHeaders(client.request, app),
+        data: { name: 'Un évènement de trop' },
+      })
+
+      expect(created.status()).toBe(401)
+    } finally {
+      await client.dispose()
+    }
+  })
+
+  test('cannot mint a fresh enabled account by inviting a moderator', async ({ app, browser }) => {
+    const client = await aClientWithTheirOwnEvent(app, browser)
+    const invitee = `remplacante-${Date.now()}@eventslide.test`
+    try {
+      setAccountDisabled(app, client.email, new Date())
+
+      const invited = await client.request.post(app.url(`/api/events/${client.slug}/moderators`), {
+        headers: await csrfHeaders(client.request, app),
+        data: { email: invitee, temporaryPassword: 'mot-de-passe-provisoire-du-soir' },
+      })
+
+      expect(invited.status()).toBe(404)
+      // And nothing was written: the account the disabled host would have signed in as
+      // does not exist. A 404 with a row behind it would be the same escalation with a
+      // better status code.
+      expect(accountExists(app, invitee)).toBe(false)
+    } finally {
+      await client.dispose()
+    }
+  })
+
+  test('gets its event back when the account is enabled again', async ({ app, browser }) => {
+    const client = await aClientWithTheirOwnEvent(app, browser)
+    try {
+      setAccountDisabled(app, client.email, new Date())
+
+      setAccountDisabled(app, client.email, null)
+
+      const after = await client.request.get(app.url(`/api/events/${client.slug}/moderation`))
+      expect(after.status()).toBe(200)
+    } finally {
+      await client.dispose()
+    }
+  })
+})
+
 // ------------------------------------------------------------------- helpers --
 
 /** A minimal valid JPEG, for the requests whose payload is not the point. */
@@ -426,6 +507,8 @@ const signedInAsOperator = async (app: TestApp, browser: Browser): Promise<Opera
 interface ClientContext {
   readonly slug: string
   readonly joinCode: string
+  /** Named, because disabling an account is done by address against the real database. */
+  readonly email: string
   readonly request: APIRequestContext
   dispose(): Promise<void>
 }
@@ -491,8 +574,45 @@ const aClientWithTheirOwnEvent = async (app: TestApp, browser: Browser): Promise
   return {
     slug: event.slug,
     joinCode: event.joinCode,
+    email,
     request: api,
     dispose: () => context.close(),
+  }
+}
+
+/**
+ * Switches an account off in the running server's own database.
+ *
+ * There is no route and no console that does this — appointing and disabling accounts is
+ * roadmap §10, and this branch deliberately builds the enforcement rather than the
+ * administration of it. A statement against the SQLite file **is** the operational path
+ * docs/SECURITY.md §11 describes today, so the specs below exercise the real one rather
+ * than a fixture invented for them.
+ *
+ * Not `readonly`, unlike `siteRoleOf`: this one writes. Opened and closed per call for the
+ * same reason — nothing here holds a handle on a file a worker is about to delete.
+ */
+/** Whether an address has an account at all, read from the server's own database. */
+const accountExists = (app: TestApp, email: string): boolean => {
+  const db = new Database(app.databasePath, { readonly: true, fileMustExist: true })
+  try {
+    return db.prepare('SELECT 1 FROM users WHERE email = ?').get(email) !== undefined
+  } finally {
+    db.close()
+  }
+}
+
+const setAccountDisabled = (app: TestApp, email: string, at: Date | null): void => {
+  const db = new Database(app.databasePath, { fileMustExist: true })
+  try {
+    const result = db
+      .prepare('UPDATE users SET disabled_at = ? WHERE email = ?')
+      .run(at === null ? null : at.toISOString(), email)
+    if (result.changes !== 1) {
+      throw new Error(`no account to disable for ${email}: ${result.changes} rows matched`)
+    }
+  } finally {
+    db.close()
   }
 }
 

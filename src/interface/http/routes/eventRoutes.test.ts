@@ -154,8 +154,10 @@ const buildWorld = (): World => {
     routes: (app, harnessDeps) => {
       // The harness builds unlinked repositories of its own; the router gets the linked
       // ones instead, and shares everything else — the same clock, the same recording
-      // bus, the same config.
-      const deps: HttpDeps = { ...harnessDeps, events, guests, memberships }
+      // bus, the same config. `users` is among them because `requireUser` reads it on
+      // every request to the two routes here that are not event-scoped: the world the
+      // accounts live in has to be the world the gate asks.
+      const deps: HttpDeps = { ...harnessDeps, events, guests, memberships, users }
 
       const usecases: HttpUseCases = {
         authenticateUser: absent('authenticateUser'),

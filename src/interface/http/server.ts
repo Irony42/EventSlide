@@ -4,7 +4,7 @@ import session from 'express-session'
 import type { Store } from 'express-session'
 import { errorHandler, requestContext } from './middleware/errorHandler'
 import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
-import { attachUser } from './middleware/authz'
+import { attachUser, enforceSessionAge } from './middleware/authz'
 import { uploadLimiter } from './middleware/rateLimit'
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
 import { authRoutes } from './routes/authRoutes'
@@ -108,6 +108,11 @@ export const buildServer = ({
   // token *must* change — a login and a logout, where the identity it travels beside
   // changes — call `rotateCsrfToken` from inside `authRoutes` instead.
   app.use(issueCsrfToken({ secureCookie: config.secureCookie }))
+  // Ahead of `attachUser`, so a session past its absolute lifetime is gone before there
+  // is an identity to resolve from it. `rolling: true` above is an idle timeout and the
+  // store pushes the deadline forward on every request; without this, a session that is
+  // being used has no end at all.
+  app.use(enforceSessionAge(deps))
   app.use(attachUser())
 
   // Every state-changing request from here on must echo the CSRF cookie. Mounted ahead
