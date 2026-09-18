@@ -31,6 +31,7 @@ import { JoinCode } from '../../domain/shared/joinCode'
 import type { Result } from '../../domain/shared/result'
 import { Slug } from '../../domain/shared/slug'
 import { EmailAddress } from '../../domain/users/emailAddress'
+import { DEFAULT_SITE_ROLE, type SiteRole } from '../../domain/users/siteRole'
 import { User } from '../../domain/users/user'
 
 /**
@@ -400,6 +401,8 @@ export interface UserInput {
   readonly lastLoginAt?: Date | null
   readonly mustChangePassword?: boolean
   readonly disabledAt?: Date | null
+  /** Omitted means an ordinary account: authority on the box is never a default. */
+  readonly siteRole?: SiteRole
 }
 
 /** The hash shape `FakePasswordHasher` produces, so a fixture and a login agree. */
@@ -414,6 +417,7 @@ export const aUser = (input: UserInput = {}): User => {
         displayName: pick(input.displayName, null),
         passwordHash: pick(input.passwordHash, DEFAULT_PASSWORD_HASH),
         mustChangePassword: pick(input.mustChangePassword, false),
+        siteRole: pick(input.siteRole, DEFAULT_SITE_ROLE),
       },
       asUserId(pick(input.id, 'user-1')),
       createdAt,

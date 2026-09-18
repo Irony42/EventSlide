@@ -7,7 +7,7 @@ import type { Logger } from '../../application/ports/logger'
 import type { EventBus } from '../../application/ports/eventBus'
 import type { EventRepository } from '../../application/ports/eventRepository'
 import type { GuestRepository } from '../../application/ports/guestRepository'
-import type { MembershipRepository } from '../../application/ports/userRepository'
+import type { MembershipRepository, UserRepository } from '../../application/ports/userRepository'
 import type { GuestTokenService } from '../../application/ports/guestTokenService'
 
 /**
@@ -58,6 +58,15 @@ export interface HttpDeps {
   readonly events: EventRepository
   readonly guests: GuestRepository
   readonly memberships: MembershipRepository
+  /**
+   * One method, deliberately: what the caller may do on the box.
+   *
+   * `requireOperator` is the only thing here that asks, and it has no business being able
+   * to read an account's hash, rename it or delete it. `SqliteUserRepository` satisfies
+   * this structurally, so the composition root passes the whole adapter and the HTTP
+   * layer still cannot reach the rest of it.
+   */
+  readonly users: Pick<UserRepository, 'siteRoleFor'>
   readonly guestTokens: GuestTokenService
   readonly config: HttpConfig
 }

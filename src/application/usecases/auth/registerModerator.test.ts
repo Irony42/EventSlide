@@ -111,6 +111,34 @@ describe('registerModerator', () => {
     expect(invitee?.passwordHash).toBe(hashOf(TEMPORARY))
   })
 
+  it('creates an account with no authority over the box, whoever did the inviting', async () => {
+    // The host doing the inviting may be the box's operator — on a one-operator
+    // instance they usually are. An invitation that carried a site role across would
+    // hand the whole box to someone lent a laptop for one evening (docs/ROADMAP.md
+    // §10.1). Asserted through `siteRoleFor`, which is the read authorization makes.
+    users.seed(aUser({ id: 'operator-1', email: 'ops@example.test', siteRole: 'operator' }))
+    memberships.seed({
+      eventId: asEventId('event-1'),
+      userId: asUserId('operator-1'),
+      role: 'owner',
+      grantedAt: AT,
+    })
+
+    await invite({ actorId: asUserId('operator-1') })
+
+    expect(await users.siteRoleFor(asUserId('user-1'))).toBe('none')
+  })
+
+  it('leaves an existing operator account its own site role, which this never touches', async () => {
+    // The other direction of the same rule: inviting someone who happens to operate the
+    // box makes them a moderator of one event and changes nothing else about them.
+    users.seed(aUser({ id: 'user-9', email: 'lea@example.test', siteRole: 'operator' }))
+
+    await invite()
+
+    expect(await users.siteRoleFor(asUserId('user-9'))).toBe('operator')
+  })
+
   it('leaves an existing account its own password when granting it the role', async () => {
     users.seed(
       aUser({ id: 'user-9', email: 'lea@example.test', passwordHash: hashOf('son-mot-de-passe') }),

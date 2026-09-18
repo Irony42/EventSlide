@@ -507,6 +507,9 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     events: adapters.events,
     guests: adapters.guests,
     memberships: adapters.memberships,
+    // Narrowed by `HttpDeps` to `siteRoleFor` alone: the whole adapter is passed, and the
+    // HTTP layer can still only ask who operates the box.
+    users: adapters.users,
     guestTokens: adapters.guestTokens,
     config: httpConfig,
   }

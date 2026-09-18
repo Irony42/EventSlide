@@ -14,6 +14,12 @@ import { AT, aUser, atPlus } from '../builders'
  * all. 1.0 recreated `admin` / `password` on every boot; getting `isEmpty` wrong is how
  * that comes back.
  *
+ * The other thing that has to behave identically in both implementations is
+ * `siteRoleFor`, which is the read every operator-only route is gated on. A fake that
+ * answered `operator` where SQLite answers `none` — for a disabled account, say — would
+ * make the ring-2 and ring-4 suites agree with each other about a box neither of them
+ * describes.
+ *
  * Nothing needs seeding before this suite runs: `users` has no outbound foreign key.
  */
 
@@ -54,6 +60,7 @@ export const userRepositoryContract = (
           lastLoginAt: atPlus(2_000),
           mustChangePassword: true,
           disabledAt: atPlus(3_000),
+          siteRole: 'operator',
         }),
       )
 
@@ -66,6 +73,7 @@ export const userRepositoryContract = (
       expect(stored?.lastLoginAt?.toISOString()).toBe(atPlus(2_000).toISOString())
       expect(stored?.mustChangePassword).toBe(true)
       expect(stored?.disabledAt?.toISOString()).toBe(atPlus(3_000).toISOString())
+      expect(stored?.siteRole).toBe('operator')
     })
 
     it('round-trips an account that has never signed in as three nulls and a false', async () => {
@@ -77,6 +85,52 @@ export const userRepositoryContract = (
       expect(stored?.lastLoginAt).toBeNull()
       expect(stored?.disabledAt).toBeNull()
       expect(stored?.mustChangePassword).toBe(false)
+      expect(stored?.siteRole).toBe('none')
+    })
+
+    // ------------------------------------------------------------- site role --
+
+    /**
+     * The read `requireOperator` makes on every request to an operator's own surface.
+     *
+     * Four cases and not one, because three of them are refusals that have to be
+     * indistinguishable: an ordinary account, an account that is gone, and an account
+     * somebody switched off all answer `none`. Getting the last one wrong would leave a
+     * dismissed operator running the box from a session nobody can see.
+     */
+    it('reports the site role an account was created with', async () => {
+      await repo.save(aUser({ id: 'user-operator', siteRole: 'operator' }))
+
+      expect(await repo.siteRoleFor(asUserId('user-operator'))).toBe('operator')
+    })
+
+    it('reports none for an ordinary account, which is every account by default', async () => {
+      await repo.save(aUser({ id: 'user-host' }))
+
+      expect(await repo.siteRoleFor(asUserId('user-host'))).toBe('none')
+    })
+
+    it('reports none for an account that does not exist, so a stale session grants nothing', async () => {
+      expect(await repo.siteRoleFor(asUserId('nobody'))).toBe('none')
+    })
+
+    it('reports none for a disabled operator, because a switched-off account operates nothing', async () => {
+      await repo.save(
+        aUser({ id: 'user-operator', siteRole: 'operator', disabledAt: atPlus(4_000) }),
+      )
+
+      expect(await repo.siteRoleFor(asUserId('user-operator'))).toBe('none')
+    })
+
+    it('still hydrates the stored role of a disabled operator, which is a different question', async () => {
+      // `siteRoleFor` answers "may this account act"; `findById` answers "what does the
+      // row say". Collapsing the two would make re-enabling an account silently demote it
+      // the next time anything saved it.
+      await repo.save(
+        aUser({ id: 'user-operator', siteRole: 'operator', disabledAt: atPlus(4_000) }),
+      )
+
+      expect((await repo.findById(asUserId('user-operator')))?.siteRole).toBe('operator')
     })
 
     it('replaces the stored row when the same account is saved again', async () => {

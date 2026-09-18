@@ -1,9 +1,18 @@
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { GUEST_COOKIE, requireGuest, requireRole, requireUser, resolvePublicEvent } from './authz'
+import {
+  GUEST_COOKIE,
+  requireGuest,
+  requireOperator,
+  requireRole,
+  requireUser,
+  resolvePublicEvent,
+} from './authz'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
-import { anEvent, aGuest, AT } from '../../../application/testing/builders'
+import { anEvent, aGuest, aUser, AT } from '../../../application/testing/builders'
+import { CallLog } from '../../../application/testing/callLog'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
+import type { HttpDeps } from '../types'
 
 const WEDDING = 'wedding-id'
 const GALA = 'gala-id'
@@ -38,6 +47,14 @@ const harness = (): Harness =>
 
       app.get('/events/:eventSlug/wall', resolvePublicEvent(deps), (req, res) => {
         res.json({ name: req.context.event?.name.value })
+      })
+
+      // The shape every operator-only route of §10.2 onwards will have. There is no such
+      // route in the product yet — the console, the clients and the invitations are their
+      // own items — so this stands in for one, which is the only way the gate itself can
+      // be held to its promises before it carries anything.
+      app.get('/site/console', requireOperator(deps), (_req, res) => {
+        res.json({ operating: true })
       })
     },
   })
@@ -186,6 +203,198 @@ describe('requireRole', () => {
     const agent = await signedIn(subject, 'host')
 
     await agent.get('/events/mariage/moderate').expect(200)
+  })
+})
+
+describe('requireOperator', () => {
+  const seedAccount = (subject: Harness, siteRole: 'none' | 'operator'): void => {
+    subject.users.seed(aUser({ id: HOST, email: 'host@example.com', siteRole }))
+  }
+
+  it('answers 401 without a session, like every other gate here', async () => {
+    const response = await request(harness().app).get('/site/console')
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+
+  it('lets the box’s operator through', async () => {
+    const subject = harness()
+    seedAccount(subject, 'operator')
+    const agent = await signedIn(subject, 'host')
+
+    const response = await agent.get('/site/console')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ operating: true })
+  })
+
+  it('answers 403 to an ordinary account, which is every account but one', async () => {
+    const subject = harness()
+    seedAccount(subject, 'none')
+    const agent = await signedIn(subject, 'host')
+
+    const response = await agent.get('/site/console')
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('auth.forbidden')
+    expect(response.body.error.details.required).toBe('operator')
+  })
+
+  it('answers 403 to a session naming an account that no longer exists', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+
+    await agent.get('/site/console').expect(403)
+  })
+
+  it('answers 403 once the operator’s account is switched off, mid-session', async () => {
+    // The reason the role is read from storage on every request rather than carried in
+    // the session: an operator who has been dismissed stops operating the box when
+    // somebody disables the account, not twelve hours later when the cookie expires.
+    const subject = harness()
+    seedAccount(subject, 'operator')
+    const agent = await signedIn(subject, 'host')
+    await agent.get('/site/console').expect(200)
+
+    subject.users.seed(
+      aUser({ id: HOST, email: 'host@example.com', siteRole: 'operator', disabledAt: AT }),
+    )
+
+    await agent.get('/site/console').expect(403)
+  })
+
+  it('answers 403 once the role is taken away, without a fresh login', async () => {
+    const subject = harness()
+    seedAccount(subject, 'operator')
+    const agent = await signedIn(subject, 'host')
+    await agent.get('/site/console').expect(200)
+
+    seedAccount(subject, 'none')
+
+    await agent.get('/site/console').expect(403)
+  })
+})
+
+describe('an operator is nobody inside an event', () => {
+  /**
+   * The half of §10.1 that is dangerous, and the reason the item is risk: medium.
+   *
+   * A second, higher authority now exists on the box, and every one of these assertions
+   * says that `requireRole` went on meaning exactly what it meant before it did. An
+   * operator who could quietly moderate a client's photographs is worse than one who
+   * cannot help at all — support access is §10.6, time-boxed, announced and logged, and
+   * it is not this.
+   */
+  const asOperator = (subject: Harness): void => {
+    subject.users.seed(aUser({ id: HOST, email: 'host@example.com', siteRole: 'operator' }))
+  }
+
+  /** A client's evening, owned by the client. The operator has no part in it. */
+  const seedClientEvent = (subject: Harness): void => {
+    subject.events.seed(anEvent({ id: GALA, slug: 'gala', name: 'Gala', ownerId: OTHER_HOST }))
+    subject.memberships.seed({
+      eventId: asEventId(GALA),
+      userId: asUserId(OTHER_HOST),
+      role: 'owner',
+      grantedAt: AT,
+    })
+  }
+
+  it('answers 404 to the operator for a client’s moderation, exactly as it does to a stranger', async () => {
+    const subject = harness()
+    seedClientEvent(subject)
+    asOperator(subject)
+    const agent = await signedIn(subject, 'host')
+
+    const response = await agent.get('/events/gala/moderate')
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
+  })
+
+  it('answers 404 to the operator for a client’s settings, and tells them nothing more', async () => {
+    const subject = harness()
+    seedClientEvent(subject)
+    asOperator(subject)
+    const agent = await signedIn(subject, 'host')
+
+    await agent.get('/events/gala/manage').expect(404)
+  })
+
+  it('does not promote an operator who was invited as a moderator', async () => {
+    // The sharpest case. The caller holds both authorities at once — they run the box and
+    // they were lent this event's moderation screen — and the owner's route must still
+    // refuse them, because the two are answered from different tables and never added up.
+    const subject = harness()
+    subject.events.seed(anEvent({ id: WEDDING, slug: 'mariage', ownerId: OTHER_HOST }))
+    subject.memberships.seed({
+      eventId: asEventId(WEDDING),
+      userId: asUserId(HOST),
+      role: 'moderator',
+      grantedAt: AT,
+    })
+    asOperator(subject)
+    const agent = await signedIn(subject, 'host')
+
+    const response = await agent.get('/events/mariage/manage')
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.details.required).toBe('owner')
+  })
+
+  /**
+   * `requireRole`, with the two repositories it could possibly consult under a call log.
+   *
+   * The rule — that the membership table is the only authority — is stated in `authz.ts`,
+   * and a rule stated only in a comment is a rule with no guard. This is what records
+   * whether the middleware *asked*: an elevation has to read the site role from somewhere,
+   * and there is nowhere else to read it from.
+   */
+  const watchedHarness = (): { subject: Harness; calls: CallLog } => {
+    const calls = new CallLog()
+    const subject = buildHarness({
+      routes: (app, deps) => {
+        const watched: HttpDeps = {
+          ...deps,
+          users: calls.watch('users', deps.users),
+          memberships: calls.watch('memberships', deps.memberships),
+        }
+        app.post('/sign-in/host', signInAs({ userId: HOST, email: 'host@example.com' }))
+        app.get('/events/:eventSlug/moderate', requireRole('moderator', watched), (_req, res) => {
+          res.status(204).end()
+        })
+      },
+    })
+    subject.users.seed(aUser({ id: HOST, email: 'host@example.com', siteRole: 'operator' }))
+    return { subject, calls }
+  }
+
+  it('never asks what the caller may do on the box while resolving an event role', async () => {
+    const { subject, calls } = watchedHarness()
+    seedWedding(subject)
+    const agent = await signedIn(subject, 'host')
+
+    await agent.get('/events/mariage/moderate').expect(204)
+
+    expect(calls.sequenceOf('users.siteRoleFor', 'memberships.roleFor')).toEqual([
+      'memberships.roleFor',
+    ])
+  })
+
+  it('does not fall back to the site role when the membership is missing', async () => {
+    // The shape an elevation would most plausibly take: leave the membership lookup alone
+    // and answer "…or the caller runs the box" underneath it. The refusal is asserted in
+    // its own tests above; what this adds is that the question was never even asked.
+    const { subject, calls } = watchedHarness()
+    seedClientEvent(subject)
+    const agent = await signedIn(subject, 'host')
+
+    await agent.get('/events/gala/moderate').expect(404)
+
+    expect(calls.sequenceOf('users.siteRoleFor', 'memberships.roleFor')).toEqual([
+      'memberships.roleFor',
+    ])
   })
 })
 

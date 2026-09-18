@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3'
 import type { APIRequestContext, Browser } from '@playwright/test'
 import { csrfHeaders, expect, test } from '../fixtures/app'
 import type { TestApp } from '../fixtures/startTestApp'
@@ -241,10 +242,259 @@ test.describe('upload hardening', () => {
   })
 })
 
+/**
+ * The box's operator, on a client's evening (docs/ROADMAP.md §10.1).
+ *
+ * The bootstrap account is the operator — it is the account whoever installed this box
+ * gave themselves — and here it holds a real session against a real server. A client
+ * creates their own event on the same box, and the operator can reach none of it: not the
+ * settings, not the queue, and not a photograph that is still waiting to be approved.
+ *
+ * That is the promise the whole category rests on. An operator who can see a client's
+ * photographs by virtue of running the box is the incident this design exists to make
+ * impossible; support access is §10.6, and it ships time-boxed, announced in the client's
+ * own interface and written to a log the client can read. None of that exists yet, so
+ * neither does the access.
+ *
+ * **"The bootstrap account is the operator" is checked here, not assumed.** It used to be
+ * assumed, and that made the rest of this describe worth less than it looked: every 404
+ * below is what any signed-in non-member gets, nothing in the HTTP surface carries a site
+ * role, so the whole block stayed green with `bootstrapOwner` writing `siteRole: 'none'`
+ * — the elevation it exists to catch never ran end to end at all, while
+ * docs/SECURITY.md and docs/TESTING.md both named it as the ring-6 half of the invariant.
+ * `siteRoleOf` reads the fact out of the server's own SQLite file, which is the only place
+ * it exists, and `signedInAsOperator` refuses to hand back a session that is not one.
+ */
+test.describe('site operator scope', () => {
+  test('the account these specs sign in as is really the box’s operator', async ({ app }) => {
+    // The premise every refusal below rests on, and it was an unchecked one: nothing on
+    // the HTTP surface carries an account's site role — `/api/auth/me` does not — so this
+    // spec could not tell the operator from any signed-in stranger. Every 404 it asserts
+    // is what a non-member gets, so `bootstrapOwner` writing `siteRole: 'none'` would
+    // have left the whole describe green while the elevation it exists to catch was never
+    // exercised end to end. docs/SECURITY.md and docs/TESTING.md both name this spec as
+    // the ring-6 half of the invariant, which is what made the gap worth closing rather
+    // than documenting.
+    //
+    // So the premise is read from the same SQLite file the running server is reading,
+    // which is the only place the fact exists. Read-only, and it is the one thing in this
+    // suite that does not go through HTTP.
+    expect(siteRoleOf(app, app.owner.email)).toBe('operator')
+  })
+
+  test('the operator cannot reach a client’s event on the box they run @smoke', async ({
+    app,
+    browser,
+  }) => {
+    const client = await aClientWithTheirOwnEvent(app, browser)
+    const operator = await signedInAsOperator(app, browser)
+
+    try {
+      // Every answer is 404 rather than 403, for the same reason it is for a stranger: a
+      // 403 would confirm the event exists, which is more than the operator is entitled
+      // to learn from these endpoints.
+      const settings = await operator.request.get(app.url(`/api/events/${client.slug}`))
+      expect(settings.status()).toBe(404)
+      expect((await settings.json()).error.code).toBe('event.notFound')
+
+      const queue = await operator.request.get(app.url(`/api/events/${client.slug}/moderation`))
+      expect(queue.status()).toBe(404)
+
+      const closing = await operator.request.post(app.url(`/api/events/${client.slug}/status`), {
+        headers: await csrfHeaders(operator.request, app),
+        data: { status: 'closed' },
+      })
+      expect(closing.status()).toBe(404)
+
+      // And the client's evening is not on the operator's dashboard, which is the same
+      // rule read from the other side: the listing is the membership table's answer.
+      const dashboard = await operator.request.get(app.url('/api/events'))
+      const slugs = ((await dashboard.json()).items as { slug: string }[]).map((row) => row.slug)
+      expect(slugs).not.toContain(client.slug)
+    } finally {
+      await client.dispose()
+      await operator.dispose()
+    }
+  })
+
+  test('the operator cannot read a photograph the client has not published', async ({
+    app,
+    browser,
+  }) => {
+    // The one that matters most, and the reason this is a security spec rather than a
+    // journey. A pending photograph is a guest's phone camera roll thirty seconds ago,
+    // seen by nobody yet — not the room, and not the person who runs the server.
+    const client = await aClientWithTheirOwnEvent(app, browser)
+    const guest = await browser.newContext({ baseURL: app.baseUrl })
+    const operator = await signedInAsOperator(app, browser)
+
+    try {
+      const page = await guest.newPage()
+      await page.goto(app.url(`/join/${client.joinCode}`))
+      await page.getByRole('button', { name: /Rejoindre/i }).click()
+      await page.waitForURL(/\/upload/)
+
+      const upload = await guest.request.post(app.url(`/api/events/${client.slug}/photos`), {
+        headers: await csrfHeaders(guest.request, app),
+        multipart: {
+          photos: { name: 'a.jpg', mimeType: 'image/jpeg', buffer: await bytesOf() },
+        },
+      })
+      const { results } = await upload.json()
+      const photoId = results[0].photoId as string
+
+      const asOperator = await operator.request.get(
+        app.url(`/api/events/${client.slug}/photos/${photoId}/display`),
+      )
+
+      expect(asOperator.status()).toBe(404)
+
+      // The contrast that makes the 404 mean something: the client, who owns the event,
+      // reads the same bytes at the same URL. The photograph is there — it is simply not
+      // the operator's to look at.
+      const asClient = await client.request.get(
+        app.url(`/api/events/${client.slug}/photos/${photoId}/display`),
+      )
+      expect(asClient.status()).toBe(200)
+    } finally {
+      await guest.close()
+      await client.dispose()
+      await operator.dispose()
+    }
+  })
+})
+
 // ------------------------------------------------------------------- helpers --
 
 /** A minimal valid JPEG, for the requests whose payload is not the point. */
 const bytesOf = async (): Promise<Buffer> => fileBytes(await aPhoto('tiny', 32, 32))
+
+interface OperatorContext {
+  readonly request: APIRequestContext
+  dispose(): Promise<void>
+}
+
+/**
+ * The site role stored for an account, read from the running server's own database.
+ *
+ * `readonly`, and the only read in this suite that does not go through HTTP — because the
+ * fact exists nowhere else: no response carries a site role. Opened and closed per call
+ * rather than held, so nothing here keeps a handle on a file a worker is about to delete.
+ */
+const siteRoleOf = (app: TestApp, email: string): string | null => {
+  const db = new Database(app.databasePath, { readonly: true, fileMustExist: true })
+  try {
+    const row = db.prepare('SELECT site_role FROM users WHERE email = ?').get(email) as
+      { readonly site_role: string } | undefined
+    return row?.site_role ?? null
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * A real session for the account the box bootstrapped, which `bootstrapOwner` makes the
+ * operator on a fresh install.
+ *
+ * Its own browser context, so the operator's cookie jar is nobody else's — the whole
+ * point being what this session cannot do.
+ *
+ * The site role is checked before the session is handed back, so a spec below can never
+ * report "the operator is refused" about an account that is not one. It is a throw rather
+ * than an expectation: this is the fixture's precondition, and a failure here should name
+ * itself instead of appearing as a puzzling 404 three assertions later.
+ */
+const signedInAsOperator = async (app: TestApp, browser: Browser): Promise<OperatorContext> => {
+  const role = siteRoleOf(app, app.owner.email)
+  if (role !== 'operator') {
+    throw new Error(
+      `the account this fixture signs in as holds site_role=${String(role)}, not 'operator' — ` +
+        'every refusal asserted against it would be a stranger’s refusal, not an operator’s',
+    )
+  }
+
+  const context = await browser.newContext({ baseURL: app.baseUrl })
+  const login = await context.request.post(app.url('/api/auth/login'), {
+    headers: await csrfHeaders(context.request, app),
+    data: { email: app.owner.email, password: app.owner.password },
+  })
+  if (!login.ok()) throw new Error(`the operator could not sign in: ${login.status()}`)
+
+  return { request: context.request, dispose: () => context.close() }
+}
+
+interface ClientContext {
+  readonly slug: string
+  readonly joinCode: string
+  readonly request: APIRequestContext
+  dispose(): Promise<void>
+}
+
+/**
+ * A client of the operator: their own account, their own event, and no operator anywhere
+ * near it.
+ *
+ * The account arrives the only way the product can make one today — the operator invites
+ * it to an event of their own — and then leaves that event behind by creating one of its
+ * own, which is where §10.3's invitation will eventually land a client directly. What
+ * matters here is the end state: an event whose only member is somebody who does not run
+ * the box.
+ */
+const aClientWithTheirOwnEvent = async (app: TestApp, browser: Browser): Promise<ClientContext> => {
+  // Scoped to the worker: the server outlives one test, and an address that already has
+  // an account takes the `created: false` branch and keeps its own password.
+  const port = app.baseUrl.split(':').at(-1) ?? '0'
+  const email = `cliente-${port}-${Date.now()}@eventslide.test`
+  const temporary = 'mot-de-passe-provisoire-du-soir'
+  const chosen = 'phrase-que-seule-la-cliente-connait'
+
+  const introduction = await app.seedEvent({ slug: 'presentation', name: 'Présentation' })
+  const operator = await signedInAsOperator(app, browser)
+  const invited = await operator.request.post(
+    app.url(`/api/events/${introduction.slug}/moderators`),
+    {
+      headers: await csrfHeaders(operator.request, app),
+      data: { email, temporaryPassword: temporary },
+    },
+  )
+  if (!invited.ok()) throw new Error(`inviting the client failed with ${invited.status()}`)
+  await operator.dispose()
+
+  const context = await browser.newContext({ baseURL: app.baseUrl })
+  const api = context.request
+
+  const login = await api.post(app.url('/api/auth/login'), {
+    headers: await csrfHeaders(api, app),
+    data: { email, password: temporary },
+  })
+  if (!login.ok()) throw new Error(`the client could not sign in: ${login.status()}`)
+
+  const rotated = await api.post(app.url('/api/auth/password'), {
+    headers: await csrfHeaders(api, app),
+    data: { currentPassword: temporary, newPassword: chosen },
+  })
+  if (!rotated.ok()) throw new Error(`the client's password rotation failed: ${rotated.status()}`)
+
+  const created = await api.post(app.url('/api/events'), {
+    headers: await csrfHeaders(api, app),
+    data: { name: `Mariage de la cliente ${port}-${Date.now()}` },
+  })
+  if (!created.ok()) throw new Error(`the client could not create their event: ${created.status()}`)
+  const event = (await created.json()) as { slug: string; joinCode: string }
+
+  const opened = await api.post(app.url(`/api/events/${event.slug}/status`), {
+    headers: await csrfHeaders(api, app),
+    data: { status: 'live' },
+  })
+  if (!opened.ok()) throw new Error(`the client could not open their event: ${opened.status()}`)
+
+  return {
+    slug: event.slug,
+    joinCode: event.joinCode,
+    request: api,
+    dispose: () => context.close(),
+  }
+}
 
 const fileBytes = async (path: string): Promise<Buffer> => {
   const { readFile } = await import('node:fs/promises')

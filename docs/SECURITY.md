@@ -60,6 +60,10 @@ Two principals, no third, and no ambient "logged in means allowed".
 | Host / moderator | `express-session` cookie, SQLite-backed store | idle 12 h, rolling; absolute cap **(defect)**, below | per-event role from the membership table                          |
 | Guest            | HMAC-signed device token in a cookie          | 36 h from issue, enforced at verification            | upload to **one** event; delete own photo inside the grace window |
 
+Still two principals. The account behind the first of them now also carries a **site
+role** — see below — which is authority over the box and never over an event, so it adds
+no third kind of caller and grants nothing any row in this table does not.
+
 **(defect)** An absolute session lifetime is the intent — a projector laptop is left
 unlocked at a venue, and `rolling: true` alone never expires a session that keeps being
 used. No such cap exists in the code: `server.ts` sets `rolling: true` with a 12 h
@@ -161,6 +165,7 @@ Everything in `src/interface/http/middleware/authz.ts`:
 | `requireUser`                    | any authenticated user, for the two routes that are not event-scoped                                                                  |
 | `requireRole('owner', deps)`     | event owner only                                                                                                                      |
 | `requireRole('moderator', deps)` | owner or moderator of **that** event                                                                                                  |
+| `requireOperator(deps)`          | the account that operates the **box** — and nothing inside any event. No route uses it yet; see the site role below                   |
 | `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                         |
 | `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                     |
 | _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` |
@@ -180,7 +185,71 @@ an anonymous request cannot be used to discover which slugs are on the box.
 
 **A route with no explicit authorization decision is a review blocker** — reject the diff
 rather than ask what was intended. Public is a decision too, written as a comment on the
-route, and `eventRoutes.test.ts` asserts that a route mounted without one fails loudly.
+route.
+
+The mechanical half of that is `siteOperatorScope.test.ts`, and it is worth knowing
+exactly what it does and does not do, because this paragraph previously credited
+`eventRoutes.test.ts` with a sweep it has never had. (The two tests there named "a route
+mounted without an authorization decision fails loudly" assert
+`expect(() => currentUser(bare)).toThrow(/mis-wired/)` — `RequestContext` helpers, which
+fire only if a handler _calls_ one. A handler that answers directly, or reads `req.params`
+itself, is caught by neither.) What the sweep does: it reads every route off the assembled
+server's own layer stack, drives each one as a signed-in account that is a member of no
+event, and requires a 4xx. A route mounted with no authorization decision answers that
+caller 200 and fails the sweep the day it is mounted. What it does not do: read the
+middleware list. A route that carries the _wrong_ decision but still refuses a non-member
+looks the same to it, and `requireOperator` mounted alongside `requireRole` on a route that
+reaches an event is the shape that would pass — that one is still review's job.
+
+Two lists can take a route out of that sweep, `PUBLIC_ROUTES` and `NOT_EVENT_SCOPED`, and
+both are themselves exercised: a public exemption has to answer a caller holding no
+credential at all without an authorization refusal, and a not-event-scoped one has to be
+unable to answer `event.notFound`. Adding a guarded route to either to quiet a failure
+fails in its own named case rather than passing on the strength of its reason string.
+
+### The site role, and what it deliberately does not grant
+
+An account carries one more thing since roadmap §10.1: `users.site_role`, either `none` or
+`operator`. It says what the account may do **on the box** — an operator is the person who
+runs this instance for other people — and it is answered from a different table, by a
+different middleware, from the question of what anybody may do inside an event.
+
+| Rule                                                                    | Why, and where it is held                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A site role grants **nothing** inside an event                          | an operator who could accidentally moderate a client's photographs is worse than one who cannot help at all. Support access is §10.6: time-boxed, announced and logged                                                                                                               |
+| `requireRole` never reads it                                            | `authz.test.ts` asserts the refusals **and**, through `CallLog`, that the question is never even asked — including on the path where the membership is missing                                                                                                                       |
+| Every event-scoped route refuses an operator who is not a member        | `siteOperatorScope.test.ts` sweeps every route off the assembled server, so a route added later is covered the day it is mounted rather than the day somebody adds it to a list                                                                                                      |
+| Media is reached as a member of the public                              | `mediaRoutes` resolves its own viewer, so an operator asking for a photograph is `{kind:'public'}` and a pending photo stays unreadable — asserted at rings 4 and 6                                                                                                                  |
+| It is read from storage on every request, never carried in the session  | a capability in a cookie outlives the account being switched off. `siteRoleFor` answers `none` for an unknown **or disabled** account, and **throws** on a value the domain does not know rather than guessing at it                                                                 |
+| An operator is created in exactly two places, both on a box's first day | `bootstrapOwner` on a fresh install, and migration `004_site_role` on an upgrade — never both, since `bootstrapOwner` stops on a non-empty `users` table. An invitation creates `none` explicitly (`registerModerator`), and there is no route that changes a site role at all today |
+
+Upgrade path: migration `004_site_role` gives the role to the **first account ever
+created** — the one `bootstrapOwner` made for whoever installed the box, since it only ever
+runs against an empty table — and to nobody at all if that account has since been
+disabled. It never walks to the next-oldest row. That distinction is the point: "the oldest
+account that is not disabled" reads like the same rule and stops being the same rule the
+moment the installer's login is switched off, at which point it names the first person
+somebody _invited_ — a moderator from one wedding, handed the box. A box with no operator
+costs nothing today, because `requireOperator` is mounted on no route and §10.4 is both the
+first item that needs an operator and the item that ships a way to appoint one; a box with
+the wrong one holds a grant nothing can revoke. The two cases the migration cannot
+distinguish — a first account **deleted** rather than disabled — is written down in the
+migration itself.
+
+So on an upgraded box, do not read `BOOTSTRAP_OWNER_EMAIL` out of the compose file and
+assume it names the operator: that variable may have changed since, and nothing in the
+product displays a site role. `SELECT email FROM users WHERE site_role = 'operator'` is the
+answer.
+
+Ring 6 holds the same line end to end, in
+`tests/e2e/security/tenant-isolation.spec.ts`: a client creates their own event on the
+operator's box, and the operator — signed in, on the server they run — is answered 404 for
+its settings, 404 for its queue, and 404 for a photograph the client has not published,
+which the client themselves reads at the same URL. That the account is an operator is
+**checked** there rather than assumed: no response carries a site role, so the spec reads
+it from the server's own SQLite file, and the fixture refuses to hand back a session whose
+account is not one. Without that, every 404 it asserts is a stranger's 404 and the block
+would have stayed green with `bootstrapOwner` writing `none`.
 
 ## 3. Tenant isolation as an invariant
 
