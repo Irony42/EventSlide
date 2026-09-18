@@ -28,7 +28,15 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      - name: Install dependencies
+        # Retried once on purpose. `ffmpeg-static` and `ffprobe-static` fetch a ~220 MB
+        # binary from a third-party host during `npm ci`, outside the npm registry and
+        # outside the `cache: npm` above, so a bad minute on that host fails a job that
+        # has nothing to do with video — a documentation-only pull request went red on
+        # exactly this. A second attempt costs seconds when the first one worked and
+        # saves a re-run when it did not; it does not paper over a real install failure,
+        # because a genuinely broken lockfile fails both times.
+        run: npm ci || npm ci
 
       - name: Lint
         # Also enforces the architecture boundaries: a domain file importing Express
@@ -108,7 +116,15 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      - name: Install dependencies
+        # Retried once on purpose. `ffmpeg-static` and `ffprobe-static` fetch a ~220 MB
+        # binary from a third-party host during `npm ci`, outside the npm registry and
+        # outside the `cache: npm` above, so a bad minute on that host fails a job that
+        # has nothing to do with video — a documentation-only pull request went red on
+        # exactly this. A second attempt costs seconds when the first one worked and
+        # saves a re-run when it did not; it does not paper over a real install failure,
+        # because a genuinely broken lockfile fails both times.
+        run: npm ci || npm ci
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
@@ -207,7 +223,15 @@ jobs:
         if: env.COMPARABLE == '1'
         run: git checkout --force --detach "$BASE_SHA"
 
-      - run: npm ci
+      - name: Install dependencies
+        # Retried once on purpose. `ffmpeg-static` and `ffprobe-static` fetch a ~220 MB
+        # binary from a third-party host during `npm ci`, outside the npm registry and
+        # outside the `cache: npm` above, so a bad minute on that host fails a job that
+        # has nothing to do with video — a documentation-only pull request went red on
+        # exactly this. A second attempt costs seconds when the first one worked and
+        # saves a re-run when it did not; it does not paper over a real install failure,
+        # because a genuinely broken lockfile fails both times.
+        run: npm ci || npm ci
         if: env.COMPARABLE == '1'
 
       # Only the engine the visual project uses. The other three would double the
@@ -256,7 +280,15 @@ jobs:
         if: env.COMPARABLE == '1'
         run: git checkout --force --detach "$HEAD_SHA"
 
-      - run: npm ci
+      - name: Install dependencies
+        # Retried once on purpose. `ffmpeg-static` and `ffprobe-static` fetch a ~220 MB
+        # binary from a third-party host during `npm ci`, outside the npm registry and
+        # outside the `cache: npm` above, so a bad minute on that host fails a job that
+        # has nothing to do with video — a documentation-only pull request went red on
+        # exactly this. A second attempt costs seconds when the first one worked and
+        # saves a re-run when it did not; it does not paper over a real install failure,
+        # because a genuinely broken lockfile fails both times.
+        run: npm ci || npm ci
         if: env.COMPARABLE == '1'
 
       - name: Install Chromium
