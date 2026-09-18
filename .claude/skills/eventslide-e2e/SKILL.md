@@ -262,9 +262,19 @@ test('mosaic layout renders as designed', async ({ app, page }) => {
 })
 ```
 
-Requires the seeded demo album (fixed photo set), `e2e_transition=0`, and animations
-disabled via `prefers-reduced-motion`. Update snapshots deliberately with
-`npm run test:e2e:update-snapshots`, and eyeball the diff before committing it.
+Requires the seeded demo album (fixed photo set) and `e2e_transition=0`. Update snapshots
+deliberately with `npm run test:e2e:update-snapshots`, and eyeball the diff before
+committing it.
+
+**Stop what you are photographing, and assert that it stopped.** `animations: 'disabled'`
+does not freeze an animation — it calls `finish()` and photographs the **last** frame, so
+a baseline taken while something is running is a baseline of whichever side of that jump
+the machine reached. `e2e_transition=0` covers the crossfade, the mosaic's fade and the
+polaroid's landing, because all three are timed from `--wall-transition`. It does **not**
+cover the filmstrip's drift, which is timed from the _slide interval_ on purpose (trap 6):
+that one needs `e2e_interval=0`, which mounts no drift at all, and the shot then asserts
+`data-motion="still"` before the shutter so the pinning cannot be removed silently. See
+`docs/TESTING.md` for what that cost.
 
 ## Flake policy
 

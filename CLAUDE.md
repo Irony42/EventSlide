@@ -320,6 +320,28 @@ Learned the hard way. Do not rediscover them.
    `.js`/`.mjs` file needs `allowJs` to be in the program and `checkJs` to be _checked_ —
    `--listFiles` lists it either way, which is why "typecheck passes" and "the file is
    type-checked" are different claims, and only the second one is the guard.
+10. **A screenshot does not freeze an animation. It fast-forwards it.** Playwright's
+    `animations: 'disabled'` reads as "hold everything still" and does the opposite: it
+    calls `finish()` on every finite animation on the page, photographs the **end** frame,
+    and leaves it there for the rest of the test. That is harmless while an animation's end
+    frame is also its resting one — the visual suite sets `--wall-transition` to `0`, so
+    the mosaic's fade and the polaroid's landing are over before the shutter either way.
+    The filmstrip's drift is the exception, because it is timed from
+    `--wall-drift-duration`, which is the **slide interval** and not `--wall-transition`
+    (trap 6 is why), so nothing the other baselines set reaches it — and its end frame is a
+    whole frame of travel. Measured: one `page.screenshot({ animations: 'disabled' })`
+    takes the track from `matrix(…, -0.3, 0)` to `matrix(…, -384, 0)` and the first
+    photograph's box from `x: 8` to `x: -384`, clean off a 1920 screen. So
+    `wall-filmstrip.png` was one of two images **34% of the screen apart, rendered from
+    identical DOM**, and which one a machine produced was decided by the runner rather than
+    by the spec: four pull requests that touched no rendering went red on it, every one of
+    them green on a re-run, and the first diagnosis blamed photo ordering because the
+    ratios varied the way an ordering race does. The rule that comes out of it: **a visual
+    baseline over an animated surface pins the input that drives the animation, and asserts
+    the surface is at rest before the shutter** — here `e2e_interval=0`, which mounts no
+    drift at all, then `data-motion="still"` — instead of trusting the screenshot to hold
+    it still. What the animation itself does belongs one ring down, or in a journey
+    assertion that measures geometry rather than pixels.
 
 ---
 

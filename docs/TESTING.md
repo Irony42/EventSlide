@@ -494,6 +494,29 @@ tests/e2e/
   same platform as the checker, commit the images, and **read the diff** — an updated
   snapshot nobody looked at is a test that has been switched off.
 
+- **Nothing may be animating when the shutter fires**, and `animations: 'disabled'` is
+  not what stops it. Playwright's option calls `finish()` on every finite animation on
+  the page, so a running animation is **fast-forwarded to its last frame** and left there
+  for the rest of the test — and whether the captured pixels are the frame before or
+  after that jump is a property of the machine, not of the wall.
+
+  `wall-filmstrip.png` paid for that. The strip's drift is timed from
+  `--wall-drift-duration`, which is the _slide interval_ and not `--wall-transition`, so
+  the `transitionMs: 0` every other baseline relies on does not touch it; its end frame is
+  a whole frame width of travel, 384px on a 1920 screen, with the first photograph pushed
+  clean off the edge. The baseline was therefore one of two images 34% of the screen
+  apart, and CI rendered one of them while a workstation rendered the other. Four pull
+  requests that had not touched the wall went red on it.
+
+  So a baseline **stops the thing it photographs**, and says so in an assertion: the
+  filmstrip is taken on a wall whose clock is stopped (`e2e_interval=0`, which mounts no
+  drift at all) and asserts `data-motion="still"` before the shot. A rule about motion
+  that lives only in a comment is exactly the kind the mutation audit found surviving.
+  What the animation itself does belongs one ring down, or in a journey assertion —
+  the drift's presence, duration and anchoring are in `WallLayouts.test.tsx`, and the
+  distance it travels is measured from bounding boxes in
+  `tests/e2e/journeys/display-wall.spec.ts`.
+
 - **Accessibility.** `@axe-core/playwright` over `/join/:code`, `/e/:slug/upload`,
   `/admin` and the moderation console, tags `wcag2a` + `wcag2aa`, failing on `serious`
   and `critical`. The projector page is exempt from contrast rules by design (a photo on
