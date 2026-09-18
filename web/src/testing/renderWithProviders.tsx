@@ -106,6 +106,13 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   kenBurnsDurationMs: 8_520,
   layout: 'spotlight',
   reactionsEnabled: true,
+  // The product's own look, which spreads no attribute at all — so a wall built from this
+  // renders the DOM it rendered before theming existed, and every negative assertion about
+  // that DOM still means what it says. It is here rather than omitted because `theme` is
+  // optional on the response, and an omitted key is invisible to
+  // `useWallPlaylist.settings.test.ts`, which enumerates what a real server sends: the
+  // staleness guard had never once been asked about the theme.
+  theme: DEFAULT_EVENT_THEME,
   ...overrides,
 })
 

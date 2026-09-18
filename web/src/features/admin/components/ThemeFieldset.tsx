@@ -5,8 +5,10 @@ import {
   CURATED_ACCENT_NAMES,
   isThemeFonts,
   isThemeFrame,
+  isThemeMaterial,
   THEME_FONTS,
   THEME_FRAMES,
+  THEME_MATERIALS,
   type CuratedAccent,
 } from '../../../design-system/eventTheme'
 import { fr } from '../../../lib/i18n/fr'
@@ -15,7 +17,8 @@ import styles from './ThemeFieldset.module.css'
 import type { EventThemeDto } from '../../../lib/api/dto'
 
 /**
- * What a host actually picks (roadmap 2.2): a colour, a typography, a frame.
+ * What a host actually picks (roadmap 2.2): a colour, a typography, a frame — and since
+ * roadmap 11.5, the material their panes are made of.
  *
  * **Four named colours and not a colour wheel.** An arbitrary picker guarantees
  * unreadable walls and a support queue, and it asks a host setting up a wedding at 18:00
@@ -55,6 +58,11 @@ const fontOptions = THEME_FONTS.map((value) => ({
 const frameOptions = THEME_FRAMES.map((value) => ({
   value,
   label: fr.admin.themeFrameNames[value],
+}))
+
+const materialOptions = THEME_MATERIALS.map((value) => ({
+  value,
+  label: fr.admin.themeMaterialNames[value],
 }))
 
 export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps) {
@@ -122,6 +130,24 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
         disabled={disabled}
         onChange={(value) => {
           if (isThemeFrame(value)) onChange({ ...theme, frame: value })
+        }}
+      />
+
+      {/*
+        The material (roadmap 11.5), and the one control here that carries a hint about how
+        *little* it does. A pane is opaque to 92–95%, so turning the glass off changes the
+        five to eight per cent that showed through — a host who reads "verre" and expects
+        the screen to transform will otherwise think the save failed. Last in the fieldset
+        because it is the least consequential of the four.
+      */}
+      <SelectField
+        label={fr.admin.themeMaterial}
+        hint={fr.admin.themeMaterialHint}
+        value={theme.material}
+        options={materialOptions}
+        disabled={disabled}
+        onChange={(value) => {
+          if (isThemeMaterial(value)) onChange({ ...theme, material: value })
         }}
       />
     </fieldset>

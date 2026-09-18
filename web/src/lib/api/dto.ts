@@ -47,6 +47,8 @@ export type ReactionCounts = Record<ReactionKind, number>
 /** The font pairing and the frame style an event's theme selects (roadmap 2.2). */
 export type ThemeFonts = 'sans' | 'serif'
 export type ThemeFrame = 'soft' | 'square' | 'round'
+/** The material its panes are made of (roadmap 11.5). Both renderings already ship. */
+export type ThemeMaterial = 'glass' | 'plain'
 
 /**
  * The preset an event's settings are created from (roadmap 3.5).
@@ -72,6 +74,14 @@ export interface EventThemeDto {
   readonly accentHue: number
   readonly fonts: ThemeFonts
   readonly frame: ThemeFrame
+  /**
+   * Whether this event's panes wear the glass material (roadmap 11.5).
+   *
+   * `design-system/glass.ts` composes it with what the machine has to say, and the host's
+   * `plain` is the only one of the two answers that is final: `glass` still loses to a
+   * device that cannot afford the filter or to a budget that has shed it.
+   */
+  readonly material: ThemeMaterial
 }
 
 /** What a guest may know about an event before and after joining. */

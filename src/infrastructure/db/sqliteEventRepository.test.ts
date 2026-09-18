@@ -391,15 +391,31 @@ describe('SqliteEventRepository', () => {
       { holds: 'a theme that is not an object', stored: json({ theme: 'rose' }) },
       {
         holds: 'an unknown font pairing',
-        stored: json({ theme: { accentHue: 305, fonts: 'comic', frame: 'soft' } }),
+        stored: json({
+          theme: { accentHue: 305, fonts: 'comic', frame: 'soft', material: 'glass' },
+        }),
       },
       {
         holds: 'an unknown frame style',
-        stored: json({ theme: { accentHue: 305, fonts: 'sans', frame: 'oval' } }),
+        stored: json({
+          theme: { accentHue: 305, fonts: 'sans', frame: 'oval', material: 'glass' },
+        }),
       },
       {
         holds: 'a hue that is not a number',
-        stored: json({ theme: { accentHue: 'rose', fonts: 'sans', frame: 'soft' } }),
+        stored: json({
+          theme: { accentHue: 'rose', fonts: 'sans', frame: 'soft', material: 'glass' },
+        }),
+      },
+      {
+        // Absent means "written before the field existed" and is forgiven above. Present
+        // and unknown is a value from another program's vocabulary, and defaulting it
+        // would render a surface the host did not configure — the same reading the font
+        // pairing and the frame style beside it already get.
+        holds: 'an unknown material',
+        stored: json({
+          theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'opaque' },
+        }),
       },
     ])('refuses to hydrate an event whose stored settings hold $holds', async ({ stored }) => {
       await repo.save(anEvent({ id: 'evt-1' }))
@@ -415,7 +431,7 @@ describe('SqliteEventRepository', () => {
       // event over a colour, including the page its host would use to pick another one.
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
-        json({ theme: { accentHue: 400, fonts: 'sans', frame: 'soft' } }),
+        json({ theme: { accentHue: 400, fonts: 'sans', frame: 'soft', material: 'glass' } }),
         'evt-1',
       )
 
@@ -462,7 +478,7 @@ describe('SqliteEventRepository', () => {
       // 160 degrees is inside `--success`: a hue `EventSettings.create` refuses outright.
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
-        json({ theme: { accentHue: 160, fonts: 'sans', frame: 'soft' } }),
+        json({ theme: { accentHue: 160, fonts: 'sans', frame: 'soft', material: 'glass' } }),
         'evt-1',
       )
 
@@ -485,6 +501,27 @@ describe('SqliteEventRepository', () => {
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
+        material: 'glass',
+      })
+    })
+
+    it('renders an event themed before the material existed exactly as it rendered then', async () => {
+      // The same question one level down, and the reason there is no migration for this
+      // field. An event themed between roadmap 2.2 and 11.5 holds a `theme` object with
+      // three keys; `glass` is what that blob has been rendering since it was written, so
+      // filling it in changes nothing a host or a guest would notice. Reading it as `plain`
+      // would strip the material from every themed gallery on the box at the next restart.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ theme: { accentHue: 345, fonts: 'serif', frame: 'round' } }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme).toEqual({
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+        material: 'glass',
       })
     })
 

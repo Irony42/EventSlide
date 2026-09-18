@@ -186,6 +186,52 @@ test.describe('the glass budget', () => {
     expect(composer).toBe(ground)
   })
 
+  test('a host turns the material off and the guest’s pane stops blurring', async ({
+    app,
+    surfaces,
+  }) => {
+    // Roadmap 11.5, and the one journey that cannot be proved a ring down: the host's
+    // choice is stored on a laptop, travels on the join response, is written to a marker on
+    // the guest's page element — *inside* the shell the budget marks — and has to win the
+    // cascade there. Every one of those steps is unit-tested; that the browser resolves
+    // them into one answer on the pane itself is not.
+    const event = await app.seedEvent({ slug: 'matiere-unie', name: 'Camille & Sacha' })
+    const { host, guest } = surfaces
+
+    await host.goto(app.url(`/admin/events/${event.slug}/settings`))
+    await host.getByLabel('Matière des panneaux').selectOption('plain')
+    // Exact, because the schedule form below has its own "Enregistrer l’horaire".
+    await host.getByRole('button', { name: 'Enregistrer', exact: true }).click()
+    await expect(host.getByText('Réglages enregistrés.')).toBeVisible()
+
+    // After the save, because the guest learns the event's look from the join they perform.
+    await joinAsGuest(guest, app, event.joinCode, 'Léa')
+    await expect(guest.getByTestId('upload-composer')).toBeVisible()
+
+    expect(await glassFilterOn(guest, '[data-testid="upload-composer"]')).toBe('none')
+    // Opaque rather than a transparent box with nothing behind it — the failure roadmap
+    // 11.1 names for a fallback done badly, and the reason `plain` reuses the tier the
+    // capability and preference queries already land on instead of inventing a look.
+    const tint = await glassTintOn(guest, '[data-testid="upload-composer"]')
+    expect(tint).not.toContain('/')
+  })
+
+  test('the same event leaves a host who kept the glass with the blur', async ({
+    app,
+    surfaces,
+  }) => {
+    // The pair, for the reason every pair in this file exists: a run that only proved the
+    // pane went opaque would pass just as well if the material had been switched off for
+    // everybody, which is the one outcome a per-event switch must not produce.
+    const event = await app.seedEvent({ slug: 'matiere-verre', name: 'Camille & Sacha' })
+    const { guest } = surfaces
+
+    await joinAsGuest(guest, app, event.joinCode, 'Léa')
+    await expect(guest.getByTestId('upload-composer')).toBeVisible()
+
+    expect(await glassFilterOn(guest, '[data-testid="upload-composer"]')).toMatch(/^blur\(/)
+  })
+
   test('a guest who asked for more contrast gets the opaque pane instead', async ({
     app,
     surfaces,

@@ -73,9 +73,10 @@ export interface EventSettingsProps {
   /** `null` is unlimited. */
   readonly maxPhotosPerGuest: number | null
   /**
-   * How the event looks: an accent hue, a font pairing and a frame style (roadmap 2.2).
+   * How the event looks: an accent hue, a font pairing, a frame style (roadmap 2.2) and
+   * the material its panes are made of (roadmap 11.5).
    *
-   * One object rather than three sibling fields, and read together the way
+   * One object rather than four sibling fields, and read together the way
    * `eventScheduleBody` reads its two instants: they are one decision made on one form,
    * and the legibility rule is about the palette as a whole rather than about a field.
    *
@@ -209,7 +210,7 @@ export class EventSettings {
       retentionDays: pick(patch.retentionDays, base.retentionDays),
       maxPhotosPerGuest: pick(patch.maxPhotosPerGuest, base.maxPhotosPerGuest),
       // Replaced whole, never merged field by field: a half-applied theme is a palette
-      // nobody chose, and the rule below judges the three together.
+      // nobody chose, and the rule below judges them together.
       theme: pick(patch.theme, base.theme),
     }
 

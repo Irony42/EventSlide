@@ -163,7 +163,7 @@ describe('POST /api/join', () => {
         allowClips: true,
         maxClipBytes: 80_000_000,
         maxClipSeconds: 15,
-        theme: { accentHue: 305, fonts: 'sans', frame: 'soft' },
+        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
       },
     })
   })
@@ -502,7 +502,12 @@ describe('GET /api/events/:eventSlug/wall', () => {
     expect(response.body.reactionsEnabled).toBe(true)
     expect(response.body.revision).toEqual(expect.any(String))
     // The default look, for an event whose host chose nothing.
-    expect(response.body.theme).toEqual({ accentHue: 305, fonts: 'sans', frame: 'soft' })
+    expect(response.body.theme).toEqual({
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'soft',
+      material: 'glass',
+    })
   })
 
   it('carries the event’s own look to the projector', async () => {
@@ -519,13 +524,18 @@ describe('GET /api/events/:eventSlug/wall', () => {
         name: 'Camille & Sacha',
         joinCode: 'H7K2QM',
         status: 'live',
-        settings: { theme: { accentHue: 345, fonts: 'serif', frame: 'square' } },
+        settings: { theme: { accentHue: 345, fonts: 'serif', frame: 'square', material: 'glass' } },
       }),
     )
 
     const response = await request(subject.app).get('/api/events/mariage/wall')
 
-    expect(response.body.theme).toEqual({ accentHue: 345, fonts: 'serif', frame: 'square' })
+    expect(response.body.theme).toEqual({
+      accentHue: 345,
+      fonts: 'serif',
+      frame: 'square',
+      material: 'glass',
+    })
   })
 
   it('is structurally incapable of showing a photo the host has not published', async () => {

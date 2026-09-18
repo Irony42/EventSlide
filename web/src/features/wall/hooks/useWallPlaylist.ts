@@ -55,10 +55,17 @@ const RETRY_DELAY_MS = 10_000
 /**
  * Exported for the test that enumerates the response rather than trusting this list.
  *
- * Nine hand-written comparisons are complete today and silently incomplete the day a
- * tenth field is added — which is exactly the defect the docblock above describes,
- * reappearing one field later. `useWallPlaylist.settings.test.ts` walks `WallResponse`
- * and fails naming any key that is neither compared here nor deliberately exempted.
+ * Hand-written comparisons are complete today and silently incomplete the day another
+ * field is added — which is exactly the defect the docblock above describes, reappearing
+ * one field later. `useWallPlaylist.settings.test.ts` walks `WallResponse` and fails naming
+ * any key that is neither compared here nor deliberately exempted.
+ *
+ * **It walks the theme's own keys as well, and that is roadmap 11.5's correction rather
+ * than a tidy-up.** The enumeration only ever saw the response's top level, and the theme
+ * arrives as one object there — so `material` was added to the wire, compared nowhere, and
+ * the guard written to catch exactly this stayed green. The symptom would have been a host
+ * changing only the material while a projector was already running and the wall keeping the
+ * stale answer until the next photograph moved `revision`.
  */
 export const SETTINGS_EXEMPT: readonly string[] = ['items', 'revision']
 
@@ -71,7 +78,8 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.event.name === fresh.event.name &&
   kept.theme?.accentHue === fresh.theme?.accentHue &&
   kept.theme?.fonts === fresh.theme?.fonts &&
-  kept.theme?.frame === fresh.theme?.frame
+  kept.theme?.frame === fresh.theme?.frame &&
+  kept.theme?.material === fresh.theme?.material
 
 /**
  * The wall's playlist, kept current over SSE.

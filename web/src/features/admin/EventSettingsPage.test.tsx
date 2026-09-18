@@ -260,7 +260,9 @@ describe('EventSettingsPage', () => {
 
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
-      expect.objectContaining({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft' } }),
+      expect.objectContaining({
+        theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' },
+      }),
     )
   })
 
@@ -275,7 +277,9 @@ describe('EventSettingsPage', () => {
     const api = fakeApi({
       getEvent: vi.fn(async () =>
         anEventDto({
-          settings: eventSettings({ theme: { accentHue: 345, fonts: 'serif', frame: 'round' } }),
+          settings: eventSettings({
+            theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+          }),
         }),
       ),
     })
@@ -304,7 +308,9 @@ describe('EventSettingsPage', () => {
     const api = fakeApi({
       getEvent: vi.fn(async () =>
         anEventDto({
-          settings: eventSettings({ theme: { accentHue: 250, fonts: 'serif', frame: 'square' } }),
+          settings: eventSettings({
+            theme: { accentHue: 250, fonts: 'serif', frame: 'square', material: 'glass' },
+          }),
         }),
       ),
     })

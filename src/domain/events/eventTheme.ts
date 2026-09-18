@@ -122,11 +122,43 @@ export type ThemeFonts = (typeof THEME_FONTS)[number]
 export const THEME_FRAMES = ['soft', 'square', 'round'] as const
 export type ThemeFrame = (typeof THEME_FRAMES)[number]
 
+/**
+ * What the event's panes are made of — roadmap 11.5.
+ *
+ * `glass` is the liquid-glass material of docs/DESIGN-SYSTEM.md §13 and what every event
+ * renders today; `plain` is the opaque tier the same section already ships, which is
+ * `--surface-raised` — the panel this product draws on every non-glass surface. So this
+ * field chooses between two renderings that both already exist and have both already been
+ * reviewed; it is not a second look.
+ *
+ * **A closed set and not a boolean, because it names a material.** `fonts` names a face and
+ * `frame` names a corner; a third field spelled `glassEnabled: true` would be the one entry
+ * in a theme that describes a switch rather than a thing.
+ */
+export const THEME_MATERIALS = ['glass', 'plain'] as const
+export type ThemeMaterial = (typeof THEME_MATERIALS)[number]
+
 export interface EventThemeProps {
   /** Degrees on the oklch hue circle, 0-359. */
   readonly accentHue: number
   readonly fonts: ThemeFonts
   readonly frame: ThemeFrame
+  /**
+   * Whether this event wears the glass material at all.
+   *
+   * The host's answer, and one of three that now have a say. The other two belong to the
+   * machine — the browser's own capability and stated preferences, and the runtime frame
+   * and interaction budget of roadmap 11.3 — and `web/src/design-system/glass.ts` holds the
+   * precedence between them: **every answer may take the material away and none may give it
+   * back.** A host who asks for glass on a projector, or on a phone that has stopped coping,
+   * still gets the opaque tier.
+   *
+   * It belongs to the event rather than to the device because it is an aesthetic decision
+   * about one evening — two phones in the same room should not disagree about how the
+   * product looks — and the device already has three answers of its own about what it can
+   * afford.
+   */
+  readonly material: ThemeMaterial
 }
 
 /**
@@ -134,8 +166,8 @@ export interface EventThemeProps {
  * this feature existed.
  *
  * `305` is the hue `tokens.css` already declares, `sans` is the system stack it already
- * resolves to, `soft` is the radius the wall already draws — so a default theme is not
- * a theme at all: the
+ * resolves to, `soft` is the radius the wall already draws, `glass` is the material every
+ * pane already wears — so a default theme is not a theme at all: the
  * surfaces emit no override for it and the DOM is byte for byte what it was.
  */
 // Frozen because it is genuinely shared: `EventSettings.default()` copies its props
@@ -146,6 +178,7 @@ export const DEFAULT_EVENT_THEME: EventThemeProps = Object.freeze({
   accentHue: 305,
   fonts: 'sans',
   frame: 'soft',
+  material: 'glass',
 })
 
 /**
@@ -261,6 +294,9 @@ export const isThemeFonts = (value: unknown): value is ThemeFonts =>
 export const isThemeFrame = (value: unknown): value is ThemeFrame =>
   typeof value === 'string' && (THEME_FRAMES as readonly string[]).includes(value)
 
+export const isThemeMaterial = (value: unknown): value is ThemeMaterial =>
+  typeof value === 'string' && (THEME_MATERIALS as readonly string[]).includes(value)
+
 /** Is this a point on the hue circle at all — a question of shape, not of taste. */
 const shapeFailure = ({ accentHue }: EventThemeProps): DomainError | null =>
   Number.isInteger(accentHue) && accentHue >= HUE_RANGE.min && accentHue <= HUE_RANGE.max
@@ -270,9 +306,17 @@ const shapeFailure = ({ accentHue }: EventThemeProps): DomainError | null =>
 /**
  * Validate a theme a host is **choosing**.
  *
- * Shape first, then the legibility rule. The font pairing and the frame style are closed
- * sets that the type system and the boundary's zod schema already narrow, so nothing is
- * re-checked for them — there is no failure they can have.
+ * Shape first, then the legibility rule. The font pairing, the frame style and the material
+ * are closed sets that the type system and the boundary's zod schema already narrow, so
+ * nothing is re-checked for them — there is no failure they can have.
+ *
+ * **The material is not part of the legibility rule, and that is a finding rather than an
+ * omission.** Turning the material off replaces a tint at 0.92–0.95 alpha with the same
+ * colour at 1.0, so every ink on a pane gains contrast rather than losing it: the opaque
+ * tier is the *better* ground of the two, and §13 derives both translucent floors by asking
+ * how close they come to it. There is no hue, no pairing and no frame whose legibility the
+ * material can decide, so a rule here would be a check that cannot fail — which is the kind
+ * this file already refuses to write.
  */
 export const createEventTheme = (props: EventThemeProps): Result<EventThemeProps, DomainError> => {
   const failure = shapeFailure(props) ?? accentFailure(accentPalette(props.accentHue))

@@ -54,23 +54,23 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
     wedding: {
       guestSelfDeleteGraceSeconds: 3600,
       retentionDays: 365,
-      theme: { accentHue: 345, fonts: 'serif', frame: 'round' },
+      theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
     },
     birthday: {
       moderation: 'auto',
       retentionDays: 90,
-      theme: { accentHue: 305, fonts: 'sans', frame: 'round' },
+      theme: { accentHue: 305, fonts: 'sans', frame: 'round', material: 'glass' },
     },
     conference: {
       allowClips: false,
       retentionDays: 30,
       maxPhotosPerGuest: 25,
-      theme: { accentHue: 250, fonts: 'sans', frame: 'square' },
+      theme: { accentHue: 250, fonts: 'sans', frame: 'square', material: 'glass' },
     },
     party: {
       moderation: 'auto',
       retentionDays: 30,
-      theme: { accentHue: 195, fonts: 'sans', frame: 'soft' },
+      theme: { accentHue: 195, fonts: 'sans', frame: 'soft', material: 'glass' },
     },
   }
 
@@ -109,6 +109,13 @@ const themeLine = (theme: EventSettingsDto['theme']): string | null => {
     ...(accentName === null ? [] : [fr.admin.themeAccentNames[accentName]]),
     ...(theme.fonts === DEFAULT_EVENT_THEME.fonts ? [] : [fr.admin.themeFontsNames[theme.fonts]]),
     ...(theme.frame === DEFAULT_EVENT_THEME.frame ? [] : [fr.admin.themeFrameNames[theme.frame]]),
+    // No template moves the material and none is likely to — a preset is an occasion, and
+    // no occasion implies a surface finish. It is listed all the same, because the rule
+    // this function exists for is "print what moves", and a part left out of the diff is a
+    // change a host would not be shown the day somebody does move it.
+    ...(theme.material === DEFAULT_EVENT_THEME.material
+      ? []
+      : [fr.admin.themeMaterialNames[theme.material]]),
   ]
 
   return parts.length === 0 ? null : `${fr.admin.theme} : ${parts.join(', ')}`

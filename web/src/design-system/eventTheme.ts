@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
-import type { EventThemeDto, ThemeFonts, ThemeFrame } from '../lib/api/dto'
+import type { EventThemeDto, ThemeFonts, ThemeFrame, ThemeMaterial } from '../lib/api/dto'
+import { glassMaterialProps, type GlassMaterialProps } from './glass'
 
 /**
  * How an event's theme reaches the screen (roadmap 2.2).
@@ -44,6 +45,7 @@ export const DEFAULT_EVENT_THEME: EventThemeDto = Object.freeze({
   accentHue: 305,
   fonts: 'sans',
   frame: 'soft',
+  material: 'glass',
 })
 
 /**
@@ -81,12 +83,16 @@ export const CURATED_ACCENT_NAMES = Object.keys(CURATED_ACCENT_HUES) as readonly
  */
 export const THEME_FONTS: readonly ThemeFonts[] = ['sans', 'serif']
 export const THEME_FRAMES: readonly ThemeFrame[] = ['soft', 'square', 'round']
+export const THEME_MATERIALS: readonly ThemeMaterial[] = ['glass', 'plain']
 
 export const isThemeFonts = (value: string): value is ThemeFonts =>
   (THEME_FONTS as readonly string[]).includes(value)
 
 export const isThemeFrame = (value: string): value is ThemeFrame =>
   (THEME_FRAMES as readonly string[]).includes(value)
+
+export const isThemeMaterial = (value: string): value is ThemeMaterial =>
+  (THEME_MATERIALS as readonly string[]).includes(value)
 
 /** The name of a hue, when it is one of the four. `null` for an angle set over the API. */
 export const accentNameFor = (hue: number): CuratedAccent | null =>
@@ -102,7 +108,7 @@ type AccentStyle = CSSProperties & { readonly '--accent-hue': string }
  * rendered as `data-event-frame="soft"` would be a DOM difference on an event that chose
  * nothing.
  */
-export interface ThemeSurfaceProps {
+export interface ThemeSurfaceProps extends GlassMaterialProps {
   readonly style?: AccentStyle
   /**
    * The marker `tokens.css` re-derives the accent on, carrying the hue as its value.
@@ -124,11 +130,19 @@ export interface ThemeSurfaceProps {
 /**
  * Which surface is asking, because they do not wear the same parts of a theme.
  *
- * `wall` takes all three. `guest` takes the accent only: a phone has no photo frames to
- * style, and a display face is a choice about `--text-display` on a projector — on a
- * screen whose largest type is `--text-lg` it buys nothing. The pairings cost zero bytes
- * because they are built from system faces (DESIGN-SYSTEM.md §12); had they been bundled
- * instead, this is the surface that would have paid for them.
+ * `wall` takes all of it. `guest` takes the accent and the material: a phone has no photo
+ * frames to style, and a display face is a choice about `--text-display` on a projector —
+ * on a screen whose largest type is `--text-lg` it buys nothing. The pairings cost zero
+ * bytes because they are built from system faces (DESIGN-SYSTEM.md §12); had they been
+ * bundled instead, this is the surface that would have paid for them.
+ *
+ * **The material follows the accent rather than the pairing, and the guest's phone is the
+ * one screen where it is visible at all.** The two panes that wear the material today are
+ * the guest's upload composer and the host's moderation toolbar, and the host's console is
+ * not a themed surface — it is one operator's tool across many events, which is §12's
+ * argument and does not change because the knob is a surface finish rather than a colour.
+ * The wall takes it and renders nothing new: §13 already gave the material up there, on
+ * every machine, which is the precedence rule at its floor rather than an exception to it.
  */
 export type ThemedSurface = 'wall' | 'guest'
 
@@ -146,13 +160,38 @@ export const themeSurfaceProps = (
           'data-event-accent': String(theme.accentHue),
         }
 
-  if (surface === 'guest') return accent
+  // Never spelled out here: `glassMaterialProps` is the one place allowed to decide what a
+  // surface below the shell may declare, and its return type is what stops this file
+  // helpfully emitting the tier in full and putting a blur back on a machine that shed it.
+  const material = glassMaterialProps(theme.material)
+
+  if (surface === 'guest') return { ...accent, ...material }
 
   return {
     ...accent,
+    ...material,
     ...(theme.fonts === DEFAULT_EVENT_THEME.fonts ? {} : { 'data-event-fonts': theme.fonts }),
     ...(theme.frame === DEFAULT_EVENT_THEME.frame ? {} : { 'data-event-frame': theme.frame }),
   }
+}
+
+/**
+ * The material, for a theme that was written before there was one.
+ *
+ * Absent is the product's own material rather than a refusal — the same forgiveness
+ * `guestSession.withThemeDefault` makes for a whole theme, one field down. An entry written
+ * between roadmap 2.2 and 11.5 carries three keys, and the fourth's default is exactly what
+ * that tab has been rendering, so filling it in changes nothing the guest sees and logs
+ * nobody out of an upload screen mid-evening.
+ *
+ * A value that is **present and wrong** is still refused, and `null` says so rather than
+ * defaulting: it would reach a CSS attribute selector, where a tier this build has never
+ * heard of matches no block and renders the material the host may have turned off.
+ */
+const readThemeMaterial = (value: unknown): ThemeMaterial | null => {
+  if (value === undefined) return DEFAULT_EVENT_THEME.material
+  if (typeof value !== 'string' || !isThemeMaterial(value)) return null
+  return value
 }
 
 /**
@@ -175,5 +214,8 @@ export const readEventTheme = (value: unknown): EventThemeDto | null => {
   if (typeof fonts !== 'string' || !isThemeFonts(fonts)) return null
   if (typeof frame !== 'string' || !isThemeFrame(frame)) return null
 
-  return { accentHue: hue, fonts, frame }
+  const material = readThemeMaterial(Reflect.get(value, 'material'))
+  if (material === null) return null
+
+  return { accentHue: hue, fonts, frame, material }
 }

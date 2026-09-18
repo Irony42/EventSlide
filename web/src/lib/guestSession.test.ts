@@ -100,6 +100,28 @@ describe('guestSession', () => {
       accentHue: 305,
       fonts: 'sans',
       frame: 'soft',
+      material: 'glass',
+    })
+  })
+
+  it('completes a theme written before the material was part of one', () => {
+    // Roadmap 11.5, and the narrower version of the case above: the entry has a theme, it
+    // is a theme this build can read, and it is one field short. The session the upload
+    // screen receives has to carry the whole shape `PublicEventDto` promises — otherwise
+    // `theme.material` is `undefined` on a phone in the room while every type says it is
+    // not, and the first copy table indexed by it prints nothing.
+    const older: Record<string, unknown> = { ...aPublicEvent({ slug: 'gala' }) }
+    older['theme'] = { accentHue: 345, fonts: 'serif', frame: 'round' }
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({ event: older, displayName: 'Léa' }),
+    )
+
+    expect(readGuestSession('gala')?.event.theme).toEqual({
+      accentHue: 345,
+      fonts: 'serif',
+      frame: 'round',
+      material: 'glass',
     })
   })
 
@@ -108,7 +130,7 @@ describe('guestSession', () => {
     // as a value the browser cannot parse, and every primary button on the screen —
     // which on this surface is the only control there is — loses its colour.
     const corrupted: Record<string, unknown> = { ...aPublicEvent({ slug: 'gala' }) }
-    corrupted['theme'] = { accentHue: 'rose', fonts: 'sans', frame: 'soft' }
+    corrupted['theme'] = { accentHue: 'rose', fonts: 'sans', frame: 'soft', material: 'glass' }
     sessionStorage.setItem(
       'eventslide.guest.gala',
       JSON.stringify({ event: corrupted, displayName: null }),

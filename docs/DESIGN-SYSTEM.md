@@ -685,20 +685,30 @@ already does. The filmstrip and the collage show no captions at all.
 ## 12. Per-event theming
 
 Roadmap 2.2. A host gives one event a look: an **accent hue**, a **font pairing** and a
-**frame style**. A wedding in rose and a corporate launch in a company blue should not
-look like the same product, and before this they did.
+**frame style** — and, since roadmap 11.5, the **material** its panes are made of. A wedding
+in rose and a corporate launch in a company blue should not look like the same product, and
+before this they did.
 
 ### The one degree of freedom
 
-An event moves **`--accent-hue` and nothing else.** Lightness and chroma stay where §2
-put them, so the palette a hue produces is a function — which is what makes "can the room
-read this" answerable before it is stored, and what makes it impossible for a host to
-choose an unreadable lightness. Nothing else in the product gains a knob: there is no
-per-event surface colour, no per-event spacing, no second accent.
+An event moves **`--accent-hue` and nothing else** of the colour system. Lightness and
+chroma stay where §2 put them, so the palette a hue produces is a function — which is what
+makes "can the room read this" answerable before it is stored, and what makes it impossible
+for a host to choose an unreadable lightness. There is no per-event surface colour, no
+per-event spacing, no second accent.
 
 That is also why no colour crosses the wire. An angle does, and `tokens.css` turns it into
 three colours, so §2's rule — one file holds every raw value — survives the feature that
 was most likely to break it.
+
+**The material is the one thing an event moves that is not that angle, and it is a
+different kind of freedom rather than a second knob on the same one.** A host choosing
+`plain` does not pick a colour, a shade or a value: they select between two renderings this
+product already ships and has already reviewed, because `--glass-opaque` **is**
+`--surface-raised` (§13). The choice reaches the DOM as the tier marker §13 already
+declares, so no token is added, no block is written and nothing here can produce a surface
+nobody has looked at. If a per-event look ever needs a value that is not already in
+`tokens.css`, that is the change this paragraph is here to refuse.
 
 ### Where the rule lives
 
@@ -720,6 +730,16 @@ Two things are checked here rather than there, because they are properties of th
 stylesheet: `tokens.contrast.test.ts` sweeps the whole hue circle against the real
 declarations, and `eventThemeContract.test.ts` fails if the lightness and chroma the rule
 computes with ever stop matching the ones `tokens.css` declares.
+
+**The material has no such check and that is a finding rather than a gap.** Turning it off
+replaces a tint at 0.92–0.95 alpha with the same colour at 1.0, so every ink on a pane gains
+contrast: the opaque tier is the better of the two grounds, and §13 derives both translucent
+floors by measuring how close they come to exactly it. A legibility rule for the material
+would be a check whose failure path cannot be reached, which is the kind
+`src/domain/events/eventTheme.ts` already declines to write. A ring-1 test says so by
+driving a refused hue and an accepted one through both materials and getting the same
+verdict each time — the two decisions are independent, and a rule that made them interact
+would be inventing one.
 
 ### Where it is applied
 
@@ -746,11 +766,17 @@ caught it.
 
 ### What each surface takes
 
-| Surface | Accent | Font pairing | Frame style |
-| ------- | ------ | ------------ | ----------- |
-| Room    | yes    | yes          | yes         |
-| Guest   | yes    | no           | no          |
-| Host    | no     | no           | no          |
+| Surface | Accent | Font pairing | Frame style | Material |
+| ------- | ------ | ------------ | ----------- | -------- |
+| Room    | yes    | yes          | yes         | yes\*    |
+| Guest   | yes    | no           | no          | yes      |
+| Host    | no     | no           | no          | no       |
+
+\* and it changes nothing there, for the reason §13 gives: the room has already given the
+material up on every machine, so the marker the wall carries states a choice that was
+already in force. It is carried anyway, because the wall wears the event's look and a
+marker that lied would become wrong the day the room could afford a filter — which is the
+argument `app/glassBackdrop.ts` already makes about that address.
 
 **The pairing costs zero bytes, and that is the decision rather than a happy accident.**
 There is no CDN here (§11) and the CSP forbids one, so a downloaded face means a bundled
@@ -780,8 +806,17 @@ corner.
 
 An event that chose nothing renders **the DOM that shipped**: no attribute, no inline
 style, no theme block matching. Not "the default values on the element" — nothing. That is
-what the nine committed wall baselines in `tests/e2e/visual/` photograph, and why they did
+what the committed wall baselines in `tests/e2e/visual/` photograph, and why they did
 not move when this landed.
+
+The material joined that promise rather than weakening it. `glass` is the default, so an
+event nobody has touched still spreads nothing; the marker appears only for a host who chose
+`plain`, and no baseline photographs such an event — every themed fixture in
+`tests/e2e/visual/` seeds a colour, a pairing or a frame and leaves the material alone. The
+wall does carry the marker for a `plain` event, and renders identically when it does, because
+the room had already given the material up; the one surface where it **changes** anything is
+the guest's upload screen, which was never snapshotted (§9 of
+[docs/TESTING.md](TESTING.md): the visual suite covers the wall layouts and nothing else).
 
 ---
 
@@ -920,6 +955,10 @@ wins outright, so no address can put a blur back on the projector. **The strict 
 spreads no attribute at all**, which is what keeps the default safe and leaves the DOM of
 both panes that wear the material today exactly as it was.
 
+Since roadmap 11.5 there is a **second** marker, on the themed surface inside that shell,
+carrying the host's own answer — and it is allowed exactly one value. See the end of this
+section for the precedence and for why the asymmetry is what keeps the two from arguing.
+
 One consequence of the fallbacks: the capability query and the preference query move
 `--glass-tint-photo` and `--glass-tint-ground` rather than `--glass-tint`. A tier is a
 declaration on a descendant of `:root`, and a descendant wins for its own subtree whatever
@@ -939,11 +978,11 @@ other screen. That is the whole of "a no-blur fallback that is not ugly".
 Roadmap 11.3. Three conditions reach the one fallback, and each sets the same two
 declarations:
 
-| Condition                                                        | Why                                                                                                        |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `@supports not ((backdrop-filter) or (-webkit-backdrop-filter))` | The capability. Both spellings, or several years of iPhones lose the blur on the surface most guests hold. |
-| `prefers-reduced-transparency: reduce`, `prefers-contrast: more` | A person told the machine what this costs them. Same category as reduced motion (§7).                      |
-| `[data-glass='opaque']`                                          | **The room.** Set by `AppShell` from the rule in `design-system/glass.ts`.                                 |
+| Condition                                                        | Why                                                                                                                                                     |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@supports not ((backdrop-filter) or (-webkit-backdrop-filter))` | The capability. Both spellings, or several years of iPhones lose the blur on the surface most guests hold.                                              |
+| `prefers-reduced-transparency: reduce`, `prefers-contrast: more` | A person told the machine what this costs them. Same category as reduced motion (§7).                                                                   |
+| `[data-glass='opaque']`                                          | **The room**, and **the host**. Set by `AppShell` from the rule in `design-system/glass.ts`, and by a themed surface from the event's own choice (§12). |
 
 The room's reason is a mechanism, not a guess. `backdrop-filter` is cheap over still
 content — the compositor blurs the backdrop once and keeps the layer — and expensive over
@@ -1005,6 +1044,45 @@ being decoded, and the wall does all three all evening without the room noticing
 The wall's rungs reach the DOM the way the tier does — one attribute, `data-wall-budget`, on
 the wall's own root, absent while the wall is coping.
 
+### And the fifth, which is the host deciding for their evening
+
+Roadmap 11.5. The four above are all answers about a **machine** — what it can do, what its
+owner asked it for, and what it turned out to manage. None of them can answer "what should
+my evening look like", and that is a question a host is entitled to: some couples want the
+effect, some want the plainer surface, and a venue's projector in a bright room may simply
+read better without it. So the material joins the accent, the pairing and the frame in the
+event's theme (§12), and `plain` lands on the same `[data-glass='opaque']` the four above
+land on. **Nothing new is rendered, and that is the whole of why this was cheap.**
+
+**Three things now want a say, so the precedence is written down and tested rather than
+discovered.** `design-system/glass.ts` holds it, in two halves:
+
+| Rule                              | What it means                                                                                                                                                                                                                                                          |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The budget wins over the host** | Shedding the material is a health answer and not a taste one. A host who asked for glass on a projector, or on a phone that stopped answering a thumb inside 200 ms, gets the opaque tier and is not told — there is nothing they could usefully do about it at 23:00. |
+| **The host's "off" is final**     | Nothing puts it back: not a capable device, not a frame rate that recovered, not an address that earns the translucent floor. Degradation is one-way here for the reason the ladder is one-way above.                                                                  |
+
+Read together they are one sentence — **every answer may take the material away and none may
+give it back** — and that sentence is what makes the mechanism as small as it is. The shell
+carries the machine's answer; the themed surface below it carries the host's; a tier declared
+on a descendant wins for its own subtree; and the only value a themed surface is permitted to
+declare is `opaque`. So the composition needs no table of twelve cases, and there is no
+render in which the two markers can argue.
+
+**The tidy-looking edit is the dangerous one, and the type system holds it.** A themed
+surface that spelled its tier out in full — `data-glass="ground"` for a host who kept the
+glass — would put a blur back on a machine that had already given it up, and on the
+projector. `glassMaterialProps` returns a type whose only value is `opaque`, so that edit does
+not compile, and `glass.test.ts` fails on it as well for whoever casts past the compiler.
+
+**What a host actually sees is small, and the settings form says so.** §11.4 of the roadmap
+measured it: a pane is opaque to 92–95%, so turning the material off changes the five to
+eight per cent of the backdrop that was showing through, plus the blur and the saturation
+lift applied to it. The hairline, the inner highlight and the elevation are the same on both
+tiers. Today the switch is visible on exactly one pane — the guest's upload composer — because
+the other pane wearing the material is the moderation toolbar on a console §12 does not theme,
+and the wall gave the material up before any of this.
+
 ### Where it is applied, and why only there
 
 A material nobody can see is not reviewable; a material applied everywhere is not
@@ -1064,7 +1142,12 @@ Stated plainly, because the difference matters:
   `tests/e2e/journeys/glass-budget.spec.ts`, read in a real browser on the pane itself
   rather than on an ancestor, the room resolving `none`, the guest resolving a real blur, a
   guest who asked for more contrast getting the opaque pane, and the two tiers resolving to
-  different tints one screen apart in the same journey.
+  different tints one screen apart in the same journey. Roadmap 11.5 adds one pair to that
+  file: a host turning the material off on a laptop and the guest's composer resolving
+  `none` one surface later, beside an event whose host kept it and whose composer still
+  resolves a real blur — because a run that proved only the first would pass just as well if
+  the material had been switched off for everybody, which is the one outcome a per-event
+  switch must not produce.
 - **Measured at run time, on the machine that has to hold it.** Roadmap 11.3's frame-rate
   floor is asserted by the wall itself: `useFrameBudget` reads the interval between paints,
   `budget.ts` decides whether a window of ninety of them held, and the ladder above takes

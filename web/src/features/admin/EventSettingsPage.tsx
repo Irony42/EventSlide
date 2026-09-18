@@ -85,12 +85,13 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.guestSelfDeleteGraceSeconds,
     settings.retentionDays,
     settings.maxPhotosPerGuest,
-    // The theme is three values, so it is flattened here like everything else: without
+    // The theme is four values, so it is flattened here like everything else: without
     // it a host who changed only the colour would have their unsaved choice survive a
     // background refresh that moved it underneath them.
     settings.theme.accentHue,
     settings.theme.fonts,
     settings.theme.frame,
+    settings.theme.material,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
