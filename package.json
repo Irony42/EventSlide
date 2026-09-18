@@ -14,7 +14,7 @@
   },
   "homepage": "https://github.com/Irony42/EventSlide#readme",
   "engines": {
-    "node": ">=22.12"
+    "node": ">=24.0.0"
   },
   "main": "dist/server/main/index.js",
   "scripts": {
