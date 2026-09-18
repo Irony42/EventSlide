@@ -41,3 +41,19 @@
     transform: translateY(calc(-4 * var(--space-10))) scale(1.2);
   }
 }
+
+/**
+ * The bottom rung — roadmap 11.3.
+ *
+ * Not a collapsed duration: `drift-up` ends at `opacity: 0`, so a collapsed one would leave
+ * every floater in the DOM being composited at zero alpha for the rest of the evening,
+ * which is the cost without the effect. The region goes instead.
+ *
+ * It is a decision and not a tidy-up: a wall on this rung has given up its zoom and its
+ * crossfade, and a heart drifting up the side of it costs the same compositor the same work
+ * as the drift that has already been switched off. At the bottom of the ladder the wall is a
+ * photograph and nothing else.
+ */
+[data-wall-budget='cut'] .burst {
+  display: none;
+}

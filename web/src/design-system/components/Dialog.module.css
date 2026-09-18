@@ -10,8 +10,12 @@
   z-index: var(--z-dialog);
 }
 
+/* `--surface-dim` and not `--surface-scrim`: nothing is written on this, so it dims the
+   page rather than grounding an ink. The two shared one token until roadmap 11.3 had to
+   raise the ground to carry a caption over a white dress, at which point a modal on a
+   guest's phone would have gone nearly black to pay for text that is not on it. */
 .dialog::backdrop {
-  background: var(--surface-scrim);
+  background: var(--surface-dim);
 }
 
 .panel {

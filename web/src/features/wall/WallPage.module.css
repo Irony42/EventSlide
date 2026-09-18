@@ -133,3 +133,20 @@
   line-height: var(--leading-snug);
   color: var(--text-secondary);
 }
+
+/**
+ * The bottom rung, for the offline notice — roadmap 11.3.
+ *
+ * A collapsed duration rather than `animation: none`, and the difference is the whole
+ * reason this rule needs to exist rather than being left out. What makes this animation
+ * worth having is its `animation-delay`: a venue's network drops for a second or two
+ * several times an evening, and a notice that waits is what stops the wall announcing every
+ * blip to two hundred people. `animation: none` would take the delay with it and put the
+ * notice on screen instantly — a worse wall, arrived at while trying to make it cheaper.
+ *
+ * At `0s` the delay and `both` still hold the opening frame until it expires, and then the
+ * notice appears at rest instead of rising into place.
+ */
+[data-wall-budget='cut'] .delayed {
+  animation-duration: 0s;
+}

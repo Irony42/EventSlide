@@ -45,7 +45,8 @@ token exactly.
   --surface-base: oklch(16% 0.02 265); /* page background, wall letterbox */
   --surface-raised: oklch(21% 0.025 265); /* Card, toolbar, moderation tile */
   --surface-overlay: oklch(26% 0.03 265); /* Dialog, Toast, popover */
-  --surface-scrim: oklch(0% 0 0 / 0.55); /* behind wall captions, over photos */
+  --surface-scrim: oklch(0% 0 0 / 0.83); /* behind wall captions, over photos */
+  --surface-dim: oklch(0% 0 0 / 0.55); /* behind a Dialog, over the page */
   /* ---- Print. A material, not a panel: the paper the polaroid layout mounts a photo
          on. It is the one light ground in a dark palette, so it gets its own ink token
          rather than borrowing a text colour chosen against a dark surface. ---- */
@@ -473,6 +474,22 @@ case, so under the query animation is removed, not shortened:
 Slides cut instead of crossfading and Ken Burns does not run, but the slideshow still
 advances — content never depends on motion. This is the only permitted `!important`.
 
+**There is now a second reason the wall withholds those two.** Roadmap 11.3 gives the wall a
+monitor that watches its own frames and gives up Ken Burns, and then the crossfade, on a
+machine that cannot hold them — §13 has the ladder and the reason for its order. The bottom
+rung arrives at the screen this query already produces: at `data-wall-budget='cut'` every
+animation the wall declares is switched off, so a preference and an exhausted mini-PC end up
+looking at the same wall for entirely different reasons, and only one of them is a health
+requirement.
+
+**`still` is not that screen, and saying it was is a mistake worth recording.** The two are
+not the same mechanism: this query collapses `*` and the wall declines Ken Burns per layout
+in JavaScript, whereas an attribute collapses exactly the selectors somebody remembered to
+write — which is how the ladder shipped reaching only the spotlight while four other layouts
+went on animating. `still` is a rendering of its own: the zoom and the filmstrip's drift are
+gone and every slide change still moves. What keeps the attribute honest now is mechanical:
+`motion.budget.test.ts` fails on a wall stylesheet that animates and names no rung.
+
 ---
 
 ## 8. Accessibility contract
@@ -515,14 +532,39 @@ compositing happens in gamma-encoded sRGB and measuring the blend in Oklab flatt
 a wide margin.
 
 Pointing that at the palette found a fourth violation, in a token that predates the
-material by two releases. **`--surface-scrim` does not deliver what this table promises.**
-Over a bright photograph — a white dress in full sun, which is what a 55% black scrim is
-_for_ — `--text-primary` on it measures **4.36:1** and `--text-secondary` **2.38:1**,
-against "anything on the wall ≥ 7:1 regardless of size". Every wall caption sits on it. It
-is recorded rather than fixed because raising it changes what the projector renders and the
-committed baselines in `tests/e2e/visual/` exist so that cannot happen by accident: it is a
-re-baseline with a human looking at every image, and it belongs in the branch that does
-that rather than in the one that defined the material.
+material by two releases. **`--surface-scrim` did not deliver what this table promises**,
+and roadmap 11.3 is where it was fixed. Over a bright photograph — a white dress in full
+sun, which is what a black scrim is _for_ — the 55% it shipped with gave `--text-primary`
+**4.36:1** and `--text-secondary` **2.38:1**, against "anything on the wall ≥ 7:1 regardless
+of size". Every wall caption sits on it.
+
+**It is 0.83 now, and that number is derived rather than chosen.** It is the lowest alpha at
+which every ink the wall actually paints clears 7:1 over pure white; at 0.82
+`--text-secondary` reads 6.79 and the sentence above stops being true. `--text-primary`
+lands at 12.92 and `--text-secondary` at 7.04. The bar is this table's own, not a stricter
+one: holding the scrim to "at least as good a ground as `--surface-overlay`", which is what
+§13 derives the glass tints against, would have asked for 0.86, and three more points of
+black over somebody's photograph buys a bar the wall is not held to. The photo is the hero
+(§1); a scrim may not be one point denser than legibility requires.
+
+The cost is stated rather than hidden, because there is one. A caption plate over a bright
+photograph is now nearly opaque where it used to show the picture through. Over a dark
+photograph — most of an evening — 55% black and 83% black are the same picture, so the
+change is invisible exactly where it was not needed and total exactly where the caption was
+unreadable.
+
+What is checked is no longer two ratios but the sentence: **every ink the wall's own
+stylesheets declare is measured against every ground the wall paints under it**, the scrim
+over white included. `--text-muted` on a caption fails the day somebody writes it. The one
+thing that sweep cannot see is an ink painted over the photograph with no ground at all,
+which `ReactionBurst` does with a floating glyph — a graphical object rather than text, and
+a gap rather than a covered case.
+
+`--surface-scrim` also stopped being two jobs in one token. `Dialog`'s backdrop had borrowed
+it to dim the page behind a modal, where nothing is written and there is no contrast
+contract to meet; raising the ground to carry a caption would have taken every modal on a
+guest's phone nearly black to pay for text that is not on it. The dimmer is `--surface-dim`
+and keeps the 0.55.
 
 ---
 
@@ -918,6 +960,51 @@ everything inside it in the same paint, no primitive learns that tiers exist, an
 no second copy of the material to keep in step. A surface on the blur tier spreads **no
 attribute at all**, so its DOM is what it was before the material existed.
 
+### And the fourth condition, which is the machine deciding for itself
+
+The three above are known before anything renders. Roadmap 11.3 asks for "a written rule for
+what is switched off first when a device cannot afford it", and the interesting half of that
+sentence is _cannot afford_ — a fact about the mini-PC in the cupboard and the phone in
+somebody's hand, which no `@supports` query and no table in this file can know.
+
+So the rule is a list in `design-system/budget.ts`, in the order things are given up:
+
+| Rung | What goes         | Why it is there                                                                                                                       |
+| ---- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | **glass**         | The only decoration of the three, and the most expensive per pixel. The room starts here: its floor is this rung, measurement or not. |
+| 2    | **Ken Burns**     | Runs on every frame of every slide, so it is the largest saving left. What remains is the photograph, held still.                     |
+| 3    | **the crossfade** | A second of compositing in every eight — the cheapest thing here and the most noticeable loss, so it goes last. Slides cut.           |
+
+Three things about that table are load-bearing:
+
+- **There is one ladder, not one per audience.** "The room gets the opaque fallback and the
+  guest keeps the blur" is the same rule read from two surfaces: both give up glass first,
+  and the room simply starts having already given it up. The guest's critical path — join,
+  pick, send — is not on the ladder at all and will not be; there is nothing in it to
+  switch off.
+- **Every rung is a rendering this product already ships.** Rung 1 lands on the tier the
+  capability and preference queries above already land on. Rungs 2 and 3 land on exactly
+  what `prefers-reduced-motion` renders, which §7 argues for and which has committed visual
+  baselines of its own. A degraded wall is a reviewed look arrived at for a second reason,
+  not an unreviewed one.
+- **It is one-way.** A machine that recovers does not get the effect back, because what made
+  the frames come back is very likely the effect being off, and a wall that oscillates in
+  front of a room is worse than one that is plainly simpler. An evening is a few hours and a
+  reload costs a keystroke.
+
+Who measures what is decided by the surface rather than by taste. The wall watches **frames**
+(`features/wall/hooks/useFrameBudget.ts`) because it is always painting. The guest and the
+host watch **interactions** (`app/useInteractionBudget.ts`), because an upload screen is
+perfectly still between taps and its frame rate is flawless right up to the moment somebody
+touches it — what a guest on a venue's Wi-Fi actually meets is the tap that does not answer.
+That is the browser's own event timing, and its budget is the published 200 ms rather than a
+number invented here. Both feed one reducer, which needs two consecutive bad verdicts before
+it takes anything: one is a garbage collection, a video keyframe, or the next photograph
+being decoded, and the wall does all three all evening without the room noticing.
+
+The wall's rungs reach the DOM the way the tier does — one attribute, `data-wall-budget`, on
+the wall's own root, absent while the wall is coping.
+
 ### Where it is applied, and why only there
 
 A material nobody can see is not reviewable; a material applied everywhere is not
@@ -978,15 +1065,32 @@ Stated plainly, because the difference matters:
   rather than on an ancestor, the room resolving `none`, the guest resolving a real blur, a
   guest who asked for more contrast getting the opaque pane, and the two tiers resolving to
   different tints one screen apart in the same journey.
-- **Reasoned, not measured:** the frame-rate claim. No test in this repository runs on a
-  venue mini-PC driving a projector, and a frame-rate assertion taken on CI hardware would
-  be a number about the CI runner. What the budget rests on is the mechanism — a blur over
-  moving content is recomputed every frame — plus the decision to give the wall the
-  fallback unconditionally, which means the wall's cost is **zero** and there is nothing
-  to measure there until a later branch puts a glass pane on it. The same honesty applies to
-  the one place roadmap 11.2's motion meets this material: a tile arriving under the
-  moderation toolbar re-filters that pane's backdrop for `--duration-base`. That is a
-  mechanism and a bound — one tile per photograph, on a laptop — not a measurement.
+- **Measured at run time, on the machine that has to hold it.** Roadmap 11.3's frame-rate
+  floor is asserted by the wall itself: `useFrameBudget` reads the interval between paints,
+  `budget.ts` decides whether a window of ninety of them held, and the ladder above takes
+  something away when two consecutive windows did not. That is the honest place for the
+  assertion, because the only frame rate worth knowing is the one the venue mini-PC produces
+  on the night. `tests/e2e/journeys/frame-budget.spec.ts` proves the chain end to end in a
+  real browser — the marker appears, `animation-name` on the wall's image resolves to `none`,
+  the crossfade's duration resolves to zero — and it reads the resolved `backdrop-filter` off
+  every element the projector renders, which is this section's "the wall's cost is zero" as a
+  fact rather than a claim.
+- **And the floor itself is 24 frames a second, which is the third rule that was tried.** The
+  first counted dropped frames and the second measured the share of the display's own frames
+  the wall delivered; both looked more sophisticated and both were discarded on measurement.
+  A healthy wall with eight browsers running beside it drops a third of its frames, so a
+  threshold on dropped frames is one a working room reaches on a busy night. A wall
+  deliberately held to every other frame delivers 0.61 of what its display offered while a
+  healthy contended one delivers 0.59, so that measure could not tell them apart at all — and
+  a uniformly slowed machine delivers 1.00, because when every frame is late none of them is
+  late relative to the others. Frames a second separated every case: 35.7 to 56.0 for healthy
+  walls, 12.2 for one in trouble. 24 is cinema's floor and sits below every display a venue
+  can plug in, so no projector is mistaken for a machine that cannot cope.
+- **Still reasoned, not measured:** what a blur would have cost the room, because the room
+  never renders one. The same honesty applies to the one place roadmap 11.2's motion meets
+  this material: a tile arriving under the moderation toolbar re-filters that pane's backdrop
+  for `--duration-base`. That is a mechanism and a bound — one tile per photograph, on a
+  laptop — not a measurement.
 
 **The human check, precisely.** Before any branch puts glass on the wall: on the venue
 mini-PC, open `/e/:slug/display?layout=spotlight` on an event whose playlist contains at
@@ -996,3 +1100,8 @@ of the clip. The wall holds if the dropped-frame count stays at zero through eve
 crossfade; a single crossfade that drops frames is the budget saying no. Run it twice: once
 with the wall as shipped, once with `data-glass` removed from the shell in DevTools, and
 compare — the second run is what says whether glass was the cause.
+
+That check is still the one to run for a pane the budget has not seen yet. For the wall as
+it ships, the equivalent is now automatic and its verdict is legible without DevTools: if
+`data-wall-budget` has appeared on the wall element, the machine has already decided it
+could not hold its frames, and which rung it reads says how far down it had to go.

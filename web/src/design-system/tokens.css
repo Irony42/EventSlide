@@ -6,7 +6,23 @@
   --surface-base: oklch(16% 0.02 265); /* page background, wall letterbox */
   --surface-raised: oklch(21% 0.025 265); /* Card, toolbar, moderation tile */
   --surface-overlay: oklch(26% 0.03 265); /* Dialog, Toast, popover */
-  --surface-scrim: oklch(0% 0 0 / 0.55); /* behind wall captions, over photos */
+  /* ---- Two translucent blacks, because they were one and they are two different jobs.
+
+         `--surface-scrim` is a **ground**: text sits on it, over a photograph nobody has
+         taken yet, so its alpha is derived exactly as the glass tints are — the lowest one
+         at which every ink the wall paints clears section 8's "anything on the wall ≥ 7:1
+         regardless of size" over a white dress in full sun. At the 0.55 it carried since
+         2.0 that sentence was false: `--text-primary` measured 4.36:1 and
+         `--text-secondary` 2.38:1. 0.83 is where both hold and 0.82 is where they stop,
+         which `tokens.contrast.test.ts` asserts in both directions — a scrim is a grey slab
+         over somebody's photograph, so it may not be one point denser than it has to be.
+
+         `--surface-dim` dims the page behind a modal and carries no text at all. It has no
+         contrast contract, which is why it could keep the 0.55 the scrim had to leave: a
+         `Dialog` backdrop at 83% would have made every modal on a guest's phone a black
+         screen to buy legibility for text that is not on it. ---- */
+  --surface-scrim: oklch(0% 0 0 / 0.83); /* behind wall captions, over photos */
+  --surface-dim: oklch(0% 0 0 / 0.55); /* behind a Dialog, over the page */
   /* ---- Print. A material, not a panel: the paper the polaroid layout mounts a photo
          on. It is the one light ground in a dark palette, so it gets its own ink token
          rather than borrowing a text colour that was chosen against a dark surface. ---- */

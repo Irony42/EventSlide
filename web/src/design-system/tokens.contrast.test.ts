@@ -507,31 +507,6 @@ describe('the glass material over an unknown photograph', () => {
       expect(ratioOf(srgb(token(status)), lightestPane())).toBeGreaterThanOrEqual(3)
     },
   )
-
-  /**
-   * The gap this material does **not** close, measured so that it stops being invisible.
-   *
-   * `--surface-scrim` is the same idea as the glass tint — a translucent ground over an
-   * unknown photograph — and it predates it by two releases. Composited over a white
-   * photograph it gives `--text-primary` 4.36:1 and `--text-secondary` 2.38:1, against
-   * §8's "anything on the wall ≥ 7:1 regardless of size". Every wall caption sits on it,
-   * and the suite above could not see it because both numbers it compared were declared.
-   *
-   * Recorded rather than fixed here because fixing it changes what the projector renders,
-   * and the committed baselines in `tests/e2e/visual/` exist precisely so that cannot
-   * happen by accident: it is a re-baseline with a human looking at every image. The
-   * number is asserted in the direction it is wrong in, the way the polaroid mat above
-   * is — so whoever raises the scrim fails this test and is told to delete it.
-   */
-  it('records the wall scrim, which is the same problem and is still open', () => {
-    const scrimOverPhoto = composite(token('--surface-scrim'), WHITE)
-
-    // Pinned close to what was measured — 4.36 and 2.38 — rather than loosely under the
-    // 7:1 bar. A pin with slack is a pin that lets the number drift further the wrong way
-    // and still reports the same thing.
-    expect(ratioOf(srgb(token('--text-primary')), scrimOverPhoto)).toBeLessThan(4.5)
-    expect(ratioOf(srgb(token('--text-secondary')), scrimOverPhoto)).toBeLessThan(2.5)
-  })
 })
 
 /**
@@ -658,5 +633,173 @@ describe('the glass material over our own ground', () => {
 
     expect(Math.round(photo * 100)).toBe(5)
     expect(Math.round(ground * 100)).toBe(8)
+  })
+})
+
+/**
+ * The wall's caption ground — roadmap 11.3, and the finding 11.1 parked here.
+ *
+ * `--surface-scrim` is the same kind of thing as the glass tint — a translucent ground
+ * over a photograph nobody has taken yet — and it predates the material by two releases.
+ * At the 55% it shipped with, composited over a white dress in full sun, it gave
+ * `--text-primary` 4.36:1 and `--text-secondary` 2.38:1 against §8's "anything on the wall
+ * ≥ 7:1 regardless of size". Every wall caption sits on it. The suite above could not see
+ * it, because every ratio it took was between two *declared* colours.
+ *
+ * ## Why this is a sweep and not a pair of numbers
+ *
+ * The version of this that shipped under 11.1 asserted the two failing ratios in the
+ * direction they were wrong in. That pinned the defect, which was the right thing to do
+ * while the fix belonged to another branch, but it protected nothing else: an ink moved
+ * onto the caption would not have touched either number.
+ *
+ * So what is asserted now is §8's sentence rather than two of its consequences. **Every
+ * ink the wall declares is measured against every ground the wall paints under it**, read
+ * off the wall's own stylesheets. `--text-muted` on a caption fails here the day somebody
+ * writes it, and so does a scrim quietly lightened to let more of the photograph through.
+ *
+ * What this does **not** cover, said plainly: an ink painted over the photograph with no
+ * ground at all. `ReactionBurst` does exactly that — a floating glyph in `--text-primary`
+ * over whatever is behind it — and no ratio taken against a declared ground can see it.
+ * It is a graphical object rather than text and it is out of this item's scope, but it is
+ * a gap and not a covered case.
+ */
+describe('the wall reads from the back of the room, over any photograph', () => {
+  const WALL_STYLESHEETS = import.meta.glob<string>('../features/wall/**/*.css', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  })
+
+  const stylesheets = Object.entries(WALL_STYLESHEETS).map(
+    ([path, source]) =>
+      [path.replace(/^\.\.\//, ''), source.replace(/\/\*[\s\S]*?\*\//g, '')] as const,
+  )
+
+  /**
+   * `color: var(--text-…)`, and only that.
+   *
+   * The leading character class is load-bearing twice over: it keeps `font-size:
+   * var(--text-xl)` out — the size scale shares the `--text-` prefix — and it keeps a
+   * longhand like `border-inline-start-color` from reading as a `color` declaration.
+   */
+  const inksIn = (css: string): readonly string[] =>
+    [...css.matchAll(/(?:^|[;{\s])color\s*:\s*var\((--text-[a-z-]+)\)/g)].flatMap((match) =>
+      match[1] === undefined ? [] : [match[1]],
+    )
+
+  const declaredInks = [...new Set(stylesheets.flatMap(([, css]) => inksIn(css)))].sort()
+
+  /** The mat is the one light ground up there, so its inks are the ones named for it. */
+  const onPaper = (ink: string): boolean => ink.startsWith('--text-print')
+
+  /** The scrim at an alpha, over the brightest backdrop a photograph can be. */
+  const scrimAt = (alpha: number): Srgb => composite({ ...token('--surface-scrim'), alpha }, WHITE)
+
+  const DECLARED_ALPHA = token('--surface-scrim').alpha
+
+  /**
+   * Every ground the wall paints under an ink of its own.
+   *
+   * The scrim is in the list at the backdrop that makes it worst, which is the whole
+   * point of it being here: `--surface-base` and `--surface-raised` are declared colours
+   * the suite above already measures, and the scrim is the one that renders as neither
+   * itself nor as what is behind it.
+   */
+  const DARK_GROUNDS = [
+    ['--surface-base', srgb(token('--surface-base'))],
+    ['--surface-raised', srgb(token('--surface-raised'))],
+    ['--surface-scrim over a white dress', scrimAt(DECLARED_ALPHA)],
+  ] as const
+
+  /** Section 8: anything on the wall clears 7:1, whatever size it is set at. */
+  const WALL_TARGET = 7
+
+  it('reads the wall stylesheets, rather than an empty list', () => {
+    // Every assertion below is a sweep, and a sweep over nothing is green for ever.
+    expect(stylesheets.length).toBeGreaterThan(5)
+    expect(declaredInks).toContain('--text-primary')
+    expect(declaredInks).toContain('--text-secondary')
+    expect(inksIn('font-size: var(--text-xl);')).toEqual([])
+  })
+
+  it.each(DARK_GROUNDS)('every ink the wall declares clears 7:1 on %s', (_ground, background) => {
+    const failures = declaredInks
+      .filter((ink) => !onPaper(ink))
+      .map((ink) => [ink, ratioOf(srgb(token(ink)), background as Srgb)] as const)
+      .filter(([, ratio]) => ratio < WALL_TARGET)
+      .map(([ink, ratio]) => `${ink}: ${ratio.toFixed(2)}`)
+
+    expect(failures).toEqual([])
+  })
+
+  it('and the mat carries only the inks named for it', () => {
+    // The other half of the partition, so that an ink cannot pass by being measured
+    // against the wrong ground: a print ink on a scrim would be dark on dark, and a
+    // dark-surface ink on the mat would be light on light.
+    const failures = declaredInks
+      .filter(onPaper)
+      .map((ink) => [ink, ratioOf(srgb(token(ink)), srgb(token('--surface-print')))] as const)
+      .filter(([, ratio]) => ratio < WALL_TARGET)
+      .map(([ink, ratio]) => `${ink}: ${ratio.toFixed(2)}`)
+
+    expect(failures).toEqual([])
+  })
+
+  it('is the least dense scrim that carries them, because the photograph is the hero', () => {
+    // Derived rather than chosen, exactly as both glass tints are. A scrim is a grey slab
+    // over somebody's photograph, so the alpha is the lowest one at which section 8's
+    // sentence is true and not a point more — and asserting that the step below it fails
+    // is what makes this a derivation rather than a value with a comment beside it.
+    const holds = (alpha: number): boolean =>
+      declaredInks
+        .filter((ink) => !onPaper(ink))
+        .every((ink) => ratioOf(srgb(token(ink)), scrimAt(alpha)) >= WALL_TARGET)
+
+    expect(holds(DECLARED_ALPHA)).toBe(true)
+    expect(holds(Number((DECLARED_ALPHA - 0.01).toFixed(2)))).toBe(false)
+  })
+
+  /**
+   * Who paints it, pinned the way `glass.material.test.ts` pins the two glass surfaces.
+   *
+   * The token's own comment has said "behind wall captions, over photos" since 2.0, and
+   * `Dialog` borrowed it anyway to dim the page behind a modal. Those are two different
+   * jobs: one is a ground that has to carry text over an unknown image, the other dims a
+   * page and carries nothing at all. Sharing one value meant the caption could not be made
+   * legible without also making every modal on a guest's phone nearly opaque.
+   */
+  it('is painted by the surfaces that put text over an unknown image, and by no others', () => {
+    const ALL_STYLESHEETS = import.meta.glob<string>('../**/*.css', {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    })
+
+    const painters = Object.entries(ALL_STYLESHEETS)
+      .filter(([, source]) =>
+        /background[^;:]*:\s*var\(--surface-scrim\)/.test(source.replace(/\/\*[\s\S]*?\*\//g, '')),
+      )
+      .map(([path]) => path.replace(/^\.\//, 'design-system/').replace(/^\.\.\//, ''))
+      .sort()
+
+    expect(painters).toEqual([
+      // The moderation tile's "Vidéo · 8 s" over a poster frame, which is a guest's
+      // photograph and can be any brightness at all.
+      'features/moderation/components/ModerationCard.module.css',
+      // The wall's own notices, top-right, over the photograph.
+      'features/wall/WallPage.module.css',
+      // Every wall caption.
+      'features/wall/components/SlideCaption.module.css',
+    ])
+  })
+
+  it('carries the clip badge on the host console at body text’s own bar', () => {
+    // The one painter that is not the wall, so the 7:1 sweep above does not reach it. A
+    // host reads a tile at arm's length rather than from the back of a room, which is
+    // body text's 12:1 for `--text-primary` — a higher bar than the wall's, not a lower.
+    expect(ratioOf(srgb(token('--text-primary')), scrimAt(DECLARED_ALPHA))).toBeGreaterThanOrEqual(
+      12,
+    )
   })
 })

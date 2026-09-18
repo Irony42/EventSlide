@@ -459,6 +459,10 @@ the projector renders, so it is **a re-baseline with a human looking at every im
 belongs with the wall work below, not in the change that defined the material. The number
 is pinned by a test in the meantime, so it cannot quietly get worse.
 
+**Closed under [11.3](#113-the-budget-that-keeps-it-usable-p1-effort-s-risk-low), at 0.83.**
+The pin is gone with it: what stands in its place is not two numbers held in the direction
+they were wrong in but §8's sentence swept over every ink the wall paints.
+
 **Corrected under 11.2: one floor was one too few, and the correction is smaller than it
 looks.** Deriving the tint from the worst possible backdrop and applying it everywhere held
 most of this product — login, the dashboard, the create form, the settings page, the join
@@ -536,6 +540,38 @@ switched off first when a device cannot afford it.
 The visual regression baselines will move, deliberately and all at once. That is a
 re-baseline with a human looking at every image, not a `--update-snapshots` in a hurry: the
 suite exists because a wall regression is invisible in a diff.
+
+**Done, and the honest version of "asserted" turned out to be that the machine asserts it.**
+A frame-rate floor taken on a CI runner is a number about the runner, so the floor ships
+instead of being checked: the wall reads the interval between its own paints, judges windows
+of ninety of them on how many frames a second they add up to, and gives something up when
+two in a row fall under 24. That floor is the third rule that was tried — a dropped-frame
+count and a delivered-frame share were both measured against real walls first, and neither
+could separate a healthy wall on a loaded machine from a wall in trouble. The rule for _what_
+it gives up is a list —
+`design-system/budget.ts` — with one entry per cost in the order they go: **glass, then Ken
+Burns, then the crossfade**, one ladder for every surface, with the room starting one rung
+down because it can never afford the first. The guest's half is not a frame rate at all: an
+upload screen is still between taps, so what is measured there is how long the interface
+takes to answer a thumb, against Interaction to Next Paint's published 200 ms. Both feed one
+reducer that needs two consecutive bad verdicts, because one is a decode.
+
+What makes that safe enough to do automatically is that **no rung is a new rendering**. Each
+lands exactly where `prefers-reduced-motion` and the capability fallbacks already land, both
+of which have committed baselines. A preference and an exhausted mini-PC arrive at the same
+screen for different reasons.
+
+**And `--surface-scrim`, 11.1's open finding, is closed at 0.83** — the lowest alpha at which
+every ink the wall paints clears §8's 7:1 over pure white, with 0.82 failing. `Dialog`'s
+backdrop, which had borrowed the same token to dim a page it writes nothing on, moved to
+`--surface-dim` and kept 0.55.
+
+**The baselines did not move, and that was the finding rather than the relief.** All eleven
+are pixel-identical, because `aPhoto` derives its colour from its label and every colour it
+happened to draw came out dark — where 55% black and 83% black are the same picture. The one
+suite whose job is to make a wall change visible to a human could not see this one. There is
+a twelfth baseline now, of a caption over a photograph at the top of the sRGB gamut, which is
+the backdrop the alpha is derived against.
 
 ### What this is not
 

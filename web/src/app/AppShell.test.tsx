@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppShell, MAIN_CONTENT_ID } from './AppShell'
 import { fr } from '../lib/i18n/fr'
 import { LocaleProvider } from '../lib/i18n/LocaleProvider'
 import { SUPPORTED_LOCALES } from '../lib/i18n/locale'
+import { INTERACTION_BUDGET_MS } from '../design-system/budget'
 
 describe('AppShell', () => {
   // `<html lang>` is a global that outlives `cleanup()`, and this component is the only
@@ -150,5 +151,75 @@ describe('AppShell', () => {
     )
 
     expect(screen.getByRole('main').closest('[data-glass]')).toHaveAttribute('data-glass', 'opaque')
+  })
+
+  /**
+   * The third answer, taken on the night — roadmap 11.3.
+   *
+   * `useInteractionBudget.test.tsx` covers the measurement and `budget.test.ts` covers the
+   * rule. What is left, and what the material actually depends on, is whether the verdict
+   * reaches the one element the tier is declared on: a phone that has decided it cannot
+   * afford the blur and a shell that goes on rendering it is a budget that decides nothing.
+   */
+  describe('a phone that turns out not to be able to afford the material', () => {
+    let deliver: (durations: readonly number[]) => void = () => {}
+
+    beforeEach(() => {
+      const observers: ((entries: readonly { duration: number }[]) => void)[] = []
+      class FakeObserver {
+        constructor(
+          private readonly callback: (list: {
+            getEntries(): readonly { duration: number }[]
+          }) => void,
+        ) {}
+        observe(): void {
+          observers.push((entries) => this.callback({ getEntries: () => entries }))
+        }
+        disconnect(): void {}
+      }
+      vi.stubGlobal('PerformanceObserver', FakeObserver)
+      deliver = (durations) => {
+        act(() => {
+          for (const observer of observers) {
+            observer(durations.map((duration) => ({ duration })))
+          }
+        })
+      }
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('gives the guest the opaque pane rather than a slow upload screen', () => {
+      render(
+        <AppShell surface="guest" backdrop="ground">
+          <p>Contenu</p>
+        </AppShell>,
+      )
+
+      // Two taps in a row that took longer than the published budget to answer, on a phone
+      // that is mid-encode with a request open. "The upload screen staying responsive
+      // outranks how it looks" is roadmap 11.3's sentence, and this is it happening.
+      deliver([INTERACTION_BUDGET_MS + 8])
+      deliver([INTERACTION_BUDGET_MS + 8])
+
+      expect(screen.getByRole('main').closest('[data-glass]')).toHaveAttribute(
+        'data-glass',
+        'opaque',
+      )
+    })
+
+    it('leaves a phone that is keeping up exactly as it was', () => {
+      render(
+        <AppShell surface="guest">
+          <p>Contenu</p>
+        </AppShell>,
+      )
+
+      deliver([16, 24, 8])
+
+      expect(screen.getByRole('main').closest('[data-glass]')).toBeNull()
+    })
   })
 })

@@ -396,3 +396,113 @@ describe('every animation states what it does under prefers-reduced-motion', () 
     }
   })
 })
+
+/**
+ * What every wall animation does when the machine runs out — roadmap 11.3.
+ *
+ * The same shape of guard as the `prefers-reduced-motion` table above, for the same reason,
+ * and it exists because the rule it enforces shipped broken. The budget's two wall rungs
+ * were declared only in `SlideLayer.module.css` — the spotlight, and the split's panes — so
+ * on the mosaic, the polaroid pile, the filmstrip and the collage a machine that had run out
+ * gave up nothing at all while the ladder reported that it had. The wall went on paying for
+ * every animation on screen, on the layout `WallPage.tsx`'s cycle puts one keypress away
+ * from a host during a cocktail hour.
+ *
+ * That is this repository's recurring failure exactly: a rule true in the file somebody was
+ * looking at and false in the four beside it. So what is checked is not "the spotlight
+ * degrades" but **every wall stylesheet that animates answers the budget**, which is what
+ * fails the day a seventh layout is added.
+ *
+ * Two answers, and which one a file gets is not a label:
+ *
+ * - `still` — the file has motion that runs for the length of a slide, so it is switched
+ *   off one rung *before* the bottom as well as at it. Ken Burns and the filmstrip's drift
+ *   are the two, and both are recognisable without being told: their duration is a custom
+ *   property the slideshow hands down, which is checked below rather than trusted.
+ * - `cut` — only motion at a slide change, or chrome. Switched off at the bottom rung.
+ *
+ * What is **not** swept, said plainly: *how* each rule switches its animation off. `none`
+ * and a collapsed duration are both correct and each is wrong in the other's place — the
+ * polaroid keeps its tilt under `none` only because `.print` declares that tilt for itself,
+ * and the offline notice needs a collapsed duration because `none` would take its
+ * `animation-delay` with it and announce every two-second network blip to the room. Those
+ * are argued beside each rule and reviewed, not measured here.
+ */
+const WALL_BUDGET_ANSWERS: Readonly<Record<string, 'still' | 'cut'>> = {
+  'features/wall/WallPage.module.css': 'cut',
+  'features/wall/components/ReactionBurst.module.css': 'cut',
+  'features/wall/components/SlideLayer.module.css': 'still',
+  'features/wall/components/WallLayouts.module.css': 'still',
+}
+
+/** A rung, as a stylesheet declares it: an ancestor attribute the wall's root carries. */
+const rungFor = (css: string, rung: 'still' | 'cut'): boolean =>
+  new RegExp(`\\[data-wall-budget='${rung}'\\]`).test(css)
+
+/**
+ * Durations the slideshow hands down at runtime.
+ *
+ * An animation timed by one of these runs for as long as its slide is on screen, which is
+ * what makes it the wall's continuous cost rather than a moment at a change. Derived from
+ * the stylesheet so that filing one of them under the cheaper answer fails.
+ */
+const SLIDESHOW_TIMED = ['--wall-kenburns-duration', '--wall-drift-duration']
+
+describe('every wall animation says what it gives up when the machine runs out', () => {
+  const animating = entries
+    .filter(([path]) => isWall(path))
+    .filter(([, css]) => ANIMATION_DECLARATION.test(css) || /(?:^|[;{\s])transition\s*:/.test(css))
+    .map(([path]) => path)
+    .sort()
+
+  it('is the list above, and a new layout cannot be added without answering', () => {
+    // The assertion that makes this a guard rather than a record, and the one that would
+    // have caught the four layouts that shipped with no rungs at all.
+    expect(animating).toEqual(Object.keys(WALL_BUDGET_ANSWERS).sort())
+  })
+
+  it.each(Object.keys(WALL_BUDGET_ANSWERS))('%s gives something up at the bottom rung', (path) => {
+    const css = entries.find(([name]) => name === path)?.[1] ?? ''
+
+    expect(css, `${path} declares no [data-wall-budget='cut'] rule`).toBeTruthy()
+    expect(rungFor(css, 'cut'), `${path} animates and never answers the bottom rung`).toBe(true)
+  })
+
+  it.each(
+    Object.entries(WALL_BUDGET_ANSWERS)
+      .filter(([, answer]) => answer === 'still')
+      .map(([path]) => path),
+  )('%s gives its slide-length motion up one rung earlier', (path) => {
+    const css = entries.find(([name]) => name === path)?.[1] ?? ''
+
+    expect(rungFor(css, 'still'), `${path} claims slide-length motion and never sheds it`).toBe(
+      true,
+    )
+  })
+
+  it('files timed from the slideshow are exactly the files that answer at the earlier rung', () => {
+    // The half of the table that is derived rather than declared. An animation whose
+    // duration is the slide's own runs for the whole slide by construction, so filing it
+    // under `cut` would leave the wall paying for continuous motion at the rung whose entire
+    // purpose is to stop paying for it.
+    const timed = entries
+      .filter(([path]) => isWall(path))
+      .filter(([, css]) => SLIDESHOW_TIMED.some((property) => css.includes(property)))
+      .map(([path]) => path)
+      .sort()
+
+    const answered = Object.entries(WALL_BUDGET_ANSWERS)
+      .filter(([, answer]) => answer === 'still')
+      .map(([path]) => path)
+      .sort()
+
+    expect(timed).toEqual(answered)
+  })
+
+  it('finds the properties it is sweeping for, rather than matching nothing', () => {
+    // Every assertion above is a regex over a glob, and both can silently stop matching.
+    expect(animating.length).toBeGreaterThan(3)
+    expect(rungFor(`[data-wall-budget='cut'] .thing { animation: none; }`, 'cut')).toBe(true)
+    expect(rungFor(`.thing { animation: none; }`, 'cut')).toBe(false)
+  })
+})
