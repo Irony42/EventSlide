@@ -13,13 +13,19 @@ import { describe, expect, it } from 'vitest'
  * the same way the layer boundaries are (CLAUDE.md §2): read off every stylesheet the app
  * ships, including the ones written after this file.
  *
- * Two rules, and they are not the same rule:
+ * Four rules, and they are not the same rule:
  *
  * - **Nothing animates a property that costs a layout.** This is the one that protects the
  *   projector, and it holds everywhere without exception.
+ * - **Nothing animates a paint property on the wall.** The tier above it is legal on a
+ *   laptop and on a phone; a full-screen repaint on a projector is not.
+ * - **`will-change` is declared nowhere outside the wall.** It buys a compositing layer
+ *   for the lifetime of an element rather than the length of an animation.
  * - **Every animation states what it does under `prefers-reduced-motion`.** Not "is
  *   allowed" — *states*, out of a closed set of answers, because the two answers this
  *   product uses are genuinely different and the wrong one is silently broken.
+ *
+ * The middle two were §7 prose with nothing measuring them until this file's second pass.
  */
 
 const STYLESHEETS = import.meta.glob<string>('../**/*.css', {
@@ -35,6 +41,24 @@ const withoutComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g
 
 const entries = Object.entries(STYLESHEETS).map(
   ([path, source]) => [named(path), withoutComments(source)] as const,
+)
+
+/**
+ * The components beside the stylesheets, because one of the four answers is about them.
+ *
+ * `declined-in-javascript` is a claim that a `.tsx` reads the preference and does not render
+ * the animation. That claim cannot be checked in CSS, and the version of this file that
+ * tried asserted the stylesheet's own path instead — which restated the table rather than
+ * testing it. Reading the component is the only way the answer means anything.
+ */
+const COMPONENTS = import.meta.glob<string>('../**/*.tsx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+
+const components = new Map(
+  Object.entries(COMPONENTS).map(([path, source]) => [named(path), source]),
 )
 
 /**
@@ -71,6 +95,16 @@ const LAYOUT_PROPERTIES = [
   'flex',
   'grid-template-columns',
   'background-position',
+  /**
+   * `transition: all`, which is not a layout property but is every layout property.
+   *
+   * It belongs in this list rather than in a check of its own because it is a superset of
+   * the list: the shorthand animates whatever happens to change, so one plausible line in a
+   * feature folder buys `width`, `margin` and `background-color` at once while naming none
+   * of them. It is also the single most likely line a contributor writes, and the rule this
+   * file states is that the layout tier holds "everywhere without exception".
+   */
+  'all',
 ] as const
 
 /** `transition: <property> …`, with the shorthand's comma-separated list unpicked. */
@@ -132,6 +166,101 @@ describe('motion never asks the browser to lay the page out again', () => {
 })
 
 /**
+ * The other two tiers, which the table in §7 states and nothing measured.
+ *
+ * The three-tier budget landed with only its layout row mechanical. That is the shape of
+ * defect a mutation audit already found in this repository more than once: a rule whose
+ * only enforcement is the paragraph that states it, green for as long as whoever reads the
+ * diff happens to remember it. Both rules below hold today — so these fail on the change
+ * that breaks them, which is the only moment they are worth anything.
+ */
+
+/** Wall stylesheets: the surface that repaints a full screen for eight hours. */
+const isWall = (path: string): boolean => path.startsWith('features/wall/')
+
+/**
+ * §7's paint tier: legal on a laptop or a phone at `--duration-fast`/`--duration-base`,
+ * and never on the wall. A repainted full-screen gradient costs the projector what a
+ * relayout costs, which is the reason the tier is split from the compositor one at all.
+ */
+const PAINT_PROPERTIES = [
+  'color',
+  'background-color',
+  'background',
+  // The one a `background-position` entry above does not cover: swapping the image itself
+  // is a full-screen decode, which on a projector is the most expensive frame there is.
+  'background-image',
+  'border-color',
+  'box-shadow',
+]
+
+describe('the paint tier stops at the wall', () => {
+  it('has wall stylesheets to look at', () => {
+    // Without this the two assertions below are green over an empty list the day the
+    // feature folder is renamed.
+    expect(entries.filter(([path]) => isWall(path)).length).toBeGreaterThan(3)
+  })
+
+  it('transitions no paint property on the wall', () => {
+    const offenders = entries
+      .filter(([path]) => isWall(path))
+      .flatMap(([path, css]) =>
+        transitionedProperties(css)
+          .filter((property) => PAINT_PROPERTIES.includes(property))
+          .map((property) => `${path}: transition ${property}`),
+      )
+
+    expect(offenders).toEqual([])
+  })
+
+  it('keyframes no paint property on the wall', () => {
+    const offenders = entries
+      .filter(([path]) => isWall(path))
+      .flatMap(([path, css]) =>
+        keyframedProperties(css)
+          .filter((property) => PAINT_PROPERTIES.includes(property))
+          .map((property) => `${path}: @keyframes ${property}`),
+      )
+
+    expect(offenders).toEqual([])
+  })
+})
+
+/** Every `will-change` declaration a stylesheet makes, as the properties it names. */
+const willChangedProperties = (css: string): readonly string[] =>
+  [...css.matchAll(/(?:^|[;{\s])will-change\s*:\s*([^;}]+)/g)]
+    .flatMap((match) => (match[1] ?? '').split(','))
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+
+describe('will-change is spent on the wall and nowhere else', () => {
+  it('finds the wall spending it, rather than matching nothing', () => {
+    // §7 permits it on the wall's own layers, so the wall is where it must be found. A
+    // regex that parsed nothing would make the sweep below a permanent pass.
+    const spenders = entries
+      .filter(([, css]) => willChangedProperties(css).length > 0)
+      .map(([path]) => path)
+
+    expect(spenders).toContain('features/wall/components/SlideLayer.module.css')
+    expect(
+      willChangedProperties(entries.find(([p]) => p.endsWith('SlideLayer.module.css'))?.[1] ?? ''),
+    ).toContain('opacity')
+  })
+
+  it('is declared in no stylesheet outside the wall', () => {
+    // It pins a compositing layer for the lifetime of an element, not for the length of an
+    // animation — which on a phone mid-encode is memory taken from the thing the guest is
+    // actually waiting for. The arrival animation on the moderation queue declines it in a
+    // comment; this is what makes the next one decline it too.
+    const offenders = entries
+      .filter(([path]) => !isWall(path))
+      .flatMap(([path, css]) => willChangedProperties(css).map((value) => `${path}: ${value}`))
+
+    expect(offenders).toEqual([])
+  })
+})
+
+/**
  * What every animation in this product answers `prefers-reduced-motion` with.
  *
  * A list, so that adding one is a deliberate edit rather than a silent inheritance of
@@ -149,14 +278,37 @@ describe('motion never asks the browser to lay the page out again', () => {
  *   replacement. Only the `Spinner` needs this: an indeterminate wait cannot simply stop
  *   moving, or a guest on bad Wi-Fi is looking at a frozen screen, so it swaps a rotation
  *   for an opacity pulse.
+ * - `survives-collapsed` — the animation is left to `base.css`, and that is safe because
+ *   its final frame *is* the resting state, so the collapsed duration lands exactly where
+ *   the element belongs. The fourth answer exists because the first three did not describe
+ *   the wall's offline notice and it was filed under `declined-in-javascript`, which was
+ *   simply untrue: `WallPage.tsx` never reads the preference. What that rule actually needs
+ *   is its `animation-delay` — the one part of an animation reduced motion does **not**
+ *   collapse — because a venue's network drops for a second several times an evening and a
+ *   notice that waits is the difference between a wall that looks broken and one that is
+ *   working. Moving it into `no-preference` would have announced every blip to the room.
+ *   The bucket is mechanically checked below, which is what stops it becoming a shrug.
  */
+/**
+ * What starts an animation, in both spellings CSS allows.
+ *
+ * The longhand is not a nicety: `animation\s*:` does not match `animation-name:`, because
+ * what follows `animation` there is a hyphen. A stylesheet written with the longhands was
+ * therefore invisible to the sweep below — never added to `animating`, so the equality
+ * against the table below still passed and the animation was never asked what it does under
+ * `prefers-reduced-motion`. `transitionedProperties` already handles `transition-property`
+ * for exactly this reason, and the asymmetry was the bug. `animation-name` is the only
+ * longhand that can start one; `animation-duration` on its own animates nothing.
+ */
+const ANIMATION_DECLARATION = /(?:^|[;{\s])animation(?:-name)?\s*:/
+
 const REDUCED_MOTION_ANSWERS: Readonly<Record<string, string>> = {
   'design-system/components/Dialog.module.css': 'no-preference',
   'design-system/components/Spinner.module.css': 'reduce-branch',
   'design-system/components/Toast.module.css': 'no-preference',
   'features/guest-upload/components/UploadQueue.module.css': 'no-preference',
   'features/moderation/components/ModerationGrid.module.css': 'no-preference',
-  'features/wall/WallPage.module.css': 'declined-in-javascript',
+  'features/wall/WallPage.module.css': 'survives-collapsed',
   'features/wall/components/ReactionBurst.module.css': 'declined-in-javascript',
   'features/wall/components/SlideLayer.module.css': 'declined-in-javascript',
   'features/wall/components/WallLayouts.module.css': 'declined-in-javascript',
@@ -164,7 +316,7 @@ const REDUCED_MOTION_ANSWERS: Readonly<Record<string, string>> = {
 
 describe('every animation states what it does under prefers-reduced-motion', () => {
   const animating = entries
-    .filter(([, css]) => /(?:^|[;{\s])animation\s*:/.test(css))
+    .filter(([, css]) => ANIMATION_DECLARATION.test(css))
     .map(([path]) => path)
     .sort()
 
@@ -182,7 +334,7 @@ describe('every animation states what it does under prefers-reduced-motion', () 
 
     // Inside the query, so the rule does not exist under the preference — rather than
     // existing at a collapsed duration with `both` holding a frame nobody chose.
-    for (const rule of css.matchAll(/(?:^|[;{\s])animation\s*:/g)) {
+    for (const rule of css.matchAll(new RegExp(ANIMATION_DECLARATION, 'g'))) {
       const before = css.slice(0, rule.index)
       const opened = before.lastIndexOf('@media (prefers-reduced-motion: no-preference)')
       expect(opened, `${path} animates outside the query`).toBeGreaterThanOrEqual(0)
@@ -194,11 +346,53 @@ describe('every animation states what it does under prefers-reduced-motion', () 
     Object.entries(REDUCED_MOTION_ANSWERS).filter(
       ([, answer]) => answer === 'declined-in-javascript',
     ),
-  )('%s belongs to the wall, which declines in the component', (path) => {
-    // Asserted as a property of the path rather than of the CSS, because the declining is
-    // in the `.tsx` beside it. What this pins is that the answer cannot be claimed by a
-    // stylesheet that has no component reading the preference — every file here is one the
-    // wall renders, and `usePrefersReducedMotion` is the wall's hook.
-    expect(path.startsWith('features/wall/')).toBe(true)
+  )('%s is owned by a component that actually reads the preference', (path) => {
+    // This replaced `expect(path.startsWith('features/wall/')).toBe(true)`, which could not
+    // fail for any entry anybody would write: the path and the answer sit next to each other
+    // in the table above, so the assertion only restated the row it was reading. It passed
+    // for `WallPage.module.css`, whose component does not read the preference at all.
+    //
+    // The claim the label makes is about the `.tsx` beside the stylesheet, so that is what
+    // is read. `usePrefersReducedMotion` is the hook; a component that does not import it
+    // cannot be declining anything.
+    const owner = path.replace(/\.module\.css$/, '.tsx')
+    const source = components.get(owner)
+
+    expect(source, `${path} claims a component at ${owner}, which does not exist`).toBeDefined()
+    expect(source ?? '', `${owner} does not read usePrefersReducedMotion`).toContain(
+      'usePrefersReducedMotion',
+    )
+  })
+
+  it.each(
+    Object.entries(REDUCED_MOTION_ANSWERS).filter(([, answer]) => answer === 'survives-collapsed'),
+  )('%s ends every animation at the resting state', (path) => {
+    // The whole of what makes this answer safe, and therefore the whole of what has to be
+    // checked. `base.css` collapses the duration to 1ms and `both` holds the final frame, so
+    // an animation left to it lands on its own last keyframe instantly. That is harmless
+    // exactly when the last keyframe is where the element belongs anyway — and a silent
+    // disaster when it is not, which is the Ken Burns case: `scale(1.08)`, held, on a
+    // projector, for the rest of the evening.
+    const css = entries.find(([name]) => name === path)?.[1] ?? ''
+    const blocks = [...css.matchAll(/@keyframes[^{]*\{([\s\S]*?)\n\}/g)]
+
+    expect(blocks.length, `${path} declares no keyframes to check`).toBeGreaterThan(0)
+
+    for (const block of blocks) {
+      const body = block[1] ?? ''
+      const at = Math.max(body.lastIndexOf('to {'), body.lastIndexOf('100% {'))
+      expect(at, `${path} has a keyframe with no final frame`).toBeGreaterThanOrEqual(0)
+
+      const final = body.slice(at)
+      // Fully opaque, or it does not touch opacity at all.
+      for (const match of final.matchAll(/opacity\s*:\s*([^;}]+)/g)) {
+        const value = (match[1] ?? '').trim()
+        expect(value, `${path} ends at opacity ${value}`).toBe('1')
+      }
+      // And it does not come to rest displaced. A transform at the end is the shape of the
+      // failure above, so this bucket refuses one outright rather than trying to decide
+      // which transforms happen to be identities.
+      expect(/transform\s*:/.test(final), `${path} ends holding a transform`).toBe(false)
+    }
   })
 })

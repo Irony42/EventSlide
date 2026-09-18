@@ -58,10 +58,24 @@ const sources = new Map(Object.entries(MODULES).map(([path, source]) => [named(p
  * counted prose would put half the wall's modules in the wrong category, and — worse — it
  * would be the kind of failure somebody fixes by deleting the comment.
  *
- * `//` needs a boundary in front of it so that `https://` survives.
+ * `//` needs a boundary in front of it so that `https://` survives, and the block form
+ * needs one for exactly the same reason — which the first version of this did not give
+ * it. An `accept` attribute whose value ends in a slash-star reads as an opening comment
+ * to an unanchored sweep, which then deletes everything up to the next closing pair
+ * anywhere in the file. Measured on this tree rather than assumed: 646 bytes of
+ * `ClipComposer.tsx` (the attribute is `video/` + star) and 1 225 bytes of
+ * `glassBackdrop.ts` itself, where the opener is the route string for the join
+ * catch-all. `PhotoPicker.tsx` happens to lose nothing, because no closing pair follows
+ * its attribute — which is the point: whether the fault bites depends on what comes
+ * later in the file, so it is invisible until the day somebody adds an element below it.
+ *
+ * Nothing on a `ground` route is hidden by it today, and that is luck rather than design.
+ * The failure is silent and points at the loose floor, so it is the direction that costs
+ * a guest's photograph its legibility. Requiring a boundary costs nothing: a real comment
+ * is preceded by a line start, whitespace, or one of `{ ; ( ,`.
  */
 const withoutComments = (source: string): string =>
-  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s(])\/\/[^\n]*/g, '$1')
+  source.replace(/(^|[\s{;(,])\/\*[\s\S]*?\*\//g, '$1').replace(/(^|[\s(])\/\/[^\n]*/g, '$1')
 
 const EXTENSIONS = ['', '.ts', '.tsx', '/index.ts', '/index.tsx']
 
@@ -154,6 +168,34 @@ const fieldLuminance = (name: string, colour: Oklch): number =>
 /** The brightest field a pane on the translucent tier is allowed to meet. */
 const CEILING = fieldLuminance('--accent', token('--accent'))
 
+/** `--a: var(--b)` in `tokens.css`, so a fill that names an alias can still be measured. */
+const ALIASES = new Map(
+  [...TOKENS.matchAll(/^\s*(--[a-z-]+):\s*var\(\s*(--[a-z-]+)\s*\)\s*;/gm)].flatMap(
+    ([, from, to]) => (from === undefined || to === undefined ? [] : [[from, to] as const]),
+  ),
+)
+
+/**
+ * The colour a fill actually paints, following one hop of aliasing — or `null`.
+ *
+ * The distinction matters because of what the caller does with `null`. The first version of
+ * this check skipped a token it could not parse, which made an unreadable fill *safer* than
+ * a readable one: `background: var(--glass-tint)` names an alias rather than a literal
+ * `oklch(...)`, so the pane's own ground was measured as nothing at all. Every other
+ * unknown answer in this file fails towards the strict floor, and this one failed away from
+ * it — quietly, in the direction that hands a photograph the translucent tier.
+ */
+const resolveFill = (name: string): { readonly name: string; readonly colour: Oklch } | null => {
+  const direct = tokens.get(name)
+  if (direct !== undefined) return { name, colour: direct }
+
+  const alias = ALIASES.get(name)
+  if (alias === undefined) return null
+
+  const target = tokens.get(alias)
+  return target === undefined ? null : { name: alias, colour: target }
+}
+
 /** Every `background*` declaration's value, whatever the longhand. */
 const backgroundValues = (css: string): readonly string[] =>
   [...withoutComments(css).matchAll(/(?:^|[;{\s])background(?:-[a-z]+)?\s*:\s*([^;}]+)/g)].flatMap(
@@ -187,20 +229,38 @@ const brightThingsIn = (closure: ReadonlySet<string>): readonly string[] => {
     const body = withoutComments(source)
 
     if (FOREIGN_PIXELS.test(body)) found.push(`${path} renders an <img> or a <video>`)
-    // An inline background, in the one place the repository still allows inline style for
-    // a computed value. A picture set from JavaScript is as unknown as one in an `<img>`.
-    if (/backgroundImage\s*:/.test(body)) found.push(`${path} sets a backgroundImage`)
 
-    if (!path.endsWith('.css')) continue
+    if (!path.endsWith('.css')) {
+      // The same elements by their other two spellings. Neither is in this tree, and both
+      // are one refactor away from being: `createElement` is what a JSX-free helper emits,
+      // and `as="img"` is what a polymorphic primitive takes. A detector that only knows the
+      // syntax already written is one the next syntax walks straight past.
+      if (/createElement\(\s*['"](?:img|video|canvas|iframe|object|embed)['"]/.test(body))
+        found.push(`${path} creates an <img> or a <video> from JavaScript`)
+      if (/\bas=["'](?:img|video)["']/.test(body)) found.push(`${path} renders a polymorphic <img>`)
+      // An inline background, in the one place the repository still allows inline style for
+      // a computed value. A picture set from JavaScript is as unknown as one in an `<img>`.
+      // Scoped to components on purpose: the camel-case spellings cannot appear in CSS, but
+      // the bare `background` can, and testing for it here reported every stylesheet in the
+      // design system as if it were an inline style.
+      if (/background(?:Image|Color)\s*:/.test(body)) found.push(`${path} sets a background in JS`)
+      continue
+    }
     for (const value of backgroundValues(source)) {
       // `url()` is an image, and an image in a stylesheet is no more knowable than one a
       // guest uploaded. Nothing in this tree has one; the check is what keeps that true.
       if (/url\(/.test(value)) found.push(`${path} paints a background image`)
     }
     for (const name of fillsIn(source)) {
-      const declared = tokens.get(name)
-      if (declared === undefined) continue
-      if (fieldLuminance(name, declared) > CEILING) found.push(`${path} fills with ${name}`)
+      const resolved = resolveFill(name)
+      // An unmeasurable fill is an unclassified one, and unclassified has to mean strict —
+      // the same answer `glassBackdropFor` gives a pathname it does not recognise.
+      if (resolved === null) {
+        found.push(`${path} fills with ${name}, which is not a measurable colour`)
+        continue
+      }
+      if (fieldLuminance(resolved.name, resolved.colour) > CEILING)
+        found.push(`${path} fills with ${name}`)
     }
   }
 
@@ -223,6 +283,61 @@ describe('the route table and the router agree about what exists', () => {
       .filter((path) => path !== '/')
 
     expect([...ROUTE_BACKDROPS.map((route) => route.path)].sort()).toEqual([...declared].sort())
+  })
+
+  it('declares every path as a literal, because that is what the table is matched on', () => {
+    // The equality above reads `path="…"` and nothing else, so a route written
+    // `path={ADMIN_REPORTS}` is invisible to it: the test stays green, the table never gains
+    // the address, and `glassBackdropFor` hands it to the catch-all — which is `ground`, the
+    // loose floor. An unclassified screen has to fail strict, and the cheapest way to keep
+    // that true is to refuse the spelling that hides a screen from the table at all.
+    expect([...ROUTER.matchAll(/path=\{/g)].map((match) => match[0])).toEqual([])
+  })
+
+  it('names the module the router really renders there, not merely one that exists', () => {
+    // The last hole in the chain, and the quiet one. `page` is hand-written, and the check
+    // below it only asks whether the file exists — so moving a route onto a different
+    // component leaves the table naming the old module, which still exists, and the walk
+    // then certifies a subtree nobody renders. The table would be green about the wrong
+    // screen, which is worse than having no table: a pane over a photograph at the floor
+    // derived for our own ground is exactly the failure 11.1 measured the floor to prevent.
+    const elementAt = new Map(
+      [
+        ...ROUTER.matchAll(/<Route\s+path="([^"]+)"[\s\S]{0,160}?element=\{<([A-Za-z0-9_]+)/g),
+      ].flatMap((match) =>
+        match[1] === undefined || match[2] === undefined ? [] : [[match[1], match[2]] as const],
+      ),
+    )
+
+    // Both spellings `router.tsx` uses: an eager named import, and the `lazy(() =>
+    // import(...))` every admin screen is behind so a host downloads one console.
+    const moduleOf = new Map<string, string>([
+      ...[...ROUTER.matchAll(/import\s*\{([^}]+)\}\s*from\s*'([^']+)'/g)].flatMap(
+        ([, names, specifier]) =>
+          (names ?? '').split(',').flatMap((raw) => {
+            const name = raw.trim()
+            return name === '' || specifier === undefined ? [] : [[name, specifier] as const]
+          }),
+      ),
+      ...[
+        ...ROUTER.matchAll(/const\s+([A-Za-z0-9_]+)\s*=\s*lazy\([\s\S]*?import\('([^']+)'\)/g),
+      ].flatMap(([, name, specifier]) =>
+        name === undefined || specifier === undefined ? [] : [[name, specifier] as const],
+      ),
+    ])
+
+    for (const route of ROUTE_BACKDROPS) {
+      const element = elementAt.get(route.path)
+      expect(element, `${route.path} renders no element in router.tsx`).toBeDefined()
+
+      const specifier = moduleOf.get(element ?? '')
+      expect(specifier, `${element ?? '?'} is not imported by router.tsx`).toBeDefined()
+
+      expect(
+        resolve('app/router.tsx', specifier ?? ''),
+        `${route.path} renders ${element ?? '?'}`,
+      ).toBe(route.page)
+    }
   })
 
   it('names a page module that exists, for every route', () => {
@@ -277,6 +392,26 @@ describe('the import graph walk sees what it claims to see', () => {
     expect(brightThingsIn(closureOf('features/admin/EventPage.tsx'))).toContainEqual(
       'features/admin/components/EventQrCard.module.css fills with --text-primary',
     )
+  })
+
+  it('keeps the source that follows an accept="video/*" attribute', () => {
+    // Asserted on the stripper rather than through a misclassified route, because today no
+    // route *is* misclassified by it: the two files carrying such an attribute render no
+    // `<img>` below it. That makes this latent rather than live, and a latent fault with no
+    // test is what this repository keeps shipping.
+    //
+    // `video/*` reads as an opening block comment to an unanchored sweep, which then deletes
+    // everything up to the next `*` + `/` in the file. Measured here: 646 bytes of
+    // `ClipComposer.tsx` disappeared, `capture="environment"` among them, and so would any
+    // element added below it. The same fault ate 1 225 bytes of `glassBackdrop.ts` itself,
+    // where the opener is the route string `'/join/*'` — which is the trap the router test
+    // above already had to work around, in a second place nobody looked.
+    const composer = sources.get('features/guest-upload/components/ClipComposer.tsx') ?? ''
+
+    expect(composer, 'the component that carries the attribute').toContain('accept="video/*"')
+    // Declared after both attributes, so its survival is the whole claim: the sweep took a
+    // comment and nothing else.
+    expect(withoutComments(composer)).toContain('capture="environment"')
   })
 })
 

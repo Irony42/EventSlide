@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { describe, expect, it } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useArrivals } from './useArrivals'
@@ -29,6 +30,41 @@ describe('useArrivals', () => {
     rerender({ list: ['c', 'a', 'b'] })
 
     expect([...result.current]).toEqual(['c'])
+  })
+
+  it('marks nothing when a decision refills the page from the photos still waiting', () => {
+    // The case every other test in this file was too short to reach, and the one that would
+    // have shipped: the console asks for no `limit`, so the server's default of 60 applies,
+    // and the pending tab is oldest-first. On a queue 72 deep the host publishes the twelve
+    // they are looking at, the page refills from row 61 with photos that have been waiting
+    // all evening, and none of those ids were on the previous page. Marking "new id" there
+    // fades and rises twelve tiles at once, on the screen §7 says must stay readable.
+    const queue = Array.from({ length: 72 }, (_, at) => `p${String(at).padStart(3, '0')}`)
+    const page = queue.slice(0, 60)
+
+    const { result, rerender } = renderHook(({ list }) => useArrivals(list, true), {
+      initialProps: { list: page as readonly string[] },
+    })
+
+    // Twelve published off the front; the cap backfills p060–p071, all of them older than
+    // anything a guest has sent since the console opened.
+    rerender({ list: queue.slice(12) })
+
+    expect([...result.current]).toEqual([])
+  })
+
+  it('still marks a real arrival on a queue long enough to be paged', () => {
+    // The other half, so the fix above is a rule and not a way of switching the feature off:
+    // a page that kept every photo it was showing and gained one has genuinely gained one.
+    const page = Array.from({ length: 60 }, (_, at) => `p${String(at).padStart(3, '0')}`)
+
+    const { result, rerender } = renderHook(({ list }) => useArrivals(list, true), {
+      initialProps: { list: page as readonly string[] },
+    })
+
+    rerender({ list: [...page, 'p060'] })
+
+    expect([...result.current]).toEqual(['p060'])
   })
 
   it('marks only what is new, not the whole refetched list', () => {
@@ -103,16 +139,37 @@ describe('useArrivals', () => {
     expect([...result.current]).toEqual(['y'])
   })
 
-  it('does not decide that nothing arrived when React renders twice', () => {
-    // StrictMode renders every component twice in development, and the state here is a ref
-    // written during render. A second pass has to find the key it just wrote and return the
-    // same answer — not compare the list against itself and report an empty queue.
+  it('holds its answer while the same list is rendered again and again', () => {
+    // The hook adjusts state during render, so the render that follows has to recognise the
+    // list it just recorded and return the same set rather than comparing the list against
+    // itself and reporting an empty queue. That is what keeps a tile's animation from being
+    // cancelled mid-flight by a selection, a keyboard move or a lightbox opening.
+    //
+    // Renamed from "when React renders twice": it said the state was "a ref written during
+    // render", which it is not — `useArrivals` uses `useState`, and its own comment records
+    // that a ref was the rejected first draft. Repeated `rerender` calls are also not
+    // StrictMode's double-invoke; the case below is the one this actually pins.
     const { result, rerender } = renderHook(({ list }) => useArrivals(list, true), {
       initialProps: { list: ['a'] as readonly string[] },
     })
 
     rerender({ list: ['b', 'a'] })
     rerender({ list: ['b', 'a'] })
+    rerender({ list: ['b', 'a'] })
+
+    expect([...result.current]).toEqual(['b'])
+  })
+
+  it('survives the double render StrictMode does in development', () => {
+    // The real thing, which the test above was named for and did not do: StrictMode invokes
+    // the render function twice for the same commit. A hook that adjusts state during render
+    // has to converge — the second invocation must not see its own write as a list change
+    // and clear the marks out from under an animation that has not started yet.
+    const { result, rerender } = renderHook(({ list }) => useArrivals(list, true), {
+      initialProps: { list: ['a'] as readonly string[] },
+      wrapper: ({ children }) => <StrictMode>{children}</StrictMode>,
+    })
+
     rerender({ list: ['b', 'a'] })
 
     expect([...result.current]).toEqual(['b'])

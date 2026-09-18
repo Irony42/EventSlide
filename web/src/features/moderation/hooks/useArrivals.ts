@@ -16,7 +16,7 @@ import { useState } from 'react'
  * load, again on every filter change, and again on any remount — three times when it means
  * nothing, for every once it means something.
  *
- * Three rules, and each of them is a thing that would otherwise animate:
+ * Four rules, and each of them is a thing that would otherwise animate:
  *
  * - **The first settled list is never new.** Arriving at a console holding a queue is not
  *   thirty arrivals; it is a screen. `settled` is what says the list is a list rather than
@@ -24,10 +24,27 @@ import { useState } from 'react'
  * - **A filter change re-seeds.** `setFilter` empties the queue and reloads it, so every
  *   photo in the new tab is unseen — and none of them arrived. Dropping back to unsettled
  *   is what makes the next list a first list again.
- * - **A decision is not an arrival.** Publishing a photo changes its status, not the set of
- *   ids, so the marks do not move. That also means an unrelated render — a selection, a
- *   keyboard move, a lightbox opening — returns the same set rather than clearing it out
- *   from under an animation that is still running.
+ * - **A list that lost a photo marks nothing at all.** This is the rule a first draft of
+ *   this hook did not have, and the queue it was tested against was too short to show it.
+ *   The console asks for no `limit`, so the server's default of 60 applies
+ *   (`requestSchemas.ts`), and the pending tab is served **oldest-first**
+ *   (`moderationQueue.ts`, so a guest beside the projector is not starved by the ten who
+ *   uploaded after them). On a 200-guest evening the queue backs up past 60 and those two
+ *   facts combine into the exact opposite of this feature: a host publishes forty, the page
+ *   refills from row 61 with photos that have been waiting all night, none of their ids
+ *   were in the previous page — and forty tiles fade and rise at once, on the screen whose
+ *   job at 23:00 is to be read. So the test is not "which ids are new" but "did the list
+ *   only grow": if a single id the console was showing is gone, the page was re-paginated
+ *   and newness is not attributable. Nothing is marked, and that is the right direction to
+ *   fail in — a missed animation is invisible, a spurious one is a distraction.
+ * - **A decision is therefore not an arrival**, whether or not it backfills. That also
+ *   means an unrelated render — a selection, a keyboard move, a lightbox opening — returns
+ *   the same set rather than clearing it out from under an animation that is still running.
+ *
+ * What this cannot do, stated rather than hidden: on a queue already past 60, a photo a
+ * guest sends **is** invisible, because oldest-first puts it on a page the console never
+ * requests. That is a paging gap and not a motion one, and motion must not paper over it
+ * by animating whatever the cap happened to reveal.
  *
  * ## Why state adjusted during render, rather than a ref or an effect
  *
@@ -66,14 +83,25 @@ export const useArrivals = (photoIds: readonly string[], settled: boolean): Read
 
   if (sameList(state.list, list)) return state.arrived
 
+  const known = list === null ? NOTHING : new Set(list)
+
+  /**
+   * Only a list that kept everything it was showing can say what is new.
+   *
+   * A photo leaving means a decision, a deletion or a re-paginated page — and under the
+   * server's 60-row cap on an oldest-first queue, what refills it is the oldest photos
+   * still waiting rather than anything that arrived. Their ids are new to this page and
+   * new to nothing else, which is why "new id" is not the test and "the list only grew" is.
+   */
+  const onlyGrew = state.list !== null && state.list.every((id) => known.has(id))
+
   const next: Arrivals =
     list === null
       ? SEEDED
       : {
           list,
-          known: new Set(list),
-          arrived:
-            state.list === null ? NOTHING : new Set(list.filter((id) => !state.known.has(id))),
+          known,
+          arrived: onlyGrew ? new Set(list.filter((id) => !state.known.has(id))) : NOTHING,
         }
 
   // Set *and* return, rather than set and read next time round: React re-renders with this

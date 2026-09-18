@@ -377,12 +377,20 @@ Rules:
 
 - **The layout tier is empty and the test says so**, across every stylesheet the app
   ships, in `transition` shorthands and in `@keyframes` bodies alike.
+- **The paint tier stops at the wall, and the test says that too.** The table above is
+  three rows and the first version of this budget measured one of them, which is the
+  failure mode a mutation audit has already found here twice: a rule enforced by the
+  paragraph that states it. `motion.budget.test.ts` now sweeps the wall's stylesheets for
+  a transitioned or keyframed `color`, `background`, `border-color` or `box-shadow`.
 - Decode and preload the next slide before the crossfade starts, or the fade shows a
   blank frame.
 - Nothing loops on the wall except Ken Burns — no confetti, no pulsing "live" dot.
 - While an upload is in flight, `Progress` is the only moving thing on the phone.
-- `will-change` is spent on the wall's own layers and nowhere else. It pins a compositing
-  layer for the lifetime of an element, not for the length of an animation.
+- `will-change` is spent on the wall's own layers and nowhere else, **and that is
+  mechanical**. It pins a compositing layer for the lifetime of an element, not for the
+  length of an animation — which on a phone mid-encode is memory taken from the thing the
+  guest is actually waiting for. `motion.budget.test.ts` fails on the declaration in any
+  stylesheet outside `features/wall/`.
 
 ### What moves, and what deliberately does not
 
@@ -415,6 +423,10 @@ And what was left still, each for a reason that is not taste:
   screen whose job at 23:00 is to be read, and the expiry is not a decision the host makes.
 - **The live-stream indicator.** A pulsing dot is on §1's forbidden list, and the `Badge`
   already carries the word.
+- **The phone moderation console.** It shows one card at a time, so "which tile is new" is
+  a question its layout cannot ask — an arrival there would be the whole screen moving, on
+  the surface whose swipe gesture is the one thing a host must never hesitate over. It
+  shares `useModerationQueue` with the desktop console and deliberately not `useArrivals`.
 - **Lists in general, on any render.** A moderator working a queue is reading, not admiring.
 
 `prefers-reduced-motion` is answered per animation, out of a closed set of three answers,
