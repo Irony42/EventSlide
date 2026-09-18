@@ -1,10 +1,33 @@
 /**
- * Which surfaces may afford the glass material — roadmap 11.3.
+ * Which surfaces may afford the glass material — roadmap 11.3, and the tier split of 11.2.
  *
- * The material itself is `tokens.css` plus `glass.module.css`. This file holds the one
- * decision neither of them can express: **which of the three surfaces gets the blur and
- * which gets the opaque fallback**, decided in advance rather than discovered at a
- * wedding in front of two hundred people.
+ * The material itself is `tokens.css` plus `glass.module.css`. This file holds the two
+ * decisions neither of them can express: **what the material costs here**, which is what
+ * the room cannot afford, and **what can be painted underneath it**, which is what decides
+ * how opaque the tint has to be. They are independent questions with independent answers,
+ * and one function composes them.
+ *
+ * ## The second question, and why it is not the same as the first
+ *
+ * A pane's legibility comes from its tint's alpha and from nothing else. So the floor it
+ * needs depends entirely on what can render beneath it, and this product has two cases:
+ *
+ * - **A guest's photograph**, which is unbounded. The worst case is pure white, and the
+ *   floor that survives it leaves 5% of the backdrop showing.
+ * - **Our own ground**, which is not. Every colour that can be painted there is a token
+ *   this product chose, so the worst case is the brightest *field* a stylesheet paints —
+ *   enumerable, and measured in `tokens.contrast.test.ts` rather than assumed.
+ *
+ * The second floor is three points of alpha lower than the first. That is the whole of the
+ * gain and it is stated rather than dressed up: the reason it is not larger is
+ * `--text-muted`, which clears 4.62:1 on `--surface-overlay` against a 4.5 target, so the
+ * palette has about a tenth of a ratio point of headroom whatever is behind the pane.
+ *
+ * **The conservative tier is the default**, and that is the load-bearing half. A surface
+ * that says nothing gets the floor that survives a photograph; claiming the translucent
+ * one is a positive act, and `app/glassBackdrop.ts` is where a route makes the claim —
+ * checked against the real import graph, because a claim nobody verifies is a claim
+ * somebody will eventually get wrong on the moderation queue.
  *
  * ## The rule, and the mechanism it comes from
  *
@@ -48,32 +71,70 @@
 export type GlassSurface = 'guest' | 'host' | 'wall'
 
 /**
- * What the material costs on a surface.
+ * What can be painted beneath a pane on this screen.
  *
- * `blur` is the material as designed. `opaque` is the same material with the tint at
- * full strength and no filter: not a degraded look, because the colour it lands on is
- * `--surface-raised`, which this product already ships everywhere else.
+ * `photo` does not mean "there is a photograph on it". It means **this screen can paint
+ * something at least as bright as one**, which a guest's upload always can and one thing
+ * of our own also does: the QR plate on an event's page is `--text-primary`, a near-white
+ * field, and a contrast ratio cannot tell it apart from a white dress in full sun. So the
+ * question the tier asks is about brightness rather than provenance, and "no guest photo
+ * here" is not on its own an answer.
+ *
+ * `ground` is the claim that neither can happen — that everything beneath the pane comes
+ * from the palette, no brighter than the backdrop the ground floor was derived against.
  */
-export type GlassTier = 'blur' | 'opaque'
+export type GlassBackdrop = 'ground' | 'photo'
 
-/** The rule itself, in one line, so that it can be read without reading the plumbing. */
-export const glassTierFor = (surface: GlassSurface): GlassTier =>
-  surface === 'wall' ? 'opaque' : 'blur'
+/**
+ * What the material costs on a surface, and which floor its tint is held to.
+ *
+ * `photo` is the material at the floor that survives an unknown photograph — the tier
+ * roadmap 11.1 derived, and the one a surface gets by saying nothing. `ground` is the same
+ * material three points of alpha more translucent, for a pane that can only ever meet our
+ * own colours. `opaque` is the tint at full strength with no filter: not a degraded look,
+ * because the colour it lands on is `--surface-raised`, which this product already ships
+ * everywhere else.
+ */
+export type GlassTier = 'ground' | 'photo' | 'opaque'
+
+/**
+ * The rule itself, in one expression, so that it can be read without reading the plumbing.
+ *
+ * The room's answer does not depend on the backdrop and the backdrop's answer does not
+ * depend on the room, which is why this is a composition of two questions rather than a
+ * table of six cases. The wall is `photo` by backdrop as well — it is nothing but guest
+ * photographs — and it never gets to matter, because a surface that cannot afford the
+ * filter has no tint to choose.
+ */
+export const glassTierFor = (
+  surface: GlassSurface,
+  backdrop: GlassBackdrop = 'photo',
+): GlassTier => (surface === 'wall' ? 'opaque' : backdrop)
 
 /**
  * The marker `tokens.css` re-declares the material on.
  *
  * Optional and **absent** rather than `undefined`: under `exactOptionalPropertyTypes`
- * those are different types, and a surface on the blur tier must render the DOM it
+ * those are different types, and a surface on the default tier must render the DOM it
  * rendered before this existed. That is the same promise the default event theme makes,
  * and it is what lets the wall's committed baselines stay committed.
  */
 export interface GlassSurfaceProps {
-  readonly 'data-glass'?: GlassTier
+  readonly 'data-glass'?: Exclude<GlassTier, 'photo'>
 }
 
-/** What a surface element spreads onto itself. Applied by `AppShell`, and nowhere else. */
-export const glassSurfaceProps = (surface: GlassSurface): GlassSurfaceProps => {
-  const tier = glassTierFor(surface)
-  return tier === 'blur' ? {} : { 'data-glass': tier }
+/**
+ * What a surface element spreads onto itself. Applied by `AppShell`, and nowhere else.
+ *
+ * `photo` spreads nothing, because it is what `tokens.css` already declares on `:root`.
+ * That is not only tidiness: it means a surface that forgets to say anything is held to
+ * the strictest floor rather than to the loosest, which is the only safe direction for a
+ * default to fail in.
+ */
+export const glassSurfaceProps = (
+  surface: GlassSurface,
+  backdrop: GlassBackdrop = 'photo',
+): GlassSurfaceProps => {
+  const tier = glassTierFor(surface, backdrop)
+  return tier === 'photo' ? {} : { 'data-glass': tier }
 }

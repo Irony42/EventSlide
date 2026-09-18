@@ -13,6 +13,15 @@ import styles from './ModerationGrid.module.css'
 export interface ModerationGridProps {
   readonly photos: readonly ModerationPhotoDto[]
   readonly selectedIds: readonly string[]
+  /**
+   * Which photos were not on this screen a moment ago — roadmap 11.2.
+   *
+   * Computed by `useArrivals` above the grid rather than here, because the grid is
+   * unmounted whenever the queue is empty and the first photo of the evening is exactly the
+   * arrival worth showing. A set rather than a flag per photo: the answer belongs to the
+   * list, and a tile cannot know whether it is new.
+   */
+  readonly arrivedIds: ReadonlySet<string>
   readonly focusedId: string | null
   readonly onSelectToggle: (photoId: string) => void
   readonly onFocusCard: (photoId: string) => void
@@ -24,6 +33,7 @@ export interface ModerationGridProps {
 export function ModerationGrid({
   photos,
   selectedIds,
+  arrivedIds,
   focusedId,
   onSelectToggle,
   onFocusCard,
@@ -42,7 +52,13 @@ export function ModerationGrid({
       aria-label={fr.moderation.queueLabel}
     >
       {photos.map((photo) => (
-        <li key={photo.id} className={styles['cell']}>
+        <li
+          key={photo.id}
+          className={styles['cell']}
+          // Absent rather than `false` on a tile that was already here: the stylesheet
+          // matches on the attribute, so a value of "no" would be a rule that runs.
+          {...(arrivedIds.has(photo.id) ? { 'data-arrival': 'new' } : {})}
+        >
           <ModerationCard
             photo={photo}
             selected={selected.has(photo.id)}

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { Spinner } from '../design-system/components/Spinner'
 import { ToastProvider } from '../design-system/components/ToastProvider'
 import { fr } from '../lib/i18n/fr'
@@ -8,6 +8,7 @@ import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
 import { JoinPage } from '../features/join/JoinPage'
 import { AppShell } from './AppShell'
 import { ErrorBoundary } from './ErrorBoundary'
+import { glassBackdropFor } from './glassBackdrop'
 import { LanguagePicker } from './LanguagePicker'
 import { NotFoundView } from './NotFoundView'
 import { RequireAuth } from './RequireAuth'
@@ -94,6 +95,21 @@ const RouteFallback = () => (
 )
 
 /**
+ * Which glass tier the address under a layout may claim — roadmap 11.2.
+ *
+ * Read in the layout rather than passed up from a page, because a layout is the innermost
+ * thing that renders the shell and the shell is where the tier reaches the DOM. Reading the
+ * location is what lets one layout serve several addresses with different answers: the
+ * guest's join screen can afford the translucent tier and their upload screen cannot, and
+ * both are the same layout with the same toast region — so splitting them into two layouts
+ * would remount the shell in the middle of the guest's critical path to change a custom
+ * property.
+ *
+ * The table and the walk that checks it are in `glassBackdrop.ts`.
+ */
+const useGlassBackdrop = () => glassBackdropFor(useLocation().pathname)
+
+/**
  * The guest surface, with the language picker in its header.
  *
  * Here rather than inside `JoinPage` and `GuestUploadPage`, because it belongs to both
@@ -109,13 +125,16 @@ const RouteFallback = () => (
  * to prevent. Inside the layout, the region is in the same language as the screen that
  * raised it, whichever screen that is.
  */
-const GuestLayout = () => (
-  <ToastProvider>
-    <AppShell surface="guest" header={<LanguagePicker />}>
-      <Outlet />
-    </AppShell>
-  </ToastProvider>
-)
+const GuestLayout = () => {
+  const backdrop = useGlassBackdrop()
+  return (
+    <ToastProvider>
+      <AppShell surface="guest" backdrop={backdrop} header={<LanguagePicker />}>
+        <Outlet />
+      </AppShell>
+    </ToastProvider>
+  )
+}
 
 /**
  * The host console and the projected wall speak French, and say so here.
@@ -136,18 +155,29 @@ const GuestLayout = () => (
  * screen in front of a French console, or in front of a room. The inner boundary catches
  * first, inside French, and the outer one is still there for anything above it.
  */
-const HostLayout = () => (
-  <FrenchSurface>
-    <ErrorBoundary>
-      <ToastProvider>
-        <AppShell surface="host">
-          <Outlet />
-        </AppShell>
-      </ToastProvider>
-    </ErrorBoundary>
-  </FrenchSurface>
-)
+const HostLayout = () => {
+  const backdrop = useGlassBackdrop()
+  return (
+    <FrenchSurface>
+      <ErrorBoundary>
+        <ToastProvider>
+          <AppShell surface="host" backdrop={backdrop}>
+            <Outlet />
+          </AppShell>
+        </ToastProvider>
+      </ErrorBoundary>
+    </FrenchSurface>
+  )
+}
 
+/**
+ * The wall passes no backdrop, and that is not an omission.
+ *
+ * The room takes the opaque tier from the surface rule whatever is behind a pane, so a
+ * backdrop here would be a value with no consequence — and a value with no consequence is
+ * one somebody later reads as a decision. `glassBackdrop.ts` still records the wall's real
+ * answer, where it costs nothing and stays true.
+ */
 const WallLayout = () => (
   <FrenchSurface>
     <ErrorBoundary>

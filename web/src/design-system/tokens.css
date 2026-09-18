@@ -91,26 +91,52 @@
          four pixels from the one beside it reads as a mistake to somebody who cannot say
          why — and `glass.material.test.ts` fails the build on it.
 
-         **The tint is a floor, and 0.95 is derived rather than chosen.** A pane sits on
-         top of whatever a guest uploaded, and the brightest thing that can be behind it
-         is pure white: a white dress in full sun, and also the ceiling of the sRGB gamut,
-         so nothing a camera can produce is worse. 0.95 is the lowest alpha at which the
-         material composited over white is at least as legible as `--surface-overlay` is
-         today — for `--text-primary`, `--text-secondary` and `--text-muted` alike. Below
-         it the material would be a ground the design system would refuse if it were
-         opaque. `tokens.contrast.test.ts` measures every one of those pairs, over white
-         and over all 360 accents an event can carry.
+         **The tint is a floor, and both floors are derived rather than chosen.** A pane
+         is legible because of its alpha and nothing else — a blurred white field is still
+         white, and saturation is a rotation that leaves white where it was — so the only
+         question is what can be painted underneath. That question has two answers in this
+         product, which is why there are two tints and not one:
 
-         The colour is `--surface-raised`, and that is what makes the no-blur fallback
-         honest: `--glass-opaque` is not a new shade invented for a degraded mode, it is a
-         surface this product already ships and already tests. ---- */
+         - **Over an unknown photograph**, the brightest possible backdrop is pure white:
+           a white dress in full sun, and also the ceiling of the sRGB gamut, so nothing a
+           camera can produce is worse. 0.95 is the lowest alpha that holds there.
+         - **Over our own ground**, the backdrop is a colour this product chose, so the
+           worst case is enumerable instead of unbounded: the brightest *field* a
+           stylesheet paints on a non-wall surface, which today is a primary button's
+           `--accent` at whichever of the 360 hues an event may pick renders lightest.
+           0.92 is the lowest alpha that holds there.
+
+         Both are derived against the same bar, so the only thing that differs between
+         them is the backdrop: the lowest alpha at which the material is at least as good
+         a ground as `--surface-overlay` — the darkest surface this design system already
+         permits text on — for `--text-primary`, `--text-secondary` and `--text-muted` at
+         once, while keeping an accent link, the focus ring and the status glyphs above
+         their own bars. `tokens.contrast.test.ts` measures every one of those pairs, for
+         both tints, over all 360 accents an event can carry.
+
+         **Two floors three points apart is the measurement, not a disappointment**, and
+         it says where the opacity actually comes from: `--text-muted` clears 4.62:1 on
+         `--surface-overlay` against a 4.5 target, so the whole palette has about a tenth
+         of a ratio point of headroom before a translucent ground stops being one this
+         product would accept. Removing the photograph from the worst case buys three
+         points of alpha; nothing buys more without moving an ink.
+
+         The colour is `--surface-raised` in every tier, and that is what makes the no-blur
+         fallback honest: `--glass-opaque` is not a new shade invented for a degraded mode,
+         it is a surface this product already ships and already tests. One colour, three
+         alphas. ---- */
   --glass-blur: 20px;
   --glass-saturate: 180%;
   /* Declared whole so a tier can switch it off in one word. `none` is not a zero-radius
      blur: a filter that runs still promotes a compositing layer, and the point of the
      fallback is to stop paying for one. */
   --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  --glass-tint: oklch(21% 0.025 265 / 0.95); /* --surface-raised, at the floor */
+  --glass-tint-photo: oklch(21% 0.025 265 / 0.95); /* --surface-raised, over a photograph */
+  --glass-tint-ground: oklch(21% 0.025 265 / 0.92); /* --surface-raised, over our own ground */
+  /* The tint in force, and the conservative one by default: a surface that declares
+     nothing at all is held to the floor that survives an unknown photograph. Every tier
+     below is an alias of one of the two above, so a raw alpha exists once. */
+  --glass-tint: var(--glass-tint-photo);
   --glass-opaque: var(--surface-raised);
   /* The edge and the highlight are the product's own light at a hairline's strength —
      `--text-primary`'s colour, not a new one. Glass is lit from the top, so the
@@ -238,7 +264,8 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
     --glass-filter: none;
-    --glass-tint: var(--glass-opaque);
+    --glass-tint-photo: var(--glass-opaque);
+    --glass-tint-ground: var(--glass-opaque);
   }
 }
 
@@ -253,8 +280,32 @@
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   :root {
     --glass-filter: none;
-    --glass-tint: var(--glass-opaque);
+    --glass-tint-photo: var(--glass-opaque);
+    --glass-tint-ground: var(--glass-opaque);
   }
+}
+
+/**
+ * The two blocks above move the *named* tints rather than `--glass-tint`, and that is the
+ * difference between a fallback that works and one that is overruled.
+ *
+ * A tier below is a declaration on a descendant element — the surface — and a descendant
+ * always wins over `:root` for itself and its subtree, whatever the specificity of the two
+ * selectors. So a `:root` block that set `--glass-tint` directly would be silently
+ * discarded on every surface carrying a tier, and a guest who asked for more contrast
+ * would be handed the translucent pane they asked not to have. Moving the named tints
+ * instead means every tier keeps pointing at the same alias it always did and follows the
+ * fallback without knowing it exists.
+ */
+
+/**
+ * Our own ground, roadmap 11.2. The pane cannot meet a pixel this product did not choose,
+ * so the floor is the exact one calculated above instead of the one white demands.
+ * `app/glassBackdrop.ts` decides which addresses may claim it, and a test walks the real
+ * import graph rather than trusting the claim.
+ */
+[data-glass='ground'] {
+  --glass-tint: var(--glass-tint-ground);
 }
 
 /** The room, by the budget above. `AppShell` sets it; `glass.ts` holds the rule. */

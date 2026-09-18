@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { glassSurfaceProps } from '../design-system/glass'
+import { glassSurfaceProps, type GlassBackdrop } from '../design-system/glass'
 import { useLocale } from '../lib/i18n/useTranslations'
 import styles from './AppShell.module.css'
 
@@ -10,6 +10,15 @@ export const MAIN_CONTENT_ID = 'main-content'
 
 export interface AppShellProps {
   readonly surface: Surface
+  /**
+   * What the address under this shell can paint beneath a glass pane — roadmap 11.2.
+   *
+   * Omitted means `photo`, the floor that survives an unknown photograph. A default that
+   * has to be argued for is the strict one: a screen nobody classified is a screen nobody
+   * looked at, and the translucent tier is the claim that has to be earned. `router.tsx`
+   * supplies it from `glassBackdrop.ts`, which is checked against the real import graph.
+   */
+  readonly backdrop?: GlassBackdrop
   /** A toolbar or a header bar. The wall passes none: there is nobody to click it. */
   readonly header?: ReactNode
   readonly children: ReactNode
@@ -34,7 +43,7 @@ export interface AppShellProps {
  * voice a screen reader pronounces the page with, and `index.html` ships `lang="fr"` so
  * the first paint is right before React has mounted anything.
  */
-export function AppShell({ surface, header, children, className }: AppShellProps) {
+export function AppShell({ surface, backdrop, header, children, className }: AppShellProps) {
   const { locale, text } = useLocale()
   const classes = [styles['main'], styles[surface], className].filter(Boolean).join(' ')
 
@@ -45,9 +54,10 @@ export function AppShell({ surface, header, children, className }: AppShellProps
   return (
     /* The glass tier goes on the shell rather than on `<main>`, because the skip link is
        outside `<main>` and a header may be too: everything the surface renders has to
-       inherit the same material. A surface on the blur tier spreads nothing, so the DOM
-       is unchanged for the guest and the host. */
-    <div className={styles['shell']} {...glassSurfaceProps(surface)}>
+       inherit the same material. A surface on the default tier spreads nothing, so the DOM
+       is unchanged wherever a photograph can appear — which includes the wall's baselines,
+       and the two panes that wear the material today. */
+    <div className={styles['shell']} {...glassSurfaceProps(surface, backdrop)}>
       <a className={styles['skipLink']} href={`#${MAIN_CONTENT_ID}`}>
         {text.shell.skipToContent}
       </a>

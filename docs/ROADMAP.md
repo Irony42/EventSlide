@@ -459,6 +459,27 @@ the projector renders, so it is **a re-baseline with a human looking at every im
 belongs with the wall work below, not in the change that defined the material. The number
 is pinned by a test in the meantime, so it cannot quietly get worse.
 
+**Corrected under 11.2: one floor was one too few, and the correction is smaller than it
+looks.** Deriving the tint from the worst possible backdrop and applying it everywhere held
+most of this product — login, the dashboard, the create form, the settings page, the join
+screen — to a number a white dress demands, on screens that never show a photograph. There
+are now two floors: `0.95` over an unknown photograph, and `0.92` over our own ground, where
+the backdrop is a colour this design system declares and the worst case is therefore
+enumerable. Which one a surface gets is decided structurally — `app/glassBackdrop.test.ts`
+walks the real import graph and refuses the translucent floor to any address that can reach
+an `<img>`, a `<video>`, or a fill brighter than the backdrop that floor was derived
+against.
+
+**And the measurement is the interesting part, because it is small: three points of alpha,
+5% of the backdrop against 8%.** The photograph was never what made the material opaque.
+`--text-muted` clears 4.62:1 on `--surface-overlay` against a 4.5 target, so the palette has
+about a tenth of a ratio point of headroom whatever is behind the pane; narrowing the
+backdrop spends nearly all of it. A markedly more translucent tier needs an ink moved or a
+pane's ink budget narrowed, which is a change with its own argument and nobody has made it.
+The guard also found a case the obvious rule would have missed: `/admin/events/:slug` shows
+no guest photograph and is on the strict floor anyway, because the join QR's plate is a
+near-white `--text-primary` field.
+
 ### 11.2 Motion that answers the hand (P1, effort M, risk: medium)
 
 The animation work is not "add transitions". It is: what does the interface do when a guest
@@ -477,6 +498,24 @@ The specific trap, learned here: the wall now runs Ken Burns over a playing `<vi
 adding a blurred pane over that means the compositor is scaling, decoding and blurring at
 once. Animate `transform` and `opacity` only, never layout properties, and treat
 `will-change` as a scarce resource rather than a default.
+
+**Done, and the list of what was left still is longer than the list of what moves.** Two
+moments gained motion: a photo arriving on the moderation queue over SSE, where the one new
+tile fades and rises and nothing else on the list does; and an upload failing, where the
+row's border goes to `--danger` and the sentence saying why rises as it mounts. Two already
+had their answer and were not touched: a guest pressing a button, and the wall changing
+slide. What was deliberately left still, with the reason, is the table in
+`docs/DESIGN-SYSTEM.md` §7 — the guest's own uploads list above all, because it scrolls
+_under_ the glass composer and a thumbnail travelling behind a blurred pane is a backdrop
+re-filtered every frame, on the one machine that is also encoding a photograph.
+
+Two corrections came out of it. **§7's rule as written was broken by the design system's own
+`Button`**, which has transitioned `background-color` since 2.0: the reason the rule gives
+is layout, and a colour is not a layout, so the budget is now three tiers — compositor,
+paint, layout — and the layout tier is empty and mechanically enforced. And
+`prefers-reduced-motion` is now answered per animation out of a closed set of three answers,
+with `motion.budget.test.ts` failing on any animation that gives none — which is how the
+health requirement stops depending on whoever reviews the diff.
 
 ### 11.3 The budget that keeps it usable (P1, effort S, risk: low)
 
