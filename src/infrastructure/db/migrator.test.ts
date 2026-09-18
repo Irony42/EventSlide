@@ -640,9 +640,19 @@ describe('migration 004, the site-level role', () => {
     closeDatabase(db)
   })
 
-  it('skips a first account somebody switched off, so the box is not left unoperable', () => {
-    // Promoting a disabled account would leave an operator nobody can sign in as, and
-    // until §10.4 ships a way to grant the role there would be no way to appoint another.
+  it('promotes nobody when the first account is switched off, rather than the next one along', () => {
+    // The scenario this exists for: a photographer hands the studio over, the successor
+    // switches the founder's login off rather than deleting it (`events.owner_id` is ON
+    // DELETE RESTRICT), and the box is then upgraded. Walking past the disabled row to
+    // "the oldest account that is not disabled" does not find the installer — it finds
+    // whoever was invited first, which on a box that has run weddings for a year is a
+    // bride who moderated one evening two summers ago.
+    //
+    // So the migration promotes the genuinely first account, or nobody. A box with no
+    // operator loses nothing today: `requireOperator` is mounted on no production route,
+    // and §10.4 — the first item that needs one — is also the item that ships a way to
+    // appoint one. A box with the *wrong* operator is a grant nothing can revoke, made
+    // invisibly at upgrade time, that every later item of section 10 builds on.
     const db = freshDb()
     migrate(
       db,
@@ -657,7 +667,28 @@ describe('migration 004, the site-level role', () => {
 
     expect(siteRoles(db)).toEqual([
       { id: 'u-bootstrap', site_role: 'none' },
-      { id: 'u-invited', site_role: 'operator' },
+      { id: 'u-invited', site_role: 'none' },
+    ])
+    closeDatabase(db)
+  })
+
+  it('promotes nobody on a box where every account is switched off', () => {
+    // The same rule read from the other end, and a rule the comment stated with nothing
+    // asserting it. An entirely disabled box comes out of the upgrade exactly as it went
+    // in.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 4),
+    )
+    seedPreSiteRole(db)
+    db.prepare(`UPDATE users SET disabled_at = '2026-06-21T09:00:00.000Z'`).run()
+
+    migrate(db, migrations)
+
+    expect(siteRoles(db)).toEqual([
+      { id: 'u-bootstrap', site_role: 'none' },
+      { id: 'u-invited', site_role: 'none' },
     ])
     closeDatabase(db)
   })

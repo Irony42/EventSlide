@@ -185,6 +185,29 @@ describe('SqliteUserRepository', () => {
     expect(await repo.siteRoleFor(HOST)).toBe('operator')
   })
 
+  it('refuses the authorization read on the same corrupt row it refuses to hydrate', async () => {
+    // The case above and `refuses to hydrate…` are two different statements over one
+    // column, and only the hydrating one was asserted — so `siteRoleFor`, which is the
+    // read `requireOperator` actually makes, could be changed to treat an unrecognised
+    // value as `operator` with nothing in the repository failing.
+    //
+    // One row, one meaning. `findById` already throws on this row, so an answer here of
+    // `none` would make the same stored value mean two different things depending on
+    // which statement read it — and a site role nobody can state is a fact about the
+    // database, not a login to serve quietly. The port contract cannot reach this:
+    // `FakeUserRepository` holds `User` objects, where an unrecognised value is
+    // unrepresentable, so ring 3 is the only place the rule can be held at all.
+    db.prepare<[string]>(
+      `INSERT INTO users (id, email, password_hash, created_at, site_role)
+            VALUES ('user-odd', 'odd@example.test', 'hash:seed', ?, 'none')`,
+    ).run(AT.toISOString())
+    db.prepare(`PRAGMA ignore_check_constraints = ON`).run()
+    db.prepare(`UPDATE users SET site_role = 'root' WHERE id = 'user-odd'`).run()
+    db.prepare(`PRAGMA ignore_check_constraints = OFF`).run()
+
+    await expect(repo.siteRoleFor(asUserId('user-odd'))).rejects.toThrow(/site_role/)
+  })
+
   // ------------------------------------------------------------------ deletion --
 
   it('refuses to delete a host who still owns an event, so no album leaves with them', async () => {

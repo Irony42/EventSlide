@@ -93,9 +93,21 @@ const toEmail = (raw: string): EmailAddress => {
  * A site role the domain does not know is a corrupt row, exactly as a bad address is.
  *
  * The `CHECK` constraint refuses one on the way in, so reaching this means the column was
- * written around the application. Failing loudly beats hydrating an account whose
- * authority nobody can state — and, in the other direction, beats quietly reading an
- * unknown value as `operator`.
+ * written around the application — a hand-edited dump, or a later migration that rebuilt
+ * `users` through SQLite's twelve-step dance and dropped the `ALTER`-added `CHECK`.
+ *
+ * **Both** readers of the column go through here, and that is the decision rather than a
+ * convenience. `siteRoleFor` is the read `requireOperator` makes, and it could plausibly
+ * have absorbed a corrupt value as `none` instead — fail-closed, no 500 on an
+ * authorization gate. It does not, because `findById` throws on the same row: one stored
+ * value would then mean two different things depending on which statement read it, and
+ * the quieter of the two answers is the one that hides the fact that something is writing
+ * around the schema. Answering `operator` is worse again and is what the mutation that
+ * went unnoticed here actually did.
+ *
+ * Both call sites have their own named test in `sqliteUserRepository.test.ts`; the port
+ * contract cannot hold this rule, because `FakeUserRepository` stores `User` objects and
+ * an unrecognised value is unrepresentable there.
  */
 const toSiteRole = (raw: string): SiteRole => {
   if (!isSiteRole(raw)) {
