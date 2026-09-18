@@ -12,3 +12,53 @@
 .cell {
   min-width: 0;
 }
+
+/**
+ * A photo that was not on this screen a moment ago — roadmap 11.2.
+ *
+ * The one arrival in this product a host cannot otherwise tell from a re-render: the stream
+ * carries an invalidation rather than a payload, so a guest's upload reaches the console as
+ * a queue that is one tile longer than it was. Motion says which tile, and it says it in
+ * the vocabulary the rest of the system already uses for something appearing — the Toast's
+ * `rise`, at `--duration-base` on `--ease-out`.
+ *
+ * **`[data-arrival]` and not a rule on `.cell`**, and the distinction is the whole design.
+ * An entrance on the class runs whenever an element mounts, which is thirty tiles on the
+ * first load, all of them again on a filter change, and all of them again on a remount —
+ * three times when it means nothing for every once it means something, on a screen whose
+ * job at 23:00 is to be read. `useArrivals` is what decides, and it marks a tile only when
+ * the queue was already on screen without it.
+ *
+ * It costs the toolbar above, and that is stated rather than hidden: the toolbar is a glass
+ * pane (roadmap 11.1) and a tile moving underneath it is a backdrop re-filtered for the
+ * length of this animation. Bounded at one tile per photo, on the host's laptop, which is
+ * the machine the budget says can afford a blur at all — and the reason the guest's own
+ * uploads list, which sits under the same kind of pane on a phone that is mid-encode, is
+ * left still.
+ *
+ * No `will-change`: 240 ms of opacity and transform does not earn a compositing layer held
+ * for the lifetime of a queue.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .cell[data-arrival='new'] {
+    animation: arrive var(--duration-base) var(--ease-out) both;
+  }
+}
+
+/**
+ * Not declared at all under `prefers-reduced-motion`, rather than collapsed by `base.css`.
+ *
+ * The state change stays legible without it: the pending count in the toolbar is an
+ * `aria-live` region, so an arrival is announced whether or not anything moved, and the
+ * tile is simply there. Nothing on this screen depends on having seen the movement.
+ */
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

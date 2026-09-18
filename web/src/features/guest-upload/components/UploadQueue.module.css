@@ -30,6 +30,26 @@
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   min-width: 0;
+  /* The row's own state change, and the only one it has — roadmap 11.2. A colour is a
+     paint, not a layout, so this is the cheap end of the budget in docs/DESIGN-SYSTEM.md
+     §7: no reflow, no compositing layer, and legible under `prefers-reduced-motion`
+     because `base.css` collapses the interpolation and leaves the colour. */
+  transition: border-color var(--duration-base) var(--ease-out);
+}
+
+/**
+ * A photo that did not go up — roadmap 11.2.
+ *
+ * Before this the row said so in the `Badge` alone, which is a word in a box among six
+ * other rows that also have one. The edge is the thing a guest sees from a metre away in a
+ * dark room without reading anything, and it is never the only signal: the badge carries
+ * the word, the sentence carries the reason, and the retry control carries what to do.
+ *
+ * `--danger` on `--surface-raised` measures 4.97:1, which clears WCAG 1.4.11's 3:1 for a
+ * component boundary with room to spare; `tokens.contrast.test.ts` holds the pair.
+ */
+.item[data-state='failed'] {
+  border-color: var(--danger);
 }
 
 /**
@@ -54,9 +74,45 @@
   min-width: 0;
 }
 
+/**
+ * The sentence that appears when something failed — roadmap 11.2.
+ *
+ * The one moving thing in a failure, and it moves because it is the one thing that was not
+ * there before: the element mounts with the failure, so a plain `animation` runs exactly
+ * once, on exactly the element that changed, with no state to keep. `rise`, at the same
+ * duration and curve as a `Toast`, because "something appeared and it is telling you
+ * something" already has a grammar in this design system and a second one would be noise.
+ *
+ * **The row itself does not move, and that is the decision.** A nudge or a shake is the
+ * conventional answer to a failure and it is the wrong one here: this list lives inside the
+ * upload composer, on a phone that may be encoding the next photo and holding a request
+ * open on a venue's Wi-Fi, and the guest's problem is a photo that has not arrived rather
+ * than a screen that has not reacted. The border above says *which* row; this says why.
+ *
+ * Under `prefers-reduced-motion` nothing is declared, and nothing is lost: the sentence is
+ * there, the badge is there, `role="alert"` is not needed because the queue's summary is
+ * already an `aria-live` region that counts failures.
+ */
 .error {
   font-size: var(--text-sm);
   color: var(--danger);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .error {
+    animation: rise var(--duration-base) var(--ease-out) both;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .controls {

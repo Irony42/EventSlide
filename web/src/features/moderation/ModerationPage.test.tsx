@@ -410,6 +410,67 @@ describe('ModerationPage', () => {
     expect(api.moderationQueue).toHaveBeenCalledTimes(2)
   })
 
+  /**
+   * What moves when a photo arrives — roadmap 11.2.
+   *
+   * The attribute rather than the animation: jsdom has no compositor and a computed
+   * `animation` there says only that a string was parsed. What is worth protecting is the
+   * decision — *which* tile is marked — and that is `useArrivals`, asserted through the DOM
+   * it produces because a set returned by a hook is not what the stylesheet reads.
+   */
+  const arrivalOf = (author: string): string | null =>
+    cardOf(author).closest('li')?.getAttribute('data-arrival') ?? null
+
+  it('marks the tile that arrived over the stream, and only that one', async () => {
+    let answered = 0
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => {
+        answered += 1
+        return answered === 1 ? queueOf([lea()]) : queueOf([sacha(), lea()])
+      }),
+    })
+    renderConsole(api)
+    await screen.findByTestId('moderation-card')
+
+    emitSignal('photo.uploaded')
+    await waitFor(() => expect(screen.getAllByTestId('moderation-card')).toHaveLength(2))
+
+    expect(arrivalOf('Sacha')).toBe('new')
+    // The tile the host was already looking at does not move. A queue that re-animates
+    // every row on every refetch is slower to read, and the stream refetches whole.
+    expect(arrivalOf('Léa')).toBeNull()
+  })
+
+  it('marks nothing on the queue that was already there when the console opened', async () => {
+    // Arriving at a console mid-party is one screen, not a queue full of arrivals.
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])) })
+    renderConsole(api)
+    await screen.findAllByTestId('moderation-card')
+
+    expect(arrivalOf('Léa')).toBeNull()
+    expect(arrivalOf('Sacha')).toBeNull()
+  })
+
+  it('marks nothing when the host changes filter, however new that tab is', async () => {
+    // Every photo under "Publiées" is one this screen has not shown, and none of them
+    // arrived. The filter change empties the queue and reloads it, which is what makes the
+    // list that comes back a first list rather than a hundred arrivals.
+    const api = fakeApi({
+      moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) =>
+        query?.status === 'published'
+          ? queueOf([sacha({ status: 'published' })])
+          : queueOf([lea()]),
+      ),
+    })
+    renderConsole(api)
+    await screen.findByTestId('moderation-card')
+
+    await userEvent.click(screen.getByRole('button', { name: fr.moderation.filterPublished }))
+    await waitFor(() => expect(screen.getAllByTestId('moderation-card')).toHaveLength(1))
+
+    expect(arrivalOf('Sacha')).toBeNull()
+  })
+
   it('ignores a burst of reactions, which cannot change the queue', async () => {
     const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
     renderConsole(api)

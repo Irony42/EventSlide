@@ -238,29 +238,52 @@ describe('the glass material costs nothing to animate', () => {
 })
 
 /**
- * The budget's CSS half, pinned — roadmap 11.3.
+ * The budget's CSS half, pinned — roadmap 11.3, and the tint tiers of 11.2.
  *
- * Three blocks send a surface to the opaque tier, and every one of them has to land on the
- * *same* two declarations. A tier that forgot `--glass-tint` would leave a pane
- * translucent with no blur behind it, which is the exact failure roadmap 11.1 names: "not
- * a transparent pane that becomes unreadable".
+ * Three blocks send a surface all the way to the opaque tier, and every one of them has to
+ * switch off the filter *and* every tint a tier can select. A block that forgot one would
+ * leave a pane translucent with no blur behind it, which is the exact failure roadmap 11.1
+ * names: "not a transparent pane that becomes unreadable".
  */
 describe('the glass budget switches the whole material off, every way it can be reached', () => {
+  /**
+   * The two named tints, read off the stylesheet rather than listed here.
+   *
+   * A third tier added tomorrow declares a third tint, and this sweep picks it up — which
+   * is what stops the assertions below from being a list that is complete on the day it is
+   * written and quietly partial afterwards.
+   */
+  const TINTS = [...withoutComments(TOKENS).matchAll(/(--glass-tint-[a-z-]+):/g)]
+    .flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
+    .filter((name, index, all) => all.indexOf(name) === index)
+
   const FALLS_BACK = [
     [
       'a browser with no backdrop-filter at all',
       /@supports not \(\(backdrop-filter:.+\) or \(-webkit-backdrop-filter:.+\)\)/,
+      true,
     ],
     [
       'a person who asked for less transparency or more contrast',
       /@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\)/,
+      true,
     ],
-    ['the room, by the budget', /\[data-glass='opaque'\]/],
+    ['the room, by the budget', /\[data-glass='opaque'\]/, false],
   ] as const
 
   // Comments stripped, or a tier described in prose would satisfy a tier that is missing
   // from the stylesheet — which is the failure mode this whole file is about.
   const RULES = withoutComments(TOKENS)
+
+  const blockAt = (pattern: RegExp): string => {
+    const from = RULES.search(pattern)
+    expect(from, 'the tier is missing entirely').toBeGreaterThanOrEqual(0)
+    return RULES.slice(from, RULES.indexOf('}', RULES.indexOf('{', from) + 1) + 1)
+  }
+
+  it('finds the tints the tiers select, rather than sweeping an empty list', () => {
+    expect(TINTS.length).toBeGreaterThanOrEqual(2)
+  })
 
   it.each(FALLS_BACK)('has a tier for %s', (_reason, pattern) => {
     expect(RULES).toMatch(pattern)
@@ -271,13 +294,50 @@ describe('the glass budget switches the whole material off, every way it can be 
     // copies inside one block. A tier that switched off the filter and left the tint
     // translucent would be the exact failure roadmap 11.1 names — a transparent pane with
     // nothing behind it — and it is the plausible half to forget.
-    const from = RULES.search(pattern)
-    expect(from, 'the tier is missing entirely').toBeGreaterThanOrEqual(0)
-
-    const block = RULES.slice(from, RULES.indexOf('}', RULES.indexOf('{', from) + 1) + 1)
+    const block = blockAt(pattern)
 
     expect(block).toMatch(/--glass-filter:\s*none\s*;/)
-    expect(block).toMatch(/--glass-tint:\s*var\(--glass-opaque\)\s*;/)
+    expect(block).toMatch(/--glass-tint(?:-[a-z-]+)?:\s*var\(--glass-opaque\)\s*;/)
+  })
+
+  /**
+   * The bug this was written for, and it was live for the length of one commit.
+   *
+   * A tier is a declaration on a *descendant* of `:root` — the surface element — and for
+   * itself and its subtree a descendant always wins, whatever the specificity of the two
+   * selectors. So a `@media (prefers-contrast: more)` block that set `--glass-tint`
+   * directly would be discarded on every surface carrying a tier, and the guest who asked
+   * for more contrast would be handed the translucent pane they asked not to have. The
+   * fallbacks therefore move the named tints, and the tiers stay aliases that follow.
+   */
+  it.each(FALLS_BACK.filter(([, , atRoot]) => atRoot))(
+    'reaches a tier set on a surface element, for %s',
+    (_reason, pattern) => {
+      const block = blockAt(pattern)
+
+      for (const tint of TINTS) {
+        expect(block, `${tint} is left translucent by this fallback`).toMatch(
+          new RegExp(`${tint}:\\s*var\\(--glass-opaque\\)\\s*;`),
+        )
+      }
+      // And the alias is never written directly, which is what would shadow the above.
+      expect(block).not.toMatch(/--glass-tint:\s*var/)
+    },
+  )
+
+  it('selects a declared tint from every tier, rather than inventing a value', () => {
+    // Each tier is an alias, so there is exactly one raw alpha per floor in the whole
+    // product. A tier that spelled out `oklch(… / 0.8)` would be a fourth grey arriving in
+    // the one shape section 2 cannot see coming.
+    const tiers = [...RULES.matchAll(/\[data-glass='[a-z]+'\]\s*\{([^}]*)\}/g)].flatMap((match) =>
+      match[1] === undefined ? [] : [match[1]],
+    )
+
+    expect(tiers.length).toBeGreaterThanOrEqual(2)
+    for (const tier of tiers) {
+      expect(tier).not.toMatch(/oklch\(/)
+      expect(tier).toMatch(/--glass-tint:\s*var\(--glass-[a-z-]+\)\s*;/)
+    }
   })
 
   it('asks about the prefixed property too, or several years of iPhones lose the blur', () => {

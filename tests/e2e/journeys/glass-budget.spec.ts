@@ -93,6 +93,99 @@ test.describe('the glass budget', () => {
     expect(applied).toContain('saturate')
   })
 
+  /**
+   * The tint tier, in a real browser — roadmap 11.2.
+   *
+   * Everything about the second floor is unit-tested: the number
+   * (`tokens.contrast.test.ts`), the rule (`glass.test.ts`), and which addresses may claim
+   * it (`glassBackdrop.test.ts`, which walks the import graph rather than trusting the
+   * table). None of those can say whether the cascade delivers it, and the cascade is
+   * exactly where this went wrong once already: a tier is a declaration on a *descendant*
+   * of `:root`, so a `:root` fallback that named `--glass-tint` directly would be discarded
+   * on any surface carrying one. The tokens are read where a pane would read them.
+   */
+  const glassTintOn = async (
+    page: Parameters<typeof joinAsGuest>[0],
+    selector: string,
+  ): Promise<string> =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((element) => getComputedStyle(element).getPropertyValue('--glass-tint').trim())
+
+  test('an address with no photograph on it is served the translucent tier', async ({
+    app,
+    surfaces,
+  }) => {
+    const event = await app.seedEvent({ slug: 'verre-rejoindre', name: 'Camille & Sacha' })
+    const { guest } = surfaces
+
+    await guest.goto(app.url(`/join/${event.joinCode}`))
+    await expect(guest.getByRole('button', { name: /Rejoindre/i })).toBeVisible()
+
+    // The shell carries the marker, so everything the screen renders inherits one material.
+    await expect(guest.locator('[data-glass]')).toHaveAttribute('data-glass', 'ground')
+
+    // And the marker actually moves the tint, rather than naming a tier nothing reads.
+    const ground = await glassTintOn(guest, '[data-glass]')
+    const strict = await glassTintOn(guest, 'body')
+    expect(ground).not.toBe(strict)
+  })
+
+  test('a translucent address still gives up the tint when the guest asked for contrast', async ({
+    app,
+    surfaces,
+    browserName,
+  }) => {
+    // The bug this cascade was one commit away from shipping. A tier is declared on the
+    // shell, a descendant of `:root`, and a descendant wins for its own subtree whatever the
+    // selectors' specificity — so a fallback that set `--glass-tint` on `:root` would be
+    // discarded here and the person who asked for more contrast would get the *most*
+    // translucent pane in the product. The fallbacks move the named tints instead, and this
+    // is the check that says the cascade agrees.
+    test.skip(browserName !== 'chromium', 'media emulation differs by engine')
+
+    const event = await app.seedEvent({ slug: 'verre-contraste', name: 'Camille & Sacha' })
+    const { guest } = surfaces
+
+    await guest.emulateMedia({ contrast: 'more' })
+    await guest.goto(app.url(`/join/${event.joinCode}`))
+    await expect(guest.locator('[data-glass]')).toHaveAttribute('data-glass', 'ground')
+
+    expect(await glassFilterOn(guest, '[data-glass]')).toBe('none')
+    // Opaque, not merely unfiltered: a translucent pane with no blur behind it is the
+    // failure roadmap 11.1 names for a fallback done badly. An alpha in the resolved value
+    // is exactly what "still translucent" looks like.
+    const tint = await glassTintOn(guest, '[data-glass]')
+    expect(tint).not.toContain('/')
+    expect(tint).toBe(await glassTintOn(guest, 'body'))
+
+    await guest.emulateMedia({ contrast: 'no-preference' })
+  })
+
+  test('the same guest, one screen later, is back on the floor a photograph demands', async ({
+    app,
+    surfaces,
+  }) => {
+    // The pair is the point. A run that only proved the join screen went translucent would
+    // pass just as well if the whole product had, which is the one outcome the split must
+    // not produce: the composer sits over the guest's own uploads.
+    const event = await app.seedEvent({ slug: 'verre-envoi', name: 'Camille & Sacha' })
+    const { guest } = surfaces
+
+    await joinAsGuest(guest, app, event.joinCode, 'Léa')
+    await expect(guest.getByTestId('upload-composer')).toBeVisible()
+
+    expect(await guest.locator('[data-glass]').count()).toBe(0)
+
+    const composer = await glassTintOn(guest, '[data-testid="upload-composer"]')
+    const ground = await glassTintOn(guest, 'body')
+    // `body` is an ancestor of the marked element, so it resolves the `:root` declaration —
+    // which is the strict floor. The composer is on an unmarked shell, so the two agree, and
+    // a change that put the guest's uploads on the translucent tier would part them.
+    expect(composer).toBe(ground)
+  })
+
   test('a guest who asked for more contrast gets the opaque pane instead', async ({
     app,
     surfaces,

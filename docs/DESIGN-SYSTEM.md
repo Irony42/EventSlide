@@ -108,12 +108,15 @@ token exactly.
   --shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.45);
   --shadow-lg: 0 24px 60px -12px oklch(0% 0 0 / 0.55);
 
-  /* ---- Glass. A material, so a set rather than a value (§13). The tint's alpha is a
-         floor derived from §8, not a taste; the fallback is --surface-raised itself. ---- */
+  /* ---- Glass. A material, so a set rather than a value (§13). Each tint's alpha is a
+         floor derived from §8, not a taste; the fallback is --surface-raised itself, and
+         so is every tint — one colour, three alphas. ---- */
   --glass-blur: 20px;
   --glass-saturate: 180%;
   --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  --glass-tint: oklch(21% 0.025 265 / 0.95); /* --surface-raised, at the floor */
+  --glass-tint-photo: oklch(21% 0.025 265 / 0.95); /* over an unknown photograph */
+  --glass-tint-ground: oklch(21% 0.025 265 / 0.92); /* over our own ground */
+  --glass-tint: var(--glass-tint-photo); /* the strict floor is the default */
   --glass-opaque: var(--surface-raised);
   --glass-border: oklch(97% 0.005 265 / 0.16);
   --glass-highlight: oklch(97% 0.005 265 / 0.1);
@@ -164,18 +167,25 @@ token exactly.
 }
 
 /* The glass budget (§13). Three ways to reach one fallback: a browser without the
-   capability, a person who asked for less transparency or more contrast, and the room. */
+   capability, a person who asked for less transparency or more contrast, and the room.
+   The first two move the *named* tints rather than --glass-tint, because a tier below is
+   declared on a descendant and would otherwise overrule them (§13). */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
     --glass-filter: none;
-    --glass-tint: var(--glass-opaque);
+    --glass-tint-photo: var(--glass-opaque);
+    --glass-tint-ground: var(--glass-opaque);
   }
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   :root {
     --glass-filter: none;
-    --glass-tint: var(--glass-opaque);
+    --glass-tint-photo: var(--glass-opaque);
+    --glass-tint-ground: var(--glass-opaque);
   }
+}
+[data-glass='ground'] {
+  --glass-tint: var(--glass-tint-ground);
 }
 [data-glass='opaque'] {
   --glass-filter: none;
@@ -338,24 +348,80 @@ layout allowed to crop (§9).
 
 ## 7. Motion
 
-| What                             | Token                                                  | Property                             |
-| -------------------------------- | ------------------------------------------------------ | ------------------------------------ |
-| Press / focus feedback           | `--duration-fast`, `--ease-out`                        | `opacity`, `transform: scale()`      |
-| Dialog, Toast, tile state change | `--duration-base`, `--ease-out`                        | `opacity`, `transform: translateY()` |
-| Wall crossfade                   | `--duration-slow`, `--ease-in-out`                     | `opacity` only                       |
-| Ken Burns                        | `--wall-kenburns-duration` (computed), `--ease-linear` | `transform: scale()` + `translate()` |
+| What                             | Token                                                  | Property                                |
+| -------------------------------- | ------------------------------------------------------ | --------------------------------------- |
+| Press / focus feedback           | `--duration-fast`, `--ease-out`                        | `opacity`, `transform: scale()`         |
+| Dialog, Toast, tile state change | `--duration-base`, `--ease-out`                        | `opacity`, `transform: translateY()`    |
+| Queue arrival, failed upload     | `--duration-base`, `--ease-out`                        | `opacity`, `translateY`, `border-color` |
+| Wall crossfade                   | `--duration-slow`, `--ease-in-out`                     | `opacity` only                          |
+| Ken Burns                        | `--wall-kenburns-duration` (computed), `--ease-linear` | `transform: scale()` + `translate()`    |
+
+### The property budget, in three tiers rather than one rule
+
+This section said "animate `opacity` and `transform` only" and the design system's own
+`Button` has transitioned `background-color` since 2.0. One of those was wrong, and it was
+the sentence: the reason given for the rule is layout, and a colour is not a layout. The
+rule as it actually holds, and as `motion.budget.test.ts` now enforces:
+
+| Tier           | Properties                                                          | Where it may be spent                                                                                                                  |
+| -------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Compositor** | `opacity`, `transform`                                              | Anywhere, including the wall. The frame is the GPU's, no layout and no paint.                                                          |
+| **Paint**      | `color`, `background-color`, `border-color`, `box-shadow`           | A state change a reader has to notice, at `--duration-fast` or `--duration-base`. **Never on the wall**, which repaints a full screen. |
+| **Layout**     | `width`, `height`, `inline-size`, `inset-*`, `margin`, `padding`, … | Nowhere. The projector runs eight hours on whatever the venue owns, and a relayout every frame is a stutter the whole room sees.       |
+
+`backdrop-filter` is in none of the three and is its own case: §13's material never
+transitions, never animates and never spends `will-change`, **and neither may anything
+wearing it** — a blur that moves is a blur recomputed every frame.
 
 Rules:
 
-- **Animate `opacity` and `transform` only.** Never `width`, `height`, `top`, `left`,
-  `margin` or `background-position`: they force layout every frame, and the wall runs
-  for eight hours on whatever hardware the venue owns. `backdrop-filter` is neither of
-  the two, and §13's material therefore never transitions, never animates and never
-  spends `will-change` — a blur that moves is a blur recomputed every frame.
+- **The layout tier is empty and the test says so**, across every stylesheet the app
+  ships, in `transition` shorthands and in `@keyframes` bodies alike.
 - Decode and preload the next slide before the crossfade starts, or the fade shows a
   blank frame.
 - Nothing loops on the wall except Ken Burns — no confetti, no pulsing "live" dot.
 - While an upload is in flight, `Progress` is the only moving thing on the phone.
+- `will-change` is spent on the wall's own layers and nowhere else. It pins a compositing
+  layer for the lifetime of an element, not for the length of an animation.
+
+### What moves, and what deliberately does not
+
+Roadmap 11.2. "Each of those is a moment where motion carries meaning — the state changed,
+and here is where it came from — and everything else is where motion is noise." The second
+list is the longer one, and it is the one worth keeping written down.
+
+| Moment                                  | What happens                                                                                                                           |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| A guest presses a button                | `transform: scale(0.98)` at `--duration-fast`, already there since 2.0. A tap with no acknowledgement on slow Wi-Fi gets tapped again. |
+| A photo arrives on the moderation queue | The one tile that is new fades and rises `--space-2` at `--duration-base`. Never the list, never a refetch.                            |
+| An upload fails                         | The row's border goes to `--danger` over `--duration-base`, and the sentence that says why rises into place as it mounts.              |
+| The wall changes slide                  | The crossfade it already had. Nothing was added.                                                                                       |
+
+And what was left still, each for a reason that is not taste:
+
+- **The guest's own uploads list.** It is what scrolls _under_ the upload composer, and the
+  composer is a glass pane (§13): a thumbnail travelling behind it is a backdrop re-filtered
+  every frame, on a phone that is mid-encode with a request open on a venue's Wi-Fi. The
+  moderation queue gets the same motion because the machine is a laptop and the cost is one
+  tile per photo; the phone does not, and that asymmetry is roadmap 11.3's two machines
+  rather than an inconsistency.
+- **The wall, anywhere at all.** It is already scaling, decoding a clip and crossfading, and
+  every wall animation there is is timed from the slideshow's own interval. There is nothing
+  a slide change could say that the crossfade does not.
+- **Decided tiles leaving the queue.** An exit animation means holding a removed element on
+  screen, and the queue is the one list where what is on screen has to be what the server
+  agreed to.
+- **The undo window.** A bar draining over nine seconds would be a second moving thing on a
+  screen whose job at 23:00 is to be read, and the expiry is not a decision the host makes.
+- **The live-stream indicator.** A pulsing dot is on §1's forbidden list, and the `Badge`
+  already carries the word.
+- **Lists in general, on any render.** A moderator working a queue is reading, not admiring.
+
+`prefers-reduced-motion` is answered per animation, out of a closed set of three answers,
+and `motion.budget.test.ts` fails on an animation that gives none: declared inside
+`@media (prefers-reduced-motion: no-preference)` so the rule does not exist; declined in
+JavaScript by the component (`usePrefersReducedMotion`, the wall); or replaced by the file's
+own `reduce` branch (`Spinner`, which cannot simply stop moving).
 
 **Ken Burns duration is derived, never authored.** 1.0 shipped
 `animation: kenburns 20s infinite alternate linear` in `public/app.css` against a 10 s
@@ -711,6 +777,9 @@ a host can choose (§12) and every combination of the two. Blur does not help: a
 white field is still white. Saturation does not help. Only the tint's alpha does, which is
 why the roadmap calls it a floor.
 
+That is one of two floors. The second is below; this one is what a pane needs when it
+cannot know what is behind it.
+
 `0.95` is derived, not chosen. It is the lowest alpha at which the material over white is
 at least as good a ground as **`--surface-overlay`** — the darkest surface this design
 system already lets text sit on — for all three text tokens at once:
@@ -735,6 +804,74 @@ applied to that 5% — over a photograph it tints the pane with the picture's ow
 which is the effect §11 asks for — and the hairline, the inner highlight and the shadow.
 Anything more transparent is a different product with a weaker accessibility contract, and
 §1 says the photo is the hero and chrome recedes.
+
+### The second floor: most of this product is not a photograph
+
+Roadmap 11.2. Login, the dashboard, the create form, the settings page and the guest's join
+screen never show a guest's upload, and holding them to a floor derived from a white dress
+is answering a question they do not ask. Over our own ground the backdrop is a colour this
+design system declares, so the worst case is **enumerable rather than unbounded** — and the
+same derivation, run against it, gives a second number.
+
+`--glass-tint-ground` is `0.92`, derived exactly as `0.95` was and against the same bar: the
+lowest alpha at which the material is at least as good a ground as `--surface-overlay` for
+all three inks at once, while keeping an accent link above 4.5:1, the focus ring above 3:1
+and the status glyphs above 3:1, at every one of the 360 hues an event can carry.
+
+**What it is derived against is the load-bearing choice: the brightest _field_ a stylesheet
+paints, not the brightest token in the palette.** Contrast is a property of a ground and a
+ground is an area. `--text-primary` is the lightest colour here, but as body text it paints
+strokes over a small share of their line boxes and a 20 px blur of a paragraph is a haze
+near the page's own ground. What fills an area is a surface or a filled control, and the
+lightest filled control this product draws is a primary button — `--accent`, at whichever
+hue renders lightest.
+
+| Tier                  | Alpha | Derived against                | Backdrop showing |
+| --------------------- | ----- | ------------------------------ | ---------------- |
+| `--glass-tint-photo`  | 0.95  | pure white                     | 5%               |
+| `--glass-tint-ground` | 0.92  | `--accent` at its lightest hue | 8%               |
+
+**Three points of alpha is the measurement, and it is smaller than it sounds like it should
+be.** The photograph was never what made this material opaque. `--text-muted` clears 4.62:1
+on `--surface-overlay` against a 4.5 target, so the palette has about a tenth of a ratio
+point of headroom before a translucent ground stops being one this design system would
+accept, and removing the unknown backdrop spends nearly all of it. Anything markedly more
+transparent than this needs an ink moved or the pane's own ink budget narrowed — a different
+change, with a different argument, and one nobody has made.
+
+### Which tier a surface is served, and why that is not a label
+
+A pane may take the translucent floor only if nothing brighter than that floor's backdrop
+can be painted underneath it. That is a claim about a whole page subtree, which is exactly
+the kind of claim that is true when it is written and false two features later.
+
+So the claim is made once, in `app/glassBackdrop.ts` — one row per address, beside the page
+module it renders — and checked against the thing it is a claim about.
+`glassBackdrop.test.ts` walks the **real import graph** from each page module and refuses a
+`ground` claim whose subtree can reach an `<img>`, a `<video>`, or a background fill
+brighter than the ceiling the floor was derived against. Marking the moderation queue
+translucent fails the build, naming `ModerationCard.tsx`.
+
+**"No guest photograph on this screen" was the obvious rule and it is not sufficient.** The
+event page at `/admin/events/:slug` prints the join QR, whose plate is `--text-primary` — a
+near-white field, because a code has to be dark-on-light to scan at all — and a contrast
+ratio cannot tell that apart from a white dress in full sun. That address is on the strict
+floor because the guard checks brightness rather than provenance, not because anybody
+remembered it.
+
+The tier reaches the DOM exactly where the budget already did: one attribute on the shell,
+composed from two independent answers in `design-system/glass.ts` — what the material costs
+here (the room cannot afford it) and what can be painted underneath it. The room's answer
+wins outright, so no address can put a blur back on the projector. **The strict floor
+spreads no attribute at all**, which is what keeps the default safe and leaves the DOM of
+both panes that wear the material today exactly as it was.
+
+One consequence of the fallbacks: the capability query and the preference query move
+`--glass-tint-photo` and `--glass-tint-ground` rather than `--glass-tint`. A tier is a
+declaration on a descendant of `:root`, and a descendant wins for its own subtree whatever
+the specificity of the two selectors — so a `:root` block naming `--glass-tint` directly
+would be discarded on every surface carrying a tier, and a guest who asked for more contrast
+would have been handed the most translucent pane in the product.
 
 ### The fallback, which is not a degraded mode
 
@@ -785,6 +922,15 @@ Everything else keeps its opaque surface token. The list is asserted in
 these two were chosen. "Moving underneath it" is the load-bearing half: a blur with
 nothing moving behind it is an expensive way to draw a panel.
 
+**Both of them are served the strict floor, and nothing wears the translucent one yet.**
+That is the tier rule's own verdict rather than a shortfall: what moves under each of those
+two panes is a guest's photographs. The rule above is what says so, and
+`glassBackdrop.test.ts` asserts it — so the day a pane is added to an address that earns the
+translucent floor, it gets it without anybody editing a value. Nothing was applied to
+login, the dashboard or the join screen to give the second tier a customer: the rule for
+where the material goes is unchanged, and a blur over a flat token ground is invisible while
+still costing a compositing layer.
+
 **`Dialog` was the obvious third and it was measured out**, which is worth recording
 because it is the seductive one. `backdrop-filter` does work on an element in the top
 layer. But `.dialog::backdrop` is `--surface-scrim` at 55%, so of the page beneath only
@@ -810,18 +956,25 @@ wants a glass toast moves the tier, or the region, first.
 
 Stated plainly, because the difference matters:
 
-- **Measured, and failing in CI if it moves:** every contrast ratio above, over white and
-  over 360 accents, in `tokens.contrast.test.ts`; the one-declaration rule and the two
-  rules a wearer must obey, in `glass.material.test.ts`; and in
+- **Measured, and failing in CI if it moves:** every contrast ratio above, for both tints,
+  over white and over 360 accents, in `tokens.contrast.test.ts` — including that each
+  declared alpha is the _lowest_ that holds, so a floor that stopped being derived fails;
+  the one-declaration rule and the two rules a wearer must obey, in
+  `glass.material.test.ts`; which addresses may claim the translucent floor, walked over the
+  real import graph in `app/glassBackdrop.test.ts`; and in
   `tests/e2e/journeys/glass-budget.spec.ts`, read in a real browser on the pane itself
-  rather than on an ancestor, the room resolving `none`, the guest resolving a real blur,
-  and a guest who asked for more contrast getting the opaque pane.
+  rather than on an ancestor, the room resolving `none`, the guest resolving a real blur, a
+  guest who asked for more contrast getting the opaque pane, and the two tiers resolving to
+  different tints one screen apart in the same journey.
 - **Reasoned, not measured:** the frame-rate claim. No test in this repository runs on a
   venue mini-PC driving a projector, and a frame-rate assertion taken on CI hardware would
   be a number about the CI runner. What the budget rests on is the mechanism — a blur over
   moving content is recomputed every frame — plus the decision to give the wall the
   fallback unconditionally, which means the wall's cost is **zero** and there is nothing
-  to measure there until a later branch puts a glass pane on it.
+  to measure there until a later branch puts a glass pane on it. The same honesty applies to
+  the one place roadmap 11.2's motion meets this material: a tile arriving under the
+  moderation toolbar re-filters that pane's backdrop for `--duration-base`. That is a
+  mechanism and a bound — one tile per photograph, on a laptop — not a measurement.
 
 **The human check, precisely.** Before any branch puts glass on the wall: on the venue
 mini-PC, open `/e/:slug/display?layout=spotlight` on an event whose playlist contains at

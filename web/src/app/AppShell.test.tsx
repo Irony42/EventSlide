@@ -105,8 +105,9 @@ describe('AppShell', () => {
   })
 
   it.each(['guest', 'host'] as const)('leaves the %s surface DOM untouched', (surface) => {
-    // Absent, not `data-glass="blur"`. A surface on the default tier renders exactly what
-    // it rendered before the material existed.
+    // Absent, not `data-glass="photo"`. A surface held to the strict floor renders exactly
+    // what it rendered before the material existed — and that floor is what a shell given
+    // no backdrop at all is held to.
     render(
       <AppShell surface={surface}>
         <p>Contenu</p>
@@ -114,5 +115,40 @@ describe('AppShell', () => {
     )
 
     expect(screen.getByRole('main').closest('[data-glass]')).toBeNull()
+  })
+
+  /**
+   * The tint tier reaches the DOM here too — roadmap 11.2.
+   *
+   * Same element and same mechanism as the budget above, because they are two answers to
+   * one question the surface has to carry: what the material costs here, and what can be
+   * painted underneath it. `router.tsx` supplies the second from `glassBackdrop.ts`.
+   */
+  it.each(['guest', 'host'] as const)(
+    'marks the %s surface translucent when the address has earned it',
+    (surface) => {
+      render(
+        <AppShell surface={surface} backdrop="ground">
+          <p>Contenu</p>
+        </AppShell>,
+      )
+
+      expect(screen.getByRole('main').closest('[data-glass]')).toHaveAttribute(
+        'data-glass',
+        'ground',
+      )
+    },
+  )
+
+  it('keeps the room opaque even on an address with no photograph on it', () => {
+    // The budget outranks the backdrop. A wall that took the translucent tier would be a
+    // blur back on the projector, which is the one outcome roadmap 11.3 decides in advance.
+    render(
+      <AppShell surface="wall" backdrop="ground">
+        <p>Contenu</p>
+      </AppShell>,
+    )
+
+    expect(screen.getByRole('main').closest('[data-glass]')).toHaveAttribute('data-glass', 'opaque')
   })
 })
