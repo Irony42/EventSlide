@@ -80,9 +80,24 @@ const streamSignals = async (type: string): Promise<void> => {
 }
 
 const aPopulatedWall = (overrides: Partial<WallResponse> = {}): WallResponse =>
-  aWallResponse({ joinCode: 'H7K2QM', items: [aWallItem()], ...overrides })
+  aWallResponse({ items: [aWallItem()], ...overrides })
 
-const anEmptyWall = (): WallResponse => aWallResponse({ joinCode: 'H7K2QM', items: [] })
+const anEmptyWall = (): WallResponse => aWallResponse({ items: [] })
+
+/**
+ * The same wall, as a server build that does not present the code answers it.
+ *
+ * The key has to be absent rather than `undefined`: `exactOptionalPropertyTypes`
+ * distinguishes the two, and the DTO declares `joinCode` optional rather than nullable,
+ * so `aWallResponse({ joinCode: undefined })` does not compile. Deleting it here rather
+ * than leaving it out of the fixture keeps the code on `aWallResponse` for everyone
+ * else — including the enumeration in `useWallPlaylist.settings.test.ts`, which walks
+ * the keys the fixture actually has and cannot guard a field that is not on it.
+ */
+const withoutJoinCode = (wall: WallResponse): WallResponse => {
+  const { joinCode: _absent, ...rest } = wall
+  return rest
+}
 
 const somePhotos = (count: number): readonly WallItemDto[] =>
   Array.from({ length: count }, (_unused, at) =>
@@ -204,7 +219,7 @@ describe('WallPage', () => {
   })
 
   it('still invites the room when the server presents no join code', async () => {
-    const api = fakeApi({ wall: wallSequence(aWallResponse({ items: [] })) })
+    const api = fakeApi({ wall: wallSequence(withoutJoinCode(anEmptyWall())) })
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
 
     const invitation = await screen.findByTestId('wall-empty')
@@ -600,11 +615,9 @@ describe('WallPage', () => {
   })
 
   it('reserves nothing on a wall with no join code to show', async () => {
-    // `aWallResponse` carries no `joinCode`, which is the shape a server build that does
-    // not present one sends. Spelling it as `joinCode: undefined` would not compile:
-    // `exactOptionalPropertyTypes` distinguishes an absent key from an undefined one, and
-    // the DTO declares the field absent rather than nullable.
-    const api = fakeApi({ wall: wallSequence(aWallResponse({ items: [aWallItem()] })) })
+    // The shape a server build that does not present a code sends, which is `aWallResponse`
+    // with the key removed rather than set to `undefined` — see `withoutJoinCode`.
+    const api = fakeApi({ wall: wallSequence(withoutJoinCode(aPopulatedWall())) })
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
     await screen.findByTestId('wall-slide')
 

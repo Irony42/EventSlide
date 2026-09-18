@@ -100,6 +100,19 @@ export const aWallClip = (overrides: Partial<WallItemDto> = {}): WallItemDto =>
 
 export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallResponse => ({
   event: { slug: 'camille-et-sacha', name: 'Camille & Sacha' },
+  // Present, because a real server presents it, and because the field is optional on the
+  // DTO: an omitted key is invisible to the `Object.keys` walk in
+  // `useWallPlaylist.settings.test.ts`, which would exempt it from the very enumeration
+  // written to stop a settings field going uncompared. The same code as `anEventDto`
+  // below, so a test that renders both reads one value.
+  //
+  // It also makes the wall's invitation real by default — the empty state carries the QR
+  // and the code, and a wall with items reserves its bottom-right corner for the join
+  // card. A test that wants the server build which presents no code has to delete the
+  // key, not override it: `exactOptionalPropertyTypes` rejects `joinCode: undefined`
+  // against an optional-but-not-nullable field. `WallPage.test.tsx` spells that out once,
+  // as `withoutJoinCode`.
+  joinCode: 'H7K2QM',
   revision: 'rev-1',
   items: [],
   slideIntervalMs: 8_000,
