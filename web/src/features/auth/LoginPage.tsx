@@ -20,9 +20,15 @@ const redirectTarget = (state: unknown): string => {
   if (typeof state !== 'object' || state === null || !('from' in state)) return ADMIN_HOME
   const from = state.from
   // Only an in-app path: an absolute URL from history state would be an open redirect.
-  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
-    ? from
-    : ADMIN_HOME
+  //
+  // The second character decides that as much as the first. A browser reads a backslash
+  // in a URL as a slash, so `/\ailleurs.example` *is* `//ailleurs.example` by the time
+  // it is resolved, and a check that only refused `//` let it through by one character.
+  // That is the same bypass react-router closed in 7.18.0 (GHSA-wrjc-x8rr-h8h6); it is
+  // refused here as well rather than left to the router, because this value comes out of
+  // history state and is read before the router ever sees it.
+  const inAppPath = /^\/(?![/\\])/
+  return typeof from === 'string' && inAppPath.test(from) ? from : ADMIN_HOME
 }
 
 /** Surface: the host's laptop, usually the day before the event. */
