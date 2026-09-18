@@ -506,7 +506,11 @@ behalf — is served by the composite key rather than by three tiers.
   other event on the box, so this is the one limit enforced transactionally.
 - Each SSE subscriber is a held socket plus a heartbeat timer. The hub caps subscribers
   per event and drops the oldest idle connection rather than refusing the projector, the
-  one client that must never be disconnected.
+  one client that must never be disconnected. **(defect)** No drop-oldest logic exists:
+  the limiter **refuses**, cleanly and before any header is written, at 12 per client,
+  200 per event and 500 per process. The whole SSE row of the table above — and the login
+  and join-code rows with it — describes numbers and a route that were never built. See
+  §14.7.
 
 ## 6. Session security
 
@@ -515,7 +519,7 @@ behalf — is served by the composite key rather than by three tiers.
 | Store                          | `src/infrastructure/db/sessionStore.ts`, a `Store` over `better-sqlite3`, table `sessions(sid TEXT PRIMARY KEY, expires_at TEXT NOT NULL, data TEXT NOT NULL)` | 1.0's `MemoryStore` leaked memory and logged every moderator out on restart — mid-event             |
 | Pruning                        | `DELETE FROM sessions WHERE expires_at < ?` on an interval and on boot                                                                                         | an unpruned session table is both a growth and a replay problem                                     |
 | Regeneration                   | `req.session.regenerate()` on **successful login**, before the user id is written                                                                              | defeats session fixation: a pre-set `es_sid` from an attacker is discarded                          |
-| Timeouts                       | idle 2 h (`rolling: true`), absolute 12 h from `session.absoluteExpiresAt` checked in middleware                                                               | a projector laptop is left unlocked at a venue, and `rolling` alone never expires an active session |
+| Timeouts                       | **(defect)** idle 12 h (`rolling: true`); no absolute cap exists — see §2 and §14.7                                                                            | a projector laptop is left unlocked at a venue, and `rolling` alone never expires an active session |
 | `resave` / `saveUninitialized` | `false` / `false`                                                                                                                                              | no row for an anonymous visitor; no write amplification                                             |
 | Password hashing               | bcrypt cost 12                                                                                                                                                 | 1.0 used cost 10 and a hardcoded hash                                                               |
 | Failed login                   | generic `auth.invalidCredentials`, and a bcrypt compare against a dummy hash when the user does not exist                                                      | otherwise response time enumerates accounts                                                         |
@@ -561,18 +565,18 @@ can be reached in a way that skips it. 1.0's form posts are gone with the legacy
 `helmet` in `src/interface/http/server.ts`, one configuration object, no per-route
 loosening.
 
-| Directive                                 | Value                | Note                                                                                                                                                                                                     |
-| ----------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default-src`                             | `'none'`             | deny by default, then allow what the app actually needs                                                                                                                                                  |
-| `script-src`                              | `'self'`             | no CDN, no inline, no `eval`                                                                                                                                                                             |
-| `style-src`                               | `'self'`             | CSS Modules compile to files; nothing inline is needed                                                                                                                                                   |
-| `style-src-attr`                          | `'unsafe-inline'`    | narrowly, because the slideshow sets `--slide-duration` as an inline custom property. This grants style **attributes** only, not `<style>` blocks — a much smaller hole than `style-src 'unsafe-inline'` |
-| `img-src`                                 | `'self' blob: data:` | `blob:` is the local preview of the photo a guest just picked; `data:` for tiny inlined placeholders                                                                                                     |
-| `font-src`                                | `'self'`             | fonts are bundled, self-hosted                                                                                                                                                                           |
-| `connect-src`, `media-src`, `form-action` | `'self'`             | `connect-src` covers the SSE endpoint                                                                                                                                                                    |
-| `frame-ancestors`, `object-src`           | `'none'`             | the moderation console must not be framed                                                                                                                                                                |
-| `base-uri`                                | `'none'`             | blocks `<base>` injection that would repoint relative URLs                                                                                                                                               |
-| `upgrade-insecure-requests`               | on, production only  |                                                                                                                                                                                                          |
+| Directive                                 | Value                | Note                                                                                                                                                                                                                                                            |
+| ----------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `default-src`                             | `'none'`             | **(defect)** the code ships `'self'` — deny by default was the intent; see §14.7                                                                                                                                                                                |
+| `script-src`                              | `'self'`             | no CDN, no inline, no `eval`                                                                                                                                                                                                                                    |
+| `style-src`                               | `'self'`             | CSS Modules compile to files; nothing inline is needed                                                                                                                                                                                                          |
+| `style-src-attr`                          | `'unsafe-inline'`    | **(defect)** intended narrowly, because the slideshow sets `--slide-duration` as an inline custom property — but no `style-src-attr` is emitted and `style-src` itself carries `'unsafe-inline'`, which is the broader hole this row says it avoided. See §14.7 |
+| `img-src`                                 | `'self' blob: data:` | `blob:` is the local preview of the photo a guest just picked; `data:` for tiny inlined placeholders                                                                                                                                                            |
+| `font-src`                                | `'self'`             | fonts are bundled, self-hosted                                                                                                                                                                                                                                  |
+| `connect-src`, `media-src`, `form-action` | `'self'`             | `connect-src` covers the SSE endpoint                                                                                                                                                                                                                           |
+| `frame-ancestors`, `object-src`           | `'none'`             | the moderation console must not be framed                                                                                                                                                                                                                       |
+| `base-uri`                                | `'none'`             | **(defect)** the code ships `'self'`; the intent — blocking `<base>` injection that repoints relative URLs — is not met. See §14.7                                                                                                                              |
+| `upgrade-insecure-requests`               | on, production only  |                                                                                                                                                                                                                                                                 |
 
 Other headers: HSTS 180 days with `includeSubDomains` (production, behind TLS only),
 `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `COOP: same-origin`,
@@ -962,3 +966,323 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 | Please do not          | test against a live event you do not own, exfiltrate other people's photos to prove a point, or load-test someone's instance |
 | Scope                  | this repository. Reports about the operator's reverse proxy, OS, or network belong to that operator                          |
 | Supported versions     | `2.0.x` only. `1.x` is unpatched (see Status, above) — upgrade rather than report                                            |
+
+## 14. Advisory audit, 2026-09-18
+
+GitHub Dependabot was enabled on this repository and produced **34 alerts, 28 of them
+open**. This section is the answer to the question a version number does not give: which
+of those advisories actually reaches a running EventSlide, through which entry point, and
+what an attacker at a wedding would get out of it.
+
+The ranking below is by **what a guest can trigger from the upload form**, not by CVSS. A
+dev-only "high" that can only hurt a laptop is ranked beneath anything reachable from a
+phone in the room.
+
+**The number, stated first: 2 of the 28 open alerts reach a running EventSlide, and both
+are `sharp`.** The other 26 are blocked by an architectural property that predates the
+advisory — an allow-list, a build-time-only dependency, a rendering mode this app does not
+use, or a code path nothing calls. That is not luck in every case, and §14.3 says which
+ones are luck.
+
+### 14.1 What each principal can actually do
+
+The advisory verdicts below are only meaningful against this. Every row was read out of
+the routers on `chore/security-audit` at `d8f6c0f`.
+
+| Principal                                  | Credential                                                                      | Verified at                                                                                                 | What it unlocks                                                                                                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Unauthenticated stranger**               | none                                                                            | —                                                                                                           | `POST /api/join`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/health`, `GET /api/ready`                                             |
+| **Stranger who knows a slug**              | none; the event must pass `servesWall()`                                        | `middleware/authz.ts:170-187`, refusal at `:180`                                                            | `GET /api/events/:eventSlug/wall` (`routes/publicRoutes.ts:163`), the media bytes (`routes/mediaRoutes.ts:235`), the wall SSE stream (`routes/streamRoutes.ts:312`)    |
+| **Guest** (a phone with the QR link)       | HMAC device token in `es_guest`                                                 | `middleware/authz.ts:112-161` — signature `:122`, event match `:140`, row exists `:145`, not revoked `:151` | **upload photos** (`routes/guestRoutes.ts:322`), **upload clips** (`routes/clipRoutes.ts:137`), own-photo list, delete own inside the grace window, caption, reactions |
+| **Any authenticated user**, no event scope | `es_session` cookie, **trusted from the session payload with no database read** | `middleware/authz.ts:22-34` and `:37-43`                                                                    | `GET /api/events`, `POST /api/events` (`routes/eventRoutes.ts:115`, `:131`), `POST /api/auth/password` (`routes/authRoutes.ts:183`)                                    |
+| **Moderator of one event**                 | `es_session` plus an `event_memberships` row                                    | `middleware/authz.ts:75` and `:81` via `canModerate` (`domain/events/eventRole.ts:37`)                      | publish/hide/delete photos, bulk moderate, revoke a guest, download `album.zip`                                                                                        |
+| **Owner of one event**                     | as above, role `owner`                                                          | `middleware/authz.ts:81` via `canManageEvent` (`domain/events/eventRole.ts:40`)                             | everything a moderator has, plus settings, lifecycle, join-code rotation, **event deletion**, and **moderator registration**                                           |
+| **Operator** (site role)                   | —                                                                               | —                                                                                                           | **Does not exist on this branch.** See §14.6                                                                                                                           |
+
+`EVENT_ROLES = ['owner', 'moderator']` at `domain/events/eventRole.ts:14`, and
+`eventRole.ts:4` states the intent: a role is always per event, there is no global
+administrator. Every deliberately public route carries a comment recording the decision
+(`routes/authRoutes.ts:76`, `:132`, `:166`, `routes/publicRoutes.ts:94`,
+`routes/healthRoutes.ts:43`, `:51`); the audit found **no route with a missing
+authorization decision**.
+
+### 14.2 The advisories, mapped
+
+`reachable` means a guest, a stranger or a host can drive attacker-controlled bytes into
+the vulnerable code on a default install. Everything else names the thing that stops it.
+
+| Package (installed)                                                                                                               | Advisory                                                                                                          | Scope       | Verdict                                                                                                                            | The line that decides it                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`sharp` 0.34.5** (libheif 1.20.2)                                                                                               | `GHSA-rgj7-g3m4-5g8c`, CVSSv4 **8.9**                                                                             | runtime     | **REACHABLE — from the guest upload form, unauthenticated**                                                                        | `infrastructure/media/magicBytes.ts:74-77` admits it; `sharpImageProcessor.ts:122` and `:181` execute it. See §14.3                                                                                                                        |
+| **`sharp` 0.34.5** (libvips 8.17.3)                                                                                               | `GHSA-f88m-g3jw-g9cj`, CVSSv4 7.0                                                                                 | runtime     | **PARTLY REACHABLE** — the advisory names three loaders; the GIF one is reachable, TIFF and VIPS are **blocked by the allow-list** | `magicBytes.ts:65` returns `'gif'`; `magicBytes.ts:58-79` carries **no TIFF and no VIPS signature**, so both are `null` and refused as `image.unsupportedFormat`                                                                           |
+| `qs` 6.15.3                                                                                                                       | `GHSA-x5fp-wj9c-mxmx`                                                                                             | runtime     | **not reachable** — the bug needs `comma: true`, which Express never sets and nothing here overrides                               | no `app.set('query parser', …)` anywhere in `src/`; Express 4 builds its own parser at `node_modules/express/lib/middleware/query.js:27`                                                                                                   |
+| `qs` 6.15.3                                                                                                                       | `GHSA-4mjr-xmp4-gh2g`                                                                                             | runtime     | **not reachable** — the sink is `qs.stringify()` on a `qs.parse` product. Express only ever parses                                 | no `qs.stringify` on any request path; no direct `qs` import in `src/` or `web/`                                                                                                                                                           |
+| `react-router` 7.14.2                                                                                                             | `GHSA-chx6-hx7r-mcp5` (8.7), `GHSA-8x6r-g9mw-2r78`, `GHSA-84g9-w2xq-vcv6`                                         | runtime     | **not reachable — Framework Mode only.** This app is Declarative Mode                                                              | `web/src/main.tsx:81` mounts `<BrowserRouter>`; no `@react-router/dev`, no `react-router.config.*`, no `entry.server.*` in the tree                                                                                                        |
+| `react-router` 7.14.2                                                                                                             | `GHSA-qwww-vcr4-c8h2` (7.1), `GHSA-h8fp-f39c-q6mh`                                                                | runtime     | **not reachable — unstable RSC APIs only**, which this app does not import                                                         | as above; there is no RSC entry point                                                                                                                                                                                                      |
+| `react-router` 7.14.2                                                                                                             | `GHSA-337j-9hxr-rhxg`                                                                                             | runtime     | **not reachable — SSR hydration only.** There is no server-side render                                                             | `interface/http/server.ts:182` serves the built bundle; `:203` sends a literal `index.html`                                                                                                                                                |
+| `react-router` 7.14.2                                                                                                             | `GHSA-wrjc-x8rr-h8h6` — open redirect via backslash                                                               | runtime     | **reachable in principle, already blocked** — the one advisory of the seven that is not mode-gated                                 | every `<Link to>` / `navigate()` target is a constant or a server-issued slug; the single non-constant one is guarded at `web/src/features/auth/LoginPage.tsx:22-25`, and its input is history state (`app/RequireAuth.tsx:56`), not a URL |
+| `minimatch` 5.1.6                                                                                                                 | `GHSA-3ppc-4f35-3m26` (8.7), `GHSA-7r86-cg39-jmmj`, `GHSA-23c5-xmqv-rm74`                                         | runtime     | **not reachable — present in the production tree, never invoked**                                                                  | see §14.4                                                                                                                                                                                                                                  |
+| `brace-expansion` 2.0.1                                                                                                           | `GHSA-rgw5-rvv9-x895`, `GHSA-mh99-v99m-4gvg`, `GHSA-3jxr-9vmj-r5cp`, `GHSA-f886-m6hf-6m8v`, `GHSA-v6h2-p8h4-qcjw` | runtime     | **not reachable** — same chain, same reason                                                                                        | see §14.4                                                                                                                                                                                                                                  |
+| `vite` 8.0.10, `postcss` 8.5.13, `nanoid` 3.3.11, `@babel/core` 7.29.0, `browserslist` 4.28.2, `baseline-browser-mapping` 2.10.24 | 8 advisories                                                                                                      | development | **not reachable — cannot touch a running instance.** They can hurt a developer's laptop or a CI runner and nothing else            | see §14.5                                                                                                                                                                                                                                  |
+
+### 14.3 `sharp`: a real path from the guest upload form to libheif
+
+**Write it plainly: this is remote code execution reachable from an unauthenticated guest
+upload, and it should be upgraded today.** A branch carrying the fix already exists.
+
+The trace, byte by byte, with nothing omitted:
+
+| #   | Step                                                                                                                                | Where                                                                                                       |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 1   | A guest with the QR link posts multipart to `POST /api/events/:eventSlug/photos`, field `photos`, up to 20 files                    | `routes/guestRoutes.ts:322`                                                                                 |
+| 2   | `uploadLimiter` (12/min per IP and event) and `requireGuest` pass — a guest at the wedding satisfies both by design                 | `middleware/rateLimit.ts:93`, `middleware/authz.ts:112`                                                     |
+| 3   | multer buffers the file **in memory**, unmodified. No `fileFilter`, by decision (§4 step 3)                                         | `routes/guestRoutes.ts:302-309`                                                                             |
+| 4   | `probe()` calls `detectImageFormat`, which reads `ftyp` at offset 4 and **returns `'heif'` or `'avif'` for the HEIC/AVIF brands**   | `infrastructure/media/magicBytes.ts:74-77`, brand sets at `:44-45`                                          |
+| 5   | Those bytes, still unmodified, are handed to `sharp(...).metadata()` — the libvips HEIF loader, that is, **libheif 1.20.2**         | `infrastructure/media/sharpImageProcessor.ts:122`                                                           |
+| 6   | If the header survives, `renderVariants` decodes the **same original bytes three more times** for `display`, `thumb` and `original` | `usecases/photos/uploadPhotos.ts:268` to `:132`, `:135`, `:138`, each reaching `sharpImageProcessor.ts:181` |
+
+So libheif executes **four times per HEIC file**, on bytes the attacker fully controls, up
+to 20 files per request.
+
+**What narrows it: nothing.** Each candidate control was checked and each one fails to
+help.
+
+- **The magic-byte gate does not narrow it — it is what admits it.** The allow-list holds
+  six formats and two of them are the vulnerable ones. `heif` and `avif` are in
+  `SUPPORTED_INPUT_FORMATS` (`application/ports/imageProcessor.ts:22`) and the brands are
+  recognised deliberately, with a comment at `magicBytes.ts:41-42` explaining why: _"These
+  are what a modern iPhone and a modern Android actually produce, so getting them wrong
+  means rejecting most guests' photos."_ That reasoning is correct and the feature is the
+  product. It is also exactly the exposure.
+- **The pixel budget does not narrow it.** It is applied at `sharpImageProcessor.ts:135`
+  and `:141`, **after** `metadata()` at `:122` has already run libheif's parser. A heap
+  overflow in a header parser has already happened by the time the budget is consulted.
+- **multer's limits do not narrow it.** `MAX_UPLOAD_BYTES` is 25 000 000
+  (`infrastructure/config/env.ts:182`). These are heap overflows in a container parser;
+  they do not need a large file.
+- **`sharp.block()` is not called anywhere.** The advisory's own workaround,
+  `sharp.block({ operation: ['VipsForeignLoadHeif'] })`, appears nowhere in the tree — and
+  applying it would refuse every iPhone photo, which is the product.
+- **The re-encode does not narrow it.** "Stored bytes are always pipeline output" (§4) is
+  a control against _serving_ a payload back. It is not a control over the decoder itself,
+  which is where this bug lives.
+
+**Two deployment facts make the glibc-RCE precondition in the advisory the normal case
+here rather than an edge case.** The runtime image is `node:22-bookworm-slim`
+(`Dockerfile`), which is glibc Debian — the platform the advisory names. And the advisory
+asks for a `node` binary built as a Position Independent Executable, noting that the
+official Node.js binaries are not; the official `node:` Docker images ship those binaries.
+The mitigation the advisory leans on is therefore absent on a default `docker compose up`.
+
+The systemd hardening in §11 (`NoNewPrivileges`, `ProtectSystem=strict`,
+`ReadWritePaths=`) and the container's non-root `USER node` bound what a successful
+exploit reaches. They do not prevent it. What an attacker gets is code execution as the
+user that owns `/data` — which is every photograph, every session row and every password
+hash on the box.
+
+The second `sharp` advisory is the instructive contrast, because there the allow-list
+**does** do the work. `GHSA-f88m-g3jw-g9cj` names three libvips loaders. `magicBytes.ts`
+carries no TIFF signature and no VIPS signature, so both files come back `null` at
+`sharpImageProcessor.ts:102` and are refused as `image.unsupportedFormat` before `sharp`
+is constructed. Only `VipsForeignLoadNsgif` is reachable, via `magicBytes.ts:65`. One of
+three — and that is the strongest available argument for keeping the allow-list narrow.
+
+### 14.4 `minimatch` and `brace-expansion`: in the production tree, and still not reachable
+
+Dependabot labels these `runtime` scope and it is **right** — they are genuinely in the
+pruned production image, and the Dockerfile prune step is not what saves us. The single
+vulnerable chain is:
+
+```
+archiver@7.0.1              a real production dependency
+  readdir-glob@1.1.3
+    minimatch@5.1.6         vulnerable
+      brace-expansion@2.0.1 vulnerable
+```
+
+`npm ls --omit=dev` keeps all four. The other copies — `minimatch@10.2.5` and
+`brace-expansion@5.0.5` under `eslint` and `typescript-eslint`, and `minimatch@9.0.9` with
+`brace-expansion@2.1.4` under `glob` — are either outside the vulnerable range or removed
+by `npm prune --omit=dev`, which `scripts/verify-image.sh:113-119` and `:136-140` assert by
+refusing an image that still carries a devDependency.
+
+**What makes them unreachable is the call site, not the tree.** Both advisory classes are
+denial of service driven by a hostile **glob pattern** — `minimatch` backtracking at
+O(4^N) on consecutive `*`, `brace-expansion` building unbounded intermediate arrays. They
+need an attacker-supplied pattern.
+
+`readdir-glob` is only ever entered through `Archiver.prototype.glob` and
+`Archiver.prototype.directory` (`node_modules/archiver/lib/core.js:9`, used at `:720`).
+**EventSlide calls neither.** The only `archiver` usage in the tree appends one
+pre-resolved stream per photo, at `infrastructure/media/archiverWriter.ts:57`:
+
+```
+archive.append(source, { name: entry.name, date: entry.modifiedAt })
+```
+
+No glob pattern is constructed anywhere in `src/`, so none can be attacker-supplied. The
+module is loaded and its vulnerable function is never called.
+
+Stated as a rule rather than a coincidence, because this is the part that could change:
+**if anyone adds `archive.glob()` or `archive.directory()` to `archiverWriter.ts`, or
+introduces any glob whose pattern is derived from a request, these eight advisories become
+live.** That is the trigger to reopen this row.
+
+### 14.5 The dev-only ones, and where they stop
+
+`vite`, `postcss`, `nanoid`, `@babel/core`, `browserslist` and `baseline-browser-mapping`
+are build- and lint-time only. Every one is **absent from `npm ls --omit=dev`**, which is
+the exact tree `npm prune --omit=dev` produces in the `production-deps` stage of the
+`Dockerfile` and the only `node_modules` copied into the runtime image.
+
+```
+vite@8.0.10 -> postcss@8.5.13 -> nanoid@3.3.11
+eslint-plugin-react-hooks@7.1.1 -> @babel/core@7.29.0 -> browserslist@4.28.2 -> baseline-browser-mapping@2.10.24
+```
+
+Neither chain is imported by anything under `src/` or shipped in the client bundle —
+`nanoid` is postcss's source-map id generator, not an application dependency.
+`scripts/verify-image.sh:136-140` fails the build if `typescript`, `vitest`,
+`@playwright/test`, `eslint`, `prettier` or `tsx` reach the image, and `:128` fails it if a
+compiler does.
+
+**They can hurt a developer or a CI runner and nothing else.** The two `vite` advisories
+are dev-server issues and there is no dev server in production. Patch them on the ordinary
+dependency cadence; none of them is an event-night problem. That is the whole finding, and
+padding it further would only dilute §14.3.
+
+### 14.6 The operator role is not here yet
+
+Roadmap 10.1's `site_role` column and `requireOperator` middleware are **not on `main`
+(`d8f6c0f`) and not on this branch** — `grep -rn 'site_role\|requireOperator' src/ docs/`
+is empty. They exist only on an unmerged sibling branch. The principal table in §14.1 is
+therefore complete as shipped.
+
+One property of that branch is worth recording now, because it bears directly on §14.7:
+its `requireOperator` re-reads the role from the database on every request, and the query
+is `SELECT site_role FROM users WHERE id = ? AND disabled_at IS NULL`, so a disabled
+operator is refused. That is precisely the behaviour `requireRole` does **not** have today.
+
+### 14.7 Confirmations, corrections, and what the alerts cannot see
+
+#### `disabled_at` is enforced at exactly one line — CONFIRMED, and the blast radius is larger than stated
+
+`user.canSignIn()` (`domain/users/user.ts:102`) has **one** production caller:
+`usecases/auth/authenticateUser.ts:101`. `middleware/authz.ts` never reads the `users`
+table at all — `attachUser` (`:22-34`) trusts the session payload with no I/O, and
+`requireRole` loads the event (`:69`) and the membership row (`:75`) and nothing else.
+
+The asymmetry is the finding: **the anonymous guest is revocable in real time
+(`authz.ts:145`, `:151`) and the authenticated host is not.** The weaker principal has the
+stronger revocation story.
+
+Three facts make this worse than "their session keeps working for 12 h":
+
+1. **There is no disable use case at all.** `src/application/usecases/` has no `users/`
+   directory, and `User.disable()` (`user.ts:135`) has no production caller. The only way
+   to disable an account today is a manual `UPDATE` against SQLite — and nothing correlates
+   a `sessions` row to a `user_id`, so there is nothing to invalidate even by hand.
+2. **The window is not 12 hours, it is unbounded.** `server.ts:95` sets `rolling: true` and
+   `:101` a 12 h `maxAge`; `sqliteSessionStore.ts:113-116` pushes `expires_at` forward on
+   every request. A disabled host with a tab open never expires.
+3. **A disabled owner can mint a fresh enabled account.** `POST /api/events/:eventSlug/moderators`
+   (`routes/eventRoutes.ts:387`) reaches `usecases/auth/registerModerator.ts:112`, which
+   calls `User.create` — and `user.ts:56` sets `disabledAt: null` — then saves it at `:126`
+   with a password the caller learns. That converts a bounded window into indefinite
+   access. `POST /api/auth/password` (`routes/authRoutes.ts:183` to `changePassword.ts:38`)
+   likewise never consults `canSignIn()`.
+
+**§2's `(defect)` marker on the absolute session cap is correct. §6's claim that one exists
+is wrong** — `absoluteExpiresAt` appears nowhere in `src/` or `web/`, only in this
+document's own §6 row.
+
+#### `requireGuestOwnsPhoto` — the skill is wrong, this document is right
+
+`.claude/skills/eventslide-http-endpoint/SKILL.md:93` lists `requireGuestOwnsPhoto()` as
+the **fourth row of the normative middleware table** under "Authorization — declare it,
+per route", sitting between two middlewares that do exist. It exists nowhere in `src/`. §2
+of this document is correct and the skill is not. An agent told to pick a row for every
+route would reach for a middleware that does not compile.
+
+#### Secrets: the check is real, the default is not safe
+
+`SESSION_SECRET` and `GUEST_TOKEN_SECRET` are held to 32 characters and a placeholder
+blocklist by `config/env.ts:36-42`, environment-independently, and
+`crypto/hmacGuestTokenService.ts:56-58` throws rather than sign with a short key — §2's
+claim is CONFIRMED. Production boot refuses when either is absent (`env.ts:306-316`).
+
+**The gap is that `NODE_ENV` defaults to `development` (`env.ts:165`), and non-production
+substitutes two hardcoded, repository-public constants (`env.ts:493-494`).** A self-hosted
+operator who runs the built server without setting `NODE_ENV` gets, in one step and with no
+warning: both secrets as public constants, `secure` cookies off (`env.ts:500`), no HSTS
+(`middleware/securityHeaders.ts:65`), no `upgrade-insecure-requests` (`:48`), and
+`script-src 'self' 'unsafe-inline'` (`:23`). Nothing in the boot log or `/api/ready` says
+which arrangement is in force.
+
+Two smaller divergences. The two secrets are **not** required to differ — §2 says
+"separate from `SESSION_SECRET`" and no code compares them. And the `Origin`/`Referer`
+check that §7 lists as "also checked" and §10 credits to `PUBLIC_URL` **does not exist**:
+`middleware/csrf.ts:147-165` reads a cookie and a header and nothing else. The
+double-submit token itself is correctly built — `timingSafeEqual` at `csrf.ts:138-145`,
+mounted globally at `server.ts:116` **ahead of both multer instances** (`:133`, `:137`), so
+multipart uploads are genuinely covered, as §7 claims.
+
+#### Shell and path traversal: both clean
+
+- **Nothing user-controlled reaches a shell, because there is no shell.**
+  `infrastructure/media/runProcess.ts:230-234` is the only `child_process` use in `src/`;
+  it is `spawn` with an **argv array**, and `shell` is never set anywhere in the tree. Every
+  ffmpeg and ffprobe argv element is a server constant, a closed-union demuxer name
+  (`ffmpegVideoTranscoder.ts:113-116`), or an integer from `Dimensions`. Paths are `mkdtemp`
+  directories plus the literals `in.bin`, `out.mp4` and `poster.jpg`, each `file:`-prefixed.
+  §4.1's claims about `-protocol_whitelist file`, the pinned `-f` demuxer, the absence of
+  `-c copy`, `-map 0:v:0 -map 0:a:0? -dn -sn` and the double `yuv420p` are all CONFIRMED at
+  `ffmpegVideoTranscoder.ts:311`, `:313`, `:464-467`, `:483-491`, `:497` and `:510`.
+- **No guest string reaches a path segment.** `fsMediaStore.ts:99-115` builds paths from a
+  `randomUUID` event id, a closed-union variant and a `/^[0-9a-f]{64}$/` digest, each
+  re-validated at the store boundary, with an explicit `startsWith(absoluteRoot + sep)`
+  containment check at `:111-113`. `originalname` is carried as `declaredName` metadata
+  (`routes/guestRoutes.ts:347`, `routes/clipRoutes.ts:186`) and is deliberately kept out of
+  the response body (`presenters/presenters.ts:443-456`). `express.static` serves only the
+  built web bundle (`server.ts:182`), never `MEDIA_ROOT`.
+
+One hardening note rather than a hole: `runProcess.ts:230-234` passes neither `env` nor
+`cwd`, so ffmpeg children inherit the server's full environment, including both secrets. No
+guest input reaches it; an explicit minimal `env` would be defence in depth.
+
+#### Availability: what a guest can still do to the box
+
+| Question                 | Answer                                                                                                                                                                                                                                                           | The line                                                                                               |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Fill the disk?           | **Yes, eventually.** The quota is per event and there is **no global ceiling and no free-space check** anywhere: 5 GB default per event (`env.ts:186`) times unbounded events, and `maxPhotosPerGuest` defaults to `null` (`domain/events/eventSettings.ts:105`) | no `statfs` or `checkDiskSpace` in `src/`                                                              |
+| Exhaust the clip queue?  | **Yes, box-wide, in about two minutes.** The depth query has **no `WHERE event_id`**                                                                                                                                                                             | `sqliteClipJobRepository.ts:210-212`                                                                   |
+| Exhaust the heap?        | **Plausibly.** The limiter bounds requests per minute, not concurrency: 12 in flight against the 150 MB per-request cap (`routes/guestRoutes.ts:122`) versus `memory: 1g` (`compose.yaml:136`)                                                                   | `compose.yaml:127-132` concedes this in writing                                                        |
+| Take the SSE wall down?  | **No.** 12 per client, 200 per event, 500 per process, all refusing cleanly before headers are written                                                                                                                                                           | `middleware/rateLimit.ts:109`, `:119`, `realtime/inMemoryEventBus.ts:42`, `routes/streamRoutes.ts:295` |
+| Spoof `X-Forwarded-For`? | **No at either default.** `trust proxy` is an explicit hop count, never a boolean                                                                                                                                                                                | `server.ts:59`, `env.ts:177`                                                                           |
+
+The quota itself is correctly built and §5's claim about it holds: an `.immediate()`
+transaction with the `SUM` inside it, spanning `photos` and staged clip sources
+(`sqlitePhotoRepository.ts:661`, `:679`; `sqliteClipJobRepository.ts:316`, `:328`).
+
+#### Corrections to earlier sections of this document
+
+Recorded rather than silently edited, because "Status of this document" says a claim that
+cannot be traced to a file must be marked, never left standing.
+
+| Section     | Claim                                                                            | What the code says                                                                                                                                                                                                                     |
+| ----------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §6 Timeouts | "idle 2 h, absolute 12 h from `session.absoluteExpiresAt` checked in middleware" | **Both halves wrong.** Idle is 12 h (`server.ts:101`) and no absolute cap exists. §2's `(defect)` is the accurate entry                                                                                                                |
+| §6, §9, §10 | the cookie `es_sid`                                                              | It is `es_session` (`server.ts:88`, `routes/authRoutes.ts:32`). §2's table has it right                                                                                                                                                |
+| §8          | `default-src 'none'`                                                             | `defaultSrc: ["'self'"]` — `middleware/securityHeaders.ts:20`                                                                                                                                                                          |
+| §8          | `style-src 'self'` plus a narrow `style-src-attr 'unsafe-inline'`                | `styleSrc: ["'self'", "'unsafe-inline'"]` and **no `styleSrcAttr` directive at all** — `securityHeaders.ts:28`. The code ships the broader hole the doc says it avoided                                                                |
+| §8          | `base-uri 'none'`                                                                | `baseUri: ["'self'"]` — `securityHeaders.ts:43`                                                                                                                                                                                        |
+| §8          | helmet lives in `server.ts`                                                      | `middleware/securityHeaders.ts:15-74`, mounted at `server.ts:65`                                                                                                                                                                       |
+| §8          | HSTS 180 days                                                                    | 365 days — `securityHeaders.ts:66`. Here the code is stricter than the doc                                                                                                                                                             |
+| §7, §10     | an `Origin` / `Referer` check against `PUBLIC_URL`                               | Does not exist — `middleware/csrf.ts:147-165`                                                                                                                                                                                          |
+| §5          | `GET /api/join/:code` limited per code as well as per IP                         | **That route does not exist.** The code is resolved inside `POST /api/join`, limited per IP only — `routes/publicRoutes.ts:94`                                                                                                         |
+| §5          | the SSE hub "drops the oldest idle connection rather than refusing"              | It **refuses**, cleanly and before headers — `middleware/rateLimit.ts:156-168`, `routes/streamRoutes.ts:295`. The per-IP and per-event numbers in that table are also wrong: the code is 12 per client, 200 per event, 500 per process |
+| §8          | "fonts are bundled, self-hosted"                                                 | No font is shipped; `CLAUDE.md` §8 already corrected this. `font-src 'self'` is right, the note beside it is not                                                                                                                       |
+
+None of these is a reachable vulnerability on its own. They matter because this document is
+what the next reviewer audits against, and four of them describe a control that is not
+there.
