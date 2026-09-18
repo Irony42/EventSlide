@@ -1,4 +1,12 @@
-import sharp from 'sharp'
+// `Metadata` is imported by name rather than reached for as `sharp.Metadata`. sharp
+// 0.35.2 replaced the type namespace with named exports so the package could publish
+// ESM types, and the two tsconfig projects that compile this file disagree about which
+// declaration file they get: `tsconfig.server.json` is `moduleResolution: node16` and
+// resolves the CommonJS `index.d.cts`, which still carries the namespace, while
+// `tsconfig.tools.json` is `moduleResolution: bundler`, takes the `import` condition,
+// and gets `index.d.mts`, where the namespace no longer exists. A named type import is
+// the one spelling both declaration files agree on.
+import sharp, { type Metadata } from 'sharp'
 import type {
   ImageFormat,
   ImageProbe,
@@ -110,7 +118,7 @@ export const createSharpImageProcessor = ({
         )
       }
 
-      let metadata: sharp.Metadata
+      let metadata: Metadata
       try {
         // Header only — sharp reads the metadata without decoding pixel data.
         //

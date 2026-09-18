@@ -94,6 +94,53 @@ const pixelBombPng = (edge: number): Uint8Array => {
   )
 }
 
+/**
+ * Compares two dotted versions. `1.23.2` sorts below `1.9.0` as a string and the
+ * assertion below is a security floor, so it cannot be a string comparison.
+ */
+const atLeast = (actual: string, minimum: string): boolean => {
+  const left = actual.split('.').map((part) => Number.parseInt(part, 10))
+  const right = minimum.split('.').map((part) => Number.parseInt(part, 10))
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const a = left[index] ?? 0
+    const b = right[index] ?? 0
+    if (a !== b) return a > b
+  }
+  return true
+}
+
+/**
+ * The library underneath the adapter, rather than the adapter.
+ *
+ * `SUPPORTED_INPUT_FORMATS` lists `heif` and `avif`, `magicBytes.ts` recognises the
+ * HEIC and AVIF brands on purpose, and the product exists so that a guest nobody has
+ * met can send a photo straight off their phone. Every one of those bytes reaches
+ * libheif, bundled inside the `@img/sharp-libvips-*` prebuild. GHSA-rgj7-g3m4-5g8c is a
+ * heap overflow in that library, CVSS 4.0 of 8.9, and libheif 1.23.2 is where it is
+ * fixed — sharp 0.34.5 shipped 1.20.2.
+ *
+ * Neither fact is reachable from the adapter's behaviour. A vulnerable libheif decodes
+ * a well-formed HEIC exactly as a patched one does, and a build carrying no libheif at
+ * all leaves every other test in this file green while half the phones in the room are
+ * quietly refused. So both are asserted against `sharp.versions` and `sharp.format`,
+ * which are what sharp itself reads to decide whether AVIF is available.
+ *
+ * This is the guard on the 0.34.5 -> 0.35.4 bump: a pin back to a prebuild carrying the
+ * old libheif fails here, by name, instead of passing review as a lockfile diff.
+ */
+describe('the image library underneath the adapter', () => {
+  it('can decode HEIF from a buffer, which is the path a guest photo takes', () => {
+    expect(sharp.format.heif.input.buffer).toBe(true)
+  })
+
+  it('carries a libheif at or above the fix for GHSA-rgj7-g3m4-5g8c', () => {
+    const heif = sharp.versions.heif
+
+    expect(heif, 'no bundled libheif: HEIC and AVIF uploads would be refused').toBeDefined()
+    expect(atLeast(heif ?? '0.0.0', '1.23.2'), `libheif ${heif ?? 'absent'}`).toBe(true)
+  })
+})
+
 describe('sharpImageProcessor', () => {
   let processor: ImageProcessor
 
