@@ -8,11 +8,11 @@
 import { closeDatabase, openDatabase } from '../src/infrastructure/db/connection'
 import { migrations } from '../src/infrastructure/db/migrations'
 import { migrate, status } from '../src/infrastructure/db/migrator'
-import { loadConfig } from '../src/infrastructure/config/env'
+import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 
 const main = (): void => {
   const wantsStatus = process.argv.includes('--status')
-  const config = loadConfig()
+  const config = loadMaintenanceConfig()
   // Only the config module reads the environment; it has already resolved this.
   const path = config.storage.databasePath
 

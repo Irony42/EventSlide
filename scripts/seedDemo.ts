@@ -14,8 +14,9 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from 'sharp'
-import { loadConfig } from '../src/infrastructure/config/env'
+import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { createContainer } from '../src/main/container'
+import { SqliteUserRepository } from '../src/infrastructure/db/sqliteUserRepository'
 import { asGuestId, asUserId, type PhotoId } from '../src/domain/shared/ids'
 
 const OWNER = {
@@ -57,14 +58,34 @@ const jpeg = async (label: string, width: number, height: number): Promise<Uint8
 }
 
 const main = async (): Promise<void> => {
-  const config = loadConfig()
-  if (config.isProduction) {
-    console.error('Refusing to seed a production database.')
-    process.exit(1)
-  }
-
+  const config = loadMaintenanceConfig()
   const container = await createContainer(config)
   const { usecases } = container
+
+  /**
+   * **The guard is the database, not the environment.**
+   *
+   * This used to be `if (config.isProduction)`, and that stopped being a guard the moment
+   * `NODE_ENV` became something an npm script could supply: a refusal whose only input is
+   * a variable written two lines away in `package.json` refuses nothing. `disabled_at`
+   * taught this branch the same lesson from the other end — a control that reads the
+   * caller's own claim is not a control.
+   *
+   * An account is the fact that cannot be forged from outside. Every configured box has
+   * one, because a box with no owner cannot be logged into; a fresh checkout has none.
+   * And the demo owner's password is a constant in this file, so seeding a box somebody
+   * is actually using would hand it an account whose credentials are published here.
+   */
+  if (!(await new SqliteUserRepository(container.db).isEmpty())) {
+    console.error(
+      'Refusing to seed: this database already holds an account, so it is not a fresh\n' +
+        'install. `npm run db:seed:demo` fills an empty database so the wall and the\n' +
+        'console can be looked at before there is a real event. Point DATABASE_PATH at a\n' +
+        'scratch file if that is what you meant.',
+    )
+    await container.dispose()
+    process.exit(1)
+  }
   const scratch = await mkdtemp(join(tmpdir(), 'eventslide-seed-'))
 
   try {

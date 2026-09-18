@@ -12,7 +12,7 @@
  */
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { loadConfig } from '../src/infrastructure/config/env'
+import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { migrations } from '../src/infrastructure/db/migrations'
 import {
   BackupError,
@@ -135,7 +135,7 @@ const restore = async (argv: readonly string[]): Promise<number> => {
     throw new BackupError('Which archive? Pass the directory npm run backup wrote.')
   }
 
-  const config = loadConfig()
+  const config = loadMaintenanceConfig()
   const databasePath = option(argv, 'database') ?? config.storage.databasePath
   const mediaRoot = option(argv, 'media') ?? config.storage.mediaRoot
   const force = flag(argv, 'force')

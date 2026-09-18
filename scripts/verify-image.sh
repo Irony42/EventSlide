@@ -211,6 +211,24 @@ else
   pass "the refusal is a message, not a stack trace"
 fi
 
+# The same refusal with **no environment named at all**, which is the case the image's
+# own `ENV NODE_ENV=production` hides. `-e NODE_ENV=` blanks it, so this drives the
+# default in `env.ts` rather than the Dockerfile's line: a box that is never told which
+# environment it is in must land on the strict one. While that default was
+# `development`, this exact command booted a server signing sessions and guest tokens
+# with two constants published in this repository, and said nothing.
+set +e
+unnamed="$(docker run --rm -e NODE_ENV= -e PUBLIC_URL=https://example.com "$IMAGE" 2>&1)"
+unnamed_code=$?
+set -e
+
+if [ "$unnamed_code" -eq 78 ] &&
+  printf '%s' "$unnamed" | grep -q 'SESSION_SECRET is required in production'; then
+  pass "a boot that names no NODE_ENV is refused as production, not relaxed into development"
+else
+  fail "a boot with a blank NODE_ENV exited $unnamed_code — the strict posture is not the default"
+fi
+
 # ------------------------------------------------------------ an empty volume boots --
 section "First boot on an empty volume"
 

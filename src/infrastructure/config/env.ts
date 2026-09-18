@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
 import { Password } from '../../domain/users/password'
 
@@ -40,6 +41,32 @@ const secret = (name: string) =>
     .refine((value) => !PLACEHOLDER_SECRETS.has(value), {
       message: `${name} is still the example value from .env.example`,
     })
+
+/**
+ * What a boot that was given no secret signs with.
+ *
+ * There used to be two constants here — `development-only-session-secret-not-for-production`
+ * and its guest-token twin — and they were the whole of the defect. A constant in a public
+ * repository is a key every reader of the repository already holds, so an instance that
+ * reached them could have its host session and its guest tokens forged by anybody; and the
+ * only thing standing between a venue box and that state was an environment variable the
+ * operator had to remember to set. Refusing in production was already correct and is
+ * unchanged; what was wrong is that *not saying* meant development.
+ *
+ * Both halves of the fix live here. `NODE_ENV` now defaults to `production`, so silence is
+ * the strict posture and the boot refuses; and the non-production fallback is 48 random
+ * bytes rather than a constant, so there is no longer a repo-public secret for any
+ * configuration to reach. The question "can a box boot with a secret this repository
+ * publishes" now has no code path to answer yes with, rather than a discouraged one.
+ *
+ * What it costs is honest and small: an ephemeral secret dies with the process, so a
+ * development restart logs every host out and invalidates every outstanding guest token.
+ * `npm run dev` is a `tsx watch`, so that is a real inconvenience — and it is the one the
+ * boot log names, with the two variables that end it. A developer who wants sessions to
+ * survive a reload sets them; a venue box has to.
+ */
+const EPHEMERAL_SECRET_BYTES = 48
+const ephemeralSecret = (): string => randomBytes(EPHEMERAL_SECRET_BYTES).toString('base64url')
 
 /**
  * How often one of the in-process sweeps runs, in minutes — or the word `off`.
@@ -160,178 +187,242 @@ const bootstrapOwnerPassword = z.string().superRefine((value, ctx) => {
   })
 })
 
-const schema = z
-  .object({
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-    PORT: positiveInt(4300, 65535),
-    PUBLIC_URL: publicUrl.default('http://localhost:5173'),
-    LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+/**
+ * One schema, built twice, differing in exactly one refinement.
+ *
+ * The maintenance commands — `db:migrate`, `purge`, `backup`, `restore`, `db:seed:demo` —
+ * open the database and the media root and exit. They sign no cookie, mint no token and
+ * answer no request, so the two secrets are not a precondition for them; and requiring
+ * them would break the promise docs/SECURITY.md §11 makes about those commands, that they
+ * need no configuration beyond `--database` and `--media`. A restore at two in the morning
+ * must not fail because the operator's shell does not carry a value their compose file
+ * holds.
+ *
+ * It is deliberately **not** done by handing those scripts a `NODE_ENV=development`, which
+ * is where this landed first and was wrong twice over: it inverts "silence is the strict
+ * posture" on exactly the box §11 sends the operator to, and it makes `seedDemo`'s own
+ * refusal to touch a production database unreachable, since the guard's only input would
+ * be a variable the npm script itself writes. Everything else — the `NODE_ENV` default,
+ * the placeholder blocklist, the 32-character floor, the https `PUBLIC_URL` rule, the
+ * `E2E_HOOKS` refusal — is the same in both.
+ */
+interface SchemaOptions {
+  readonly secretsRequiredInProduction: boolean
+}
 
-    // Optional here, required for production by the refinement below, so a developer
-    // can `npm run dev` with no .env at all.
-    SESSION_SECRET: secret('SESSION_SECRET').optional(),
-    GUEST_TOKEN_SECRET: secret('GUEST_TOKEN_SECRET').optional(),
+const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
+  z
+    .object({
+      /**
+       * **Absent means production.** This is the security default of the whole file.
+       *
+       * It used to default to `development`, and five controls hang off it at once: both
+       * signing secrets fell back to constants published in this repository, the session
+       * cookie lost `Secure`, HSTS and `upgrade-insecure-requests` were not sent, and the
+       * CSP admitted `'unsafe-inline'` in `script-src`. So a self-hosted operator who ran
+       * the built server without setting one variable got a box whose session cookie
+       * anybody could forge — and nothing said so. `docker compose up` was never the
+       * problem (`compose.yaml` and the `Dockerfile` both set `NODE_ENV=production`); the
+       * problem was every other way of starting it, including the systemd unit
+       * docs/SECURITY.md §11 recommends.
+       *
+       * Inverting it makes the failure mode a refusal instead of a silent downgrade: a
+       * process that was told nothing now asks for real secrets and stops without them.
+       * Development declares itself — `scripts/dev.env`, loaded by the npm scripts that run
+       * from a source checkout, is where it does.
+       *
+       * The blank is deliberately absent rather than a value, for the reason written on
+       * {@link sweepInterval}: a compose file with a dangling `NODE_ENV=`, or a template
+       * that rendered empty, must not be the one input that relaxes the posture. It lands
+       * on the strict default like any other absence.
+       */
+      NODE_ENV: z.preprocess(
+        blankAsAbsent,
+        z.enum(['development', 'test', 'production']).default('production'),
+      ),
+      PORT: positiveInt(4300, 65535),
+      PUBLIC_URL: publicUrl.default('http://localhost:5173'),
+      LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
-    SESSION_COOKIE_SECURE: boolish.optional(),
-    /** Reverse proxies in front of the app. Wrong values break per-IP rate limiting. */
-    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
+      // Optional here, required for production by the refinement below, so a developer
+      // can `npm run dev` with no .env at all.
+      //
+      // Blank is absent, for the reason written on `NODE_ENV` and on the sweep intervals:
+      // a compose file with a dangling `SESSION_SECRET=` deserves to be told the variable
+      // is required rather than that it is thirty-two characters short — and
+      // `scripts/verify-image.sh` asserts on the first of those two messages, so without
+      // this the image check reads as one assertion and makes another.
+      SESSION_SECRET: z.preprocess(blankAsAbsent, secret('SESSION_SECRET').optional()),
+      GUEST_TOKEN_SECRET: z.preprocess(blankAsAbsent, secret('GUEST_TOKEN_SECRET').optional()),
 
-    DATABASE_PATH: z.string().min(1).default('./data/eventslide.sqlite'),
-    MEDIA_ROOT: z.string().min(1).default('./media'),
+      SESSION_COOKIE_SECURE: boolish.optional(),
+      /** Reverse proxies in front of the app. Wrong values break per-IP rate limiting. */
+      TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
 
-    MAX_UPLOAD_BYTES: positiveInt(25_000_000),
-    MAX_FILES_PER_UPLOAD: positiveInt(20, 100),
-    /** Checked against the header before decoding — the decompression-bomb control. */
-    MAX_IMAGE_PIXELS: positiveInt(50_000_000),
-    DEFAULT_EVENT_QUOTA_BYTES: positiveInt(5_000_000_000),
+      DATABASE_PATH: z.string().min(1).default('./data/eventslide.sqlite'),
+      MEDIA_ROOT: z.string().min(1).default('./media'),
 
-    /**
-     * Clips have their own byte limit, deliberately separate from `MAX_UPLOAD_BYTES`.
-     *
-     * Raising the photo limit would raise the per-request heap ceiling that
-     * `guestRoutes.ts` derives from it, and `compose.yaml`'s memory limit was reasoned
-     * against that number. A clip does not need the same budget anyway: it goes to disk
-     * rather than to the heap, one file per request, and fifteen seconds off a phone is
-     * 20 to 60 MB.
-     */
-    MAX_CLIP_BYTES: positiveInt(80_000_000),
-    /**
-     * The duration cap, enforced twice — refused at the probe and passed to the encoder
-     * as a hard bound, because a truncated container's header is a claim by the file.
-     * Bounded at two minutes so that no configuration turns the wall into a cinema.
-     */
-    MAX_CLIP_SECONDS: positiveInt(15, 120),
-    /**
-     * How many clips may be waiting or transcoding across the whole box before an upload
-     * is answered `429 clip.queueFull`. Process-wide, because one worker drains the queue
-     * for every event and the wait a guest experiences is the global one.
-     */
-    MAX_QUEUED_CLIPS: positiveInt(20, 500),
-    /** The projected height of a clip. 720p reads well at 3 m and encodes quickly. */
-    CLIP_MAX_HEIGHT: positiveInt(720, 2_160),
-    /**
-     * The decompression-bomb control for video, judged from the header before a frame is
-     * decoded — the exact counterpart of MAX_IMAGE_PIXELS.
-     *
-     * CLIP_MAX_HEIGHT is not one: it scales the *output*, and the filter that does it
-     * runs after the decoder has already allocated the frame. The default admits 8K UHD
-     * (7680x4320, 33 MP) and refuses the 16000x16000 container that is 380 MB a frame.
-     */
-    MAX_CLIP_PIXELS: positiveInt(33_177_600),
+      MAX_UPLOAD_BYTES: positiveInt(25_000_000),
+      MAX_FILES_PER_UPLOAD: positiveInt(20, 100),
+      /** Checked against the header before decoding — the decompression-bomb control. */
+      MAX_IMAGE_PIXELS: positiveInt(50_000_000),
+      DEFAULT_EVENT_QUOTA_BYTES: positiveInt(5_000_000_000),
 
-    /**
-     * Where the encoder is, when it is not simply on `PATH`.
-     *
-     * A configured path that does not exist is a refusal rather than a fallback: an
-     * operator who set this wanted that build, and quietly using another one is how a
-     * deployment ends up encoding with something nobody chose.
-     */
-    FFMPEG_PATH: z.preprocess(blankAsAbsent, z.string().optional()),
-    FFPROBE_PATH: z.preprocess(blankAsAbsent, z.string().optional()),
+      /**
+       * Clips have their own byte limit, deliberately separate from `MAX_UPLOAD_BYTES`.
+       *
+       * Raising the photo limit would raise the per-request heap ceiling that
+       * `guestRoutes.ts` derives from it, and `compose.yaml`'s memory limit was reasoned
+       * against that number. A clip does not need the same budget anyway: it goes to disk
+       * rather than to the heap, one file per request, and fifteen seconds off a phone is
+       * 20 to 60 MB.
+       */
+      MAX_CLIP_BYTES: positiveInt(80_000_000),
+      /**
+       * The duration cap, enforced twice — refused at the probe and passed to the encoder
+       * as a hard bound, because a truncated container's header is a claim by the file.
+       * Bounded at two minutes so that no configuration turns the wall into a cinema.
+       */
+      MAX_CLIP_SECONDS: positiveInt(15, 120),
+      /**
+       * How many clips may be waiting or transcoding across the whole box before an upload
+       * is answered `429 clip.queueFull`. Process-wide, because one worker drains the queue
+       * for every event and the wait a guest experiences is the global one.
+       */
+      MAX_QUEUED_CLIPS: positiveInt(20, 500),
+      /** The projected height of a clip. 720p reads well at 3 m and encodes quickly. */
+      CLIP_MAX_HEIGHT: positiveInt(720, 2_160),
+      /**
+       * The decompression-bomb control for video, judged from the header before a frame is
+       * decoded — the exact counterpart of MAX_IMAGE_PIXELS.
+       *
+       * CLIP_MAX_HEIGHT is not one: it scales the *output*, and the filter that does it
+       * runs after the decoder has already allocated the frame. The default admits 8K UHD
+       * (7680x4320, 33 MP) and refuses the 16000x16000 container that is 380 MB a frame.
+       */
+      MAX_CLIP_PIXELS: positiveInt(33_177_600),
 
-    /**
-     * `PATH` and `PATHEXT`, read here because this is the only module allowed to read
-     * the environment at all — and then handed to the binary resolver as a value.
-     *
-     * The resolver needs them because `spawn` is never given `shell: true` (that is
-     * CVE-2024-27980 on Windows), and without a shell Node does not apply `PATHEXT`, so
-     * a bare `ffmpeg` fails on a machine where `ffmpeg.exe` is sitting on the path.
-     * Carrying them as configuration also lets a test hand the resolver an empty search
-     * path and exercise the "no encoder anywhere" branch without depending on the
-     * machine running the suite.
-     */
-    PATH: z.string().default(''),
-    PATHEXT: z.string().default(''),
+      /**
+       * Where the encoder is, when it is not simply on `PATH`.
+       *
+       * A configured path that does not exist is a refusal rather than a fallback: an
+       * operator who set this wanted that build, and quietly using another one is how a
+       * deployment ends up encoding with something nobody chose.
+       */
+      FFMPEG_PATH: z.preprocess(blankAsAbsent, z.string().optional()),
+      FFPROBE_PATH: z.preprocess(blankAsAbsent, z.string().optional()),
 
-    /**
-     * Left optional so the default can depend on NODE_ENV, below: a background sweep
-     * firing inside the end-to-end suite would delete a fixture's event mid-journey.
-     */
-    RETENTION_SWEEP_INTERVAL_MINUTES: retentionSweepInterval.optional(),
+      /**
+       * `PATH` and `PATHEXT`, read here because this is the only module allowed to read
+       * the environment at all — and then handed to the binary resolver as a value.
+       *
+       * The resolver needs them because `spawn` is never given `shell: true` (that is
+       * CVE-2024-27980 on Windows), and without a shell Node does not apply `PATHEXT`, so
+       * a bare `ffmpeg` fails on a machine where `ffmpeg.exe` is sitting on the path.
+       * Carrying them as configuration also lets a test hand the resolver an empty search
+       * path and exercise the "no encoder anywhere" branch without depending on the
+       * machine running the suite.
+       */
+      PATH: z.string().default(''),
+      PATHEXT: z.string().default(''),
 
-    /**
-     * Optional for the same reason as the line above: under `NODE_ENV=test` the default
-     * has to be off. A sweep firing mid-journey would open — or close — the event a
-     * Playwright spec is asserting on, on a timer nothing in the test can see.
-     */
-    SCHEDULE_SWEEP_INTERVAL_MINUTES: scheduleSweepInterval.optional(),
+      /**
+       * Left optional so the default can depend on NODE_ENV, below: a background sweep
+       * firing inside the end-to-end suite would delete a fixture's event mid-journey.
+       */
+      RETENTION_SWEEP_INTERVAL_MINUTES: retentionSweepInterval.optional(),
 
-    GUEST_SELF_DELETE_GRACE_SECONDS: positiveInt(900, 86_400),
-    UPLOAD_RATE_LIMIT_PER_MINUTE: positiveInt(12, 600),
-    JOIN_RATE_LIMIT_PER_MINUTE: positiveInt(20, 600),
-    LOGIN_RATE_LIMIT_PER_MINUTE: positiveInt(10, 600),
-    REACTION_RATE_LIMIT_PER_MINUTE: positiveInt(30, 600),
+      /**
+       * Optional for the same reason as the line above: under `NODE_ENV=test` the default
+       * has to be off. A sweep firing mid-journey would open — or close — the event a
+       * Playwright spec is asserting on, on a timer nothing in the test can see.
+       */
+      SCHEDULE_SWEEP_INTERVAL_MINUTES: scheduleSweepInterval.optional(),
 
-    /**
-     * Bounded at both ends. `createBcryptPasswordHasher` refuses anything outside
-     * 10-15 with a bare `Error`, so without the floor a cost of 9 passed validation
-     * here and then failed while the container was assembling adapters — an exception
-     * that names neither the variable nor the file that owns it. Refusing it here is
-     * what makes the aggregated ConfigError the single place a misconfigured boot is
-     * explained.
-     */
-    BCRYPT_COST: z.coerce
-      .number()
-      .int()
-      .min(10, 'BCRYPT_COST must be at least 10')
-      .max(15, 'BCRYPT_COST must be at most 15')
-      .default(12),
+      GUEST_SELF_DELETE_GRACE_SECONDS: positiveInt(900, 86_400),
+      UPLOAD_RATE_LIMIT_PER_MINUTE: positiveInt(12, 600),
+      JOIN_RATE_LIMIT_PER_MINUTE: positiveInt(20, 600),
+      LOGIN_RATE_LIMIT_PER_MINUTE: positiveInt(10, 600),
+      REACTION_RATE_LIMIT_PER_MINUTE: positiveInt(30, 600),
 
-    /**
-     * The first owner of an instance, created once against an empty database and then
-     * ignored. Both halves are needed or neither is; see the refinement below.
-     */
-    BOOTSTRAP_OWNER_EMAIL: z.preprocess(blankAsAbsent, z.string().optional()),
-    BOOTSTRAP_OWNER_PASSWORD: z.preprocess(blankAsAbsent, bootstrapOwnerPassword.optional()),
+      /**
+       * Bounded at both ends. `createBcryptPasswordHasher` refuses anything outside
+       * 10-15 with a bare `Error`, so without the floor a cost of 9 passed validation
+       * here and then failed while the container was assembling adapters — an exception
+       * that names neither the variable nor the file that owns it. Refusing it here is
+       * what makes the aggregated ConfigError the single place a misconfigured boot is
+       * explained.
+       */
+      BCRYPT_COST: z.coerce
+        .number()
+        .int()
+        .min(10, 'BCRYPT_COST must be at least 10')
+        .max(15, 'BCRYPT_COST must be at most 15')
+        .default(12),
 
-    /** Enables the display timing hooks the Playwright suite drives. Never in production. */
-    E2E_HOOKS: boolish.optional(),
-  })
-  .superRefine((raw, ctx) => {
-    // The first owner is a pair, and half of one creates nothing. Before `""` meant
-    // absent, the missing half reached `bootstrapOwner` as an empty string and was
-    // refused into a log line; silently doing nothing instead would be no better, so
-    // the half that is missing is named at boot beside every other bad variable.
-    const email = raw.BOOTSTRAP_OWNER_EMAIL
-    const password = raw.BOOTSTRAP_OWNER_PASSWORD
-    if ((email === undefined) !== (password === undefined)) {
-      const missing = email === undefined ? 'BOOTSTRAP_OWNER_EMAIL' : 'BOOTSTRAP_OWNER_PASSWORD'
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [missing],
-        message: `${missing} is required alongside the other half of the first-owner bootstrap: an email with no password, or a password with no email, creates no account at all`,
-      })
-    }
+      /**
+       * The first owner of an instance, created once against an empty database and then
+       * ignored. Both halves are needed or neither is; see the refinement below.
+       */
+      BOOTSTRAP_OWNER_EMAIL: z.preprocess(blankAsAbsent, z.string().optional()),
+      BOOTSTRAP_OWNER_PASSWORD: z.preprocess(blankAsAbsent, bootstrapOwnerPassword.optional()),
 
-    if (raw.NODE_ENV !== 'production') return
-
-    for (const name of ['SESSION_SECRET', 'GUEST_TOKEN_SECRET'] as const) {
-      if (raw[name] === undefined) {
+      /** Enables the display timing hooks the Playwright suite drives. Never in production. */
+      E2E_HOOKS: boolish.optional(),
+    })
+    .superRefine((raw, ctx) => {
+      // The first owner is a pair, and half of one creates nothing. Before `""` meant
+      // absent, the missing half reached `bootstrapOwner` as an empty string and was
+      // refused into a log line; silently doing nothing instead would be no better, so
+      // the half that is missing is named at boot beside every other bad variable.
+      const email = raw.BOOTSTRAP_OWNER_EMAIL
+      const password = raw.BOOTSTRAP_OWNER_PASSWORD
+      if ((email === undefined) !== (password === undefined)) {
+        const missing = email === undefined ? 'BOOTSTRAP_OWNER_EMAIL' : 'BOOTSTRAP_OWNER_PASSWORD'
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: [name],
-          message: `${name} is required in production`,
+          path: [missing],
+          message: `${missing} is required alongside the other half of the first-owner bootstrap: an email with no password, or a password with no email, creates no account at all`,
         })
       }
-    }
-    if (raw.E2E_HOOKS === true) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['E2E_HOOKS'],
-        message: 'E2E_HOOKS must not be enabled in production',
-      })
-    }
-    if (raw.PUBLIC_URL.startsWith('http://') && !raw.PUBLIC_URL.startsWith('http://localhost')) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['PUBLIC_URL'],
-        message:
-          'PUBLIC_URL must use https in production: guests submit photos over this origin, and a Secure session cookie will not be sent over http',
-      })
-    }
-  })
 
-export type RawConfig = z.infer<typeof schema>
+      if (raw.NODE_ENV !== 'production') return
+
+      if (secretsRequiredInProduction) {
+        for (const name of ['SESSION_SECRET', 'GUEST_TOKEN_SECRET'] as const) {
+          if (raw[name] === undefined) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [name],
+              message: `${name} is required in production`,
+            })
+          }
+        }
+      }
+      if (raw.E2E_HOOKS === true) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['E2E_HOOKS'],
+          message: 'E2E_HOOKS must not be enabled in production',
+        })
+      }
+      if (raw.PUBLIC_URL.startsWith('http://') && !raw.PUBLIC_URL.startsWith('http://localhost')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['PUBLIC_URL'],
+          message:
+            'PUBLIC_URL must use https in production: guests submit photos over this origin, and a Secure session cookie will not be sent over http',
+        })
+      }
+    })
+
+/** What a server parses with: both secrets are a precondition in production. */
+const serverSchema = buildSchema({ secretsRequiredInProduction: true })
+
+/** What a maintenance command parses with. See {@link buildSchema}. */
+const maintenanceSchema = buildSchema({ secretsRequiredInProduction: false })
+
+export type RawConfig = z.infer<typeof serverSchema>
 
 /**
  * The shape the rest of the application receives. Grouped by concern rather than
@@ -349,6 +440,24 @@ export interface AppConfig {
   readonly secrets: {
     readonly session: string
     readonly guestToken: string
+    /**
+     * Which of the two were generated for this boot instead of configured, by name.
+     *
+     * Names rather than a flag, because the two are independent and the consequence is
+     * not: a developer who set `SESSION_SECRET` and not `GUEST_TOKEN_SECRET` keeps their
+     * sign-in across a reload and loses every guest token, and a single boolean made the
+     * log line say both were going. Empty is the configured case.
+     *
+     * Only ever non-empty outside a server's production boot — the refinement refuses one
+     * that is missing either — and it exists so the boot log can say which arrangement is
+     * in force. §14.7 of docs/SECURITY.md recorded that nothing did, and a developer who
+     * cannot tell why they were signed out by a hot reload is the mild case; the expensive
+     * one is not knowing that a restart invalidates every guest token.
+     *
+     * Deliberately not reported by `/api/ready`: that endpoint answers an unauthenticated
+     * caller, and how a box signs its cookies is not something it should volunteer.
+     */
+    readonly generated: readonly ('SESSION_SECRET' | 'GUEST_TOKEN_SECRET')[]
   }
 
   readonly session: {
@@ -432,13 +541,9 @@ export class ConfigError extends Error {
   }
 }
 
-/**
- * Parse and validate. Throws {@link ConfigError} listing every problem.
- *
- * `source` is a parameter so tests pass a plain object and never touch the real
- * environment.
- */
-export const loadConfig = (source: Record<string, string | undefined> = process.env): AppConfig => {
+type Source = Record<string, string | undefined>
+
+const load = (schema: typeof serverSchema, source: Source): AppConfig => {
   const parsed = schema.safeParse(source)
   if (!parsed.success) {
     // Every issue this schema can raise names a variable: an object-shape failure
@@ -490,8 +595,13 @@ export const loadConfig = (source: Record<string, string | undefined> = process.
 
     secrets: {
       // Non-production only: the superRefine above makes these present in production.
-      session: raw.SESSION_SECRET ?? 'development-only-session-secret-not-for-production',
-      guestToken: raw.GUEST_TOKEN_SECRET ?? 'development-only-guest-token-secret-not-for-prod',
+      // Generated rather than constant, and generated per secret rather than once, so a
+      // guest cookie can never be replayed as a session — see {@link ephemeralSecret}.
+      session: raw.SESSION_SECRET ?? ephemeralSecret(),
+      guestToken: raw.GUEST_TOKEN_SECRET ?? ephemeralSecret(),
+      generated: (['SESSION_SECRET', 'GUEST_TOKEN_SECRET'] as const).filter(
+        (name) => raw[name] === undefined,
+      ),
     },
 
     session: {
@@ -554,3 +664,28 @@ export const loadConfig = (source: Record<string, string | undefined> = process.
     e2eHooks: raw.E2E_HOOKS ?? false,
   }
 }
+
+/**
+ * Parse and validate, for a process that is going to serve requests. Throws
+ * {@link ConfigError} listing every problem.
+ *
+ * `source` is a parameter so tests pass a plain object and never touch the real
+ * environment.
+ */
+export const loadConfig = (source: Source = process.env): AppConfig => load(serverSchema, source)
+
+/**
+ * The same, for a command that opens the database and exits — `db:migrate`, `purge`,
+ * `backup`, `restore`, `db:seed:demo`.
+ *
+ * One difference and it is written on {@link buildSchema}: the two secrets are not a
+ * precondition, because nothing here signs anything. Every other refusal is identical,
+ * `NODE_ENV` still defaults to `production`, and `isProduction` therefore still means what
+ * it means everywhere else — which is what `seedDemo` needs it to mean.
+ *
+ * It is not a way to start a server without secrets. Absent ones are generated per boot,
+ * so a server built on this config would mint sessions nothing else can verify and lose
+ * every one of them on restart. `src/main/index.ts` calls `loadConfig`.
+ */
+export const loadMaintenanceConfig = (source: Source = process.env): AppConfig =>
+  load(maintenanceSchema, source)

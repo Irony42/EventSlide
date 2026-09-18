@@ -101,11 +101,25 @@ Node 22.12 or later.
 
 ```bash
 npm install
-cp .env.example .env      # then edit it
+
+# The same two secrets and the same address as the Docker box above. `npm start` reads
+# this `.env` if it is there; it never overrides a variable your shell or your service
+# manager already set, so a systemd unit can own them instead.
+node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
+node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
+echo "PUBLIC_URL=https://photos.example.com" >> .env
+
 npm run db:migrate
 npm run build
 npm start
 ```
+
+**There is no weak default to fall back on, and that is deliberate.** `NODE_ENV` is
+`production` unless something says otherwise, so a server started without those two
+secrets prints both and exits instead of signing cookies with something it made up.
+`.env.example` documents every other variable and is worth reading; copying it verbatim
+stops the boot, because the secrets in it are placeholders and the server knows them by
+sight.
 
 To look around before there is a real event, `npm run db:seed:demo` creates one with
 a handful of photos in each moderation state, so the admin console and the wall both
