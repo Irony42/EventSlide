@@ -14,7 +14,7 @@ import { asEventId, asGuestId } from '../../../domain/shared/ids'
 import { createHmacGuestTokenService } from '../../../infrastructure/crypto/hmacGuestTokenService'
 import { silentLogger } from '../../../infrastructure/logging/pinoLogger'
 import { errorHandler, requestContext } from '../middleware/errorHandler'
-import { attachUser } from '../middleware/authz'
+import { attachUser, enforceSessionAge } from '../middleware/authz'
 import type { HttpConfig, HttpDeps, SessionPayload } from '../types'
 
 /**
@@ -90,8 +90,13 @@ export const buildTestWorld = (config: Partial<HttpConfig> = {}): TestWorld => {
   const clock = new FakeClock(AT)
   const events = new FakeEventRepository()
   const guests = new FakeGuestRepository()
-  const memberships = new FakeMembershipRepository()
   const users = new FakeUserRepository()
+  // Linked, because `roleFor` is a join over `users` in SQLite in both directions that
+  // matter: the identity columns a moderator list shows, and `disabled_at`, which is what
+  // ends an account's authority inside an event. An unlinked fake would answer `owner`
+  // for an account this world had switched off, and every HTTP test of that rule would
+  // pass against a product that was broken.
+  const memberships = new FakeMembershipRepository({ users })
   const bus = new RecordingEventBus()
   const logger = silentLogger()
   const guestTokens = createHmacGuestTokenService({ secret: TEST_GUEST_SECRET })
@@ -148,11 +153,19 @@ export interface HarnessOptions {
   readonly withSession?: boolean
 }
 
-/** Signs a session in, for tests that need an authenticated caller. */
+/**
+ * Signs a session in, for tests that need an authenticated caller.
+ *
+ * `issuedAt` defaults to the harness clock's own instant rather than to the wall clock,
+ * because `enforceSessionAge` compares the two: a fixture stamped with the real `now`
+ * against a `FakeClock` fixed at {@link AT} would be a session from months in the future,
+ * and every test would be measuring the wrong thing. A test about the cap passes its own.
+ */
 export const signInAs =
   (payload: SessionPayload): RequestHandler =>
   (req, res) => {
-    Object.assign(req.session as unknown as SessionPayload, payload)
+    const stamped: SessionPayload = { issuedAt: AT.getTime(), ...payload }
+    Object.assign(req.session as unknown as SessionPayload, stamped)
     res.status(204).end()
   }
 
@@ -180,6 +193,9 @@ export const buildHarness = ({
     )
   }
   app.use(requestContext(logger))
+  // The same order `server.ts` mounts, and it has to be: a middleware test that never
+  // ran the absolute session cap would be testing a stack the product does not assemble.
+  app.use(enforceSessionAge(deps))
   app.use(attachUser())
 
   routes(app, deps)

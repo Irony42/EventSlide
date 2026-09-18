@@ -55,20 +55,83 @@ a security one; a malicious _host_ on their own instance owns the data anyway.
 
 Two principals, no third, and no ambient "logged in means allowed".
 
-| Principal        | Credential                                    | Lifetime                                             | Grants                                                            |
-| ---------------- | --------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------- |
-| Host / moderator | `express-session` cookie, SQLite-backed store | idle 12 h, rolling; absolute cap **(defect)**, below | per-event role from the membership table                          |
-| Guest            | HMAC-signed device token in a cookie          | 36 h from issue, enforced at verification            | upload to **one** event; delete own photo inside the grace window |
+| Principal        | Credential                                    | Lifetime                                              | Grants                                                             |
+| ---------------- | --------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
+| Host / moderator | `express-session` cookie, SQLite-backed store | idle 12 h rolling, **and 7 days absolute** from login | per-event role from the membership table, re-read on every request |
+| Guest            | HMAC-signed device token in a cookie          | 36 h from issue, enforced at verification             | upload to **one** event; delete own photo inside the grace window  |
 
 Still two principals. The account behind the first of them now also carries a **site
 role** — see below — which is authority over the box and never over an event, so it adds
 no third kind of caller and grants nothing any row in this table does not.
 
-**(defect)** An absolute session lifetime is the intent — a projector laptop is left
-unlocked at a venue, and `rolling: true` alone never expires a session that keeps being
-used. No such cap exists in the code: `server.ts` sets `rolling: true` with a 12 h
-cookie `maxAge` and nothing checks an issued-at against a ceiling, so an active session
-renews indefinitely. See §6.
+### Two clocks and one account read
+
+Three things bound a host session, and they answer different questions.
+
+| Bound                                                   | Where                                                     | What it is for                                                                                                                                                       |
+| ------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Idle, 12 h**, `rolling: true`                         | `server.ts` cookie `maxAge`, `sqliteSessionStore.touch`   | a laptop nobody comes back to                                                                                                                                        |
+| **Absolute, 7 days** from the login that established it | `enforceSessionAge` in `middleware/authz.ts`              | a session that keeps being used. Rolling alone never ends one, so without this the window had no end at all rather than the twelve hours this document used to claim |
+| **The account, on every request**                       | `MembershipRepository.roleFor`, `UserRepository.isActive` | the host you switched off five minutes ago. A capability answered from the session is a capability nobody can take back — see "Disabling an account", below          |
+
+The absolute cap is a week and not a day on purpose: the control that acts on the
+unlocked laptop is the idle timeout, and a tighter absolute cap would buy little against
+it while guaranteeing that a host who signed in for Friday's setup is logged out in the
+middle of Saturday evening. A weekend is the longest thing this product is used for. A
+session carrying no issued-at — every session written before the cap existed — is treated
+as expired rather than as fresh, so an upgrade costs one sign-in and never leaves an
+unbounded session behind.
+
+### Disabling an account
+
+`users.disabled_at` is the switch, and what it switches off is **authority, not just the
+next login**. Until roadmap §10 ships a console for it, setting the column is the
+operation (`UPDATE users SET disabled_at = ...`); this branch built the enforcement, not
+the administration of it.
+
+| On the next **request**                             | What answers, and how                                                                                                                                                              |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| every event-scoped route                            | `roleFor` answers `null`, so `requireRole` gives the **404** a non-member gets. Byte for byte the same body, so the refusal reveals nothing                                        |
+| every use case that checks an actor for itself      | the same answer, because the sixteen of them ask the same port method — including `registerModerator`, which is how a disabled owner used to mint a fresh **enabled** account      |
+| `GET`/`POST /api/events`, `POST /api/auth/password` | `requireUser` reads `UserRepository.isActive` and answers **401 `auth.required`**, the same as no session at all. These routes name no event, so no role lookup would have noticed |
+| the operator's own surface                          | `siteRoleFor` already answered `none`; unchanged                                                                                                                                   |
+| the login form                                      | `authenticateUser` refuses with `auth.invalidCredentials`, after the hash comparison so a switched-off account stays unobservable                                                  |
+| an SSE stream **already open**                      | nothing — it was authorized when the socket opened and is not asked again. It reads; it decides nothing. See the residual below                                                    |
+
+Two deliberate non-changes. The membership row is **kept**, and `listForEvent` and
+`countByRole` still report it: the owner looking at their moderator list needs to see who
+is switched off, the last-owner rule is about rows rather than about who happens to be
+switched on this evening, and re-enabling an account gives back exactly what it had. And
+sessions are **not** hunted down and deleted — `sessions` carries no `user_id` to
+invalidate against, and adding one would buy nothing the per-request account read does not
+already give, since the very next request that session makes is refused.
+
+**The residual, stated plainly: a connection already open is not a request.** Both SSE
+streams are authorized once, when the socket is opened, and then held — the wall's is
+public, and the moderation one sits behind `requireRole` on `GET
+/api/events/:eventSlug/moderation/stream`. Nothing re-asks while it is open, so a
+moderator disabled at 19:00 keeps **reading** the live queue until the socket drops, and a
+session that crosses the absolute cap keeps streaming. They can act on nothing: every
+decision is its own request and answers 404. This is the case a session-revocation design
+would have closed and a per-request read does not, and it is written down rather than
+quietly excluded from the sentence above — re-checking on the stream's own heartbeat is the
+fix, and it belongs with the stream rather than at the end of this branch.
+
+**`roleFor` is authority; `membershipFor` is the row**, and the split is what keeps the
+paragraph above true. Two callers ask about the row rather than about what anybody may do,
+and both were bugs the moment `roleFor` started refusing a disabled account:
+`registerModerator`'s "is this address already a member" — where a disabled **co-owner**
+would have looked like a stranger and been re-granted as a moderator, losing the role that
+re-enabling them was meant to restore — and `revokeModerator`'s lookup of the row it is
+about to delete, which would otherwise have told an owner `membership.notFound` about
+somebody their own moderator list was still showing them. The port says which question each
+method answers, and the contract suite runs both against the fake and SQLite.
+
+Named tests at ring 2 (`registerModerator.test.ts`), ring 3 (the shared
+`membershipRepositoryContract` and `userRepositoryContract`, run against the fake **and**
+SQLite), ring 4 (`authz.test.ts`, `authRoutes.test.ts`) and ring 6
+(`tests/e2e/security/tenant-isolation.spec.ts`, which switches the account off in the
+running server's own database and then asks).
 
 ### Guest token format
 
@@ -161,10 +224,11 @@ Everything in `src/interface/http/middleware/authz.ts`:
 
 | Middleware                       | Grants                                                                                                                                |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `enforceSessionAge(deps)`        | nothing. Ends a session older than the absolute cap, ahead of identity resolution                                                     |
 | `attachUser()`                   | nothing. Reads the session into a principal — identity, never permission                                                              |
-| `requireUser`                    | any authenticated user, for the two routes that are not event-scoped                                                                  |
-| `requireRole('owner', deps)`     | event owner only                                                                                                                      |
-| `requireRole('moderator', deps)` | owner or moderator of **that** event                                                                                                  |
+| `requireUser(deps)`              | any authenticated user **whose account is still enabled**, for the routes that are not event-scoped                                   |
+| `requireRole('owner', deps)`     | event owner only, and only while that account is enabled                                                                              |
+| `requireRole('moderator', deps)` | owner or moderator of **that** event, same condition                                                                                  |
 | `requireOperator(deps)`          | the account that operates the **box** — and nothing inside any event. No route uses it yet; see the site role below                   |
 | `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                         |
 | `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                     |
@@ -588,7 +652,7 @@ behalf — is served by the composite key rather than by three tiers.
 | Store                          | `src/infrastructure/db/sessionStore.ts`, a `Store` over `better-sqlite3`, table `sessions(sid TEXT PRIMARY KEY, expires_at TEXT NOT NULL, data TEXT NOT NULL)` | 1.0's `MemoryStore` leaked memory and logged every moderator out on restart — mid-event             |
 | Pruning                        | `DELETE FROM sessions WHERE expires_at < ?` on an interval and on boot                                                                                         | an unpruned session table is both a growth and a replay problem                                     |
 | Regeneration                   | `req.session.regenerate()` on **successful login**, before the user id is written                                                                              | defeats session fixation: a pre-set `es_sid` from an attacker is discarded                          |
-| Timeouts                       | **(defect)** idle 12 h (`rolling: true`); no absolute cap exists — see §2 and §14.7                                                                            | a projector laptop is left unlocked at a venue, and `rolling` alone never expires an active session |
+| Timeouts                       | idle 12 h (`rolling: true`), **and 7 days absolute** from login — `enforceSessionAge`, ahead of `attachUser`; see §2                                           | a projector laptop is left unlocked at a venue, and `rolling` alone never expires an active session |
 | `resave` / `saveUninitialized` | `false` / `false`                                                                                                                                              | no row for an anonymous visitor; no write amplification                                             |
 | Password hashing               | bcrypt cost 12                                                                                                                                                 | 1.0 used cost 10 and a hardcoded hash                                                               |
 | Failed login                   | generic `auth.invalidCredentials`, and a bcrypt compare against a dummy hash when the user does not exist                                                      | otherwise response time enumerates accounts                                                         |
@@ -726,7 +790,7 @@ once with zod at startup, exported as a frozen typed object.
 | ---------------------------------- | --------------------- | ------------------------------------- | ---------------------------------------------------------------------- |
 | `SESSION_SECRET`                   | **yes in production** | none                                  | signs `es_sid`                                                         |
 | `GUEST_TOKEN_SECRET`               | **yes in production** | none                                  | HMAC key for guest tokens                                              |
-| `NODE_ENV`                         | no                    | `development`                         | gates `Secure` cookies, HSTS, strict CSP                               |
+| `NODE_ENV`                         | no                    | **`production`**                      | gates `Secure` cookies, HSTS, strict CSP, and both secrets — see below |
 | `PUBLIC_URL`                       | yes in production     | none                                  | join links, QR codes, `Origin` check                                   |
 | `DATABASE_PATH` / `MEDIA_ROOT`     | no                    | `./data/eventslide.sqlite`, `./media` | see file permissions in §11                                            |
 | `TRUST_PROXY_HOPS`                 | no                    | `0`                                   | see §11 — wrong values break rate limiting                             |
@@ -748,9 +812,36 @@ characters, or matches a known placeholder (`change-me`, `change-me-in-productio
 `dev-session-secret`, `secret`), or when `PUBLIC_URL` is missing. 1.0's `.env.example`
 shipped `change-me-in-production` next to a `sessionSecret ?? 'dev-session-secret'`
 fallback, so the likely production value was a public constant. The process prints every
-failing key at once and exits non-zero; it does not start degraded. Dev secrets come
-from a fixed constant, which is safe only because the same code path refuses it in
-production.
+failing key at once and exits non-zero; it does not start degraded.
+
+**Saying nothing means production, and that is the security default of the file.** It used
+to mean development, and five controls hang off the answer at once: both secrets fell back
+to constants published in this repository, the session cookie lost `Secure`, HSTS and
+`upgrade-insecure-requests` were not sent, and `script-src` admitted `'unsafe-inline'`. So
+a self-hosted operator who started the built server without setting one variable got a box
+whose session cookie any reader of this repository could forge, with nothing in the log to
+say so. `docker compose up` was never the case that broke — `compose.yaml` and the
+`Dockerfile` both set `NODE_ENV=production` — but `npm start`, a systemd unit, and a
+`docker run` that overrides the environment all were. A blank `NODE_ENV=` counts as absent,
+for the same reason `RETENTION_SWEEP_INTERVAL_MINUTES=` does: a template that rendered
+empty must land on the strict answer.
+
+**Outside production there is no constant to fall back to.** A boot with no configured
+secret generates 48 random bytes for each, so a box carrying a secret this repository
+publishes is not discouraged, it is unreachable — the values are gone. What it costs is
+stated in the boot log: an ephemeral secret dies with the process, so a development restart
+signs every host out and invalidates every guest token, and the line names the two
+variables that end that. Development declares itself through `scripts/dev.env`, which the
+npm scripts that run against a working tree load with node's `--env-file` — and which never
+overrides a variable the environment already set, so it cannot relax a real deployment.
+One escape hatch survives all of this, and it is named here rather than left to imply it
+is closed: `SESSION_COOKIE_SECURE=false` still removes the `Secure` flag under
+`NODE_ENV=production`. It exists because getting that flag wrong behind plain HTTP makes
+login silently impossible, and it is unchanged. "Absent means production" closes the
+default, not the override.
+
+`scripts/verify-image.sh` drives the whole thing end to end: it runs the built image with
+`NODE_ENV=` blanked and no secrets and requires exit 78 naming both.
 
 **There is no default account in 2.0.** 1.0 recreated `admin` / `password` on every
 boot, in `initDatabase`, in production, forever. Instead: while the `users` table is
@@ -1058,15 +1149,15 @@ ones are luck.
 The advisory verdicts below are only meaningful against this. Every row was read out of
 the routers on `chore/security-audit` at `d8f6c0f`.
 
-| Principal                                  | Credential                                                                      | Verified at                                                                                                 | What it unlocks                                                                                                                                                        |
-| ------------------------------------------ | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Unauthenticated stranger**               | none                                                                            | —                                                                                                           | `POST /api/join`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/health`, `GET /api/ready`                                             |
-| **Stranger who knows a slug**              | none; the event must pass `servesWall()`                                        | `middleware/authz.ts:170-187`, refusal at `:180`                                                            | `GET /api/events/:eventSlug/wall` (`routes/publicRoutes.ts:163`), the media bytes (`routes/mediaRoutes.ts:235`), the wall SSE stream (`routes/streamRoutes.ts:312`)    |
-| **Guest** (a phone with the QR link)       | HMAC device token in `es_guest`                                                 | `middleware/authz.ts:112-161` — signature `:122`, event match `:140`, row exists `:145`, not revoked `:151` | **upload photos** (`routes/guestRoutes.ts:322`), **upload clips** (`routes/clipRoutes.ts:137`), own-photo list, delete own inside the grace window, caption, reactions |
-| **Any authenticated user**, no event scope | `es_session` cookie, **trusted from the session payload with no database read** | `middleware/authz.ts:22-34` and `:37-43`                                                                    | `GET /api/events`, `POST /api/events` (`routes/eventRoutes.ts:115`, `:131`), `POST /api/auth/password` (`routes/authRoutes.ts:183`)                                    |
-| **Moderator of one event**                 | `es_session` plus an `event_memberships` row                                    | `middleware/authz.ts:75` and `:81` via `canModerate` (`domain/events/eventRole.ts:37`)                      | publish/hide/delete photos, bulk moderate, revoke a guest, download `album.zip`                                                                                        |
-| **Owner of one event**                     | as above, role `owner`                                                          | `middleware/authz.ts:81` via `canManageEvent` (`domain/events/eventRole.ts:40`)                             | everything a moderator has, plus settings, lifecycle, join-code rotation, **event deletion**, and **moderator registration**                                           |
-| **Operator** (site role)                   | —                                                                               | —                                                                                                           | **Does not exist on this branch.** See §14.6                                                                                                                           |
+| Principal                                  | Credential                                                                                                                                  | Verified at                                                                                                 | What it unlocks                                                                                                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Unauthenticated stranger**               | none                                                                                                                                        | —                                                                                                           | `POST /api/join`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/health`, `GET /api/ready`                                             |
+| **Stranger who knows a slug**              | none; the event must pass `servesWall()`                                                                                                    | `middleware/authz.ts:170-187`, refusal at `:180`                                                            | `GET /api/events/:eventSlug/wall` (`routes/publicRoutes.ts:163`), the media bytes (`routes/mediaRoutes.ts:235`), the wall SSE stream (`routes/streamRoutes.ts:312`)    |
+| **Guest** (a phone with the QR link)       | HMAC device token in `es_guest`                                                                                                             | `middleware/authz.ts:112-161` — signature `:122`, event match `:140`, row exists `:145`, not revoked `:151` | **upload photos** (`routes/guestRoutes.ts:322`), **upload clips** (`routes/clipRoutes.ts:137`), own-photo list, delete own inside the grace window, caption, reactions |
+| **Any authenticated user**, no event scope | `es_session` cookie, **trusted from the session payload with no database read** _(since fixed: `requireUser` reads `isActive` — see §14.7)_ | `middleware/authz.ts:22-34` and `:37-43`                                                                    | `GET /api/events`, `POST /api/events` (`routes/eventRoutes.ts:115`, `:131`), `POST /api/auth/password` (`routes/authRoutes.ts:183`)                                    |
+| **Moderator of one event**                 | `es_session` plus an `event_memberships` row                                                                                                | `middleware/authz.ts:75` and `:81` via `canModerate` (`domain/events/eventRole.ts:37`)                      | publish/hide/delete photos, bulk moderate, revoke a guest, download `album.zip`                                                                                        |
+| **Owner of one event**                     | as above, role `owner`                                                                                                                      | `middleware/authz.ts:81` via `canManageEvent` (`domain/events/eventRole.ts:40`)                             | everything a moderator has, plus settings, lifecycle, join-code rotation, **event deletion**, and **moderator registration**                                           |
+| **Operator** (site role)                   | —                                                                                                                                           | —                                                                                                           | **Does not exist on this branch.** See §14.6                                                                                                                           |
 
 `EVENT_ROLES = ['owner', 'moderator']` at `domain/events/eventRole.ts:14`, and
 `eventRole.ts:4` states the intent: a role is always per event, there is no global
@@ -1230,11 +1321,25 @@ therefore complete as shipped.
 One property of that branch is worth recording now, because it bears directly on §14.7:
 its `requireOperator` re-reads the role from the database on every request, and the query
 is `SELECT site_role FROM users WHERE id = ? AND disabled_at IS NULL`, so a disabled
-operator is refused. That is precisely the behaviour `requireRole` does **not** have today.
+operator is refused. That was precisely the behaviour `requireRole` did **not** have when
+this was written; `roleFor` now carries the same `disabled_at IS NULL` clause, which is
+where that observation led. See §2 and §14.7.
 
 ### 14.7 Confirmations, corrections, and what the alerts cannot see
 
-#### `disabled_at` is enforced at exactly one line — CONFIRMED, and the blast radius is larger than stated
+#### `disabled_at` is enforced at exactly one line — CONFIRMED, and since **FIXED**
+
+> **Fixed.** Every claim below was true when this audit was written and none of them is
+> true now; §2 "Disabling an account" is the current contract and this entry is kept as the
+> record of what was found. What changed: the two authorization reads answer it — `roleFor`
+> returns `null` for a disabled account exactly as `siteRoleFor` returns `none`, which
+> closes `requireRole` **and** the sixteen use cases that ask an actor's role for
+> themselves, `registerModerator` among them; `requireUser` reads
+> `UserRepository.isActive` for the routes that name no event; and `enforceSessionAge`
+> gives the session an absolute 7-day cap, so the window is bounded even where nothing
+> else looks. Point 1 still stands in one respect and deliberately so: there is still no
+> disable **use case**, because a route or console to switch an account off is roadmap §10
+> and this branch built the enforcement rather than the administration of it.
 
 `user.canSignIn()` (`domain/users/user.ts:102`) has **one** production caller:
 `usecases/auth/authenticateUser.ts:101`. `middleware/authz.ts` never reads the `users`
@@ -1263,7 +1368,8 @@ Three facts make this worse than "their session keeps working for 12 h":
 
 **§2's `(defect)` marker on the absolute session cap is correct. §6's claim that one exists
 is wrong** — `absoluteExpiresAt` appears nowhere in `src/` or `web/`, only in this
-document's own §6 row.
+document's own §6 row. _(Both entries are now obsolete: the cap exists, in a third shape —
+`issuedAt` written at login, compared by `enforceSessionAge` against a 7-day ceiling.)_
 
 #### `requireGuestOwnsPhoto` — the skill is wrong, this document is right
 
@@ -1273,7 +1379,18 @@ per route", sitting between two middlewares that do exist. It exists nowhere in 
 of this document is correct and the skill is not. An agent told to pick a row for every
 route would reach for a middleware that does not compile.
 
-#### Secrets: the check is real, the default is not safe
+#### Secrets: the check is real, the default is not safe — since **FIXED**
+
+> **Fixed.** The paragraph below was true when this audit was written. `NODE_ENV` now
+> defaults to `production`, a blank one counts as absent, and the two repository-public
+> constants are **deleted** — a boot outside production generates 48 random bytes per
+> secret instead, so the five controls this entry lists are on unless somebody explicitly
+> asked for development, and there is no published constant left for any configuration to
+> select. The boot log names the arrangement; `/api/ready` deliberately still does not, as
+> it answers an unauthenticated caller. `scripts/verify-image.sh` drives the refusal
+> against the built image with `NODE_ENV=` blanked. The two smaller divergences in the last
+> paragraph — the secrets not being required to differ, and the missing `Origin`/`Referer`
+> check — are **unchanged and still true**. See §10.
 
 `SESSION_SECRET` and `GUEST_TOKEN_SECRET` are held to 32 characters and a placeholder
 blocklist by `config/env.ts:36-42`, environment-independently, and
@@ -1338,19 +1455,19 @@ transaction with the `SUM` inside it, spanning `photos` and staged clip sources
 Recorded rather than silently edited, because "Status of this document" says a claim that
 cannot be traced to a file must be marked, never left standing.
 
-| Section     | Claim                                                                            | What the code says                                                                                                                                                                                                                     |
-| ----------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| §6 Timeouts | "idle 2 h, absolute 12 h from `session.absoluteExpiresAt` checked in middleware" | **Both halves wrong.** Idle is 12 h (`server.ts:101`) and no absolute cap exists. §2's `(defect)` is the accurate entry                                                                                                                |
-| §6, §9, §10 | the cookie `es_sid`                                                              | It is `es_session` (`server.ts:88`, `routes/authRoutes.ts:32`). §2's table has it right                                                                                                                                                |
-| §8          | `default-src 'none'`                                                             | `defaultSrc: ["'self'"]` — `middleware/securityHeaders.ts:20`                                                                                                                                                                          |
-| §8          | `style-src 'self'` plus a narrow `style-src-attr 'unsafe-inline'`                | `styleSrc: ["'self'", "'unsafe-inline'"]` and **no `styleSrcAttr` directive at all** — `securityHeaders.ts:28`. The code ships the broader hole the doc says it avoided                                                                |
-| §8          | `base-uri 'none'`                                                                | `baseUri: ["'self'"]` — `securityHeaders.ts:43`                                                                                                                                                                                        |
-| §8          | helmet lives in `server.ts`                                                      | `middleware/securityHeaders.ts:15-74`, mounted at `server.ts:65`                                                                                                                                                                       |
-| §8          | HSTS 180 days                                                                    | 365 days — `securityHeaders.ts:66`. Here the code is stricter than the doc                                                                                                                                                             |
-| §7, §10     | an `Origin` / `Referer` check against `PUBLIC_URL`                               | Does not exist — `middleware/csrf.ts:147-165`                                                                                                                                                                                          |
-| §5          | `GET /api/join/:code` limited per code as well as per IP                         | **That route does not exist.** The code is resolved inside `POST /api/join`, limited per IP only — `routes/publicRoutes.ts:94`                                                                                                         |
-| §5          | the SSE hub "drops the oldest idle connection rather than refusing"              | It **refuses**, cleanly and before headers — `middleware/rateLimit.ts:156-168`, `routes/streamRoutes.ts:295`. The per-IP and per-event numbers in that table are also wrong: the code is 12 per client, 200 per event, 500 per process |
-| §8          | "fonts are bundled, self-hosted"                                                 | No font is shipped; `CLAUDE.md` §8 already corrected this. `font-src 'self'` is right, the note beside it is not                                                                                                                       |
+| Section     | Claim                                                                            | What the code says                                                                                                                                                                                                                              |
+| ----------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §6 Timeouts | "idle 2 h, absolute 12 h from `session.absoluteExpiresAt` checked in middleware" | **Both halves were wrong** when this was written: idle was 12 h and no absolute cap existed. Both are now true in a different shape — idle 12 h, absolute **7 days**, held by `enforceSessionAge` against a `issuedAt` the login writes. See §2 |
+| §6, §9, §10 | the cookie `es_sid`                                                              | It is `es_session` (`server.ts:88`, `routes/authRoutes.ts:32`). §2's table has it right                                                                                                                                                         |
+| §8          | `default-src 'none'`                                                             | `defaultSrc: ["'self'"]` — `middleware/securityHeaders.ts:20`                                                                                                                                                                                   |
+| §8          | `style-src 'self'` plus a narrow `style-src-attr 'unsafe-inline'`                | `styleSrc: ["'self'", "'unsafe-inline'"]` and **no `styleSrcAttr` directive at all** — `securityHeaders.ts:28`. The code ships the broader hole the doc says it avoided                                                                         |
+| §8          | `base-uri 'none'`                                                                | `baseUri: ["'self'"]` — `securityHeaders.ts:43`                                                                                                                                                                                                 |
+| §8          | helmet lives in `server.ts`                                                      | `middleware/securityHeaders.ts:15-74`, mounted at `server.ts:65`                                                                                                                                                                                |
+| §8          | HSTS 180 days                                                                    | 365 days — `securityHeaders.ts:66`. Here the code is stricter than the doc                                                                                                                                                                      |
+| §7, §10     | an `Origin` / `Referer` check against `PUBLIC_URL`                               | Does not exist — `middleware/csrf.ts:147-165`                                                                                                                                                                                                   |
+| §5          | `GET /api/join/:code` limited per code as well as per IP                         | **That route does not exist.** The code is resolved inside `POST /api/join`, limited per IP only — `routes/publicRoutes.ts:94`                                                                                                                  |
+| §5          | the SSE hub "drops the oldest idle connection rather than refusing"              | It **refuses**, cleanly and before headers — `middleware/rateLimit.ts:156-168`, `routes/streamRoutes.ts:295`. The per-IP and per-event numbers in that table are also wrong: the code is 12 per client, 200 per event, 500 per process          |
+| §8          | "fonts are bundled, self-hosted"                                                 | No font is shipped; `CLAUDE.md` §8 already corrected this. `font-src 'self'` is right, the note beside it is not                                                                                                                                |
 
 None of these is a reachable vulnerability on its own. They matter because this document is
 what the next reviewer audits against, and four of them describe a control that is not

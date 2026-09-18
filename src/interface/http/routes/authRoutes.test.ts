@@ -2,7 +2,7 @@ import type { RequestHandler } from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { SESSION_COOKIE, authRoutes } from './authRoutes'
-import { GUEST_COOKIE } from '../middleware/authz'
+import { ABSOLUTE_SESSION_LIFETIME_MS, GUEST_COOKIE } from '../middleware/authz'
 import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken, requireCsrfToken } from '../middleware/csrf'
 import { buildHarness, signInAs, testHttpConfig, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
@@ -112,7 +112,10 @@ const harness = ({
       app.use(
         '/api',
         authRoutes({
-          deps,
+          // `requireUser` reads the account on every `POST /api/auth/password`, so the
+          // gate has to be asking the same repository the use cases were built from —
+          // otherwise a test seeds a host into one world and is refused by another.
+          deps: { ...deps, users },
           // The bag `authRoutes` asks for, built from fakes here: the HTTP layer is
           // never given a user repository, so a route test has to compose the two use
           // cases itself.
@@ -440,10 +443,11 @@ describe('GET /api/auth/me', () => {
   })
 
   it('answers with the session principal when there is a session', async () => {
-    // `displayName` is null by design: the session carries an identity and nothing
-    // that goes stale, and reading the row would make this controller touch a
-    // repository. The login response is what carries the fresh name.
+    // `displayName` is null by design: the session carries the identity and nothing
+    // that goes stale, and the account read below is deliberately one column — the
+    // login response is what carries the fresh name.
     const subject = harness()
+    seedHost(subject)
     const agent = await signedIn(subject)
 
     const response = await agent.get('/api/auth/me')
@@ -458,6 +462,30 @@ describe('GET /api/auth/me', () => {
         mustChangePassword: false,
       },
     })
+  })
+
+  /**
+   * This is the answer the admin shell routes on, so it is the one that decides whether
+   * a disabled host meets a login form or a console where every request then fails. The
+   * session still exists — the absolute cap has not run out — and it still names nobody
+   * who may act.
+   */
+  it('reports a disabled account as not authenticated, whatever the session still says', async () => {
+    const subject = harness()
+    subject.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL, disabledAt: AT }))
+    const agent = await signedIn(subject)
+
+    const response = await agent.get('/api/auth/me')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ authenticated: false })
+  })
+
+  it('reports an account that is gone as not authenticated, which is the same question', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject)
+
+    expect((await agent.get('/api/auth/me')).body).toEqual({ authenticated: false })
   })
 })
 
@@ -618,16 +646,84 @@ describe('POST /api/auth/password', () => {
     expect(response.body.error.code).toBe('request.invalid')
   })
 
-  it('answers 404 when the session names an account that no longer exists', async () => {
-    // A session outliving its user: the id came from a session, so a miss means the
-    // account was deleted underneath it — never that the caller guessed wrong.
+  it('answers 401 when the session names an account that no longer exists', async () => {
+    // A session outliving its user, refused by `requireUser` before the handler runs.
+    // It used to reach `changePassword` and come back `404 user.notFound`, which told a
+    // browser holding a dead session that the route was missing rather than that it was
+    // no longer anybody. The use case keeps that branch — it is reachable from anything
+    // else that calls it — and this route can no longer produce it.
     const subject = harness()
     const agent = await signedIn(subject)
 
     const response = await agent.post('/api/auth/password').send(change)
 
-    expect(response.status).toBe(404)
-    expect(response.body.error.code).toBe('user.notFound')
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+
+  it('lets a host sign in again on the very request that trips the absolute cap', async () => {
+    // The 500 this exists to refuse: `enforceSessionAge` used to `destroy` the session,
+    // which deletes `req.session` before the store call, and `regenerateSession` on the
+    // login dereferences it — so the password was bcrypt-verified and the response was a
+    // TypeError. The second attempt then worked, because the stale sid no longer
+    // resolved, which is the worst possible shape for a host at a venue.
+    const subject = harness()
+    seedHost(subject)
+    const agent = await signedIn(subject)
+    subject.clock.advance(ABSOLUTE_SESSION_LIFETIME_MS)
+
+    const response = await agent
+      .post('/api/auth/login')
+      .send({ email: HOST_EMAIL, password: PASSWORD })
+
+    expect(response.status).toBe(200)
+  })
+
+  it('lets a host log out on the request that trips the absolute cap', async () => {
+    // The logout is public precisely so that a client whose session has already expired
+    // can still clear it. Answering 500 there left the cookie in the browser and skipped
+    // the CSRF rotation.
+    const subject = harness()
+    seedHost(subject)
+    const agent = await signedIn(subject)
+    subject.clock.advance(ABSOLUTE_SESSION_LIFETIME_MS)
+
+    const response = await agent.post('/api/auth/logout')
+
+    expect(response.status).toBe(204)
+  })
+
+  it('answers 401 a week after the login that established the session', async () => {
+    // The login is the only place `issuedAt` is written, so this is where "the absolute
+    // cap is armed at all" is asserted: without the stamp, `enforceSessionAge` would be
+    // a middleware reading a field nothing sets.
+    const subject = harness()
+    seedHost(subject)
+    const agent = request.agent(subject.app)
+    await agent.post('/api/auth/login').send({ email: HOST_EMAIL, password: PASSWORD }).expect(200)
+
+    subject.clock.advance(ABSOLUTE_SESSION_LIFETIME_MS)
+
+    const response = await agent.post('/api/auth/password').send(change)
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+
+  it('answers 401 when the account behind the session has been disabled', async () => {
+    // The defect this closes: `disabled_at` was read on one line in the whole product,
+    // inside `authenticateUser`, so switching a host off stopped the next sign-in and
+    // stopped nothing they were already doing. This route is not event-scoped, so no
+    // role lookup would ever have noticed.
+    const subject = harness()
+    subject.users.seed(
+      aUser({ id: HOST_ID, email: HOST_EMAIL, displayName: 'Camille', disabledAt: AT }),
+    )
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/password').send(change)
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
   })
 })
 

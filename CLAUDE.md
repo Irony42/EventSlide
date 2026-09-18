@@ -242,7 +242,14 @@ that renders guest-supplied content. The short version:
   in an `HttpOnly` cookie. It grants upload rights to exactly one event and lets a
   guest delete their own photo within a grace window. It grants nothing else.
 - Hosts and moderators are **session-authenticated** with a SQLite-backed session
-  store, session regeneration on login, and role checks per route.
+  store, session regeneration on login, and role checks per route. The role is read from
+  storage on the request that uses it, never from the session, so disabling an account
+  ends its authority on the next request rather than at its next login; the session also
+  carries an absolute 7-day cap on top of the 12 h rolling idle timeout.
+- **`NODE_ENV` defaults to `production`.** Saying nothing is the strict posture, and a
+  boot with no `SESSION_SECRET` / `GUEST_TOKEN_SECRET` is refused rather than downgraded.
+  Development declares itself through `scripts/dev.env`, which the npm scripts that run
+  from a source checkout load with `--env-file`.
 - An account also carries a **site role** (`none` / `operator`, roadmap §10.1) saying
   whether it operates the box. It is not a rung above `owner`: it grants nothing inside
   any event, `requireRole` never reads it, and a route that would let an operator see a

@@ -62,6 +62,22 @@ const bootstrap = async (): Promise<void> => {
     publicUrl: config.publicUrl,
     env: config.env,
   })
+  // Which arrangement is in force, said once, where somebody can read it. Production
+  // cannot reach this branch — the boot refuses without both secrets — so this is a
+  // development or test boot being told what its generated secrets cost and which
+  // variables end that. The two are named rather than lumped together: setting one and
+  // not the other is a real state, and it loses one of the two things and not both.
+  if (config.secrets.generated.length > 0) {
+    const losing = config.secrets.generated.includes('SESSION_SECRET')
+      ? config.secrets.generated.includes('GUEST_TOKEN_SECRET')
+        ? 'every host session and every guest token'
+        : 'every host session'
+      : 'every guest token'
+    logger.warn(
+      `signing with a secret generated for this boot: ${losing} is invalidated on restart. Set ${config.secrets.generated.join(' and ')} to keep them.`,
+      { env: config.env, generated: config.secrets.generated },
+    )
+  }
   if (!config.isProduction) {
     // The one place a banner on stdout is the right thing to do: a developer needs the
     // URL, and a guest's phone needs it to be the LAN address rather than localhost.

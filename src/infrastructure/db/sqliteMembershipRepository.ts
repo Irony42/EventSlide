@@ -74,6 +74,7 @@ const toMembershipWithUser = (row: MembershipWithUserRow): MembershipWithUser =>
 
 export class SqliteMembershipRepository implements MembershipRepository {
   private readonly selectRole: Database.Statement<[string, string], RoleRow>
+  private readonly selectMembership: Database.Statement<[string, string], MembershipRow>
   private readonly selectForEvent: Database.Statement<[string], MembershipWithUserRow>
   private readonly selectForUser: Database.Statement<[string], MembershipRow>
   private readonly upsert: Database.Statement<[string, string, string, string]>
@@ -82,8 +83,25 @@ export class SqliteMembershipRepository implements MembershipRepository {
 
   /** Prepared once: `selectRole` runs on every authenticated admin request. */
   constructor(db: Db) {
+    // The join is the authorization rule, not a convenience: `u.disabled_at IS NULL` is
+    // what makes disabling an account end its authority inside an event on the very next
+    // request, exactly as `SqliteUserRepository.siteRoleFor` does for the box. An inner
+    // join costs nothing — `user_id` is a foreign key, so the row is always there — and a
+    // left join would have quietly reintroduced the hole for a membership whose account
+    // had been deleted rather than switched off.
     this.selectRole = db.prepare<[string, string], RoleRow>(
-      `SELECT role FROM event_memberships WHERE event_id = ? AND user_id = ?`,
+      `SELECT m.role
+         FROM event_memberships m
+         JOIN users u ON u.id = m.user_id
+        WHERE m.event_id = ? AND m.user_id = ? AND u.disabled_at IS NULL`,
+    )
+
+    // No join, deliberately: this one is the row and not the authority, so a disabled
+    // account's membership is still found. See the port.
+    this.selectMembership = db.prepare<[string, string], MembershipRow>(
+      `SELECT event_id, user_id, role, granted_at
+         FROM event_memberships
+        WHERE event_id = ? AND user_id = ?`,
     )
 
     // An inner join, not a left join: `user_id` is a foreign key, so a membership
@@ -122,10 +140,19 @@ export class SqliteMembershipRepository implements MembershipRepository {
     )
   }
 
-  /** `null` is what authorization turns into a 403, so the miss is the important case. */
+  /**
+   * `null` is what authorization turns into a 404, so the miss is the important case —
+   * and a disabled account is one of the misses. See the port.
+   */
   async roleFor(eventId: EventId, userId: UserId): Promise<EventRole | null> {
     const row = this.selectRole.get(eventId, userId)
     return row === undefined ? null : roleOf(row.role)
+  }
+
+  /** The row, not the authority: a disabled account's membership is still a membership. */
+  async membershipFor(eventId: EventId, userId: UserId): Promise<Membership | null> {
+    const row = this.selectMembership.get(eventId, userId)
+    return row === undefined ? null : toMembership(row)
   }
 
   async listForEvent(eventId: EventId): Promise<readonly MembershipWithUser[]> {

@@ -1,11 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import { asEventId, asUserId } from '../../domain/shared/ids'
-import { membershipRepositoryContract } from './contracts/membershipRepositoryContract'
+import {
+  MEMBERSHIP_CONTRACT_FIXTURES,
+  membershipRepositoryContract,
+} from './contracts/membershipRepositoryContract'
 import { AT, aUser } from './builders'
 import { FakeMembershipRepository } from './fakeMembershipRepository'
 import { FakeUserRepository } from './fakeUserRepository'
 
-membershipRepositoryContract('fake', async () => ({ repo: new FakeMembershipRepository() }))
+/**
+ * Linked, and it has to be: `roleFor` refusing a disabled account is a rule about two
+ * tables, and an unlinked fake has no accounts to disable. The fixture ids match
+ * `MEMBERSHIP_CONTRACT_FIXTURES`, which is what the SQLite side seeds as rows.
+ */
+membershipRepositoryContract('fake', async () => {
+  const users = new FakeUserRepository().seed(
+    ...MEMBERSHIP_CONTRACT_FIXTURES.userIds.map((id) => aUser({ id, email: `${id}@example.test` })),
+  )
+
+  return {
+    repo: new FakeMembershipRepository({ users }),
+    setDisabled: async (userId, at) => {
+      const user = await users.findById(userId)
+      if (user === null) throw new Error(`the contract fixture ${userId} was never seeded`)
+      await users.save(at === null ? user.enable() : user.disable(at))
+    },
+  }
+})
 
 const WEDDING = asEventId('evt-wedding')
 const HOST = asUserId('user-host')

@@ -24,7 +24,7 @@ import { resolve } from 'node:path'
 import { makePurgeExpiredEvents } from '../src/application/usecases/events/purgeExpiredEvents'
 import { makeSweepOrphanedMedia } from '../src/application/usecases/media/sweepOrphanedMedia'
 import type { LogContext, Logger } from '../src/application/ports/logger'
-import { loadConfig } from '../src/infrastructure/config/env'
+import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { closeDatabase, openDatabase } from '../src/infrastructure/db/connection'
 import { SqliteClipJobRepository } from '../src/infrastructure/db/sqliteClipJobRepository'
 import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepository'
@@ -48,7 +48,7 @@ const main = async (): Promise<number> => {
 
   // Only the config module reads the environment; it has already resolved these, and it
   // refuses to hand them over at all if anything else is misconfigured.
-  const config = loadConfig()
+  const config = loadMaintenanceConfig()
   const databasePath = config.storage.databasePath
   // Resolved exactly as the container resolves it, so the CLI and the server address the
   // same directory when MEDIA_ROOT is relative.
