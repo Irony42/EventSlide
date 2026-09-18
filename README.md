@@ -130,7 +130,7 @@ free, and it is written down as an open question rather than as a solved problem
 <details>
 <summary>Without Docker</summary>
 
-Node 22.12 or later.
+Node 24 or later.
 
 ```bash
 npm install

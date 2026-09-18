@@ -1228,7 +1228,7 @@ help.
   which is where this bug lives.
 
 **Two deployment facts make the glibc-RCE precondition in the advisory the normal case
-here rather than an edge case.** The runtime image is `node:22-bookworm-slim`
+here rather than an edge case.** The runtime image is `node:24-bookworm-slim`
 (`Dockerfile`), which is glibc Debian — the platform the advisory names. And the advisory
 asks for a `node` binary built as a Position Independent Executable, noting that the
 official Node.js binaries are not; the official `node:` Docker images ship those binaries.
