@@ -1,7 +1,7 @@
 /**
  * Screenshots of every shipped surface, on a laptop, a phone and a projector.
  *
- * Not part of any suite and not committed: a throwaway driver that boots the same real
+ * Not part of any suite: a driver that boots the same real
  * server the end-to-end fixtures boot, seeds an evening through the real pages, and
  * photographs the result. Nothing here asserts anything — a failure means the shot did
  * not happen, and the missing file is the report.
