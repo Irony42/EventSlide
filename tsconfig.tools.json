@@ -32,5 +32,5 @@
   "files": ["vitest.config.ts", "playwright.config.ts", "eslint.config.mjs"],
   /* Genuine globs: whole directories, where matching nothing would itself be the
      anomaly and `tsc` says so (TS18003). */
-  "include": ["tests/**/*.ts", "scripts/**/*.ts"]
+  "include": ["tests/**/*.ts", "scripts/**/*.ts", "scripts/**/*.mts"]
 }
