@@ -75,7 +75,7 @@ describe('createShareLink', () => {
     ['null', null],
     ['an empty field', ''],
   ])('makes a link with no password when the password is %s', async (_label, password) => {
-    const result = await create({ password })
+    const result = await create(password === undefined ? {} : { password })
 
     expect(result.ok && result.value.link.requiresPassword).toBe(false)
   })
