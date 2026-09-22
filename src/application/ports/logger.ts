@@ -6,8 +6,9 @@
  * context object.
  *
  * **What must never be logged**, whatever the level: photo bytes, session ids, guest
- * device tokens, password hashes, a full client IP at default level, or a caption (it
- * is guest-authored personal content). See docs/SECURITY.md.
+ * device tokens, a shared gallery's token (it is in the gallery's paths), password
+ * hashes, a full client IP at default level, or a caption (it is guest-authored personal
+ * content). See docs/SECURITY.md.
  */
 
 export type LogContext = Readonly<Record<string, unknown>>

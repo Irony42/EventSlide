@@ -1,7 +1,10 @@
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import type { LogContext, Logger } from '../../../application/ports/logger'
 import { asyncHandler } from './asyncHandler'
+import { loggablePath, requestContext } from './errorHandler'
+import express from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
 
@@ -127,6 +130,58 @@ describe('requestContext', () => {
     await expect(request(harness().app).get('/ok').set('x-request-id', 'abc\ndef')).rejects.toThrow(
       /Invalid character in header/,
     )
+  })
+})
+
+describe('the path a request is logged under', () => {
+  const TOKEN = 'Zq3_x-Lk9'.repeat(4) + 'abcdefg'
+
+  /** Records the bindings every request's logger is made with. */
+  const bindingsOf = async (path: string): Promise<LogContext[]> => {
+    const recorded: LogContext[] = []
+    const recording: Logger = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined,
+      child: (bindings) => {
+        recorded.push(bindings)
+        return recording
+      },
+    }
+    const app = express()
+    app.use(requestContext(recording))
+    app.use((_req, res) => {
+      res.status(204).end()
+    })
+    await request(app).get(path)
+    return recorded
+  }
+
+  it.each([
+    ['the gallery page', `/g/${TOKEN}`, '/g/:token'],
+    ['the album', `/api/gallery/${TOKEN}`, '/api/gallery/:token'],
+    ['a page of it', `/api/gallery/${TOKEN}/photos`, '/api/gallery/:token/photos'],
+    ['the unlock', `/api/gallery/${TOKEN}/unlock`, '/api/gallery/:token/unlock'],
+    [
+      'a path in another case, which Express routes the same',
+      `/API/Gallery/${TOKEN}`,
+      '/API/Gallery/:token',
+    ],
+  ])('never carries a gallery token: %s', async (_label, path, logged) => {
+    // The token is the credential: whoever reads a log line holding it reads the album.
+    const [bindings] = await bindingsOf(path)
+
+    expect(bindings?.['path']).toBe(logged)
+    expect(JSON.stringify(bindings)).not.toContain(TOKEN)
+  })
+
+  it.each([
+    ['a signed media URL, which carries no token', '/api/gallery-media/aaaa/bbbb/thumb'],
+    ['a guest route', '/api/events/camille-et-sacha/photos'],
+    ['a client route that only starts like the gallery', '/gala/2026'],
+  ])('logs %s as it is', (_label, path) => {
+    expect(loggablePath(path)).toBe(path)
   })
 })
 
