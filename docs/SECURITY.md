@@ -736,16 +736,37 @@ and `X-Powered-By` removed.
 Guests do not sign up, do not consent to a policy, and often do not know the software
 exists. That raises the bar rather than lowering it.
 
-| Data                                                | Why                                     | Retention                                                                                                                                                                 |
-| --------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Re-encoded photo bytes                              | the product                             | until photo delete, event purge, or `settings.retentionDays`                                                                                                              |
-| Transcoded clip bytes and its poster frame          | the product                             | as above                                                                                                                                                                  |
-| A clip still waiting for the transcoder             | it is the guest upload, on its way      | minutes — deleted when the transcode succeeds or the clip itself is refused; kept until the event is purged when the box abandoned the job, and **never servable** (§4.1) |
-| `guests.display_name` (a first name, guest-typed)   | attribution on the wall                 | with the event                                                                                                                                                            |
-| Guest device token (cookie only, `gid` in `guests`) | re-identify a device without an account | token TTL                                                                                                                                                                 |
-| `photos.caption`                                    | the guest's words                       | with the photo                                                                                                                                                            |
-| `users.email` + bcrypt hash                         | host/moderator accounts                 | until account delete                                                                                                                                                      |
-| Session rows                                        | login                                   | ≤ 12 h                                                                                                                                                                    |
+**What a guest is told, and when (roadmap §5.1).** Before their first upload the guest
+page shows a notice answering four questions — what happens to a photo, who sees it, how
+long it is kept, how to have it removed — and offers no control that sends anything until
+it has been read. Every answer is **derived from the event's own settings** on every read
+(`src/domain/privacy/privacyNotice.ts`), never written as prose, so it cannot say
+"checked before the screen" on an event that publishes on arrival, promise a self-delete
+window the server would refuse, or state a retention period the host has since changed.
+Where the configuration has no deletion date, it says so. The only removal path it names
+is asking the host, because that is the only one that exists for a guest beyond the grace
+window: self-service erasure is roadmap §5.2 and is not built.
+
+It is an information notice with an acknowledgement, not consent as a lawful basis: a
+guest who does not press "J'ai compris" is not refused anything but the upload controls,
+and can still read the page. The acknowledgement is recorded on the guest's row
+(below) so it is shown once per device rather than once per tab, and asked again when a
+setting it states changes. The upload routes do not check it: the gate is the upload
+screen, and `src/interface/http/routes/privacyNoticeRoutes.ts` says why a refusal on the
+upload routes would put the offline queue's photos at risk to stop only a client that
+skipped the screen on purpose.
+
+| Data                                                | Why                                                    | Retention                                                                                                                                                                 |
+| --------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Re-encoded photo bytes                              | the product                                            | until photo delete, event purge, or `settings.retentionDays`                                                                                                              |
+| Transcoded clip bytes and its poster frame          | the product                                            | as above                                                                                                                                                                  |
+| A clip still waiting for the transcoder             | it is the guest upload, on its way                     | minutes — deleted when the transcode succeeds or the clip itself is refused; kept until the event is purged when the box abandoned the job, and **never servable** (§4.1) |
+| `guests.display_name` (a first name, guest-typed)   | attribution on the wall                                | with the event                                                                                                                                                            |
+| `guests.notice_revision` + `notice_acknowledged_at` | which privacy notice this device read, and when (§5.1) | with the event; replaced when the guest reads a newer notice, so only the latest is kept                                                                                  |
+| Guest device token (cookie only, `gid` in `guests`) | re-identify a device without an account                | token TTL                                                                                                                                                                 |
+| `photos.caption`                                    | the guest's words                                      | with the photo                                                                                                                                                            |
+| `users.email` + bcrypt hash                         | host/moderator accounts                                | until account delete                                                                                                                                                      |
+| Session rows                                        | login                                                  | ≤ 12 h                                                                                                                                                                    |
 
 **Deliberately not stored:** EXIF of any kind (GPS, device serial, capture time), the
 original filename as a path, the uploader's IP alongside the photo row, and any
