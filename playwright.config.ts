@@ -1,3 +1,4 @@
+import { SUITE_LOCALE } from './tests/e2e/fixtures/suiteLocale'
 import { defineConfig, devices } from '@playwright/test'
 
 /**
@@ -67,8 +68,18 @@ export default defineConfig({
      * Same decision `renderWithProviders` makes at ring 5: French unless a test says
      * otherwise. A spec that is *about* a language sets its own with
      * `test.use({ locale })` — see `tests/e2e/journeys/guest-language.spec.ts`.
+     *
+     * **This setting alone did not finish the job, and roadmap 1.5's second half is what
+     * made that visible.** `use.locale` reaches the `page` and `context` fixtures
+     * Playwright builds; it does not reach a manual `browser.newContext()`, and
+     * `openSurfaces` opens three of those because the product is three people at three
+     * screens. Those three went on inheriting the machine's language. It was survivable
+     * while the host console and the wall answered in French whoever asked — only the
+     * guest surface was exposed — and it stopped being survivable the moment every
+     * surface started following either its reader or its event. The constant is shared
+     * with `openSurfaces` now, and `tests/e2e/fixtures/suiteLocale.ts` is where it lives.
      */
-    locale: 'fr-FR',
+    locale: SUITE_LOCALE,
     // The suite drives the wall's timing through query hooks rather than real
     // waiting; those hooks only exist when the server is started with E2E_HOOKS=1.
     actionTimeout: 15_000,
