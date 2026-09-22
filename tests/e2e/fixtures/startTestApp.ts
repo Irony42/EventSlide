@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
-import type { EventLanguage } from '../../../web/src/lib/api/dto'
+import type { EventLanguage, MissionScope } from '../../../web/src/lib/api/dto'
 
 /**
  * Boots a real EventSlide server for the end-to-end suite.
@@ -40,6 +40,12 @@ export interface TestApp {
      */
     wallLanguage?: EventLanguage
   }): Promise<SeededEvent>
+  /**
+   * Adds a photo mission to an already-seeded event, through the API exactly as the
+   * host's own panel would (`POST /events/:slug/missions`) — see `seedEvent` for why
+   * this never writes SQL directly.
+   */
+  createMission(eventSlug: string, input: { prompt: string; scope: MissionScope }): Promise<void>
   /** The owner account the server bootstrapped, for signing in. */
   readonly owner: { readonly email: string; readonly password: string }
   /**
@@ -329,10 +335,28 @@ export const startTestApp = async ({ worker, env = {} }: StartOptions): Promise<
     return { slug: event.slug, name: event.name, joinCode: event.joinCode }
   }
 
+  /** See {@link TestApp.createMission}. */
+  const createMission = async (
+    eventSlug: string,
+    input: { prompt: string; scope: MissionScope },
+  ): Promise<void> => {
+    const api = await apiSession(baseUrl)
+
+    const login = await api.post('/api/auth/login', {
+      email: OWNER.email,
+      password: OWNER_SETTLED_PASSWORD,
+    })
+    if (!login.ok) throw new Error(`mission setup login failed with ${login.status}`)
+
+    const created = await api.post(`/api/events/${eventSlug}/missions`, input)
+    if (!created.ok) throw new Error(`creating mission failed with ${created.status}`)
+  }
+
   return {
     baseUrl,
     url: (path) => `${baseUrl}${path}`,
     seedEvent,
+    createMission,
     owner: { email: OWNER.email, password: OWNER_SETTLED_PASSWORD },
     databasePath,
     dispose,
