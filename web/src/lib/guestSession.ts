@@ -1,5 +1,11 @@
 import { DEFAULT_EVENT_THEME, readEventTheme } from '../design-system/eventTheme'
-import type { PublicEventDto } from './api/dto'
+import type {
+  NoticeAcknowledgementStatus,
+  NoticeAudience,
+  NoticePublication,
+  PrivacyNoticeState,
+  PublicEventDto,
+} from './api/dto'
 
 /**
  * What the join step learned about the event, kept for the upload screen.
@@ -19,6 +25,17 @@ export interface GuestSession {
   readonly event: PublicEventDto
   /** `null` for a guest who chose to stay anonymous. */
   readonly displayName: string | null
+  /**
+   * The privacy notice and this device's standing with it, as the server last answered
+   * (roadmap §5.1). It mirrors the server and nothing else: a tap whose request did not
+   * land is not written here, so a reload asks again rather than claiming a record the
+   * server does not hold.
+   *
+   * `null` for a session written before notices existed, or one whose notice could not
+   * be read back — see {@link readNoticeState} for why that is forgiven rather than
+   * refused.
+   */
+  readonly privacyNotice: PrivacyNoticeState | null
 }
 
 const keyFor = (slug: string): string => `eventslide.guest.${slug}`
@@ -128,6 +145,57 @@ const withNarrowedTheme = (event: object): object => {
   return theme === null ? event : { ...event, theme }
 }
 
+const PUBLICATIONS: readonly NoticePublication[] = ['afterReview', 'immediate']
+const AUDIENCES: readonly NoticeAudience[] = ['room', 'organisers']
+const ACKNOWLEDGEMENTS: readonly NoticeAcknowledgementStatus[] = ['none', 'current', 'outdated']
+
+const isOneOf = <T extends string>(members: readonly T[], value: unknown): value is T =>
+  typeof value === 'string' && (members as readonly string[]).includes(value)
+
+const isCountOrNull = (value: unknown): value is number | null =>
+  value === null || (typeof value === 'number' && Number.isFinite(value))
+
+/**
+ * The stored notice, or `null` when there is none this build can word.
+ *
+ * **`null` rather than a refused session**, and the asymmetry with `isPublicEvent` is
+ * deliberate. Refusing the entry would send a guest back to the join screen mid-evening
+ * the moment this build is deployed — the argument {@link withClipDefaults} makes. A
+ * missing notice is instead *fetched*: the upload screen asks the server on open, and
+ * offers the picker only while it has no notice to show, which is exactly what that
+ * session was doing before notices existed.
+ *
+ * Every field is narrowed, and an audience this build has no sentence for makes the
+ * whole notice unreadable rather than silently shorter: a notice that dropped the line
+ * saying who else sees a photo would tell a guest less than the truth.
+ */
+const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
+  if (typeof value !== 'object' || value === null) return null
+  const notice = field(value, 'notice')
+  const acknowledgement = field(value, 'acknowledgement')
+  if (typeof notice !== 'object' || notice === null) return null
+  if (!isOneOf(ACKNOWLEDGEMENTS, acknowledgement)) return null
+
+  const revision = field(notice, 'revision')
+  const publication = field(notice, 'publication')
+  const audiences = field(notice, 'audiences')
+  const retentionDays = field(notice, 'retentionDays')
+  const selfRemovalSeconds = field(notice, 'selfRemovalSeconds')
+
+  if (typeof revision !== 'string' || !isOneOf(PUBLICATIONS, publication)) return null
+  if (!Array.isArray(audiences)) return null
+  const known = audiences.filter((audience): audience is NoticeAudience =>
+    isOneOf(AUDIENCES, audience),
+  )
+  if (known.length !== audiences.length) return null
+  if (!isCountOrNull(retentionDays) || !isCountOrNull(selfRemovalSeconds)) return null
+
+  return {
+    notice: { revision, publication, audiences: known, retentionDays, selfRemovalSeconds },
+    acknowledgement,
+  }
+}
+
 /**
  * The stored entry, narrowed to what the upload screen may read.
  *
@@ -145,7 +213,11 @@ const readSession = (value: unknown): GuestSession | null => {
   const event = withClipDefaults(withNarrowedTheme(stored))
   if (event === null) return null
 
-  return { event, displayName: displayName ?? null }
+  return {
+    event,
+    displayName: displayName ?? null,
+    privacyNotice: readNoticeState(field(value, 'privacyNotice')),
+  }
 }
 
 export const rememberGuestSession = (session: GuestSession): void => {
@@ -156,6 +228,19 @@ export const rememberGuestSession = (session: GuestSession): void => {
     // survivable; failing the join over it is not, and a QR code scanned from a
     // messaging app opens in exactly that kind of browser.
   }
+}
+
+/**
+ * Replace the stored notice with the server's latest answer, keeping the rest.
+ *
+ * The upload screen re-reads the notice while it is open, and a reload should render
+ * what it last learned rather than what the join said hours ago. A tab with no session
+ * has nothing to update: it is on its way back to the join screen anyway.
+ */
+export const rememberPrivacyNotice = (slug: string, privacyNotice: PrivacyNoticeState): void => {
+  const session = readGuestSession(slug)
+  if (session === null) return
+  rememberGuestSession({ ...session, privacyNotice })
 }
 
 export const readGuestSession = (slug: string): GuestSession | null => {

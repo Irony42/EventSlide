@@ -86,7 +86,11 @@ export const useJoin = (): JoinState => {
           inFlight.current = false
           // Written before the liveness check: the upload screen needs this even when
           // this component is already gone, which is the normal case on success.
-          rememberGuestSession({ event: response.event, displayName: response.displayName })
+          rememberGuestSession({
+            event: response.event,
+            displayName: response.displayName,
+            privacyNotice: response.privacyNotice,
+          })
           if (!alive.current) return
           if (input.advance) {
             continueToUpload(response.event.slug)

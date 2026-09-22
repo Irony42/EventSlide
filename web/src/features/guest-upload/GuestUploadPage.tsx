@@ -12,14 +12,16 @@ import { MissionChecklist } from './components/MissionChecklist'
 import { MyPhotos } from './components/MyPhotos'
 import { OfflineNotice } from './components/OfflineNotice'
 import { PhotoPicker } from './components/PhotoPicker'
+import { PrivacyNoticeCard, PrivacyNoticeDialog } from './components/PrivacyNotice'
 import { UploadQueue } from './components/UploadQueue'
 import { useClipUpload } from './hooks/useClipUpload'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useMissions } from './hooks/useMissions'
 import { useMyPhotos } from './hooks/useMyPhotos'
 import { useOutbox } from './hooks/useOutbox'
+import { usePrivacyNotice } from './hooks/usePrivacyNotice'
 import { useUploadQueue } from './hooks/useUploadQueue'
-import type { PublicEventDto } from '../../lib/api/dto'
+import type { PrivacyNoticeState, PublicEventDto } from '../../lib/api/dto'
 import type { DrainReport } from '../../lib/offline/drainOutbox'
 import styles from './GuestUploadPage.module.css'
 
@@ -44,7 +46,14 @@ export function GuestUploadPage() {
 
   if (slug === undefined || session === null) return <NotJoined />
 
-  return <UploadScreen slug={slug} event={session.event} displayName={session.displayName} />
+  return (
+    <UploadScreen
+      slug={slug}
+      event={session.event}
+      displayName={session.displayName}
+      privacyNotice={session.privacyNotice}
+    />
+  )
 }
 
 /** Reached by a bookmark, or after the tab was closed and reopened. */
@@ -69,11 +78,24 @@ interface UploadScreenProps {
   readonly slug: string
   readonly event: PublicEventDto
   readonly displayName: string | null
+  /** What the join (or the last read) said about the privacy notice. See the session. */
+  readonly privacyNotice: PrivacyNoticeState | null
 }
 
-function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
+function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenProps) {
   const t = useTranslations()
   const mine = useMyPhotos(slug)
+  /**
+   * The privacy notice (roadmap §5.1): what happens to a photo, read once per device
+   * before the first one is sent, and again if the host changes what it says.
+   *
+   * It gates the controls that **send** and nothing else. The header, "Vos envois", the
+   * install offer and the queue of photos already chosen all render whatever it says, so
+   * a guest who opened the page to look is never stopped by it.
+   */
+  const notice = usePrivacyNotice(slug, privacyNotice)
+  const [noticeOpen, setNoticeOpen] = useState(false)
+  const publication = notice.state?.notice.publication ?? null
   /**
    * The host's prompts, and the one the next send is filed under (roadmap §2.1).
    *
@@ -146,6 +168,7 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
     slug,
     limits: { maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds },
     onArrived: refreshMine,
+    ...(publication === null ? {} : { publication }),
   })
 
   useEffect(() => {
@@ -160,6 +183,28 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
    * who has sent nothing is never interrupted before they do.
    */
   const install = useInstallPrompt({ eligible: mine.photos.length > 0 })
+
+  /**
+   * Where focus goes when the notice and the picker trade places.
+   *
+   * After "J'ai compris" the button the guest pressed unmounts under their finger, and
+   * focus would fall to <body> — the top of the page, in the middle of a first upload.
+   * It is handed to "Ajouter des photos" instead, the control the guest acknowledged the
+   * notice in order to reach. The other direction — a changed notice taking the picker's
+   * place while the page is open — takes focus only if it was lost, so a guest reading
+   * their own photos is not pulled away from them.
+   */
+  const libraryInput = useRef<HTMLInputElement | null>(null)
+  const noticeCard = useRef<HTMLElement | null>(null)
+  const gated = notice.mustAcknowledge
+  const wasGated = useRef(gated)
+  useEffect(() => {
+    if (wasGated.current === gated) return
+    wasGated.current = gated
+    const lost = document.activeElement === null || document.activeElement === document.body
+    if (!gated) libraryInput.current?.focus()
+    else if (lost) noticeCard.current?.focus({ preventScroll: true })
+  }, [gated])
 
   const installSlot = useRef<HTMLDivElement | null>(null)
   const dismissInstall = () => {
@@ -193,10 +238,33 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
             event from a query parameter the QR page never set, so every photo went to
             the default event and nothing on the page would have shown it. */}
         <h1 className={styles['title']}>{event.name}</h1>
-        <p className={styles['intro']}>{t.upload.intro}</p>
+        {/* From the notice rather than written once: "after approval" is false on an
+            event that publishes on arrival, and the notice below would say so. */}
+        <p className={styles['intro']}>
+          {publication === 'immediate' ? t.upload.introImmediate : t.upload.intro}
+        </p>
         <p className={styles['signature']}>
           {displayName === null ? t.upload.signedAnonymous : t.upload.signedAs(displayName)}
         </p>
+        {/* The way back to the notice once it has been read. Not rendered while the card
+            is on screen, where it would open the same text a second time. */}
+        {notice.state === null || gated ? null : (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={styles['noticeLink']}
+              onClick={() => setNoticeOpen(true)}
+            >
+              {t.upload.noticeLink}
+            </Button>
+            <PrivacyNoticeDialog
+              notice={notice.state.notice}
+              open={noticeOpen}
+              onClose={() => setNoticeOpen(false)}
+            />
+          </>
+        )}
       </header>
 
       <MyPhotos
@@ -226,7 +294,11 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
       {/* Everything to press, kept together at the bottom of the screen: a control in
           the top half of a phone needs a second hand, and the guest is holding a
           drink with the other one. */}
-      <div data-testid="upload-composer" className={styles['composer']}>
+      <div
+        data-testid="upload-composer"
+        className={styles['composer']}
+        data-gated={gated ? '' : undefined}
+      >
         {/* Above the queue: it is the answer to "did my photos go?", and a guest who
             reads it stops pressing "Envoyer" again. */}
         <OfflineNotice
@@ -236,60 +308,75 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
         />
         <UploadQueue items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
         {/*
-          Above the picker, because the order is the point: the checklist is what tells a
-          guest there is something to photograph, and a list of prompts *after* the button
-          that opens the camera arrives one decision too late. Inside the composer, because
-          everything a thumb presses lives in the bottom half of the screen.
-
-          Nothing at all for the majority of events, which set no prompts.
+          The notice, in the place the picker will be, until this device has read the one
+          in force. Everything below it sends something, so all of it waits; the queue
+          above does not, because a guest must still see what they already chose.
         */}
-        <MissionChecklist
-          missions={missions.missions}
-          selected={missions.selected}
-          onToggle={missions.toggle}
-        />
-        <PhotoPicker onPick={queue.add} />
-        {/* The host's setting, from the event the join step returned. */}
-        {event.allowCaptions ? <CaptionField value={caption} onChange={setCaption} /> : null}
-        {/*
-          Below the caption, because the caption travels with the clip as well — a guest
-          who wrote one and then sent a video must not lose it — and above the send
-          button, because the video has a send button of its own and two of them side by
-          side would be a guess about which one does what.
-
-          Rendered only when the host allowed video. On a gallery created before clips
-          shipped this setting reads `false`, and offering the control there would mean a
-          `403` after eighty megabytes.
-        */}
-        {event.allowClips ? (
-          <ClipComposer
-            clip={clip}
-            limits={{ maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds }}
-            caption={trimmedCaption.length === 0 ? null : trimmedCaption}
+        {notice.state !== null && gated ? (
+          <PrivacyNoticeCard
+            ref={noticeCard}
+            state={notice.state}
+            onAcknowledge={notice.acknowledge}
           />
-        ) : null}
-        <Button
-          variant="primary"
-          size="lg"
-          block
-          loading={queue.sending}
-          disabled={queue.sendableCount === 0}
-          onClick={() =>
-            queue.send(trimmedCaption.length === 0 ? null : trimmedCaption, missions.selected)
-          }
-        >
-          {queue.sendableCount === 0 ? t.upload.send : t.upload.sendCount(queue.sendableCount)}
-        </Button>
-        {/*
-          Said once, under the button, rather than on every row of the checklist: the
-          guest has just chosen a prompt and is about to send, and this is the moment a
-          confirmation is worth its line. `aria-live` because the selection is made by a
-          tap somewhere above it.
-        */}
-        {selectedPrompt === null ? null : (
-          <p className={styles['missionNotice']} aria-live="polite">
-            {t.upload.missionFor(selectedPrompt)}
-          </p>
+        ) : (
+          <>
+            {/*
+              Above the picker, because the order is the point: the checklist is what tells a
+              guest there is something to photograph, and a list of prompts *after* the button
+              that opens the camera arrives one decision too late. Inside the composer, because
+              everything a thumb presses lives in the bottom half of the screen.
+
+              Nothing at all for the majority of events, which set no prompts.
+            */}
+            <MissionChecklist
+              missions={missions.missions}
+              selected={missions.selected}
+              onToggle={missions.toggle}
+            />
+            <PhotoPicker onPick={queue.add} libraryRef={libraryInput} />
+            {/* The host's setting, from the event the join step returned. */}
+            {event.allowCaptions ? <CaptionField value={caption} onChange={setCaption} /> : null}
+            {/*
+              Below the caption, because the caption travels with the clip as well — a guest
+              who wrote one and then sent a video must not lose it — and above the send
+              button, because the video has a send button of its own and two of them side by
+              side would be a guess about which one does what.
+
+              Rendered only when the host allowed video. On a gallery created before clips
+              shipped this setting reads `false`, and offering the control there would mean a
+              `403` after eighty megabytes.
+            */}
+            {event.allowClips ? (
+              <ClipComposer
+                clip={clip}
+                limits={{ maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds }}
+                caption={trimmedCaption.length === 0 ? null : trimmedCaption}
+              />
+            ) : null}
+            <Button
+              variant="primary"
+              size="lg"
+              block
+              loading={queue.sending}
+              disabled={queue.sendableCount === 0}
+              onClick={() =>
+                queue.send(trimmedCaption.length === 0 ? null : trimmedCaption, missions.selected)
+              }
+            >
+              {queue.sendableCount === 0 ? t.upload.send : t.upload.sendCount(queue.sendableCount)}
+            </Button>
+            {/*
+              Said once, under the button, rather than on every row of the checklist: the
+              guest has just chosen a prompt and is about to send, and this is the moment a
+              confirmation is worth its line. `aria-live` because the selection is made by a
+              tap somewhere above it.
+            */}
+            {selectedPrompt === null ? null : (
+              <p className={styles['missionNotice']} aria-live="polite">
+                {t.upload.missionFor(selectedPrompt)}
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>

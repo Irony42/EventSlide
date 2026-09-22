@@ -50,7 +50,7 @@ describe('AppRoutes', () => {
   it('serves the guest upload screen for an event', async () => {
     // The screen renders the event the join step returned, so the route is exercised
     // from a joined guest's state rather than a cold one.
-    rememberGuestSession({ event: aPublicEvent(), displayName: null })
+    rememberGuestSession({ event: aPublicEvent(), displayName: null, privacyNotice: null })
 
     at('/e/camille-et-sacha/upload')
 

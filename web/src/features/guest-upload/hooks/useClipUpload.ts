@@ -12,6 +12,7 @@ import {
   type ClipRefusal,
 } from '../clipFile'
 import { probeClipDuration } from './probeClipDuration'
+import type { NoticePublication } from '../../../lib/api/dto'
 
 /**
  * One clip, from the moment the guest picks it to the moment the box has finished with
@@ -88,6 +89,13 @@ export interface UseClipUploadOptions {
   /** Called once the box has produced a photo, so "Vos envois" can pick it up. */
   readonly onArrived?: () => void
   /**
+   * Whether the event puts what arrives straight on the wall (roadmap §5.1), from the
+   * privacy notice. It decides one sentence: "after approval" is false on an event that
+   * publishes on arrival, and the notice on the same screen says so. Absent reads as the
+   * moderated default, which is what this screen said before the notice existed.
+   */
+  readonly publication?: NoticePublication
+  /**
    * Reads a recording's duration. Injected because jsdom has no media pipeline, which is
    * the only reason this hook can be tested at all; the default is the real thing.
    */
@@ -95,6 +103,10 @@ export interface UseClipUploadOptions {
   /** Milliseconds between polls of the job. Injected so a test does not wait. */
   readonly pollIntervalMs?: number
 }
+
+/** The sentence for a clip that has arrived, true to how this event publishes. */
+const doneMessageFor = (publication: NoticePublication, t: UiText): string =>
+  publication === 'immediate' ? t.upload.clipDoneImmediate : t.upload.clipDone
 
 /**
  * How often to ask "where is my clip?".
@@ -160,7 +172,14 @@ interface Snapshot {
 const IDLE: Snapshot = { file: null, stage: 'idle', progress: 0, message: null, retryable: false }
 
 export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
-  const { slug, limits, onArrived, probe = probeClipDuration, pollIntervalMs } = options
+  const {
+    slug,
+    limits,
+    onArrived,
+    publication = 'afterReview',
+    probe = probeClipDuration,
+    pollIntervalMs,
+  } = options
   const t = useTranslations()
   const api = useApi()
 
@@ -198,10 +217,10 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
    * bypassed, which is the same full upload spent to be refused again.
    */
   const blockedUntil = useRef(0)
-  const latest = useRef({ onArrived })
+  const latest = useRef({ onArrived, publication })
 
   useEffect(() => {
-    latest.current = { onArrived }
+    latest.current = { onArrived, publication }
   })
 
   const stopTimers = useCallback(() => {
@@ -348,7 +367,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
             ...previous,
             stage: 'done',
             progress: 100,
-            message: t.upload.clipDone,
+            message: doneMessageFor(latest.current.publication, t),
             retryable: false,
           }))
           latest.current.onArrived?.()
@@ -452,7 +471,10 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
           setState((previous) => ({ ...previous, stage: job.status, progress: 100 }))
           if (job.status === 'done') {
             // A repeat of bytes already transcoded. Nothing to watch.
-            setState((previous) => ({ ...previous, message: t.upload.clipDone }))
+            setState((previous) => ({
+              ...previous,
+              message: doneMessageFor(latest.current.publication, t),
+            }))
             latest.current.onArrived?.()
             return
           }

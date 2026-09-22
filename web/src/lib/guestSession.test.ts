@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { readGuestSession, rememberGuestSession } from './guestSession'
-import { aPublicEvent } from '../testing/renderWithProviders'
+import { readGuestSession, rememberGuestSession, rememberPrivacyNotice } from './guestSession'
+import { aPrivacyNotice, aPrivacyNoticeState, aPublicEvent } from '../testing/renderWithProviders'
 
 /**
  * Taken from the builder rather than listed, so a field added to `PublicEventDto`
@@ -48,12 +48,107 @@ describe('guestSession', () => {
   })
 
   it('hands the join step’s answer to the upload screen', () => {
-    rememberGuestSession({ event: aPublicEvent({ slug: 'gala' }), displayName: 'Léa' })
+    rememberGuestSession({
+      event: aPublicEvent({ slug: 'gala' }),
+      displayName: 'Léa',
+      privacyNotice: aPrivacyNoticeState({ acknowledgement: 'none' }),
+    })
 
     const session = readGuestSession('gala')
 
     expect(session?.event.name).toBe('Camille & Sacha')
     expect(session?.displayName).toBe('Léa')
+    expect(session?.privacyNotice).toEqual(aPrivacyNoticeState({ acknowledgement: 'none' }))
+  })
+
+  // ---------------------------------------------------------- privacy notice --
+
+  it('keeps a guest who joined before the notice existed, with the notice left to fetch', () => {
+    // The deploy case again, for roadmap 5.1. Refusing the entry would bounce a guest
+    // with photos in their queue back to the join screen; the upload screen asks the
+    // server for the notice instead.
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({ event: aPublicEvent({ slug: 'gala' }), displayName: 'Léa' }),
+    )
+
+    const session = readGuestSession('gala')
+
+    expect(session?.event.name).toBe('Camille & Sacha')
+    expect(session?.privacyNotice).toBeNull()
+  })
+
+  it.each<[rule: string, stored: unknown]>([
+    ['an unknown standing', { notice: aPrivacyNotice(), acknowledgement: 'maybe' }],
+    ['no revision', { notice: { ...aPrivacyNotice(), revision: 7 }, acknowledgement: 'none' }],
+    [
+      'an unknown publication',
+      { notice: { ...aPrivacyNotice(), publication: 'never' }, acknowledgement: 'none' },
+    ],
+    [
+      'a retention period that is not a number',
+      { notice: { ...aPrivacyNotice(), retentionDays: '30' }, acknowledgement: 'none' },
+    ],
+    [
+      'a window that is not a number',
+      { notice: { ...aPrivacyNotice(), selfRemovalSeconds: {} }, acknowledgement: 'none' },
+    ],
+    [
+      'audiences that are not a list',
+      { notice: { ...aPrivacyNotice(), audiences: 'room' }, acknowledgement: 'none' },
+    ],
+  ])(
+    'reads a stored notice with %s as no notice, so it is fetched rather than misworded',
+    (_rule, stored) => {
+      sessionStorage.setItem(
+        'eventslide.guest.gala',
+        JSON.stringify({
+          event: aPublicEvent({ slug: 'gala' }),
+          displayName: null,
+          privacyNotice: stored,
+        }),
+      )
+
+      expect(readGuestSession('gala')?.privacyNotice).toBeNull()
+    },
+  )
+
+  it('reads a notice naming an audience this build cannot word as no notice, rather than a shorter one', () => {
+    // Dropping the line would tell a guest less than the truth about who sees a photo —
+    // the shared gallery of roadmap 4.1 is exactly the audience a stale tab would drop.
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({
+        event: aPublicEvent({ slug: 'gala' }),
+        displayName: null,
+        privacyNotice: {
+          notice: { ...aPrivacyNotice(), audiences: ['room', 'organisers', 'sharedGallery'] },
+          acknowledgement: 'current',
+        },
+      }),
+    )
+
+    expect(readGuestSession('gala')?.privacyNotice).toBeNull()
+  })
+
+  it('replaces the stored notice with the server’s latest answer and keeps the rest', () => {
+    rememberGuestSession({
+      event: aPublicEvent({ slug: 'gala' }),
+      displayName: 'Léa',
+      privacyNotice: aPrivacyNoticeState({ acknowledgement: 'none' }),
+    })
+
+    rememberPrivacyNotice('gala', aPrivacyNoticeState({ acknowledgement: 'current' }))
+
+    const session = readGuestSession('gala')
+    expect(session?.privacyNotice?.acknowledgement).toBe('current')
+    expect(session?.displayName).toBe('Léa')
+  })
+
+  it('writes no notice for a tab that never joined, which is on its way to the join screen', () => {
+    rememberPrivacyNotice('jamais-rejoint', aPrivacyNoticeState())
+
+    expect(readGuestSession('jamais-rejoint')).toBeNull()
   })
 
   it('knows nothing about an event the guest never joined', () => {
@@ -225,7 +320,9 @@ describe('guestSession', () => {
       throw new DOMException('SecurityError')
     })
 
-    expect(() => rememberGuestSession({ event: aPublicEvent(), displayName: null })).not.toThrow()
+    expect(() =>
+      rememberGuestSession({ event: aPublicEvent(), displayName: null, privacyNotice: null }),
+    ).not.toThrow()
     expect(readGuestSession('camille-et-sacha')).toBeNull()
   })
 })

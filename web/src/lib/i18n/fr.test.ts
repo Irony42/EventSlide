@@ -27,6 +27,12 @@ const COUNTED: readonly CountedPhrase[] = [
   // The server's own `Retry-After`, which is one second at its floor: "réessayez dans 1
   // secondes" on the one screen a guest reads while standing in a room.
   ['upload.clipQueueFullRetry', fr.upload.clipQueueFullRetry],
+  // The privacy notice (roadmap 5.1): a retention period and a self-delete window are the
+  // two numbers a guest is promised, and "1 jours" in a promise reads as carelessness.
+  ['upload.noticeRetentionDays', fr.upload.noticeRetentionDays],
+  ['upload.noticeRemovalSeconds', fr.upload.noticeRemovalSeconds],
+  ['upload.noticeRemovalMinutes', fr.upload.noticeRemovalMinutes],
+  ['upload.noticeRemovalHours', fr.upload.noticeRemovalHours],
   ['moderation.pending', fr.moderation.pending],
   ['moderation.bulkSkipped', fr.moderation.bulkSkipped],
   ['moderation.selected', fr.moderation.selected],

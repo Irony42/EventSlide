@@ -167,6 +167,54 @@ export const de: UiText = {
     mineClipAlt: 'Ihr Video',
     mineClipBadge: 'Video',
     mineClipLength: (seconds: number) => `Video · ${t.number(seconds)} s`,
+    introImmediate: 'Fügen Sie Ihre Fotos hinzu. Sie erscheinen sofort auf dem Bildschirm.',
+    noticeLink: 'Was mit Ihren Fotos geschieht',
+    noticeTitle: 'Vor Ihrem ersten Foto',
+    noticeChangedTitle: 'Diese Angaben haben sich geändert',
+    noticeChangedHint: 'Der Veranstalter hat seit Ihrem letzten Besuch eine Einstellung geändert.',
+    noticeAcknowledge: 'Verstanden',
+    noticeWhatHappens: 'Was mit ihnen geschieht',
+    noticeWhoSees: 'Wer sie sieht',
+    noticeHowLong: 'Wie lange sie bleiben',
+    noticeRemoval: 'Ein Foto entfernen lassen',
+    noticeMetadataStripped:
+      'Standort und Geräteangaben werden beim Eintreffen aus jedem Foto entfernt.',
+    noticePublication: {
+      afterReview: 'Der Veranstalter gibt jedes Foto frei, bevor es auf dem Bildschirm erscheint.',
+      immediate:
+        'Die Fotos erscheinen sofort nach dem Eintreffen auf dem Bildschirm. Der Veranstalter kann jedes davon jederzeit wieder entfernen.',
+    },
+    noticeAudiences: {
+      room: 'Alle im Saal, sobald ein Foto auf dem Bildschirm ist.',
+      organisers:
+        'Der Veranstalter und sein Team, die alles sehen, was Sie senden, und die auf dem Bildschirm gezeigten Fotos herunterladen können.',
+    },
+    noticeRetentionDays: (days: number) =>
+      t.count(days, {
+        one: `Die Fotos werden ${t.number(days)} Tag nach dem Schließen der Galerie automatisch gelöscht.`,
+        other: `Die Fotos werden ${t.number(days)} Tage nach dem Schließen der Galerie automatisch gelöscht.`,
+      }),
+    noticeRetentionNone:
+      'Eine automatische Löschung ist nicht vorgesehen: Die Fotos bleiben, bis der Veranstalter sie löscht.',
+    noticeRemovalSeconds: (seconds: number) =>
+      t.count(seconds, {
+        one: `Sie können ein Foto innerhalb von ${t.number(seconds)} Sekunde nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
+        other: `Sie können ein Foto innerhalb von ${t.number(seconds)} Sekunden nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
+      }),
+    noticeRemovalMinutes: (minutes: number) =>
+      t.count(minutes, {
+        one: `Sie können ein Foto innerhalb von ${t.number(minutes)} Minute nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
+        other: `Sie können ein Foto innerhalb von ${t.number(minutes)} Minuten nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
+      }),
+    noticeRemovalHours: (hours: number) =>
+      t.count(hours, {
+        one: `Sie können ein Foto innerhalb von ${t.number(hours)} Stunde nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
+        other: `Sie können ein Foto innerhalb von ${t.number(hours)} Stunden nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
+      }),
+    noticeRemovalOtherwise:
+      'Andernfalls wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',
+    noticeRemovalAskHost: 'Wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',
+    clipDoneImmediate: 'Video gesendet. Es erscheint jetzt auf dem Bildschirm.',
   },
 
   ui: {

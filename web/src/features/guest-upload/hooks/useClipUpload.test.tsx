@@ -8,7 +8,7 @@ import { useClipUpload } from './useClipUpload'
 import type { ClipStage } from './useClipUpload'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
-import type { ClipJobDto } from '../../../lib/api/dto'
+import type { ClipJobDto, NoticePublication } from '../../../lib/api/dto'
 
 /**
  * One clip, from the picker to the box and back.
@@ -33,6 +33,7 @@ const aClipFile = (name = 'premiere-danse.mp4', size = 12_000_000): File => {
 interface MountOptions {
   readonly probe?: (file: File) => Promise<number | null>
   readonly onArrived?: () => void
+  readonly publication?: NoticePublication
 }
 
 /**
@@ -55,6 +56,7 @@ const mount = (api: Api, options: MountOptions = {}) => {
         pollIntervalMs: 1,
         probe: options.probe ?? (() => Promise.resolve(8_000)),
         ...(options.onArrived ? { onArrived: options.onArrived } : {}),
+        ...(options.publication ? { publication: options.publication } : {}),
       })
       if (stages[stages.length - 1] !== clip.stage) stages.push(clip.stage)
       return clip
@@ -159,6 +161,23 @@ describe('sending it', () => {
     // states are shown rather than collapsed into a spinner.
     expect(stages).toEqual(['idle', 'ready', 'uploading', 'queued', 'running', 'done'])
     expect(result.current.message).toBe(fr.upload.clipDone)
+  })
+
+  it('says the video is on the screen, not awaiting approval, on an event that publishes on arrival', async () => {
+    // Roadmap 5.1: the privacy notice on the same screen says photos go straight to the
+    // wall here, and a completion line promising a validation would contradict it.
+    const api = fakeApi({
+      uploadClip: vi.fn(async () => aClipJob({ status: 'queued' })),
+      clipJob: vi.fn(async () => aClipJob({ status: 'done' })),
+    })
+    const { result } = mount(api, { publication: 'immediate' })
+
+    act(() => result.current.choose(aClipFile()))
+    await waitFor(() => expect(result.current.stage).toBe('ready'))
+    act(() => result.current.send(null))
+    await waitFor(() => expect(result.current.stage).toBe('done'))
+
+    expect(result.current.message).toBe(fr.upload.clipDoneImmediate)
   })
 
   it('polls the job it was given rather than guessing at an id', async () => {

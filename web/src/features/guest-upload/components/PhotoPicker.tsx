@@ -1,4 +1,4 @@
-import { useId, type ChangeEvent } from 'react'
+import { useId, type ChangeEvent, type Ref } from 'react'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './PhotoPicker.module.css'
 
@@ -17,9 +17,15 @@ import styles from './PhotoPicker.module.css'
 
 export interface PhotoPickerProps {
   readonly onPick: (files: readonly File[]) => void
+  /**
+   * The library input, for a page that has to move focus here — the privacy notice hands
+   * the guest to it after "J'ai compris", so the next Enter opens the picker instead of
+   * starting again from the top of the document.
+   */
+  readonly libraryRef?: Ref<HTMLInputElement>
 }
 
-export function PhotoPicker({ onPick }: PhotoPickerProps) {
+export function PhotoPicker({ onPick, libraryRef }: PhotoPickerProps) {
   const t = useTranslations()
   const libraryId = useId()
   const cameraId = useId()
@@ -37,6 +43,7 @@ export function PhotoPicker({ onPick }: PhotoPickerProps) {
       <label className={`${styles['action']} ${styles['library']}`} htmlFor={libraryId}>
         <span>{t.upload.addPhotos}</span>
         <input
+          ref={libraryRef}
           id={libraryId}
           className={styles['input']}
           data-testid="photo-input"
