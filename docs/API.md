@@ -332,6 +332,7 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
 {
   "event": { "slug": "camille-et-sacha", "name": "Camille & Sacha" },
   "joinCode": "H7K2QM",
+  "joinUrl": "https://photos.example.com/join/H7K2QM",
   "revision": "1f3k9a2",
   "items": [
     {
@@ -349,7 +350,7 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
     }
   ],
   "slideIntervalMs": 8000,
-  "kenBurnsDurationMs": 8520,
+  "kenBurnsDurationMs": 8800,
   "layout": "spotlight",
   "reactionsEnabled": true,
   "theme": { "accentHue": 345, "fonts": "serif", "frame": "round", "material": "glass" }
@@ -383,6 +384,16 @@ in the order above and wraps.
 QR while it is empty, and keeps a small corner reminder afterwards, so a guest arriving
 late can join from the screen alone. It is the only host-side value the wall carries,
 and it is exactly the value already printed on the tables.
+
+`joinUrl` is the absolute link that QR encodes, built here from `PUBLIC_URL` — the same
+builder behind `joinUrl` on `GET /api/events/:slug` (§4), so the two surfaces cannot
+disagree about where a scan lands. **The projector must not rebuild it.** It did, from
+`window.location.origin`, which is the address _that screen_ was opened on: a wall on a
+venue mini-PC printed a QR for a hostname no guest's phone resolves, and a box behind a
+TLS-terminating proxy printed plain `http`, on which the `Secure` guest cookie is never
+sent. Both cases read correctly on screen — the six characters underneath were right the
+whole time — which is §9 trap 1 of CLAUDE.md with a different mismatch. A client that
+receives `joinCode` without `joinUrl` shows no QR rather than inventing one.
 
 `authorName` is the name the guest typed at `POST /api/join` — the one thing they
 supplied for exactly this purpose — and it is `null` whenever there is nobody to name: an

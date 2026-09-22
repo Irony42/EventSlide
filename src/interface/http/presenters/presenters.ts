@@ -529,11 +529,19 @@ const toWallItemDto = (photo: Photo, slug: string, authorName: string | null): W
  * compute the same sequence and the same `revision`; iterating `view.photos` here would
  * quietly reintroduce 1.0's per-browser slideshow order.
  *
- * Takes no {@link PresenterContext}: every URL on this response is a relative media path,
- * so the wall renders identically whether the projector reached the server by its public
- * URL or by its address on the venue's LAN.
+ * Every media URL on this response is a relative path, so the photographs render
+ * identically whether the projector reached the server by its public URL or by its
+ * address on the venue's LAN. **The join link is the exception, and it is why this
+ * presenter takes a {@link PresenterContext} where it used to take nothing.** That URL is
+ * not for the projector to fetch, it is for a guest's phone to open, so "whatever address
+ * this screen happens to be on" is the wrong answer to it — and it was the answer, built
+ * in the browser from `window.location.origin`. `PUBLIC_URL` is the address a phone can
+ * reach, and it is the one already behind {@link joinUrl} on the host's event page.
  */
-export const toWallResponseDto = (view: WallPlaylistView): WallResponseDto => {
+export const toWallResponseDto = (
+  view: WallPlaylistView,
+  context: PresenterContext,
+): WallResponseDto => {
   const slug = view.event.slug.value
   const byId = new Map(view.photos.map((photo): readonly [PhotoId, Photo] => [photo.id, photo]))
 
@@ -544,6 +552,9 @@ export const toWallResponseDto = (view: WallPlaylistView): WallResponseDto => {
     // a leaked display URL now grants upload as well as read — is recorded in
     // docs/SECURITY.md §12, and the host's mitigation is to rotate the code.
     joinCode: view.event.joinCode.value,
+    // The same builder the host's event page uses, so the two cannot disagree about the
+    // link the room is being shown.
+    joinUrl: joinUrl(context.publicUrl, view.event.joinCode.value),
     revision: view.playlist.revision,
     items: view.playlist.items.flatMap((id) => {
       const photo = byId.get(id)

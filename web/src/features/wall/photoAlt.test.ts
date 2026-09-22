@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WallItemDto } from '../../lib/api/dto'
 import { fr } from '../../lib/i18n/fr'
-import { joinUrlFor, photoAlt } from './photoAlt'
+import { photoAlt } from './photoAlt'
 
 const anItem = (overrides: Partial<WallItemDto> = {}): WallItemDto => ({
   id: 'photo-1',
@@ -47,16 +47,13 @@ describe('photoAlt', () => {
   })
 })
 
-describe('joinUrlFor', () => {
-  it('puts the join code in the path, never in a query string', () => {
-    // The 1.0 QR page emitted `?partyname=` while the upload page read `?party`, so
-    // every guest who scanned silently uploaded to the default event.
-    expect(joinUrlFor('H7K2QM')).toBe(`${window.location.origin}/join/H7K2QM`)
-  })
-
-  it('keeps a code with a reserved character inside its own path segment', () => {
-    // A code is generated, but a QR that escapes its segment would point a phone at a
-    // different route entirely, which is how a guest lands on somebody else's event.
-    expect(joinUrlFor('A/B?C')).toBe(`${window.location.origin}/join/A%2FB%3FC`)
-  })
-})
+/**
+ * `joinUrlFor` used to live here and is gone.
+ *
+ * It built the QR's link in the browser from `window.location.origin` — the address the
+ * projector was opened on, not the one a guest's phone can reach. The wall now renders
+ * the `joinUrl` the server put on the response, and the two rules this file used to
+ * assert are asserted where the URL is now built: "a path, never a query string" and
+ * "a reserved character stays inside its own segment" are both in
+ * `src/interface/http/presenters/presenters.test.ts`, on `joinUrl`.
+ */

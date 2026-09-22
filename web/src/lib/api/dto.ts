@@ -168,6 +168,20 @@ export interface WallResponse {
    * showing the invitation without a code rather than crashing it.
    */
   readonly joinCode?: string
+  /**
+   * The absolute link the QR encodes, built by the server from `PUBLIC_URL`.
+   *
+   * Never rebuilt here from `window.location.origin`, which is what this used to do: that
+   * is the address the *projector* was opened on, and a wall on the venue's LAN then
+   * printed a QR no guest's phone could resolve. The server knows the address a phone can
+   * reach; the screen does not.
+   *
+   * Optional for the same reason `joinCode` is — a server build that predates the field
+   * must not crash the projector. The wall then shows no join block at all rather than
+   * falling back to its own origin: no QR is a gap a host can work around with the printed
+   * cards, and a QR pointing somewhere wrong is a guest's evening lost in silence.
+   */
+  readonly joinUrl?: string
   /** Order-sensitive fingerprint of `items`; unchanged means the playlist did not move. */
   readonly revision: string
   readonly items: readonly WallItemDto[]

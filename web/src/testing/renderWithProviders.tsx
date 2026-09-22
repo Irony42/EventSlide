@@ -113,10 +113,17 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   // against an optional-but-not-nullable field. `WallPage.test.tsx` spells that out once,
   // as `withoutJoinCode`.
   joinCode: 'H7K2QM',
+  // The link the QR encodes, as the server builds it from `PUBLIC_URL`. A different origin
+  // from the jsdom page's on purpose: the wall must render *this* value, and a fixture that
+  // matched `window.location.origin` would keep passing if the browser went back to
+  // inventing the URL itself.
+  joinUrl: 'https://photos.example/join/H7K2QM',
   revision: 'rev-1',
   items: [],
   slideIntervalMs: 8_000,
-  kenBurnsDurationMs: 8_520,
+  // `interval + CROSSFADE_MS`, which is 800 — not 520. The wrong pair sat here and in
+  // `docs/API.md` while three arguments in this change rest on that arithmetic.
+  kenBurnsDurationMs: 8_800,
   layout: 'spotlight',
   reactionsEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this

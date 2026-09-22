@@ -99,6 +99,19 @@ const withoutJoinCode = (wall: WallResponse): WallResponse => {
   return rest
 }
 
+/**
+ * And the same for the link, which is the other half of the invitation.
+ *
+ * Deleted the same way and for the same `exactOptionalPropertyTypes` reason. The wall
+ * needs both to print a join block: the code alone would mean rebuilding the URL in the
+ * browser from `window.location.origin`, which is the address the projector was opened on
+ * rather than the one a guest's phone can reach.
+ */
+const withoutJoinUrl = (wall: WallResponse): WallResponse => {
+  const { joinUrl: _absent, ...rest } = wall
+  return rest
+}
+
 const somePhotos = (count: number): readonly WallItemDto[] =>
   Array.from({ length: count }, (_unused, at) =>
     aWallItem({ id: `photo-${at}`, caption: `Photo ${at}`, authorName: 'Léa' }),
@@ -226,6 +239,35 @@ describe('WallPage', () => {
 
     expect(within(invitation).getByText(fr.wall.empty)).toBeVisible()
     expect(within(invitation).queryByTitle(fr.wall.qrTitle)).not.toBeInTheDocument()
+  })
+
+  it('draws no QR when the server sends a code but no link for it', async () => {
+    // The pair arrives from one presenter, so this is not a deployment the product has —
+    // it is the one state in which the browser would be tempted to fill the gap from
+    // `window.location.origin`, and the assertion is that it does not. A QR for the
+    // address this projector happens to be on is §9 trap 1: the characters read right and
+    // the link goes nowhere a guest can follow.
+    const api = fakeApi({ wall: wallSequence(withoutJoinUrl(anEmptyWall())) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    const invitation = await screen.findByTestId('wall-empty')
+
+    expect(within(invitation).getByText(fr.wall.empty)).toBeVisible()
+    expect(within(invitation).queryByTitle(fr.wall.qrTitle)).not.toBeInTheDocument()
+    expect(screen.queryByTestId('wall-join')).not.toBeInTheDocument()
+  })
+
+  it('reserves the corner for a join card only while it has a whole one to show', async () => {
+    // `data-wall-chrome` is what makes the polaroid lay its row out inside what the card
+    // leaves free — 362px of overlap if it does not. So the attribute has to follow the
+    // card that is actually on screen, not the code alone.
+    const api = fakeApi({ wall: wallSequence(withoutJoinUrl(aPopulatedWall())) })
+    const { container } = renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    await screen.findByTestId('wall-slide')
+
+    expect(screen.queryByTestId('wall-join')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-wall-chrome]')).toBeNull()
   })
 
   it('puts the photo, its caption and its author on the screen', async () => {

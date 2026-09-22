@@ -1,12 +1,19 @@
 import { fr } from '../../../lib/i18n/fr'
-import { joinUrlFor } from '../photoAlt'
 import { JoinQr } from './JoinQr'
 import styles from './WallEmptyState.module.css'
 
 export interface WallEmptyStateProps {
   readonly eventName: string
-  /** `null` when the server does not present the code; the invitation still stands. */
-  readonly joinCode: string | null
+  /**
+   * The code to read out and the link to encode, or `null` when the server presents
+   * neither. The invitation still stands without them.
+   *
+   * One value rather than two, because there is no state in which the wall should print
+   * one and not the other: the characters and the QR are the same instruction given twice,
+   * and a QR built from anything but the server's answer is how a guest scans into nowhere
+   * (§9 trap 1).
+   */
+  readonly join: { readonly code: string; readonly url: string } | null
 }
 
 /**
@@ -17,27 +24,28 @@ export interface WallEmptyStateProps {
  * event name and the code are at `--text-display` because they are read from the back
  * of the room, and the QR is drawn inline so it survives a venue's Wi-Fi.
  */
-export function WallEmptyState({ eventName, joinCode }: WallEmptyStateProps) {
+export function WallEmptyState({ eventName, join }: WallEmptyStateProps) {
   return (
     <section className={styles['empty']} data-testid="wall-empty">
       <div className={styles['copy']} data-testid="wall-empty-copy">
         <p className={styles['prompt']}>{fr.wall.joinPrompt}</p>
         <h1 className={styles['name']}>{eventName}</h1>
         <p className={styles['title']}>{fr.wall.empty}</p>
-        {joinCode === null ? null : <p className={styles['hint']}>{fr.wall.emptyHint}</p>}
+        {join === null ? null : <p className={styles['hint']}>{fr.wall.emptyHint}</p>}
       </div>
 
       {/*
-        `wall-join` exists so the visual suite can mask this block whole: the QR image
-        and the characters beneath it both derive from the join code, which is random
-        per event, so a baseline that photographs them only ever matches the run that
-        produced it.
+        `wall-join` names the block so a test can assert its presence or its absence, and
+        so the host's Escape can be observed to have put it away. It is no longer a mask
+        target: both halves of it are the server's answer now, so a baseline can compare
+        them pixel for pixel — which is what a QR code, of all the regions on this wall,
+        deserves.
       */}
-      {joinCode === null ? null : (
+      {join === null ? null : (
         <div className={styles['join']} data-testid="wall-join">
-          <JoinQr url={joinUrlFor(joinCode)} size="lg" />
+          <JoinQr url={join.url} size="lg" />
           <p className={styles['codeLabel']}>{fr.wall.codeLabel}</p>
-          <p className={styles['code']}>{joinCode}</p>
+          <p className={styles['code']}>{join.code}</p>
         </div>
       )}
     </section>
