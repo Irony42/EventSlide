@@ -115,4 +115,19 @@ describe('.github/dependabot.yml', () => {
     expect(ignored).toContain('@types/node')
     expect(valuesOf('versions', ignored).join(' ')).toContain('>=25')
   })
+
+  it('holds typescript below 7, because typescript-eslint cannot run against it', () => {
+    // Not about the compiler: TS 7 typechecks all five projects at zero errors and emits
+    // byte-identical output. It ships as native Go binaries, so `require('typescript')`
+    // exports two symbols and `typescript-estree` crashes at module evaluation — ESLint
+    // exits 2 having linted zero files, which is this repository with no `DOMAIN_FORBIDDEN`
+    // and no `APPLICATION_FORBIDDEN`. Lift this when typescript-eslint supports TS 7.
+    const ignored = yaml
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n')
+
+    expect(ignored).toContain('typescript')
+    expect(valuesOf('versions', ignored).join(' ')).toContain('>=7')
+  })
 })

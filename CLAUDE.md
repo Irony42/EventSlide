@@ -396,6 +396,30 @@ Learned the hard way. Do not rediscover them.
     product should have been deriving it that way. A mask makes a baseline stop seeing,
     permanently, and this one would have hidden a real bug rather than a test artefact.
 
+11. **`npm install` in a git worktree deletes the `node_modules` junction rather than
+    following it.** Parallel work here happens in `git worktree` directories that share
+    one dependency tree through an NTFS junction (`cmd /c mklink /J`), because installing
+    a full tree per worktree costs minutes and a gigabyte. The rule that came with that
+    arrangement — do not install from inside a worktree — was justified by cross-talk:
+    another agent's install would rewrite the tree underneath you. The real reason is
+    worse. npm does not resolve the junction and install through it; it **removes the
+    link** (`npm warn reify Removing non-directory .../node_modules`) and starts building
+    a real directory in its place. Measured: `npm install --save-dev typescript@^7` in a
+    worktree unlinked the shared tree, began a full reify, failed on `node-gyp rebuild` of
+    `better-sqlite3` — which never needed gyp, it ships `prebuilds/`, but a full reify
+    rebuilds anyway — rolled back, and left that worktree with no `node_modules` at all.
+    The shared tree survived only because it had already stopped being the install target
+    by then.
+
+    So: a worktree's junction is a read-only view. Run tests, run `tsc`, run Playwright —
+    all fine, they only read. To change what is installed, work in the main checkout, or
+    give that worktree a real tree of its own and accept the cost. If a junction does get
+    destroyed, `cmd /c mklink /J "<worktree>\node_modules" "C:\src\EventSlide\node_modules"`
+    restores it; the reverse hazard is the same link in the other direction, because
+    deleting a worktree directory with a tool that walks reparse points instead of
+    treating them as links takes the shared tree with it — unlink first with
+    `cmd /c rmdir "<worktree>\node_modules"`, which removes the link and not its target.
+
 ---
 
 ## 10. Definition of done
