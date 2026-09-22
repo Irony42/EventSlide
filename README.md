@@ -187,6 +187,7 @@ have something to show.
 ## Photo missions
 
 <img src="docs/images/missions-checklist.jpg" width="300" align="right" alt="A guest's checklist: four prompts, the first one ticked and marked Done">
+<img src="docs/images/wall-missions.jpg" width="300" align="right" alt="The same four prompts on the wall: a standing panel in the corner, one answered and ticked with a guest count">
 
 The cheapest way to get more photographs is to stop asking guests to decide what is worth
 sending. Write four or five prompts on the event page and they become a checklist on every

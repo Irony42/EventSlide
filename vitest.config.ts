@@ -52,7 +52,7 @@ export default defineConfig({
       // wedding album, `purge.ts` and `restore.ts` delete and overwrite it. It was
       // outside `include` entirely, so it did not appear in the report at all — not as
       // a low number, as nothing, which is the one way a gap stays invisible.
-      include: ['src/**/*.ts', 'web/src/**/*.{ts,tsx}', 'scripts/**/*.ts'],
+      include: ['src/**/*.ts', 'web/src/**/*.{ts,tsx}', 'scripts/**/*.{ts,mts}'],
       exclude: [
         '**/*.test.{ts,tsx}',
         '**/*.d.ts',
@@ -71,6 +71,11 @@ export default defineConfig({
         'web/src/main.tsx',
         // Barrel files re-export only.
         '**/index.ts',
+        // The README's screenshot driver: run by a maintainer to photograph a throwaway
+        // server, touching nobody's data, and asserting nothing by design. Named rather
+        // than left out of `include` by its extension, so the next `.mts` under
+        // `scripts/` is counted by the ratchet below instead of skipped in silence.
+        'scripts/showcase.mts',
       ],
 
       /**

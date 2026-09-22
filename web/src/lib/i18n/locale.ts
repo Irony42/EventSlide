@@ -1,5 +1,5 @@
 /**
- * Which languages the guest surface speaks, and how one is chosen.
+ * Which languages the app speaks, and how one is chosen.
  *
  * Nothing in here knows what a translation looks like: this module is the contract for
  * the *choice*, and `translations.ts` is the contract for the words. Keeping them apart

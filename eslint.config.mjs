@@ -131,7 +131,7 @@ export default tseslint.config(
   /* ---------------------------------------------------------------- server -- */
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['src/**/*.ts', 'tests/**/*.ts', 'scripts/**/*.ts'],
+    files: ['src/**/*.ts', 'tests/**/*.ts', 'scripts/**/*.{ts,mts}'],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'module',
@@ -240,7 +240,7 @@ export default tseslint.config(
     // A CLI script's output IS its interface: `db:status` that printed nothing would
     // be useless. Everything else still applies, including the ban on reading
     // `process.env` outside the config module.
-    files: ['scripts/**/*.ts'],
+    files: ['scripts/**/*.{ts,mts}'],
     rules: {
       'no-console': 'off',
     },
