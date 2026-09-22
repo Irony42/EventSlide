@@ -91,6 +91,76 @@ export const guestRepositoryContract = (
       expect(stored?.lastSeenAt.toISOString()).toBe(atPlus(60_000).toISOString())
     })
 
+    it('round-trips the privacy notice a guest acknowledged, and when', async () => {
+      await repo.save(
+        aGuest({
+          id: 'guest-lea',
+          eventId: WEDDING,
+          noticeAcknowledgement: {
+            revision: 'publication=afterReview;retention=30',
+            at: atPlus(4_000),
+          },
+        }),
+      )
+
+      const stored = await repo.findById(WEDDING, asGuestId('guest-lea'))
+
+      expect(stored?.noticeAcknowledgement?.revision).toBe('publication=afterReview;retention=30')
+      expect(stored?.noticeAcknowledgement?.at.toISOString()).toBe(atPlus(4_000).toISOString())
+    })
+
+    it('round-trips a guest who has not acknowledged any notice as having none', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
+
+      expect(
+        (await repo.findById(WEDDING, asGuestId('guest-lea')))?.noticeAcknowledgement,
+      ).toBeNull()
+    })
+
+    it('replaces an acknowledgement when the guest reads a newer notice', async () => {
+      // The re-ask rule compares what was stored with what is in force, so a save that
+      // kept the old revision would ask the guest again on every upload for the rest of
+      // the evening.
+      await repo.save(
+        aGuest({
+          id: 'guest-lea',
+          eventId: WEDDING,
+          noticeAcknowledgement: { revision: 'old', at: atPlus(1_000) },
+        }),
+      )
+
+      await repo.save(
+        aGuest({
+          id: 'guest-lea',
+          eventId: WEDDING,
+          noticeAcknowledgement: { revision: 'new', at: atPlus(9_000) },
+        }),
+      )
+
+      const stored = await repo.findById(WEDDING, asGuestId('guest-lea'))
+      expect(stored?.noticeAcknowledgement?.revision).toBe('new')
+      expect(stored?.noticeAcknowledgement?.at.toISOString()).toBe(atPlus(9_000).toISOString())
+    })
+
+    it('keeps an acknowledgement through an ordinary save of the same guest', async () => {
+      // A phone re-scanning the code saves its row again (`joinEvent` touches it, and
+      // renames it when a name is added), so a save that forgot the acknowledgement would
+      // unread the notice every time a guest came back through the front door.
+      const acknowledged = aGuest({
+        id: 'guest-lea',
+        eventId: WEDDING,
+        lastSeenAt: AT,
+        noticeAcknowledgement: { revision: 'r1', at: atPlus(1_000) },
+      })
+      await repo.save(acknowledged)
+
+      await repo.save(acknowledged.touch(atPlus(60_000)))
+
+      expect(
+        (await repo.findById(WEDDING, asGuestId('guest-lea')))?.noticeAcknowledgement?.revision,
+      ).toBe('r1')
+    })
+
     it('records a revocation, so a removed guest token stops granting anything', async () => {
       const guest = aGuest({ id: 'guest-lea', eventId: WEDDING })
       await repo.save(guest)
