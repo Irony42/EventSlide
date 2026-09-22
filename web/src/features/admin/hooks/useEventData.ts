@@ -5,6 +5,7 @@ import type {
   EventDto,
   EventSummaryDto,
   GuestListResponse,
+  MissionDto,
   ModeratorDto,
 } from '../../../lib/api/dto'
 
@@ -48,6 +49,22 @@ export const useModerators = (slug: string): LoaderState<readonly ModeratorDto[]
   const api = useApi()
   const load = useCallback(
     async (signal: AbortSignal) => (await api.listModerators(slug, signal)).items,
+    [api, slug],
+  )
+  return useLoader(load)
+}
+
+/**
+ * The host's prompt list, with how the room is answering it (roadmap §2.1).
+ *
+ * No paging: an event may hold at most twelve prompts, so the whole list is the page.
+ * The counts come back with it — they are a query rather than a column, so reading the
+ * list is reading them.
+ */
+export const useMissions = (slug: string): LoaderState<readonly MissionDto[]> => {
+  const api = useApi()
+  const load = useCallback(
+    async (signal: AbortSignal) => (await api.listMissions(slug, signal)).items,
     [api, slug],
   )
   return useLoader(load)

@@ -4,10 +4,11 @@ import { useAction, type ActionState } from './useAction'
 import type {
   CreateEventInput,
   EventScheduleInput,
+  MissionInput,
   ModeratorInvitationInput,
   ModeratorInviteResponse,
 } from '../../../lib/api/client'
-import type { EventDto, EventSettingsDto, EventStatus } from '../../../lib/api/dto'
+import type { EventDto, EventSettingsDto, EventStatus, MissionDto } from '../../../lib/api/dto'
 
 /**
  * The writes the admin surface needs, one hook per endpoint.
@@ -96,5 +97,37 @@ export const useRevokeModerator = (): ActionState<[string, string], void> => {
   const api = useApi()
   return useAction(
     useCallback((slug: string, userId: string) => api.revokeModerator(slug, userId), [api]),
+  )
+}
+
+/**
+ * The three writes on the mission list, one hook each (roadmap §2.1).
+ *
+ * The edit and the delete answer `204`, so both are `void`: an edit touches no
+ * photograph and therefore re-counts none, and padding its response to match the create's
+ * shape would put a number on the wire that is false. The panel reloads the list instead.
+ */
+export const useCreateMission = (): ActionState<[string, MissionInput], MissionDto> => {
+  const api = useApi()
+  return useAction(
+    useCallback((slug: string, input: MissionInput) => api.createMission(slug, input), [api]),
+  )
+}
+
+export const useUpdateMission = (): ActionState<[string, string, MissionInput], void> => {
+  const api = useApi()
+  return useAction(
+    useCallback(
+      (slug: string, missionId: string, input: MissionInput) =>
+        api.updateMission(slug, missionId, input),
+      [api],
+    ),
+  )
+}
+
+export const useDeleteMission = (): ActionState<[string, string], void> => {
+  const api = useApi()
+  return useAction(
+    useCallback((slug: string, missionId: string) => api.deleteMission(slug, missionId), [api]),
   )
 }

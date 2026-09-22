@@ -878,14 +878,28 @@ export const fr = {
     missionAdd: 'Ajouter la mission',
     missionSave: 'Enregistrer',
     missionCancel: 'Annuler',
+    /**
+     * The word on the button, and the sentence a screen reader hears.
+     *
+     * Twelve rows of "Modifier" are twelve identical accessible names, which is exactly
+     * the list a screen-reader user cannot navigate. The visible label stays one word
+     * because the row already says which prompt it is about.
+     */
+    missionEditShort: 'Modifier',
+    missionDeleteShort: 'Supprimer',
     missionEdit: (prompt: string) => `Modifier « ${prompt} »`,
     missionDelete: (prompt: string) => `Supprimer « ${prompt} »`,
     /**
      * Said plainly, because the host is about to be told that deleting is safe. It is:
      * the schema unfiles the photographs and removes none of them.
      */
+    missionDeleteTitle: 'Supprimer cette mission ?',
+    missionDeleteAction: 'Supprimer la mission',
     missionDeleteConfirm:
-      'Supprimer cette mission ? Les photos déjà envoyées restent dans l’album, elles ne compteront simplement plus pour elle.',
+      'Les photos déjà envoyées restent dans l’album : elles ne compteront simplement plus pour cette mission.',
+    missionAdded: 'La mission a été ajoutée.',
+    missionSaved: 'La mission a été enregistrée.',
+    missionDeleted: 'La mission a été supprimée.',
     /** What the room has done with it. Counted on every read, never stored. */
     missionAnswered: (photos: number, guests: number) =>
       `${t.count(photos, {
