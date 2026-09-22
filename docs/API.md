@@ -167,14 +167,16 @@ Per minute, configurable, `429` with `Retry-After` when exceeded.
 | `POST /api/events/:slug/photos`               | 12      | client IP **and** event | `rate.limited`            |
 | `POST /api/events/:slug/clips`                | 12      | client IP **and** event | `rate.limited`            |
 | `POST /api/events/:slug/photos/:id/reactions` | 30      | client IP **and** event | `reaction.rateLimited`    |
-| `GET /api/gallery/:token`, `…/photos`         | 60      | client IP               | `rate.limited`            |
-| `GET /api/gallery-media/…`                    | 600     | client IP               | `rate.limited`            |
+| `GET /api/gallery/:token`, `…/photos`, unlock | 120     | client IP               | `rate.limited`            |
+| `GET /api/gallery-media/…`                    | 3000    | client IP               | `rate.limited`            |
 | `POST /api/gallery/:token/unlock`             | 10 / 50 | IP / link, per 15 min   | `gallery.tooManyAttempts` |
 
 The gallery unlock is the one row counted per **quarter hour** and per **failure**: a
-successful unlock spends nothing, so a family opening one album on the morning after is
-never throttled, and ten wrong passwords from one address — or fifty against one link,
-from anywhere — are. The archive (`album.zip` under `gallery-media`) is bounded by
+successful unlock spends none of that allowance, so a family opening one album on the
+morning after is never locked out, and ten wrong passwords from one address — or fifty
+against one link, from anywhere — are. Every unlock, right or wrong, also spends one
+request of the page budget above, which is what bounds the hash verifications somebody who
+knows the password can ask for; a request that budget refuses is not counted as a guess. The archive (`album.zip` under `gallery-media`) is bounded by
 concurrency instead, two per client and four for the box, because one request is minutes
 of disk reads.
 

@@ -352,9 +352,15 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * URL. Pages and bytes are separate budgets because a grid of sixty thumbnails is
        * sixty requests the moment it renders; password attempts are per quarter hour and
        * count failures only, per client and per link.
+       *
+       * The byte budget is sized for an address, not a person. A family on one box at
+       * home, or a table of colleagues on an office's Wi-Fi, is one IP: ten people each
+       * scrolling five pages of sixty thumbnails is 3 000 requests before anybody opens a
+       * photograph, and a budget of 600 throttled the fourth of them. The page budget
+       * carries each device's password unlock as well as its pages, for the same reason.
        */
-      GALLERY_RATE_LIMIT_PER_MINUTE: positiveInt(60, 600),
-      GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: positiveInt(600, 6_000),
+      GALLERY_RATE_LIMIT_PER_MINUTE: positiveInt(120, 1_200),
+      GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: positiveInt(3_000, 30_000),
       GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT: positiveInt(10, 600),
       GALLERY_UNLOCK_ATTEMPTS_PER_LINK: positiveInt(50, 6_000),
 
