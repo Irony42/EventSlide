@@ -25,6 +25,7 @@ export const anEntry = (overrides: Partial<NewOutboxEntry> = {}): NewOutboxEntry
   fileName: 'confettis.jpg',
   fileType: 'image/jpeg',
   caption: null,
+  missionId: null,
   csrfToken: 'csrf-1',
   ...overrides,
 })

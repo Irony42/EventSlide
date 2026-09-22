@@ -7,7 +7,15 @@ import { sendNoContent } from '../presenters/send'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
 import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
-import { AT, aGuest, aPhoto, aReaction, anEvent } from '../../../application/testing/builders'
+import {
+  aMission,
+  AT,
+  aGuest,
+  aPhoto,
+  aReaction,
+  anEvent,
+} from '../../../application/testing/builders'
+import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
@@ -21,6 +29,7 @@ import type {
   UploadPhotosInput,
   UploadPhotosResult,
 } from '../../../application/usecases/photos/uploadPhotos'
+import { makeGetGuestChecklist } from '../../../application/usecases/missions/getGuestChecklist'
 import { makeGetPhotoReactions } from '../../../application/usecases/reactions/getPhotoReactions'
 import {
   makeReactToPhoto,
@@ -198,6 +207,7 @@ interface Subject {
   readonly photos: FakePhotoRepository
   readonly reactions: FakeReactionRepository
   readonly media: RecordingMediaStore
+  readonly missions: FakeMissionRepository
   readonly upload: ScriptedUploadPhotos
   /** Paths the stand-in moderator handler answered, so a deferral is observable. */
   readonly hostHandlerReached: readonly string[]
@@ -225,6 +235,7 @@ interface SubjectOptions {
  */
 const buildSubject = (options: SubjectOptions = {}): Subject => {
   const photos = new FakePhotoRepository()
+  const missions = new FakeMissionRepository(photos)
   const reactions = new FakeReactionRepository()
   const media = new RecordingMediaStore()
   const upload = new ScriptedUploadPhotos()
@@ -270,6 +281,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
             }),
             withdrawReaction: makeWithdrawReaction({ reactions }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
+            getGuestChecklist: makeGetGuestChecklist({ events: deps.events, missions }),
           },
         }),
       )
@@ -350,6 +362,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
     photos,
     reactions,
     media,
+    missions,
     upload,
     hostHandlerReached,
     token: harness.issueGuestToken(WEDDING, GUEST),
@@ -1406,5 +1419,123 @@ describe('withGuest', () => {
 
     expect(response.status).toBe(401)
     expect(response.body.error.code).toBe('auth.required')
+  })
+})
+
+// ----------------------------------------- missions: the tag and the checklist --
+
+describe('the mission tag on an upload', () => {
+  const A_MISSION = '99999999-9999-4999-8999-999999999999'
+
+  it('hands the use case the prompt the guest tapped', async () => {
+    const subject = buildSubject()
+    subject.upload.succeedsWith(stored(0, PENDING))
+
+    await request(subject.app)
+      .post(`${BASE}/photos`)
+      .set('Cookie', cookie(subject.token))
+      .field('missionId', A_MISSION)
+      .attach('photos', Buffer.from('first-bytes'), 'first.jpg')
+      .expect(201)
+
+    expect(subject.upload.calls[0]?.missionId).toBe(A_MISSION)
+  })
+
+  it('omits it entirely when the guest chose no prompt', async () => {
+    // `exactOptionalPropertyTypes`: an absent key and an explicit `undefined` are
+    // different things to say, and the use case branches on the first.
+    const subject = buildSubject()
+    subject.upload.succeedsWith(stored(0, PENDING))
+
+    await request(subject.app)
+      .post(`${BASE}/photos`)
+      .set('Cookie', cookie(subject.token))
+      .attach('photos', Buffer.from('first-bytes'), 'first.jpg')
+      .expect(201)
+
+    expect(subject.upload.calls[0] && 'missionId' in subject.upload.calls[0]).toBe(false)
+  })
+
+  it('answers 400 for a mission id that is not a uuid, before it reaches a query', async () => {
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .post(`${BASE}/photos`)
+      .set('Cookie', cookie(subject.token))
+      .field('missionId', 'pas-un-uuid')
+      .attach('photos', Buffer.from('first-bytes'), 'first.jpg')
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+    expect(subject.upload.calls).toEqual([])
+  })
+})
+
+describe('GET /api/events/:eventSlug/missions/mine', () => {
+  it('answers this guest checklist, with what they have left to do', async () => {
+    const subject = buildSubject()
+    subject.missions.seed(aMission({ id: 'm1', eventId: WEDDING, prompt: 'un selfie' }))
+
+    const response = await request(subject.app)
+      .get(`${BASE}/missions/mine`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.status).toBe(200)
+    expect(response.body.items).toEqual([
+      { id: 'm1', prompt: 'un selfie', scope: 'guest', done: false },
+    ])
+  })
+
+  it('carries no count of what anybody else has done', async () => {
+    // Roadmap §7 rules out social features between guests, and the cheapest way to build
+    // a scoreboard by accident is to ship the numbers and let a screen find a use.
+    const subject = buildSubject()
+    subject.missions.seed(aMission({ id: 'm1', eventId: WEDDING }))
+
+    const response = await request(subject.app)
+      .get(`${BASE}/missions/mine`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(Object.keys(response.body.items[0])).toEqual(['id', 'prompt', 'scope', 'done'])
+  })
+
+  it('answers an empty list for an event whose host set no prompts', async () => {
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .get(`${BASE}/missions/mine`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.status).toBe(200)
+    expect(response.body.items).toEqual([])
+  })
+
+  it('is never cached, because it is the view a guest reloads to find out', async () => {
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .get(`${BASE}/missions/mine`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
+
+  it('answers 401 with no device token at all', async () => {
+    const subject = buildSubject()
+
+    expect((await request(subject.app).get(`${BASE}/missions/mine`)).status).toBe(401)
+  })
+
+  it('refuses a token issued for another event, so no checklist crosses an evening', async () => {
+    // The cross-event attack: a guest at the gala pointing their own cookie here.
+    const subject = buildSubject()
+    subject.missions.seed(aMission({ id: 'm1', eventId: WEDDING }))
+
+    const response = await request(subject.app)
+      .get(`${BASE}/missions/mine`)
+      .set('Cookie', cookie(subject.galaToken))
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('guest.wrongEvent')
   })
 })

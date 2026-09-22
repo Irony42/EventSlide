@@ -4,7 +4,8 @@ import { Button } from '../../design-system/components/Button'
 import { StatusIcon } from '../../design-system/components/StatusIcon'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
-import { fr } from '../../lib/i18n/fr'
+import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../lib/i18n/locale'
+import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { CheckboxField } from './components/CheckboxField'
 import { DateTimeField } from './components/DateTimeField'
@@ -20,6 +21,7 @@ import { useSaveSchedule, useSaveSettings } from './hooks/useEventActions'
 import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
 import styles from './EventSettingsPage.module.css'
 import type { EventDto, EventSettingsDto } from '../../lib/api/dto'
+import type { UiText } from '../../lib/i18n/translations'
 
 /** `null` in the DTO means "no limit"; the select uses the empty option for it. */
 const NO_LIMIT = ''
@@ -29,18 +31,35 @@ const numberOrNull = (value: string): number | null =>
 
 const asOption = (value: number, label: string): SelectOption => ({ value: String(value), label })
 
-const GRACE_OPTIONS = [0, 60, 300, 900, 3600].map((seconds) =>
-  asOption(seconds, graceLabel(seconds)),
-)
+/**
+ * The languages the room's screen can speak, each named in itself (roadmap 1.5).
+ *
+ * A constant rather than a function of the table, unlike every other list on this form,
+ * and that is the point: these are **endonyms** and are never translated. A host reading
+ * the console in French still picks "Deutsch", because the word they choose is the one
+ * the room will read.
+ */
+const LANGUAGE_OPTIONS: readonly SelectOption[] = SUPPORTED_LOCALES.map((locale) => ({
+  value: locale,
+  label: LOCALE_NAMES[locale],
+}))
 
-const RETENTION_OPTIONS: readonly SelectOption[] = [
-  { value: NO_LIMIT, label: fr.admin.retentionNever },
-  ...[7, 30, 90, 365].map((days) => asOption(days, fr.admin.retentionDays(days))),
+/**
+ * The values each select offers. Functions of the table rather than constants, because the
+ * wording is not known until something renders; the numbers are the fixed part and are
+ * still written once, here, rather than beside the control.
+ */
+const graceOptions = (text: UiText): readonly SelectOption[] =>
+  [0, 60, 300, 900, 3600].map((seconds) => asOption(seconds, graceLabel(seconds, text)))
+
+const retentionOptions = (text: UiText): readonly SelectOption[] => [
+  { value: NO_LIMIT, label: text.admin.retentionNever },
+  ...[7, 30, 90, 365].map((days) => asOption(days, text.admin.retentionDays(days))),
 ]
 
-const MAX_PHOTOS_OPTIONS: readonly SelectOption[] = [
-  { value: NO_LIMIT, label: fr.admin.maxPhotosUnlimited },
-  ...[10, 25, 50, 100].map((count) => asOption(count, fr.admin.photos(count))),
+const maxPhotosOptions = (text: UiText): readonly SelectOption[] => [
+  { value: NO_LIMIT, label: text.admin.maxPhotosUnlimited },
+  ...[10, 25, 50, 100].map((count) => asOption(count, text.admin.photos(count))),
 ]
 
 /**
@@ -92,6 +111,10 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.theme.fonts,
     settings.theme.frame,
     settings.theme.material,
+    // The wall's language (roadmap 1.5). Flattened like the theme, and for the same
+    // reason: a host who changed only this would otherwise have their unsaved choice
+    // survive a background refresh that moved it underneath them.
+    settings.wallLanguage,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
@@ -102,18 +125,24 @@ const scheduleIdentity = (event: EventDto): string =>
  * value it cannot read, which falls through to "no schedule" rather than printing
  * something meaningless under the fields.
  */
-const scheduleSummary = (event: EventDto): string => {
-  const opensAt = event.scheduledOpenAt === null ? null : formatDateTime(event.scheduledOpenAt)
-  const closesAt = event.scheduledCloseAt === null ? null : formatDateTime(event.scheduledCloseAt)
+const scheduleSummary = (event: EventDto, text: UiText, locale: Locale): string => {
+  const opensAt =
+    event.scheduledOpenAt === null ? null : formatDateTime(event.scheduledOpenAt, locale)
+  const closesAt =
+    event.scheduledCloseAt === null ? null : formatDateTime(event.scheduledCloseAt, locale)
 
-  if (opensAt !== null && closesAt !== null) return fr.admin.scheduleArmed(opensAt, closesAt)
-  if (opensAt !== null) return fr.admin.scheduleOpensOnly(opensAt)
-  if (closesAt !== null) return fr.admin.scheduleClosesOnly(closesAt)
-  return fr.admin.scheduleNone
+  if (opensAt !== null && closesAt !== null) return text.admin.scheduleArmed(opensAt, closesAt)
+  if (opensAt !== null) return text.admin.scheduleOpensOnly(opensAt)
+  if (closesAt !== null) return text.admin.scheduleClosesOnly(closesAt)
+  return text.admin.scheduleNone
 }
 
 /** Surface: the host's laptop, before the event rather than during it. */
 export function EventSettingsPage() {
+  const t = useTranslations()
+  // A date is read differently in each of the five: 20/06/26 and 6/20/26 are the same
+  // instant and opposite readings, and this page is where a host confirms a schedule.
+  const { locale } = useLocale()
   const { slug = '' } = useParams()
   const { data: event, loading, error, reload, replace } = useEvent(slug)
   const save = useSaveSettings()
@@ -169,8 +198,8 @@ export function EventSettingsPage() {
    * refresh — including a failed one — precisely so this can be a data check.
    */
   if (event === null || draft === null) {
-    if (loading) return <Pending label={fr.admin.eventLoading} />
-    return <LoadFailure message={error ?? fr.errors.unknown} onRetry={reload} as="h1" />
+    if (loading) return <Pending label={t.admin.eventLoading} />
+    return <LoadFailure message={error ?? t.errors.unknown} onRetry={reload} as="h1" />
   }
 
   const readOnly = !isMutable(event.status)
@@ -188,7 +217,7 @@ export function EventSettingsPage() {
         return
       }
       replace(result.value)
-      toast.show(fr.admin.settingsSaved, { tone: 'success' })
+      toast.show(t.admin.settingsSaved, { tone: 'success' })
     })
   }
 
@@ -218,7 +247,7 @@ export function EventSettingsPage() {
           return
         }
         replace(result.value)
-        toast.show(fr.admin.scheduleSaved, { tone: 'success' })
+        toast.show(t.admin.scheduleSaved, { tone: 'success' })
       })
   }
 
@@ -232,7 +261,7 @@ export function EventSettingsPage() {
    */
   const earliest = toLocalInput(new Date().toISOString())
   const discardedAt =
-    event.scheduleDiscardedAt === null ? null : formatDateTime(event.scheduleDiscardedAt)
+    event.scheduleDiscardedAt === null ? null : formatDateTime(event.scheduleDiscardedAt, locale)
 
   const grace = String(settings.guestSelfDeleteGraceSeconds)
   const retention = settings.retentionDays === null ? NO_LIMIT : String(settings.retentionDays)
@@ -241,12 +270,12 @@ export function EventSettingsPage() {
 
   return (
     <div className={styles['page']}>
-      <h1 className={styles['title']}>{fr.admin.settings}</h1>
+      <h1 className={styles['title']}>{t.admin.settings}</h1>
       <p>
         <Link to={`/admin/events/${event.slug}`}>{event.name}</Link>
       </p>
 
-      {readOnly ? <p className={styles['notice']}>{fr.admin.settingsReadOnly}</p> : null}
+      {readOnly ? <p className={styles['notice']}>{t.admin.settingsReadOnly}</p> : null}
 
       {/*
         A refresh that failed while the host was reading. The page keeps the answer it
@@ -264,7 +293,7 @@ export function EventSettingsPage() {
 
       <form className={styles['form']} onSubmit={handleSubmit} noValidate>
         <fieldset className={styles['group']}>
-          <legend className={styles['legend']}>{fr.admin.moderationMode}</legend>
+          <legend className={styles['legend']}>{t.admin.moderationMode}</legend>
           {(['manual', 'auto'] as const).map((mode) => (
             <label key={mode} className={styles['choice']}>
               <input
@@ -276,7 +305,7 @@ export function EventSettingsPage() {
                 disabled={readOnly}
                 onChange={() => update({ moderation: mode })}
               />
-              {mode === 'manual' ? fr.admin.moderationManual : fr.admin.moderationAuto}
+              {mode === 'manual' ? t.admin.moderationManual : t.admin.moderationAuto}
             </label>
           ))}
         </fieldset>
@@ -293,20 +322,20 @@ export function EventSettingsPage() {
               <span className={styles['warningGlyph']}>
                 <StatusIcon tone="warning" />
               </span>
-              {fr.admin.moderationAutoWarning}
+              {t.admin.moderationAutoWarning}
             </p>
           ) : null}
         </div>
 
         <CheckboxField
-          label={fr.admin.allowCaptions}
+          label={t.admin.allowCaptions}
           checked={settings.allowCaptions}
           disabled={readOnly}
           onChange={(allowCaptions) => update({ allowCaptions })}
         />
 
         <CheckboxField
-          label={fr.admin.allowReactions}
+          label={t.admin.allowReactions}
           checked={settings.allowReactions}
           disabled={readOnly}
           onChange={(allowReactions) => update({ allowReactions })}
@@ -323,44 +352,68 @@ export function EventSettingsPage() {
           reach that state from any screen at all.
         */}
         <CheckboxField
-          label={fr.admin.allowClips}
-          hint={fr.admin.allowClipsHint}
+          label={t.admin.allowClips}
+          hint={t.admin.allowClipsHint}
           checked={settings.allowClips}
           disabled={readOnly}
           onChange={(allowClips) => update({ allowClips })}
         />
 
         <CheckboxField
-          label={fr.admin.allowGuestSelfDelete}
+          label={t.admin.allowGuestSelfDelete}
           checked={settings.allowGuestSelfDelete}
           disabled={readOnly}
           onChange={(allowGuestSelfDelete) => update({ allowGuestSelfDelete })}
         />
 
         <SelectField
-          label={fr.admin.selfDeleteGrace}
-          hint={fr.admin.selfDeleteGraceHint}
+          label={t.admin.selfDeleteGrace}
+          hint={t.admin.selfDeleteGraceHint}
           value={grace}
-          options={withCurrent(GRACE_OPTIONS, grace, graceLabel)}
+          options={withCurrent(graceOptions(t), grace, (seconds) => graceLabel(seconds, t))}
           disabled={readOnly || !settings.allowGuestSelfDelete}
           onChange={(value) => update({ guestSelfDeleteGraceSeconds: Number.parseInt(value, 10) })}
         />
 
         <SelectField
-          label={fr.admin.retention}
-          hint={fr.admin.retentionHint}
+          label={t.admin.retention}
+          hint={t.admin.retentionHint}
           value={retention}
-          options={withCurrent(RETENTION_OPTIONS, retention, fr.admin.retentionDays)}
+          options={withCurrent(retentionOptions(t), retention, t.admin.retentionDays)}
           disabled={readOnly}
           onChange={(value) => update({ retentionDays: numberOrNull(value) })}
         />
 
         <SelectField
-          label={fr.admin.maxPhotosPerGuest}
+          label={t.admin.maxPhotosPerGuest}
           value={maxPhotos}
-          options={withCurrent(MAX_PHOTOS_OPTIONS, maxPhotos, fr.admin.photos)}
+          options={withCurrent(maxPhotosOptions(t), maxPhotos, t.admin.photos)}
           disabled={readOnly}
           onChange={(value) => update({ maxPhotosPerGuest: numberOrNull(value) })}
+        />
+
+        {/*
+          What the room's screen says, and in which language (roadmap 1.5).
+
+          Beside the appearance rather than beside the guest switches, because it is the
+          same kind of decision — what the projector looks like — and because it changes
+          nothing a guest may do. The options are endonyms and there is no flag: a flag is
+          a country and Spanish is not Spain, which is the rule the guest's own picker
+          states.
+        */}
+        <SelectField
+          label={t.admin.wallLanguage}
+          hint={t.admin.wallLanguageHint}
+          value={settings.wallLanguage}
+          options={LANGUAGE_OPTIONS}
+          disabled={readOnly}
+          onChange={(value) => {
+            // Parsed rather than cast, as the guest's picker parses its own `<select>`:
+            // the value comes back as a bare string, and a control an extension rewrote
+            // must not send the server a tag nothing has a table for.
+            const chosen = parseLocale(value)
+            if (chosen !== null) update({ wallLanguage: chosen })
+          }}
         />
 
         {/*
@@ -385,7 +438,7 @@ export function EventSettingsPage() {
 
         <div className={styles['actions']}>
           <Button type="submit" variant="primary" loading={save.busy} disabled={readOnly}>
-            {fr.app.save}
+            {t.app.save}
           </Button>
         </div>
       </form>
@@ -396,8 +449,8 @@ export function EventSettingsPage() {
         find it among the checkboxes.
       */}
       <form className={styles['form']} onSubmit={handleScheduleSubmit} noValidate>
-        <h2 className={styles['sectionTitle']}>{fr.admin.schedule}</h2>
-        <p className={styles['sectionHint']}>{fr.admin.scheduleHint}</p>
+        <h2 className={styles['sectionTitle']}>{t.admin.schedule}</h2>
+        <p className={styles['sectionHint']}>{t.admin.scheduleHint}</p>
 
         {/*
           The sweep threw a schedule away while nobody was watching. The fields below
@@ -409,12 +462,12 @@ export function EventSettingsPage() {
             <span className={styles['warningGlyph']}>
               <StatusIcon tone="warning" />
             </span>
-            {fr.admin.scheduleDiscarded(discardedAt)}
+            {t.admin.scheduleDiscarded(discardedAt)}
           </p>
         )}
 
         <DateTimeField
-          label={fr.admin.scheduleOpenAt}
+          label={t.admin.scheduleOpenAt}
           value={schedule.open}
           min={earliest}
           disabled={readOnly}
@@ -422,8 +475,8 @@ export function EventSettingsPage() {
         />
 
         <DateTimeField
-          label={fr.admin.scheduleCloseAt}
-          hint={fr.admin.scheduleCloseAtHint}
+          label={t.admin.scheduleCloseAt}
+          hint={t.admin.scheduleCloseAtHint}
           value={schedule.close}
           min={earliest}
           disabled={readOnly}
@@ -431,7 +484,7 @@ export function EventSettingsPage() {
         />
 
         {/* What is actually armed on the server, not what is typed in the fields. */}
-        <p className={styles['notice']}>{scheduleSummary(event)}</p>
+        <p className={styles['notice']}>{scheduleSummary(event, t, locale)}</p>
 
         {scheduleFailure === null ? null : (
           <p className={styles['failure']} role="alert">
@@ -444,7 +497,7 @@ export function EventSettingsPage() {
 
         <div className={styles['actions']}>
           <Button type="submit" variant="primary" loading={saveSchedule.busy} disabled={readOnly}>
-            {fr.admin.scheduleSave}
+            {t.admin.scheduleSave}
           </Button>
         </div>
       </form>

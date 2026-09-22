@@ -13,6 +13,14 @@ export type ModerationDecision = 'publish' | 'reject' | 'hide'
 export type ReactionKind = 'love' | 'laugh' | 'wow' | 'cheers' | 'clap'
 export type WallLayout = 'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'collage' | 'split'
 /**
+ * The language an event's projected wall speaks (roadmap 1.5).
+ *
+ * The same five tags as `SUPPORTED_LOCALES`, written out again rather than imported: this
+ * file is the **wire**, and the wire must not change shape because the app added or
+ * dropped a table. `parseLocale` is the join, and the only place either knows the other.
+ */
+export type EventLanguage = 'fr' | 'de' | 'en' | 'es' | 'it'
+/**
  * What `GET /media/:photoId/:variant` will serve.
  *
  * The clip pair is here because a clip is a facet of a photo and not a parallel thing:
@@ -60,6 +68,15 @@ export type ThemeMaterial = 'glass' | 'plain'
  * see `src/domain/events/eventTemplate.ts` for why that is the wrong product.
  */
 export type EventTemplateKey = 'wedding' | 'birthday' | 'conference' | 'party'
+
+/**
+ * Who one of the host's prompts is asked of (roadmap §2.1).
+ *
+ * `guest` is answered once per guest — "un selfie avec les mariés", which two hundred
+ * people can each do. `event` is answered once for the room — "la première danse", which
+ * happens once, and which one guest's photograph therefore ticks for everybody.
+ */
+export type MissionScope = 'guest' | 'event'
 
 /**
  * How one event looks, as three settled choices rather than as colours.
@@ -200,6 +217,44 @@ export interface WallResponse {
    * theming leaves the projector on the default look rather than crashing it.
    */
   readonly theme?: EventThemeDto
+  /**
+   * The host's prompts and how the room is answering them (roadmap §2.1).
+   *
+   * On this response rather than behind a second request, for the reason the theme is: a
+   * projector runs unattended, and one fetch that either arrives or does not beats two
+   * that can half-arrive. It is also what keeps the panel current without polling — the
+   * wall refetches this whole response on every signal on the event's channel.
+   *
+   * Optional, like `theme` and `joinCode` above: a server build that predates missions
+   * leaves the projector drawing no panel rather than crashing it. **An empty array
+   * means the same thing**, and is what nearly every event sends.
+   */
+  readonly missions?: readonly WallMissionDto[]
+  /**
+   * The language this screen renders its own words in (roadmap 1.5).
+   *
+   * Optional here and required on the server, which is not an inconsistency: this is the
+   * client's reading of a wire it does not control, and a projector left open across a
+   * rollback must render French rather than crash. `WallPage` narrows it through
+   * `parseLocale`, so a tag this build has no table for takes the same path as an absent
+   * one.
+   */
+  readonly wallLanguage?: EventLanguage
+}
+
+/**
+ * One prompt as the room sees it.
+ *
+ * `scope` is the only field that changes a pixel here: a once-for-the-evening prompt is
+ * drawn with a tick, a per-guest one with `completedByGuests`, because a tick would be
+ * wrong for something two hundred people can each answer.
+ */
+export interface WallMissionDto {
+  readonly id: string
+  readonly prompt: string
+  readonly scope: MissionScope
+  readonly achieved: boolean
+  readonly completedByGuests: number
 }
 
 /** `duplicate` is a success: the same bytes already exist in this event. */
@@ -294,6 +349,12 @@ export interface EventSettingsDto {
   readonly maxPhotosPerGuest: number | null
   /** The host's own copy: what the picker on the settings form is showing. */
   readonly theme: EventThemeDto
+  /**
+   * The language the projected wall speaks (roadmap 1.5). Here and deliberately **not** on
+   * `PublicEventDto`: a client that preferred it over a guest's own choice would be doing
+   * the single thing this field must never do.
+   */
+  readonly wallLanguage: EventLanguage
 }
 
 export interface EventSummaryDto {
@@ -343,6 +404,45 @@ export interface GuestDto {
 export interface GuestListResponse {
   readonly items: readonly GuestDto[]
   readonly activeCount: number
+}
+
+/**
+ * One of the host's prompts on the host's own console (roadmap §2.1).
+ *
+ * The three numbers are counted over published photographs on every read, never stored —
+ * which is what makes them fall again the moment a host takes a photograph down.
+ */
+export interface MissionDto {
+  readonly id: string
+  /** As the host typed it. Content, never interface copy: nothing translates it. */
+  readonly prompt: string
+  readonly scope: MissionScope
+  readonly achieved: boolean
+  readonly publishedPhotos: number
+  readonly completedByGuests: number
+}
+
+export interface MissionListResponse {
+  readonly items: readonly MissionDto[]
+}
+
+/**
+ * One row of the guest's checklist, and what it leaves out is the point.
+ *
+ * No counts: a guest needs to know whether there is still something for *them* to do,
+ * and how many other people have done it is a scoreboard — which §7 of the roadmap rules
+ * out, and which the cheapest way to build by accident is to ship the numbers and let a
+ * screen find a use for them.
+ */
+export interface GuestMissionDto {
+  readonly id: string
+  readonly prompt: string
+  readonly scope: MissionScope
+  readonly done: boolean
+}
+
+export interface GuestMissionListResponse {
+  readonly items: readonly GuestMissionDto[]
 }
 
 export interface ModeratorDto {

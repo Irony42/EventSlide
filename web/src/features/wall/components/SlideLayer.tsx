@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { WallItemDto } from '../../../lib/api/dto'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { photoAlt } from '../photoAlt'
 import { PhotoPreload } from './PhotoPreload'
 import { WallMedia } from './WallMedia'
@@ -89,6 +90,7 @@ export function SlideLayer({
   caption,
   plays = false,
 }: SlideLayerProps) {
+  const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
 
   /** The two ways the zoom is declined, in one value the attribute and the style share. */
@@ -154,7 +156,7 @@ export function SlideLayer({
                 paused={!isFront}
                 // The outgoing copy is the same photo the front layer already named, on
                 // its way out, and is `aria-hidden` besides.
-                alt={isFront ? photoAlt(item) : ''}
+                alt={isFront ? photoAlt(item, text) : ''}
                 className={styles['image'] ?? ''}
               />
             ) : null}

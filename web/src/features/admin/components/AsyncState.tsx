@@ -4,7 +4,7 @@ import {
   type EmptyStateHeadingLevel,
 } from '../../../design-system/components/EmptyState'
 import { Spinner } from '../../../design-system/components/Spinner'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './AsyncState.module.css'
 
 export interface PendingProps {
@@ -22,7 +22,7 @@ export function Pending({ label }: PendingProps) {
 }
 
 export interface LoadFailureProps {
-  /** The server's own verdict, in French. */
+  /** The server's own verdict, in the language the host is reading. */
   readonly message: string
   readonly onRetry: () => void
   readonly as?: EmptyStateHeadingLevel
@@ -36,15 +36,17 @@ export interface LoadFailureProps {
  * waiting reloaded, then rebooted.
  */
 export function LoadFailure({ message, onRetry, as = 'h2' }: LoadFailureProps) {
+  const t = useTranslations()
+
   return (
     <EmptyState
       role="alert"
       as={as}
-      title={fr.admin.loadFailed}
+      title={t.admin.loadFailed}
       description={message}
       action={
         <Button variant="primary" onClick={onRetry}>
-          {fr.app.retry}
+          {t.app.retry}
         </Button>
       }
     />

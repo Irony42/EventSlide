@@ -92,7 +92,7 @@ the administration of it.
 | On the next **request**                             | What answers, and how                                                                                                                                                              |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | every event-scoped route                            | `roleFor` answers `null`, so `requireRole` gives the **404** a non-member gets. Byte for byte the same body, so the refusal reveals nothing                                        |
-| every use case that checks an actor for itself      | the same answer, because the sixteen of them ask the same port method — including `registerModerator`, which is how a disabled owner used to mint a fresh **enabled** account      |
+| every use case that checks an actor for itself      | the same answer, because the nineteen of them ask the same port method — including `registerModerator`, which is how a disabled owner used to mint a fresh **enabled** account     |
 | `GET`/`POST /api/events`, `POST /api/auth/password` | `requireUser` reads `UserRepository.isActive` and answers **401 `auth.required`**, the same as no session at all. These routes name no event, so no role lookup would have noticed |
 | the operator's own surface                          | `siteRoleFor` already answered `none`; unchanged                                                                                                                                   |
 | the login form                                      | `authenticateUser` refuses with `auth.invalidCredentials`, after the hash comparison so a switched-off account stays unobservable                                                  |
@@ -1333,7 +1333,7 @@ where that observation led. See §2 and §14.7.
 > true now; §2 "Disabling an account" is the current contract and this entry is kept as the
 > record of what was found. What changed: the two authorization reads answer it — `roleFor`
 > returns `null` for a disabled account exactly as `siteRoleFor` returns `none`, which
-> closes `requireRole` **and** the sixteen use cases that ask an actor's role for
+> closes `requireRole` **and** the nineteen use cases that ask an actor's role for
 > themselves, `registerModerator` among them; `requireUser` reads
 > `UserRepository.isActive` for the routes that name no event; and `enforceSessionAge`
 > gives the session an absolute 7-day cap, so the window is bounded even where nothing

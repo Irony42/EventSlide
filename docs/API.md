@@ -353,9 +353,54 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
   "kenBurnsDurationMs": 8800,
   "layout": "spotlight",
   "reactionsEnabled": true,
-  "theme": { "accentHue": 345, "fonts": "serif", "frame": "round", "material": "glass" }
+  "theme": {
+    "accentHue": 345,
+    "fonts": "serif",
+    "frame": "round",
+    "material": "glass"
+  },
+  "missions": [
+    {
+      "id": "…",
+      "prompt": "un selfie avec les mariés",
+      "scope": "guest",
+      "achieved": true,
+      "completedByGuests": 12
+    }
+  ],
+  "wallLanguage": "fr"
 }
 ```
+
+`missions` is the host's prompt list (roadmap §2.1) and is **empty for most events**, which
+is what stops the wall drawing a panel at all. It rides here rather than behind a second
+request for the reason `theme` does: a projector runs unattended, and one fetch that either
+arrives or does not beats two that can half-arrive.
+
+Each row carries what the room draws and nothing else. `achieved` is true once **one
+published photograph** names the mission — counted on every read, never stored, so a
+photograph the host takes down stops counting on the next refresh. `scope` decides how a
+row is drawn: `event` is a prompt answered once for the room and shows a tick, `guest` is
+answered once per guest and shows `completedByGuests`. There is deliberately no "answered
+at", so nothing here can drive a per-completion celebration — see §2.1's entry in the
+roadmap for why that was declined.
+
+`wallLanguage` is the language **this screen renders its own words in** (roadmap §1.5) —
+one of `"fr" | "de" | "en" | "es" | "it"`. It is a setting on the event, and it is here
+for the same reason `theme` is: the projector must not paint a frame in one language and
+repaint in another.
+
+It is the one surface that is **told** rather than asked. A guest's phone and a host's
+browser each negotiate their own language; a projector has nobody in front of it, its
+`navigator.languages` is the language of whichever machine the venue had in a cupboard,
+and a stored preference there belongs to one phone out of two hundred. Unlike `layout`,
+which genuinely belongs to the screen and is chosen with `?layout=`, this must not differ
+between two projectors in one room — so there is deliberately **no `?lang=`**.
+
+What it does **not** describe is the language of the event's _content_. The captions, the
+display names and the mission prompts on this same response are what people wrote, and
+nothing translates them: a wall set to `de` prints German labels around French prompts,
+which is the right way round.
 
 `theme` is here and not behind a second request for the reason the timings are: the wall
 must not paint a frame in the product's colours and then repaint in the host's. A
@@ -416,10 +461,11 @@ All of these require the `es_guest` cookie, scoped to the event in the path.
 
 `multipart/form-data`:
 
-| Field     |                                                |
-| --------- | ---------------------------------------------- |
-| `photos`  | 1..`maxFilesPerUpload` files                   |
-| `caption` | optional, applies to every file in the request |
+| Field       |                                                            |
+| ----------- | ---------------------------------------------------------- |
+| `photos`    | 1..`maxFilesPerUpload` files                               |
+| `caption`   | optional, applies to every file in the request             |
+| `missionId` | optional uuid, applies to every file in the request (§2.1) |
 
 **201** — a per-file outcome, so a guest whose third photo failed is told which one
 rather than handed one opaque error for the batch:
@@ -468,6 +514,17 @@ empty `results` array would tell a guest whose picker silently failed that their
 worked. `400 upload.unexpectedField` when a file arrives under any other field name, and
 `400 upload.rejected` for multer's remaining refusals (too many text fields, an
 oversized field name or value).
+`400 request.invalid` when `missionId` is not a uuid.
+
+A well-formed `missionId` that names no prompt **of this event** is **not** an error: the
+photographs are stored **untagged** and the tag is dropped, with a line in the server's
+log. The bytes were never the problem — the identical request is accepted with the tag
+left off — and a refusal does not stay in the guest's hands: an upload queued on venue
+Wi-Fi replays through the outbox, where a refusal on its merits removes the entry from the
+device. A host correcting a typo on the mission list would otherwise have deleted three
+photographs off a phone whose owner had put it away. Nothing is silently lost either: the
+guest's checklist is re-read after every settled batch, and the row the tag named is gone
+from it.
 
 > Until this audit the per-guest cap was documented here as `403 photo.tooManyForGuest`.
 > The server has never sent that code: it sends `event.photoLimitReached`, and the
@@ -506,6 +563,51 @@ shape and `null`-valued on a photograph rather than absent — so no client test
 missing key. When `kind` is `"clip"`, **`thumbUrl` points at the poster frame**, which is
 what lets a client that has never heard of video render a still rather than a broken
 image; `videoUrl` is the mp4, and it is the URL that answers `Range` requests (§4).
+
+### `GET /api/events/:slug/missions/mine`
+
+The guest's checklist (roadmap §2.1): the host's prompts, and which of them **this guest**
+has left to do. One read, because the screen that says there is something to do is fetched
+on a saturated access point before the guest has taken a single photograph.
+
+`Cache-Control: no-store`, for the reason `photos/mine` carries it: this is the view a
+guest reloads to find out whether their photograph counted.
+
+**200**
+
+```json
+{
+  "items": [
+    {
+      "id": "…",
+      "prompt": "un selfie avec les mariés",
+      "scope": "guest",
+      "done": false
+    },
+    { "id": "…", "prompt": "la première danse", "scope": "event", "done": true }
+  ]
+}
+```
+
+`done` is the only computed field and `scope` is what computes it. A `guest` prompt is done
+once **this guest's own** published photograph names it — a checklist that ticked itself
+because somebody across the room had already sent a selfie would remove the only thing this
+feature adds. An `event` prompt is done for everybody once **anybody's** published
+photograph names it, because "la première danse" happens once and leaving a hundred and
+ninety-nine checklists open for it asks the room to photograph a moment that is over.
+
+Only a **published** photograph counts, on both. A photograph a guest tagged and a
+moderator then refused, hid or deleted was never counted and needs nothing to un-count it.
+
+What is **not** here: any count of what other guests have done. A guest needs to know
+whether there is something left for them; how many other people have done it is a
+scoreboard, and §7 of the roadmap rules out social features between guests. The wall
+carries `completedByGuests` because the room draws a number there; a phone does not.
+
+Empty for the overwhelming majority of events, which set no prompts.
+
+**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.wrongEvent`;
+`403 guest.revoked`; `404 event.notFound`.
 
 ### `POST /api/events/:slug/clips`
 
@@ -947,7 +1049,8 @@ the reason below:
   "slug": "camille-et-sacha",
   "startsAt": null,
   "quotaBytes": null,
-  "template": "wedding"
+  "template": "wedding",
+  "wallLanguage": "fr"
 }
 ```
 
@@ -957,7 +1060,15 @@ slug I got" happens. `startsAt` is an ISO-8601 string or `null`; `quotaBytes` is
 positive integer or `null`, and `null` or absent takes the configured default. **201**
 with the full event including its join code.
 
-**Errors** — `409 event.slugTaken`, `400 eventName.*`, `400 slug.*`.
+`wallLanguage` is optional, one of `"fr" | "de" | "en" | "es" | "it"`, and absent means
+French. The host console sends the language its operator is reading at that moment, which
+is the only signal anybody has about a screen nobody will be holding — and it is a
+**snapshot**: nothing re-reads that preference afterwards, so a host who later switches
+their own browser has not moved a projector in a room. `PATCH /settings` is where it
+changes deliberately.
+
+**Errors** — `409 event.slugTaken`, `400 eventName.*`, `400 slug.*`,
+`400 request.invalid` for a language outside the five.
 
 #### `template` — what the settings start from
 
@@ -1036,7 +1147,13 @@ The shape every route in the table that answers `200` returns.
     "guestSelfDeleteGraceSeconds": 900,
     "retentionDays": 30,
     "maxPhotosPerGuest": null,
-    "theme": { "accentHue": 305, "fonts": "sans", "frame": "soft", "material": "glass" }
+    "theme": {
+      "accentHue": 305,
+      "fonts": "sans",
+      "frame": "soft",
+      "material": "glass"
+    },
+    "wallLanguage": "fr"
   },
   "startsAt": null,
   "closedAt": null,
@@ -1086,21 +1203,28 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
   "guestSelfDeleteGraceSeconds": 900,
   "retentionDays": 30,
   "maxPhotosPerGuest": 20,
-  "theme": { "accentHue": 345, "fonts": "serif", "frame": "round", "material": "glass" }
+  "theme": {
+    "accentHue": 345,
+    "fonts": "serif",
+    "frame": "round",
+    "material": "glass"
+  },
+  "wallLanguage": "de"
 }
 ```
 
-| Field                         | Accepted                                   |
-| ----------------------------- | ------------------------------------------ |
-| `moderation`                  | `manual` \| `auto`                         |
-| `allowCaptions`               | boolean                                    |
-| `allowReactions`              | boolean                                    |
-| `allowClips`                  | boolean — see below                        |
-| `allowGuestSelfDelete`        | boolean                                    |
-| `guestSelfDeleteGraceSeconds` | integer 0..86400                           |
-| `retentionDays`               | integer 1..3650, or `null` for "keep"      |
-| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"   |
-| `theme`                       | object — all four keys required, see below |
+| Field                         | Accepted                                         |
+| ----------------------------- | ------------------------------------------------ |
+| `moderation`                  | `manual` \| `auto`                               |
+| `allowCaptions`               | boolean                                          |
+| `allowReactions`              | boolean                                          |
+| `allowClips`                  | boolean — see below                              |
+| `allowGuestSelfDelete`        | boolean                                          |
+| `guestSelfDeleteGraceSeconds` | integer 0..86400                                 |
+| `retentionDays`               | integer 1..3650, or `null` for "keep"            |
+| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"         |
+| `theme`                       | object — all four keys required, see below       |
+| `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below |
 
 `allowClips` is `true` for an event **created** after video shipped and `false` for one
 that existed before it. The two are deliberately different: an event created today is
@@ -1115,6 +1239,29 @@ the feature exists for. Note also that the first save of **any** setting on such
 writes `allowClips: false` into its blob, after which it is indistinguishable from a host
 who chose no — which is why the checkbox ships in the same form as every other setting
 rather than behind one of its own.
+
+#### `wallLanguage` — what language the room's screen speaks
+
+One of `"fr" | "de" | "en" | "es" | "it"`, a partial update like every field above it
+except `theme`: absent leaves it alone. Defaulted at creation to the language the host
+was reading (`POST /api/events`), and never re-read from anybody's preference afterwards.
+
+It reaches **one surface**. The guest's phone and the host's own console each negotiate
+their own language from the browser and ignore this entirely, which is what makes a French
+host running an English-speaking conference representable: they set the wall to English,
+write their prompts in English, and go on reading their console in French.
+
+It is deliberately **not** a statement about what language the event's _content_ is in. A
+caption is written by whichever guest wrote it, and two hundred guests do not share a
+language even when the host does, so no single field could be true about them — and a
+field that claimed to would be the thing a later change built a translation of a guest's
+caption on. Event names, captions, display names and mission prompts are shown exactly as
+typed, on every surface, in every language.
+
+A value outside the five is `400 request.invalid`, and that refusal is load-bearing rather
+than tidy: the client resolves this tag against its own copy table, so a tag it has no
+words for would put a projector on the fallback language for eight hours while the settings
+page showed the host the tag they chose.
 
 #### `theme` — how the event looks
 
@@ -1501,6 +1648,92 @@ password.
 **204**. The last owner is refused by the use case rather than the handler: an event left
 unowned has no route back, since inviting is itself an owner's action.
 **Errors** — `409 membership.lastOwner`, `404 membership.notFound`.
+
+### `GET /api/events/:slug/missions`
+
+The host's prompt list (roadmap §2.1), with how the room is answering it.
+**`moderator`**, unlike the three that follow: knowing that nobody has photographed the
+cake yet is what a moderator standing at a laptop mid-evening actually wants, and telling
+them costs the event nothing. Writing the sentence two hundred people read off a projector
+is the owner's.
+
+No paging: an event may hold at most **12** prompts, so the whole list is the page.
+
+**200**
+
+```json
+{
+  "items": [
+    {
+      "id": "…",
+      "prompt": "un selfie avec les mariés",
+      "scope": "guest",
+      "achieved": true,
+      "publishedPhotos": 17,
+      "completedByGuests": 12
+    }
+  ]
+}
+```
+
+All three numbers are counted over **published** photographs on every read and none of
+them is stored, which is what makes them fall again the moment a host takes a photograph
+down. `completedByGuests` counts distinct guests rather than photographs — a guest who
+sent four selfies did the mission once — and a host's own upload counts towards
+`publishedPhotos` and towards nobody's guest tally.
+
+The photographs themselves are **not** here. A mission's photographs are ordinary
+photographs, already in the queue and the gallery; §2.1 says they stay that way.
+
+### `POST /api/events/:slug/missions`
+
+**`owner`**. `{ "prompt": "…", "scope": "guest" | "event" }`, both required.
+
+**201** with the row, which is a fact rather than a convenience: a freshly created prompt
+has no photographs by construction, so its three numbers are genuinely zero.
+
+**Errors** — `400 mission.promptEmpty` (nothing visible survives sanitising),
+`400 mission.promptTooLong` (over 60 characters after it), `400 request.invalid` (a scope
+outside the set, or a key this contract does not have — the body is `.strict()`),
+`409 mission.duplicate` when this event already holds that prompt, `409 mission.limitReached`
+with `details.max` when the event already holds twelve, `409 event.immutable` on an archived
+event, `403 auth.forbidden` for a moderator, `404 event.notFound` for anybody else.
+
+A prompt is **content**, not interface copy: it is stored as the host typed it, in whatever
+language the event is held in, and nothing translates it. It is folded to one line and
+stripped of invisible characters (bidirectional overrides, zero-width padding) before it is
+stored, because it reaches a projector in front of two hundred people. Markup is _not_
+stripped — React escapes on render, and a sanitiser here would eat a host writing "3 < 4".
+
+### `PATCH /api/events/:slug/missions/:missionId`
+
+**`owner`**. The same body as the create, **both fields every time** — the shape
+`PATCH /events/:slug/schedule` already has, and for the same reason: they are one decision
+made on one row of one form, and a partial update would let a scope be persisted beside a
+prompt the server refused.
+
+**204**, where the create answers 201 with the row. An edit changes a prompt and a scope and
+touches no photograph, so nothing re-counts them; padding the response with zeros to keep
+the two shapes matching would put a false number on the wire. The console refetches the
+list, which it is doing anyway on the `mission.changed` signal this publishes.
+
+This endpoint is why deleting and re-adding is the wrong way to fix a typo: a delete
+**unfiles** every photograph that named the mission, so the correction would silently take
+them out of the count they were already in. An edit keeps the id, so it keeps them.
+
+**Errors** — the create's, plus `404 mission.notFound` for a prompt that does not exist or
+belongs to another event, and `400 request.invalid` for a `:missionId` that is not a uuid.
+
+### `DELETE /api/events/:slug/missions/:missionId`
+
+**`owner`**. **204**.
+
+It removes a **prompt** and never a photograph. Every photograph filed under it is unfiled
+(`ON DELETE SET NULL` in the schema) and stays in the album, in the queue, in the export and
+on the wall exactly as it was.
+
+**Errors** — `404 mission.notFound` (including another event's), `409 event.immutable`,
+`403 auth.forbidden` for a moderator, `404 event.notFound` for anybody else.
 
 ### `GET /api/events/:slug/top-photos`
 

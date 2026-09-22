@@ -11,7 +11,7 @@ import {
   THEME_MATERIALS,
   type CuratedAccent,
 } from '../../../design-system/eventTheme'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { SelectField } from './SelectField'
 import styles from './ThemeFieldset.module.css'
 import type { EventThemeDto } from '../../../lib/api/dto'
@@ -46,37 +46,39 @@ export interface ThemeFieldsetProps {
   readonly onChange: (theme: EventThemeDto) => void
 }
 
-// The vocabulary comes from the design system, the wording from `lib/i18n/`. A list
-// derived from the copy table would make a reorganisation of that file reorder the
-// controls, and it would offer whatever key somebody added there rather than what the
-// server accepts.
-const fontOptions = THEME_FONTS.map((value) => ({
-  value,
-  label: fr.admin.themeFontsNames[value],
-}))
-
-const frameOptions = THEME_FRAMES.map((value) => ({
-  value,
-  label: fr.admin.themeFrameNames[value],
-}))
-
-const materialOptions = THEME_MATERIALS.map((value) => ({
-  value,
-  label: fr.admin.themeMaterialNames[value],
-}))
-
 export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps) {
+  const t = useTranslations()
   const selected: CuratedAccent | null = accentNameFor(theme.accentHue)
+
+  // The vocabulary comes from the design system, the wording from `lib/i18n/`. A list
+  // derived from the copy table would make a reorganisation of that file reorder the
+  // controls, and it would offer whatever key somebody added there rather than what the
+  // server accepts. Built here rather than at module load because the wording follows
+  // the reader's language, which is not known until something renders.
+  const fontOptions = THEME_FONTS.map((value) => ({
+    value,
+    label: t.admin.themeFontsNames[value],
+  }))
+
+  const frameOptions = THEME_FRAMES.map((value) => ({
+    value,
+    label: t.admin.themeFrameNames[value],
+  }))
+
+  const materialOptions = THEME_MATERIALS.map((value) => ({
+    value,
+    label: t.admin.themeMaterialNames[value],
+  }))
 
   return (
     <fieldset className={styles['group']}>
-      <legend className={styles['legend']}>{fr.admin.theme}</legend>
-      <p className={styles['hint']}>{fr.admin.themeHint}</p>
+      <legend className={styles['legend']}>{t.admin.theme}</legend>
+      <p className={styles['hint']}>{t.admin.themeHint}</p>
 
       <fieldset className={styles['colours']} data-testid="theme-accents">
         {/* Nested, so the radio group has a name of its own for a screen reader:
             "Apparence, Couleur, Rose" is what a host hears, not four unattached radios. */}
-        <legend className={styles['legend']}>{fr.admin.themeAccent}</legend>
+        <legend className={styles['legend']}>{t.admin.themeAccent}</legend>
         {CURATED_ACCENT_NAMES.map((name) => (
           /*
             The whole row previews its own colour, and the marker is not decoration:
@@ -107,14 +109,14 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
             {/* The colour is never the only signal (DESIGN-SYSTEM.md section 8): the
                 swatch sits beside its name and the radio carries the state. */}
             <span className={styles['swatch']} aria-hidden="true" />
-            {fr.admin.themeAccentNames[name]}
+            {t.admin.themeAccentNames[name]}
           </label>
         ))}
       </fieldset>
 
       <SelectField
-        label={fr.admin.themeFonts}
-        hint={fr.admin.themeFontsHint}
+        label={t.admin.themeFonts}
+        hint={t.admin.themeFontsHint}
         value={theme.fonts}
         options={fontOptions}
         disabled={disabled}
@@ -124,7 +126,7 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
       />
 
       <SelectField
-        label={fr.admin.themeFrame}
+        label={t.admin.themeFrame}
         value={theme.frame}
         options={frameOptions}
         disabled={disabled}
@@ -141,8 +143,8 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
         because it is the least consequential of the four.
       */}
       <SelectField
-        label={fr.admin.themeMaterial}
-        hint={fr.admin.themeMaterialHint}
+        label={t.admin.themeMaterial}
+        hint={t.admin.themeMaterialHint}
         value={theme.material}
         options={materialOptions}
         disabled={disabled}

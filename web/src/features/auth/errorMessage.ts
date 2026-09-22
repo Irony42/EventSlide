@@ -1,14 +1,15 @@
 import { ApiError } from '../../lib/http'
-import { fr } from '../../lib/i18n/fr'
-import { messageForCode } from '../../lib/i18n/translations'
+import { messageForCode, type UiText } from '../../lib/i18n/translations'
 
 /**
  * A thrown value turned into a sentence a host can read.
  *
- * French, like the rest of the sign-in surface: only a host or an invited moderator ever
- * reaches a login form, and a guest has no account by construction. Anything that is not
- * an `ApiError` is a bug in this client, which the host can do nothing about beyond
- * retrying.
+ * In the reader's own language, like the rest of the sign-in surface: a moderator is
+ * invited by e-mail address and handed a temporary password, and nothing about that
+ * implies they read French. The table arrives as an argument because this is a plain
+ * function — the component or hook calling it is the one holding the context. Anything
+ * that is not an `ApiError` is a bug in this client, which the host can do nothing about
+ * beyond retrying.
  */
-export const errorMessage = (cause: unknown): string =>
-  cause instanceof ApiError ? messageForCode(cause.code, fr) : fr.errors.unknown
+export const errorMessage = (cause: unknown, text: UiText): string =>
+  cause instanceof ApiError ? messageForCode(cause.code, text) : text.errors.unknown

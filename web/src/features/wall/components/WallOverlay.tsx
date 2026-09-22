@@ -1,7 +1,7 @@
 import { Card } from '../../../design-system/components/Card'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
 import { IconButton } from '../../../design-system/components/IconButton'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { JoinQr } from './JoinQr'
 import styles from './WallOverlay.module.css'
 
@@ -22,12 +22,14 @@ export interface WallOverlayProps {
  * a host who walks up can put it away with Escape or with the button.
  */
 export function WallOverlay({ join, onDismiss }: WallOverlayProps) {
+  const text = useTranslations()
+
   return (
     <Card className={styles['overlay']}>
       <div className={styles['header']}>
-        <h2 className={styles['prompt']}>{fr.wall.joinPrompt}</h2>
+        <h2 className={styles['prompt']}>{text.wall.joinPrompt}</h2>
         <IconButton
-          aria-label={fr.wall.dismissJoinCard}
+          aria-label={text.wall.dismissJoinCard}
           icon={<CloseIcon />}
           variant="ghost"
           onClick={onDismiss}

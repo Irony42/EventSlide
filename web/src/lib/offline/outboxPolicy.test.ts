@@ -30,6 +30,7 @@ const anEntry = (overrides: Partial<OutboxEntry> = {}): OutboxEntry => ({
   fileName: 'confettis.jpg',
   fileType: 'image/jpeg',
   caption: null,
+  missionId: null,
   enqueuedAt: t,
   attempts: 0,
   lastAttemptAt: null,
@@ -155,6 +156,16 @@ describe('isTerminal', () => {
     // A host can raise a quota. The twelve-hour expiry is a kinder bound than deleting
     // on the first refusal.
     expect(isTerminal('event.quotaExceeded')).toBe(false)
+  })
+
+  it('does not give up because the mission tag names a prompt that is gone', () => {
+    // A host correcting a typo on the mission list deletes and re-adds a prompt in two
+    // clicks. The photographs a phone is holding for that prompt are perfectly acceptable
+    // without it, so this must never reach `store.remove()` — and it cannot, because the
+    // server does not send it any more: an upload whose tag it cannot resolve is stored
+    // untagged (roadmap §2.1). The case stays because a code that is absent from the list
+    // by accident and a code that is absent by decision look identical in the source.
+    expect(isTerminal('mission.notFound')).toBe(false)
   })
 
   it('keeps a photo refused with a code this build has never heard of', () => {

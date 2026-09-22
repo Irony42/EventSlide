@@ -6,6 +6,9 @@ import {
   type Page,
 } from '@playwright/test'
 import { startTestApp, type TestApp } from './startTestApp'
+import { SUITE_LOCALE } from './suiteLocale'
+import { SUPPORTED_LOCALES } from '../../../web/src/lib/i18n/locale'
+import { TRANSLATIONS, type UiText } from '../../../web/src/lib/i18n/translations'
 
 /**
  * One server per Playwright worker, torn down with it.
@@ -177,14 +180,20 @@ export const openSurfaces = async (browser: Browser, app: TestApp): Promise<Surf
   const guestContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     baseURL: app.baseUrl,
+    // Stated, not inherited. `use.locale` in `playwright.config.ts` reaches the `page`
+    // and `context` fixtures and **not** a manual `newContext()`, so these three were
+    // taking the language of whoever ran the suite. `suiteLocale.ts` has the argument.
+    locale: SUITE_LOCALE,
   })
   const hostContext = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     baseURL: app.baseUrl,
+    locale: SUITE_LOCALE,
   })
   const projectorContext = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     baseURL: app.baseUrl,
+    locale: SUITE_LOCALE,
     // The wall runs unattended; reduced motion is off so the crossfade and Ken Burns
     // are exercised as a room would see them.
     reducedMotion: 'no-preference',
@@ -227,6 +236,28 @@ export const openSurfaces = async (browser: Browser, app: TestApp): Promise<Surf
   }
 }
 
+/** A copy label is prose, and prose contains `?`, `(` and `.`. */
+const escapeForPattern = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+
+/**
+ * One label, in any of the five languages, as a single pattern.
+ *
+ * The sign-in form used to be French whatever the browser asked for, so the helper below
+ * could match `/Adresse e-mail/i` and be done. It is translated now, and
+ * `playwright.config.ts` pins the suite to `fr-FR` — so a spec that sets its own locale
+ * with `test.use({ locale })` and then signs in meets a German form and a French matcher,
+ * and fails on a timeout twenty lines from the cause. This branch built exactly that trap
+ * and walked into it the first time it wrote such a spec.
+ *
+ * Built from the tables rather than written out, so a reworded label cannot leave this
+ * matching a sentence the form no longer shows.
+ */
+const inAnyLanguage = (pick: (text: UiText) => string): RegExp =>
+  new RegExp(
+    SUPPORTED_LOCALES.map((locale) => escapeForPattern(pick(TRANSLATIONS[locale]))).join('|'),
+    'iu',
+  )
+
 /**
  * Signs a host in through the real login form.
  *
@@ -235,9 +266,9 @@ export const openSurfaces = async (browser: Browser, app: TestApp): Promise<Surf
  */
 export const signInAsHost = async (page: Page, app: TestApp): Promise<void> => {
   await page.goto(app.url('/login'))
-  await page.getByLabel(/Adresse e-mail/i).fill(app.owner.email)
-  await page.getByLabel(/Mot de passe/i).fill(app.owner.password)
-  await page.getByRole('button', { name: /Se connecter/i }).click()
+  await page.getByLabel(inAnyLanguage((text) => text.auth.email)).fill(app.owner.email)
+  await page.getByLabel(inAnyLanguage((text) => text.auth.password)).fill(app.owner.password)
+  await page.getByRole('button', { name: inAnyLanguage((text) => text.auth.submit) }).click()
   // Deliberately not `/\/admin/`: `/admin/password` matches that too, so a host stuck
   // behind the forced-rotation gate would satisfy the wait and then fail at whatever the
   // test asserted next, twenty lines away from the cause. The fixture rotates the

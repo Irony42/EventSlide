@@ -24,6 +24,7 @@ import type { DomainError } from '../../domain/shared/errors'
 import {
   asEventId,
   asGuestId,
+  asMissionId,
   asPhotoId,
   asUserId,
   type EventId,
@@ -60,7 +61,7 @@ const PHOTO_COLUMNS = `
   id, event_id, author_guest_id, author_user_id, status, content_hash,
   width, height, byte_size, caption, created_at,
   review_kind, reviewed_at, reviewed_by_user_id,
-  media_kind, duration_ms, poster_hash
+  media_kind, duration_ms, poster_hash, mission_id
 `
 
 const INSERT_PHOTO = `
@@ -68,12 +69,12 @@ const INSERT_PHOTO = `
     id, event_id, author_guest_id, author_user_id, status, content_hash,
     width, height, byte_size, caption, created_at,
     review_kind, reviewed_at, reviewed_by_user_id,
-    media_kind, duration_ms, poster_hash
+    media_kind, duration_ms, poster_hash, mission_id
   ) VALUES (
     @id, @event_id, @author_guest_id, @author_user_id, @status, @content_hash,
     @width, @height, @byte_size, @caption, @created_at,
     @review_kind, @reviewed_at, @reviewed_by_user_id,
-    @media_kind, @duration_ms, @poster_hash
+    @media_kind, @duration_ms, @poster_hash, @mission_id
   )
 `
 
@@ -148,7 +149,8 @@ const UPDATE_PHOTO = `
          reviewed_by_user_id = @reviewed_by_user_id,
          media_kind          = @media_kind,
          duration_ms         = @duration_ms,
-         poster_hash         = @poster_hash
+         poster_hash         = @poster_hash,
+         mission_id          = @mission_id
    WHERE id = @id AND event_id = @event_id
 `
 
@@ -172,6 +174,8 @@ interface PhotoRow {
   readonly media_kind: string
   readonly duration_ms: number | null
   readonly poster_hash: string | null
+  /** Which of the host's prompts this photograph answers (roadmap §2.1), or `null`. */
+  readonly mission_id: string | null
 }
 
 /** Named parameters, so one object binds both the insert and the update. */
@@ -193,6 +197,7 @@ interface PhotoBindings {
   readonly media_kind: MediaKind
   readonly duration_ms: number | null
   readonly poster_hash: string | null
+  readonly mission_id: string | null
 }
 
 const EMPTY_PAGE: PhotoPage = { items: [], nextCursor: null }
@@ -330,6 +335,7 @@ const toBindings = (photo: Photo): PhotoBindings => {
     media_kind: facet.kind,
     duration_ms: facet.durationMs,
     poster_hash: facet.posterHash,
+    mission_id: props.missionId,
   }
 }
 
@@ -346,6 +352,11 @@ const toPhoto = (row: PhotoRow): Photo =>
     createdAt: fromIsoText(row.created_at),
     review: toReview(row),
     facet: toFacet(row),
+    // No value object and no validation: a tag is an opaque id whose existence the
+    // foreign key already guarantees and whose event scoping this row's own `event_id`
+    // already carries. There is nothing here a corrupt value could break that the
+    // database has not already refused.
+    missionId: row.mission_id === null ? null : asMissionId(row.mission_id),
   })
 
 /**

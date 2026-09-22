@@ -1,5 +1,5 @@
 import { ModerationCard } from './ModerationCard'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { ModerationDecision, ModerationPhotoDto } from '../../../lib/api/dto'
 import styles from './ModerationGrid.module.css'
 
@@ -41,6 +41,7 @@ export function ModerationGrid({
   onOpen,
   registerCard,
 }: ModerationGridProps) {
+  const t = useTranslations()
   const selected = new Set(selectedIds)
 
   return (
@@ -49,7 +50,7 @@ export function ModerationGrid({
       // Explicit, because `list-style: none` drops list semantics in Safari and
       // VoiceOver would then announce the tiles as loose text.
       role="list"
-      aria-label={fr.moderation.queueLabel}
+      aria-label={t.moderation.queueLabel}
     >
       {photos.map((photo) => (
         <li

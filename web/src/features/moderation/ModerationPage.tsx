@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { Spinner } from '../../design-system/components/Spinner'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { ModerationGrid } from './components/ModerationGrid'
 import { ModerationToolbar } from './components/ModerationToolbar'
 import { PhotoLightbox } from './components/PhotoLightbox'
@@ -22,6 +22,7 @@ import styles from './ModerationPage.module.css'
  * the shape of the screen and nothing else.
  */
 export function ModerationPage() {
+  const t = useTranslations()
   const { slug } = useParams()
   const queue = useModerationQueue(slug)
   const selection = useQueueSelection(queue.items)
@@ -95,22 +96,22 @@ export function ModerationPage() {
 
   const emptyTitle =
     queue.filter === 'pending' || queue.filter === 'all'
-      ? fr.moderation.empty
-      : fr.moderation.emptyFiltered
+      ? t.moderation.empty
+      : t.moderation.emptyFiltered
   const emptyHint =
     queue.filter === 'pending' || queue.filter === 'all'
-      ? fr.moderation.emptyHint
-      : fr.moderation.emptyFilteredHint
+      ? t.moderation.emptyHint
+      : t.moderation.emptyFilteredHint
 
   if (slug === undefined) {
-    return <EmptyState as="h1" title={fr.shell.notFoundTitle} description={fr.shell.notFoundHint} />
+    return <EmptyState as="h1" title={t.shell.notFoundTitle} description={t.shell.notFoundHint} />
   }
 
   return (
     <div className={styles['page']}>
       <header className={styles['intro']}>
-        <h1 className={styles['title']}>{fr.moderation.title}</h1>
-        <p className={styles['lead']}>{fr.moderation.intro}</p>
+        <h1 className={styles['title']}>{t.moderation.title}</h1>
+        <p className={styles['lead']}>{t.moderation.intro}</p>
       </header>
 
       <ModerationToolbar
@@ -131,22 +132,22 @@ export function ModerationPage() {
       */}
       {queue.error !== null && queue.items.length > 0 ? (
         <p role="alert" className={styles['staleError']}>
-          {queueErrorMessage(queue.error)}
+          {queueErrorMessage(queue.error, t)}
         </p>
       ) : null}
 
       {queue.loading && queue.items.length === 0 ? (
         <div className={styles['pending']} aria-busy="true">
-          <Spinner size="lg" label={fr.app.loading} />
+          <Spinner size="lg" label={t.app.loading} />
         </div>
       ) : queue.error !== null && queue.items.length === 0 ? (
         <EmptyState
           as="h2"
-          title={fr.moderation.loadFailed}
-          description={queueErrorMessage(queue.error)}
+          title={t.moderation.loadFailed}
+          description={queueErrorMessage(queue.error, t)}
           action={
             <Button variant="primary" onClick={queue.refresh}>
-              {fr.app.retry}
+              {t.app.retry}
             </Button>
           }
         />

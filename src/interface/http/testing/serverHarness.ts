@@ -75,6 +75,12 @@ export const notWiredUseCases = (): HttpUseCases => ({
 
   getWallPlaylist: notWired('getWallPlaylist'),
 
+  listMissions: notWired('listMissions'),
+  createMission: notWired('createMission'),
+  updateMission: notWired('updateMission'),
+  deleteMission: notWired('deleteMission'),
+  getGuestChecklist: notWired('getGuestChecklist'),
+
   reactToPhoto: notWired('reactToPhoto'),
   withdrawReaction: notWired('withdrawReaction'),
   getPhotoReactions: notWired('getPhotoReactions'),

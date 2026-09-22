@@ -5,12 +5,13 @@ import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { useToast } from '../../design-system/components/useToast'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { EventQrCard } from './components/EventQrCard'
 import { EventStatusBadge } from './components/EventStatusBadge'
 import { StorageMeter } from './components/StorageMeter'
 import { GuestListPanel } from './GuestListPanel'
+import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
 import { allowsModeration, isMutable, lifecycleActions, servesWall } from './eventLifecycle'
@@ -21,6 +22,7 @@ import type { EventStatus } from '../../lib/api/dto'
 
 /** Surface: the host's laptop. The screen they come back to during the event. */
 export function EventPage() {
+  const t = useTranslations()
   const { slug = '' } = useParams()
   const { data: event, loading, error, reload, replace } = useEvent(slug)
   const statusChange = useStatusChange()
@@ -42,7 +44,7 @@ export function EventPage() {
       // The answer is the whole event, so the screen updates from what the server
       // decided rather than from what the client hoped.
       replace(result.value)
-      toast.show(fr.admin.statusSaved, { tone: 'success' })
+      toast.show(t.admin.statusSaved, { tone: 'success' })
     })
   }
 
@@ -54,7 +56,7 @@ export function EventPage() {
         return
       }
       replace(result.value)
-      toast.show(fr.admin.codeRotated, { tone: 'success' })
+      toast.show(t.admin.codeRotated, { tone: 'success' })
     })
   }
 
@@ -67,14 +69,14 @@ export function EventPage() {
         toast.show(result.message, { tone: 'danger' })
         return
       }
-      toast.show(fr.admin.purged(name), { tone: 'success' })
+      toast.show(t.admin.purged(name), { tone: 'success' })
       navigate('/admin', { replace: true })
     })
   }
 
-  if (loading) return <Pending label={fr.admin.eventLoading} />
+  if (loading) return <Pending label={t.admin.eventLoading} />
   if (error !== null) return <LoadFailure message={error} onRetry={reload} as="h1" />
-  if (event === null) return <LoadFailure message={fr.errors.unknown} onRetry={reload} as="h1" />
+  if (event === null) return <LoadFailure message={t.errors.unknown} onRetry={reload} as="h1" />
 
   const isOwner = event.role === 'owner'
 
@@ -84,20 +86,20 @@ export function EventPage() {
         <h1 className={styles['title']}>{event.name}</h1>
         <div className={styles['facts']}>
           <EventStatusBadge status={event.status} />
-          <span>{fr.admin.photos(event.photoCount)}</span>
-          <span>{fr.admin.guests(event.guestCount)}</span>
+          <span>{t.admin.photos(event.photoCount)}</span>
+          <span>{t.admin.guests(event.guestCount)}</span>
           {event.pendingCount > 0 ? (
-            <Badge tone="warning">{fr.moderation.pending(event.pendingCount)}</Badge>
+            <Badge tone="warning">{t.moderation.pending(event.pendingCount)}</Badge>
           ) : null}
         </div>
       </header>
 
       <div className={styles['columns']}>
         <div className={`${styles['column']} ${styles['screenOnly']}`}>
-          <Card as="h2" title={fr.admin.joinCode} subtitle={fr.admin.joinCodeHint}>
+          <Card as="h2" title={t.admin.joinCode} subtitle={t.admin.joinCodeHint}>
             <p className={styles['joinCode']}>{event.joinCode}</p>
             <p className={styles['joinUrl']}>
-              <span>{fr.admin.joinLink}</span>{' '}
+              <span>{t.admin.joinLink}</span>{' '}
               {/* The server built this URL. The client never assembles a join link. */}
               <a href={event.joinUrl}>{event.joinUrl}</a>
             </p>
@@ -108,23 +110,23 @@ export function EventPage() {
                   onClick={() => setRotating(true)}
                   aria-haspopup="dialog"
                 >
-                  {fr.admin.rotateJoinCode}
+                  {t.admin.rotateJoinCode}
                 </Button>
               </div>
             ) : null}
           </Card>
 
-          <Card as="h2" title={fr.admin.eventControls}>
+          <Card as="h2" title={t.admin.eventControls}>
             <div className={styles['links']}>
               {servesWall(event.status) ? (
                 <Link className={styles['link']} to={`/e/${event.slug}/display`}>
-                  {fr.admin.openWall}
+                  {t.admin.openWall}
                 </Link>
               ) : null}
               {allowsModeration(event.status) ? (
                 <>
                   <Link className={styles['link']} to={`/admin/events/${event.slug}/moderation`}>
-                    {fr.admin.openModeration}
+                    {t.admin.openModeration}
                   </Link>
                   {/*
                     The same queue, one photo at a time. It lives here rather than only
@@ -136,12 +138,12 @@ export function EventPage() {
                     className={styles['link']}
                     to={`/admin/events/${event.slug}/moderation/mobile`}
                   >
-                    {fr.mobileModeration.title}
+                    {t.mobileModeration.title}
                   </Link>
                 </>
               ) : null}
               <Link className={styles['link']} to={`/admin/events/${event.slug}/settings`}>
-                {fr.admin.settings}
+                {t.admin.settings}
               </Link>
               {/*
                 A plain link, not a fetch: the ZIP is streamed and can be hundreds of
@@ -150,13 +152,13 @@ export function EventPage() {
                 halfway through an album.
               */}
               <a className={styles['link']} href={albumUrl} download>
-                {fr.admin.download}
+                {t.admin.download}
               </a>
             </div>
             <StorageMeter usedBytes={event.usedBytes} quotaBytes={event.quotaBytes} />
             {isOwner ? (
               <div className={styles['actions']}>
-                {lifecycleActions(event.status).map((action) => (
+                {lifecycleActions(event.status, t).map((action) => (
                   <Button
                     key={action.to}
                     variant={action.primary ? 'primary' : 'secondary'}
@@ -167,8 +169,8 @@ export function EventPage() {
                     {action.label}
                   </Button>
                 ))}
-                {lifecycleActions(event.status).length === 0 ? (
-                  <p className={styles['archived']}>{fr.admin.settingsReadOnly}</p>
+                {lifecycleActions(event.status, t).length === 0 ? (
+                  <p className={styles['archived']}>{t.admin.settingsReadOnly}</p>
                 ) : null}
               </div>
             ) : null}
@@ -182,13 +184,18 @@ export function EventPage() {
 
       <div className={`${styles['column']} ${styles['screenOnly']}`}>
         <GuestListPanel slug={event.slug} canRevoke={allowsModeration(event.status)} />
+        {/* Owner-only for the reason below, and mounted above the moderators because a
+            host sets the prompts up before the evening rather than during it (roadmap
+            §2.1). A moderator may read the list — `GET` allows it — but a panel whose
+            every affordance is refused is worse than no panel. */}
+        {isOwner ? <MissionsPanel slug={event.slug} /> : null}
         {/* Owner-only: every moderator endpoint requires it, so a moderator is not
             shown a panel whose requests would all come back 403. */}
         {isOwner ? <ModeratorsPanel slug={event.slug} /> : null}
         {isOwner ? (
           <div className={styles['actions']}>
             <Button variant="danger" onClick={() => setPurging(true)} aria-haspopup="dialog">
-              {fr.admin.purge}
+              {t.admin.purge}
             </Button>
           </div>
         ) : null}
@@ -196,11 +203,11 @@ export function EventPage() {
 
       <ConfirmDialog
         open={rotating}
-        title={fr.admin.rotateJoinCodeTitle}
+        title={t.admin.rotateJoinCodeTitle}
         // Says the thing a host is actually afraid of: that changing the code throws
         // out the guests who already joined. It does not.
-        description={fr.admin.rotateJoinCodeHint}
-        confirmLabel={fr.admin.rotateJoinCode}
+        description={t.admin.rotateJoinCodeHint}
+        confirmLabel={t.admin.rotateJoinCode}
         busy={rotate.busy}
         onConfirm={confirmRotate}
         onCancel={() => setRotating(false)}

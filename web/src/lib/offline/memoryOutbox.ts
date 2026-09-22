@@ -26,6 +26,7 @@ export class MemoryOutbox implements OutboxStore {
       fileName: entry.fileName,
       fileType: entry.fileType,
       caption: entry.caption,
+      missionId: entry.missionId,
       enqueuedAt: now,
       attempts: 0,
       lastAttemptAt: null,

@@ -146,6 +146,7 @@ export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto =>
   retentionDays: settings.retentionDays,
   maxPhotosPerGuest: settings.maxPhotosPerGuest,
   theme: toEventThemeDto(settings.theme),
+  wallLanguage: settings.wallLanguage,
 })
 
 /**
@@ -569,10 +570,17 @@ export const toWallResponseDto = (
     kenBurnsDurationMs: view.kenBurnsDurationMs,
     layout: view.layout,
     reactionsEnabled: view.event.settings.allowReactions,
+    missions: view.missions.map(toWallMissionDto),
     // Unlike the layout, the theme *is* a property of the event rather than of the
     // screen: two projectors in the same room must agree about the colour even when one
     // of them is showing a mosaic and the other a spotlight.
     theme: toEventThemeDto(view.event.settings.theme),
+    // The same argument as the theme, one step further: the language is a property of the
+    // event and not of the screen, so two projectors in one room agree about it even when
+    // one of them was launched from a laptop set to English. `?layout=` is the deliberate
+    // contrast — a layout genuinely does belong to the screen, which is why that one is a
+    // query parameter and there is no `?lang=`.
+    wallLanguage: view.event.settings.wallLanguage,
   }
 }
 
@@ -617,4 +625,55 @@ export interface ModeratorInviteDto {
 export const toModeratorInviteDto = (result: RegisterModeratorResult): ModeratorInviteDto => ({
   userId: result.userId,
   created: result.created,
+})
+
+// --------------------------------------------------------------- missions --
+
+// Imported here rather than folded into the statement list at the top of the file, for
+// the same reason the event-route presenters below are: route modules written against
+// this file at the same time then merge cleanly. Type-only, so nothing reaches the bundle.
+import type { ChecklistItem } from '../../../application/usecases/missions/getGuestChecklist'
+import type { MissionSummary } from '../../../application/usecases/missions/listMissions'
+import type { WallMissionStanding } from '../../../application/usecases/slideshow/getWallPlaylist'
+import type { GuestMissionDto, MissionDto, WallMissionDto } from './dto'
+
+/**
+ * The host's row: the prompt, and the three numbers a host at a laptop mid-evening
+ * wants. Nothing about the photographs themselves — they are ordinary photographs and
+ * are already in the queue and the gallery.
+ */
+export const toMissionDto = (row: MissionSummary): MissionDto => ({
+  id: row.mission.id,
+  prompt: row.mission.prompt.value,
+  scope: row.mission.scope,
+  achieved: row.achieved,
+  publishedPhotos: row.progress.publishedPhotos,
+  completedByGuests: row.progress.completedByGuests,
+})
+
+/**
+ * The guest's row, and what it drops is the point.
+ *
+ * `progress` is on the application's shape and does not reach the phone: a guest needs
+ * to know whether there is still something for them to do, and how many other people
+ * have done it is a scoreboard nobody asked for (roadmap §7).
+ */
+export const toGuestMissionDto = (row: ChecklistItem): GuestMissionDto => ({
+  id: row.mission.id,
+  prompt: row.mission.prompt.value,
+  scope: row.mission.scope,
+  done: row.done,
+})
+
+/**
+ * The room's row. `completedByGuests` is here and not on the guest's shape because the
+ * wall renders a per-guest prompt as a number — a tick would be wrong for something two
+ * hundred people can each answer — and a once-for-the-evening prompt as a tick.
+ */
+export const toWallMissionDto = (row: WallMissionStanding): WallMissionDto => ({
+  id: row.mission.id,
+  prompt: row.mission.prompt.value,
+  scope: row.mission.scope,
+  achieved: row.achieved,
+  completedByGuests: row.progress.completedByGuests,
 })

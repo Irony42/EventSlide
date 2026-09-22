@@ -69,6 +69,37 @@ const RETRY_DELAY_MS = 10_000
  */
 export const SETTINGS_EXEMPT: readonly string[] = ['items', 'revision']
 
+/**
+ * The mission panel, compared row by row.
+ *
+ * It cannot ride on `revision`, which fingerprints `items` and nothing else: a mission
+ * becomes answered when a photograph is **published**, and on a wall that is already
+ * playing that photograph the playlist does not move at all. The panel would then stay
+ * wrong until the next upload — which on a quiet stretch of an evening is the whole
+ * stretch.
+ *
+ * Every field the wall draws is compared, because each of them is a pixel: the prompt is
+ * the sentence, `achieved` is the tick, `completedByGuests` is the number beside a
+ * per-guest row, and `scope` decides which of the last two is drawn at all.
+ */
+const sameMissions = (kept: WallResponse, fresh: WallResponse): boolean => {
+  const before = kept.missions ?? []
+  const after = fresh.missions ?? []
+  if (before.length !== after.length) return false
+
+  return before.every((mission, index) => {
+    const now = after[index]
+    return (
+      now !== undefined &&
+      mission.id === now.id &&
+      mission.prompt === now.prompt &&
+      mission.scope === now.scope &&
+      mission.achieved === now.achieved &&
+      mission.completedByGuests === now.completedByGuests
+    )
+  })
+}
+
 export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =>
   kept.joinCode === fresh.joinCode &&
   // Compared rather than inferred from `joinCode`. The two do move together when a host
@@ -84,7 +115,15 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.theme?.accentHue === fresh.theme?.accentHue &&
   kept.theme?.fonts === fresh.theme?.fonts &&
   kept.theme?.frame === fresh.theme?.frame &&
-  kept.theme?.material === fresh.theme?.material
+  kept.theme?.material === fresh.theme?.material &&
+  // The language the room's screen speaks (roadmap 1.5). Compared for the reason the
+  // theme is, and with a sharper failure: a host who realises mid-reception that the wall
+  // is in the wrong language changes it on the settings page, which moves no photograph —
+  // so `revision` does not change, and on the empty wall they are standing in front of
+  // while they fix it, nothing else ever will either. Without this line the correction
+  // would land on the projector at the next upload, or never.
+  kept.wallLanguage === fresh.wallLanguage &&
+  sameMissions(kept, fresh)
 
 /**
  * The wall's playlist, kept current over SSE.

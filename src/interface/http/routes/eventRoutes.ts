@@ -153,6 +153,10 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
         // Same conditional spread and the same reason: absent means "the product
         // defaults", which is a different thing from any template name.
         ...(body.template === undefined ? {} : { template: body.template }),
+        // The creator's own language, read once in their browser and stored on the
+        // event. Absent means the product default, which is a different thing from any
+        // tag — and it is what an event created through the API gets.
+        ...(body.wallLanguage === undefined ? {} : { wallLanguage: body.wallLanguage }),
       })
 
       // The creator is the owner: `createEvent` grants that membership as part of
@@ -230,6 +234,7 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
           // palette is legible — that is the domain's answer, and this handler only
           // carries the question.
           ...(body.theme === undefined ? {} : { theme: body.theme }),
+          ...(body.wallLanguage === undefined ? {} : { wallLanguage: body.wallLanguage }),
         },
       })
 

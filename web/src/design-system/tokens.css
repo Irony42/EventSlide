@@ -174,6 +174,11 @@
   --container-host: 78rem; /* moderation console, admin */
   --wall-safe: 4%; /* projector overscan inset */
   --wall-join-card: 26rem; /* the corner invitation: declared, so layouts can reserve it */
+  /* The mission panel (roadmap 2.1), in the corner the invitation does not use.
+     Declared rather than content-sized for the same reason the card above is: a panel
+     whose width follows the longest prompt a host happened to type would move every time
+     they edited one, and the room would see the photographs shift with it. */
+  --wall-mission-panel: 24rem;
   --z-wall-caption: 10;
   --z-dialog: 50;
   --z-toast: 60;

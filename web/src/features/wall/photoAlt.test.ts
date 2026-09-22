@@ -20,30 +20,32 @@ const anItem = (overrides: Partial<WallItemDto> = {}): WallItemDto => ({
 
 describe('photoAlt', () => {
   it('names the author even when the caption already carries the meaning', () => {
-    expect(photoAlt(anItem())).toBe(`Les confettis — ${fr.wall.photoBy('Léa')}`)
+    expect(photoAlt(anItem(), fr)).toBe(`Les confettis — ${fr.wall.photoBy('Léa')}`)
   })
 
   it('describes a photo with no caption by its author alone', () => {
     // Most guests send no caption, so this is the common case rather than the edge one.
-    expect(photoAlt(anItem({ caption: null }))).toBe(fr.wall.photoBy('Léa'))
+    expect(photoAlt(anItem({ caption: null }), fr)).toBe(fr.wall.photoBy('Léa'))
   })
 
   it('treats a caption the guest left blank as no caption', () => {
     // A phone keyboard sends an empty string where the server stores nothing, and an
     // alt text starting with " — " reads aloud as a pause with no word in front of it.
-    expect(photoAlt(anItem({ caption: '' }))).toBe(fr.wall.photoBy('Léa'))
+    expect(photoAlt(anItem({ caption: '' }), fr)).toBe(fr.wall.photoBy('Léa'))
   })
 
   it('credits an anonymous guest rather than leaving the photo unattributed', () => {
     // "Who sent this" is the part a listener cannot get from the picture, so it is said
     // even when there is no name to say.
-    expect(photoAlt(anItem({ authorName: null }))).toBe(
+    expect(photoAlt(anItem({ authorName: null }), fr)).toBe(
       `Les confettis — ${fr.wall.photoByAnonymous}`,
     )
   })
 
   it('treats a blank display name as anonymous', () => {
-    expect(photoAlt(anItem({ authorName: '' }))).toBe(`Les confettis — ${fr.wall.photoByAnonymous}`)
+    expect(photoAlt(anItem({ authorName: '' }), fr)).toBe(
+      `Les confettis — ${fr.wall.photoByAnonymous}`,
+    )
   })
 })
 

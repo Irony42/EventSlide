@@ -38,6 +38,19 @@ export type DomainEvent =
     }
   | { readonly type: 'event.settingsChanged'; readonly eventId: EventId }
   /**
+   * The host's mission list is not what it was: a prompt added, corrected or removed
+   * (roadmap §2.1).
+   *
+   * One type for all three, because this is an invalidation signal and not data — every
+   * subscriber refetches the whole list, and none of them could do anything different
+   * with "added" than with "removed". A projector is showing that list, which is why it
+   * is a fact on the bus at all rather than something a host has to reload to see.
+   *
+   * It carries no `MissionId` for the same reason: a client that learned which row moved
+   * would still have to refetch to find out what it now says.
+   */
+  | { readonly type: 'mission.changed'; readonly eventId: EventId }
+  /**
    * A clip has been staged and is waiting for the transcoder.
    *
    * Two subscribers care, for different reasons. The guest's own view refetches, so

@@ -1,5 +1,7 @@
 import { z } from 'zod'
+import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
+import { MISSION_SCOPES } from '../../../domain/missions/missionScope'
 import {
   accentHueRange,
   THEME_FONTS,
@@ -70,6 +72,8 @@ export const moderatorParams = z.object({ eventSlug: slug, userId: uuid })
 
 export const guestParams = z.object({ eventSlug: slug, guestId: uuid })
 
+export const missionParams = z.object({ eventSlug: slug, missionId: uuid })
+
 // ------------------------------------------------------------------- public --
 
 export const joinBody = z
@@ -91,6 +95,19 @@ export const joinBody = z
 export const uploadFields = z
   .object({
     caption: z.string().max(1_000).nullish(),
+    /**
+     * Which of the host's prompts the guest tapped (roadmap §2.1).
+     *
+     * Strictly a uuid rather than "any string the phone had", because this is the one
+     * identifier in an upload that the *client* chose: rejecting a malformed one here
+     * turns it into a `400` before it reaches a query, and a well-formed one that names
+     * another event's row is refused by the use case's scoped lookup.
+     *
+     * Absent means "no mission", which is what the overwhelming majority of uploads at
+     * an event are. `nullish` for the same reason `caption` has it: a client that spells
+     * "none" as `null` and one that omits the part are saying the same thing.
+     */
+    missionId: z.string().uuid().nullish(),
   })
   .strict()
 
@@ -161,6 +178,20 @@ export const createEventBody = z
      * already gets — no new error code, and nothing for roadmap 1.5 to translate.
      */
     template: z.enum(EVENT_TEMPLATE_KEYS).optional(),
+    /**
+     * The language the room's screen will speak, read from the creator's browser at the
+     * moment they create the event (roadmap 1.5).
+     *
+     * On the **create** body because that moment is the whole design of the default: the
+     * one signal about a screen nobody will be holding is the language the person setting
+     * it up is reading. **A snapshot, never a subscription** — nothing re-reads that
+     * preference, so a host who switches their own browser next month has not moved a
+     * projector in a room. `createEvent.test.ts` asserts it as an absence.
+     *
+     * `.optional()` and not `.nullish()`, like `template`: "no opinion" is the absence of
+     * a choice, and the domain answers it with French.
+     */
+    wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
   })
   .strict()
 
@@ -213,6 +244,19 @@ export const updateSettingsBody = z
       })
       .strict()
       .optional(),
+    /**
+     * The language the projected wall speaks (roadmap 1.5).
+     *
+     * A scalar beside the theme's object rather than folded into it: `eventTheme.ts`
+     * weighs its four values against each other for legibility at ten metres and a
+     * language takes part in none of that, and `theme` is required-whole on purpose — so
+     * folding it in would make a host who changes only the language resend a palette.
+     *
+     * The vocabulary comes from the domain rather than a second `z.enum(['fr', …])`, for
+     * the reason `template` does: a language added to the build would otherwise be
+     * accepted by the use case and refused here, with neither build noticing.
+     */
+    wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
   })
   .strict()
 
@@ -256,6 +300,29 @@ export const eventScheduleBody = z
 export const inviteModeratorBody = z
   .object({
     email: z.string().min(1).max(254),
+  })
+  .strict()
+
+// --------------------------------------------------------------------- missions --
+
+/**
+ * One prompt as the host writes it (roadmap §2.1).
+ *
+ * The same body for creating and for replacing, and both fields are required on both —
+ * the shape `eventScheduleBody` uses and for the same reason. A prompt and who it is
+ * asked of are one decision made on one row of one form, and a partial update would let
+ * a scope be persisted beside a prompt the domain refused.
+ *
+ * The bound is generous and is not the limit: `MissionPrompt` decides what a projector
+ * can carry, sanitises what is invisible, and owns the error codes. What this does is
+ * keep a multi-kilobyte field out of the domain. The vocabulary comes from the domain
+ * rather than a second `z.enum(['guest', 'event'])`, so a third scope could not be
+ * accepted by the use case and refused at the boundary with nothing noticing.
+ */
+export const missionBody = z
+  .object({
+    prompt: z.string().max(1_000),
+    scope: z.enum(MISSION_SCOPES),
   })
   .strict()
 

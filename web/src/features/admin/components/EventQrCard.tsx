@@ -1,7 +1,7 @@
 import { QRCodeSVG } from 'qrcode.react'
 import { Button } from '../../../design-system/components/Button'
 import { Card } from '../../../design-system/components/Card'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './EventQrCard.module.css'
 
 export interface EventQrCardProps {
@@ -23,6 +23,8 @@ export interface EventQrCardProps {
  * that has to work on paper.
  */
 export function EventQrCard({ eventName, joinCode, joinUrl }: EventQrCardProps) {
+  const t = useTranslations()
+
   const handlePrint = () => {
     // Some in-app browsers ship no `print()` at all; a guard is cheaper than a click
     // that throws.
@@ -30,14 +32,14 @@ export function EventQrCard({ eventName, joinCode, joinUrl }: EventQrCardProps) 
   }
 
   return (
-    <Card as="h2" title={fr.admin.qrCode} subtitle={fr.admin.qrCodeHint}>
+    <Card as="h2" title={t.admin.qrCode} subtitle={t.admin.qrCodeHint}>
       <div className={styles['printable']}>
         <p className={styles['eventName']}>{eventName}</p>
         {/*
           The accessible name lives on the wrapper: a QR code is a picture of a link,
           and role="img" is what stops a screen reader walking a thousand <path>s.
         */}
-        <div className={styles['plate']} role="img" aria-label={fr.admin.qrAlt(eventName)}>
+        <div className={styles['plate']} role="img" aria-label={t.admin.qrAlt(eventName)}>
           <QRCodeSVG
             className={styles['qr']}
             value={joinUrl}
@@ -51,11 +53,11 @@ export function EventQrCard({ eventName, joinCode, joinUrl }: EventQrCardProps) 
             marginSize={0}
           />
         </div>
-        <p className={styles['prompt']}>{fr.admin.qrScanPrompt}</p>
+        <p className={styles['prompt']}>{t.admin.qrScanPrompt}</p>
         <p className={styles['code']}>{joinCode}</p>
       </div>
       <Button className={styles['printAction']} onClick={handlePrint}>
-        {fr.admin.printQr}
+        {t.admin.printQr}
       </Button>
     </Card>
   )

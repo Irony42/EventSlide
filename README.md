@@ -49,6 +49,10 @@ Pi under the projector — and nothing leaves it.
 
 And the parts that only show up on the night:
 
+- **Photo missions give guests something to do.** You write a short list of prompts — "a
+  selfie with the couple", "the worst dance move", "someone crying" — and guests see them
+  as a checklist. It changes the question in their head from "should I bother uploading
+  this" to "which one is left".
 - **Short video clips too**, not only photographs. Fifteen seconds, transcoded on the
   box, played on the wall without sound — because a room already has music.
 - **Moderate from your phone.** One photograph at a time, swipe right to publish, left
@@ -58,8 +62,23 @@ And the parts that only show up on the night:
   the phone and sent when there is some, even if the guest has closed the page —
   EventSlide installs as an app if they let it, and keeps working when the network does
   not.
-- **It speaks the guest's language.** French, English, Spanish, German and Italian,
-  chosen from the phone and overridable. International weddings are the normal case.
+- **It speaks everybody's language, not only the guest's.** French, English, Spanish,
+  German and Italian, across the whole interface: the guest's phone, the moderation
+  console, the admin pages and the projected wall. International weddings are the normal
+  case, and so is a moderator who is not the person who installed the box.
+
+  A guest and a host each pick their own from a control in the header, and it is
+  remembered. The wall is the exception and it is the interesting one: there is nobody in
+  front of a projector to ask, so its language is a setting on the **event**, chosen by
+  whoever created it and defaulted to the language they were reading at the time.
+
+  What is never translated is what people write. An event's name, a caption, a guest's
+  display name and a mission prompt are shown exactly as typed — so a German wall over a
+  French wedding prints German labels above French prompts, which is the right way round.
+  A native reader has not yet gone over the German, Spanish and Italian copy on the host
+  and wall surfaces; the French is hand-written and is the source the rest is translated
+  from.
+
 - **It looks like the evening it is running.** The host picks an accent colour, a font
   pairing and a frame style; the wall and the guest screens follow. Contrast is checked
   against the accessibility contract server-side, so a hue that would make captions
@@ -160,9 +179,37 @@ have something to show.
 
 </details>
 
+## Photo missions
+
+<img src="docs/images/missions-checklist.jpg" width="300" align="right" alt="A guest's checklist: four prompts, the first one ticked and marked Done">
+
+The cheapest way to get more photographs is to stop asking guests to decide what is worth
+sending. Write four or five prompts on the event page and they become a checklist on every
+guest's phone.
+
+A guest taps a prompt before sending, which is one tap and no extra screen. The wall shows
+the list with what has been answered so far, in a corner, standing still — it is a
+scoreboard for the room, not a thing that flashes every time somebody uploads.
+
+Two details that matter more than they look:
+
+- **A mission is answered when a _published_ photograph names it**, not when a guest tags
+  one. So a photograph you refuse in moderation never counted, and nothing has to be
+  un-counted. The same holds for one a guest deletes, or one a retention sweep purges.
+- **A prompt can be per guest or once for the evening.** "A selfie with the couple" is
+  something everybody can do; "the first dance" happens once. You choose per prompt, and
+  the default is per guest.
+
+Prompts are content, not interface: you write them in the language of your evening and
+they are shown exactly as typed. There is no leaderboard and no per-guest score — a guest
+sees their own checklist and nothing about anybody else's.
+
+<br clear="right">
+
 ## On the night
 
 1. **Create the event** in `/admin` — a name is enough.
+   Add photo missions here too, if you want them.
 2. **Print the QR code** from the event page and put it on the tables.
 3. **Open the wall** on the projector: the display page, fullscreen. It needs no
    keyboard after that.
@@ -172,9 +219,9 @@ have something to show.
 
 Two settings worth a thought before you start:
 
-- **Moderation.** `Valider chaque photo` is the default and the right choice for
-  anything with colleagues or extended family in the room. `Publier automatiquement`
-  is for a small party among close friends, and the app will warn you.
+- **Moderation.** Approving every photo yourself is the default, and the right choice for
+  anything with colleagues or extended family in the room. Publishing automatically is
+  for a small party among close friends, and the app will warn you when you choose it.
 - **Retention.** Nothing is deleted unless you ask. If you set a retention period, the
   album is purged that many days after the event closes — export it first. The server
   checks every hour and deletes what is due, so the promise the setting makes to your

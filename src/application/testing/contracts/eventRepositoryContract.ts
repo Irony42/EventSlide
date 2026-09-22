@@ -111,6 +111,10 @@ export const eventRepositoryContract = (
             // the SQLite adapter fills in for an absent key, so a store that never wrote
             // the field would have round-tripped clean.
             theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' },
+            // Off the default for the same reason `material: 'plain'` is: `fr` is both the
+            // domain's default and what the SQLite adapter fills in for an absent key, so
+            // a store that never wrote this field would have round-tripped clean.
+            wallLanguage: 'de',
           },
         }),
       )
@@ -127,6 +131,7 @@ export const eventRepositoryContract = (
         retentionDays: 30,
         maxPhotosPerGuest: 5,
         theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' },
+        wallLanguage: 'de',
       })
     })
 

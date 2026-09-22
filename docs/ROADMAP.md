@@ -51,7 +51,7 @@ If a guest gives up, nothing else in this document matters. At a wedding the med
 guest spends **under a minute** in the app, once, on a phone with two bars of a
 saturated access point.
 
-_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa), [1.4](#97-short-video-clips). Considered and declined: [1.6](#96-spoken-captions). **[1.5](#15-guest-ui-languages-p2-effort-s-risk-low) is shipped and stayed in place.**_
+_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa), [1.4](#97-short-video-clips). Considered and declined: [1.6](#96-spoken-captions). **[1.5](#15-ui-languages-p2-effort-s-risk-low) is shipped and stayed in place.**_
 
 ### 1.3 Camera-first capture (P1, effort M, risk: low)
 
@@ -62,23 +62,76 @@ Android means three taps through a gallery app.
 The measure of success is taps from opening the app to a photo being sent: **five today,
 two after this**.
 
-### 1.5 Guest UI languages (P2, effort S, risk: low)
+### 1.5 UI languages (P2, effort S, risk: low)
 
-> **Shipped** in [#25](https://github.com/Irony42/EventSlide/pull/25). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
+> **Shipped in two halves**: the guest surface in [#25](https://github.com/Irony42/EventSlide/pull/25), the host and room surfaces after it. Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 `web/src/lib/i18n/` is already a single French table with a code-to-message map. English,
 Spanish, German and Italian are a mechanical addition, chosen from `Accept-Language` with
 a manual override. International weddings are common and a guest who cannot read the
 upload button does not upload.
 
+#### The second half — everything that is not the guest
+
+The first half shipped the guest surface and argued, at length, that the rest should stay
+French: the admin console "has exactly one reader, and they are the person who installed
+the box". Two of that argument's three premises were false.
+
+**The host is not the person who installed the box.** A moderator is invited by e-mail
+address and handed a temporary password the host reads out loud — there is no mail service
+in this product — so they are a sibling, a colleague, somebody given a phone at 21:00.
+Nothing about them implies they read French, and the console they are handed is the one
+screen where being wrong puts a photograph in front of two hundred people. **The room is
+not the host either**: "Rejoignez la galerie" is projected, and the mission panel rendered
+"1 invité" beside prompts a host had written in English. The third premise — that four more
+tables cost something to keep honest — is a cost the compiler pays; what four more tables
+actually cost is the translation, once, per string.
+
+So every section of `fr.ts` is carried by all five tables, and the interesting question
+stops being _whether_ and becomes **whose language each surface is in**. Three surfaces,
+two answers:
+
+- **The guest's phone and the host's console** take the reader's own preference — one
+  `localStorage` key, `navigator.languages` behind it, French behind that, one picker in
+  both layouts' headers. An attribute on the _account_ was rejected: a moderator on a
+  borrowed phone would write their language onto somebody else's device, and an owner who
+  lends their laptop for an hour would have to sign out to change it. A language is a
+  property of the reading, not of the person.
+- **The projected wall** takes the **event's** `wallLanguage`, a new setting beside the
+  accent hue and the frame style. It is the one surface with nobody in front of it to ask:
+  a projector's `navigator.languages` is the language of whichever machine the venue had
+  in a cupboard, and a guest's stored preference belongs to one phone out of two hundred.
+  Defaulted once, at creation, to the language of whoever created the event — a **snapshot**,
+  not a subscription, because a host who later switches their own browser has not asked for
+  a projector in a room to change.
+
+The deliberate contrast is `?layout=`. A layout belongs to the _screen_ — two projectors in
+one room may legitimately show a mosaic and a spotlight — so it is a query parameter. A
+language must not differ between them, so it is a property of the event and there is no
+`?lang=`.
+
+**What is never translated is what people write.** An event's name, a caption, a guest's
+display name and a mission prompt are content: they are shown exactly as typed, so a
+German wall over a French wedding prints German labels above French prompts, which is the
+right way round. `web/src/lib/i18n/content.test.ts` enforces it by reading `fr.ts`'s own
+parameter types rather than keeping a list, so a new content-carrying phrase is covered the
+moment it is declared.
+
+The open item this leaves is the bundle: all five tables are still in the guest's eager
+chunk, and carrying the host and room sections roughly triples what the four translations
+cost there. A chunk per locale is the next thing to do and is not free —
+`web/src/lib/i18n/translations.ts` records why.
+
 ## 2. The room — where the product is judged
 
 The wall is what two hundred people look at all evening. It is also the surface with the
 least engineering attention in most tools of this kind.
 
-_Shipped and moved to §9: [2.3](#93-more-wall-layouts). **[2.2](#22-per-event-theming-p1-effort-s-risk-low) is shipped and stayed in place.**_
+_Shipped and moved to §9: [2.3](#93-more-wall-layouts). **[2.1](#21-photo-missions-p1-effort-m-risk-low) and [2.2](#22-per-event-theming-p1-effort-s-risk-low) are shipped and stayed in place.** 2.6 (print station) and 2.7 (photobooth mode) were dropped — see [§7](#7-deliberate-non-goals)._
 
 ### 2.1 Photo missions (P1, effort M, risk: low)
+
+> **Shipped** in [#77](https://github.com/Irony42/EventSlide/pull/77). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 **The highest-engagement feature in this document per hour of work.** The host defines a
 short list of prompts — "a selfie with the couple", "the worst dance move", "someone
@@ -87,6 +140,62 @@ crying" — and guests see them as a checklist. The wall celebrates completions.
 It changes the guest's relationship to the app: instead of "should I bother uploading
 this", there is something to do. It reliably multiplies photo volume at events that use
 it, and mechanically it is a table, a checklist screen and a wall overlay.
+
+**Done, and the four questions the item did not answer are where all the work was.** The
+table and the screens were an afternoon; these were not.
+
+**What completes a mission: the guest tags, the host's verdict counts.** A tag is one tap
+on the prompt itself before sending — no dialog, no second screen, which is the most a
+guest with one thumb and under a minute of patience will spend. But a tag is a _claim_,
+and what the wall reads is a _fact_: a mission is answered when at least one **published**
+photograph names it, counted at read time. That single choice is what makes the hard case
+hold with nothing enforcing it — a photograph tagged and then refused in moderation never
+counted, so nothing has to un-count it, and the same is true of one hidden mid-evening,
+deleted by its author inside the grace window, or taken down after somebody asked. A
+stored `completed_at` would have needed unsetting from five places, and the first one
+anybody forgot would have left a wall saying "fait" over a photograph the host had just
+removed. **Host assignment was not built**: the moderation queue is the surface that has
+to stay fast at 22:00, and a second write path into the same derived state is a second
+thing to keep honest. The host's lever is the decision they already make.
+
+**Once for the evening or once per guest: both, and it is a field.** `scope` decides
+exactly one question — whether _another_ guest's photograph ticks _your_ row — and both
+answers are load-bearing. All three examples above are per-guest, so that is the default:
+a checklist that ticked itself because somebody across the room had already sent a selfie
+would remove the only thing this feature adds. "La première danse" is the other kind, and
+leaving a hundred and ninety-nine checklists open for a moment that is over is the same
+mistake from the other end.
+
+**What the wall shows: the standing list, and nothing that fires.** A burst per completion
+was considered and declined on three grounds this document already holds. §11.2 concluded
+that motion carries meaning only where it is rare, and a per-guest prompt at a
+two-hundred-guest wedding is answered a hundred times. §11.3 gives this surface a measured
+frame budget on a venue mini-PC that is also decoding a photograph and running Ken Burns.
+And a three-second burst is legible only to whoever happened to be looking three seconds
+ago, where a list is legible at any moment from ten metres — which is the actual job,
+because nobody watches a projector continuously. So the celebration is watching the list
+fill up. The panel renders **nothing at all** for an event with no prompts, which is most
+of them: the twelve committed wall baselines are pixel-identical after this change, and
+that was checked rather than assumed.
+
+**What happens to a mission's photographs afterwards: nothing.** The tag is one nullable
+column on `photos`. No endpoint lists photographs by mission, no screen groups them, and
+the moderation queue, the wall playlist, the quota, the album export and the guest's own
+list all ignore the field entirely. Deleting a prompt is `ON DELETE SET NULL`, never
+`CASCADE`: it removes a sentence and unfiles the photographs, and removes none of them —
+which is also why each row has its own edit rather than only a bin, since correcting a
+typo by delete-and-recreate would silently take four photographs out of the count they
+were already in.
+
+Two ceilings came out of it, both product rules rather than validation: **twelve prompts
+per event**, which is where the list is still readable at ten metres and still scrollable
+under a thumb, and **sixty characters** per prompt, against a caption's hundred and forty,
+because a caption has the width of the wall and a prompt has a third of a panel.
+
+Deliberately not built, and each of these is a separate item if it is ever wanted: a
+leaderboard, notifications, per-guest scoring (all §7), tagging a **video** clip — which
+is the same one-line idea and a whole second pipeline, since a clip has no `photos` row
+until its transcode finishes — and any reordering of the list, which is creation order.
 
 ### 2.2 Per-event theming (P1, effort S, risk: low)
 
@@ -111,20 +220,6 @@ regret not having afterwards. Reuses the entire moderation path.
 At the end of the night, a two-minute sequence of the most-reacted photos, slower and
 tighter than the ambient loop. Also the natural artefact to hand the host afterwards.
 Reaction tallies and `topPhotos` already exist.
-
-### 2.6 Print station (P3, effort M, risk: medium)
-
-A connected dye-sublimation printer; a guest taps "print" on their own photo and collects
-it from a table. The physical object is the thing people keep, and it is what
-photobooth rental companies charge three hundred euros an evening for.
-
-Risk: printer drivers are a support burden. Scope it to CUPS on Linux and a documented
-list of two or three known-good models rather than "printers" in general.
-
-### 2.7 Photobooth mode (P3, effort M, risk: low)
-
-A tablet on a stand: countdown, four frames, strip composed server-side, straight to the
-wall and optionally to the printer. A different capture surface over the same pipeline.
 
 ### 2.8 Schedule overlays (P3, effort S, risk: low)
 
@@ -719,17 +814,19 @@ Honest scope: it is visible on exactly one pane today, the guest's upload compos
 
 Saying no is what keeps the rest coherent.
 
-| Not building                        | Why                                                                                                                                                           |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A hosted SaaS with billing**      | The whole proposition is that the photos stay on the host's machine. A hosted tier would compete with the reason to choose this.                              |
-| **Native mobile apps**              | The guest surface must work in the browser that opened the QR code. An app store download is a hard stop at the moment a guest is deciding whether to bother. |
-| **Cloud AI moderation**             | Sending guests' photographs to a third party to be scored contradicts the privacy posture. On-device only (§3.2).                                             |
-| **Face recognition by default**     | Biometric processing of people who never agreed to it. Opt-in, per event, on-device, off unless a host deliberately turns it on — or not at all.              |
-| **Social features between guests**  | Comments, follows, direct messages. This is a photo wall for one evening, not a network. Reactions are the ceiling.                                           |
-| **Music on the wall**               | Licensing is a minefield and the room already has music.                                                                                                      |
-| **A public write API or webhooks**  | Every additional public write surface is another thing to rate-limit and authorize. Not without a concrete integration asking for it.                         |
-| **GraphQL**                         | Thirty endpoints and one client. It would add a schema layer and remove nothing.                                                                              |
-| **Infinite retention as a default** | Keeping photographs of other people's families forever, by default, is not a neutral choice.                                                                  |
+| Not building                        | Why                                                                                                                                                                                                                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A hosted SaaS with billing**      | The whole proposition is that the photos stay on the host's machine. A hosted tier would compete with the reason to choose this.                                                                                                                                    |
+| **Native mobile apps**              | The guest surface must work in the browser that opened the QR code. An app store download is a hard stop at the moment a guest is deciding whether to bother.                                                                                                       |
+| **Cloud AI moderation**             | Sending guests' photographs to a third party to be scored contradicts the privacy posture. On-device only (§3.2).                                                                                                                                                   |
+| **Face recognition by default**     | Biometric processing of people who never agreed to it. Opt-in, per event, on-device, off unless a host deliberately turns it on — or not at all.                                                                                                                    |
+| **Social features between guests**  | Comments, follows, direct messages. This is a photo wall for one evening, not a network. Reactions are the ceiling.                                                                                                                                                 |
+| **Music on the wall**               | Licensing is a minefield and the room already has music.                                                                                                                                                                                                            |
+| **A public write API or webhooks**  | Every additional public write surface is another thing to rate-limit and authorize. Not without a concrete integration asking for it.                                                                                                                               |
+| **GraphQL**                         | Thirty endpoints and one client. It would add a schema layer and remove nothing.                                                                                                                                                                                    |
+| **Infinite retention as a default** | Keeping photographs of other people's families forever, by default, is not a neutral choice.                                                                                                                                                                        |
+| **A print station**                 | Printer drivers are a support burden that lands on whoever set the box up, at the one moment they cannot debug anything. The physical print is what photobooth rental companies already sell; the wall and the gallery are what this product does that they do not. |
+| **A photobooth mode**               | A tablet on a stand with a countdown is a second capture surface to maintain, and its value was mostly as a feeder for the print station above. Guests already carry a better camera than the tablet.                                                               |
 
 ---
 
@@ -738,7 +835,7 @@ Saying no is what keeps the rest coherent.
 1. **Offline upload queue** (§9.1, shipped) — the difference between photos arriving and
    photos being lost to a saturated access point. Everything else assumes the upload
    works.
-2. **Photo missions** (§2.1) — the cheapest large increase in how much guests
+2. **Photo missions** (§2.1, shipped) — the cheapest large increase in how much guests
    participate, and it changes the wall from a screensaver into something the room is
    part of.
 3. **Shared gallery link** (§4.1) — answers the question every host is asked the next

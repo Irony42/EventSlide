@@ -467,6 +467,51 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.allowClips).toBe(true)
     })
 
+    it('reads an event written before the wall had a language as French', async () => {
+      // The upgrade path for roadmap 1.5, and the **opposite** answer to `allowClips`
+      // above: French is what such an event's projector has been rendering since the day
+      // it was created, because the whole interface was French then. Filling it in changes
+      // nothing a host would notice, and there is nothing they consented to that it
+      // switches on.
+      //
+      // Refusing the row instead is the mutation that found this test missing, and it is
+      // not a quiet failure: `corrupt` throws out of `settingsOf`, so the wall, the join
+      // page, the settings page and the dashboard row of **every event on the box** all
+      // 500 on the first request after the deploy.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ wallLanguage: undefined }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.wallLanguage).toBe('fr')
+    })
+
+    it('keeps a wall language the host did choose', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ wallLanguage: 'de' }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.wallLanguage).toBe('de')
+    })
+
+    it('refuses a stored wall language this build has no words for', async () => {
+      // Present but outside the vocabulary is corruption, exactly as an unknown moderation
+      // mode is. The tempting simplification — fall back to French here too, and drop the
+      // branch — is the one outcome worse than naming the column: the projector runs in
+      // the wrong language for eight hours while the host's settings page shows the tag
+      // they chose, and nothing anywhere says why.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ wallLanguage: 'pt' }),
+        'evt-1',
+      )
+
+      await expect(repo.findById(asEventId('evt-1'))).rejects.toThrow(/unknown wall language/)
+    })
+
     it('still serves an event whose stored hue the legibility rule would now refuse', async () => {
       // The one field hydration judges differently, and the reason is a deploy that
       // nobody would connect to the outage. `MIN_STATUS_SEPARATION` and the accent tones

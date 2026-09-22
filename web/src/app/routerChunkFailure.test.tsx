@@ -79,31 +79,37 @@ describe('AppRoutes with a chunk that cannot be loaded', () => {
 })
 
 /**
- * The crash screen is the one surface that sits above the route table, so it is the one
- * place `FrenchSurface` cannot reach — and until this test it was the one place the guest's
- * language leaked onto the other two audiences.
+ * Which language a crash screen is in, which is decided by where the boundary sits.
  *
- * A host in a German browser whose admin chunk fails to load read
- * "Dieser Bildschirm wurde unerwartet beendet"; so did a projector at 2 a.m., in front
- * of a room. Neither of those people chose anything: detection reads
- * `navigator.languages`.
+ * There are three boundaries and that is the reason: `main.tsx` has one above the route
+ * table, and `HostLayout` and `WallLayout` each have one inside. The outer one reads the
+ * reader's own language, which is right for the guest surface and for the host console.
+ * The wall is the exception, and its boundary catches first so that a room is never shown
+ * a crash screen in the language of whichever laptop was plugged into the projector.
  *
  * The locale is passed explicitly here for the same reason it is in the toast case: a
- * guard that renders French under French asserts nothing at all, and that is exactly
- * what the two cases above were doing.
+ * guard that renders French under French asserts nothing at all.
  */
 describe('the crash screen speaks the language of the surface it covers', () => {
-  it('stays French on the host console, in a browser asking for German', async () => {
+  it('speaks the host’s own language on the host console', async () => {
+    // Reversed from what this file used to assert. The console is translated now, so a
+    // host in a German browser whose admin chunk fails to load should read German —
+    // "nothing is lost, your photos are on the server" is worth nothing in a language
+    // they do not read, and that argument never only applied to guests.
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     asHost('/admin', 'de')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
-    expect(screen.queryByText(de.shell.crashTitle)).toBeNull()
+    expect(await screen.findByRole('alert')).toHaveTextContent(de.shell.crashTitle)
+    expect(screen.queryByText(fr.shell.crashTitle)).toBeNull()
     log.mockRestore()
   })
 
-  it('stays French on the projected wall, where nobody chose a language at all', async () => {
+  it('falls back to the default on the wall rather than to the reader’s language', async () => {
+    // The wall's language is the event's, and it arrives on the wall response — which the
+    // page that fetches it never got to make, because its chunk is what failed. So there
+    // is no event language to use, and the one answer that must not be given is the
+    // browser's: that is the projector operator's laptop, in front of a room.
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     renderWithProviders(

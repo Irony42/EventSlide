@@ -198,6 +198,7 @@ describe('toEventSettingsDto', () => {
         retentionDays: 30,
         maxPhotosPerGuest: 10,
         theme: { accentHue: 250, fonts: 'serif', frame: 'square', material: 'glass' },
+        wallLanguage: 'es',
       },
     })
 
@@ -211,6 +212,7 @@ describe('toEventSettingsDto', () => {
       retentionDays: 30,
       maxPhotosPerGuest: 10,
       theme: { accentHue: 250, fonts: 'serif', frame: 'square', material: 'glass' },
+      wallLanguage: 'es',
     })
   })
 

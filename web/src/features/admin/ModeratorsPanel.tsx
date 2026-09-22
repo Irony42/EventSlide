@@ -7,20 +7,21 @@ import { EmptyState } from '../../design-system/components/EmptyState'
 import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { PASSWORD_MIN_LENGTH } from '../auth/passwordPolicy'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { useModerators } from './hooks/useEventData'
 import { useInviteModerator, useRevokeModerator } from './hooks/useEventActions'
 import styles from './ModeratorsPanel.module.css'
 import type { ModeratorDto } from '../../lib/api/dto'
+import type { UiText } from '../../lib/i18n/translations'
 
 export interface ModeratorsPanelProps {
   readonly slug: string
 }
 
-const roleLabel = (moderator: ModeratorDto): string =>
-  moderator.role === 'owner' ? fr.admin.roleOwner : fr.admin.roleModerator
+const roleLabel = (moderator: ModeratorDto, text: UiText): string =>
+  moderator.role === 'owner' ? text.admin.roleOwner : text.admin.roleModerator
 
 /**
  * Who else can decide what reaches the screen.
@@ -30,6 +31,7 @@ const roleLabel = (moderator: ModeratorDto): string =>
  * request comes back 403.
  */
 export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
+  const t = useTranslations()
   const { data: moderators, loading, error, reload } = useModerators(slug)
   const invite = useInviteModerator()
   const revoke = useRevokeModerator()
@@ -72,8 +74,8 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
       // out a credential that does not work.
       toast.show(
         result.value.created
-          ? fr.admin.moderatorInvited(address)
-          : fr.admin.moderatorInvitedExisting(address),
+          ? t.admin.moderatorInvited(address)
+          : t.admin.moderatorInvitedExisting(address),
         { tone: 'success' },
       )
       setEmail('')
@@ -91,19 +93,19 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
         toast.show(result.message, { tone: 'danger' })
         return
       }
-      toast.show(fr.admin.moderatorRevoked, { tone: 'success' })
+      toast.show(t.admin.moderatorRevoked, { tone: 'success' })
       reload()
     })
   }
 
   return (
-    <Card as="h2" title={fr.admin.moderators}>
-      {loading ? <Pending label={fr.app.loading} /> : null}
+    <Card as="h2" title={t.admin.moderators}>
+      {loading ? <Pending label={t.app.loading} /> : null}
 
       {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
 
       {!loading && error === null && list.length === 0 ? (
-        <EmptyState as="h3" title={fr.admin.moderatorsEmpty} />
+        <EmptyState as="h3" title={t.admin.moderatorsEmpty} />
       ) : null}
 
       {!loading && error === null && list.length > 0 ? (
@@ -119,10 +121,10 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
                   )}
                 </div>
                 <Badge tone={moderator.role === 'owner' ? 'accent' : 'neutral'}>
-                  {roleLabel(moderator)}
+                  {roleLabel(moderator, t)}
                 </Badge>
                 {lastOwner ? (
-                  <span className={styles['locked']}>{fr.admin.lastOwnerHint}</span>
+                  <span className={styles['locked']}>{t.admin.lastOwnerHint}</span>
                 ) : (
                   <Button
                     variant="danger"
@@ -131,7 +133,7 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
                     disabled={revoke.busy}
                     onClick={() => setSelected(moderator)}
                   >
-                    {fr.admin.revokeModerator}
+                    {t.admin.revokeModerator}
                   </Button>
                 )}
               </li>
@@ -142,8 +144,8 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
 
       <form className={styles['invite']} onSubmit={submitInvite} noValidate>
         <Field
-          label={fr.admin.moderatorEmail}
-          hint={fr.admin.moderatorEmailHint}
+          label={t.admin.moderatorEmail}
+          hint={t.admin.moderatorEmailHint}
           {...(inviteFailure === null ? {} : { error: inviteFailure })}
         >
           {(control) => (
@@ -161,8 +163,8 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
           )}
         </Field>
         <Field
-          label={fr.admin.moderatorPassword}
-          hint={fr.admin.moderatorPasswordHint(PASSWORD_MIN_LENGTH)}
+          label={t.admin.moderatorPassword}
+          hint={t.admin.moderatorPasswordHint(PASSWORD_MIN_LENGTH)}
         >
           {(control) => (
             <TextInput
@@ -182,16 +184,16 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
         </Field>
         <div>
           <Button type="submit" loading={invite.busy}>
-            {fr.admin.inviteSubmit}
+            {t.admin.inviteSubmit}
           </Button>
         </div>
       </form>
 
       <ConfirmDialog
         open={selected !== null}
-        title={fr.admin.revokeModeratorTitle}
-        description={fr.admin.revokeModeratorHint}
-        confirmLabel={fr.admin.revokeModerator}
+        title={t.admin.revokeModeratorTitle}
+        description={t.admin.revokeModeratorHint}
+        confirmLabel={t.admin.revokeModerator}
         busy={revoke.busy}
         onConfirm={confirmRevoke}
         onCancel={() => setSelected(null)}

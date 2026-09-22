@@ -218,6 +218,11 @@ const buildWorld = (): World => {
         moderatePhotosBulk: absent('moderatePhotosBulk'),
 
         getWallPlaylist: absent('getWallPlaylist'),
+        listMissions: absent('listMissions'),
+        createMission: absent('createMission'),
+        updateMission: absent('updateMission'),
+        deleteMission: absent('deleteMission'),
+        getGuestChecklist: absent('getGuestChecklist'),
 
         reactToPhoto: absent('reactToPhoto'),
         withdrawReaction: absent('withdrawReaction'),
@@ -613,6 +618,43 @@ describe('the host event routes', () => {
       expect(response.body.joinCode).toMatch(/^[0-9A-Z]{6}$/)
     })
 
+    it('carries the creator’s language onto the event, for the projector to read', async () => {
+      // Found by a mutation: dropping the `with({ wallLanguage })` in `createEvent` left
+      // every ring-4 case green, because nothing on this path had ever asked. The create
+      // form is the only place this value is ever set from anybody's preference, so the
+      // route that carries it is worth one case of its own.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .post('/api/events')
+        .send({ name: 'Un mariage en juin', wallLanguage: 'de' })
+
+      expect(response.status).toBe(201)
+      expect(response.body.settings.wallLanguage).toBe('de')
+    })
+
+    it('answers French for a client that says nothing about language', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent.post('/api/events').send({ name: 'Un mariage en juin' })
+
+      expect(response.body.settings.wallLanguage).toBe('fr')
+    })
+
+    it('refuses a language this build has no words for', async () => {
+      // `z.enum(EVENT_LANGUAGES)` at the boundary. A tag the client cannot render must not
+      // reach the settings blob: the wall would fall back to French for eight hours while
+      // the host's settings page showed what they chose.
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .post('/api/events')
+        .send({ name: 'Un mariage en juin', wallLanguage: 'pt' })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+    })
+
     it('answers with the link behind the QR code, from the configured public URL', async () => {
       const agent = await signedIn(world, 'owner')
 
@@ -867,6 +909,7 @@ describe('the host event routes', () => {
         retentionDays: 7,
         maxPhotosPerGuest: 5,
         theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        wallLanguage: 'en',
       })
 
       expect(response.status).toBe(200)
@@ -880,6 +923,7 @@ describe('the host event routes', () => {
         retentionDays: 7,
         maxPhotosPerGuest: 5,
         theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        wallLanguage: 'en',
       })
     })
 

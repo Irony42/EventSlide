@@ -166,6 +166,7 @@ describe('the real schema', () => {
     expect(tableNames(db)).toEqual([
       'clip_jobs',
       'event_memberships',
+      'event_missions',
       'events',
       'guests',
       'photos',
@@ -183,10 +184,13 @@ describe('the real schema', () => {
 
     expect(indexNames(db)).toEqual(
       expect.arrayContaining([
+        'idx_event_missions_event',
+        'idx_event_missions_event_prompt',
         'idx_events_join_code',
         'idx_events_slug',
         'idx_guests_event_seen',
         'idx_photos_event_author',
+        'idx_photos_event_mission',
         'idx_photos_event_hash',
         'idx_photos_event_status_created',
         'idx_reactions_guest_recent',
@@ -725,6 +729,204 @@ describe('migration 004, the site-level role', () => {
     migrate(db, migrations)
 
     expect(siteRoles(db)).toEqual([])
+    closeDatabase(db)
+  })
+})
+
+describe('migration 005, photo missions', () => {
+  const columnNames = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
+
+  const tableNames = (db: Db): string[] =>
+    (
+      db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all() as {
+        name: string
+      }[]
+    ).map((row) => row.name)
+
+  const AT = '2026-06-20T21:00:00.000Z'
+
+  /** One album as 004 alone could hold it: no missions table, no tag on a photograph. */
+  const seedPreMissions = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'hote@example.test', 'hash:x', '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'live',
+                    '{"moderation":"manual"}', 1000, '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO guests (id, event_id, joined_at, last_seen_at)
+            VALUES ('g1', 'e1', '${AT}', '${AT}')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO photos (id, event_id, author_guest_id, status, content_hash, width, height,
+                           byte_size, created_at)
+            VALUES ('p1', 'e1', 'g1', 'published', '${'a'.repeat(64)}', 1200, 800, 90000,
+                    '2026-06-20T21:05:00.000Z')`,
+    ).run()
+  }
+
+  const insertMission = (db: Db, id: string, prompt: string, scope = 'guest'): void => {
+    db.prepare<[string, string, string]>(
+      `INSERT INTO event_missions (id, event_id, prompt, scope, created_at)
+            VALUES (?, 'e1', ?, ?, '${AT}')`,
+    ).run(id, prompt, scope)
+  }
+
+  it('creates the missions table and gives photos the one nullable tag', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(tableNames(db)).toContain('event_missions')
+    expect(columnNames(db, 'event_missions')).toEqual([
+      'id',
+      'event_id',
+      'prompt',
+      'scope',
+      'created_at',
+    ])
+    expect(columnNames(db, 'photos')).toEqual(expect.arrayContaining(['mission_id']))
+    closeDatabase(db)
+  })
+
+  it('stores no completion at all, because it is derived from the photographs', () => {
+    // The schema-level guard for the decision in `domain/missions/missionProgress.ts`. A
+    // column here would need unsetting from five places, and the first one anybody
+    // forgot would leave a wall saying "fait" over a photograph just taken down.
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'event_missions')).not.toContain('completed_at')
+    expect(columnNames(db, 'event_missions')).not.toContain('completed_by')
+    closeDatabase(db)
+  })
+
+  it('refuses a scope the domain does not have, in the database rather than only in code', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedPreMissions(db)
+
+    expect(() => insertMission(db, 'm1', 'un selfie', 'room')).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('refuses the same prompt twice in one event, so a double-tapped form is one row', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedPreMissions(db)
+    insertMission(db, 'm1', 'un selfie avec les maries')
+
+    expect(() => insertMission(db, 'm2', 'un selfie avec les maries')).toThrow(/UNIQUE constraint/)
+    closeDatabase(db)
+  })
+
+  it('lets two events each ask for the same thing', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedPreMissions(db)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e2', 'u1', 'Gala', 'gala', 'ZZZ999', 'live', '{}', 1000, '${AT}')`,
+    ).run()
+    insertMission(db, 'm1', 'un selfie avec les maries')
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO event_missions (id, event_id, prompt, scope, created_at)
+                VALUES ('m2', 'e2', 'un selfie avec les maries', 'guest', '${AT}')`,
+        )
+        .run(),
+    ).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('takes the missions with the event when the event is purged', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedPreMissions(db)
+    insertMission(db, 'm1', 'un selfie avec les maries')
+
+    db.prepare(`DELETE FROM events WHERE id = 'e1'`).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM event_missions`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('unfiles a photograph when its mission is deleted, and keeps the photograph', () => {
+    // `SET NULL`, never `CASCADE`. A host removing a mistyped prompt has not asked for
+    // the photographs filed under it to leave the album, and `CASCADE` there would put a
+    // data-loss operation one keystroke away from a typo fix.
+    const db = freshDb()
+    migrate(db, migrations)
+    seedPreMissions(db)
+    insertMission(db, 'm1', 'un selfie avec les maries')
+    db.prepare(`UPDATE photos SET mission_id = 'm1' WHERE id = 'p1'`).run()
+
+    db.prepare(`DELETE FROM event_missions WHERE id = 'm1'`).run()
+
+    expect(db.prepare(`SELECT id, mission_id FROM photos WHERE id = 'p1'`).get()).toEqual({
+      id: 'p1',
+      mission_id: null,
+    })
+    closeDatabase(db)
+  })
+
+  it('refuses a tag naming a mission that does not exist', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedPreMissions(db)
+
+    expect(() =>
+      db.prepare(`UPDATE photos SET mission_id = 'ghost' WHERE id = 'p1'`).run(),
+    ).toThrow(/FOREIGN KEY constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('answers the counting query from the index alone, without touching the album', () => {
+    // The one query that reads `mission_id`, and it runs on every wall refresh for eight
+    // hours. Covering and partial: `status` filters it, `author_guest_id` makes the
+    // DISTINCT possible, and the index is the size of the tagged photographs rather than
+    // of the evening.
+    const db = freshDb()
+    migrate(db, migrations)
+    const planOf = (sql: string): string =>
+      (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all() as { detail: string }[])
+        .map((row) => row.detail)
+        .join('; ')
+
+    const plan = planOf(
+      `SELECT mission_id, COUNT(*) AS n, COUNT(DISTINCT author_guest_id) AS guests
+         FROM photos
+        WHERE event_id = 'e1' AND mission_id IS NOT NULL AND status = 'published'
+        GROUP BY mission_id`,
+    )
+
+    expect(plan).toContain('idx_photos_event_mission')
+    expect(plan).not.toContain('SCAN photos')
+    closeDatabase(db)
+  })
+
+  it('keeps a photograph that existed before missions did, and files it under nothing', () => {
+    // The upgrade path, on somebody's wedding album. The column has to arrive as NULL on
+    // every existing row with no backfill and no table rebuild.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 5),
+    )
+    seedPreMissions(db)
+
+    migrate(db, migrations)
+
+    expect(
+      db.prepare(`SELECT status, byte_size, mission_id FROM photos WHERE id = 'p1'`).get(),
+    ).toEqual({ status: 'published', byte_size: 90000, mission_id: null })
     closeDatabase(db)
   })
 })

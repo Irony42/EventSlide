@@ -32,6 +32,15 @@ export interface OutboxEntry {
   readonly fileName: string
   readonly fileType: string
   readonly caption: string | null
+  /**
+   * The host's prompt this photograph answers (roadmap §2.1), or `null`.
+   *
+   * Stored beside the caption and for the same reason: a guest who chose a mission and
+   * then lost the connection must not lose the choice with it. The server refuses a tag
+   * it cannot resolve, and `mission.notFound` is in the permanent-failure list in
+   * `outboxPolicy` — a prompt the host deleted will not come back on a retry.
+   */
+  readonly missionId: string | null
   /** Epoch milliseconds. Used for expiry, so a stale photo is never sent to a
    *  wedding that ended two days ago. */
   readonly enqueuedAt: number
@@ -77,6 +86,7 @@ export interface NewOutboxEntry {
   readonly fileName: string
   readonly fileType: string
   readonly caption: string | null
+  readonly missionId: string | null
   readonly csrfToken: string | null
 }
 

@@ -6,9 +6,13 @@ be slow**. Companion to [CLAUDE.md](../CLAUDE.md) §5 (the summary) and
 deep version: mechanics, rationale, and the failure it prevents.
 
 > **Status.** All six rings are in place and green. `npm run verify` passes — lint, the
-> four typecheck projects, 3844 vitest tests, every coverage gate, and the build — and
-> `npm run test:e2e` passes 43 Playwright tests across three browser contexts, with the
-> four `@visual` snapshots green under `npm run test:e2e:visual`.
+> five typecheck projects, **6 839** vitest tests, every coverage gate, and the build —
+> and `npm run test:e2e` passes **337** Playwright tests across five browser projects,
+> with the `@visual` snapshots green under `npm run test:e2e:visual`.
+>
+> Those two counts are a snapshot and go stale between the day they are written and the
+> day anybody reads them; what they are here for is the order of magnitude and the shape,
+> not the digits. `npm run verify` prints the real ones.
 
 ---
 

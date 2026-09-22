@@ -86,7 +86,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() =>
       expect(result.current.items.map((item) => item.state)).toEqual(['done', 'done']),
@@ -106,7 +106,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api, { resize: () => Promise.resolve(aPhotoFile('reduite.jpg')) })
 
     act(() => result.current.add([aPhotoFile('originale.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('done'))
     expect(sent).toEqual(['reduite.jpg'])
@@ -123,7 +123,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api, { resize: () => Promise.reject(new Error('codec')) })
 
     act(() => result.current.add([aPhotoFile('originale.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('done'))
     expect(sent).toEqual(['originale.jpg'])
@@ -141,7 +141,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.items[0]?.progress).toBe(30))
     expect(result.current.items[0]?.state).toBe('uploading')
@@ -157,7 +157,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-    act(() => result.current.send('Les confettis'))
+    act(() => result.current.send('Les confettis', null))
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('done'))
     expect(api.uploadPhotos).toHaveBeenCalledWith(
@@ -178,7 +178,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
     expect(result.current.items[0]?.retryable).toBe(true)
@@ -203,7 +203,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('film.mov')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
     expect(result.current.items[0]?.retryable).toBe(false)
@@ -215,7 +215,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('bombe.png')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
     expect(result.current.items[0]?.retryable).toBe(false)
@@ -227,7 +227,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('duplicate'))
     expect(result.current.items[0]?.error).toBeNull()
@@ -288,7 +288,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
     await waitFor(() => expect(signals).toHaveLength(1))
 
     act(() => result.current.remove(result.current.items[0]?.id ?? ''))
@@ -306,7 +306,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('un.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
     await waitFor(() => expect(result.current.items[0]?.state).toBe('done'))
 
     act(() => result.current.add([aPhotoFile('deux.jpg')]))
@@ -321,7 +321,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api, { onSettled })
 
     act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(onSettled).toHaveBeenCalledTimes(1))
   })
@@ -342,7 +342,7 @@ describe('useUploadQueue', () => {
     act(() =>
       result.current.add([aPhotoFile('un.jpg'), aPhotoFile('film.mov'), aPhotoFile('trois.jpg')]),
     )
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.sending).toBe(false))
     expect(result.current.items.map((item) => item.state)).toEqual(['done', 'failed', 'done'])
@@ -364,7 +364,7 @@ describe('useUploadQueue', () => {
     })
     const { result } = mount(api)
     act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
     await waitFor(() => expect(result.current.items[1]?.state).toBe('failed'))
 
     act(() => result.current.retry(result.current.items[1]?.id ?? ''))
@@ -382,7 +382,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
     expect(result.current.items[0]?.error).toBe(fr.errors['event.quotaExceeded'])
@@ -401,7 +401,7 @@ describe('useUploadQueue', () => {
     })
     const { result } = mount(api)
     act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
     await waitFor(() => expect(result.current.items[0]?.state).toBe('uploading'))
 
     act(() => result.current.add([aPhotoFile('trois.jpg')]))
@@ -427,7 +427,7 @@ describe('useUploadQueue', () => {
     })
     const { result } = mount(api)
     act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
     await waitFor(() => expect(sent).toEqual(['un.jpg']))
 
     act(() => result.current.remove(result.current.items[1]?.id ?? ''))
@@ -453,7 +453,7 @@ describe('useUploadQueue', () => {
       },
     })
     act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
     await waitFor(() => expect(result.current.items[0]?.state).toBe('preparing'))
 
     act(() => result.current.remove(result.current.items[0]?.id ?? ''))
@@ -483,7 +483,7 @@ describe('useUploadQueue', () => {
     })
     const { result } = mount(api)
     act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
     await waitFor(() => expect(result.current.items[0]?.state).toBe('uploading'))
 
     act(() => result.current.remove(result.current.items[0]?.id ?? ''))
@@ -501,7 +501,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
     expect(result.current.items[0]?.error).toBe(fr.errors.unknown)
@@ -519,7 +519,7 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
     expect(result.current.items[0]?.error).toBe(fr.errors.unknown)
@@ -538,8 +538,8 @@ describe('useUploadQueue', () => {
     const { result } = mount(api)
     act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
 
-    act(() => result.current.send(null))
-    act(() => result.current.send(null))
+    act(() => result.current.send(null, null))
+    act(() => result.current.send(null, null))
     act(() => gate.release())
 
     await waitFor(() => expect(result.current.sending).toBe(false))
@@ -573,12 +573,12 @@ describe('useUploadQueue', () => {
       const { result } = mount(api, { outbox })
 
       act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-      act(() => result.current.send('Les confettis'))
+      act(() => result.current.send('Les confettis', null))
 
       await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
       expect(result.current.items[0]?.error).toBeNull()
       expect(result.current.items[0]?.outboxId).toBe('entry-1')
-      expect(outbox.enqueue).toHaveBeenCalledWith(expect.any(File), 'Les confettis')
+      expect(outbox.enqueue).toHaveBeenCalledWith(expect.any(File), 'Les confettis', null)
     })
 
     it('keeps a photo a server that could not answer would have taken', async () => {
@@ -591,7 +591,7 @@ describe('useUploadQueue', () => {
       const { result } = mount(api, { outbox })
 
       act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-      act(() => result.current.send(null))
+      act(() => result.current.send(null, null))
 
       await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
     })
@@ -606,7 +606,7 @@ describe('useUploadQueue', () => {
       const { result } = mount(api, { outbox })
 
       act(() => result.current.add([aPhotoFile('document.pdf')]))
-      act(() => result.current.send(null))
+      act(() => result.current.send(null, null))
 
       await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
       expect(outbox.enqueue).not.toHaveBeenCalled()
@@ -620,7 +620,7 @@ describe('useUploadQueue', () => {
       const { result } = mount(api, { outbox })
 
       act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-      act(() => result.current.send(null))
+      act(() => result.current.send(null, null))
 
       await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
       expect(api.uploadPhotos).not.toHaveBeenCalled()
@@ -638,7 +638,7 @@ describe('useUploadQueue', () => {
       const { result } = mount(api, { outbox })
 
       act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-      act(() => result.current.send(null))
+      act(() => result.current.send(null, null))
 
       await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
       expect(result.current.items[0]?.retryable).toBe(true)
@@ -654,7 +654,7 @@ describe('useUploadQueue', () => {
       const { result } = mount(api, { outbox })
 
       act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-      act(() => result.current.send(null))
+      act(() => result.current.send(null, null))
 
       await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
       expect(outbox.enqueue).not.toHaveBeenCalled()
@@ -668,7 +668,7 @@ describe('useUploadQueue', () => {
   describe('settle', () => {
     const queueOne = async (result: { current: ReturnType<typeof useUploadQueue> }) => {
       act(() => result.current.add([aPhotoFile('confettis.jpg')]))
-      act(() => result.current.send(null))
+      act(() => result.current.send(null, null))
       await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
     }
 

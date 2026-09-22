@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { wallBudgetProps } from '../../design-system/budget'
 import { readEventTheme, themeSurfaceProps } from '../../design-system/eventTheme'
@@ -7,12 +7,16 @@ import { Dialog } from '../../design-system/components/Dialog'
 import { Spinner } from '../../design-system/components/Spinner'
 import { StatusIcon, type StatusTone } from '../../design-system/components/StatusIcon'
 import type { WallItemDto, WallLayout } from '../../lib/api/dto'
+import type { UiText } from '../../lib/i18n/translations'
 import { ApiError } from '../../lib/http'
-import { fr } from '../../lib/i18n/fr'
+import { useAnnounceLocale } from '../../lib/i18n/deferredLocale'
+import { parseLocale } from '../../lib/i18n/locale'
 import { messageForCode } from '../../lib/i18n/translations'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallLayouts } from './components/WallLayouts'
+import { WallMissions } from './components/WallMissions'
 import { WallOverlay } from './components/WallOverlay'
 import { useFrameBudget } from './hooks/useFrameBudget'
 import { useLayoutParam } from './hooks/useLayoutParam'
@@ -50,8 +54,13 @@ const LAYOUT_CYCLE: readonly WallLayout[] = [
   'split',
 ]
 
-/** The French names of the cycle, in cycle order. Built once; nothing here changes. */
-const LAYOUT_ORDER_HINT = fr.wall.layoutOrder(LAYOUT_CYCLE.map((name) => fr.wall.layoutNames[name]))
+/**
+ * The names of the cycle, in cycle order, in the language the room is in. Built per render
+ * rather than at module load — six property reads and a join, on a dialog that opens only
+ * when a host presses `?`.
+ */
+const layoutOrderHint = (text: UiText): string =>
+  text.wall.layoutOrder(LAYOUT_CYCLE.map((name) => text.wall.layoutNames[name]))
 
 const nextLayout = (current: WallLayout): WallLayout => {
   const at = LAYOUT_CYCLE.indexOf(current)
@@ -126,6 +135,28 @@ export function WallPage() {
   const eventSlug = slug ?? ''
 
   const { wall, loading, error, offline, reactionPulse, refresh } = useWallPlaylist(eventSlug)
+  const text = useTranslations()
+
+  /**
+   * The language the room is in, told to the shell above this page. It is the **event's**,
+   * not this browser's — `src/domain/events/eventLanguage.ts` has the argument.
+   *
+   * `parseLocale` rather than a cast, as the stored guest preference is narrowed: this
+   * crossed a network boundary, and a projector left open across a deploy that added a
+   * sixth language must render the default rather than index a table with no entry. An
+   * absent field takes the same path, which is what an older server sends. Both halves are
+   * guarded in `router.test.tsx`, under "which language each surface speaks".
+   *
+   * Announced from an effect because it writes state in the component above. No flash to
+   * pay for: nothing but a visually-hidden spinner label renders until this same response.
+   */
+  const announceLocale = useAnnounceLocale()
+  const wallLocale = parseLocale(wall?.wallLanguage)
+
+  useEffect(() => {
+    if (wallLocale !== null) announceLocale(wallLocale)
+  }, [wallLocale, announceLocale])
+
   const { transitionMs } = useTimingOverrides()
   const urlLayout = useLayoutParam()
   const budget = useFrameBudget()
@@ -141,6 +172,19 @@ export function WallPage() {
    */
   const [layoutOverride, setLayoutOverride] = useState<WallLayout | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
+  /**
+   * Two flags, because there are two things a host can mean.
+   *
+   * **Escape means "put away whatever is covering the photos"** — it always has, and it
+   * now reaches the mission panel as well, which is the honest reading of one key with
+   * one meaning.
+   *
+   * **The card's own button means what its label says**, and its label is "Masquer le
+   * rappel du code". A host who wants the QR out of the corner has not asked for the
+   * room's mission list to go with it, and nothing on this screen puts either back: the
+   * projector is unattended, so a wrong dismissal lasts until somebody reloads it.
+   */
+  const [chromeDismissed, setChromeDismissed] = useState(false)
   const [joinCardDismissed, setJoinCardDismissed] = useState(false)
 
   const serverLayout = wall?.layout
@@ -171,7 +215,7 @@ export function WallPage() {
         setHelpOpen(false)
         return
       }
-      setJoinCardDismissed(true)
+      setChromeDismissed(true)
     },
   })
 
@@ -188,7 +232,19 @@ export function WallPage() {
     wall?.joinCode !== undefined && wall.joinUrl !== undefined
       ? { code: wall.joinCode, url: wall.joinUrl }
       : null
-  const showsOverlay = join !== null && !joinCardDismissed && items.length > 0
+  const showsOverlay = join !== null && !chromeDismissed && !joinCardDismissed && items.length > 0
+
+  /**
+   * The host's prompts, when there are any (roadmap §2.1).
+   *
+   * Withheld while the wall is still empty, for the reason the join card is: the empty
+   * state is a full-screen invitation, and a panel over it would be chrome covering the
+   * one message the room needs at that moment. `?? []` because the field is optional on
+   * the response — a server build that predates missions leaves the projector drawing
+   * nothing rather than crashing it.
+   */
+  const missions = wall?.missions ?? []
+  const showsMissions = !chromeDismissed && items.length > 0 && missions.length > 0
 
   /**
    * The event's own look, worn by the element that renders it (roadmap 2.2).
@@ -232,25 +288,27 @@ export function WallPage() {
     >
       {/* One region for the whole concern, mounted once — never one per notice. */}
       <div className={styles['notices']} aria-live="polite">
-        {offline ? <WallNotice tone="warning" text={fr.wall.offline} delayed /> : null}
-        {slideshow.paused ? <WallNotice tone="accent" text={fr.wall.paused} /> : null}
+        {offline ? <WallNotice tone="warning" text={text.wall.offline} delayed /> : null}
+        {slideshow.paused ? <WallNotice tone="accent" text={text.wall.paused} /> : null}
       </div>
 
       {wall === null ? (
         <div className={styles['centre']}>
           {loading ? (
-            <Spinner size="lg" label={fr.app.loading} />
+            <Spinner size="lg" label={text.app.loading} />
           ) : (
             <div className={styles['failure']} role="alert">
               <StatusIcon tone="danger" className={classes(styles['failureIcon'])} />
               <h1 className={styles['failureTitle']}>
-                {error instanceof ApiError ? messageForCode(error.code, fr) : fr.wall.errorTitle}
+                {error instanceof ApiError
+                  ? messageForCode(error.code, text)
+                  : text.wall.errorTitle}
               </h1>
-              <p className={styles['failureHint']}>{fr.wall.errorHint}</p>
+              <p className={styles['failureHint']}>{text.wall.errorHint}</p>
               {/* The wall retries on its own; this is for the host who walked over
                   rather than waiting for the next attempt. */}
               <Button size="lg" onClick={refresh}>
-                {fr.app.retry}
+                {text.app.retry}
               </Button>
             </div>
           )}
@@ -267,6 +325,8 @@ export function WallPage() {
         />
       )}
 
+      {showsMissions ? <WallMissions missions={missions} /> : null}
+
       {showsOverlay && join !== null ? (
         <WallOverlay join={join} onDismiss={() => setJoinCardDismissed(true)} />
       ) : null}
@@ -275,10 +335,10 @@ export function WallPage() {
 
       <Dialog
         open={helpOpen}
-        title={fr.wall.shortcuts}
+        title={text.wall.shortcuts}
         // Six layouts is more than a host can hold in their head at a projector, so the
         // one screen that explains `L` names what it walks through.
-        description={`${fr.wall.shortcutsHint} ${LAYOUT_ORDER_HINT}`}
+        description={`${text.wall.shortcutsHint} ${layoutOrderHint(text)}`}
         onClose={closeHelp}
       />
     </div>

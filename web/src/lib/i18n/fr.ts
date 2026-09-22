@@ -12,17 +12,21 @@
  *    sloppy, so the choice is made once, here.
  * 3. **This file decides which keys exist.** `de.ts`, `en.ts`, `es.ts` and `it.ts` are
  *    typed from `typeof fr`, so a key added here that they do not carry fails
- *    `npm run typecheck` (`translations.ts` explains the derivation). Only the sections
- *    listed in `GUEST_SECTIONS` are translated; the rest are French on every language,
- *    by design and not by omission.
+ *    `npm run typecheck` (`translations.ts` explains the derivation). **Every section is
+ *    translated** — the guest's, the host's and the room's alike.
  *
  * Tone: sentence case, no exclamation-mark inflation, and an error says what to do
  * next rather than what went wrong internally.
  *
- * **Adding a string.** Put it in the section it belongs to, as here. If the section is
- * host-facing (`admin`, `moderation`, `mobileModeration`, `auth`, `wall`) there is
- * nothing else to do. If it is guest-facing (`app`, `join`, `upload`, `ui`, `shell`,
- * `errors`) the four other tables stop compiling until they carry it too.
+ * **Adding a string.** Put it in the section it belongs to, as here, and the four other
+ * tables stop compiling until they carry it too — if you are adding a key you are adding
+ * five. The `/* ---- Added by … ---- *\/` banners in this file mark where a feature
+ * branch appended, so two branches touching one section merge without meeting; they are
+ * this file's convention only, and the four translations carry no copy of them.
+ *
+ * **What is not in this file, and must never be.** An event's name, a photo's caption, a
+ * guest's display name and a mission's prompt are *content* — a person wrote them and no
+ * table translates them. `content.test.ts` enforces it.
  */
 
 import { formattersFor } from './formatters'
@@ -144,6 +148,24 @@ export const fr = {
     notJoinedTitle: 'Rejoignez la galerie pour envoyer vos photos',
     notJoinedHint: 'Scannez à nouveau le QR code, ou saisissez le code de la soirée.',
     notJoinedAction: 'Saisir le code',
+
+    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
+
+    /**
+     * The host's prompts, as a guest reads them.
+     *
+     * The words *around* the list are translated; the prompts themselves are not, and
+     * never will be — a prompt is content the host typed in the language the evening is
+     * held in, not interface copy. A German guest at a French wedding reads a French
+     * prompt under a German label, which is the right way round: the prompt names
+     * something that happened in that room.
+     */
+    missionsTitle: 'Missions',
+    missionsHint: 'Touchez une mission, puis envoyez votre photo.',
+    missionDone: 'Fait',
+    /** A once-for-the-evening prompt somebody else already answered. */
+    missionDoneByRoom: 'Déjà photographiée',
+    missionFor: (prompt: string) => `Ces photos compteront pour « ${prompt} ».`,
 
     /* ---- Added by the offline outbox. Keep additions inside this block. ---- */
 
@@ -314,10 +336,10 @@ export const fr = {
      * The same badge once the duration is known.
      *
      * It reads identically to `moderation.videoLength`, which is what "Vos envois" used
-     * to render — and that was a scope bug rather than reuse: `moderation` is host copy
-     * and stays French in every language, so a guest reading this app in German had one
-     * French badge in their own list of uploads. Two identical sentences owned by the
-     * two audiences that read them is the cheaper mistake.
+     * to render — a scope bug rather than reuse, back when `moderation` was French in
+     * every language. Both are translated now, so the bug is gone on its own; the
+     * duplication stays because a moderator's badge and a guest's badge are owned by
+     * different audiences and free to diverge.
      */
     mineClipLength: (seconds: number) => `Vidéo · ${t.number(seconds)} s`,
 
@@ -492,7 +514,9 @@ export const fr = {
      * The dispositions, named for the one person who ever reads them: the host standing
      * at the projector with the shortcuts dialog open. Nothing here is projected — the
      * room sees photographs, not the name of the grid they are in — so these are working
-     * words a French-speaking host would use, not translations of the code's names.
+     * words a host would use, not translations of the code's names. The same holds in the
+     * other four tables: translate what a host at a projector would call the grid, not
+     * `spotlight`.
      *
      * `satisfies Record<WallLayout, string>` is the same guard `useLayoutParam` uses: a
      * layout added to the contract fails to compile here until it is named, and a name
@@ -519,6 +543,32 @@ export const fr = {
      */
     videoBy: (name: string) => `Vidéo envoyée par ${name}`,
     videoByAnonymous: 'Vidéo envoyée par un invité',
+
+    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
+
+    /**
+     * The corner panel's own words, in the language the host set on the event — a guest's
+     * phone cannot answer "what language is this room", and the host can.
+     *
+     * The prompts themselves are not here at all. They are content the host typed, and
+     * they arrive on the wall response. So this panel routinely renders a translated
+     * heading over untranslated prompts, which is not a defect: the heading is the
+     * product speaking and the prompt is the host speaking, and they are allowed to be in
+     * different languages because they are different voices.
+     */
+    missionsTitle: 'Missions',
+    missionDone: 'Fait',
+    /**
+     * What the wall prints beside a per-guest prompt, in place of a tick.
+     *
+     * A tick would be wrong for something two hundred people can each answer, and it is
+     * the only place `scope` changes a pixel.
+     */
+    missionGuests: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} invité`,
+        other: `${t.number(count)} invités`,
+      }),
   },
 
   admin: {
@@ -589,6 +639,20 @@ export const fr = {
     allowClipsHint:
       'Les invités peuvent envoyer de courtes vidéos, en plus des photos. Quand la case est décochée, les vidéos sont refusées : parce que vous l’avez décochée, parce que le modèle choisi à la création l’a réglé ainsi, ou parce que la galerie est antérieure à cette fonctionnalité. Cochez-la pour les autoriser.',
     allowGuestSelfDelete: 'Autoriser les invités à supprimer leurs photos',
+
+    /* ---- The language the room's screen speaks (roadmap 1.5). ---- */
+
+    /**
+     * Named for the screen it changes and for nothing else.
+     *
+     * It is **not** "la langue de la soirée", and the hint says so at length — a host who
+     * read that wording would reasonably expect their consignes to be translated, and they
+     * never will be. No single field could describe the content's language anyway: a
+     * caption is written by whichever guest wrote it.
+     */
+    wallLanguage: 'Langue de l’écran de la salle',
+    wallLanguageHint:
+      'Les mots de l’écran de la salle : « Rejoignez la galerie », « Missions », les messages d’attente. Ce que vous et vos invités écrivez — le nom de l’évènement, les légendes, les consignes — s’affiche tel quel et n’est jamais traduit. Vos invités choisissent leur propre langue sur leur téléphone ; ce réglage ne les concerne pas.',
 
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,
             because a single choice with four options does not deserve four strings. ---- */
@@ -817,6 +881,58 @@ export const fr = {
      */
     scheduleDiscarded: (when: string) =>
       `L’horaire automatique n’a pas pu s’appliquer le ${when} : l’évènement ne pouvait pas changer d’état à ce moment-là. Il a été effacé. Enregistrez-en un nouveau si vous en voulez un.`,
+
+    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
+
+    missionsTitle: 'Missions',
+    missionsHint:
+      'Une courte liste de consignes que vos invités voient comme une check-list, et que l’écran affiche dans un coin.',
+    missionsEmpty: 'Aucune mission pour le moment.',
+    missionPrompt: 'Consigne',
+    missionPromptHint: (max: number) =>
+      `${t.number(max)} caractères maximum. Écrite dans la langue de la soirée : elle n’est pas traduite.`,
+    missionScope: 'À relever',
+    missionScopeGuest: 'Par invité',
+    missionScopeEvent: 'Une fois pour la soirée',
+    missionScopeHint:
+      'Par invité : chacun peut la relever. Une fois : la première photo validée la coche pour tout le monde.',
+    missionAdd: 'Ajouter la mission',
+    missionSave: 'Enregistrer',
+    missionCancel: 'Annuler',
+    /**
+     * The word on the button, and the sentence a screen reader hears.
+     *
+     * Twelve rows of "Modifier" are twelve identical accessible names, which is exactly
+     * the list a screen-reader user cannot navigate. The visible label stays one word
+     * because the row already says which prompt it is about.
+     */
+    missionEditShort: 'Modifier',
+    missionDeleteShort: 'Supprimer',
+    missionEdit: (prompt: string) => `Modifier « ${prompt} »`,
+    missionDelete: (prompt: string) => `Supprimer « ${prompt} »`,
+    /**
+     * Said plainly, because the host is about to be told that deleting is safe. It is:
+     * the schema unfiles the photographs and removes none of them.
+     */
+    missionDeleteTitle: 'Supprimer cette mission ?',
+    missionDeleteAction: 'Supprimer la mission',
+    missionDeleteConfirm:
+      'Les photos déjà envoyées restent dans l’album : elles ne compteront simplement plus pour cette mission.',
+    missionAdded: 'La mission a été ajoutée.',
+    missionSaved: 'La mission a été enregistrée.',
+    missionDeleted: 'La mission a été supprimée.',
+    /** What the room has done with it. Counted on every read, never stored. */
+    missionAnswered: (photos: number, guests: number) =>
+      `${t.count(photos, {
+        one: `${t.number(photos)} photo`,
+        other: `${t.number(photos)} photos`,
+      })}, ${t.count(guests, {
+        one: `${t.number(guests)} invité`,
+        other: `${t.number(guests)} invités`,
+      })}`,
+    missionUnanswered: 'Pas encore relevée',
+    missionsFull: (max: number) =>
+      `${t.number(max)} missions au maximum : c’est ce qui garde la liste lisible à dix mètres.`,
   },
 
   auth: {
@@ -905,6 +1021,10 @@ export const fr = {
     'eventSettings.graceSecondsInvalid': 'Ce délai de suppression n’est pas accepté.',
     'eventSettings.retentionDaysInvalid': 'Ce délai de conservation n’est pas accepté.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Ce nombre de photos par invité n’est pas accepté.',
+    // The picker offers only the five the build carries, so a host meets this through the
+    // API or a tab left open across a deploy that removed one.
+    'eventSettings.wallLanguageInvalid':
+      'Cette langue n’est pas disponible. Choisissez-en une dans la liste.',
     'email.malformed': 'Cette adresse e-mail n’est pas valide.',
     'user.notFound': 'Aucun compte ne correspond à cette adresse e-mail.',
     'membership.alreadyExists': 'Cette personne modère déjà cet évènement.',
@@ -1009,6 +1129,14 @@ export const fr = {
     // it is here because every code the API can answer with has a sentence of its own,
     // and a code with no copy renders as the generic one if anything ever does show it.
     'photo.rangeNotSatisfiable': 'Cette partie du fichier n’existe pas.',
+
+    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
+    'mission.notFound': 'Cette mission n’existe plus. Rechargez la page.',
+    'mission.duplicate': 'Cette mission existe déjà.',
+    'mission.limitReached': 'Vous avez atteint le nombre de missions autorisé.',
+    'mission.promptEmpty': 'Écrivez la consigne de la mission.',
+    'mission.promptTooLong': 'Cette consigne est trop longue pour l’écran.',
+    'mission.promptInvalid': 'Cette consigne n’est pas valide.',
   },
 
   /**

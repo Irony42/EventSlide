@@ -111,7 +111,9 @@ describe('EventPage', () => {
     expect(bar).toHaveAttribute('aria-valuemax', '5000000000')
     expect(
       screen.getByText(
-        spaced(fr.admin.storageUsed(formatBytes(2_400_000), formatBytes(5_000_000_000))),
+        spaced(
+          fr.admin.storageUsed(formatBytes(2_400_000, 'fr'), formatBytes(5_000_000_000, 'fr')),
+        ),
       ),
     ).toBeVisible()
   })

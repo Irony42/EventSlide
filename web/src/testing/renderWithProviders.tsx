@@ -14,12 +14,15 @@ import type {
   EventDto,
   EventSettingsDto,
   GuestPhotoDto,
+  GuestMissionDto,
   JoinResponse,
+  MissionDto,
   ModerationPhotoDto,
   PublicEventDto,
   SessionResponse,
   SessionUserDto,
   WallItemDto,
+  WallMissionDto,
   WallResponse,
 } from '../lib/api/dto'
 
@@ -53,6 +56,36 @@ export const aPublicEvent = (overrides: Partial<PublicEventDto> = {}): PublicEve
   // The default theme, so a component test asserts the product's own look unless it
   // says otherwise — the same starting point an event that chose nothing has.
   theme: DEFAULT_EVENT_THEME,
+  ...overrides,
+})
+
+/** One of the host's prompts, as the room sees it. Unanswered by default. */
+export const aWallMission = (overrides: Partial<WallMissionDto> = {}): WallMissionDto => ({
+  id: 'mission-1',
+  prompt: 'un selfie avec les mariés',
+  scope: 'guest',
+  achieved: false,
+  completedByGuests: 0,
+  ...overrides,
+})
+
+/** One of the host's prompts, on the host's console. */
+export const aMission = (overrides: Partial<MissionDto> = {}): MissionDto => ({
+  id: 'mission-1',
+  prompt: 'un selfie avec les mariés',
+  scope: 'guest',
+  achieved: false,
+  publishedPhotos: 0,
+  completedByGuests: 0,
+  ...overrides,
+})
+
+/** One row of the guest's checklist. Still to do by default. */
+export const aGuestMission = (overrides: Partial<GuestMissionDto> = {}): GuestMissionDto => ({
+  id: 'mission-1',
+  prompt: 'un selfie avec les mariés',
+  scope: 'guest',
+  done: false,
   ...overrides,
 })
 
@@ -133,6 +166,18 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   // `useWallPlaylist.settings.test.ts`, which enumerates what a real server sends: the
   // staleness guard had never once been asked about the theme.
   theme: DEFAULT_EVENT_THEME,
+  // Empty, which is what nearly every event sends: a wall with no prompts draws no panel,
+  // and the committed visual baselines are of exactly that wall. Present rather than
+  // omitted for the reason `theme` is — an omitted key is invisible to the enumeration in
+  // `useWallPlaylist.settings.test.ts`.
+  missions: [],
+  // The language the room's screen speaks. Present rather than omitted for the reason
+  // `theme` and `missions` above are: the field is optional on the response, and an
+  // omitted key is invisible to the `Object.keys` walk in
+  // `useWallPlaylist.settings.test.ts` — which is the enumeration written precisely so a
+  // settings field cannot go uncompared. A test that wants the server build which
+  // predates the field deletes the key rather than overriding it.
+  wallLanguage: 'fr',
   ...overrides,
 })
 
@@ -191,6 +236,10 @@ export const eventSettings = (overrides: Partial<EventSettingsDto> = {}): EventS
   retentionDays: null,
   maxPhotosPerGuest: null,
   theme: DEFAULT_EVENT_THEME,
+  // French, which is what an event created before this setting existed reads back as —
+  // and what a host who has not touched the control still has. A test that wants the
+  // projector in another language overrides it.
+  wallLanguage: 'fr',
   ...overrides,
 })
 
@@ -262,6 +311,9 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   uploadClip: vi.fn(async () => aClipJob()),
   clipJob: vi.fn(async () => aClipJob()),
   myPhotos: vi.fn(async () => ({ items: [] })),
+  // Empty, which is what nearly every event answers: a host who set no prompts is the
+  // common case, and the checklist renders nothing at all for them.
+  myMissions: vi.fn(async () => ({ items: [] })),
   deleteMyPhoto: vi.fn(async () => undefined),
   setCaption: vi.fn(async () => undefined),
   react: vi.fn(async () => undefined),
@@ -306,6 +358,11 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
     created: true,
   })),
   revokeModerator: vi.fn(async () => undefined),
+
+  listMissions: vi.fn(async () => ({ items: [] })),
+  createMission: vi.fn(async (): Promise<MissionDto> => aMission()),
+  updateMission: vi.fn(async () => undefined),
+  deleteMission: vi.fn(async () => undefined),
 
   albumUrl: vi.fn((slug: string) => `/api/events/${slug}/album.zip`),
   streamUrl: vi.fn((slug: string) => `/api/events/${slug}/stream`),

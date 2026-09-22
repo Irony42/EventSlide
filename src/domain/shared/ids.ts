@@ -30,6 +30,16 @@ export type ReactionId = Branded<string, 'ReactionId'>
  * transcode eventually produces.
  */
 export type ClipJobId = Branded<string, 'ClipJobId'>
+/**
+ * One prompt on the host's list — "a selfie with the couple" (docs/ROADMAP.md §2.1).
+ *
+ * Branded like every other id and for the sharper of the two usual reasons: a guest's
+ * phone sends one back on an upload, so this is a **guest-supplied** identifier that
+ * decides which row of the host's list a photograph is filed under. The brand is what
+ * keeps the value that arrived in a multipart field from being passed anywhere a
+ * `PhotoId` belongs, and the repository that reads it takes an `EventId` first.
+ */
+export type MissionId = Branded<string, 'MissionId'>
 
 /**
  * The only casts in the codebase. Use them at a boundary — a database row becoming an
@@ -41,3 +51,4 @@ export const asGuestId = (value: string): GuestId => value as GuestId
 export const asUserId = (value: string): UserId => value as UserId
 export const asReactionId = (value: string): ReactionId => value as ReactionId
 export const asClipJobId = (value: string): ClipJobId => value as ClipJobId
+export const asMissionId = (value: string): MissionId => value as MissionId
