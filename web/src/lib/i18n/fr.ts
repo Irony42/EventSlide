@@ -933,6 +933,39 @@ export const fr = {
     missionUnanswered: 'Pas encore relevée',
     missionsFull: (max: number) =>
       `${t.number(max)} missions au maximum : c’est ce qui garde la liste lisible à dix mètres.`,
+    /* ---- Added by the shared gallery (ROADMAP 4.1). ---- */
+    shareLink: 'Album partagé',
+    shareLinkHint:
+      'Un lien à envoyer après la soirée : les photos publiées, à télécharger en pleine résolution.',
+    shareLinkNone: 'Aucun lien n’est actif.',
+    shareLinkActive: (date: string) => `Ouvert jusqu’au ${date}`,
+    /**
+     * The one reason a host cannot read off the dates: a co-owner made the link and has
+     * since been switched off, or is no longer an owner. Said plainly, with the way out.
+     */
+    shareLinkUnavailable:
+      'Ce lien ne s’ouvre plus : il a expiré, ou la personne qui l’a créé n’organise plus l’évènement.',
+    shareLinkProtected: 'Protégé par un mot de passe',
+    shareLinkUnprotected: 'Sans mot de passe',
+    shareLinkLifetime: 'Durée d’ouverture',
+    shareLinkDays: (days: number) =>
+      t.count(days, { one: `${t.number(days)} jour`, other: `${t.number(days)} jours` }),
+    shareLinkPassword: 'Mot de passe',
+    shareLinkPasswordHint: (min: number) =>
+      `Au moins ${t.number(min)} caractères. Communiquez-le à part du lien.`,
+    shareLinkCreate: 'Créer le lien',
+    shareLinkReplace: 'Remplacer par un nouveau lien',
+    shareLinkReplaceHint: 'Le lien actuel cessera immédiatement de fonctionner.',
+    /** Only its digest is stored, so this is the one moment the address exists. */
+    shareLinkCreated: 'Voici le lien. Copiez-le maintenant : il ne sera plus affiché.',
+    shareLinkUrl: 'Adresse du lien',
+    shareLinkCopy: 'Copier le lien',
+    shareLinkCopied: 'Lien copié.',
+    shareLinkRevoke: 'Désactiver le lien',
+    shareLinkRevokeTitle: 'Désactiver ce lien ?',
+    shareLinkRevokeHint:
+      'Personne ne pourra plus ouvrir l’album avec ce lien, même avec le mot de passe. Vous pourrez en créer un nouveau.',
+    shareLinkRevoked: 'Le lien a été désactivé.',
   },
 
   auth: {
@@ -1137,6 +1170,13 @@ export const fr = {
     'mission.promptEmpty': 'Écrivez la consigne de la mission.',
     'mission.promptTooLong': 'Cette consigne est trop longue pour l’écran.',
     'mission.promptInvalid': 'Cette consigne n’est pas valide.',
+    /* ---- Added by the shared gallery (ROADMAP 4.1). ---- */
+    'gallery.notAvailable': 'Ce lien n’est plus disponible.',
+    'gallery.passwordRequired': 'Cet album est protégé par un mot de passe.',
+    'gallery.wrongPassword': 'Mot de passe incorrect.',
+    'gallery.tooManyAttempts': 'Trop de tentatives. Réessayez dans un quart d’heure.',
+    'gallery.cursorInvalid': 'La liste des photos a changé. Rechargez la page.',
+    'shareLink.lifetimeInvalid': 'Choisissez une durée entre 1 et 90 jours.',
   },
 
   /**
@@ -1215,6 +1255,46 @@ export const fr = {
      * console says what it can do instead of offering something it cannot.
      */
     undoUnavailable: 'Seule une publication peut être annulée.',
+  },
+  /* ======================================================================== */
+  /* ==== Added by the shared gallery (ROADMAP 4.1): the guest who opens  ==== */
+  /* ==== the link the host sent. A guest surface, in the reader's own    ==== */
+  /* ==== language; the event's name and every caption are content.      ==== */
+  /* ======================================================================== */
+  gallery: {
+    title: 'Album partagé',
+    opening: 'Ouverture de l’album…',
+    /**
+     * One sentence for every way a link can stop working, and deliberately no more: the
+     * server answers an expired, a revoked and a mistyped link identically, so the screen
+     * cannot tell them apart either — and should not, since the reader may be somebody the
+     * link was forwarded to. The host's console is where the reason is shown.
+     */
+    unavailableTitle: 'Ce lien n’est plus disponible',
+    unavailableHint:
+      'Il a peut-être expiré ou été désactivé. Demandez un nouveau lien à la personne qui vous l’a envoyé.',
+    lockedTitle: 'Album protégé',
+    lockedHint: 'Saisissez le mot de passe qui vous a été communiqué avec le lien.',
+    passwordLabel: 'Mot de passe',
+    unlock: 'Ouvrir l’album',
+    photoCount: (count: number) =>
+      t.count(count, { one: `${t.number(count)} photo`, other: `${t.number(count)} photos` }),
+    availableUntil: (date: string) => `Disponible jusqu’au ${date}`,
+    /** Said because it is true and because it is the first thing a careful guest wonders. */
+    privacyNote:
+      'Les photos se téléchargent en pleine résolution, sans leurs données de localisation.',
+    downloadAll: 'Tout télécharger (.zip)',
+    download: 'Télécharger l’original',
+    downloadClip: 'Télécharger la vidéo',
+    /** The accessible name of a tile: sixty tiles must not share one. */
+    openPhoto: (position: number) => `Agrandir la photo ${t.number(position)}`,
+    /** The fallback `alt` of a photograph with no caption. */
+    photoAlt: (position: number) => `Photo ${t.number(position)} de l’album`,
+    clipBadge: 'Vidéo',
+    empty: 'Aucune photo n’a encore été publiée dans cet album.',
+    loadMore: 'Afficher plus de photos',
+    viewerTitle: (position: number, total: number) =>
+      `Photo ${t.number(position)} sur ${t.number(total)}`,
   },
 } as const
 

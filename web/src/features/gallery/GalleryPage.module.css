@@ -1,0 +1,158 @@
+/**
+ * The shared gallery (roadmap §4.1): a grid of the evening's published photographs, read
+ * on a phone as often as on a laptop, with the download a thumb's reach away.
+ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-block-size: 100%;
+  min-width: 0;
+}
+
+.centered {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--space-8);
+}
+
+.card {
+  margin-block-start: var(--space-6);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  color: var(--text-secondary);
+}
+
+.hint {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+/**
+ * Tiles that fill the width: three across on a phone, as many as fit on a laptop. Square
+ * crops, because a grid of mixed orientations reads as noise at thumbnail size; the viewer
+ * shows the whole photograph, uncropped.
+ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(30%, 10rem), 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tile {
+  min-width: 0;
+}
+
+/* The whole tile is the target, so it clears the touch floor on the narrowest phone. */
+.open {
+  position: relative;
+  display: block;
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-overlay);
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.thumb {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.badge {
+  position: absolute;
+  inset-block-start: var(--space-1);
+  inset-inline-start: var(--space-1);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+}
+
+/**
+ * The download stays reachable while the guest scrolls, on the same glass sheet the upload
+ * screen's composer uses — photographs scroll under it, which is what the material and its
+ * tint floor were designed for (roadmap 11.1).
+ */
+.bar {
+  composes: sheet from '../../design-system/glass.module.css';
+  position: sticky;
+  inset-block-end: var(--space-2);
+  margin-block-start: auto;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+}
+
+/* Links that look like the primary control, because they are the page's primary action. */
+.downloadAll,
+.download {
+  composes: button primary md from '../../design-system/components/Button.module.css';
+  text-decoration: none;
+}
+
+.downloadAll {
+  inline-size: 100%;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* The whole photograph, never cropped: `contain`, inside the dialog's own bounds. */
+.large {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  max-block-size: 60dvh;
+  object-fit: contain;
+  background: var(--surface-base);
+  border-radius: var(--radius-sm);
+}
+
+.caption {
+  color: var(--text-secondary);
+}

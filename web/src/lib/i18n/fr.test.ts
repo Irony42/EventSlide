@@ -38,6 +38,8 @@ const COUNTED: readonly CountedPhrase[] = [
   ['admin.graceSeconds', fr.admin.graceSeconds],
   ['admin.graceMinutes', fr.admin.graceMinutes],
   ['admin.graceHours', fr.admin.graceHours],
+  ['admin.shareLinkDays', fr.admin.shareLinkDays],
+  ['gallery.photoCount', fr.gallery.photoCount],
 ]
 
 describe('counted French copy', () => {
@@ -60,6 +62,9 @@ const NUMBERED: readonly [name: string, label: (position: number) => string][] =
   ['upload.removeItem', fr.upload.removeItem],
   ['upload.retryItem', fr.upload.retryItem],
   ['upload.deleteOwnNumbered', fr.upload.deleteOwnNumbered],
+  // One per tile of the shared gallery's grid (roadmap §4.1), which is sixty at a time.
+  ['gallery.openPhoto', fr.gallery.openPhoto],
+  ['gallery.photoAlt', fr.gallery.photoAlt],
 ]
 
 describe('numbered French copy', () => {
@@ -197,6 +202,14 @@ const DOCUMENTED_CODES: readonly string[] = [
   'eventTheme.accentHueInvalid',
   'eventTheme.accentUnreadable',
   'eventTheme.accentTooCloseToStatus',
+
+  // The shared gallery (roadmap §4.1). The first is every dead link, whatever killed it.
+  'gallery.notAvailable',
+  'gallery.passwordRequired',
+  'gallery.wrongPassword',
+  'gallery.tooManyAttempts',
+  'gallery.cursorInvalid',
+  'shareLink.lifetimeInvalid',
 ]
 
 describe('messageForCode', () => {

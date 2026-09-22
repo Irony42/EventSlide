@@ -339,6 +339,12 @@ export const de: UiText = {
       'Diese Farbe wäre auf der Leinwand im Saal nicht lesbar. Wählen Sie eine aus der Liste.',
     'eventTheme.accentTooCloseToStatus':
       'Diese Farbe ähnelt den Statusfarben der Anwendung zu sehr. Wählen Sie eine andere.',
+    'gallery.notAvailable': 'Dieser Link ist nicht mehr verfügbar.',
+    'gallery.passwordRequired': 'Dieses Album ist durch ein Passwort geschützt.',
+    'gallery.wrongPassword': 'Falsches Passwort.',
+    'gallery.tooManyAttempts': 'Zu viele Versuche. Versuchen Sie es in einer Viertelstunde erneut.',
+    'gallery.cursorInvalid': 'Die Liste der Fotos hat sich geändert. Laden Sie die Seite neu.',
+    'shareLink.lifetimeInvalid': 'Wählen Sie eine Dauer zwischen 1 und 90 Tagen.',
   },
 
   moderation: {
@@ -721,6 +727,34 @@ export const de: UiText = {
     missionUnanswered: 'Noch nicht erfüllt',
     missionsFull: (max: number) =>
       `Höchstens ${t.number(max)} Missionen: So bleibt die Liste auf zehn Meter lesbar.`,
+    shareLink: 'Geteiltes Album',
+    shareLinkHint:
+      'Ein Link zum Verschicken nach der Feier: die veröffentlichten Fotos, in voller Auflösung zum Herunterladen.',
+    shareLinkNone: 'Kein Link ist aktiv.',
+    shareLinkActive: (date: string) => `Geöffnet bis ${date}`,
+    shareLinkUnavailable:
+      'Dieser Link öffnet sich nicht mehr: Er ist abgelaufen, oder die Person, die ihn erstellt hat, organisiert die Veranstaltung nicht mehr.',
+    shareLinkProtected: 'Durch ein Passwort geschützt',
+    shareLinkUnprotected: 'Ohne Passwort',
+    shareLinkLifetime: 'Geöffnet für',
+    shareLinkDays: (days: number) =>
+      t.count(days, { one: `${t.number(days)} Tag`, other: `${t.number(days)} Tage` }),
+    shareLinkPassword: 'Passwort',
+    shareLinkPasswordHint: (min: number) =>
+      `Mindestens ${t.number(min)} Zeichen. Schicken Sie es getrennt vom Link.`,
+    shareLinkCreate: 'Link erstellen',
+    shareLinkReplace: 'Durch einen neuen Link ersetzen',
+    shareLinkReplaceHint: 'Der aktuelle Link funktioniert dann sofort nicht mehr.',
+    shareLinkCreated:
+      'Hier ist der Link. Kopieren Sie ihn jetzt: Er wird nicht noch einmal angezeigt.',
+    shareLinkUrl: 'Adresse des Links',
+    shareLinkCopy: 'Link kopieren',
+    shareLinkCopied: 'Link kopiert.',
+    shareLinkRevoke: 'Link deaktivieren',
+    shareLinkRevokeTitle: 'Diesen Link deaktivieren?',
+    shareLinkRevokeHint:
+      'Niemand kann das Album mit diesem Link mehr öffnen, auch nicht mit dem Passwort. Sie können einen neuen erstellen.',
+    shareLinkRevoked: 'Der Link wurde deaktiviert.',
   },
 
   auth: {
@@ -750,5 +784,30 @@ export const de: UiText = {
     nowDeciding: (photo: string) => `Foto zur Moderation. ${photo}`,
     undoLast: 'Letzte Entscheidung rückgängig machen',
     undoUnavailable: 'Nur eine Freigabe lässt sich rückgängig machen.',
+  },
+  gallery: {
+    title: 'Geteiltes Album',
+    opening: 'Album wird geöffnet…',
+    unavailableTitle: 'Dieser Link ist nicht mehr verfügbar',
+    unavailableHint:
+      'Er ist vielleicht abgelaufen oder wurde deaktiviert. Bitten Sie die Person, die ihn Ihnen geschickt hat, um einen neuen.',
+    lockedTitle: 'Geschütztes Album',
+    lockedHint: 'Geben Sie das Passwort ein, das Sie mit dem Link erhalten haben.',
+    passwordLabel: 'Passwort',
+    unlock: 'Album öffnen',
+    photoCount: (count: number) =>
+      t.count(count, { one: `${t.number(count)} Foto`, other: `${t.number(count)} Fotos` }),
+    availableUntil: (date: string) => `Verfügbar bis ${date}`,
+    privacyNote: 'Die Fotos werden in voller Auflösung heruntergeladen, ohne ihre Standortdaten.',
+    downloadAll: 'Alles herunterladen (.zip)',
+    download: 'Original herunterladen',
+    downloadClip: 'Video herunterladen',
+    openPhoto: (position: number) => `Foto ${t.number(position)} vergrößern`,
+    photoAlt: (position: number) => `Foto ${t.number(position)} des Albums`,
+    clipBadge: 'Video',
+    empty: 'In diesem Album wurde noch kein Foto veröffentlicht.',
+    loadMore: 'Weitere Fotos anzeigen',
+    viewerTitle: (position: number, total: number) =>
+      `Foto ${t.number(position)} von ${t.number(total)}`,
   },
 }

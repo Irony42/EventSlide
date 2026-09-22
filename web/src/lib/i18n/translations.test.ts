@@ -76,6 +76,7 @@ describe('the scope', () => {
         'app',
         'auth',
         'errors',
+        'gallery',
         'join',
         'mobileModeration',
         'moderation',

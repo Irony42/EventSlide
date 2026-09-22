@@ -59,9 +59,10 @@ const TOKENS_FILE = 'design-system/tokens.css'
  * The surfaces wearing the material, listed so that adding one is a deliberate edit.
  *
  * "A material nobody can see is not reviewable; a material applied everywhere is not
- * reviewable either." Two sheets, and they are the same sheet twice: **a sticky pane with
- * the reader's own content moving underneath it.** The guest's composer sits over the
- * photographs they just sent; the host's toolbar sits over the queue scrolling under it.
+ * reviewable either." Three sheets, and they are the same sheet three times: **a sticky pane
+ * with the reader's own content moving underneath it.** The guest's composer sits over the
+ * photographs they just sent; the host's toolbar sits over the queue scrolling under it; the
+ * shared gallery's download bar (roadmap §4.1) sits over the album scrolling under it.
  * That is the whole rule, and it is what makes the material visible — a blur with nothing
  * moving behind it is an expensive way to draw a panel.
  *
@@ -75,6 +76,7 @@ const TOKENS_FILE = 'design-system/tokens.css'
  * `glass.ts`, and `AppShell` for where it is applied.
  */
 const GLASS_SURFACES = [
+  'features/gallery/GalleryPage.module.css',
   'features/guest-upload/GuestUploadPage.module.css',
   'features/moderation/components/ModerationToolbar.module.css',
 ] as const

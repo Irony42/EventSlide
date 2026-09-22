@@ -7,8 +7,15 @@ import type {
   MissionInput,
   ModeratorInvitationInput,
   ModeratorInviteResponse,
+  ShareLinkInput,
 } from '../../../lib/api/client'
-import type { EventDto, EventSettingsDto, EventStatus, MissionDto } from '../../../lib/api/dto'
+import type {
+  EventDto,
+  EventSettingsDto,
+  EventStatus,
+  MissionDto,
+  ShareLinkCreated,
+} from '../../../lib/api/dto'
 
 /**
  * The writes the admin surface needs, one hook per endpoint.
@@ -130,4 +137,20 @@ export const useDeleteMission = (): ActionState<[string, string], void> => {
   return useAction(
     useCallback((slug: string, missionId: string) => api.deleteMission(slug, missionId), [api]),
   )
+}
+
+/**
+ * The shared gallery link's two writes (roadmap §4.1). Making one replaces the current one
+ * on the server, in one transaction, so there is no separate "replace".
+ */
+export const useCreateShareLink = (): ActionState<[string, ShareLinkInput], ShareLinkCreated> => {
+  const api = useApi()
+  return useAction(
+    useCallback((slug: string, input: ShareLinkInput) => api.createShareLink(slug, input), [api]),
+  )
+}
+
+export const useRevokeShareLink = (): ActionState<[string], void> => {
+  const api = useApi()
+  return useAction(useCallback((slug: string) => api.revokeShareLink(slug), [api]))
 }
