@@ -367,7 +367,8 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
       "achieved": true,
       "completedByGuests": 12
     }
-  ]
+  ],
+  "wallLanguage": "fr"
 }
 ```
 
@@ -383,6 +384,23 @@ row is drawn: `event` is a prompt answered once for the room and shows a tick, `
 answered once per guest and shows `completedByGuests`. There is deliberately no "answered
 at", so nothing here can drive a per-completion celebration — see §2.1's entry in the
 roadmap for why that was declined.
+
+`wallLanguage` is the language **this screen renders its own words in** (roadmap §1.5) —
+one of `"fr" | "de" | "en" | "es" | "it"`. It is a setting on the event, and it is here
+for the same reason `theme` is: the projector must not paint a frame in one language and
+repaint in another.
+
+It is the one surface that is **told** rather than asked. A guest's phone and a host's
+browser each negotiate their own language; a projector has nobody in front of it, its
+`navigator.languages` is the language of whichever machine the venue had in a cupboard,
+and a stored preference there belongs to one phone out of two hundred. Unlike `layout`,
+which genuinely belongs to the screen and is chosen with `?layout=`, this must not differ
+between two projectors in one room — so there is deliberately **no `?lang=`**.
+
+What it does **not** describe is the language of the event's _content_. The captions, the
+display names and the mission prompts on this same response are what people wrote, and
+nothing translates them: a wall set to `de` prints German labels around French prompts,
+which is the right way round.
 
 `theme` is here and not behind a second request for the reason the timings are: the wall
 must not paint a frame in the product's colours and then repaint in the host's. A
@@ -1031,7 +1049,8 @@ the reason below:
   "slug": "camille-et-sacha",
   "startsAt": null,
   "quotaBytes": null,
-  "template": "wedding"
+  "template": "wedding",
+  "wallLanguage": "fr"
 }
 ```
 
@@ -1041,7 +1060,15 @@ slug I got" happens. `startsAt` is an ISO-8601 string or `null`; `quotaBytes` is
 positive integer or `null`, and `null` or absent takes the configured default. **201**
 with the full event including its join code.
 
-**Errors** — `409 event.slugTaken`, `400 eventName.*`, `400 slug.*`.
+`wallLanguage` is optional, one of `"fr" | "de" | "en" | "es" | "it"`, and absent means
+French. The host console sends the language its operator is reading at that moment, which
+is the only signal anybody has about a screen nobody will be holding — and it is a
+**snapshot**: nothing re-reads that preference afterwards, so a host who later switches
+their own browser has not moved a projector in a room. `PATCH /settings` is where it
+changes deliberately.
+
+**Errors** — `409 event.slugTaken`, `400 eventName.*`, `400 slug.*`,
+`400 request.invalid` for a language outside the five.
 
 #### `template` — what the settings start from
 
@@ -1120,7 +1147,13 @@ The shape every route in the table that answers `200` returns.
     "guestSelfDeleteGraceSeconds": 900,
     "retentionDays": 30,
     "maxPhotosPerGuest": null,
-    "theme": { "accentHue": 305, "fonts": "sans", "frame": "soft", "material": "glass" }
+    "theme": {
+      "accentHue": 305,
+      "fonts": "sans",
+      "frame": "soft",
+      "material": "glass"
+    },
+    "wallLanguage": "fr"
   },
   "startsAt": null,
   "closedAt": null,
@@ -1170,21 +1203,28 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
   "guestSelfDeleteGraceSeconds": 900,
   "retentionDays": 30,
   "maxPhotosPerGuest": 20,
-  "theme": { "accentHue": 345, "fonts": "serif", "frame": "round", "material": "glass" }
+  "theme": {
+    "accentHue": 345,
+    "fonts": "serif",
+    "frame": "round",
+    "material": "glass"
+  },
+  "wallLanguage": "de"
 }
 ```
 
-| Field                         | Accepted                                   |
-| ----------------------------- | ------------------------------------------ |
-| `moderation`                  | `manual` \| `auto`                         |
-| `allowCaptions`               | boolean                                    |
-| `allowReactions`              | boolean                                    |
-| `allowClips`                  | boolean — see below                        |
-| `allowGuestSelfDelete`        | boolean                                    |
-| `guestSelfDeleteGraceSeconds` | integer 0..86400                           |
-| `retentionDays`               | integer 1..3650, or `null` for "keep"      |
-| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"   |
-| `theme`                       | object — all four keys required, see below |
+| Field                         | Accepted                                         |
+| ----------------------------- | ------------------------------------------------ |
+| `moderation`                  | `manual` \| `auto`                               |
+| `allowCaptions`               | boolean                                          |
+| `allowReactions`              | boolean                                          |
+| `allowClips`                  | boolean — see below                              |
+| `allowGuestSelfDelete`        | boolean                                          |
+| `guestSelfDeleteGraceSeconds` | integer 0..86400                                 |
+| `retentionDays`               | integer 1..3650, or `null` for "keep"            |
+| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"         |
+| `theme`                       | object — all four keys required, see below       |
+| `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below |
 
 `allowClips` is `true` for an event **created** after video shipped and `false` for one
 that existed before it. The two are deliberately different: an event created today is
@@ -1199,6 +1239,29 @@ the feature exists for. Note also that the first save of **any** setting on such
 writes `allowClips: false` into its blob, after which it is indistinguishable from a host
 who chose no — which is why the checkbox ships in the same form as every other setting
 rather than behind one of its own.
+
+#### `wallLanguage` — what language the room's screen speaks
+
+One of `"fr" | "de" | "en" | "es" | "it"`, a partial update like every field above it
+except `theme`: absent leaves it alone. Defaulted at creation to the language the host
+was reading (`POST /api/events`), and never re-read from anybody's preference afterwards.
+
+It reaches **one surface**. The guest's phone and the host's own console each negotiate
+their own language from the browser and ignore this entirely, which is what makes a French
+host running an English-speaking conference representable: they set the wall to English,
+write their prompts in English, and go on reading their console in French.
+
+It is deliberately **not** a statement about what language the event's _content_ is in. A
+caption is written by whichever guest wrote it, and two hundred guests do not share a
+language even when the host does, so no single field could be true about them — and a
+field that claimed to would be the thing a later change built a translation of a guest's
+caption on. Event names, captions, display names and mission prompts are shown exactly as
+typed, on every surface, in every language.
+
+A value outside the five is `400 request.invalid`, and that refusal is load-bearing rather
+than tidy: the client resolves this tag against its own copy table, so a tag it has no
+words for would put a projector on the fallback language for eight hours while the settings
+page showed the host the tag they chose.
 
 #### `theme` — how the event looks
 

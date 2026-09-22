@@ -220,7 +220,8 @@ npm run verify:full   # verify + test:e2e                         <- before open
   machine the venue had in a cupboard. `LocaleOverride` is the boundary and
   `src/domain/events/eventLanguage.ts` is the argument. `<html lang>` follows the language
   actually on screen and is set by `AppShell`, the one component every surface renders
-  through. See §1.5 of the roadmap.
+  through. §1.5 of the roadmap carries both halves of this and the argument the second
+  one reversed.
 - **An event's name, a caption, a display name and a mission prompt are content, not
   interface.** A person wrote them, in whatever language they were speaking, and no table
   translates, reformats or normalises them — so a German wall over a French wedding prints

@@ -51,7 +51,7 @@ If a guest gives up, nothing else in this document matters. At a wedding the med
 guest spends **under a minute** in the app, once, on a phone with two bars of a
 saturated access point.
 
-_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa), [1.4](#97-short-video-clips). Considered and declined: [1.6](#96-spoken-captions). **[1.5](#15-guest-ui-languages-p2-effort-s-risk-low) is shipped and stayed in place.**_
+_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa), [1.4](#97-short-video-clips). Considered and declined: [1.6](#96-spoken-captions). **[1.5](#15-ui-languages-p2-effort-s-risk-low) is shipped and stayed in place.**_
 
 ### 1.3 Camera-first capture (P1, effort M, risk: low)
 
@@ -62,14 +62,65 @@ Android means three taps through a gallery app.
 The measure of success is taps from opening the app to a photo being sent: **five today,
 two after this**.
 
-### 1.5 Guest UI languages (P2, effort S, risk: low)
+### 1.5 UI languages (P2, effort S, risk: low)
 
-> **Shipped** in [#25](https://github.com/Irony42/EventSlide/pull/25). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
+> **Shipped in two halves**: the guest surface in [#25](https://github.com/Irony42/EventSlide/pull/25), the host and room surfaces after it. Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 `web/src/lib/i18n/` is already a single French table with a code-to-message map. English,
 Spanish, German and Italian are a mechanical addition, chosen from `Accept-Language` with
 a manual override. International weddings are common and a guest who cannot read the
 upload button does not upload.
+
+#### The second half — everything that is not the guest
+
+The first half shipped the guest surface and argued, at length, that the rest should stay
+French: the admin console "has exactly one reader, and they are the person who installed
+the box". Two of that argument's three premises were false.
+
+**The host is not the person who installed the box.** A moderator is invited by e-mail
+address and handed a temporary password the host reads out loud — there is no mail service
+in this product — so they are a sibling, a colleague, somebody given a phone at 21:00.
+Nothing about them implies they read French, and the console they are handed is the one
+screen where being wrong puts a photograph in front of two hundred people. **The room is
+not the host either**: "Rejoignez la galerie" is projected, and the mission panel rendered
+"1 invité" beside prompts a host had written in English. The third premise — that four more
+tables cost something to keep honest — is a cost the compiler pays; what four more tables
+actually cost is the translation, once, per string.
+
+So every section of `fr.ts` is carried by all five tables, and the interesting question
+stops being _whether_ and becomes **whose language each surface is in**. Three surfaces,
+two answers:
+
+- **The guest's phone and the host's console** take the reader's own preference — one
+  `localStorage` key, `navigator.languages` behind it, French behind that, one picker in
+  both layouts' headers. An attribute on the _account_ was rejected: a moderator on a
+  borrowed phone would write their language onto somebody else's device, and an owner who
+  lends their laptop for an hour would have to sign out to change it. A language is a
+  property of the reading, not of the person.
+- **The projected wall** takes the **event's** `wallLanguage`, a new setting beside the
+  accent hue and the frame style. It is the one surface with nobody in front of it to ask:
+  a projector's `navigator.languages` is the language of whichever machine the venue had
+  in a cupboard, and a guest's stored preference belongs to one phone out of two hundred.
+  Defaulted once, at creation, to the language of whoever created the event — a **snapshot**,
+  not a subscription, because a host who later switches their own browser has not asked for
+  a projector in a room to change.
+
+The deliberate contrast is `?layout=`. A layout belongs to the _screen_ — two projectors in
+one room may legitimately show a mosaic and a spotlight — so it is a query parameter. A
+language must not differ between them, so it is a property of the event and there is no
+`?lang=`.
+
+**What is never translated is what people write.** An event's name, a caption, a guest's
+display name and a mission prompt are content: they are shown exactly as typed, so a
+German wall over a French wedding prints German labels above French prompts, which is the
+right way round. `web/src/lib/i18n/content.test.ts` enforces it by reading `fr.ts`'s own
+parameter types rather than keeping a list, so a new content-carrying phrase is covered the
+moment it is declared.
+
+The open item this leaves is the bundle: all five tables are still in the guest's eager
+chunk, and carrying the host and room sections roughly triples what the four translations
+cost there. A chunk per locale is the next thing to do and is not free —
+`web/src/lib/i18n/translations.ts` records why.
 
 ## 2. The room — where the product is judged
 
