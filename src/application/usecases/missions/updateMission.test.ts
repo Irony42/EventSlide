@@ -130,6 +130,12 @@ describe('updateMission', () => {
     expect(gala?.prompt.value).toBe('un selfie')
   })
 
+  it('answers notFound for an event that does not exist', async () => {
+    const result = await ask({ eventId: asEventId('evt-ghost') })
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
   it('answers notFound for a mission that does not exist', async () => {
     const result = await ask({ missionId: asMissionId('m-ghost') })
 

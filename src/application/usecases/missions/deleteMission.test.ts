@@ -104,6 +104,12 @@ describe('deleteMission', () => {
     expect(bus.published).toEqual([])
   })
 
+  it('answers notFound for an event that does not exist', async () => {
+    const result = await ask({ eventId: asEventId('evt-ghost') })
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
   it('answers notFound for a mission that is already gone', async () => {
     await ask()
 

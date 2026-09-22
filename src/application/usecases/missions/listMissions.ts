@@ -45,11 +45,15 @@ export const makeListMissions =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
+    // One condition rather than two, which is the shape `moderatePhoto` already has and
+    // for the same two reasons. A signed-in user with no part in this event is answered
+    // exactly as one asking about an event that does not exist, so this cannot be used to
+    // discover other people's weddings — and `canModerate` is *asked* rather than the
+    // qualifying roles being listed, so a role added later is refused by default. Both
+    // roles moderate today, so the second half is a guard against a future rather than a
+    // branch this event can take.
     const role = await memberships.roleFor(eventId, actorId)
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canModerate(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'moderator' }))
-    }
+    if (role === null || !canModerate(role)) return err(DomainError.notFound('event.notFound'))
 
     const listed = await missions.listWithProgress(eventId)
 

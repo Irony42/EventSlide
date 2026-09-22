@@ -111,7 +111,7 @@ describe('MissionsPanel', () => {
   it('shows the server"s refusal against the field rather than as a toast', async () => {
     const api = fakeApi({
       createMission: vi.fn(async () => {
-        throw new ApiError(409, 'mission.duplicate', 'x')
+        throw new ApiError(409, 'mission.duplicate')
       }),
     })
     render(api)
@@ -221,7 +221,7 @@ describe('MissionsPanel', () => {
   it('offers a retry when the list could not be read', async () => {
     const api = fakeApi({
       listMissions: vi.fn(async () => {
-        throw new ApiError(500, 'unknown', 'x')
+        throw new ApiError(500, 'unknown')
       }),
     })
     render(api)
