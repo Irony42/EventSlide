@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Event } from '../../../domain/events/event'
 import type { EventStatus } from '../../../domain/events/eventStatus'
+import { privacyNoticeFor } from '../../../domain/privacy/privacyNotice'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, type EventId, type GuestId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { GuestTokenClaims, GuestTokenService } from '../../ports/guestTokenService'
-import { AT, aGuest, anEvent, atPlus } from '../../testing/builders'
+import { AT, aGuest, anEvent, anEventSettings, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
@@ -127,6 +128,53 @@ describe('joinEvent', () => {
       displayName: 'Léa',
       slug: 'camille-et-sacha',
     })
+  })
+
+  // ------------------------------------------------------------ privacy notice --
+
+  it('hands a new guest the notice the event is configured to give, not yet read', async () => {
+    const result = await join({ joinCode: WEDDING_CODE })
+
+    expect(result.ok && result.value.privacyNotice).toEqual({
+      notice: privacyNoticeFor(anEventSettings()),
+      acknowledgement: 'none',
+    })
+  })
+
+  it('tells a returning phone it has already read the notice in force, so it is not shown again', async () => {
+    const notice = privacyNoticeFor(anEventSettings())
+    guests.seed(
+      aGuest({
+        id: 'guest-lea',
+        eventId: WEDDING,
+        noticeAcknowledgement: { revision: notice.revision, at: AT },
+      }),
+    )
+
+    const result = await join({
+      joinCode: WEDDING_CODE,
+      deviceToken: deviceTokenFor(WEDDING, asGuestId('guest-lea')),
+    })
+
+    expect(result.ok && result.value.privacyNotice.acknowledgement).toBe('current')
+  })
+
+  it('tells a returning phone the notice changed since it read it', async () => {
+    const older = privacyNoticeFor(anEventSettings({ retentionDays: 30 }))
+    guests.seed(
+      aGuest({
+        id: 'guest-lea',
+        eventId: WEDDING,
+        noticeAcknowledgement: { revision: older.revision, at: AT },
+      }),
+    )
+
+    const result = await join({
+      joinCode: WEDDING_CODE,
+      deviceToken: deviceTokenFor(WEDDING, asGuestId('guest-lea')),
+    })
+
+    expect(result.ok && result.value.privacyNotice.acknowledgement).toBe('outdated')
   })
 
   // ------------------------------------------------------------- reading a card --

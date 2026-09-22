@@ -1,6 +1,7 @@
 import type { Event } from '../../../domain/events/event'
 import { DisplayName } from '../../../domain/guests/displayName'
 import { Guest } from '../../../domain/guests/guest'
+import { privacyNoticeFor, type NoticeForGuest } from '../../../domain/privacy/privacyNotice'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
@@ -86,6 +87,17 @@ export interface JoinEventOutput {
   readonly displayName: string | null
   /** Narrowed to what a guest may know by the presenter; a use case owns no wire format. */
   readonly event: Event
+  /**
+   * The privacy notice the upload screen shows before a first photo, and where this
+   * device stands with it (roadmap §5.1).
+   *
+   * On the join because the upload screen renders from what the join left in
+   * `sessionStorage` and must not wait on a round trip to know whether to show the
+   * picker. A returning device that already read the notice in force is answered
+   * `current` here and never sees it again; one that read an older notice is answered
+   * `outdated`.
+   */
+  readonly privacyNotice: NoticeForGuest
 }
 
 export interface JoinEventDeps {
@@ -214,6 +226,13 @@ export const makeJoinEvent = ({
     // guest list right now.
     bus.publish({ type: 'guest.joined', eventId: event.id, guestId: guest.id })
 
-    return ok({ token, guestId: guest.id, displayName: guest.label(), event })
+    const notice = privacyNoticeFor(event.settings)
+    return ok({
+      token,
+      guestId: guest.id,
+      displayName: guest.label(),
+      event,
+      privacyNotice: { notice, acknowledgement: guest.noticeAcknowledgementFor(notice) },
+    })
   }
 }
