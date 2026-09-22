@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { fr } from './fr'
 import { SUPPORTED_LOCALES, type Locale } from './locale'
-import { GUEST_SECTIONS, TRANSLATIONS } from './translations'
+import { TRANSLATIONS } from './translations'
 import { FORBIDDEN, ORTHOGRAPHY, repertoireFor } from './testing/orthography'
 import { walkTable, type Rendered } from './testing/walkTable'
 
@@ -22,20 +21,24 @@ import { walkTable, type Rendered } from './testing/walkTable'
  */
 
 /**
- * What is actually written in this language.
+ * What is actually written in this language, which is now the whole table.
  *
- * An assembled table carries the host sections too, and those are French in every
- * language by design — so checking `TRANSLATIONS.it` whole would demand that "Modération"
- * be spelled in Italian. Each language is checked over the copy that was written in it:
- * the guest sections for the four translations, and everything for French, which owns
- * both halves.
+ * This used to filter down to the guest sections for the four translations, because the
+ * rest of an assembled table was French by design and checking `TRANSLATIONS.it` whole
+ * would have demanded that "Modération" be spelled in Italian. Nothing is French by
+ * design any more, so the filter is gone — and its removal is the point rather than a
+ * tidy-up: about 270 keys per language just stopped being exempt from every rule below,
+ * which is roughly four fifths of the copy these tests now cover.
+ *
+ * The extension was a decision and not an inevitability. The alternative — keep the
+ * orthography contract French-only, on the grounds that French is the one language whose
+ * author actually knows it — was rejected for the reason the contract itself gives: the
+ * French copy carries correct accents because whoever wrote it cared, and care is exactly
+ * what does not survive being multiplied by five. Nobody reviewing this branch's diff was
+ * going to notice `fuer` in the two hundred and seventieth German string. A rule that can
+ * be mechanical should be, in every language, and the rules here are the ones that can.
  */
-const writtenIn = (locale: Locale): readonly Rendered[] =>
-  locale === 'fr'
-    ? walkTable(fr)
-    : walkTable(TRANSLATIONS[locale]).filter(({ path }) =>
-        GUEST_SECTIONS.some((section) => path.startsWith(`${section}.`)),
-      )
+const writtenIn = (locale: Locale): readonly Rendered[] => walkTable(TRANSLATIONS[locale])
 
 const TABLES = SUPPORTED_LOCALES.map((locale): [Locale, readonly Rendered[]] => [
   locale,

@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { errorMessage } from '../errorMessage'
 
 export interface LoaderState<T> {
   /** `null` until the first answer arrives. Absence is not emptiness. */
   readonly data: T | null
   readonly loading: boolean
-  /** A French sentence, or `null`. */
+  /** A sentence in the language the host is reading, or `null`. */
   readonly error: string | null
   readonly reload: () => void
   /** Store what a mutation returned, so the screen updates without a second round trip. */
@@ -13,6 +14,23 @@ export interface LoaderState<T> {
 }
 
 type Load<T> = (signal: AbortSignal) => Promise<T>
+
+/**
+ * What went wrong, kept as the thrown value rather than as a finished sentence.
+ *
+ * The sentence is composed at render, from the active table, and that is the whole
+ * reason this wrapper exists: storing the finished copy would put the table into the
+ * read effect's dependencies, so a host changing language would re-read every screen —
+ * and a refresh that then failed would replace the page they were looking at with an
+ * error, for no reason except that they had chosen a language. `useMyPhotos` keeps the
+ * guest's side of the same rule.
+ *
+ * A wrapper rather than a bare `unknown`, because `null` is a value something can throw
+ * and "nothing has failed" has to stay distinguishable from it.
+ */
+interface Failure {
+  readonly cause: unknown
+}
 
 /**
  * One answer, tagged with the request that produced it.
@@ -26,7 +44,7 @@ interface Answer<T> {
   readonly load: Load<T> | null
   readonly attempt: number
   readonly data: T | null
-  readonly error: string | null
+  readonly failure: Failure | null
 }
 
 const NOTHING_ASKED = -1
@@ -44,12 +62,13 @@ const NOTHING_ASKED = -1
  * answer as though it were loaded.
  */
 export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
+  const t = useTranslations()
   const [attempt, setAttempt] = useState(0)
   const [answer, setAnswer] = useState<Answer<T>>({
     load: null,
     attempt: NOTHING_ASKED,
     data: null,
-    error: null,
+    failure: null,
   })
 
   const reload = useCallback(() => setAttempt((current) => current + 1), [])
@@ -60,7 +79,7 @@ export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
 
     load(controller.signal).then(
       (value) => {
-        if (current) setAnswer({ load, attempt, data: value, error: null })
+        if (current) setAnswer({ load, attempt, data: value, failure: null })
       },
       (cause: unknown) => {
         if (!current) return
@@ -73,7 +92,7 @@ export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
           load,
           attempt,
           data: previous.data,
-          error: errorMessage(cause),
+          failure: { cause },
         }))
       },
     )
@@ -85,14 +104,24 @@ export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
   }, [load, attempt])
 
   const replace = useCallback(
-    (value: T) => setAnswer((previous) => ({ ...previous, data: value, error: null })),
+    (value: T) => setAnswer((previous) => ({ ...previous, data: value, failure: null })),
     [],
+  )
+
+  /**
+   * The sentence, composed here rather than where the failure was caught — so a host who
+   * changes language while a refusal is on screen reads it in the language they just
+   * chose, and the read effect above depends on nothing but the request.
+   */
+  const error = useMemo<string | null>(
+    () => (answer.failure === null ? null : errorMessage(answer.failure.cause, t)),
+    [answer.failure, t],
   )
 
   return {
     data: answer.data,
     loading: answer.load !== load || answer.attempt !== attempt,
-    error: answer.error,
+    error,
     reload,
     replace,
   }

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Spinner } from '../../design-system/components/Spinner'
 import { useSession } from '../../app/useSession'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './MustChangePasswordGate.module.css'
 
 export const CHANGE_PASSWORD_PATH = '/admin/password'
@@ -26,13 +26,14 @@ export interface MustChangePasswordGateProps {
  * console because one request failed mid-event would be the worse failure.
  */
 export function MustChangePasswordGate({ children }: MustChangePasswordGateProps) {
+  const t = useTranslations()
   const { session, loading } = useSession()
   const location = useLocation()
 
   if (loading) {
     return (
       <div className={styles['pending']}>
-        <Spinner size="lg" label={fr.shell.sessionChecking} />
+        <Spinner size="lg" label={t.shell.sessionChecking} />
       </div>
     )
   }

@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import type { WallItemDto, WallLayout } from '../../../lib/api/dto'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import type { Slideshow } from '../hooks/useSlideshow'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { photoAlt } from '../photoAlt'
 import { wallLayoutPlaysVideo } from '../wallLayoutPlayback'
 import { PhotoPreload } from './PhotoPreload'
@@ -231,6 +232,7 @@ function SpotlightLayout({ slideshow, kenBurnsDurationMs, transitionMs, plays }:
  * wall — it takes a tile's next turn and nothing moves.
  */
 function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+  const text = useTranslations()
   const tiles = rotatingSlots(items, slideshow.index, MOSAIC_SLOTS)
 
   return (
@@ -251,7 +253,7 @@ function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps
             key={item.id}
             item={item}
             plays={plays}
-            alt={photoAlt(item)}
+            alt={photoAlt(item, text)}
             className={styles['image'] ?? ''}
           />
           <SlideCaption caption={null} authorName={item.authorName} variant="tile" />
@@ -284,6 +286,7 @@ function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps
  * outright rather than left to a global `!important` to defuse.
  */
 function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+  const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
   const prints = rotatingSlots(items, slideshow.index, POLAROID_PRINTS)
 
@@ -311,7 +314,7 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
               <WallMedia
                 item={item}
                 plays={plays}
-                alt={photoAlt(item)}
+                alt={photoAlt(item, text)}
                 className={styles['printImage'] ?? ''}
               />
             </span>
@@ -358,6 +361,7 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
  * already puts a notice on the wall.
  */
 function FilmstripLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+  const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
   const scrolls = items.length > FILMSTRIP_FRAMES
   const frames = playlistWindow(items, scrolls ? slideshow.index : 0, FILMSTRIP_FRAMES + 1)
@@ -389,7 +393,7 @@ function FilmstripLayout({ items, slideshow, transitionMs, plays }: LayoutViewPr
             <WallMedia
               item={item}
               plays={plays}
-              alt={photoAlt(item)}
+              alt={photoAlt(item, text)}
               className={styles['frameImage'] ?? ''}
             />
           </figure>
@@ -425,6 +429,7 @@ function FilmstripLayout({ items, slideshow, transitionMs, plays }: LayoutViewPr
  * it either. `COLLAGE_CELLS` is the one the room sees.
  */
 function CollageLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+  const text = useTranslations()
   const composed = rotatingSlots(items, slideshow.index, COLLAGE_CELLS)
   const filled = Math.min(slideshow.generation + 1, composed.length)
   const cells = composed.slice(0, filled)
@@ -444,7 +449,7 @@ function CollageLayout({ items, slideshow, transitionMs, plays }: LayoutViewProp
             key={item.id}
             item={item}
             plays={plays}
-            alt={photoAlt(item)}
+            alt={photoAlt(item, text)}
             className={styles['image'] ?? ''}
           />
         </figure>
@@ -467,6 +472,7 @@ function CollageLayout({ items, slideshow, transitionMs, plays }: LayoutViewProp
  * cut at once is two slideshows rather than a pairing.
  */
 function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+  const text = useTranslations()
   const panes = splitPanes(items, slideshow.index)
 
   return (
@@ -483,7 +489,7 @@ function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps)
               key={item.id}
               item={item}
               plays={plays}
-              alt={photoAlt(item)}
+              alt={photoAlt(item, text)}
               className={styles['paneImage'] ?? ''}
             />
           </span>

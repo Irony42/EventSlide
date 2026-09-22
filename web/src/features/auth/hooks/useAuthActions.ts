@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useApi } from '../../../app/useApi'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { errorMessage } from '../errorMessage'
 
 /**
@@ -18,12 +19,16 @@ export interface AuthActionState<T> {
   /** Resolves `true` when the server accepted; the page decides where to go next. */
   readonly submit: (input: T) => Promise<boolean>
   readonly submitting: boolean
-  /** A French sentence, or `null`. Cleared when a new attempt starts. */
+  /**
+   * A sentence in the language the reader chose, or `null`. Cleared when a new attempt
+   * starts.
+   */
   readonly error: string | null
 }
 
 export const useLogin = (): AuthActionState<Credentials> => {
   const api = useApi()
+  const t = useTranslations()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,13 +43,13 @@ export const useLogin = (): AuthActionState<Credentials> => {
         // One message for every failure, because the server sends one code for an
         // unknown address and for a wrong password. Telling the two apart in the UI
         // would turn the form into an account-enumeration oracle.
-        setError(errorMessage(cause))
+        setError(errorMessage(cause, t))
         return false
       } finally {
         setSubmitting(false)
       }
     },
-    [api],
+    [api, t],
   )
 
   return { submit, submitting, error }
@@ -57,6 +62,7 @@ export interface PasswordChange {
 
 export const useChangePassword = (): AuthActionState<PasswordChange> => {
   const api = useApi()
+  const t = useTranslations()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,13 +77,13 @@ export const useChangePassword = (): AuthActionState<PasswordChange> => {
         // Every rule about what makes a password acceptable lives on the server, and
         // its code is what picks the sentence — length, reuse, and "too common" all
         // arrive here the same way.
-        setError(errorMessage(cause))
+        setError(errorMessage(cause, t))
         return false
       } finally {
         setSubmitting(false)
       }
     },
-    [api],
+    [api, t],
   )
 
   return { submit, submitting, error }

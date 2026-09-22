@@ -5,7 +5,7 @@ import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { Spinner } from '../../design-system/components/Spinner'
 import { VisuallyHidden } from '../../design-system/components/VisuallyHidden'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { SwipeCard } from './components/SwipeCard'
 import { queueErrorMessage, useModerationQueue } from './hooks/useModerationQueue'
 import type { ModerationDecision } from '../../lib/api/dto'
@@ -32,6 +32,7 @@ import styles from './MobileModerationPage.module.css'
  *   somebody with limited mobility. The gesture is the shortcut, not the interface.
  */
 export function MobileModerationPage() {
+  const t = useTranslations()
   const { slug } = useParams()
 
   /**
@@ -55,7 +56,7 @@ export function MobileModerationPage() {
   const current = queue.items.find((item) => item.status === 'pending') ?? null
 
   const authorInName =
-    current === null ? null : (current.authorName ?? fr.moderation.anonymousInName)
+    current === null ? null : (current.authorName ?? t.moderation.anonymousInName)
 
   /**
    * The last decision the host took, kept only to explain a greyed-out undo.
@@ -131,16 +132,14 @@ export function MobileModerationPage() {
    */
   const announcement = (): string => {
     if (queue.items.length === 0 && (queue.loading || queue.error !== null)) return ''
-    if (current === null || authorInName === null) return fr.moderation.empty
+    if (current === null || authorInName === null) return t.moderation.empty
     // "Vidéo" rather than "photo" where it is one: a host who cannot see the screen has
     // to know that what is in hand has fifteen seconds in it before they decide, and the
     // play button below is announced only after they have heard what it is for.
-    const describe = current.kind === 'clip' ? fr.moderation.videoAlt : fr.moderation.photoAlt
+    const describe = current.kind === 'clip' ? t.moderation.videoAlt : t.moderation.photoAlt
     const describeWithCaption =
-      current.kind === 'clip'
-        ? fr.moderation.videoAltWithCaption
-        : fr.moderation.photoAltWithCaption
-    return fr.mobileModeration.nowDeciding(
+      current.kind === 'clip' ? t.moderation.videoAltWithCaption : t.moderation.photoAltWithCaption
+    return t.mobileModeration.nowDeciding(
       current.caption === null
         ? describe(authorInName)
         : describeWithCaption(current.caption, authorInName),
@@ -148,28 +147,28 @@ export function MobileModerationPage() {
   }
 
   if (slug === undefined) {
-    return <EmptyState as="h1" title={fr.shell.notFoundTitle} description={fr.shell.notFoundHint} />
+    return <EmptyState as="h1" title={t.shell.notFoundTitle} description={t.shell.notFoundHint} />
   }
 
   return (
     <div className={styles['page']}>
       <header className={styles['head']}>
-        <h1 className={styles['title']}>{fr.mobileModeration.title}</h1>
+        <h1 className={styles['title']}>{t.mobileModeration.title}</h1>
         <div className={styles['badges']}>
           {/* One live region per concern. The count moves on its own as guests upload,
               and a host holding the phone at their side still needs to be told. */}
           <div aria-live="polite">
             <Badge tone={queue.pendingCount > 0 ? 'warning' : 'neutral'}>
-              {fr.moderation.pending(queue.pendingCount)}
+              {t.moderation.pending(queue.pendingCount)}
             </Badge>
           </div>
           <div aria-live="polite">
             <Badge tone={queue.connected ? 'success' : 'warning'}>
-              {queue.connected ? fr.moderation.live : fr.moderation.liveLost}
+              {queue.connected ? t.moderation.live : t.moderation.liveLost}
             </Badge>
           </div>
         </div>
-        <p className={styles['intro']}>{fr.mobileModeration.intro}</p>
+        <p className={styles['intro']}>{t.mobileModeration.intro}</p>
       </header>
 
       {/*
@@ -189,28 +188,28 @@ export function MobileModerationPage() {
           on screen, rather than replacing a usable queue with an error page. */}
       {queue.error !== null && queue.items.length > 0 ? (
         <p role="alert" className={styles['staleError']}>
-          {queueErrorMessage(queue.error)}
+          {queueErrorMessage(queue.error, t)}
         </p>
       ) : null}
 
       <div className={styles['stage']}>
         {queue.loading && queue.items.length === 0 ? (
           <div className={styles['pending']} aria-busy="true">
-            <Spinner size="lg" label={fr.app.loading} />
+            <Spinner size="lg" label={t.app.loading} />
           </div>
         ) : queue.error !== null && queue.items.length === 0 ? (
           <EmptyState
             as="h2"
-            title={fr.moderation.loadFailed}
-            description={queueErrorMessage(queue.error)}
+            title={t.moderation.loadFailed}
+            description={queueErrorMessage(queue.error, t)}
             action={
               <Button variant="primary" onClick={queue.refresh}>
-                {fr.app.retry}
+                {t.app.retry}
               </Button>
             }
           />
         ) : current === null ? (
-          <EmptyState as="h2" title={fr.moderation.empty} description={fr.moderation.emptyHint} />
+          <EmptyState as="h2" title={t.moderation.empty} description={t.moderation.emptyHint} />
         ) : (
           // Keyed by the photo, so the next one arrives with the gesture reset instead
           // of inheriting the offset the last swipe left behind — and so a photo that
@@ -272,8 +271,8 @@ export function MobileModerationPage() {
               block
               aria-label={
                 playing
-                  ? fr.moderation.pauseVideo(authorInName)
-                  : fr.moderation.playVideo(authorInName)
+                  ? t.moderation.pauseVideo(authorInName)
+                  : t.moderation.playVideo(authorInName)
               }
               onClick={() => {
                 // A fresh attempt clears what the last one said. A phone that dropped a
@@ -284,15 +283,13 @@ export function MobileModerationPage() {
               }}
             >
               {playing
-                ? fr.moderation.pauseVideo(authorInName)
-                : fr.moderation.playVideo(authorInName)}
+                ? t.moderation.pauseVideo(authorInName)
+                : t.moderation.playVideo(authorInName)}
             </Button>
             {/* Beside the control, never instead of it. */}
             {currentNotice === null ? null : (
               <p className={styles['undoHint']} role="status">
-                {currentNotice === 'muted'
-                  ? fr.moderation.videoMuted
-                  : fr.moderation.videoUnplayable}
+                {currentNotice === 'muted' ? t.moderation.videoMuted : t.moderation.videoUnplayable}
               </p>
             )}
           </>
@@ -313,12 +310,12 @@ export function MobileModerationPage() {
             block
             loading={queue.busy}
             disabled={current === null}
-            aria-label={authorInName === null ? undefined : fr.moderation.rejectPhoto(authorInName)}
+            aria-label={authorInName === null ? undefined : t.moderation.rejectPhoto(authorInName)}
             onClick={() => {
               if (current !== null) decide('reject', current.id)
             }}
           >
-            {fr.moderation.reject}
+            {t.moderation.reject}
           </Button>
           <Button
             variant="primary"
@@ -326,14 +323,12 @@ export function MobileModerationPage() {
             block
             loading={queue.busy}
             disabled={current === null}
-            aria-label={
-              authorInName === null ? undefined : fr.moderation.publishPhoto(authorInName)
-            }
+            aria-label={authorInName === null ? undefined : t.moderation.publishPhoto(authorInName)}
             onClick={() => {
               if (current !== null) decide('publish', current.id)
             }}
           >
-            {fr.moderation.publish}
+            {t.moderation.publish}
           </Button>
         </div>
 
@@ -345,7 +340,7 @@ export function MobileModerationPage() {
           where it was.
         */}
         <Button variant="ghost" block disabled={!queue.canUndo} onClick={() => void queue.undo()}>
-          {fr.mobileModeration.undoLast}
+          {t.mobileModeration.undoLast}
         </Button>
         {/*
           Said only to a host who has just met the limit — after a refusal, which is the
@@ -353,7 +348,7 @@ export function MobileModerationPage() {
           explain a situation nobody is in yet.
         */}
         {!queue.canUndo && lastDecision === 'reject' ? (
-          <p className={styles['undoHint']}>{fr.mobileModeration.undoUnavailable}</p>
+          <p className={styles['undoHint']}>{t.mobileModeration.undoUnavailable}</p>
         ) : null}
       </div>
     </div>

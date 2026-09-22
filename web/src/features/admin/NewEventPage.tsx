@@ -5,7 +5,7 @@ import { Field } from '../../design-system/components/Field'
 import { StatusIcon } from '../../design-system/components/StatusIcon'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { slugify } from '../../lib/slugify'
 import { EventTemplatePicker } from './components/EventTemplatePicker'
 import { useCreateEvent } from './hooks/useEventActions'
@@ -14,6 +14,7 @@ import type { EventTemplateKey } from '../../lib/api/dto'
 
 /** Surface: the host's laptop, usually the day before the event. */
 export function NewEventPage() {
+  const t = useTranslations()
   const create = useCreateEvent()
   const toast = useToast()
   const navigate = useNavigate()
@@ -52,17 +53,17 @@ export function NewEventPage() {
           setFailure(result.message)
           return
         }
-        toast.show(fr.admin.eventCreated(result.value.name), { tone: 'success' })
+        toast.show(t.admin.eventCreated(result.value.name), { tone: 'success' })
         navigate(`/admin/events/${result.value.slug}`, { replace: true })
       })
   }
 
   return (
     <div className={styles['page']}>
-      <h1 className={styles['title']}>{fr.admin.newEvent}</h1>
+      <h1 className={styles['title']}>{t.admin.newEvent}</h1>
 
       <form className={styles['form']} onSubmit={handleSubmit} noValidate>
-        <Field label={fr.admin.eventName} hint={fr.admin.eventNameHint}>
+        <Field label={t.admin.eventName} hint={t.admin.eventNameHint}>
           {(control) => (
             <TextInput
               {...control}
@@ -77,7 +78,7 @@ export function NewEventPage() {
 
         {/* The hint already opens with "Facultatif", so `Field`'s own optional marker
             would say it twice in the same breath. */}
-        <Field label={fr.admin.slug} hint={fr.admin.slugHint}>
+        <Field label={t.admin.slug} hint={t.admin.slugHint}>
           {(control) => (
             <TextInput
               {...control}
@@ -97,9 +98,9 @@ export function NewEventPage() {
           text is silent.
         */}
         <div className={styles['preview']} aria-live="polite">
-          <span className={styles['previewLabel']}>{fr.admin.slugPreviewLabel}</span>
+          <span className={styles['previewLabel']}>{t.admin.slugPreviewLabel}</span>
           {preview.length === 0 ? (
-            <span className={styles['previewEmpty']}>{fr.admin.slugPreviewEmpty}</span>
+            <span className={styles['previewEmpty']}>{t.admin.slugPreviewEmpty}</span>
           ) : (
             <span className={styles['previewValue']}>{`/e/${preview}`}</span>
           )}
@@ -124,9 +125,9 @@ export function NewEventPage() {
 
         <div className={styles['actions']}>
           <Button type="submit" variant="primary" loading={create.busy}>
-            {fr.admin.create}
+            {t.admin.create}
           </Button>
-          <Link to="/admin">{fr.app.cancel}</Link>
+          <Link to="/admin">{t.app.cancel}</Link>
         </div>
       </form>
     </div>

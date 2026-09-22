@@ -1,6 +1,6 @@
-import { fr } from '../../lib/i18n/fr'
 import type { BadgeTone } from '../../design-system/components/Badge'
 import type { EventStatus } from '../../lib/api/dto'
+import type { UiText } from '../../lib/i18n/translations'
 
 /**
  * How the event lifecycle is presented, and nothing more.
@@ -22,15 +22,23 @@ const TONES: Readonly<Record<EventStatus, BadgeTone>> = {
   archived: 'neutral',
 }
 
-const LABELS: Readonly<Record<EventStatus, string>> = {
-  draft: fr.admin.statusDraft,
-  live: fr.admin.statusLive,
-  closed: fr.admin.statusClosed,
-  archived: fr.admin.statusArchived,
+/**
+ * The word for each status, read out of the table the caller is rendering in.
+ *
+ * A table of lookups rather than a table of strings, because this module is not a
+ * component and cannot call `useTranslations`: the shape stays the one
+ * `eventLifecycle.test.ts` pins against the domain, and the language arrives with the
+ * question.
+ */
+const LABELS: Readonly<Record<EventStatus, (text: UiText) => string>> = {
+  draft: (text) => text.admin.statusDraft,
+  live: (text) => text.admin.statusLive,
+  closed: (text) => text.admin.statusClosed,
+  archived: (text) => text.admin.statusArchived,
 }
 
 export const statusTone = (status: EventStatus): BadgeTone => TONES[status]
-export const statusLabel = (status: EventStatus): string => LABELS[status]
+export const statusLabel = (status: EventStatus, text: UiText): string => LABELS[status](text)
 
 export interface LifecycleAction {
   readonly to: EventStatus
@@ -46,25 +54,26 @@ export interface LifecycleAction {
  * after the speeches ran late, `draft → live` is opening the doors. One word for both
  * would be wrong in one of the two cases.
  */
-const TRANSITIONS: Readonly<Record<EventStatus, readonly LifecycleAction[]>> = {
-  draft: [
-    { to: 'live', label: fr.admin.goLive, primary: true },
-    { to: 'archived', label: fr.admin.archiveEvent, primary: false },
+const TRANSITIONS: Readonly<Record<EventStatus, (text: UiText) => readonly LifecycleAction[]>> = {
+  draft: (text) => [
+    { to: 'live', label: text.admin.goLive, primary: true },
+    { to: 'archived', label: text.admin.archiveEvent, primary: false },
   ],
-  live: [
-    { to: 'closed', label: fr.admin.closeEvent, primary: false },
-    { to: 'archived', label: fr.admin.archiveEvent, primary: false },
+  live: (text) => [
+    { to: 'closed', label: text.admin.closeEvent, primary: false },
+    { to: 'archived', label: text.admin.archiveEvent, primary: false },
   ],
-  closed: [
-    { to: 'live', label: fr.admin.reopenEvent, primary: false },
-    { to: 'archived', label: fr.admin.archiveEvent, primary: false },
+  closed: (text) => [
+    { to: 'live', label: text.admin.reopenEvent, primary: false },
+    { to: 'archived', label: text.admin.archiveEvent, primary: false },
   ],
   // Terminal. Restoring an archived event is a restore-from-backup operation, not a
   // button, because it has to answer what happened to the media in between.
-  archived: [],
+  archived: () => [],
 }
 
-export const lifecycleActions = (from: EventStatus): readonly LifecycleAction[] => TRANSITIONS[from]
+export const lifecycleActions = (from: EventStatus, text: UiText): readonly LifecycleAction[] =>
+  TRANSITIONS[from](text)
 
 /** Mirrors `allowsModeration`: an archived event is read-only. */
 export const allowsModeration = (status: EventStatus): boolean => status !== 'archived'

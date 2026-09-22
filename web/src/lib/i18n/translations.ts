@@ -6,73 +6,89 @@ import { it } from './it'
 import type { Locale } from './locale'
 
 /**
- * Which half of the copy is translated, and what stops the two halves drifting.
+ * Every string in this app, in five languages, and what stops the five drifting.
  *
- * ## The scope, and why it is not "all of it"
+ * ## The scope, and why it is now all of it
  *
- * A guest-facing string and a host-facing one are not the same commitment.
+ * This module used to argue the opposite, and the argument is worth keeping in view
+ * because it was not silly. It went: the guest surface has to work **in a language the
+ * guest did not choose** — they scanned a QR code at somebody else's wedding, they have
+ * one thumb and about forty seconds — while the admin console has exactly one reader, and
+ * that reader installed the box and typed its environment variables, so translating it
+ * buys nothing and costs four more tables to keep honest.
  *
- * The guest surface has to work **in a language the guest did not choose**: they scanned
- * a QR code at somebody else's wedding, they have one thumb and about forty seconds, and
- * a guest who cannot read the upload button does not upload. That is the whole argument
- * for this feature.
+ * Two of its three premises turned out to be false, and the third was the wrong thing to
+ * optimise.
  *
- * The admin console has exactly one reader, and they are the person who installed the
- * box, typed its environment variables and read its README. The moderation console has
- * the same reader, standing up, mid-event. Translating either buys nothing and costs
- * four more tables to keep honest — and a stale translation on the one screen that
- * decides what goes on a projector is worse than French.
+ * - **The host is not the person who installed the box.** A moderator is invited by
+ *   e-mail address and given a temporary password (`admin.moderatorPasswordHint`); they
+ *   are a friend, a sibling, a colleague handed a phone at 21:00, and nothing about them
+ *   implies they read French. The console they are handed is the one screen in this
+ *   product where being wrong puts a photograph in front of two hundred people.
+ * - **The room is not the host either.** The wall's copy is projected: "Rejoignez la
+ *   galerie" is read by every guest, and it was in the untranslated half. The README
+ *   could not even screenshot the mission panel, because it rendered "1 invité" beside
+ *   English prompts.
+ * - **"Four more tables to keep honest" is a cost the compiler pays, not a person.** A
+ *   key added to `fr.ts` fails the build until all four carry it; `translations.test.ts`
+ *   refuses a blank one, a key name copied into its own value, and a table still reading
+ *   as French; `orthography.test.ts` refuses a transliterated one. What that costs is
+ *   translation work, once, per string — which is the real cost and is not reduced by
+ *   pretending half the app is not user-facing.
  *
- * So: {@link GUEST_SECTIONS} is translated into all five languages, everything else
- * stays French in every language. The split is enforced by the type of a locale table
- * rather than by anybody remembering it — see {@link GuestTranslations}.
+ * What survives from the old argument is its best line, and it is now a *reason to be
+ * careful* rather than a reason not to: **a stale translation on the screen that decides
+ * what goes on a projector is worse than French.** That is what the tests below are for,
+ * and it is why the pull request that landed this says plainly which of the four
+ * languages deserve a native reader before anyone runs a real event in them.
  *
- * Three of the boundaries are worth stating because they could have gone the other way:
+ * So: every section, in every language. There is no exempt half and no
+ * `GUEST_SECTIONS` list to keep in step with `fr.ts` any more.
  *
- * - **`errors` is translated, all of it.** Most codes a host meets are host-only, and
- *   splitting the table by audience was the obvious saving. It is also the trap the
- *   video review named: it needs a rule about which route can answer which code, that
- *   rule lives nowhere in the code, and getting it wrong shows a guest French. The map
- *   is flat, the codes are cheap, and a refusal the guest cannot read is the one that
- *   makes them send the same photo four more times.
- * - **`wall` is not translated.** There is one wall and two hundred people in front of
- *   it. A per-guest cookie cannot answer "what language is this room", the event can,
- *   and that is a per-event setting rather than anything this point owns.
- * - **`auth` is not translated.** Only a host or an invited moderator ever reaches a
- *   login form; a guest has no account by construction.
+ * ## Which language each surface is in
  *
- * ## What stays French for every guest, and why it is not in these tables
+ * Three surfaces, and they do not answer the question the same way, because they are not
+ * asked by the same person.
  *
- * Two strings a guest can read are outside this module's reach entirely, and they are
- * the first and last things they see: the `<meta name="description">` in
- * `web/index.html`, which is the link preview when the join link is forwarded in a group
- * chat, and `web/public/manifest.webmanifest`, which is the name and description in the
- * install sheet on their home screen. The browser fetches both before any of this app's
- * code runs, so nothing here can negotiate them. `web/index.html` carries the full note
- * and what fixing it would take — server-side negotiation on `Accept-Language`, which is
- * a change to the delivery path rather than to the copy.
+ * - **The guest's phone and the host's console** take the reader's own preference:
+ *   `localStorage` if they have ever chosen, else `navigator.languages`, else French.
+ *   `LocaleProvider` does it once, at the root, for both — a host is a person with a
+ *   browser exactly as a guest is, and the same picker sits in both layouts' headers.
+ * - **The projected wall** takes the **event's** `wallLanguage`, a setting the host
+ *   chooses (defaulted, once, to their own language at the moment they create the event).
+ *   It is the one surface with nobody in front of it: a projector's `navigator.languages`
+ *   is the language of whichever machine the venue had in a cupboard, and a guest's stored
+ *   preference belongs to one phone out of two hundred. `LocaleOverride` is the boundary,
+ *   and `src/domain/events/eventLanguage.ts` is the argument.
+ *
+ * ## What is never translated, in any of them
+ *
+ * An event's name, a photograph's caption, a guest's display name and a mission's prompt
+ * are **content**. A person wrote them, in whatever language they were speaking, and no
+ * table has an entry for them — they arrive on a DTO and are interpolated verbatim. So
+ * the wall routinely prints a translated heading over untranslated prompts, and that is
+ * right rather than a defect: the heading is the product speaking and the prompt is the
+ * host speaking.
+ *
+ * Routing content through a translation table would be the characteristic defect of a
+ * change this size, so it is guarded by a test rather than by this paragraph:
+ * `content.test.ts` calls every phrase in every language with a marked string and fails
+ * if any language gives back anything other than exactly what it was handed.
+ *
+ * ## What is still outside this module's reach
+ *
+ * Two strings a guest can read are outside it entirely, and they are the first and last
+ * things they see: the `<meta name="description">` in `web/index.html`, which is the link
+ * preview when the join link is forwarded in a group chat, and
+ * `web/public/manifest.webmanifest`, which is the name and description in the install
+ * sheet on their home screen. The browser fetches both before any of this app's code
+ * runs, so nothing here can negotiate them. `web/index.html` carries the full note and
+ * what fixing it would take — server-side negotiation on `Accept-Language`, which is a
+ * change to the delivery path rather than to the copy.
  */
 
 /**
- * The sections a guest can read.
- *
- * `satisfies` rather than a plain annotation, so this list is checked against the real
- * table: renaming a section in `fr.ts` and forgetting this line is a compile error, not
- * a section that silently stops being translated.
- */
-export const GUEST_SECTIONS = [
-  'app',
-  'join',
-  'upload',
-  'ui',
-  'shell',
-  'errors',
-] as const satisfies readonly (keyof Translations)[]
-
-export type GuestSection = (typeof GUEST_SECTIONS)[number]
-
-/**
- * The same shape, with every literal widened to `string`.
+ * The same shape as `fr.ts`, with every literal widened to `string`.
  *
  * `fr.ts` is `as const`, so `fr.app.name` has the type `'EventSlide'` and not `string`.
  * That is right for the source of truth — it is what makes `layoutNames` exhaustive —
@@ -86,23 +102,23 @@ export type Localized<T> = T extends (...args: infer A) => string
     ? string
     : { readonly [K in keyof T]: Localized<T[K]> }
 
-/** Every string in the app, for one language. What a component renders from. */
-export type UiText = Localized<Translations>
-
 /**
- * What `de.ts`, `en.ts`, `es.ts` and `it.ts` have to be.
+ * Every string in the app, for one language.
  *
- * This is the type safety the brief asked for, and it works in both directions at once
+ * Both what a component renders **and** what `de.ts`, `en.ts`, `es.ts` and `it.ts` have
+ * to be. Those were two types while half the app was exempt; now that nothing is, they
+ * are the same type and giving them two names would only invite them to drift apart
+ * again.
+ *
+ * This is the type safety roadmap 1.5 asked for, and it works in both directions at once
  * because it is an exact object type checked against an object literal:
  *
  * - a key `fr.ts` has and a locale table does not is **missing property**;
  * - a key a locale table has and `fr.ts` does not is **excess property**;
- * - a host-facing section in a locale table is also an excess property, which is how the
- *   scope decision above stops being a convention and starts being a compile error;
  * - a phrase whose parameter **types** drift — `welcome(count: number)` where French
  *   takes `(eventName: string)` — is a signature mismatch.
  *
- * All four fail `npm run typecheck`, which is in `npm run verify`, which is the gate.
+ * All three fail `npm run typecheck`, which is in `npm run verify`, which is the gate.
  *
  * **One kind of drift the compiler cannot see**, and it is worth naming because it looks
  * like it should: a phrase that declares *fewer* parameters. TypeScript assigns
@@ -112,42 +128,79 @@ export type UiText = Localized<Translations>
  * sentence. Not blank, not a key name: quietly missing a number the guest needs. That one
  * is caught a ring down, by the arity case in `translations.test.ts`.
  */
-export type GuestTranslations = Localized<Pick<Translations, GuestSection>>
+export type UiText = Localized<Translations>
+
+/** One node of a copy table, seen by something that does not know its shape. */
+type Table = Readonly<Record<string, unknown>>
 
 /**
- * A locale's guest sections laid over the French table.
- *
- * This is the fallback rule, and it is a spread rather than a lookup on purpose. The
- * French entry is written first and the translated one replaces it, so a key that is
- * somehow absent at runtime — a hand-edited bundle, a table built by something other
- * than the compiler — renders the French sentence. Never `undefined`, never the empty
- * string, and never a key name on a guest's phone.
- *
- * The compiler already makes an absent key impossible, and `translations.test.ts` makes
- * an *empty* one impossible. This is the third layer, and it is free.
+ * `typeof 'object'` and not `'function'`, which is the distinction that makes the merge
+ * below correct: a phrase is replaced whole, a section is descended into.
  */
-const withFrenchFallback = (guest: GuestTranslations): UiText => ({
-  ...fr,
-  app: { ...fr.app, ...guest.app },
-  join: { ...fr.join, ...guest.join },
-  upload: { ...fr.upload, ...guest.upload },
-  ui: { ...fr.ui, ...guest.ui },
-  shell: { ...fr.shell, ...guest.shell },
-  errors: { ...fr.errors, ...guest.errors },
-})
+const isTable = (value: unknown): value is Table => typeof value === 'object' && value !== null
+
+/**
+ * French first, the translation laid over it, at every depth.
+ *
+ * This is the fallback rule, and it is a merge rather than a lookup on purpose. The
+ * French entry is written first and the translated one replaces it, so a key that is
+ * somehow absent at runtime — a hand-edited bundle, a table built by something other than
+ * the compiler — renders the French sentence. Never `undefined`, never the empty string,
+ * and never a key name on a guest's phone.
+ *
+ * **Recursive, and that is not a flourish.** Six entries in these tables are nested
+ * records — `wall.layoutNames` and the five `admin.*Names` — and a one-level spread would
+ * replace each of them whole, so a locale table missing one layout's name would render
+ * `undefined` on the one screen a host opens while standing at a projector. The
+ * alternative, a hand-written spread per section, is a list somebody has to remember to
+ * extend the next time a record is added; `translations.test.ts` proves this one reaches
+ * the bottom instead.
+ *
+ * The compiler already makes an absent key impossible and `translations.test.ts` makes an
+ * *empty* one impossible. This is the third layer, and it is free.
+ *
+ * `withFrenchFallback` is exported for one test and nothing else. The property it carries
+ * — that the merge reaches the bottom — is only observable on a table that is *missing* a
+ * nested key, which the compiler makes it impossible for any real table to be, so there
+ * is no way to assert it through the public surface. Nothing in the running app imports
+ * it; `TRANSLATIONS` below is what components reach.
+ */
+const layered = (base: Table, over: Table): Table => {
+  const result: Record<string, unknown> = { ...base }
+  for (const key of Object.keys(over)) {
+    const beneath: unknown = base[key]
+    const above: unknown = over[key]
+    result[key] = isTable(beneath) && isTable(above) ? layered(beneath, above) : above
+  }
+  return result
+}
+
+/**
+ * The one assertion in this file, and what makes it safe.
+ *
+ * `layered` cannot add a key — it starts from a copy of `fr` and only ever writes keys
+ * that `over` already has, and `over` is a `UiText`, which is `fr`'s shape. It cannot
+ * remove one either. So the result has exactly `fr`'s keys with exactly `UiText`'s value
+ * types, which is what the assertion says; the compiler simply cannot follow an index
+ * signature that far. `translations.test.ts` asserts the same thing at runtime, over
+ * every key of every language, which is the guard that would actually catch a mistake
+ * here.
+ */
+export const withFrenchFallback = (table: UiText): UiText => layered(fr, table) as UiText
 
 /**
  * Every language, built once at module load — and all five in the guest's eager chunk.
  *
- * **Measured: the four non-French tables are 14.3 kB gzipped**, in the one chunk
- * `router.tsx` goes out of its way to keep small because a guest opens this app once, on
- * a phone, on congested venue Wi-Fi. A French guest at a French wedding pays for four
- * languages they will not read.
+ * **Measured: the four non-French tables were 14.3 kB gzipped** when they held the guest
+ * sections alone, in the one chunk `router.tsx` goes out of its way to keep small because
+ * a guest opens this app once, on a phone, on congested venue Wi-Fi. Carrying the host
+ * and room sections as well roughly triples that, and a French guest at a French wedding
+ * pays for four languages they will not read.
  *
- * The obvious next move is a chunk per locale — `import(\`./${locale}.ts\`)` awaited in
- * `main.tsx` before `createRoot`, so there is no flash of the wrong language — and it is
- * written down here rather than done because it is **not free**, for one specific reason
- * that is easy to miss:
+ * That makes the chunk-per-locale split — `import(\`./${locale}.ts\`)` awaited in
+ * `main.tsx` before `createRoot`, so there is no flash of the wrong language — go from
+ * "worth having" to the next thing to do. It is written down here rather than done
+ * because it is **not free**, for one specific reason that is easy to miss:
  *
  * `precacheList()` in `web/vite.sw.config.ts` builds the offline shell by walking the
  * entry chunk and its **static** `imports` in Vite's manifest. A dynamic `import()`

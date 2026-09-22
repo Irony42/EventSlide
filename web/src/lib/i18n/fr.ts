@@ -12,17 +12,21 @@
  *    sloppy, so the choice is made once, here.
  * 3. **This file decides which keys exist.** `de.ts`, `en.ts`, `es.ts` and `it.ts` are
  *    typed from `typeof fr`, so a key added here that they do not carry fails
- *    `npm run typecheck` (`translations.ts` explains the derivation). Only the sections
- *    listed in `GUEST_SECTIONS` are translated; the rest are French on every language,
- *    by design and not by omission.
+ *    `npm run typecheck` (`translations.ts` explains the derivation). **Every section is
+ *    translated** — the guest's, the host's and the room's alike.
  *
  * Tone: sentence case, no exclamation-mark inflation, and an error says what to do
  * next rather than what went wrong internally.
  *
- * **Adding a string.** Put it in the section it belongs to, as here. If the section is
- * host-facing (`admin`, `moderation`, `mobileModeration`, `auth`, `wall`) there is
- * nothing else to do. If it is guest-facing (`app`, `join`, `upload`, `ui`, `shell`,
- * `errors`) the four other tables stop compiling until they carry it too.
+ * **Adding a string.** Put it in the section it belongs to, as here, and the four other
+ * tables stop compiling until they carry it too. There is no longer a half of this file
+ * that is exempt: if you are adding a key you are adding five.
+ *
+ * **What is not in this file, and must never be.** An event's name, a photo's caption, a
+ * guest's display name and a mission's prompt are *content* — a person wrote them, in the
+ * language the evening is held in, and no table translates them. They arrive on a DTO and
+ * are rendered verbatim. `content.test.ts` is what makes that mechanical rather than
+ * remembered.
  */
 
 import { formattersFor } from './formatters'
@@ -332,10 +336,12 @@ export const fr = {
      * The same badge once the duration is known.
      *
      * It reads identically to `moderation.videoLength`, which is what "Vos envois" used
-     * to render — and that was a scope bug rather than reuse: `moderation` is host copy
-     * and stays French in every language, so a guest reading this app in German had one
-     * French badge in their own list of uploads. Two identical sentences owned by the
-     * two audiences that read them is the cheaper mistake.
+     * to render — and that was a scope bug rather than reuse: back when `moderation` was
+     * French in every language, a guest reading this app in German had one French badge
+     * in their own list of uploads. Both sections are translated now, so the bug is gone
+     * on its own; the duplication stays because the two sentences are owned by the two
+     * audiences that read them, and a moderator's badge and a guest's badge are free to
+     * diverge without either audience noticing the other move.
      */
     mineClipLength: (seconds: number) => `Vidéo · ${t.number(seconds)} s`,
 
@@ -510,7 +516,9 @@ export const fr = {
      * The dispositions, named for the one person who ever reads them: the host standing
      * at the projector with the shortcuts dialog open. Nothing here is projected — the
      * room sees photographs, not the name of the grid they are in — so these are working
-     * words a French-speaking host would use, not translations of the code's names.
+     * words a host would use, not translations of the code's names. The same holds in the
+     * other four tables: translate what a host at a projector would call the grid, not
+     * `spotlight`.
      *
      * `satisfies Record<WallLayout, string>` is the same guard `useLayoutParam` uses: a
      * layout added to the contract fails to compile here until it is named, and a name
@@ -541,12 +549,14 @@ export const fr = {
     /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
     /**
-     * The corner panel's own words. French in every language, like the rest of `wall`:
-     * there is one wall and two hundred people in front of it, and a per-guest cookie
-     * cannot answer "what language is this room".
+     * The corner panel's own words, in the language the host set on the event — a guest's
+     * phone cannot answer "what language is this room", and the host can.
      *
      * The prompts themselves are not here at all. They are content the host typed, and
-     * they arrive on the wall response.
+     * they arrive on the wall response. So this panel routinely renders a translated
+     * heading over untranslated prompts, which is not a defect: the heading is the
+     * product speaking and the prompt is the host speaking, and they are allowed to be in
+     * different languages because they are different voices.
      */
     missionsTitle: 'Missions',
     missionDone: 'Fait',
@@ -631,6 +641,28 @@ export const fr = {
     allowClipsHint:
       'Les invités peuvent envoyer de courtes vidéos, en plus des photos. Quand la case est décochée, les vidéos sont refusées : parce que vous l’avez décochée, parce que le modèle choisi à la création l’a réglé ainsi, ou parce que la galerie est antérieure à cette fonctionnalité. Cochez-la pour les autoriser.',
     allowGuestSelfDelete: 'Autoriser les invités à supprimer leurs photos',
+
+    /* ---- The language the room's screen speaks (roadmap 1.5). ---- */
+
+    /**
+     * Named for the screen it changes and for nothing else.
+     *
+     * It is **not** "the language of the evening", and the difference is the whole reason
+     * this field is worded the way it is. The wall is the one surface with nobody in front
+     * of it to ask: a guest picks their own language on their phone, a host picks theirs in
+     * their browser, and a projector in a cupboard has neither. So the host answers for it
+     * once, here, beside the accent hue and the frame style — which are the other three
+     * decisions about what the room looks like.
+     *
+     * What it deliberately does not claim is what language the *content* is in. A caption
+     * is written by whichever guest wrote it, and two hundred guests do not share a
+     * language even when the host does, so no single field could be true about them. The
+     * hint says so, because a host who reads "langue de la soirée" will reasonably expect
+     * their consignes to be translated, and they never will be.
+     */
+    wallLanguage: 'Langue de l’écran de la salle',
+    wallLanguageHint:
+      'Les mots de l’écran de la salle : « Rejoignez la galerie », « Missions », les messages d’attente. Ce que vous et vos invités écrivez — le nom de l’évènement, les légendes, les consignes — s’affiche tel quel et n’est jamais traduit. Vos invités choisissent leur propre langue sur leur téléphone ; ce réglage ne les concerne pas.',
 
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,
             because a single choice with four options does not deserve four strings. ---- */
@@ -999,6 +1031,10 @@ export const fr = {
     'eventSettings.graceSecondsInvalid': 'Ce délai de suppression n’est pas accepté.',
     'eventSettings.retentionDaysInvalid': 'Ce délai de conservation n’est pas accepté.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Ce nombre de photos par invité n’est pas accepté.',
+    // The picker offers only the five the build carries, so a host meets this through the
+    // API or a tab left open across a deploy that removed one.
+    'eventSettings.wallLanguageInvalid':
+      'Cette langue n’est pas disponible. Choisissez-en une dans la liste.',
     'email.malformed': 'Cette adresse e-mail n’est pas valide.',
     'user.notFound': 'Aucun compte ne correspond à cette adresse e-mail.',
     'membership.alreadyExists': 'Cette personne modère déjà cet évènement.',

@@ -7,7 +7,7 @@ import { EmptyState } from '../../design-system/components/EmptyState'
 import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { SelectField } from './components/SelectField'
 import { useMissions } from './hooks/useEventData'
@@ -42,17 +42,13 @@ export interface MissionsPanelProps {
  * they were already in — which is why each row has its own edit rather than only a bin.
  */
 
-const SCOPE_OPTIONS = [
-  { value: 'guest', label: fr.admin.missionScopeGuest },
-  { value: 'event', label: fr.admin.missionScopeEvent },
-] as const
-
 /** The twelve in `MAX_MISSIONS_PER_EVENT`. Restated so the panel can say it. */
 const MAX_MISSIONS = 12
 
 const isScope = (value: string): value is MissionScope => value === 'guest' || value === 'event'
 
 export function MissionsPanel({ slug }: MissionsPanelProps) {
+  const t = useTranslations()
   const { data: missions, loading, error, reload } = useMissions(slug)
   const create = useCreateMission()
   const update = useUpdateMission()
@@ -65,6 +61,11 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
   /** The row being corrected, or `null` while the form is adding a new one. */
   const [editing, setEditing] = useState<MissionDto | null>(null)
   const [selected, setSelected] = useState<MissionDto | null>(null)
+
+  const scopeOptions = [
+    { value: 'guest', label: t.admin.missionScopeGuest },
+    { value: 'event', label: t.admin.missionScopeEvent },
+  ] as const
 
   const list = missions ?? []
   const full = list.length >= MAX_MISSIONS && editing === null
@@ -104,7 +105,7 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
           setFailure(result.message)
           return
         }
-        done(fr.admin.missionAdded)
+        done(t.admin.missionAdded)
       })
       return
     }
@@ -114,7 +115,7 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
         setFailure(result.message)
         return
       }
-      done(fr.admin.missionSaved)
+      done(t.admin.missionSaved)
     })
   }
 
@@ -126,7 +127,7 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
         toast.show(result.message, { tone: 'danger' })
         return
       }
-      toast.show(fr.admin.missionDeleted, { tone: 'success' })
+      toast.show(t.admin.missionDeleted, { tone: 'success' })
       // The row being corrected may be the row just deleted.
       resetForm()
       reload()
@@ -134,15 +135,15 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
   }
 
   return (
-    <Card as="h2" title={fr.admin.missionsTitle}>
-      <p className={styles['hint']}>{fr.admin.missionsHint}</p>
+    <Card as="h2" title={t.admin.missionsTitle}>
+      <p className={styles['hint']}>{t.admin.missionsHint}</p>
 
-      {loading ? <Pending label={fr.app.loading} /> : null}
+      {loading ? <Pending label={t.app.loading} /> : null}
 
       {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
 
       {!loading && error === null && list.length === 0 ? (
-        <EmptyState as="h3" title={fr.admin.missionsEmpty} />
+        <EmptyState as="h3" title={t.admin.missionsEmpty} />
       ) : null}
 
       {!loading && error === null && list.length > 0 ? (
@@ -153,31 +154,29 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
                 <span className={styles['prompt']}>{mission.prompt}</span>
                 <span className={styles['meta']}>
                   {mission.achieved
-                    ? fr.admin.missionAnswered(mission.publishedPhotos, mission.completedByGuests)
-                    : fr.admin.missionUnanswered}
+                    ? t.admin.missionAnswered(mission.publishedPhotos, mission.completedByGuests)
+                    : t.admin.missionUnanswered}
                 </span>
               </div>
               <Badge tone={mission.scope === 'event' ? 'accent' : 'neutral'}>
-                {mission.scope === 'event'
-                  ? fr.admin.missionScopeEvent
-                  : fr.admin.missionScopeGuest}
+                {mission.scope === 'event' ? t.admin.missionScopeEvent : t.admin.missionScopeGuest}
               </Badge>
               <Button
                 size="sm"
-                aria-label={fr.admin.missionEdit(mission.prompt)}
+                aria-label={t.admin.missionEdit(mission.prompt)}
                 onClick={() => startEditing(mission)}
               >
-                {fr.admin.missionEditShort}
+                {t.admin.missionEditShort}
               </Button>
               <Button
                 variant="danger"
                 size="sm"
                 loading={remove.pending === mission.id}
                 disabled={remove.busy}
-                aria-label={fr.admin.missionDelete(mission.prompt)}
+                aria-label={t.admin.missionDelete(mission.prompt)}
                 onClick={() => setSelected(mission)}
               >
-                {fr.admin.missionDeleteShort}
+                {t.admin.missionDeleteShort}
               </Button>
             </li>
           ))}
@@ -186,8 +185,8 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
 
       <form className={styles['form']} onSubmit={submit} noValidate>
         <Field
-          label={fr.admin.missionPrompt}
-          hint={fr.admin.missionPromptHint(60)}
+          label={t.admin.missionPrompt}
+          hint={t.admin.missionPromptHint(60)}
           {...(failure === null ? {} : { error: failure })}
         >
           {(control) => (
@@ -203,10 +202,10 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
           )}
         </Field>
         <SelectField
-          label={fr.admin.missionScope}
-          hint={fr.admin.missionScopeHint}
+          label={t.admin.missionScope}
+          hint={t.admin.missionScopeHint}
           value={scope}
-          options={SCOPE_OPTIONS}
+          options={scopeOptions}
           disabled={full}
           onChange={(value) => {
             if (isScope(value)) setScope(value)
@@ -214,24 +213,24 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
         />
         <div className={styles['actions']}>
           <Button type="submit" loading={create.busy || update.busy} disabled={full}>
-            {editing === null ? fr.admin.missionAdd : fr.admin.missionSave}
+            {editing === null ? t.admin.missionAdd : t.admin.missionSave}
           </Button>
           {editing === null ? null : (
             <Button variant="ghost" type="button" onClick={resetForm}>
-              {fr.admin.missionCancel}
+              {t.admin.missionCancel}
             </Button>
           )}
         </div>
         {/* Said once the list is full rather than as a permanent warning: it is the
             answer to a disabled control, not a rule the host needs while there is room. */}
-        {full ? <p className={styles['full']}>{fr.admin.missionsFull(MAX_MISSIONS)}</p> : null}
+        {full ? <p className={styles['full']}>{t.admin.missionsFull(MAX_MISSIONS)}</p> : null}
       </form>
 
       <ConfirmDialog
         open={selected !== null}
-        title={fr.admin.missionDeleteTitle}
-        description={fr.admin.missionDeleteConfirm}
-        confirmLabel={fr.admin.missionDeleteAction}
+        title={t.admin.missionDeleteTitle}
+        description={t.admin.missionDeleteConfirm}
+        confirmLabel={t.admin.missionDeleteAction}
         busy={remove.busy}
         onConfirm={confirmDelete}
         onCancel={() => setSelected(null)}

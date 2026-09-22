@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './JoinQr.module.css'
 
 export type JoinQrSize = 'md' | 'lg'
@@ -18,12 +18,14 @@ export interface JoinQrProps {
  * broken-image icon for the first twenty minutes of the party.
  */
 export function JoinQr({ url, size = 'md' }: JoinQrProps) {
+  const text = useTranslations()
+
   return (
     <div className={`${styles['plate']} ${styles[size]}`}>
       <QRCodeSVG
         className={styles['code']}
         value={url}
-        title={fr.wall.qrTitle}
+        title={text.wall.qrTitle}
         // The plate supplies the light field from a token and the modules inherit its
         // ink through `currentColor`, so no colour literal reaches this file.
         bgColor="transparent"

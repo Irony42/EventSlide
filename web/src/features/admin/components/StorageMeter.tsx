@@ -1,6 +1,6 @@
 import { Progress, type ProgressTone } from '../../../design-system/components/Progress'
 import { formatBytes } from '../../../lib/format'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './StorageMeter.module.css'
 
 export interface StorageMeterProps {
@@ -29,10 +29,11 @@ const toneFor = (usedBytes: number, quotaBytes: number): ProgressTone => {
 }
 
 export function StorageMeter({ usedBytes, quotaBytes }: StorageMeterProps) {
+  const t = useTranslations()
   const used = formatBytes(usedBytes)
 
   if (quotaBytes === null) {
-    return <p className={styles['figure']}>{fr.admin.storage(used)}</p>
+    return <p className={styles['figure']}>{t.admin.storage(used)}</p>
   }
 
   return (
@@ -40,10 +41,10 @@ export function StorageMeter({ usedBytes, quotaBytes }: StorageMeterProps) {
       <Progress
         value={usedBytes}
         max={quotaBytes}
-        label={fr.admin.storageLabel}
+        label={t.admin.storageLabel}
         tone={toneFor(usedBytes, quotaBytes)}
       />
-      <p className={styles['figure']}>{fr.admin.storageUsed(used, formatBytes(quotaBytes))}</p>
+      <p className={styles['figure']}>{t.admin.storageUsed(used, formatBytes(quotaBytes))}</p>
     </div>
   )
 }

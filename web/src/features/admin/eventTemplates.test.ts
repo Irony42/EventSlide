@@ -43,7 +43,7 @@ describe('the template summary', () => {
     // incomplete.
     const patch = EVENT_TEMPLATE_PATCHES[key]
 
-    expect(templateSummary(patch)).toHaveLength(Object.keys(patch).length)
+    expect(templateSummary(patch, fr)).toHaveLength(Object.keys(patch).length)
   })
 
   it.each(EVENT_TEMPLATE_KEYS)('says nothing about a setting %s leaves alone', (key) => {
@@ -56,7 +56,7 @@ describe('the template summary', () => {
     // nothing. Now every field the formatter knows about is checked against every
     // template that leaves it alone, which is thirteen real assertions across the four.
     const patch: Partial<EventSettingsDto> = EVENT_TEMPLATE_PATCHES[key]
-    const said = templateSummary(patch).join(' ')
+    const said = templateSummary(patch, fr).join(' ')
 
     for (const [field, mark] of FIELD_MARKS) {
       if (field in patch) continue
@@ -84,24 +84,24 @@ describe('the template summary', () => {
   })
 
   it('says nothing at all about a template that changes nothing', () => {
-    expect(templateSummary({})).toEqual([])
+    expect(templateSummary({}, fr)).toEqual([])
   })
 
   it('words a moderation mode the way the settings form does', () => {
     // Two screens, one sentence. A host reading "Publier automatiquement" on the card and
     // something else on the settings page would have to work out whether they are the
     // same setting.
-    expect(templateSummary({ moderation: 'auto' })).toEqual([fr.admin.moderationAuto])
-    expect(templateSummary({ moderation: 'manual' })).toEqual([fr.admin.moderationManual])
+    expect(templateSummary({ moderation: 'auto' }, fr)).toEqual([fr.admin.moderationAuto])
+    expect(templateSummary({ moderation: 'manual' }, fr)).toEqual([fr.admin.moderationManual])
   })
 
   it('says which way a video switch was thrown, not that it was touched', () => {
-    expect(templateSummary({ allowClips: false })).toEqual([fr.admin.templateClipsOff])
-    expect(templateSummary({ allowClips: true })).toEqual([fr.admin.templateClipsOn])
+    expect(templateSummary({ allowClips: false }, fr)).toEqual([fr.admin.templateClipsOff])
+    expect(templateSummary({ allowClips: true }, fr)).toEqual([fr.admin.templateClipsOn])
   })
 
   it('words a grace window in the unit the settings form uses', () => {
-    expect(templateSummary({ guestSelfDeleteGraceSeconds: 3600 })).toEqual([
+    expect(templateSummary({ guestSelfDeleteGraceSeconds: 3600 }, fr)).toEqual([
       `${fr.admin.selfDeleteGrace} : ${fr.admin.graceHours(1)}`,
     ])
   })
@@ -115,7 +115,7 @@ describe('the template summary', () => {
     // it. On the settings page the same string is an option inside a select already
     // headed "Suppression automatique", which is why it reads correctly there and did
     // not here.
-    const line = templateSummary({ retentionDays: 30 })[0] ?? ''
+    const line = templateSummary({ retentionDays: 30 }, fr)[0] ?? ''
 
     expect(line).toContain(fr.admin.retention)
     expect(line).toContain(fr.admin.retentionDays(30))
@@ -134,14 +134,14 @@ describe('the template summary', () => {
     // automatique". On a card with no such heading it is a bare adverb, and what it
     // stands for — photographs of other people's families kept indefinitely — is the
     // thing ROADMAP section 7 says must not pass as a neutral default.
-    expect(templateSummary({ retentionDays: null })).toEqual([fr.admin.retentionUnlimited])
+    expect(templateSummary({ retentionDays: null }, fr)).toEqual([fr.admin.retentionUnlimited])
   })
 
   it('words a per-guest cap, including the absence of one', () => {
-    expect(templateSummary({ maxPhotosPerGuest: 25 })).toEqual([
+    expect(templateSummary({ maxPhotosPerGuest: 25 }, fr)).toEqual([
       `${fr.admin.maxPhotosPerGuest} : 25`,
     ])
-    expect(templateSummary({ maxPhotosPerGuest: null })).toEqual([
+    expect(templateSummary({ maxPhotosPerGuest: null }, fr)).toEqual([
       `${fr.admin.maxPhotosPerGuest} : ${fr.admin.maxPhotosUnlimited}`,
     ])
   })
@@ -150,9 +150,10 @@ describe('the template summary', () => {
     // Not by its hue angle: 345 is not something a host can act on, and "Rose" is the
     // word the appearance section will use for the same choice.
     expect(
-      templateSummary({
-        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
-      }),
+      templateSummary(
+        { theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' } },
+        fr,
+      ),
     ).toEqual([
       `${fr.admin.theme} : ${fr.admin.themeAccentNames.rose}, ${fr.admin.themeFontsNames.serif}, ${fr.admin.themeFrameNames.round}`,
     ])
@@ -168,7 +169,7 @@ describe('the template summary', () => {
     // can see it.
     const frameOnly = { accentHue: 305, fonts: 'sans', frame: 'round', material: 'glass' } as const
 
-    expect(templateSummary({ theme: frameOnly })).toEqual([
+    expect(templateSummary({ theme: frameOnly }, fr)).toEqual([
       `${fr.admin.theme} : ${fr.admin.themeFrameNames.round}`,
     ])
   })
@@ -178,9 +179,10 @@ describe('the template summary', () => {
     // default and ring 1 refuses it — but the alternative to answering `null` here is a
     // dangling "Apparence : " on a card.
     expect(
-      templateSummary({
-        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
-      }),
+      templateSummary(
+        { theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' } },
+        fr,
+      ),
     ).toEqual([])
   })
 
@@ -189,7 +191,7 @@ describe('the template summary', () => {
     const theme = EVENT_TEMPLATE_PATCHES[key].theme
     if (theme === undefined) throw new Error(`${key} has no theme to check`)
 
-    const line = templateSummary({ theme }).join('')
+    const line = templateSummary({ theme }, fr).join('')
 
     if (theme.accentHue === 305) expect(line).not.toContain(fr.admin.themeAccentNames.violet)
     if (theme.fonts === 'sans') expect(line).not.toContain(fr.admin.themeFontsNames.sans)
@@ -197,7 +199,7 @@ describe('the template summary', () => {
   })
 
   it('drops the whole theme line rather than leaving a label with nothing after it', () => {
-    expect(templateSummary({ moderation: 'auto', theme: DEFAULT_THEME })).toEqual([
+    expect(templateSummary({ moderation: 'auto', theme: DEFAULT_THEME }, fr)).toEqual([
       fr.admin.moderationAuto,
     ])
   })
@@ -213,7 +215,7 @@ describe('the template summary', () => {
       material: 'glass',
     }
 
-    expect(templateSummary({ theme })).toEqual([
+    expect(templateSummary({ theme }, fr)).toEqual([
       `${fr.admin.theme} : ${fr.admin.themeFontsNames.serif}, ${fr.admin.themeFrameNames.round}`,
     ])
   })
@@ -227,17 +229,17 @@ describe('the warning a template carries', () => {
     // not in a paragraph they read last week". Picking one of these two templates is that
     // moment, and the card said only "Publier automatiquement".
     expect(EVENT_TEMPLATE_PATCHES[key].moderation).toBe('auto')
-    expect(templateWarning(EVENT_TEMPLATE_PATCHES[key])).toBe(fr.admin.moderationAutoWarning)
+    expect(templateWarning(EVENT_TEMPLATE_PATCHES[key], fr)).toBe(fr.admin.moderationAutoWarning)
   })
 
   it.each(['wedding', 'conference'] as const)('warns about nothing on %s', (key) => {
     // These two leave moderation at `manual`, so there is nothing to disclose and a
     // standing caution would only teach a host to ignore the one that matters.
-    expect(templateWarning(EVENT_TEMPLATE_PATCHES[key])).toBeNull()
+    expect(templateWarning(EVENT_TEMPLATE_PATCHES[key], fr)).toBeNull()
   })
 
   it('uses the settings page’s own words, not a second wording for the same choice', () => {
-    expect(templateWarning({ moderation: 'auto' })).toBe(fr.admin.moderationAutoWarning)
+    expect(templateWarning({ moderation: 'auto' }, fr)).toBe(fr.admin.moderationAutoWarning)
   })
 
   it('covers video as well as photographs, because auto publishes both', () => {

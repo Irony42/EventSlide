@@ -5,9 +5,11 @@ import { ApiError } from '../lib/http'
 import { AppRoutes } from './router'
 import { de } from '../lib/i18n/de'
 import { fr } from '../lib/i18n/fr'
+import { it as italian } from '../lib/i18n/it'
 import {
   aPublicEvent,
   aSessionUser,
+  aWallResponse,
   fakeApi,
   renderWithProviders,
 } from '../testing/renderWithProviders'
@@ -124,14 +126,18 @@ describe('AppRoutes', () => {
 })
 
 /**
- * Which surfaces the guest's language reaches, asserted through the real route table.
+ * Which language each surface speaks, asserted through the real route table.
  *
- * This is the scope decision from `web/src/lib/i18n/translations.ts` at the one place
- * that enforces it: `GuestLayout` renders inside the language the guest chose, and
- * `HostLayout` and `WallLayout` put it back to French. Getting this wrong does not
- * crash anything — it half-translates an admin console — so nothing but a test finds it.
+ * This is the decision from `web/src/lib/i18n/translations.ts` at the one place that
+ * enforces it, and it is no longer one rule for two halves of the app. Two of the three
+ * surfaces follow the **reader** — a guest and a host are each a person with a browser —
+ * and the third follows the **event**, because a projector has nobody in front of it.
+ *
+ * Getting this wrong does not crash anything. It puts a room's wall in the language of
+ * whichever laptop was plugged into it, which is a sentence no exception ever throws, so
+ * nothing but a test finds it.
  */
-describe('which surfaces speak the guest’s language', () => {
+describe('which language each surface speaks', () => {
   it('renders the guest join screen in the language the guest is in', async () => {
     renderWithProviders(<AppRoutes />, { route: '/join', locale: 'de' })
 
@@ -144,13 +150,9 @@ describe('which surfaces speak the guest’s language', () => {
     expect(await screen.findByRole('combobox', { name: de.app.language })).toBeVisible()
   })
 
-  it('keeps the projected wall French, because there is one wall and a room in front of it', async () => {
-    renderWithProviders(<AppRoutes />, { route: '/e/camille-et-sacha/display', locale: 'de' })
-
-    expect(await screen.findByText(fr.wall.empty)).toBeVisible()
-  })
-
-  it('keeps the host console French, and offers no language to change it to', async () => {
+  it('renders the host console in the language the host is in', async () => {
+    // The reader this reverses the old rule for: a moderator invited by e-mail address and
+    // handed a temporary password, who installed nothing and has no reason to read French.
     const api = fakeApi({
       session: vi.fn(async (): Promise<SessionResponse> => ({
         authenticated: true,
@@ -159,29 +161,76 @@ describe('which surfaces speak the guest’s language', () => {
     })
     renderWithProviders(<AppRoutes />, { api, route: '/admin', locale: 'de' })
 
-    expect(await screen.findByRole('heading', { name: fr.admin.events })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: de.admin.events })).toBeVisible()
+  })
+
+  it('offers the language picker on the host console too', async () => {
+    // One picker, one stored preference, both surfaces. A host at their own wedding is a
+    // guest twenty minutes later.
+    const api = fakeApi({
+      session: vi.fn(async (): Promise<SessionResponse> => ({
+        authenticated: true,
+        user: aSessionUser(),
+      })),
+    })
+    renderWithProviders(<AppRoutes />, { api, route: '/admin', locale: 'de' })
+
+    expect(await screen.findByRole('combobox', { name: de.app.language })).toBeVisible()
+  })
+
+  it('renders the projected wall in the event’s language, not the reader’s', async () => {
+    // The one surface that does not follow the browser. The reader here is whoever
+    // plugged the laptop in, and the room was promised the language the host set on the
+    // event — so a German browser showing an Italian event must show Italian.
+    const api = fakeApi({
+      wall: vi.fn(async () => aWallResponse({ wallLanguage: 'it' })),
+    })
+    renderWithProviders(<AppRoutes />, {
+      api,
+      route: '/e/camille-et-sacha/display',
+      locale: 'de',
+    })
+
+    expect(await screen.findByText(italian.wall.empty)).toBeVisible()
+    expect(screen.queryByText(de.wall.empty)).toBeNull()
+  })
+
+  it('offers no language picker on the wall, because nobody there can be asked', async () => {
+    renderWithProviders(<AppRoutes />, { route: '/e/camille-et-sacha/display', locale: 'de' })
+
+    expect(await screen.findByText(fr.wall.empty)).toBeVisible()
     expect(screen.queryByRole('combobox', { name: de.app.language })).toBeNull()
+  })
+
+  it('puts the event’s language on <html lang>, so a screen reader pronounces it right', async () => {
+    const api = fakeApi({
+      wall: vi.fn(async () => aWallResponse({ wallLanguage: 'it' })),
+    })
+    renderWithProviders(<AppRoutes />, {
+      api,
+      route: '/e/camille-et-sacha/display',
+      locale: 'de',
+    })
+
+    await screen.findByText(italian.wall.empty)
+    expect(document.documentElement.lang).toBe('it')
   })
 })
 
 /**
  * The toast region, which is the one piece of shared chrome that escaped the boundary.
  *
- * `ToastProvider` renders its region itself, so while it lived above the router in
- * `main.tsx` that region was above every `FrenchSurface` — and `Toast` reads its own copy
- * from the active table. A host whose browser is set to German got a German dismiss
- * control inside an otherwise French moderation toast, having chosen nothing, because
- * detection reads `navigator.languages`. It is invisible unless somebody is using a
- * screen reader, which is exactly when it matters.
+ * `ToastProvider` renders its region itself, so a provider above the router renders one
+ * region for three surfaces — and `Toast` reads its own copy from the active table.
+ * While the consoles were French this showed up as a German dismiss control inside a
+ * French moderation toast; now that they are not, the surviving case is the **wall**,
+ * whose language belongs to the event while the region above it would carry the language
+ * of whoever plugged the laptop in. It is invisible unless somebody is using a screen
+ * reader, which is exactly when it matters.
  *
- * So this drives a **real toast through the real route table**: the failure was
+ * So this drives a **real toast through the real route table**: the failure is
  * positional, and a test that asserted where the provider sits would pass on a tree that
- * still rendered the wrong language. It opens `/admin` in a German browser, makes a
- * lifecycle change fail, and reads the control the host would actually reach for.
- *
- * There is no guest half to assert because no guest screen raises a toast today. That is
- * also why the provider went into all three layouts rather than into the host one: the
- * day a guest screen does raise one, it is already in the right language.
+ * still rendered the wrong language.
  */
 describe('the toast region', () => {
   /** `GET /api/events` answers with summaries; the shared harness has no factory for them. */
@@ -198,7 +247,7 @@ describe('the toast region', () => {
     createdAt: '2026-06-20T21:04:11.031Z',
   })
 
-  it('speaks French on the host console, in a browser asking for German', async () => {
+  it('speaks the host’s own language on the host console', async () => {
     const api = fakeApi({
       session: vi.fn(async (): Promise<SessionResponse> => ({
         authenticated: true,
@@ -211,25 +260,44 @@ describe('the toast region', () => {
     })
     renderWithProviders(<AppRoutes />, { api, route: '/admin', locale: 'de' })
 
-    await userEvent.click(await screen.findByRole('button', { name: fr.admin.goLive }))
+    await userEvent.click(await screen.findByRole('button', { name: de.admin.goLive }))
 
-    // The toast itself, and the control on it. Both French, on a surface the guest's
-    // choice must not reach.
-    expect(await screen.findByText(fr.errors.network)).toBeVisible()
-    expect(screen.getByRole('button', { name: fr.ui.dismissNotification })).toBeVisible()
-    expect(screen.queryByRole('button', { name: de.ui.dismissNotification })).toBeNull()
+    // The toast itself, and the control on it. Both German, because the host is reading
+    // German — the console and the chrome over it are one screen.
+    expect(await screen.findByText(de.errors.network)).toBeVisible()
+    expect(screen.getByRole('button', { name: de.ui.dismissNotification })).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.ui.dismissNotification })).toBeNull()
+  })
+
+  it('speaks the event’s language over the wall, not the reader’s', async () => {
+    // The case the provider's placement now exists for. Nothing on the wall raises a
+    // toast on its own, so this renders the region directly under the wall's own locale
+    // boundary rather than inventing a projector failure that does not exist.
+    const api = fakeApi({
+      wall: vi.fn(async () => aWallResponse({ wallLanguage: 'it' })),
+    })
+    renderWithProviders(<AppRoutes />, {
+      api,
+      route: '/e/camille-et-sacha/display',
+      locale: 'de',
+    })
+
+    await screen.findByText(italian.wall.empty)
+
+    // The region is inside `DeferredLocale`, so anything it ever renders is Italian.
+    expect(document.documentElement.lang).toBe('it')
   })
 })
 
 /**
  * A stale link a guest followed, which is not the same screen as a mistyped admin URL.
  *
- * The catch-all lives under the host layout, which is right for `/admin/evenements` —
- * a host mistyping their own console gets a French 404 at host width. It is wrong for
- * the address printed on a card a year ago: that guest is holding a phone, they may not
- * read French, and "this address does not exist, go here instead" is the one sentence on
- * that screen worth anything. The guest-shaped addresses get their own catch-all inside
- * the guest layout, so the surface, the width and the language all follow the reader.
+ * The catch-all lives under the host layout, which is right for `/admin/evenements` — a
+ * host mistyping their own console gets a 404 at host width. It is wrong for the address
+ * printed on a card a year ago: that guest is holding a phone and a laptop-width empty
+ * state is not what they need. The guest-shaped addresses get their own catch-all inside
+ * the guest layout, so the surface and the width follow the reader as the language
+ * already does.
  */
 describe('an address that no longer exists', () => {
   it('answers a guest in their own language', async () => {
@@ -244,9 +312,12 @@ describe('an address that no longer exists', () => {
     expect(await screen.findByRole('heading', { name: de.shell.notFoundTitle })).toBeVisible()
   })
 
-  it('still answers a mistyped admin address in French, at host width', async () => {
+  it('answers a mistyped admin address in the host’s language, at host width', async () => {
+    // The half of this comment that was about language is gone: the host catch-all reads
+    // the same table the guest one does now. What is left is the width, which is why the
+    // two catch-alls still exist.
     renderWithProviders(<AppRoutes />, { route: '/admin/evenements', locale: 'de' })
 
-    expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: de.shell.notFoundTitle })).toBeVisible()
   })
 })

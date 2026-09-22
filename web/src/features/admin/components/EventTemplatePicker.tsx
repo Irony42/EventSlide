@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { StatusIcon } from '../../../design-system/components/StatusIcon'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import {
   EVENT_TEMPLATE_KEYS,
   EVENT_TEMPLATE_PATCHES,
@@ -57,14 +57,15 @@ export interface EventTemplatePickerProps {
 const NONE = 'none'
 
 export function EventTemplatePicker({ value, disabled, onChange }: EventTemplatePickerProps) {
+  const t = useTranslations()
   // One prefix per mounted picker, so two on a page cannot collide on an id.
   const prefix = useId()
   const describedBy = (key: string): string => `${prefix}-${key}`
 
   return (
     <fieldset className={styles['group']}>
-      <legend className={styles['legend']}>{fr.admin.template}</legend>
-      <p className={styles['hint']}>{fr.admin.templateHint}</p>
+      <legend className={styles['legend']}>{t.admin.template}</legend>
+      <p className={styles['hint']}>{t.admin.templateHint}</p>
 
       <div className={styles['choice']}>
         <label className={styles['control']}>
@@ -78,15 +79,15 @@ export function EventTemplatePicker({ value, disabled, onChange }: EventTemplate
             aria-describedby={describedBy(NONE)}
             onChange={() => onChange(null)}
           />
-          <span className={styles['name']}>{fr.admin.templateNone}</span>
+          <span className={styles['name']}>{t.admin.templateNone}</span>
         </label>
         <p className={styles['summary']} id={describedBy(NONE)}>
-          {fr.admin.templateNoneSummary}
+          {t.admin.templateNoneSummary}
         </p>
       </div>
 
       {EVENT_TEMPLATE_KEYS.map((key) => {
-        const warning = templateWarning(EVENT_TEMPLATE_PATCHES[key])
+        const warning = templateWarning(EVENT_TEMPLATE_PATCHES[key], t)
 
         return (
           <div key={key} className={styles['choice']}>
@@ -101,7 +102,7 @@ export function EventTemplatePicker({ value, disabled, onChange }: EventTemplate
                 aria-describedby={describedBy(key)}
                 onChange={() => onChange(key)}
               />
-              <span className={styles['name']}>{fr.admin.templateNames[key]}</span>
+              <span className={styles['name']}>{t.admin.templateNames[key]}</span>
             </label>
 
             <div className={styles['body']} id={describedBy(key)}>
@@ -112,9 +113,9 @@ export function EventTemplatePicker({ value, disabled, onChange }: EventTemplate
                 radio's name. The heading before it is what stops the lines reading as
                 promises about the whole product rather than as what this option changes.
               */}
-              <p className={styles['summary']}>{fr.admin.templateChanges}</p>
+              <p className={styles['summary']}>{t.admin.templateChanges}</p>
               <ul className={styles['changes']}>
-                {templateSummary(EVENT_TEMPLATE_PATCHES[key]).map((line) => (
+                {templateSummary(EVENT_TEMPLATE_PATCHES[key], t).map((line) => (
                   <li key={line}>{line}</li>
                 ))}
               </ul>

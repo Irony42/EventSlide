@@ -2,21 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { formattersFor } from './formatters'
 import { fr } from './fr'
 import { SUPPORTED_LOCALES, type Locale } from './locale'
-import {
-  GUEST_SECTIONS,
-  TRANSLATIONS,
-  messageForCode,
-  type GuestTranslations,
-} from './translations'
+import { TRANSLATIONS, messageForCode, withFrenchFallback, type UiText } from './translations'
 import { walkTable } from './testing/walkTable'
+
+/** Every section of the table, read off the source of truth rather than listed here. */
+const SECTIONS = Object.keys(fr) as readonly (keyof typeof fr)[]
 
 /**
  * What every table has to be true of, whatever language it is in.
  *
  * The compiler already guarantees the *keys*: a locale table is typed from `typeof fr`,
- * so a missing key, an extra key, a host-facing section or a phrase whose arguments
- * drifted all fail `npm run typecheck`. Four cases at the bottom of this file prove that
- * by asserting the compiler rejects them.
+ * so a missing key, an extra key, an invented section or a phrase whose arguments drifted
+ * all fail `npm run typecheck`. Four cases at the bottom of this file prove that by
+ * asserting the compiler rejects them.
  *
  * What the compiler cannot see is whether a key holds something worth rendering. An
  * empty string types fine, so does a key name copied into its own value, and both of
@@ -63,46 +61,42 @@ describe.each(LOCALISED)('%s', (locale, rendered) => {
     expect(TRANSLATIONS[locale].ui.percent(1000)).toBe(formattersFor(locale).percent(1000))
   })
 
-  it('carries every section, not only the translated ones', () => {
-    // A locale table holds the guest sections; the assembled table holds all of them,
-    // with French where nothing was translated. A surface reading `t.admin.title` on a
-    // German table gets French, not a crash.
+  it('carries every section', () => {
+    // The assembled table is French laid under the translation, so a surface reading
+    // `t.admin.title` gets a sentence whatever the table did or did not carry — never
+    // `undefined`, and never a crash.
     expect(Object.keys(TRANSLATIONS[locale]).sort()).toEqual(Object.keys(fr).sort())
   })
 })
 
-describe('the guest scope', () => {
-  it('names sections that exist', () => {
-    for (const section of GUEST_SECTIONS) {
-      expect(Object.hasOwn(fr, section), `${section} is not a section of fr.ts`).toBe(true)
-    }
-  })
-
-  it('leaves the host-facing sections French in every language', () => {
-    // The scope decision, asserted rather than trusted: the moderation console, the
-    // admin console, the sign-in form and the projected wall read the same words
-    // whatever a guest picked on their phone. `FrenchSurface` is what stops a shared
-    // primitive rendering half of an admin dialog in English; this is what stops a
-    // translation table being the thing that does it.
-    const hostSections = Object.keys(fr).filter(
-      (section) => !GUEST_SECTIONS.some((guest) => guest === section),
+describe('the scope', () => {
+  it('is every section fr.ts declares, with nothing exempt', () => {
+    // The decision this branch reversed, pinned so that the reversal cannot quietly
+    // un-reverse itself. There used to be a `GUEST_SECTIONS` list here and five sections
+    // outside it; a future change that reintroduces an exempt half has to delete this
+    // test to do it, which is a thing a reviewer can see.
+    expect([...SECTIONS].sort()).toEqual(
+      [
+        'admin',
+        'app',
+        'auth',
+        'errors',
+        'join',
+        'mobileModeration',
+        'moderation',
+        'shell',
+        'ui',
+        'upload',
+        'wall',
+      ].sort(),
     )
-    expect(hostSections).toEqual(['moderation', 'wall', 'admin', 'auth', 'mobileModeration'])
-
-    for (const locale of SUPPORTED_LOCALES) {
-      for (const section of hostSections) {
-        expect(
-          walkTable(TRANSLATIONS[locale], '').filter(({ path }) => path.startsWith(`${section}.`)),
-          `${locale}.${section} is not the French copy`,
-        ).toEqual(walkTable(fr, '').filter(({ path }) => path.startsWith(`${section}.`)))
-      }
-    }
   })
 
-  it('translates the guest-facing sections away from French', () => {
-    // The other half of the same decision. Without this, a table that compiled and was
-    // never filled in — every value still the French it was copied from — would pass
-    // every other test in this file.
+  it('translates every section away from French', () => {
+    // Without this, a table that compiled and was never filled in — every value still the
+    // French it was copied from — would pass every other test in this file. It is the
+    // check that actually bit during the translation of the host surface: a section
+    // pasted across and not yet worked on looks perfect to the compiler.
     //
     // Compared over the plain sentences only. A phrase is compared through `Intl`, and
     // `percent(80)` is "80 %" in French and in German for reasons that have nothing to
@@ -111,19 +105,48 @@ describe('the guest scope', () => {
       walkTable(table).filter(({ path }) => path.startsWith(`${section}.`) && !path.includes('('))
 
     for (const locale of SUPPORTED_LOCALES.filter((candidate) => candidate !== 'fr')) {
-      for (const section of GUEST_SECTIONS) {
+      for (const section of SECTIONS) {
         const french = sentences(fr, section)
         const other = sentences(TRANSLATIONS[locale], section)
         const identical = other.filter((entry, index) => entry.text === french[index]?.text)
-        // Not zero: `EventSlide` is the product's name, and `Notifications` and
-        // `Optional` happen to be the same word in more than one of the five. Half a
-        // section reading identically to French is a table nobody filled in.
+        // Not zero: `EventSlide` is the product's name, "Collage" and "Polaroid" are the
+        // same word in more than one of the five, and so are `Notifications` and
+        // `Optional`. Half a section reading identically to French is a table nobody
+        // filled in.
         expect(
           identical.length / other.length,
           `${locale}.${section} is mostly still French`,
         ).toBeLessThan(0.5)
       }
     }
+  })
+
+  it('lays French under a translation all the way down, not only at the top', () => {
+    // `withFrenchFallback` is recursive, and this is what says so. Six entries in these
+    // tables are nested records — `wall.layoutNames` and the five `admin.*Names` — and a
+    // one-level merge would replace each of them whole. The symptom would be `undefined`
+    // rendered in the shortcuts dialog a host opens while standing at a projector, which
+    // is the least-visited screen in the product and therefore the one a hole hides in
+    // longest.
+    //
+    // Built by hand rather than by reaching into a locale file, because the case being
+    // guarded is precisely a table that does not have the key.
+    const partial = {
+      ...TRANSLATIONS.de,
+      wall: {
+        ...TRANSLATIONS.de.wall,
+        layoutNames: { spotlight: 'Vollbild' },
+      },
+    } as unknown as UiText
+
+    const merged = withFrenchFallback(partial)
+
+    expect(merged.wall.layoutNames.spotlight).toBe('Vollbild')
+    expect(merged.wall.layoutNames.mosaic).toBe(fr.wall.layoutNames.mosaic)
+    expect(merged.wall.layoutNames.split).toBe(fr.wall.layoutNames.split)
+    // The top level still works, so a recursive merge that lost the shallow case would
+    // not pass this either.
+    expect(merged.wall.missionsTitle).toBe(TRANSLATIONS.de.wall.missionsTitle)
   })
 })
 
@@ -150,9 +173,9 @@ describe('messageForCode', () => {
  * The compiler is the guard, and these four cases are the proof of it.
  *
  * `@ts-expect-error` is an assertion in the other direction: the build fails if the line
- * below it *stops* being an error. So if somebody loosens `GuestTranslations` — widens a
- * type, adds an index signature, gives up on the excess-property check — these stop
- * reporting and `npm run typecheck` says so.
+ * below it *stops* being an error. So if somebody loosens `UiText` — widens a type, adds
+ * an index signature, gives up on the excess-property check — these stop reporting and
+ * `npm run typecheck` says so.
  *
  * They run as a test as well so that the file is not mistaken for dead code, but the
  * real assertion happens at compile time.
@@ -161,7 +184,7 @@ describe('the type of a locale table', () => {
   it('rejects a table that is missing a key the French one has', () => {
     const { language: _language, ...appWithoutLanguage } = TRANSLATIONS.en.app
     // @ts-expect-error `app.language` exists in fr.ts, so a table without it is incomplete.
-    const incomplete: GuestTranslations = { ...TRANSLATIONS.en, app: appWithoutLanguage }
+    const incomplete: UiText = { ...TRANSLATIONS.en, app: appWithoutLanguage }
     expect(incomplete.app).toBeDefined()
   })
 
@@ -169,7 +192,7 @@ describe('the type of a locale table', () => {
     // Written inline rather than through a variable, because that is what excess
     // property checking needs to see — and it is also how a translator would actually
     // add the key.
-    const extra: GuestTranslations = {
+    const extra: UiText = {
       ...TRANSLATIONS.en,
       // @ts-expect-error `app.welcomeBanner` is not a key of fr.app.
       app: { ...TRANSLATIONS.en.app, welcomeBanner: 'Hello' },
@@ -177,19 +200,24 @@ describe('the type of a locale table', () => {
     expect(extra.app).toBeDefined()
   })
 
-  it('rejects a table carrying a host-facing section', () => {
-    // This is the scope decision as a compile error. `admin` is French in every
-    // language, so a translator who adds it to `de.ts` is told at the build rather than
-    // discovering six months later that half the console is German.
-    // @ts-expect-error `admin` is not part of the guest scope.
-    const withHostCopy: GuestTranslations = { ...TRANSLATIONS.en, admin: fr.admin }
-    expect(withHostCopy.app).toBeDefined()
+  it('rejects a table carrying a section the French one does not have', () => {
+    // This case used to say the opposite: it asserted that `admin` was *not* part of the
+    // scope, because the scope was the guest's half. The scope is now the whole table, so
+    // what is left to refuse is an invented section — a translator who adds `host:` or
+    // `emails:` to `de.ts` is told at the build rather than filling in a section nothing
+    // will ever render.
+    const invented: UiText = {
+      ...TRANSLATIONS.en,
+      // @ts-expect-error `onboarding` is not a section of fr.ts.
+      onboarding: { title: 'Welcome' },
+    }
+    expect(invented.app).toBeDefined()
   })
 
   it('rejects a phrase whose parameter types drifted from the French one', () => {
     const wrongShape = { ...TRANSLATIONS.en.join, welcome: (guests: number) => `Welcome ${guests}` }
     // @ts-expect-error `join.welcome` takes the event's name, not a count.
-    const drifted: GuestTranslations = { ...TRANSLATIONS.en, join: wrongShape }
+    const drifted: UiText = { ...TRANSLATIONS.en, join: wrongShape }
     expect(drifted.join).toBeDefined()
   })
 })
@@ -204,12 +232,24 @@ describe('the type of a locale table', () => {
  * loses a number — `clipHint` without its megabyte limit is a guest filming a video that
  * will be refused, told only how many seconds they had.
  *
- * So the arity is compared at runtime, once, over the guest scope. It is the cheapest
- * check in this file and the only one that covers the case the type system hands back.
+ * So the arity is compared at runtime, once, over every phrase in the table. It used to
+ * cover the guest scope alone, which is now the same thing as covering nothing in
+ * particular: fifty-seven of these phrases are new to this branch and thirty-eight of them
+ * belong to the two consoles that decide what a room sees. It is the cheapest check in
+ * this file and the only one that covers the case the type system hands back.
  */
 describe('the shape of every phrase', () => {
-  /** A phrase, once it is known to be one. Tables only ever build strings from numbers. */
-  type Phrase = (...args: readonly number[]) => string
+  /**
+   * A phrase, once it is known to be one.
+   *
+   * Every argument is a **one-element array**, which is the same trick `walkTable` plays
+   * and for the same reason: `wall.layoutOrder` takes a list of layout names and calls
+   * `.join` on it, and `[2]` is the one value that satisfies every parameter in these
+   * tables — it interpolates as "2", `Intl` formats it as 2, `Intl.PluralRules` selects
+   * on 2, and it has `.join`. That phrase used to be out of scope here because `wall` was
+   * not translated; including it is what found this.
+   */
+  type Phrase = (...args: readonly (readonly [number])[]) => string
 
   const phrasesOf = (table: object, prefix = ''): ReadonlyMap<string, Phrase> => {
     const found = new Map<string, Phrase>()
@@ -224,14 +264,7 @@ describe('the shape of every phrase', () => {
     return found
   }
 
-  const guestPhrases = (table: object): ReadonlyMap<string, Phrase> =>
-    new Map(
-      [...phrasesOf(table)].filter(([path]) =>
-        GUEST_SECTIONS.some((section) => path.startsWith(`${section}.`)),
-      ),
-    )
-
-  const french = guestPhrases(fr)
+  const french = phrasesOf(fr)
 
   /**
    * The message is written for the person who will actually see it: a translator, months
@@ -258,7 +291,7 @@ describe('the shape of every phrase', () => {
   }
 
   it.each(SUPPORTED_LOCALES)('takes the same arguments in %s as in French', (locale) => {
-    const other = guestPhrases(TRANSLATIONS[locale])
+    const other = phrasesOf(TRANSLATIONS[locale])
 
     for (const [path, phrase] of french) {
       const arity = phrase.length
@@ -280,7 +313,10 @@ describe('the shape of every phrase', () => {
   })
 
   it('has phrases to compare, so the case above cannot pass by finding nothing', () => {
-    expect(french.size).toBeGreaterThan(15)
+    // Was 15 while only the guest's phrases were walked. Raised deliberately rather than
+    // left: a floor that a shrunken scope still clears is a floor that stopped guarding
+    // the thing it was written for.
+    expect(french.size).toBeGreaterThan(50)
   })
 
   /**
@@ -294,7 +330,7 @@ describe('the shape of every phrase', () => {
   /** Which of a phrase's arguments reach the sentence, in order of appearance. */
   const appearances = (phrase: Phrase): readonly number[] => {
     const used = MARKERS.slice(0, Math.max(phrase.length, 1))
-    const text = phrase(...used)
+    const text = phrase(...used.map((marker): readonly [number] => [marker]))
     return used
       .map((marker) => ({ marker, at: text.indexOf(String(marker)) }))
       .filter(({ at }) => at !== -1)
@@ -324,7 +360,7 @@ describe('the shape of every phrase', () => {
    * call site and is not worth it for two phrases.
    */
   it.each(SUPPORTED_LOCALES)('uses every argument it declares in %s, in order', (locale) => {
-    const other = guestPhrases(TRANSLATIONS[locale])
+    const other = phrasesOf(TRANSLATIONS[locale])
 
     for (const [path, phrase] of french) {
       const counterpart = other.get(path)

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import { useToast } from '../../../design-system/components/useToast'
 import { ApiError } from '../../../lib/http'
-import { fr } from '../../../lib/i18n/fr'
-import { messageForCode } from '../../../lib/i18n/translations'
+import { messageForCode, type UiText } from '../../../lib/i18n/translations'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 import type { ModerationDecision, ModerationPhotoDto, PhotoStatus } from '../../../lib/api/dto'
 
@@ -111,10 +111,20 @@ const restoringDecision = (
     : { decision: null, exact: false }
 }
 
-const APPLIED_MESSAGE: Readonly<Record<ModerationDecision, (count: number) => string>> = {
-  publish: fr.moderation.published,
-  reject: fr.moderation.refused,
-  hide: fr.moderation.removed,
+/**
+ * What to say once a decision has landed, for a count of photos.
+ *
+ * The table is built per call from the copy it is handed rather than at module load,
+ * because this is a plain function and the language is whatever the moderator reading
+ * the console chose.
+ */
+const appliedMessage = (decision: ModerationDecision, count: number, text: UiText): string => {
+  const phrase: Readonly<Record<ModerationDecision, (count: number) => string>> = {
+    publish: text.moderation.published,
+    reject: text.moderation.refused,
+    hide: text.moderation.removed,
+  }
+  return phrase[decision](count)
 }
 
 interface UndoEntry {
@@ -167,14 +177,16 @@ const asError = (cause: unknown): Error =>
 /**
  * The sentence to show for a failure.
  *
- * An `ApiError` carries the server's stable error code, and the French copy for it is
- * more useful than a generic line — "cette action n'est pas possible sur cette photo"
- * tells the host what happened. French unconditionally: the moderation console is not
- * translated (`web/src/lib/i18n/translations.ts`). Anything else is a bug in this build,
- * and its message is an English internal string that must not reach a host mid-event.
+ * An `ApiError` carries the server's stable error code, and the copy for it is more
+ * useful than a generic line — "cette action n'est pas possible sur cette photo" tells
+ * the host what happened. The table is a parameter rather than something this reads for
+ * itself: the moderation console renders in the moderator's own language like every
+ * other surface (`web/src/lib/i18n/translations.ts`), and a plain function cannot ask
+ * for it. Anything else is a bug in this build, and its message is an English internal
+ * string that must not reach a host mid-event.
  */
-const failureMessage = (cause: unknown, fallback: string): string =>
-  cause instanceof ApiError ? messageForCode(cause.code, fr) : fallback
+const failureMessage = (cause: unknown, fallback: string, text: UiText): string =>
+  cause instanceof ApiError ? messageForCode(cause.code, text) : fallback
 
 /**
  * The sentence for a failed load, for the two consoles that render one.
@@ -186,12 +198,14 @@ const failureMessage = (cause: unknown, fallback: string): string =>
  * the one lookup those two components need, kept beside the hook that produced the
  * failure rather than repeated in each of them.
  */
-export const queueErrorMessage = (error: Error): string => failureMessage(error, fr.errors.unknown)
+export const queueErrorMessage = (error: Error, text: UiText): string =>
+  failureMessage(error, text.errors.unknown, text)
 
 export const useModerationQueue = (
   slug: string | undefined,
   { undoOfPublish }: ModerationQueueOptions = {},
 ): ModerationQueue => {
+  const text = useTranslations()
   const api = useApi()
   const toast = useToast()
 
@@ -385,20 +399,20 @@ export const useModerationQueue = (
          * revisiting this line.
          */
         const restoredExactly = entries.every((entry) => entry.exact)
-        toast.show(restoredExactly ? fr.moderation.undone : fr.moderation.removed(applied), {
+        toast.show(restoredExactly ? text.moderation.undone : text.moderation.removed(applied), {
           tone: 'success',
         })
       }
       if (skipped.length > 0) {
-        toast.show(fr.moderation.bulkSkipped(skipped.length), { tone: 'warning' })
+        toast.show(text.moderation.bulkSkipped(skipped.length), { tone: 'warning' })
       }
     } catch (cause) {
       setStatuses(new Map(entries.map((entry) => [entry.id, entry.currentStatus])))
-      toast.show(failureMessage(cause, fr.moderation.undoFailed), { tone: 'danger' })
+      toast.show(failureMessage(cause, text.moderation.undoFailed, text), { tone: 'danger' })
     } finally {
       setBusy(false)
     }
-  }, [api, slug, toast, setStatuses, forgetUndo])
+  }, [api, slug, text, toast, setStatuses, forgetUndo])
 
   /**
    * Report the outcome, and offer to take it back.
@@ -409,7 +423,7 @@ export const useModerationQueue = (
    */
   const announce = useCallback(
     (decision: ModerationDecision, entries: readonly UndoEntry[]) => {
-      const message = APPLIED_MESSAGE[decision](entries.length)
+      const message = appliedMessage(decision, entries.length, text)
       const reversible = entries.length > 0 && entries.every((entry) => entry.restoreWith !== null)
 
       /**
@@ -437,14 +451,14 @@ export const useModerationQueue = (
       undoToastRef.current = toast.show(message, {
         tone: 'success',
         action: {
-          label: fr.moderation.undo,
+          label: text.moderation.undo,
           onAction: () => {
             void undo()
           },
         },
       })
     },
-    [toast, undo, forgetUndo],
+    [text, toast, undo, forgetUndo],
   )
 
   const decide = useCallback(
@@ -467,12 +481,12 @@ export const useModerationQueue = (
       } catch (cause) {
         setStatuses(new Map([[photoId, photo.status]]))
         forgetUndo()
-        toast.show(failureMessage(cause, fr.moderation.decisionFailed), { tone: 'danger' })
+        toast.show(failureMessage(cause, text.moderation.decisionFailed, text), { tone: 'danger' })
       } finally {
         setBusy(false)
       }
     },
-    [api, slug, toast, setStatuses, announce, forgetUndo, undoOfPublish],
+    [api, slug, text, toast, setStatuses, announce, forgetUndo, undoOfPublish],
   )
 
   const decideBulk = useCallback(
@@ -500,7 +514,7 @@ export const useModerationQueue = (
           setStatuses(reverted)
           // Said out loud, with a count. A host who is not told believes forty photos
           // were handled when thirty-eight were.
-          toast.show(fr.moderation.bulkSkipped(response.skipped.length), { tone: 'warning' })
+          toast.show(text.moderation.bulkSkipped(response.skipped.length), { tone: 'warning' })
         }
 
         const entries = response.applied.flatMap<UndoEntry>((id) => {
@@ -522,12 +536,12 @@ export const useModerationQueue = (
           ),
         )
         forgetUndo()
-        toast.show(failureMessage(cause, fr.moderation.decisionFailed), { tone: 'danger' })
+        toast.show(failureMessage(cause, text.moderation.decisionFailed, text), { tone: 'danger' })
       } finally {
         setBusy(false)
       }
     },
-    [api, slug, toast, setStatuses, announce, forgetUndo, undoOfPublish],
+    [api, slug, text, toast, setStatuses, announce, forgetUndo, undoOfPublish],
   )
 
   const onSignal = useCallback(

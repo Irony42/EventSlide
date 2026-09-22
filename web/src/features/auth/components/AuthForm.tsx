@@ -6,7 +6,10 @@ import styles from './AuthForm.module.css'
 export interface AuthFormProps {
   readonly title: string
   readonly intro?: string
-  /** The whole-form failure, already in French. `null` while there is nothing to say. */
+  /**
+   * The whole-form failure, already a sentence in the reader's language. `null` while
+   * there is nothing to say.
+   */
   readonly error: string | null
   readonly submitting: boolean
   readonly submitLabel: string

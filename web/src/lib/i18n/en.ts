@@ -1,5 +1,5 @@
 import { formattersFor } from './formatters'
-import type { GuestTranslations } from './translations'
+import type { UiText } from './translations'
 
 /**
  * English, for the guest surface.
@@ -18,7 +18,7 @@ import type { GuestTranslations } from './translations'
 
 const t = formattersFor('en')
 
-export const en: GuestTranslations = {
+export const en: UiText = {
   app: {
     name: 'EventSlide',
     loading: 'Loading…',
@@ -239,6 +239,8 @@ export const en: GuestTranslations = {
     'eventSettings.graceSecondsInvalid': 'This deletion window is not accepted.',
     'eventSettings.retentionDaysInvalid': 'This retention period is not accepted.',
     'eventSettings.maxPhotosPerGuestInvalid': 'This number of photos per guest is not accepted.',
+    'eventSettings.wallLanguageInvalid':
+      'This language is not available. Choose one from the list.',
     'email.malformed': 'This email address is not valid.',
     'user.notFound': 'No account matches this email address.',
     'membership.alreadyExists': 'This person already moderates this event.',
@@ -313,5 +315,430 @@ export const en: GuestTranslations = {
       'That colour would not be readable on the screen in the room. Choose one from the list.',
     'eventTheme.accentTooCloseToStatus':
       'That colour is too close to the application’s status colours. Choose another one.',
+  },
+
+  moderation: {
+    title: 'Moderation',
+    intro: 'Nothing reaches the screen without your approval.',
+    pending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo waiting`,
+        other: `${t.number(count)} photos waiting`,
+      }),
+    empty: 'Nothing to approve right now.',
+    emptyHint: 'New photos arrive here automatically.',
+    publish: 'Publish',
+    reject: 'Reject',
+    hide: 'Take off the screen',
+    undo: 'Undo',
+    undone: 'Decision undone.',
+    selectAll: 'Select all',
+    clearSelection: 'Clear the selection',
+    bulkPublish: (count: number) => `Publish (${t.number(count)})`,
+    bulkReject: (count: number) => `Reject (${t.number(count)})`,
+    bulkSkipped: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo skipped: that action was not possible.`,
+        other: `${t.number(count)} photos skipped: that action was not possible.`,
+      }),
+    filterAll: 'All',
+    filterPending: 'Waiting',
+    filterPublished: 'On the screen',
+    filterRejected: 'Rejected',
+    filterHidden: 'Off the screen',
+    by: (name: string) => `by ${name}`,
+    byAnonymous: 'Anonymous guest',
+    shortcuts: 'Shortcuts',
+    shortcutsHint: 'J / K to move, P to publish, R to reject, Z to undo.',
+
+    /* ---- Added by features/moderation. Keep additions inside this block. ---- */
+    shortcutsMore: 'H to take off the screen, Space to select, Esc to clear the selection.',
+    queueLabel: 'Photos to moderate',
+    filterLabel: 'Filter by state',
+    emptyFiltered: 'No photos in this category.',
+    emptyFilteredHint: 'Change the filter to see the other photos.',
+    loadFailed: 'The moderation queue could not be loaded.',
+    live: 'Live updates',
+    liveLost: 'Connection lost — reconnecting.',
+    // The word beside the border colour and the icon, so the status survives stage
+    // lighting and a red-green colourblind host.
+    statePending: 'Waiting',
+    statePublished: 'Published',
+    stateRejected: 'Rejected',
+    stateHidden: 'Taken off the screen',
+    selected: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo selected`,
+        other: `${t.number(count)} photos selected`,
+      }),
+    anonymousInName: 'the anonymous guest',
+    selectPhoto: (author: string) => `Select the photo by ${author}`,
+    publishPhoto: (author: string) => `Publish the photo by ${author}`,
+    rejectPhoto: (author: string) => `Reject the photo by ${author}`,
+    hidePhoto: (author: string) => `Take the photo by ${author} off the screen`,
+    enlargePhoto: (author: string) => `Enlarge the photo by ${author}`,
+    photoOf: (author: string) => `Photo by ${author}`,
+    photoAlt: (author: string) => `Photo sent by ${author}`,
+    photoAltWithCaption: (caption: string, author: string) =>
+      `${caption} — photo sent by ${author}`,
+    previousPhoto: 'Previous photo',
+    nextPhoto: 'Next photo',
+    bulkHide: (count: number) => `Take off the screen (${t.number(count)})`,
+    published: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo published.`,
+        other: `${t.number(count)} photos published.`,
+      }),
+    refused: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo rejected.`,
+        other: `${t.number(count)} photos rejected.`,
+      }),
+    removed: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo taken off the screen.`,
+        other: `${t.number(count)} photos taken off the screen.`,
+      }),
+    decisionFailed: 'The decision could not be saved. Try again.',
+    undoFailed: 'The decision could not be undone. Try again.',
+    dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
+    noCaption: 'No caption',
+
+    /* ---- Added by short video clips (roadmap 1.4). ---- */
+
+    videoBadge: 'Video',
+    videoLength: (seconds: number) => `Video · ${seconds} s`,
+    watchVideo: (author: string) => `Watch the video by ${author}`,
+    playVideo: (author: string) => `Play the video by ${author}`,
+    pauseVideo: (author: string) => `Pause the video by ${author}`,
+    videoOf: (author: string) => `Video by ${author}`,
+    videoAlt: (author: string) => `Video sent by ${author}`,
+    videoAltWithCaption: (caption: string, author: string) =>
+      `${caption} — video sent by ${author}`,
+    videoMuted: 'The sound could not be turned on: this video is playing without sound.',
+    videoUnplayable: 'This video cannot be played here. Only the preview frame is shown.',
+  },
+
+  wall: {
+    empty: 'The first photos will arrive soon',
+    emptyHint: 'Scan the QR code to send yours.',
+    joinPrompt: 'Join the gallery',
+    reactions: 'Reactions',
+    offline: 'Connection lost — reconnecting',
+    paused: 'Slideshow paused',
+
+    /* ---- Added by features/wall. Keep additions inside this block. ---- */
+    codeLabel: 'Event code',
+    // The accessible name of the inline QR. Read by nothing in the room, but the wall
+    // is also opened on a laptop while a host sets the projector up.
+    qrTitle: 'QR code to join the gallery',
+    // The alt text of a photo. 1.0 used the filename, which reads aloud as IMG_4821.jpg.
+    photoBy: (name: string) => `Photo sent by ${name}`,
+    photoByAnonymous: 'Photo sent by a guest',
+    errorTitle: 'The photos could not be loaded',
+    errorHint: 'Trying again. Check the venue network if the screen stays empty.',
+    dismissJoinCard: 'Hide the code reminder',
+    shortcuts: 'Keyboard shortcuts',
+    shortcutsHint:
+      'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout.',
+
+    /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
+    layoutNames: {
+      spotlight: 'Full screen',
+      mosaic: 'Mosaic',
+      polaroid: 'Polaroid',
+      filmstrip: 'Filmstrip',
+      collage: 'Collage',
+      split: 'Side by side',
+    },
+    layoutOrder: (names: readonly string[]) => `Layouts, in order: ${names.join(', ')}.`,
+
+    /* ---- Short video clips (roadmap 1.4). Keep additions inside this block. ---- */
+    videoBy: (name: string) => `Video sent by ${name}`,
+    videoByAnonymous: 'Video sent by a guest',
+
+    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
+
+    missionsTitle: 'Missions',
+    missionDone: 'Done',
+    missionGuests: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} guest`,
+        other: `${t.number(count)} guests`,
+      }),
+  },
+
+  admin: {
+    title: 'Administration',
+    events: 'Your events',
+    newEvent: 'New event',
+    eventName: 'Event name',
+    eventNameHint: 'Visible to your guests, for example “Camille & Sacha”.',
+    slug: 'Address',
+    joinCode: 'Access code',
+    rotateJoinCode: 'Change the code',
+    rotateJoinCodeHint:
+      'Guests who have already joined stay joined. The new code replaces the old one immediately.',
+    qrCode: 'QR code',
+    qrCodeHint: 'To print and put on the tables.',
+    openWall: 'Open the screen',
+    openModeration: 'Moderate',
+    download: 'Download the album',
+    statusDraft: 'Draft',
+    statusLive: 'Live',
+    statusClosed: 'Closed',
+    statusArchived: 'Archived',
+    goLive: 'Open to guests',
+    closeEvent: 'Close the event',
+    reopenEvent: 'Reopen',
+    archiveEvent: 'Archive',
+    photos: (count: number) =>
+      t.count(count, { one: `${t.number(count)} photo`, other: `${t.number(count)} photos` }),
+    guests: (count: number) =>
+      t.count(count, { one: `${t.number(count)} guest`, other: `${t.number(count)} guests` }),
+    storageUsed: (used: string, total: string) => `${used} of ${total}`,
+    settings: 'Settings',
+    moderationMode: 'Moderation',
+    moderationManual: 'Approve every photo',
+    moderationAuto: 'Publish automatically',
+    moderationAutoWarning:
+      'Photos and videos will appear on the screen with nobody having approved them. Keep this for events among people you know well.',
+    allowCaptions: 'Allow captions',
+    allowReactions: 'Allow reactions',
+    allowClips: 'Allow videos',
+    allowClipsHint:
+      'Guests can send short videos as well as photos. When the box is unticked, videos are refused: because you unticked it, because the template chosen when the event was created set it that way, or because the gallery is older than this feature. Tick it to allow them.',
+    allowGuestSelfDelete: 'Allow guests to delete their photos',
+
+    /* ---- The language the room’s screen speaks (roadmap 1.5). ---- */
+
+    wallLanguage: 'Language of the screen in the room',
+    wallLanguageHint:
+      'The words on the screen in the room: “Join the gallery”, “Missions”, the waiting messages. What you and your guests write — the event name, the captions, the mission prompts — is shown as it is and is never translated. Your guests choose their own language on their phone; this setting does not apply to them.',
+
+    /* ---- Per-event theming (roadmap 2.2). ---- */
+    theme: 'Appearance',
+    themeHint:
+      'Visible to your guests and on the screen in the room. The colours offered stay readable at ten metres.',
+    themeAccent: 'Colour',
+    themeAccentNames: {
+      violet: 'Purple',
+      rose: 'Pink',
+      azure: 'Blue',
+      teal: 'Teal',
+    },
+    themeFonts: 'Typeface',
+    /** The honest scope, said once: the phone of a guest downloads nothing for this. */
+    themeFontsHint: 'Applied to the screen in the room only.',
+    themeFontsNames: {
+      sans: 'Modern',
+      serif: 'Classic',
+    },
+    themeFrame: 'Photo frame',
+    themeFrameNames: {
+      soft: 'Rounded corners',
+      square: 'Square corners',
+      round: 'Very rounded corners',
+    },
+    themeMaterial: 'Panel material',
+    themeMaterialHint:
+      'Glass lets you sense what passes underneath; the plain surface is opaque. The difference is subtle, and it only affects the upload screen your guests see: your moderation console and the screen in the room do not change.',
+    themeMaterialNames: {
+      glass: 'Frosted glass',
+      plain: 'Plain surface',
+    },
+
+    /* ---- Event templates (roadmap 3.5). ---- */
+    template: 'Type of event',
+    templateHint:
+      'A starting point, suited to the kind of evening. All these settings can still be changed at any time, before the event and during it.',
+    templateNone: 'No template',
+    templateNoneSummary:
+      'Default settings: every photo approved before it reaches the screen, kept indefinitely.',
+    templateChanges: 'This template sets:',
+    templateClipsOn: 'Videos allowed',
+    templateClipsOff: 'Videos turned off',
+    templateNames: {
+      wedding: 'Wedding',
+      birthday: 'Birthday',
+      conference: 'Conference',
+      party: 'Party',
+    },
+
+    retention: 'Automatic deletion',
+    retentionNever: 'Never',
+    retentionDays: (days: number) =>
+      t.count(days, {
+        one: `${t.number(days)} day after closing`,
+        other: `${t.number(days)} days after closing`,
+      }),
+    retentionUnlimited: 'Kept indefinitely',
+    moderators: 'Moderators',
+    inviteModerator: 'Invite a moderator',
+
+    /* ---- Added by features/admin (auth, event management). ---- */
+    loading: 'Loading your events…',
+    loadFailed: 'Loading failed',
+    eventLoading: 'Loading the event…',
+    eventsEmpty: 'No events yet.',
+    eventsEmptyHint: 'Create your first event, then print its QR code to put on the tables.',
+    create: 'Create the event',
+    slugHint: 'Optional. Leave it empty to derive it from the name.',
+    slugPreviewLabel: 'Gallery address',
+    slugPreviewEmpty: 'Type a name to see the address.',
+    eventCreated: (name: string) => `${name} is ready. Print the QR code whenever you like.`,
+    joinCodeHint: 'To give to guests who cannot scan the QR code.',
+    eventControls: 'Event controls',
+    joinLink: 'Invitation link',
+    printQr: 'Print the QR code',
+    qrScanPrompt: 'Scan to send your photos.',
+    qrAlt: (eventName: string) => `QR code to join ${eventName}`,
+    storageLabel: 'Photo storage used',
+    storage: (used: string) => `${used} used`,
+    statusSaved: 'The new state is saved.',
+    rotateJoinCodeTitle: 'Change the access code?',
+    codeRotated: 'The access code has been changed. The old one no longer works.',
+    settingsSaved: 'Settings saved.',
+    settingsReadOnly: 'This event is archived: its settings can no longer be changed.',
+    retentionHint: 'The photos are deleted this long after the event is closed.',
+    selfDeleteGrace: 'Deletion window',
+    selfDeleteGraceHint: 'During this window, a guest can delete their own photo.',
+    graceNone: 'No window',
+    graceSeconds: (seconds: number) =>
+      t.count(seconds, {
+        one: `${t.number(seconds)} second`,
+        other: `${t.number(seconds)} seconds`,
+      }),
+    graceMinutes: (minutes: number) =>
+      t.count(minutes, {
+        one: `${t.number(minutes)} minute`,
+        other: `${t.number(minutes)} minutes`,
+      }),
+    graceHours: (hours: number) =>
+      t.count(hours, { one: `${t.number(hours)} hour`, other: `${t.number(hours)} hours` }),
+    maxPhotosPerGuest: 'Photos per guest',
+    maxPhotosUnlimited: 'No limit',
+    guestList: 'Guests',
+    guestsEmpty: 'Nobody has joined the gallery yet.',
+    guestsEmptyHint: 'Guests appear here as soon as they scan the QR code.',
+    lastSeen: (when: string) => `Last active: ${when}`,
+    dateUnknown: 'Date unknown',
+    guestRevokedBadge: 'Access withdrawn',
+    revokeGuest: 'Withdraw access',
+    revokeGuestTitle: 'Withdraw this guest’s access?',
+    revokeGuestHint:
+      'Their photos already on the screen stay there, but they will not be able to send any more.',
+    guestRevoked: 'The access has been withdrawn.',
+    moderatorsEmpty: 'You are the only person moderating this event.',
+    moderatorEmail: 'Moderator’s email address',
+    moderatorEmailHint: 'They will get rights on this event only.',
+    moderatorPassword: 'Temporary password',
+    moderatorPasswordHint: (min: number) =>
+      `At least ${min} characters. No email is sent: read this password out to the moderator. They will choose another one when they first sign in.`,
+    inviteSubmit: 'Invite',
+    moderatorInvited: (email: string) =>
+      `${email} can now moderate this event. Give them the temporary password.`,
+    moderatorInvitedExisting: (email: string) =>
+      `${email} can now moderate this event. This account already existed: it keeps its usual password.`,
+    revokeModerator: 'Remove',
+    revokeModeratorTitle: 'Remove this moderator?',
+    revokeModeratorHint: 'They will lose access to this event. Their past decisions are kept.',
+    moderatorRevoked: 'The moderator has been removed.',
+    roleOwner: 'Organiser',
+    roleModerator: 'Moderator',
+    lastOwnerHint: 'The last organiser cannot be removed.',
+    purge: 'Delete the event',
+    purgeTitle: 'Permanently delete this event?',
+    purgeWarning:
+      'All the photos, the guests and the album will be deleted. This cannot be undone.',
+    purgeConfirmLabel: 'Event address',
+    purgeConfirmHint: (slug: string) => `Type “${slug}” to confirm the deletion.`,
+    purged: (name: string) => `${name} has been deleted.`,
+
+    /* ---- Scheduled opening and closing (docs/ROADMAP.md §3.4). ---- */
+    schedule: 'Automatic opening and closing',
+    scheduleHint:
+      'Leave this empty to open and close the event yourself. The times are your computer’s, so they are the times where the party is.',
+    scheduleOpenAt: 'Open to guests on',
+    scheduleCloseAt: 'Close the event on',
+    scheduleCloseAtHint: 'The photos and the album are kept: closing deletes nothing.',
+    scheduleSaved: 'The schedule has been saved.',
+    scheduleNone: 'No schedule: you open and close the event yourself.',
+    scheduleArmed: (opensAt: string, closesAt: string) =>
+      `Opens on ${opensAt}, closes on ${closesAt}.`,
+    scheduleOpensOnly: (opensAt: string) => `Opens on ${opensAt}. You will close it yourself.`,
+    scheduleClosesOnly: (closesAt: string) => `Closes on ${closesAt}. You will open it yourself.`,
+    scheduleSave: 'Save the schedule',
+    scheduleDiscarded: (when: string) =>
+      `The automatic schedule could not be applied on ${when}: the event could not change state at that moment. It has been cleared. Save a new one if you still want one.`,
+
+    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
+
+    missionsTitle: 'Missions',
+    missionsHint:
+      'A short list of prompts that your guests see as a checklist, and that the screen shows in a corner.',
+    missionsEmpty: 'No missions yet.',
+    missionPrompt: 'Prompt',
+    missionPromptHint: (max: number) =>
+      `${t.number(max)} characters maximum. Written in the language of the event: it is not translated.`,
+    missionScope: 'To be answered',
+    missionScopeGuest: 'By each guest',
+    missionScopeEvent: 'Once for the event',
+    missionScopeHint:
+      'By each guest: everyone can answer it. Once: the first approved photo ticks it for everybody.',
+    missionAdd: 'Add the mission',
+    missionSave: 'Save',
+    missionCancel: 'Cancel',
+    missionEditShort: 'Edit',
+    missionDeleteShort: 'Delete',
+    missionEdit: (prompt: string) => `Edit “${prompt}”`,
+    missionDelete: (prompt: string) => `Delete “${prompt}”`,
+    missionDeleteTitle: 'Delete this mission?',
+    missionDeleteAction: 'Delete the mission',
+    missionDeleteConfirm:
+      'The photos already sent stay in the album: they will simply no longer count towards this mission.',
+    missionAdded: 'The mission has been added.',
+    missionSaved: 'The mission has been saved.',
+    missionDeleted: 'The mission has been deleted.',
+    missionAnswered: (photos: number, guests: number) =>
+      `${t.count(photos, {
+        one: `${t.number(photos)} photo`,
+        other: `${t.number(photos)} photos`,
+      })}, ${t.count(guests, {
+        one: `${t.number(guests)} guest`,
+        other: `${t.number(guests)} guests`,
+      })}`,
+    missionUnanswered: 'Not answered yet',
+    missionsFull: (max: number) =>
+      `${t.number(max)} missions at most: that is what keeps the list readable at ten metres.`,
+  },
+
+  auth: {
+    title: 'Sign in',
+    email: 'Email address',
+    password: 'Password',
+    submit: 'Sign in',
+    submitting: 'Signing in…',
+    logout: 'Sign out',
+    changePassword: 'Change your password',
+    currentPassword: 'Current password',
+    newPassword: 'New password',
+    newPasswordHint: (min: number) => `At least ${min} characters. A phrase is safer than a word.`,
+    confirmPassword: 'Confirm the new password',
+    mustChangePassword: 'Choose a password before you continue.',
+
+    /* ---- Added by features/auth. ---- */
+    changePasswordIntro: 'Choose a password you do not use anywhere else.',
+    passwordSaved: 'Password saved.',
+  },
+
+  mobileModeration: {
+    title: 'Moderation on a phone',
+    intro: 'Swipe the photo right to publish, left to reject.',
+    releaseToPublish: 'Release to publish',
+    releaseToReject: 'Release to reject',
+    nowDeciding: (photo: string) => `Photo to moderate. ${photo}`,
+    undoLast: 'Undo the last decision',
+    undoUnavailable: 'Only publishing can be undone.',
   },
 }

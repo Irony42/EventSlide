@@ -4,7 +4,7 @@ import { Dialog } from '../../design-system/components/Dialog'
 import { Field } from '../../design-system/components/Field'
 import { StatusIcon } from '../../design-system/components/StatusIcon'
 import { TextInput } from '../../design-system/components/TextInput'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './PurgeEventDialog.module.css'
 
 export interface PurgeEventDialogProps {
@@ -32,6 +32,7 @@ export function PurgeEventDialog({
   onConfirm,
   onCancel,
 }: PurgeEventDialogProps) {
+  const t = useTranslations()
   const [typed, setTyped] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -58,7 +59,7 @@ export function PurgeEventDialog({
   return (
     <Dialog
       open={open}
-      title={fr.admin.purgeTitle}
+      title={t.admin.purgeTitle}
       // The event's own name, so the dialog says out loud which album is at stake.
       description={eventName}
       onClose={cancel}
@@ -69,10 +70,10 @@ export function PurgeEventDialog({
       footer={
         <>
           <Button variant="secondary" onClick={cancel}>
-            {fr.app.cancel}
+            {t.app.cancel}
           </Button>
           <Button variant="danger" loading={busy} disabled={!matches} onClick={confirm}>
-            {fr.admin.purge}
+            {t.admin.purge}
           </Button>
         </>
       }
@@ -82,9 +83,9 @@ export function PurgeEventDialog({
           <span className={styles['warningGlyph']}>
             <StatusIcon tone="danger" />
           </span>
-          {fr.admin.purgeWarning}
+          {t.admin.purgeWarning}
         </p>
-        <Field label={fr.admin.purgeConfirmLabel} hint={fr.admin.purgeConfirmHint(slug)}>
+        <Field label={t.admin.purgeConfirmLabel} hint={t.admin.purgeConfirmHint(slug)}>
           {(control) => (
             <TextInput
               {...control}

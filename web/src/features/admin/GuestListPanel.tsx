@@ -6,7 +6,7 @@ import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { useGuests } from './hooks/useEventData'
 import { useRevokeGuest } from './hooks/useEventActions'
@@ -27,6 +27,7 @@ export interface GuestListPanelProps {
  * this screen — the guest has to scan again.
  */
 export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
+  const t = useTranslations()
   const { data, loading, error, reload } = useGuests(slug)
   const revoke = useRevokeGuest()
   const toast = useToast()
@@ -41,7 +42,7 @@ export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
         toast.show(result.message, { tone: 'danger' })
         return
       }
-      toast.show(fr.admin.guestRevoked, { tone: 'success' })
+      toast.show(t.admin.guestRevoked, { tone: 'success' })
       reload()
     })
   }
@@ -51,15 +52,15 @@ export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
   return (
     <Card
       as="h2"
-      title={fr.admin.guestList}
-      {...(data === null ? {} : { subtitle: fr.admin.guests(data.activeCount) })}
+      title={t.admin.guestList}
+      {...(data === null ? {} : { subtitle: t.admin.guests(data.activeCount) })}
     >
-      {loading ? <Pending label={fr.app.loading} /> : null}
+      {loading ? <Pending label={t.app.loading} /> : null}
 
       {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
 
       {!loading && error === null && guests.length === 0 ? (
-        <EmptyState as="h3" title={fr.admin.guestsEmpty} description={fr.admin.guestsEmptyHint} />
+        <EmptyState as="h3" title={t.admin.guestsEmpty} description={t.admin.guestsEmptyHint} />
       ) : null}
 
       {!loading && error === null && guests.length > 0 ? (
@@ -71,18 +72,18 @@ export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
                 <div className={styles['identity']}>
                   <span className={styles['name']}>
                     {guest.displayName === null ? (
-                      <em className={styles['anonymous']}>{fr.moderation.byAnonymous}</em>
+                      <em className={styles['anonymous']}>{t.moderation.byAnonymous}</em>
                     ) : (
                       guest.displayName
                     )}
                   </span>
                   <span className={styles['meta']}>
-                    <span>{fr.admin.photos(guest.photoCount)}</span>
-                    <span>{fr.admin.lastSeen(lastSeen ?? fr.admin.dateUnknown)}</span>
+                    <span>{t.admin.photos(guest.photoCount)}</span>
+                    <span>{t.admin.lastSeen(lastSeen ?? t.admin.dateUnknown)}</span>
                   </span>
                 </div>
                 {guest.revoked ? (
-                  <Badge tone="danger">{fr.admin.guestRevokedBadge}</Badge>
+                  <Badge tone="danger">{t.admin.guestRevokedBadge}</Badge>
                 ) : canRevoke ? (
                   <Button
                     variant="danger"
@@ -91,7 +92,7 @@ export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
                     disabled={revoke.busy}
                     onClick={() => setSelected(guest)}
                   >
-                    {fr.admin.revokeGuest}
+                    {t.admin.revokeGuest}
                   </Button>
                 ) : null}
               </li>
@@ -102,9 +103,9 @@ export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
 
       <ConfirmDialog
         open={selected !== null}
-        title={fr.admin.revokeGuestTitle}
-        description={fr.admin.revokeGuestHint}
-        confirmLabel={fr.admin.revokeGuest}
+        title={t.admin.revokeGuestTitle}
+        description={t.admin.revokeGuestHint}
+        confirmLabel={t.admin.revokeGuest}
         busy={revoke.busy}
         onConfirm={confirmRevoke}
         onCancel={() => setSelected(null)}

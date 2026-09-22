@@ -66,13 +66,15 @@ createRoot(container).render(
         crash could corrupt — a locale and a lookup table — so putting it outside costs
         nothing the boundary was protecting.
 
-        What this boundary cannot do is speak French to the other two audiences. It reads
-        the locale where it sits, which is above the route table and therefore above every
-        FrenchSurface, so a crash under /admin or /e/:slug/display would render here in
-        the guest's language — on a console, or on a projector with a room in front of it.
-        That is why HostLayout and WallLayout each carry a boundary of their own, inside
-        their FrenchSurface, and catch first. This one covers what is left: the guest
-        surface, and anything that fails above the router. */}
+        It reads the locale where it sits, which is above the route table — so it speaks
+        the reader's own language, which is right for the guest surface and for the host
+        console and wrong for exactly one screen. A crash under /e/:slug/display would
+        render here in the language of whichever laptop was plugged into the projector,
+        in front of a room that was promised the event's. That is why WallLayout carries a
+        boundary of its own, inside its DeferredLocale, and catches first; HostLayout
+        carries one too, for a reason that is no longer about language and is written
+        down there. This one covers what is left: the guest surface, and anything that
+        fails above the router. */}
     <LocaleProvider>
       {/* Outermost of the rest, so a crash inside a provider is still caught and still
           shows a way back rather than a white screen on a projector. */}

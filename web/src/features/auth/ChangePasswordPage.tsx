@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AuthForm } from './components/AuthForm'
 import { useChangePassword } from './hooks/useAuthActions'
 import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
@@ -13,6 +13,7 @@ import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
  * `MustChangePasswordGate` for a moderator who has never chosen a password.
  */
 export function ChangePasswordPage() {
+  const t = useTranslations()
   const { submit, submitting, error } = useChangePassword()
   const toast = useToast()
   const navigate = useNavigate()
@@ -35,21 +36,21 @@ export function ChangePasswordPage() {
 
     void submit({ currentPassword: current, newPassword: next }).then((accepted) => {
       if (!accepted) return
-      toast.show(fr.auth.passwordSaved, { tone: 'success' })
+      toast.show(t.auth.passwordSaved, { tone: 'success' })
       navigate('/admin', { replace: true })
     })
   }
 
   return (
     <AuthForm
-      title={fr.auth.changePassword}
-      intro={fr.auth.changePasswordIntro}
+      title={t.auth.changePassword}
+      intro={t.auth.changePasswordIntro}
       error={error}
       submitting={submitting}
-      submitLabel={fr.app.save}
+      submitLabel={t.app.save}
       onSubmit={handleSubmit}
     >
-      <Field label={fr.auth.currentPassword}>
+      <Field label={t.auth.currentPassword}>
         {(control) => (
           <TextInput
             {...control}
@@ -63,7 +64,7 @@ export function ChangePasswordPage() {
         )}
       </Field>
 
-      <Field label={fr.auth.newPassword} hint={fr.auth.newPasswordHint(PASSWORD_MIN_LENGTH)}>
+      <Field label={t.auth.newPassword} hint={t.auth.newPasswordHint(PASSWORD_MIN_LENGTH)}>
         {(control) => (
           <TextInput
             {...control}
@@ -80,8 +81,8 @@ export function ChangePasswordPage() {
       </Field>
 
       <Field
-        label={fr.auth.confirmPassword}
-        {...(mismatch ? { error: fr.errors['password.mismatch'] } : {})}
+        label={t.auth.confirmPassword}
+        {...(mismatch ? { error: t.errors['password.mismatch'] } : {})}
       >
         {(control) => (
           <TextInput

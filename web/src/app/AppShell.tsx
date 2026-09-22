@@ -38,11 +38,13 @@ export interface AppShellProps {
  *
  * `lang` is here and nowhere else because this is the innermost component that every
  * screen renders through, so whatever language is in scope *at this point in the tree*
- * is the language actually on screen — French under the host and wall layouts, the
- * guest's own under theirs. Setting it higher up would announce the guest's German to a
- * screen reader on a French admin console. It is not cosmetic: it is what decides which
- * voice a screen reader pronounces the page with, and `index.html` ships `lang="fr"` so
- * the first paint is right before React has mounted anything.
+ * is the language actually on screen — the reader's own under the guest and host
+ * layouts, and the **event's** under the wall's, which is a language nobody standing at
+ * that screen chose (`lib/i18n/deferredLocale.ts` says how it gets here, and why it
+ * arrives a round trip late). Setting it higher up would announce the projector
+ * operator's English to a screen reader on a German wall. It is not cosmetic: it is what
+ * decides which voice a screen reader pronounces the page with, and `index.html` ships
+ * `lang="fr"` so the first paint is right before React has mounted anything.
  */
 export function AppShell({ surface, backdrop, header, children, className }: AppShellProps) {
   const { locale, text } = useLocale()

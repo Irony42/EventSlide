@@ -3,7 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Button } from '../design-system/components/Button'
 import { EmptyState } from '../design-system/components/EmptyState'
 import { Spinner } from '../design-system/components/Spinner'
-import { fr } from '../lib/i18n/fr'
+import { useTranslations } from '../lib/i18n/useTranslations'
 import { useSession } from './useSession'
 import styles from './RequireAuth.module.css'
 
@@ -24,13 +24,14 @@ export interface RequireAuthProps {
  * at a wedding.
  */
 export function RequireAuth({ children }: RequireAuthProps) {
+  const t = useTranslations()
   const { session, loading, error, refresh } = useSession()
   const location = useLocation()
 
   if (loading) {
     return (
       <div className={styles['pending']}>
-        <Spinner size="lg" label={fr.shell.sessionChecking} />
+        <Spinner size="lg" label={t.shell.sessionChecking} />
       </div>
     )
   }
@@ -39,11 +40,11 @@ export function RequireAuth({ children }: RequireAuthProps) {
     return (
       <EmptyState
         as="h1"
-        title={fr.shell.crashTitle}
-        description={fr.shell.sessionFailed}
+        title={t.shell.crashTitle}
+        description={t.shell.sessionFailed}
         action={
           <Button variant="primary" onClick={refresh}>
-            {fr.app.retry}
+            {t.app.retry}
           </Button>
         }
       />

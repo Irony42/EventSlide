@@ -1,7 +1,7 @@
 import { accentNameFor, DEFAULT_EVENT_THEME } from '../../design-system/eventTheme'
-import { fr } from '../../lib/i18n/fr'
 import { graceLabel } from './settingsLabels'
 import type { EventSettingsDto, EventTemplateKey } from '../../lib/api/dto'
+import type { UiText } from '../../lib/i18n/translations'
 
 /**
  * The four presets the create form offers (roadmap 3.5), as the host sees them.
@@ -74,9 +74,11 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
     },
   }
 
-const MODERATION_LABELS: Readonly<Record<EventSettingsDto['moderation'], string>> = {
-  manual: fr.admin.moderationManual,
-  auto: fr.admin.moderationAuto,
+const MODERATION_LABELS: Readonly<
+  Record<EventSettingsDto['moderation'], (text: UiText) => string>
+> = {
+  manual: (text) => text.admin.moderationManual,
+  auto: (text) => text.admin.moderationAuto,
 }
 
 /**
@@ -101,43 +103,49 @@ const MODERATION_LABELS: Readonly<Record<EventSettingsDto['moderation'], string>
  * `null` when nothing moves, which the catalogue cannot produce (a theme identical to the
  * default is a restated default and ring 1 refuses it) but a caller can ask for.
  */
-const themeLine = (theme: EventSettingsDto['theme']): string | null => {
+const themeLine = (theme: EventSettingsDto['theme'], text: UiText): string | null => {
   const accent = theme.accentHue === DEFAULT_EVENT_THEME.accentHue ? null : theme.accentHue
   const accentName = accent === null ? null : accentNameFor(accent)
 
   const parts = [
-    ...(accentName === null ? [] : [fr.admin.themeAccentNames[accentName]]),
-    ...(theme.fonts === DEFAULT_EVENT_THEME.fonts ? [] : [fr.admin.themeFontsNames[theme.fonts]]),
-    ...(theme.frame === DEFAULT_EVENT_THEME.frame ? [] : [fr.admin.themeFrameNames[theme.frame]]),
+    ...(accentName === null ? [] : [text.admin.themeAccentNames[accentName]]),
+    ...(theme.fonts === DEFAULT_EVENT_THEME.fonts ? [] : [text.admin.themeFontsNames[theme.fonts]]),
+    ...(theme.frame === DEFAULT_EVENT_THEME.frame ? [] : [text.admin.themeFrameNames[theme.frame]]),
     // No template moves the material and none is likely to — a preset is an occasion, and
     // no occasion implies a surface finish. It is listed all the same, because the rule
     // this function exists for is "print what moves", and a part left out of the diff is a
     // change a host would not be shown the day somebody does move it.
     ...(theme.material === DEFAULT_EVENT_THEME.material
       ? []
-      : [fr.admin.themeMaterialNames[theme.material]]),
+      : [text.admin.themeMaterialNames[theme.material]]),
   ]
 
-  return parts.length === 0 ? null : `${fr.admin.theme} : ${parts.join(', ')}`
+  return parts.length === 0 ? null : `${text.admin.theme} : ${parts.join(', ')}`
 }
 
 /**
- * One French line per setting a template changes, in a fixed order.
+ * One line per setting a template changes, in a fixed order and in the host's own
+ * language.
  *
  * Formatting, not a rule: what the values are is the domain's, and this decides how to
  * say them. `eventTemplates.test.ts` asserts that **every** key any template carries
  * produces a line, so adding a field to a preset without a sentence for it fails there
  * rather than shipping a card that quietly under-reports what the host is agreeing to.
  */
-export const templateSummary = (patch: Partial<EventSettingsDto>): readonly string[] => {
+export const templateSummary = (
+  patch: Partial<EventSettingsDto>,
+  text: UiText,
+): readonly string[] => {
   const lines: string[] = []
 
-  if (patch.moderation !== undefined) lines.push(MODERATION_LABELS[patch.moderation])
+  if (patch.moderation !== undefined) lines.push(MODERATION_LABELS[patch.moderation](text))
   if (patch.allowClips !== undefined) {
-    lines.push(patch.allowClips ? fr.admin.templateClipsOn : fr.admin.templateClipsOff)
+    lines.push(patch.allowClips ? text.admin.templateClipsOn : text.admin.templateClipsOff)
   }
   if (patch.guestSelfDeleteGraceSeconds !== undefined) {
-    lines.push(`${fr.admin.selfDeleteGrace} : ${graceLabel(patch.guestSelfDeleteGraceSeconds)}`)
+    lines.push(
+      `${text.admin.selfDeleteGrace} : ${graceLabel(patch.guestSelfDeleteGraceSeconds, text)}`,
+    )
   }
   if (patch.retentionDays !== undefined) {
     // Labelled, unlike on the settings page where the same string is an option inside a
@@ -148,21 +156,21 @@ export const templateSummary = (patch: Partial<EventSettingsDto>): readonly stri
     // it is coming, so the card is the only place it is ever said.
     lines.push(
       patch.retentionDays === null
-        ? fr.admin.retentionUnlimited
-        : `${fr.admin.retention} : ${fr.admin.retentionDays(patch.retentionDays)}`,
+        ? text.admin.retentionUnlimited
+        : `${text.admin.retention} : ${text.admin.retentionDays(patch.retentionDays)}`,
     )
   }
   if (patch.maxPhotosPerGuest !== undefined) {
     lines.push(
-      `${fr.admin.maxPhotosPerGuest} : ${
+      `${text.admin.maxPhotosPerGuest} : ${
         patch.maxPhotosPerGuest === null
-          ? fr.admin.maxPhotosUnlimited
+          ? text.admin.maxPhotosUnlimited
           : String(patch.maxPhotosPerGuest)
       }`,
     )
   }
   if (patch.theme !== undefined) {
-    const theme = themeLine(patch.theme)
+    const theme = themeLine(patch.theme, text)
     if (theme !== null) lines.push(theme)
   }
 
@@ -186,5 +194,5 @@ export const templateSummary = (patch: Partial<EventSettingsDto>): readonly stri
  * The values are not softened by this. A host who is told what `auto` does and picks it
  * anyway has allowed it, which is the same standard the settings page holds them to.
  */
-export const templateWarning = (patch: Partial<EventSettingsDto>): string | null =>
-  patch.moderation === 'auto' ? fr.admin.moderationAutoWarning : null
+export const templateWarning = (patch: Partial<EventSettingsDto>, text: UiText): string | null =>
+  patch.moderation === 'auto' ? text.admin.moderationAutoWarning : null

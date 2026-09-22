@@ -1,6 +1,6 @@
 import { Badge, type BadgeTone } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { ModerationDecision, ModerationPhotoDto, PhotoStatus } from '../../../lib/api/dto'
 import styles from './ModerationCard.module.css'
 
@@ -20,13 +20,6 @@ const TONE: Readonly<Record<PhotoStatus, BadgeTone>> = {
   published: 'success',
   rejected: 'danger',
   hidden: 'neutral',
-}
-
-const STATE_LABEL: Readonly<Record<PhotoStatus, string>> = {
-  pending: fr.moderation.statePending,
-  published: fr.moderation.statePublished,
-  rejected: fr.moderation.stateRejected,
-  hidden: fr.moderation.stateHidden,
 }
 
 export interface ModerationCardProps {
@@ -52,13 +45,27 @@ export function ModerationCard({
   onOpen,
   cardRef,
 }: ModerationCardProps) {
+  const t = useTranslations()
+
+  /**
+   * The word beside the border colour, built here rather than at module load: it is
+   * read in whichever language the moderator chose, and a module-level table would
+   * freeze the first one.
+   */
+  const STATE_LABEL: Readonly<Record<PhotoStatus, string>> = {
+    pending: t.moderation.statePending,
+    published: t.moderation.statePublished,
+    rejected: t.moderation.stateRejected,
+    hidden: t.moderation.stateHidden,
+  }
+
   /**
    * The author, as it reads inside "la photo de …". `byAnonymous` is the standalone
    * caption line; using it here would produce "la photo de Invité anonyme".
    */
-  const authorInName = photo.authorName ?? fr.moderation.anonymousInName
+  const authorInName = photo.authorName ?? t.moderation.anonymousInName
   const authorLine =
-    photo.authorName === null ? fr.moderation.byAnonymous : fr.moderation.by(photo.authorName)
+    photo.authorName === null ? t.moderation.byAnonymous : t.moderation.by(photo.authorName)
   const isClip = photo.kind === 'clip'
 
   return (
@@ -75,7 +82,7 @@ export function ModerationCard({
       // would otherwise mean a hundred Tab stops before the toolbar.
       tabIndex={-1}
       ref={cardRef}
-      aria-label={fr.moderation.photoOf(authorInName)}
+      aria-label={t.moderation.photoOf(authorInName)}
       onFocus={() => onFocusCard(photo.id)}
     >
       <div className={styles['top']}>
@@ -87,7 +94,7 @@ export function ModerationCard({
           // Named rather than `<label>`-wrapped: the author already appears once as
           // text under the photo, and a visible or clipped second copy per tile makes
           // a screenful of cards read as a wall of names.
-          aria-label={fr.moderation.selectPhoto(authorInName)}
+          aria-label={t.moderation.selectPhoto(authorInName)}
         />
         <Badge tone={TONE[photo.status]}>{STATE_LABEL[photo.status]}</Badge>
       </div>
@@ -101,7 +108,7 @@ export function ModerationCard({
         // larger still — it is the only place on this surface the video can be watched,
         // and the thing that gets somebody into trouble is rarely in the first frame.
         aria-label={
-          isClip ? fr.moderation.watchVideo(authorInName) : fr.moderation.enlargePhoto(authorInName)
+          isClip ? t.moderation.watchVideo(authorInName) : t.moderation.enlargePhoto(authorInName)
         }
         onClick={() => onOpen(photo.id)}
       >
@@ -131,8 +138,8 @@ export function ModerationCard({
         {isClip ? (
           <span className={styles['clipBadge']}>
             {photo.durationMs === null
-              ? fr.moderation.videoBadge
-              : fr.moderation.videoLength(Math.round(photo.durationMs / 1_000))}
+              ? t.moderation.videoBadge
+              : t.moderation.videoLength(Math.round(photo.durationMs / 1_000))}
           </span>
         ) : null}
       </button>
@@ -144,14 +151,12 @@ export function ModerationCard({
           this text goes on a wall in front of the room.
         */}
         {photo.caption === null ? (
-          <p className={styles['captionEmpty']}>{fr.moderation.noCaption}</p>
+          <p className={styles['captionEmpty']}>{t.moderation.noCaption}</p>
         ) : (
           <p className={styles['caption']}>{photo.caption}</p>
         )}
         <p className={styles['author']}>{authorLine}</p>
-        <p className={styles['dimensions']}>
-          {fr.moderation.dimensions(photo.width, photo.height)}
-        </p>
+        <p className={styles['dimensions']}>{t.moderation.dimensions(photo.width, photo.height)}</p>
       </div>
 
       {/*
@@ -164,26 +169,26 @@ export function ModerationCard({
         <Button
           variant="primary"
           size="sm"
-          aria-label={fr.moderation.publishPhoto(authorInName)}
+          aria-label={t.moderation.publishPhoto(authorInName)}
           onClick={() => onDecide(photo.id, 'publish')}
         >
-          {fr.moderation.publish}
+          {t.moderation.publish}
         </Button>
         <Button
           variant="danger"
           size="sm"
-          aria-label={fr.moderation.rejectPhoto(authorInName)}
+          aria-label={t.moderation.rejectPhoto(authorInName)}
           onClick={() => onDecide(photo.id, 'reject')}
         >
-          {fr.moderation.reject}
+          {t.moderation.reject}
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          aria-label={fr.moderation.hidePhoto(authorInName)}
+          aria-label={t.moderation.hidePhoto(authorInName)}
           onClick={() => onDecide(photo.id, 'hide')}
         >
-          {fr.moderation.hide}
+          {t.moderation.hide}
         </Button>
       </div>
     </article>
