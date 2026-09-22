@@ -2,6 +2,7 @@ import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ArchiveWriter } from '../../../application/ports/archiveWriter'
 import { AT, aPhoto, aUser } from '../../../application/testing/builders'
+import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import {
   browserAgent,
   buildGalleryHarness,
@@ -31,6 +32,9 @@ import { GALLERY_UNLOCK_COOKIE, galleryRoutes } from './galleryRoutes'
  */
 
 const HOUR = 60 * 60 * 1000
+/** UUIDs, like the harness's own, for the statuses `beforeEach` does not seed. */
+const REJECTED = '66666666-6666-4666-8666-666666666666'
+const HIDDEN = '77777777-7777-4777-8777-777777777777'
 /** A well-formed token nobody issued. */
 const UNKNOWN_TOKEN = 'Q'.repeat(43)
 
@@ -122,6 +126,23 @@ describe('the shared gallery over HTTP', () => {
     it('says a purged event’s link is not available, like any other dead link', async () => {
       const { token } = subject.seedLink()
       await subject.events.delete(WEDDING)
+
+      const response = await request(subject.app).get(`/api/gallery/${token}`)
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('gallery.notAvailable')
+    })
+
+    it('treats the link of a creator who is no longer an owner as dead', async () => {
+      // Authority is read per request: demoting the host who made the link ends it, the
+      // same as switching their account off, and says so in the same words.
+      const { token } = subject.seedLink()
+      await subject.memberships.grant({
+        eventId: WEDDING,
+        userId: OWNER,
+        role: 'moderator',
+        grantedAt: AT,
+      })
 
       const response = await request(subject.app).get(`/api/gallery/${token}`)
 
@@ -372,7 +393,9 @@ describe('the shared gallery over HTTP', () => {
   })
 
   describe('GET /api/gallery/:token/photos', () => {
-    it('lists the published photograph and never the pending one', async () => {
+    it('lists the published photograph and never a pending, rejected or hidden one', async () => {
+      await subject.seedPhoto(aPhoto({ id: REJECTED, eventId: WEDDING, status: 'rejected' }))
+      await subject.seedPhoto(aPhoto({ id: HIDDEN, eventId: WEDDING, status: 'hidden' }))
       const { token } = subject.seedLink()
 
       const page = await galleryPage(token)
@@ -506,14 +529,21 @@ describe('the shared gallery over HTTP', () => {
       expect(response.body.error.code).toBe('gallery.notAvailable')
     })
 
-    it('refuses a correctly signed URL once its photograph is taken off the wall', async () => {
-      const { token } = subject.seedLink()
-      const [item] = (await galleryPage(token)).items
+    it.each<PhotoStatus>(['hidden', 'rejected', 'pending'])(
+      'refuses a correctly signed URL once its photograph is %s',
+      async (status) => {
+        const { token } = subject.seedLink()
+        const [item] = (await galleryPage(token)).items
 
-      subject.photos.seed(aPhoto({ id: PHOTO, eventId: WEDDING, status: 'hidden' }))
+        subject.photos.seed(aPhoto({ id: PHOTO, eventId: WEDDING, status }))
 
-      expect((await request(subject.app).get(item?.downloadUrl ?? '')).status).toBe(404)
-    })
+        for (const url of [item?.previewUrl, item?.viewUrl, item?.downloadUrl]) {
+          const response = await request(subject.app).get(url ?? '')
+          expect(response.status).toBe(404)
+          expect(response.body.error.code).toBe('gallery.notAvailable')
+        }
+      },
+    )
 
     it('refuses every URL of a revoked link at once, not when its hour is up', async () => {
       const { token } = subject.seedLink()
@@ -533,6 +563,20 @@ describe('the shared gallery over HTTP', () => {
       const [item] = (await galleryPage(token)).items
 
       await subject.users.save(aUser({ id: OWNER, email: 'hote@example.test', disabledAt: AT }))
+
+      expect((await request(subject.app).get(item?.downloadUrl ?? '')).status).toBe(404)
+    })
+
+    it('refuses every URL of a link whose creator is no longer an owner', async () => {
+      const { token } = subject.seedLink()
+      const [item] = (await galleryPage(token)).items
+
+      await subject.memberships.grant({
+        eventId: WEDDING,
+        userId: OWNER,
+        role: 'moderator',
+        grantedAt: AT,
+      })
 
       expect((await request(subject.app).get(item?.downloadUrl ?? '')).status).toBe(404)
     })
