@@ -187,8 +187,12 @@ npm run verify:full   # verify + test:e2e                         <- before open
 - **Run `npm run verify` before you claim a task is done.** Report real output. A
   failing test reported as passing is the worst possible outcome here.
 - **Read the skill first.** `.claude/skills/` contains step-by-step recipes for the
-  five things you will be asked to do most. They encode decisions you cannot infer
-  from the code.
+  things you will be asked to do most. They encode decisions you cannot infer
+  from the code. `eventslide-mutation` is not a recipe for building something — it is
+  the protocol for proving a guard bites, and it applies to every branch.
+- **Review before the pull request.** `.claude/agents/eventslide-reviewer.md` is an
+  adversarial reviewer that knows the rings, the boundaries and §9. Every branch so far
+  was green on `npm run verify` before review and every one still had a defect.
 - **Small, typed commits.** Conventional Commits, one concern each. `feat(domain):`,
   `feat(web):`, `fix(http):`, `test(application):`, `docs:`, `chore:`.
 - **Never commit** `photos/`, `thumbnails/`, `data/*.sqlite*`, `.env`, `dist/`,
@@ -399,6 +403,9 @@ Learned the hard way. Do not rediscover them.
 - [ ] The change names which audience it serves (guest / host / room).
 - [ ] Business rules landed in `domain` or `application`, not in a handler or component.
 - [ ] Tests in the right ring, failing before the fix and passing after.
+- [ ] **Every rule the change states has a mutation that was run and went red**, reported
+      by test name. A rule in a comment with no failing test is the one defect this
+      codebase produces over and over — see `.claude/skills/eventslide-mutation/`.
 - [ ] `npm run verify` green, output actually read.
 - [ ] No new token-less colour or spacing value; no new `any`; no new `process.env` read.
 - [ ] Docs touched if behaviour or API changed (`docs/API.md` §§1–8 is the contract —
