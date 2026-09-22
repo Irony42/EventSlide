@@ -1139,6 +1139,8 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 | A malicious host can read every photo in their own event                 | they organised the event; the data is theirs                                                                                                                                                                                                                                                                | per-event roles limit _moderators_ to their own events                                                                                                                                  |
 | Anyone holding a shared gallery link reads the published album           | that is what a link is: the host chose to send it, and a link that also demanded an account would never be opened by the aunt it was sent to                                                                                                                                                                | it expires (≤ 90 days), it can carry a password, it can be revoked at once, and it shows only what the room already saw (§15)                                                           |
 | A file already downloading from a revoked link finishes                  | a single HTTP response cannot be recalled once its bytes are flowing, and a thumbnail a browser cached (`private`, ≤ 1 h) stays in that browser                                                                                                                                                             | every **new** request is refused at once; a streaming archive re-checks the link before each entry and aborts (§15)                                                                     |
+| Revoking a gallery link does not close the event's wall                  | the archive's name and its entries carry the event's slug, and the slug is the wall's address; it is also derivable from the event name the gallery shows, and the wall is public by the second row of this table. Renaming the files would hide nothing a guest does not already hold on a table card      | the wall serves display renditions, never originals, and only while the event is live or closed: **archiving the event** is what closes it (§15)                                        |
+| Whoever holds a link can lock its password out for a quarter hour        | the per-link budget counts failures from anywhere, which is what stops a guess spread over many addresses — so fifty wrong passwords from a holder of the token lock the prompt for everyone else too                                                                                                       | the lockout ends by itself after fifteen minutes, and the host can replace the link, which is a new token and a new budget (§15)                                                        |
 
 ## 13. Reporting a vulnerability
 
@@ -1532,5 +1534,9 @@ event.
 
 **The residuals**, also in §12: whoever holds a link without a password reads the album,
 by design; a single file already downloading when the link is revoked finishes, and a
-thumbnail a browser cached stays in that browser for at most its grant's hour; the rate
-limits are in-process, like every other limit here (§5).
+thumbnail a browser cached stays in that browser for at most its grant's hour; revoking a
+link leaves the event's wall where it was — the archive's file names carry the slug, which
+is the wall's address — and archiving the event is what closes that; a holder of the token
+can spend the link's fifty failed attempts and lock its password prompt for fifteen
+minutes, which replacing the link undoes; the rate limits are in-process, like every other
+limit here (§5), and every budget is per address, so a household behind one IP shares it.
