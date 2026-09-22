@@ -40,6 +40,15 @@ export type ClipJobId = Branded<string, 'ClipJobId'>
  * `PhotoId` belongs, and the repository that reads it takes an `EventId` first.
  */
 export type MissionId = Branded<string, 'MissionId'>
+/**
+ * One shared gallery link (docs/ROADMAP.md §4.1).
+ *
+ * Distinct from the link's **token**, and the distinction is the design: the token is the
+ * secret a host sends to their guests and is never stored, only its digest; this id is the
+ * row's name, and it is what a signed media URL carries, so a URL copied out of an `<img>`
+ * names the link without handing out the key to it.
+ */
+export type ShareLinkId = Branded<string, 'ShareLinkId'>
 
 /**
  * The only casts in the codebase. Use them at a boundary — a database row becoming an
@@ -52,3 +61,4 @@ export const asUserId = (value: string): UserId => value as UserId
 export const asReactionId = (value: string): ReactionId => value as ReactionId
 export const asClipJobId = (value: string): ClipJobId => value as ClipJobId
 export const asMissionId = (value: string): MissionId => value as MissionId
+export const asShareLinkId = (value: string): ShareLinkId => value as ShareLinkId

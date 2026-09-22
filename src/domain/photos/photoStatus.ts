@@ -46,9 +46,13 @@ export const isVisibleOnWall = (status: PhotoStatus): boolean => status === 'pub
 export const needsDecision = (status: PhotoStatus): boolean => status === 'pending'
 
 /**
- * Included in the album export and in the post-event gallery. A rejected photo is
- * excluded: 1.0's ZIP download shipped every row regardless of status, so a host who
- * carefully rejected a photo still handed it out afterwards.
+ * Included in the host's own album export. A rejected photo is excluded: 1.0's ZIP
+ * download shipped every row regardless of status, so a host who carefully rejected a
+ * photo still handed it out afterwards.
+ *
+ * **Not the shared gallery's rule.** A link the host sends to every guest shows only what
+ * the wall shows, so a hidden photograph stays in the host's archive and out of the
+ * public one — `domain/gallery/galleryMedia.ts` carries that rule and its reason.
  */
 export const isInAlbum = (status: PhotoStatus): boolean =>
   status === 'published' || status === 'hidden'
