@@ -309,6 +309,17 @@ the link anyway, so switching it off kills every URL it ever issued on the next 
 The ZIP re-checks before every entry and aborts rather than ending early but well formed,
 because a truncated archive that looks complete is how a family thinks it has the album.
 
+**The fakes said yes twice where the real adapters said no.** The first cut checked the
+link while _listing_ the archive's entries and was green on the recording writer, which
+pulls one entry at a time; `archiver` queues every entry it is handed at once, so the
+check ran for the whole album before the first byte left — measured, a link revoked after
+the first chunk still delivered all of it. The same archive read the album through the
+export's row stream, and better-sqlite3 refuses every write on the connection while a
+statement is iterating: 600 of 602 uploads on another event failed during one download.
+Both are now held by a test over the real `archiver`, filesystem and SQLite
+(`galleryArchive.test.ts`), the check runs when an entry's bytes are read, and the album
+is read in pages. The host's own export still streams rows, which is the follow-up.
+
 **Every dead link is one sentence.** Expired, revoked, mistyped, creator switched off,
 event purged: one `404`, byte for byte. The reader may be somebody the link was forwarded
 to, and "the host took this back" is not theirs to learn.
@@ -317,7 +328,7 @@ to, and "the host took this back" is not theirs to learn.
 the account hasher under the account policy, answered with a two-hour `HttpOnly`,
 `SameSite=Strict` cookie scoped to the gallery's API, and limited per client **and** per
 link, failures only — so a guesser gets a few tries from anywhere and a few dozen in total,
-while thirty relatives unlocking the same album on the morning after spend nothing.
+while thirty relatives unlocking the same album on the morning after spend none of it.
 
 **The GPS was already gone.** The feared defect — a public link serving the coordinates of
 a family home — does not exist, because the stored `original` is ingest's re-encode with
