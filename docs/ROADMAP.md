@@ -76,9 +76,11 @@ upload button does not upload.
 The wall is what two hundred people look at all evening. It is also the surface with the
 least engineering attention in most tools of this kind.
 
-_Shipped and moved to §9: [2.3](#93-more-wall-layouts). **[2.2](#22-per-event-theming-p1-effort-s-risk-low) is shipped and stayed in place.**_
+_Shipped and moved to §9: [2.3](#93-more-wall-layouts). **[2.1](#21-photo-missions-p1-effort-m-risk-low) and [2.2](#22-per-event-theming-p1-effort-s-risk-low) are shipped and stayed in place.**_
 
 ### 2.1 Photo missions (P1, effort M, risk: low)
+
+> **Shipped** in [#77](https://github.com/Irony42/EventSlide/pull/77). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 **The highest-engagement feature in this document per hour of work.** The host defines a
 short list of prompts — "a selfie with the couple", "the worst dance move", "someone
@@ -87,6 +89,62 @@ crying" — and guests see them as a checklist. The wall celebrates completions.
 It changes the guest's relationship to the app: instead of "should I bother uploading
 this", there is something to do. It reliably multiplies photo volume at events that use
 it, and mechanically it is a table, a checklist screen and a wall overlay.
+
+**Done, and the four questions the item did not answer are where all the work was.** The
+table and the screens were an afternoon; these were not.
+
+**What completes a mission: the guest tags, the host's verdict counts.** A tag is one tap
+on the prompt itself before sending — no dialog, no second screen, which is the most a
+guest with one thumb and under a minute of patience will spend. But a tag is a _claim_,
+and what the wall reads is a _fact_: a mission is answered when at least one **published**
+photograph names it, counted at read time. That single choice is what makes the hard case
+hold with nothing enforcing it — a photograph tagged and then refused in moderation never
+counted, so nothing has to un-count it, and the same is true of one hidden mid-evening,
+deleted by its author inside the grace window, or taken down after somebody asked. A
+stored `completed_at` would have needed unsetting from five places, and the first one
+anybody forgot would have left a wall saying "fait" over a photograph the host had just
+removed. **Host assignment was not built**: the moderation queue is the surface that has
+to stay fast at 22:00, and a second write path into the same derived state is a second
+thing to keep honest. The host's lever is the decision they already make.
+
+**Once for the evening or once per guest: both, and it is a field.** `scope` decides
+exactly one question — whether _another_ guest's photograph ticks _your_ row — and both
+answers are load-bearing. All three examples above are per-guest, so that is the default:
+a checklist that ticked itself because somebody across the room had already sent a selfie
+would remove the only thing this feature adds. "La première danse" is the other kind, and
+leaving a hundred and ninety-nine checklists open for a moment that is over is the same
+mistake from the other end.
+
+**What the wall shows: the standing list, and nothing that fires.** A burst per completion
+was considered and declined on three grounds this document already holds. §11.2 concluded
+that motion carries meaning only where it is rare, and a per-guest prompt at a
+two-hundred-guest wedding is answered a hundred times. §11.3 gives this surface a measured
+frame budget on a venue mini-PC that is also decoding a photograph and running Ken Burns.
+And a three-second burst is legible only to whoever happened to be looking three seconds
+ago, where a list is legible at any moment from ten metres — which is the actual job,
+because nobody watches a projector continuously. So the celebration is watching the list
+fill up. The panel renders **nothing at all** for an event with no prompts, which is most
+of them: the twelve committed wall baselines are pixel-identical after this change, and
+that was checked rather than assumed.
+
+**What happens to a mission's photographs afterwards: nothing.** The tag is one nullable
+column on `photos`. No endpoint lists photographs by mission, no screen groups them, and
+the moderation queue, the wall playlist, the quota, the album export and the guest's own
+list all ignore the field entirely. Deleting a prompt is `ON DELETE SET NULL`, never
+`CASCADE`: it removes a sentence and unfiles the photographs, and removes none of them —
+which is also why each row has its own edit rather than only a bin, since correcting a
+typo by delete-and-recreate would silently take four photographs out of the count they
+were already in.
+
+Two ceilings came out of it, both product rules rather than validation: **twelve prompts
+per event**, which is where the list is still readable at ten metres and still scrollable
+under a thumb, and **sixty characters** per prompt, against a caption's hundred and forty,
+because a caption has the width of the wall and a prompt has a third of a panel.
+
+Deliberately not built, and each of these is a separate item if it is ever wanted: a
+leaderboard, notifications, per-guest scoring (all §7), tagging a **video** clip — which
+is the same one-line idea and a whole second pipeline, since a clip has no `photos` row
+until its transcode finishes — and any reordering of the list, which is creation order.
 
 ### 2.2 Per-event theming (P1, effort S, risk: low)
 
@@ -738,7 +796,7 @@ Saying no is what keeps the rest coherent.
 1. **Offline upload queue** (§9.1, shipped) — the difference between photos arriving and
    photos being lost to a saturated access point. Everything else assumes the upload
    works.
-2. **Photo missions** (§2.1) — the cheapest large increase in how much guests
+2. **Photo missions** (§2.1, shipped) — the cheapest large increase in how much guests
    participate, and it changes the wall from a screensaver into something the room is
    part of.
 3. **Shared gallery link** (§4.1) — answers the question every host is asked the next
