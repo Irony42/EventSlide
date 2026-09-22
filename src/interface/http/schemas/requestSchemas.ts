@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
 import { MISSION_SCOPES } from '../../../domain/missions/missionScope'
 import {
@@ -177,6 +178,25 @@ export const createEventBody = z
      * already gets — no new error code, and nothing for roadmap 1.5 to translate.
      */
     template: z.enum(EVENT_TEMPLATE_KEYS).optional(),
+    /**
+     * The language the room's screen will speak, read from the creator's browser at the
+     * moment they create the event (roadmap 1.5).
+     *
+     * On the **create** body rather than only on the settings patch, and that is the
+     * whole design of the default. The one signal worth having about what language a
+     * wall should be in is the language the person setting it up is reading right now —
+     * so the form sends it, once, and the event stores it.
+     *
+     * **A snapshot, never a subscription.** Nothing re-reads the host's preference
+     * afterwards. A host who switches their own browser to English next month has not
+     * asked for the projector in a room to change, and a setting that silently followed
+     * a preference it never announced is exactly the thing that gets discovered
+     * mid-reception. Changing it later is a deliberate act on the settings page.
+     *
+     * `.optional()` and not `.nullish()`, like `template` above: "no opinion" is the
+     * absence of a choice, and the domain answers it with French.
+     */
+    wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
   })
   .strict()
 
@@ -229,6 +249,22 @@ export const updateSettingsBody = z
       })
       .strict()
       .optional(),
+    /**
+     * The language the projected wall speaks (roadmap 1.5).
+     *
+     * A scalar beside the theme's object, and not folded into it, because the two are
+     * judged by different rules: `eventTheme.ts` weighs an accent, a font pairing, a
+     * frame and a material *against each other* for legibility at ten metres, and a
+     * language tag takes part in none of that. Folding it in would also mean a host who
+     * changes only the language has to resend a whole theme, and `theme` is required-whole
+     * on purpose.
+     *
+     * The vocabulary comes from the domain rather than a second `z.enum(['fr', …])` here,
+     * for the reason `template` above does: a language added to the build would otherwise
+     * be accepted by the use case and refused at the boundary, with nothing in either
+     * build noticing.
+     */
+    wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
   })
   .strict()
 

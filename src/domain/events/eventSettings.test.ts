@@ -89,6 +89,7 @@ describe('EventSettings.create', () => {
         retentionDays: 30,
         maxPhotosPerGuest: 20,
         theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        wallLanguage: 'de',
       }),
     )
 
@@ -102,6 +103,7 @@ describe('EventSettings.create', () => {
       retentionDays: 30,
       maxPhotosPerGuest: 20,
       theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+      wallLanguage: 'de',
     })
   })
 
@@ -335,5 +337,58 @@ describe('a theme the current rule would refuse, on an event that already has on
 
     expect(chosen.ok).toBe(false)
     expect(!chosen.ok && chosen.error.code).toBe('eventTheme.accentTooCloseToStatus')
+  })
+})
+
+/**
+ * The language the room's screen speaks (roadmap 1.5).
+ *
+ * The decisions worth protecting here are the two that are easy to get wrong later: the
+ * default an event with no opinion gets, and the refusal of a tag the client has no
+ * table for. `eventLanguage.ts` argues what the field means; this says what the settings
+ * object does with it.
+ */
+describe('the wall language', () => {
+  it('is French for a host who never chose one', () => {
+    expect(EventSettings.default().wallLanguage).toBe('fr')
+  })
+
+  it('is kept exactly as the host set it', () => {
+    expect(unwrap(EventSettings.create({ wallLanguage: 'de' })).wallLanguage).toBe('de')
+  })
+
+  it('survives a change to an unrelated setting', () => {
+    // The thing a partial update must never do: a host toggling reactions on the settings
+    // page has said nothing about language, and `pick` leaving it alone is what stops the
+    // projector reverting to French mid-evening.
+    const german = unwrap(EventSettings.create({ wallLanguage: 'de' }))
+    const changed = unwrap(german.with({ allowReactions: false }))
+
+    expect(changed.wallLanguage).toBe('de')
+    expect(changed.allowReactions).toBe(false)
+  })
+
+  it('refuses a language this build has no table for', () => {
+    // The type says `EventLanguage`, so this can only arrive from outside the build — a
+    // hand-edited settings blob, or another program writing the column. Storing it would
+    // put a projector on a language nothing can render, silently.
+    const result = EventSettings.create({ wallLanguage: 'pt' as 'fr' })
+
+    expect(result.ok).toBe(false)
+    expect(!result.ok && result.error.code).toBe('eventSettings.wallLanguageInvalid')
+  })
+
+  it('refuses one on the read path too, rather than defaulting it silently', () => {
+    // `restore` is lenient about the *theme* on purpose — a tightened legibility rule
+    // must not take a live wedding off the screen — and that leniency does not extend
+    // here. A stored language outside the vocabulary is not a rule that moved under an
+    // event; it is a value no version of this product ever wrote.
+    const result = EventSettings.restore({
+      ...EventSettings.default().toProps(),
+      wallLanguage: 'pt' as 'fr',
+    })
+
+    expect(result.ok).toBe(false)
+    expect(!result.ok && result.error.code).toBe('eventSettings.wallLanguageInvalid')
   })
 })

@@ -171,6 +171,13 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   // omitted for the reason `theme` is — an omitted key is invisible to the enumeration in
   // `useWallPlaylist.settings.test.ts`.
   missions: [],
+  // The language the room's screen speaks. Present rather than omitted for the reason
+  // `theme` and `missions` above are: the field is optional on the response, and an
+  // omitted key is invisible to the `Object.keys` walk in
+  // `useWallPlaylist.settings.test.ts` — which is the enumeration written precisely so a
+  // settings field cannot go uncompared. A test that wants the server build which
+  // predates the field deletes the key rather than overriding it.
+  wallLanguage: 'fr',
   ...overrides,
 })
 
@@ -229,6 +236,10 @@ export const eventSettings = (overrides: Partial<EventSettingsDto> = {}): EventS
   retentionDays: null,
   maxPhotosPerGuest: null,
   theme: DEFAULT_EVENT_THEME,
+  // French, which is what an event created before this setting existed reads back as —
+  // and what a host who has not touched the control still has. A test that wants the
+  // projector in another language overrides it.
+  wallLanguage: 'fr',
   ...overrides,
 })
 

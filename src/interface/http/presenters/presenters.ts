@@ -146,6 +146,7 @@ export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto =>
   retentionDays: settings.retentionDays,
   maxPhotosPerGuest: settings.maxPhotosPerGuest,
   theme: toEventThemeDto(settings.theme),
+  wallLanguage: settings.wallLanguage,
 })
 
 /**
@@ -574,6 +575,12 @@ export const toWallResponseDto = (
     // screen: two projectors in the same room must agree about the colour even when one
     // of them is showing a mosaic and the other a spotlight.
     theme: toEventThemeDto(view.event.settings.theme),
+    // The same argument as the theme, one step further: the language is a property of the
+    // event and not of the screen, so two projectors in one room agree about it even when
+    // one of them was launched from a laptop set to English. `?layout=` is the deliberate
+    // contrast — a layout genuinely does belong to the screen, which is why that one is a
+    // query parameter and there is no `?lang=`.
+    wallLanguage: view.event.settings.wallLanguage,
   }
 }
 

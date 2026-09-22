@@ -1,6 +1,7 @@
 import { Event } from '../../../domain/events/event'
 import { EventName } from '../../../domain/events/eventName'
 import { EventSettings } from '../../../domain/events/eventSettings'
+import type { EventLanguage } from '../../../domain/events/eventLanguage'
 import { eventTemplateSettings, type EventTemplateKey } from '../../../domain/events/eventTemplate'
 import { DomainError } from '../../../domain/shared/errors'
 import type { UserId } from '../../../domain/shared/ids'
@@ -40,6 +41,18 @@ export interface CreateEventInput {
    * event that stays attached to a living template — is a worse product.
    */
   readonly template?: EventTemplateKey
+  /**
+   * The language the projected wall will speak (roadmap 1.5).
+   *
+   * Supplied by the create form as **the language its host was reading at that moment**,
+   * which is the only signal anyone has about a screen nobody will be holding. Absent
+   * means the domain's own default, which is what an event created through the API with
+   * no opinion gets, and what every event created before this field existed has.
+   *
+   * Applied on top of the template, not merged into it: no preset has an opinion about
+   * language, and one that grew one would be describing the room rather than the evening.
+   */
+  readonly wallLanguage?: EventLanguage
 }
 
 export interface CreateEventDeps {
@@ -101,6 +114,21 @@ export const makeCreateEvent =
     const joinCode = await allocateJoinCode(events, ids)
     if (!joinCode.ok) return joinCode
 
+    // The template is applied here and then forgotten. `eventTemplateSettings` is
+    // total — the catalogue is validated at import, so a preset can never reach a host
+    // as a 400 on a form with no field to correct.
+    const preset =
+      input.template === undefined ? EventSettings.default() : eventTemplateSettings(input.template)
+
+    // The creator's language on top, because no template has an opinion about it. This
+    // is the one place the value is read from anybody's preference; from here on it is
+    // the event's, and only the settings page moves it.
+    const settings =
+      input.wallLanguage === undefined
+        ? ok(preset)
+        : preset.with({ wallLanguage: input.wallLanguage })
+    if (!settings.ok) return settings
+
     const now = clock.now()
     const created = Event.create(
       {
@@ -108,13 +136,7 @@ export const makeCreateEvent =
         name: name.value,
         slug: slug.value,
         joinCode: joinCode.value,
-        // The template is applied here and then forgotten. `eventTemplateSettings` is
-        // total — the catalogue is validated at import, so a preset can never reach a
-        // host as a 400 on a form with no field to correct.
-        settings:
-          input.template === undefined
-            ? EventSettings.default()
-            : eventTemplateSettings(input.template),
+        settings: settings.value,
         quotaBytes: input.quotaBytes ?? defaultQuotaBytes,
         startsAt: input.startsAt ?? null,
       },

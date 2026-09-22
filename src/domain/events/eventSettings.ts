@@ -1,5 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
+import { DEFAULT_EVENT_LANGUAGE, isEventLanguage, type EventLanguage } from './eventLanguage'
 import {
   createEventTheme,
   DEFAULT_EVENT_THEME,
@@ -86,6 +87,21 @@ export interface EventSettingsProps {
    * absent key means, which is a different question.
    */
   readonly theme: EventThemeProps
+  /**
+   * The language the **projected wall** renders its own words in (roadmap 1.5).
+   *
+   * Beside the theme rather than beside `allowCaptions`, because it is the same kind of
+   * decision: what the room looks like, answered once by the host because the room has
+   * nobody in it to ask. `eventLanguage.ts` carries the argument, including why it is
+   * not a claim about what language the event's *content* is in.
+   *
+   * It reaches exactly one surface. A guest's phone and a host's browser each negotiate
+   * their own language and ignore this entirely — which is the property that makes a
+   * French host running an English-speaking conference representable: they set the wall
+   * to English, write their prompts in English, and still read their own console in
+   * French.
+   */
+  readonly wallLanguage: EventLanguage
 }
 
 /**
@@ -105,6 +121,7 @@ const DEFAULTS: EventSettingsProps = {
   retentionDays: null,
   maxPhotosPerGuest: null,
   theme: DEFAULT_EVENT_THEME,
+  wallLanguage: DEFAULT_EVENT_LANGUAGE,
 }
 
 const pick = <T>(update: T | undefined, current: T): T => (update === undefined ? current : update)
@@ -116,6 +133,20 @@ const violation = (value: number, range: Range, code: string): DomainError | nul
 
 const nullableViolation = (value: number | null, range: Range, code: string): DomainError | null =>
   value === null ? null : violation(value, range, code)
+
+/**
+ * The one non-numeric field this file validates, and it is validated for the same reason
+ * `moderation` is narrowed rather than trusted.
+ *
+ * The type says `EventLanguage`, which is enough for a caller inside this build — but
+ * `restore` is handed a props object assembled from an opaque JSON column, and the
+ * settings blob of a self-hosted box is a file an administrator can open in an editor.
+ * A tag this build has no table for would reach the projector and render the fallback
+ * language with nothing anywhere saying why, which is precisely the silent kind of wrong
+ * `settingsOf` refuses everywhere else.
+ */
+const languageViolation = (value: EventLanguage): DomainError | null =>
+  isEventLanguage(value) ? null : DomainError.invalid('eventSettings.wallLanguageInvalid')
 
 /**
  * Which of the theme's two checks apply, in `eventTheme.ts`.
@@ -212,9 +243,11 @@ export class EventSettings {
       // Replaced whole, never merged field by field: a half-applied theme is a palette
       // nobody chose, and the rule below judges them together.
       theme: pick(patch.theme, base.theme),
+      wallLanguage: pick(patch.wallLanguage, base.wallLanguage),
     }
 
     const failure =
+      languageViolation(merged.wallLanguage) ??
       violation(
         merged.guestSelfDeleteGraceSeconds,
         GRACE_SECONDS,
@@ -278,6 +311,10 @@ export class EventSettings {
 
   get theme(): EventThemeProps {
     return this.props.theme
+  }
+
+  get wallLanguage(): EventLanguage {
+    return this.props.wallLanguage
   }
 
   /** Snapshot for the repository to serialise into the `settings` JSON column. */

@@ -872,6 +872,7 @@ describe('the host event routes', () => {
         retentionDays: 7,
         maxPhotosPerGuest: 5,
         theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        wallLanguage: 'en',
       })
 
       expect(response.status).toBe(200)
@@ -885,6 +886,7 @@ describe('the host event routes', () => {
         retentionDays: 7,
         maxPhotosPerGuest: 5,
         theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        wallLanguage: 'en',
       })
     })
 

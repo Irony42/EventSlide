@@ -13,6 +13,16 @@ export type ModerationDecision = 'publish' | 'reject' | 'hide'
 export type ReactionKind = 'love' | 'laugh' | 'wow' | 'cheers' | 'clap'
 export type WallLayout = 'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'collage' | 'split'
 /**
+ * The language an event's projected wall speaks (roadmap 1.5).
+ *
+ * The same five tags as `SUPPORTED_LOCALES` in `web/src/lib/i18n/locale.ts`, and written
+ * out again here rather than imported from it — this file is the **wire**, and the wire
+ * must not change shape because the app added or dropped a table. `locale.ts` narrows a
+ * value that arrives on this type into a `Locale` it has words for, which is the join
+ * between the two and the only place either knows about the other.
+ */
+export type EventLanguage = 'fr' | 'de' | 'en' | 'es' | 'it'
+/**
  * What `GET /media/:photoId/:variant` will serve.
  *
  * The clip pair is here because a clip is a facet of a photo and not a parallel thing:
@@ -222,6 +232,21 @@ export interface WallResponse {
    * means the same thing**, and is what nearly every event sends.
    */
   readonly missions?: readonly WallMissionDto[]
+  /**
+   * The language this screen renders its own words in (roadmap 1.5).
+   *
+   * The wall is the one surface with nobody in front of it to ask, so it is told. A
+   * projector's `navigator.languages` is the language of whatever machine the venue had
+   * in a cupboard, and a guest's stored preference belongs to one phone out of two
+   * hundred — neither is an answer to "what language is this room".
+   *
+   * Optional here and required on the server, which is not an inconsistency: this is the
+   * client's reading of a wire it does not control, and a projector left open across a
+   * deploy that rolled the server back must render French rather than crash. `WallPage`
+   * narrows it through `parseLocale`, so a tag this build has no table for takes the same
+   * path as an absent one.
+   */
+  readonly wallLanguage?: EventLanguage
 }
 
 /**
@@ -331,6 +356,14 @@ export interface EventSettingsDto {
   readonly maxPhotosPerGuest: number | null
   /** The host's own copy: what the picker on the settings form is showing. */
   readonly theme: EventThemeDto
+  /**
+   * The language the projected wall speaks (roadmap 1.5).
+   *
+   * Here and deliberately **not** on `PublicEventDto`: a guest's phone negotiates its own
+   * language, and a client that preferred this one over the guest's choice would be doing
+   * the single thing this field must never do.
+   */
+  readonly wallLanguage: EventLanguage
 }
 
 export interface EventSummaryDto {
