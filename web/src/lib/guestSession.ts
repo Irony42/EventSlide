@@ -146,7 +146,7 @@ const withNarrowedTheme = (event: object): object => {
 }
 
 const PUBLICATIONS: readonly NoticePublication[] = ['afterReview', 'immediate']
-const AUDIENCES: readonly NoticeAudience[] = ['room', 'organisers']
+const AUDIENCES: readonly NoticeAudience[] = ['wall', 'organisers']
 const ACKNOWLEDGEMENTS: readonly NoticeAcknowledgementStatus[] = ['none', 'current', 'outdated']
 
 const isOneOf = <T extends string>(members: readonly T[], value: unknown): value is T =>
@@ -168,8 +168,13 @@ const isCountOrNull = (value: unknown): value is number | null =>
  * Every field is narrowed, and an audience this build has no sentence for makes the
  * whole notice unreadable rather than silently shorter: a notice that dropped the line
  * saying who else sees a photo would tell a guest less than the truth.
+ *
+ * Exported because the same question is asked of the server's own answers, not only of
+ * what a tab stored: a bundle cached by the service worker can be older than the server
+ * it talks to, and the day the shared gallery of roadmap §4.1 adds an audience, that
+ * bundle is exactly the one with no sentence for it.
  */
-const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
+export const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
   if (typeof value !== 'object' || value === null) return null
   const notice = field(value, 'notice')
   const acknowledgement = field(value, 'acknowledgement')

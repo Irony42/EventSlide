@@ -169,15 +169,16 @@ export const de: UiText = {
     mineClipAlt: 'Ihr Video',
     mineClipBadge: 'Video',
     mineClipLength: (seconds: number) => `Video · ${t.number(seconds)} s`,
-    introImmediate: 'Fügen Sie Ihre Fotos hinzu. Sie erscheinen sofort auf dem Bildschirm.',
-    noticeLink: 'Was mit Ihren Fotos geschieht',
+    introImmediate: 'Fügen Sie Ihre Fotos hinzu. Die Fotos erscheinen sofort auf dem Bildschirm.',
+    noticeLink: 'Wie Ihre Fotos verwendet werden',
     noticeTitle: 'Vor Ihrem ersten Foto',
     noticeChangedTitle: 'Diese Angaben haben sich geändert',
-    noticeChangedHint: 'Der Veranstalter hat seit Ihrem letzten Besuch eine Einstellung geändert.',
+    noticeChangedHint:
+      'Der Veranstalter hat eine Einstellung geändert, seit Sie diese Angaben zuletzt gelesen haben.',
     noticeAcknowledge: 'Verstanden',
-    noticeWhatHappens: 'Was mit ihnen geschieht',
-    noticeWhoSees: 'Wer sie sieht',
-    noticeHowLong: 'Wie lange sie bleiben',
+    noticeWhatHappens: 'Was mit Ihren Fotos geschieht',
+    noticeWhoSees: 'Wer Ihre Fotos sieht',
+    noticeHowLong: 'Wie lange die Fotos aufbewahrt werden',
     noticeRemoval: 'Ein Foto entfernen lassen',
     noticeMetadataStripped:
       'Standort und Geräteangaben werden beim Eintreffen aus jedem Foto entfernt.',
@@ -187,7 +188,7 @@ export const de: UiText = {
         'Die Fotos erscheinen sofort nach dem Eintreffen auf dem Bildschirm. Der Veranstalter kann jedes davon jederzeit wieder entfernen.',
     },
     noticeAudiences: {
-      room: 'Alle im Saal, sobald ein Foto auf dem Bildschirm ist.',
+      wall: 'Alle, die den Bildschirm der Veranstaltung sehen, im Saal oder über seinen Link, sobald ein Foto darauf erscheint.',
       organisers:
         'Der Veranstalter und sein Team, die alles sehen, was Sie senden, und die auf dem Bildschirm gezeigten Fotos herunterladen können.',
     },
@@ -200,18 +201,18 @@ export const de: UiText = {
       'Eine automatische Löschung ist nicht vorgesehen: Die Fotos bleiben, bis der Veranstalter sie löscht.',
     noticeRemovalSeconds: (seconds: number) =>
       t.count(seconds, {
-        one: `Sie können ein Foto innerhalb von ${t.number(seconds)} Sekunde nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
-        other: `Sie können ein Foto innerhalb von ${t.number(seconds)} Sekunden nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
+        one: `Sie können ein Foto innerhalb von ${t.number(seconds)} Sekunde nach dem Senden selbst löschen, solange es noch nicht freigegeben wurde.`,
+        other: `Sie können ein Foto innerhalb von ${t.number(seconds)} Sekunden nach dem Senden selbst löschen, solange es noch nicht freigegeben wurde.`,
       }),
     noticeRemovalMinutes: (minutes: number) =>
       t.count(minutes, {
-        one: `Sie können ein Foto innerhalb von ${t.number(minutes)} Minute nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
-        other: `Sie können ein Foto innerhalb von ${t.number(minutes)} Minuten nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
+        one: `Sie können ein Foto innerhalb von ${t.number(minutes)} Minute nach dem Senden selbst löschen, solange es noch nicht freigegeben wurde.`,
+        other: `Sie können ein Foto innerhalb von ${t.number(minutes)} Minuten nach dem Senden selbst löschen, solange es noch nicht freigegeben wurde.`,
       }),
     noticeRemovalHours: (hours: number) =>
       t.count(hours, {
-        one: `Sie können ein Foto innerhalb von ${t.number(hours)} Stunde nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
-        other: `Sie können ein Foto innerhalb von ${t.number(hours)} Stunden nach dem Senden selbst löschen, solange es nicht auf dem Bildschirm ist.`,
+        one: `Sie können ein Foto innerhalb von ${t.number(hours)} Stunde nach dem Senden selbst löschen, solange es noch nicht freigegeben wurde.`,
+        other: `Sie können ein Foto innerhalb von ${t.number(hours)} Stunden nach dem Senden selbst löschen, solange es noch nicht freigegeben wurde.`,
       }),
     noticeRemovalOtherwise:
       'Andernfalls wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',

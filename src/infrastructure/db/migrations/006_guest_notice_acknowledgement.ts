@@ -20,7 +20,7 @@ import type { Migration } from '../migrator'
  * stranger to the page.
  *
  * `notice_revision` is the notice's own readable identity
- * (`publication=afterReview;audiences=room+organisers;retention=30;selfRemoval=900`), so
+ * (`publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900`), so
  * "what was this guest told?" is answered by reading the column.
  *
  * **Both or neither**, enforced by the database: a revision with no instant is an

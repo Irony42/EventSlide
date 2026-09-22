@@ -97,9 +97,9 @@ export const aGuestMission = (overrides: Partial<GuestMissionDto> = {}): GuestMi
  * server would have minted; a test that cares about one sets it.
  */
 export const aPrivacyNotice = (overrides: Partial<PrivacyNoticeDto> = {}): PrivacyNoticeDto => ({
-  revision: 'publication=afterReview;audiences=room+organisers;retention=none;selfRemoval=900',
+  revision: 'publication=afterReview;audiences=wall+organisers;retention=none;selfRemoval=900',
   publication: 'afterReview',
-  audiences: ['room', 'organisers'],
+  audiences: ['wall', 'organisers'],
   retentionDays: null,
   selfRemovalSeconds: 900,
   ...overrides,

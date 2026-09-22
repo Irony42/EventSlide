@@ -87,7 +87,7 @@ describe('GET /api/events/:slug/privacy-notice', () => {
       notice: {
         revision: WEDDING_NOTICE.revision,
         publication: 'afterReview',
-        audiences: ['room', 'organisers'],
+        audiences: ['wall', 'organisers'],
         retentionDays: 30,
         selfRemovalSeconds: 900,
       },

@@ -267,7 +267,7 @@ which is allowed.
   },
   "privacyNotice": {
     "notice": {
-      "revision": "publication=afterReview;audiences=room+organisers;retention=30;selfRemoval=900",
+      "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900",
       "publication": "afterReview",
       "audiences": ["room", "organisers"],
       "retentionDays": 30,
@@ -639,7 +639,7 @@ a setting since. `Cache-Control: no-store`.
 ```json
 {
   "notice": {
-    "revision": "publication=afterReview;audiences=room+organisers;retention=30;selfRemoval=900",
+    "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900",
     "publication": "afterReview",
     "audiences": ["room", "organisers"],
     "retentionDays": 30,
@@ -653,17 +653,18 @@ a setting since. `Cache-Control: no-store`.
 `src/domain/privacy/privacyNotice.ts` on every read, and the client words them in the
 guest's language, so the notice cannot promise something the configuration contradicts:
 
-| Field                | Derived from                                                        | Meaning                                                                                                                                   |
-| -------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `publication`        | `moderation`                                                        | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                        |
-| `audiences`          | nothing yet                                                         | `room` (the projector, once published) and `organisers` (host and moderators: everything, and the album)                                  |
-| `retentionDays`      | `retentionDays`                                                     | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                          |
-| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation` | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back |
-| `revision`           | all of the above                                                    | opaque; two notices with the same revision say the same thing                                                                             |
+| Field                | Derived from                                                        | Meaning                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `publication`        | `moderation`                                                        | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                           |
+| `audiences`          | nothing yet                                                         | `wall` (the projected wall, once published — the room, and anyone its public link reaches) and `organisers` (host and moderators: everything, and the album) |
+| `retentionDays`      | `retentionDays`                                                     | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                             |
+| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation` | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                    |
+| `revision`           | all of the above                                                    | opaque; two notices with the same revision say the same thing                                                                                                |
 
 `audiences` is a list so that a third audience — the shared gallery link of roadmap §4.1 —
 is one more member rather than a new field. A client must treat an audience it has no
-sentence for as a notice it cannot show, not as a shorter one.
+sentence for as a notice it cannot show, not as a shorter one — this one shows no notice and
+keeps the picker, as for a tab older than the feature, until a newer bundle loads.
 
 `acknowledgement` is `none` (never read one here), `current` (read exactly this one) or
 `outdated` (read one the host has since changed). **`outdated` is shown again before the
@@ -683,7 +684,7 @@ not offer the picker until it is read. The reasons are on `privacyNoticeRoutes.t
 
 ```json
 {
-  "revision": "publication=afterReview;audiences=room+organisers;retention=30;selfRemoval=900"
+  "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900"
 }
 ```
 

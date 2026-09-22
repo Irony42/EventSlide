@@ -187,6 +187,22 @@ describe('usePrivacyNotice', () => {
     expect(api.acknowledgePrivacyNotice).toHaveBeenCalledTimes(1)
   })
 
+  it('shows no notice rather than a shorter one when the server names an audience this bundle cannot word', async () => {
+    // A bundle the service worker cached can be older than the server. The day the shared
+    // gallery of roadmap 4.1 adds an audience, a notice rendered without that line would
+    // tell the guest less than the truth about who sees a photo.
+    const newer = {
+      ...UNREAD,
+      notice: { ...UNREAD.notice, audiences: ['wall', 'organisers', 'sharedGallery'] },
+    } as unknown as PrivacyNoticeState
+    const api = fakeApi({ privacyNotice: vi.fn(async () => newer) })
+
+    const { result } = mount(api, UNREAD)
+
+    await waitFor(() => expect(result.current.state).toBeNull())
+    expect(result.current.mustAcknowledge).toBe(false)
+  })
+
   it('does nothing on a tap while no notice is known', () => {
     const api = fakeApi({ privacyNotice: vi.fn(() => new Promise<PrivacyNoticeState>(() => {})) })
     const { result } = mount(api, null)

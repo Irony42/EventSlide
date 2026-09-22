@@ -132,12 +132,15 @@ export interface PublicEventDto {
 /**
  * The privacy notice's three closed vocabularies (roadmap §5.1).
  *
- * Each one keys a copy table in `web/src/lib/i18n/`, so a member added here — the shared
- * gallery of roadmap §4.1 is the audience already argued for — refuses to compile until
- * all five languages can say it.
+ * Written out again rather than imported, like every type here, and held to the domain's
+ * `NOTICE_*` tuples by `src/interface/http/presenters/noticeVocabulary.test.ts`: a
+ * member the server can send and this file does not name fails there. Each one keys a copy
+ * table in `web/src/lib/i18n/`, so once a member is added here — the shared gallery of
+ * roadmap §4.1 is the audience already argued for — the tables refuse to compile until all
+ * five languages can say it.
  */
 export type NoticePublication = 'afterReview' | 'immediate'
-export type NoticeAudience = 'room' | 'organisers'
+export type NoticeAudience = 'wall' | 'organisers'
 export type NoticeAcknowledgementStatus = 'none' | 'current' | 'outdated'
 
 /**

@@ -43,9 +43,9 @@ describe('noticeSections', () => {
   })
 
   it('names every audience the server listed, and no other', () => {
-    const [, whoSees] = noticeSections(aPrivacyNotice({ audiences: ['room'] }), fr)
+    const [, whoSees] = noticeSections(aPrivacyNotice({ audiences: ['wall'] }), fr)
 
-    expect(whoSees?.sentences).toEqual([fr.upload.noticeAudiences.room])
+    expect(whoSees?.sentences).toEqual([fr.upload.noticeAudiences.wall])
   })
 
   it('always ends on asking the organiser, because a moderator can delete any photo', () => {

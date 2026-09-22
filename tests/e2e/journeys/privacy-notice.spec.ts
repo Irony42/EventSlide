@@ -46,10 +46,16 @@ test('a guest reads what happens to a photo before the first one, once, and agai
   await expect(notice).toBeVisible()
   await expect(notice.getByText(fr.upload.noticeRetentionDays(30))).toBeVisible()
   await expect(notice.getByText(fr.upload.noticePublication.afterReview)).toBeVisible()
-  // Nothing that sends is offered yet — and nothing a guest came to look at is hidden.
+  // Nothing that picks a new photo is offered yet, and nothing a guest came to look at
+  // is hidden.
   await expect(guest.getByTestId('photo-input')).toHaveCount(0)
   await expect(guest.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
   await expect(guest.getByText(fr.upload.mineEmpty)).toBeVisible()
+  // In the flow while the notice is up: a sticky pane taller than the phone would pin its
+  // bottom edge and leave the notice's heading above the screen, out of reach. The half
+  // only a real browser can check, because it is the stylesheet that decides it.
+  const composer = guest.getByTestId('upload-composer')
+  await expect(composer).toHaveCSS('position', 'static')
 
   const recorded = guest.waitForResponse((response) =>
     response.url().endsWith('/privacy-notice/acknowledgement'),
@@ -59,6 +65,7 @@ test('a guest reads what happens to a photo before the first one, once, and agai
 
   // --- Read, so the picker is there, focused, and an upload goes through.
   await expect(guest.getByTestId('photo-input')).toBeFocused()
+  await expect(composer).toHaveCSS('position', 'sticky')
   await guest.getByTestId('photo-input').setInputFiles(await aPhoto('notice', 1200, 900))
   await guest.getByRole('button', { name: fr.upload.sendCount(1) }).click()
   await expect(guest.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done')

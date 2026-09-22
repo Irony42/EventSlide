@@ -95,7 +95,7 @@ describe('guestSession', () => {
     ],
     [
       'audiences that are not a list',
-      { notice: { ...aPrivacyNotice(), audiences: 'room' }, acknowledgement: 'none' },
+      { notice: { ...aPrivacyNotice(), audiences: 'wall' }, acknowledgement: 'none' },
     ],
   ])(
     'reads a stored notice with %s as no notice, so it is fetched rather than misworded',
@@ -122,7 +122,7 @@ describe('guestSession', () => {
         event: aPublicEvent({ slug: 'gala' }),
         displayName: null,
         privacyNotice: {
-          notice: { ...aPrivacyNotice(), audiences: ['room', 'organisers', 'sharedGallery'] },
+          notice: { ...aPrivacyNotice(), audiences: ['wall', 'organisers', 'sharedGallery'] },
           acknowledgement: 'current',
         },
       }),

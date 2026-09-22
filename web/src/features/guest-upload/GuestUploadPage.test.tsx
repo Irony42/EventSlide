@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GuestUploadPage } from './GuestUploadPage'
 import { rememberGuestSession } from '../../lib/guestSession'
@@ -810,7 +810,7 @@ describe('the privacy notice', () => {
     renderUpload(answering(unread))
 
     expect(noticeRegion()).toBeVisible()
-    // Nothing that sends is offered before the notice has been read.
+    // Nothing that picks or sends a new photo is offered before the notice is read.
     expect(screen.queryByLabelText(fr.upload.addPhotos)).toBeNull()
     expect(screen.queryByLabelText(fr.upload.takePhoto)).toBeNull()
     expect(screen.queryByRole('button', { name: fr.upload.send })).toBeNull()
@@ -834,7 +834,7 @@ describe('the privacy notice', () => {
     const region = within(screen.getByRole('region', { name: fr.upload.noticeTitle }))
     expect(region.getByText(fr.upload.noticeMetadataStripped)).toBeVisible()
     expect(region.getByText(fr.upload.noticePublication.afterReview)).toBeVisible()
-    expect(region.getByText(fr.upload.noticeAudiences.room)).toBeVisible()
+    expect(region.getByText(fr.upload.noticeAudiences.wall)).toBeVisible()
     expect(region.getByText(fr.upload.noticeAudiences.organisers)).toBeVisible()
     expect(region.getByText(fr.upload.noticeRetentionDays(30))).toBeVisible()
     expect(region.getByText(fr.upload.noticeRemovalMinutes(15))).toBeVisible()
@@ -984,5 +984,113 @@ describe('the privacy notice', () => {
     renderUpload(answering(unread))
 
     expect(await screen.findByRole('region', { name: fr.upload.noticeTitle })).toBeVisible()
+  })
+})
+
+describe('the privacy notice, as the page changes around it', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  const read = aPrivacyNoticeState({ acknowledgement: 'current' })
+  const changed = aPrivacyNoticeState({
+    notice: aPrivacyNotice({ revision: 'r2', retentionDays: 7 }),
+    acknowledgement: 'outdated',
+  })
+
+  /** Read at the join; changed by the host by the time the page next comes into view. */
+  const changedOnReturn = (extra: Partial<Api> = {}): Api =>
+    fakeApi({
+      privacyNotice: vi
+        .fn<Api['privacyNotice']>()
+        .mockResolvedValueOnce(read)
+        .mockResolvedValue(changed),
+      ...extra,
+    })
+
+  const comeBackIntoView = (): void => {
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+  }
+
+  it('leaves the composer in the flow while the notice is up, and sticky again once it is read', async () => {
+    // A sticky pane taller than the phone has a top edge nobody can scroll to, and the
+    // notice is the one thing this pane holds that can be that tall.
+    havingJoined({}, aPrivacyNoticeState({ acknowledgement: 'none' }))
+    renderUpload(
+      fakeApi({
+        privacyNotice: vi.fn(async () => aPrivacyNoticeState({ acknowledgement: 'none' })),
+      }),
+    )
+    const composer = screen.getByTestId('upload-composer')
+    expect(composer).toHaveAttribute('data-gated')
+
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.noticeAcknowledge }))
+
+    expect(composer).not.toHaveAttribute('data-gated')
+  })
+
+  it('takes focus to a returning notice when the picker that held it has gone', async () => {
+    havingJoined({}, read)
+    renderUpload(changedOnReturn())
+    const library = await screen.findByLabelText(fr.upload.addPhotos)
+    library.focus()
+
+    comeBackIntoView()
+
+    const card = await screen.findByRole('region', { name: fr.upload.noticeChangedTitle })
+    expect(card).toHaveFocus()
+  })
+
+  it('leaves focus where it is when the guest was somewhere the notice does not replace', async () => {
+    havingJoined({}, read)
+    renderUpload(changedOnReturn(withPhotos(aGuestPhoto({ id: 'photo-1', canDelete: true }))))
+    const remove = await screen.findByRole('button', { name: fr.upload.deleteOwnNumbered(1) })
+    remove.focus()
+
+    comeBackIntoView()
+
+    expect(await screen.findByRole('region', { name: fr.upload.noticeChangedTitle })).toBeVisible()
+    expect(remove).toHaveFocus()
+  })
+
+  it('does not reopen the dialog over the picker after a changed notice is read', async () => {
+    // The dialog was open when the changed notice took the picker's place: it was only
+    // unmounted, and would otherwise pop straight back up and take the focus meant for
+    // "Ajouter des photos".
+    havingJoined({}, read)
+    renderUpload(changedOnReturn())
+    await userEvent.click(await screen.findByRole('button', { name: fr.upload.noticeLink }))
+    expect(screen.getByRole('dialog', { name: fr.upload.noticeLink })).toBeVisible()
+
+    comeBackIntoView()
+    const card = await screen.findByRole('region', { name: fr.upload.noticeChangedTitle })
+    await userEvent.click(within(card).getByRole('button', { name: fr.upload.noticeAcknowledge }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByLabelText(fr.upload.addPhotos)).toHaveFocus()
+  })
+
+  it('says a video is on the screen, not awaiting approval, on an event that publishes on arrival', async () => {
+    // The same bytes sent twice answer `done` straight away, which is the path that does
+    // not poll — and the line must still agree with the notice above it.
+    const immediate = aPrivacyNoticeState({ notice: aPrivacyNotice({ publication: 'immediate' }) })
+    havingJoined({ allowClips: true }, immediate)
+    renderUpload(
+      fakeApi({
+        privacyNotice: vi.fn(async () => immediate),
+        uploadClip: vi.fn(async () => aClipJob({ status: 'done' })),
+      }),
+    )
+    const clipFile = new File([new Uint8Array([0, 0, 0, 0x18])], 'danse.mp4', { type: 'video/mp4' })
+
+    await userEvent.upload(screen.getByLabelText(fr.upload.addClip), clipFile)
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSend }))
+
+    expect(await screen.findByText(fr.upload.clipDoneImmediate)).toBeVisible()
+    expect(screen.queryByText(fr.upload.clipDone)).toBeNull()
   })
 })

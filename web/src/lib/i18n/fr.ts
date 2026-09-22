@@ -371,10 +371,10 @@ export const fr = {
     noticeChangedHint: 'L’organisateur a modifié un réglage depuis votre dernière lecture.',
     noticeAcknowledge: 'J’ai compris',
     /** The four questions of roadmap 5.1, as the guest would ask them. */
-    noticeWhatHappens: 'Ce qui leur arrive',
-    noticeWhoSees: 'Qui les voit',
-    noticeHowLong: 'Combien de temps',
-    noticeRemoval: 'Pour en retirer une',
+    noticeWhatHappens: 'Ce que deviennent vos photos',
+    noticeWhoSees: 'Qui voit vos photos',
+    noticeHowLong: 'Combien de temps elles sont gardées',
+    noticeRemoval: 'Pour en faire retirer une',
     /** True of every event — the ingest pipeline strips it — so it has no setting. */
     noticeMetadataStripped:
       'La position et les informations sur l’appareil sont retirées de chaque photo à son arrivée.',
@@ -388,7 +388,7 @@ export const fr = {
      * roadmap 4.1 lands here as a third key, in all five tables, and nowhere else.
      */
     noticeAudiences: {
-      room: 'Tout le monde dans la salle, une fois la photo à l’écran.',
+      wall: 'Toute personne qui regarde l’écran de la soirée, dans la salle ou par son lien, une fois la photo affichée.',
       organisers:
         'L’organisateur et son équipe, qui voient tout ce que vous envoyez et peuvent télécharger les photos passées à l’écran.',
     } satisfies Record<NoticeAudience, string>,
@@ -407,18 +407,18 @@ export const fr = {
       'Aucune suppression automatique n’est prévue : elles restent jusqu’à ce que l’organisateur les efface.',
     noticeRemovalSeconds: (seconds: number) =>
       t.count(seconds, {
-        one: `Vous pouvez en supprimer une vous-même dans la seconde qui suit l’envoi, tant qu’elle n’est pas à l’écran.`,
-        other: `Vous pouvez en supprimer une vous-même dans les ${t.number(seconds)} secondes qui suivent l’envoi, tant qu’elle n’est pas à l’écran.`,
+        one: `Vous pouvez en supprimer une vous-même dans la seconde qui suit l’envoi, tant qu’elle n’a pas été validée.`,
+        other: `Vous pouvez en supprimer une vous-même dans les ${t.number(seconds)} secondes qui suivent l’envoi, tant qu’elle n’a pas été validée.`,
       }),
     noticeRemovalMinutes: (minutes: number) =>
       t.count(minutes, {
-        one: `Vous pouvez en supprimer une vous-même dans la minute qui suit l’envoi, tant qu’elle n’est pas à l’écran.`,
-        other: `Vous pouvez en supprimer une vous-même dans les ${t.number(minutes)} minutes qui suivent l’envoi, tant qu’elle n’est pas à l’écran.`,
+        one: `Vous pouvez en supprimer une vous-même dans la minute qui suit l’envoi, tant qu’elle n’a pas été validée.`,
+        other: `Vous pouvez en supprimer une vous-même dans les ${t.number(minutes)} minutes qui suivent l’envoi, tant qu’elle n’a pas été validée.`,
       }),
     noticeRemovalHours: (hours: number) =>
       t.count(hours, {
-        one: `Vous pouvez en supprimer une vous-même dans l’heure qui suit l’envoi, tant qu’elle n’est pas à l’écran.`,
-        other: `Vous pouvez en supprimer une vous-même dans les ${t.number(hours)} heures qui suivent l’envoi, tant qu’elle n’est pas à l’écran.`,
+        one: `Vous pouvez en supprimer une vous-même dans l’heure qui suit l’envoi, tant qu’elle n’a pas été validée.`,
+        other: `Vous pouvez en supprimer une vous-même dans les ${t.number(hours)} heures qui suivent l’envoi, tant qu’elle n’a pas été validée.`,
       }),
     /**
      * Always the last line, because it is always true: a moderator can delete any photo

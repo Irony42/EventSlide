@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
-import { rememberPrivacyNotice } from '../../../lib/guestSession'
+import { readNoticeState, rememberPrivacyNotice } from '../../../lib/guestSession'
 import { ApiError } from '../../../lib/http'
 import type { PrivacyNoticeState } from '../../../lib/api/dto'
 
@@ -80,9 +80,10 @@ export const usePrivacyNotice = (
       const mine = generation.current
 
       api.acknowledgePrivacyNotice(slug, revision).then(
-        (answer) => {
+        (received) => {
           unsent.current = null
-          rememberPrivacyNotice(slug, answer)
+          const answer = readNoticeState(received)
+          if (answer !== null) rememberPrivacyNotice(slug, answer)
           if (generation.current === mine) setState(answer)
         },
         (cause: unknown) => {
@@ -108,8 +109,17 @@ export const usePrivacyNotice = (
     let current = true
 
     api.privacyNotice(slug, controller.signal).then(
-      (fresh) => {
+      (received) => {
         if (!current || generation.current !== mine) return
+        // Narrowed like the stored copy. A notice this bundle cannot word — an audience it
+        // has no sentence for, because the server is newer — is shown as none rather than
+        // as a shorter one, and the picker stays, as for a tab older than the notice. The
+        // next load of the page brings a bundle that can say it.
+        const fresh = readNoticeState(received)
+        if (fresh === null) {
+          setState(null)
+          return
+        }
         // A tap for this very notice was lost on the way: the guest has read it, so send
         // it again instead of asking them twice.
         if (fresh.acknowledgement !== 'current' && unsent.current === fresh.notice.revision) {

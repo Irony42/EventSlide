@@ -89,9 +89,12 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
    * The privacy notice (roadmap §5.1): what happens to a photo, read once per device
    * before the first one is sent, and again if the host changes what it says.
    *
-   * It gates the controls that **send** and nothing else. The header, "Vos envois", the
-   * install offer and the queue of photos already chosen all render whatever it says, so
-   * a guest who opened the page to look is never stopped by it.
+   * It gates the controls that pick and send a **new** photo, and nothing else. The
+   * header, "Vos envois" and the install offer render whatever it says, so a guest who
+   * opened the page to look is never stopped by it; and photos already chosen — the
+   * queue with its retry, the outbox with its "send now" — keep their way to the server,
+   * because they were chosen under the notice the guest had read, and holding them is
+   * how a queued photo expires on the phone for a change the host made.
    */
   const notice = usePrivacyNotice(slug, privacyNotice)
   const [noticeOpen, setNoticeOpen] = useState(false)
@@ -309,14 +312,21 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         <UploadQueue items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
         {/*
           The notice, in the place the picker will be, until this device has read the one
-          in force. Everything below it sends something, so all of it waits; the queue
-          above does not, because a guest must still see what they already chose.
+          in force. Everything below it picks or sends a new photo, so all of it waits;
+          the queue above does not, because what it holds was already chosen.
         */}
         {notice.state !== null && gated ? (
           <PrivacyNoticeCard
             ref={noticeCard}
             state={notice.state}
-            onAcknowledge={notice.acknowledge}
+            onAcknowledge={() => {
+              // The dialog may have been open when a changed notice took the picker's
+              // place, and it was only unmounted, not closed: without this it would pop
+              // back up over the picker the moment the card went, and take the focus
+              // meant for "Ajouter des photos" with it.
+              setNoticeOpen(false)
+              notice.acknowledge()
+            }}
           />
         ) : (
           <>

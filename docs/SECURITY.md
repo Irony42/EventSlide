@@ -738,8 +738,9 @@ exists. That raises the bar rather than lowering it.
 
 **What a guest is told, and when (roadmap §5.1).** Before their first upload the guest
 page shows a notice answering four questions — what happens to a photo, who sees it, how
-long it is kept, how to have it removed — and offers no control that sends anything until
-it has been read. Every answer is **derived from the event's own settings** on every read
+long it is kept, how to have it removed — and offers nothing that picks or sends a new
+photo until it has been read. Photos already chosen before a changed notice (the queue's
+retry, the offline outbox) keep going: they were chosen under the notice the guest read. Every answer is **derived from the event's own settings** on every read
 (`src/domain/privacy/privacyNotice.ts`), never written as prose, so it cannot say
 "checked before the screen" on an event that publishes on arrival, promise a self-delete
 window the server would refuse, or state a retention period the host has since changed.

@@ -331,9 +331,12 @@ auto-publication — it now reads the same value, and so does the line a finishe
 shows.
 
 **Not a modal, and not on the join.** The notice stands where the picker will be, inside
-the composer, and only the controls that send wait behind it: a guest who opened the page
-to see their own photos, or the queue they already chose, is never stopped. After "J'ai
-compris" focus moves to "Ajouter des photos", so the gate costs one tap, once.
+the composer, and only the controls that pick and send a **new** photo wait behind it: a
+guest who opened the page to see their own photos is never stopped. Photos already chosen
+keep their way to the server — the queue's retry and the offline outbox included — because
+they were chosen under the notice the guest had read, and holding them back is how a
+queued photo expires on the phone for a change the host made. After "J'ai compris" focus
+moves to "Ajouter des photos", so the gate costs one tap, once.
 
 **Once per device, and the device is the guest row.** The acknowledgement is two columns
 on `guests` (migration 006) — the row the `es_guest` token names — rather than a
@@ -341,7 +344,7 @@ on `guests` (migration 006) — the row the `es_guest` token names — rather th
 between what they read and what the configuration says now, which is a rule and belongs in
 the domain rather than in a browser; and the upload screen's session is per tab, while the
 row is the same phone when it re-scans the code tomorrow. The stored revision is readable
-text (`publication=afterReview;audiences=room+organisers;retention=30;selfRemoval=900`), so
+text (`publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900`), so
 "what was this guest told?" is answered by reading the column.
 
 **Asked again whenever it reads differently, and only then.** A host who changes retention,
@@ -360,7 +363,7 @@ the old notice; what it would stop is a client that skipped the screen on purpos
 not a guest who was left uninformed. A tap whose request is lost is kept on the page and
 replayed on the next read, so a guest who read the notice offline is not asked twice.
 
-**The seam §4.1 lands on.** Who sees a photo is a list (`room`, `organisers`) rather than
+**The seam §4.1 lands on.** Who sees a photo is a list (`wall`, `organisers`) rather than
 two sentences, so the shared gallery link is one more audience: one conditional in
 `privacyNoticeFor`, one sentence per language in `upload.noticeAudiences` (which is keyed
 by the type and refuses to compile until all five tables have it). Because the revision is

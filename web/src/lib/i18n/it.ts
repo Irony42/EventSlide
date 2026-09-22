@@ -176,9 +176,9 @@ export const it: UiText = {
     noticeChangedTitle: 'Queste informazioni sono cambiate',
     noticeChangedHint: 'L’organizzatore ha modificato un’impostazione dalla sua ultima lettura.',
     noticeAcknowledge: 'Ho capito',
-    noticeWhatHappens: 'Cosa succede alle foto',
-    noticeWhoSees: 'Chi le vede',
-    noticeHowLong: 'Per quanto tempo',
+    noticeWhatHappens: 'Cosa succede alle sue foto',
+    noticeWhoSees: 'Chi vede le sue foto',
+    noticeHowLong: 'Per quanto tempo vengono conservate',
     noticeRemoval: 'Come farne rimuovere una',
     noticeMetadataStripped:
       'La posizione e i dati del dispositivo vengono rimossi da ogni foto al suo arrivo.',
@@ -188,7 +188,7 @@ export const it: UiText = {
         'Appaiono sullo schermo appena arrivano. L’organizzatore può rimuovere qualsiasi foto in ogni momento.',
     },
     noticeAudiences: {
-      room: 'Tutti i presenti, una volta che la foto è sullo schermo.',
+      wall: 'Chiunque guardi lo schermo dell’evento, in sala o tramite il suo link, una volta che la foto vi compare.',
       organisers:
         'L’organizzatore e il suo staff, che vedono tutto ciò che invia e possono scaricare le foto mostrate sullo schermo.',
     },
@@ -201,18 +201,18 @@ export const it: UiText = {
       'Non è prevista alcuna eliminazione automatica: restano finché l’organizzatore non le elimina.',
     noticeRemovalSeconds: (seconds: number) =>
       t.count(seconds, {
-        one: `Può eliminarne una da sé entro ${t.number(seconds)} secondo dall’invio, finché non è sullo schermo.`,
-        other: `Può eliminarne una da sé entro ${t.number(seconds)} secondi dall’invio, finché non è sullo schermo.`,
+        one: `Può eliminarne una da sé entro ${t.number(seconds)} secondo dall’invio, finché non è stata approvata.`,
+        other: `Può eliminarne una da sé entro ${t.number(seconds)} secondi dall’invio, finché non è stata approvata.`,
       }),
     noticeRemovalMinutes: (minutes: number) =>
       t.count(minutes, {
-        one: `Può eliminarne una da sé entro ${t.number(minutes)} minuto dall’invio, finché non è sullo schermo.`,
-        other: `Può eliminarne una da sé entro ${t.number(minutes)} minuti dall’invio, finché non è sullo schermo.`,
+        one: `Può eliminarne una da sé entro ${t.number(minutes)} minuto dall’invio, finché non è stata approvata.`,
+        other: `Può eliminarne una da sé entro ${t.number(minutes)} minuti dall’invio, finché non è stata approvata.`,
       }),
     noticeRemovalHours: (hours: number) =>
       t.count(hours, {
-        one: `Può eliminarne una da sé entro ${t.number(hours)} ora dall’invio, finché non è sullo schermo.`,
-        other: `Può eliminarne una da sé entro ${t.number(hours)} ore dall’invio, finché non è sullo schermo.`,
+        one: `Può eliminarne una da sé entro ${t.number(hours)} ora dall’invio, finché non è stata approvata.`,
+        other: `Può eliminarne una da sé entro ${t.number(hours)} ore dall’invio, finché non è stata approvata.`,
       }),
     noticeRemovalOtherwise:
       'Altrimenti, lo chieda all’organizzatore: può eliminare qualsiasi foto.',

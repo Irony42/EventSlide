@@ -172,8 +172,8 @@ export const es: UiText = {
     noticeChangedTitle: 'Esta información ha cambiado',
     noticeChangedHint: 'El organizador ha cambiado un ajuste desde su última lectura.',
     noticeAcknowledge: 'Entendido',
-    noticeWhatHappens: 'Qué pasa con ellas',
-    noticeWhoSees: 'Quién las ve',
+    noticeWhatHappens: 'Qué pasa con sus fotos',
+    noticeWhoSees: 'Quién ve sus fotos',
     noticeHowLong: 'Cuánto tiempo se guardan',
     noticeRemoval: 'Cómo retirar una',
     noticeMetadataStripped:
@@ -184,7 +184,7 @@ export const es: UiText = {
         'Aparecen en la pantalla en cuanto llegan. El organizador puede retirar cualquiera en todo momento.',
     },
     noticeAudiences: {
-      room: 'Todos los presentes, una vez que la foto está en la pantalla.',
+      wall: 'Cualquiera que mire la pantalla del evento, en la sala o a través de su enlace, una vez que la foto aparece en ella.',
       organisers:
         'El organizador y su equipo, que ven todo lo que usted envía y pueden descargar las fotos mostradas en la pantalla.',
     },
@@ -197,18 +197,18 @@ export const es: UiText = {
       'No hay ningún borrado automático previsto: se conservan hasta que el organizador las borre.',
     noticeRemovalSeconds: (seconds: number) =>
       t.count(seconds, {
-        one: `Puede eliminar una usted mismo durante ${t.number(seconds)} segundo después de enviarla, mientras no esté en la pantalla.`,
-        other: `Puede eliminar una usted mismo durante ${t.number(seconds)} segundos después de enviarla, mientras no esté en la pantalla.`,
+        one: `Puede eliminar una usted mismo durante ${t.number(seconds)} segundo después de enviarla, mientras no haya sido aprobada.`,
+        other: `Puede eliminar una usted mismo durante ${t.number(seconds)} segundos después de enviarla, mientras no haya sido aprobada.`,
       }),
     noticeRemovalMinutes: (minutes: number) =>
       t.count(minutes, {
-        one: `Puede eliminar una usted mismo durante ${t.number(minutes)} minuto después de enviarla, mientras no esté en la pantalla.`,
-        other: `Puede eliminar una usted mismo durante ${t.number(minutes)} minutos después de enviarla, mientras no esté en la pantalla.`,
+        one: `Puede eliminar una usted mismo durante ${t.number(minutes)} minuto después de enviarla, mientras no haya sido aprobada.`,
+        other: `Puede eliminar una usted mismo durante ${t.number(minutes)} minutos después de enviarla, mientras no haya sido aprobada.`,
       }),
     noticeRemovalHours: (hours: number) =>
       t.count(hours, {
-        one: `Puede eliminar una usted mismo durante ${t.number(hours)} hora después de enviarla, mientras no esté en la pantalla.`,
-        other: `Puede eliminar una usted mismo durante ${t.number(hours)} horas después de enviarla, mientras no esté en la pantalla.`,
+        one: `Puede eliminar una usted mismo durante ${t.number(hours)} hora después de enviarla, mientras no haya sido aprobada.`,
+        other: `Puede eliminar una usted mismo durante ${t.number(hours)} horas después de enviarla, mientras no haya sido aprobada.`,
       }),
     noticeRemovalOtherwise: 'Si no, pídaselo al organizador: puede eliminar cualquier foto.',
     noticeRemovalAskHost: 'Pídaselo al organizador: puede eliminar cualquier foto.',

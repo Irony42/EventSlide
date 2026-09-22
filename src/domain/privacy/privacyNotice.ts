@@ -35,12 +35,19 @@ import type { ModerationMode } from '../events/eventSettings'
  * notice is a statement about what they will see happen, and a future mode that is
  * neither `manual` nor `auto` should have to say which of these two it is.
  */
-export type NoticePublication = 'afterReview' | 'immediate'
+export const NOTICE_PUBLICATIONS = ['afterReview', 'immediate'] as const
+
+export type NoticePublication = (typeof NOTICE_PUBLICATIONS)[number]
 
 /**
  * Who can see a photo once it is sent, in the order a guest reads them.
  *
- * - `room` — everybody at the event, on the projector, once the photo is published.
+ * - `wall` — anyone looking at the projected wall once the photo is published. That is
+ *   the room, and it is also anyone the wall’s link reaches: the display page is public
+ *   by design (docs/SECURITY.md §12, "a leaked display URL exposes published photos"),
+ *   and it keeps playing after the gallery closes, until the host archives the event.
+ *   Named for the page rather than for the people in front of it, so the notice cannot
+ *   be read as promising that only the guests in the room will see a photo.
  * - `organisers` — the host and their moderators, who see **everything** a guest sends,
  *   including what never reaches the screen, and who may download the album
  *   (`GET /album.zip` is `requireRole('moderator')`).
@@ -49,13 +56,15 @@ export type NoticePublication = 'afterReview' | 'immediate'
  * Roadmap §4.1's shared gallery link — the host sending the published album to guests
  * after the evening — is a third audience, and adding it is meant to be exactly this:
  * one entry in this tuple, one conditional in {@link privacyNoticeFor} reading whatever
- * says sharing is on for the event, and one sentence per language in
- * `upload.noticeAudiences`, which is keyed by this type and so refuses to compile until
- * all five tables have it. Because {@link revisionOf} is built from the list, only the
+ * says sharing is on for the event, and one sentence per language. The chain that forces
+ * the sentence is two links, and both are checked: `noticeVocabulary.test.ts` fails until
+ * the web's own `NoticeAudience` carries the new member, and once it does,
+ * `upload.noticeAudiences` — keyed by that type — refuses to compile until all five tables
+ * can say it. Because {@link revisionOf} is built from the list, only the
  * guests of an event whose host turns sharing **on** are asked to read the notice again;
  * every other event's acknowledgements stay valid.
  */
-export const NOTICE_AUDIENCES = ['room', 'organisers'] as const
+export const NOTICE_AUDIENCES = ['wall', 'organisers'] as const
 
 export type NoticeAudience = (typeof NOTICE_AUDIENCES)[number]
 
@@ -97,9 +106,11 @@ export interface PrivacyNotice {
    *
    * `null` in three cases, and the third is the one a notice written as prose would get
    * wrong: the host turned self-deletion off; the window is zero; or the event publishes
-   * on arrival. `Photo.canBeDeletedBy` only lets a guest delete a photo that is **not on
-   * the wall**, and under `moderation: 'auto'` every photo is on the wall the moment it
-   * lands — so a window promised there is a button that answers 403.
+   * on arrival. `Photo.canBeDeletedBy` only lets a guest delete a photo that has **not
+   * been approved** — pending, or refused — and under `moderation: 'auto'` every photo
+   * is approved the moment it lands, so a window promised there is a button that answers
+   * 403. The same rule is why the sentence says "not yet approved" rather than "not on
+   * the screen": a photo approved and then hidden is off the screen and still refused.
    */
   readonly selfRemovalSeconds: number | null
   /**
@@ -122,7 +133,9 @@ export interface PrivacyNotice {
  * Three answers rather than a boolean because the client says different things to the
  * first and the third: a guest shown the notice again deserves to be told why.
  */
-export type NoticeAcknowledgementStatus = 'none' | 'current' | 'outdated'
+export const NOTICE_ACKNOWLEDGEMENTS = ['none', 'current', 'outdated'] as const
+
+export type NoticeAcknowledgementStatus = (typeof NOTICE_ACKNOWLEDGEMENTS)[number]
 
 /** A notice and where one guest stands with it: the shape every read of it answers. */
 export interface NoticeForGuest {
@@ -148,7 +161,7 @@ const selfRemovalFor = (policy: NoticePolicy): number | null => {
  *
  * **Readable text rather than a hash**, and the readability is the feature. It is stored
  * on the guest's row when they acknowledge, so "what was this guest told?" is answered by
- * reading the column — `publication=afterReview;audiences=room+organisers;retention=30;
+ * reading the column — `publication=afterReview;audiences=wall+organisers;retention=30;
  * selfRemoval=900` — rather than by recomputing hashes of every configuration the event
  * has ever had. It also cannot collide, which a 32-bit hash could, and a collision here
  * would be a guest silently not re-asked about a changed retention period.

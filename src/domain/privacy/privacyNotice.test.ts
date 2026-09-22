@@ -33,8 +33,8 @@ describe('privacyNoticeFor — what happens to a photo', () => {
 })
 
 describe('privacyNoticeFor — who sees it', () => {
-  it('names the room and the organisers, in the order a guest reads them', () => {
-    expect(privacyNoticeFor(settings()).audiences).toEqual(['room', 'organisers'])
+  it('names the wall and the organisers, in the order a guest reads them', () => {
+    expect(privacyNoticeFor(settings()).audiences).toEqual(['wall', 'organisers'])
   })
 
   it('hands out a copy, so a caller cannot change the audiences of the next notice', () => {
@@ -117,7 +117,7 @@ describe('privacyNoticeFor — the revision', () => {
     )
 
     expect(notice.revision).toBe(
-      'publication=afterReview;audiences=room+organisers;retention=30;selfRemoval=900',
+      'publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900',
     )
   })
 
@@ -125,7 +125,7 @@ describe('privacyNoticeFor — the revision', () => {
     const notice = privacyNoticeFor(settings({ retentionDays: null, allowGuestSelfDelete: false }))
 
     expect(notice.revision).toBe(
-      'publication=afterReview;audiences=room+organisers;retention=none;selfRemoval=none',
+      'publication=afterReview;audiences=wall+organisers;retention=none;selfRemoval=none',
     )
   })
 
