@@ -50,6 +50,7 @@ describe('SlideLayer', () => {
         next={gateau}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
+        advancing
         generation={0}
       />,
     )
@@ -67,6 +68,7 @@ describe('SlideLayer', () => {
         next={gateau}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={0}
+        advancing
         generation={1}
       />,
     )
@@ -84,6 +86,7 @@ describe('SlideLayer', () => {
         next={null}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
+        advancing
         generation={0}
       />,
     )
@@ -101,6 +104,7 @@ describe('SlideLayer', () => {
         next={confettis}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
+        advancing
         generation={1}
       />,
     )
@@ -121,6 +125,7 @@ describe('SlideLayer', () => {
         next={confettis}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
+        advancing
         generation={0}
       />,
     )
@@ -140,6 +145,7 @@ describe('SlideLayer', () => {
         next={gateau}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
+        advancing
         generation={0}
       />,
     )
@@ -158,6 +164,7 @@ describe('SlideLayer', () => {
         next={confettis}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
+        advancing
         generation={1}
       />,
     )
@@ -178,6 +185,7 @@ describe('SlideLayer', () => {
         next={null}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
+        advancing
         generation={0}
       />,
     )
@@ -197,6 +205,7 @@ describe('SlideLayer', () => {
         next={gateau}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
+        advancing
         generation={0}
         caption={<SlideCaption caption={confettis.caption} authorName={confettis.authorName} />}
       />,
@@ -211,5 +220,30 @@ describe('SlideLayer', () => {
     expect(screen.getByRole('img')).toBeVisible()
     expect(screen.getByText('Les confettis')).toBeVisible()
     expect(screen.getByText('Léa')).toBeVisible()
+  })
+
+  it('declares no zoom on a wall that is not going to change photo', () => {
+    render(
+      <SlideLayer
+        current={confettis}
+        previous={null}
+        next={null}
+        kenBurnsDurationMs={KEN_BURNS_MS}
+        transitionMs={null}
+        advancing={false}
+        generation={0}
+      />,
+    )
+
+    // The zoom is `interval + CROSSFADE_MS`, which is what stops it ever finishing while
+    // its photograph is still on screen — and there is nothing for that to be true of the
+    // moment the interval is `0`. A wall holding a single photograph, which is every
+    // event's first ten minutes, ran an 8 800 ms animation off a cadence it was not
+    // keeping and then held `scale(1.08)` for the rest of the evening. The duration goes
+    // with it: a number declared for an animation nobody mounted is a second opinion
+    // about the slideshow's timing, which is what `kenBurns.ts` exists to prevent.
+    const slide = screen.getByTestId('wall-slide')
+    expect(slide).toHaveAttribute('data-motion', 'still')
+    expect(slide.style.getPropertyValue('--wall-kenburns-duration')).toBe('')
   })
 })

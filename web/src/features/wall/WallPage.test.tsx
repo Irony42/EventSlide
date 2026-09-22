@@ -255,7 +255,14 @@ describe('WallPage', () => {
 
   it('takes the Ken Burns duration from the response, not from a constant', async () => {
     // 1.0 hardcoded a 20 s zoom beside a 10 s slide, so every image snapped back.
-    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ kenBurnsDurationMs: 12_345 })) })
+    //
+    // Two photographs rather than one, because the zoom is declared only for a wall that
+    // is going to change photo — see the single-photograph case below. On a one-photo
+    // wall this test would pass whatever the response carried, which is the shape of
+    // green that proves nothing.
+    const api = fakeApi({
+      wall: wallSequence(aWallResponse({ items: somePhotos(2), kenBurnsDurationMs: 12_345 })),
+    })
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
 
     const slide = await screen.findByTestId('wall-slide')
@@ -266,13 +273,31 @@ describe('WallPage', () => {
 
   it('runs no Ken Burns animation at all when the viewer asked for no motion', async () => {
     prefersReducedMotion()
-    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ kenBurnsDurationMs: 12_345 })) })
+    const api = fakeApi({
+      wall: wallSequence(aWallResponse({ items: somePhotos(2), kenBurnsDurationMs: 12_345 })),
+    })
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
 
     const slide = await screen.findByTestId('wall-slide')
 
     // Removed rather than shortened: a 0.01 ms zoom with a fill mode still snaps to the
     // zoomed frame, and a projected zoom is the worst case for a vestibular disorder.
+    expect(slide).toHaveAttribute('data-motion', 'still')
+    expect(slide.style.getPropertyValue('--wall-kenburns-duration')).toBe('')
+  })
+
+  it('runs no Ken Burns animation on a wall holding a single photograph', async () => {
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ kenBurnsDurationMs: 12_345 })) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    const slide = await screen.findByTestId('wall-slide')
+
+    // Every event's first ten minutes, and any evening whose host published once. The
+    // zoom is `interval + CROSSFADE_MS` so that it can never finish under a photograph
+    // still on screen, and a wall that is not advancing has no interval for that to be
+    // true of: it ran off a cadence nobody was keeping and then held `scale(1.08)` until
+    // the second photograph arrived. `useSlideshow` reports no cadence here for the same
+    // reason it reports none for a paused wall, which is the one condition this reads.
     expect(slide).toHaveAttribute('data-motion', 'still')
     expect(slide.style.getPropertyValue('--wall-kenburns-duration')).toBe('')
   })

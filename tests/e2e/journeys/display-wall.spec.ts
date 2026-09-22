@@ -255,13 +255,18 @@ test('the Ken Burns duration comes from the server, not a constant', async ({ ap
   // CI included. A guard that can quietly excuse itself is not a guard, so the empty
   // string is now a failure, and the numbers are compared against the response that
   // produced them rather than against a literal typed into this file.
-  const event = await anEventWithPublishedPhotos(app, surfaces, 1, 'kenburns')
+  // Two photographs and a long interval, not one photograph. The zoom is declared only
+  // for a wall that is going to change photo — `SlideLayer`'s `advancing`, the same
+  // condition the filmstrip's drift already reads — so on a one-photo wall this guard
+  // would read the empty string and fail for a reason that has nothing to do with where
+  // the duration came from. A wall that is genuinely advancing is what it is about.
+  const event = await anEventWithPublishedPhotos(app, surfaces, 2, 'kenburns')
   const { projector } = surfaces
 
   const answered = projector.waitForResponse((response) =>
     response.url().includes(`/api/events/${event.slug}/wall`),
   )
-  await projector.goto(wallUrl(app, event.slug, { transitionMs: 0 }))
+  await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
   const { slideIntervalMs, kenBurnsDurationMs } = wallTimings(await (await answered).json())
 
   const slide = projector.getByTestId('wall-slide').first()
@@ -281,6 +286,64 @@ test('the Ken Burns duration comes from the server, not a constant', async ({ ap
   // finishes first leaves the last of every photo frozen, and one that is restarted
   // part-way is the 1.0 snap.
   expect(ms).toBeGreaterThan(slideIntervalMs)
+})
+
+test('the Ken Burns zoom enlarges the photograph, and no snapshot is asked to prove it', async ({
+  app,
+  surfaces,
+}) => {
+  /**
+   * The zoom's twin of the drift assertion below, and it exists because the change that
+   * pinned the visual baselines took the old evidence away.
+   *
+   * `wall-spotlight.png` and `wall-spotlight-bright.png` used to contain a zoomed
+   * photograph — not because either spec asked for one, but because `animations:
+   * 'disabled'` fast-forwarded the animation to its end frame and the shutter happened to
+   * photograph that. Those shots now pin `intervalMs: 0`, so the wall mounts no zoom at
+   * all and the baselines hold a photograph at rest. That is the right thing for a
+   * baseline and it leaves a hole: nothing in the repository would then observe the zoom
+   * actually scaling anything. Ring 5 cannot — jsdom runs no keyframes and computes no
+   * layout, so `SlideLayer.test.tsx` can assert the animation is declared and how long it
+   * lasts but not that it moves a photograph — and the guard above this one reads the
+   * duration off a custom property, which a broken `[data-motion='kenburns']` selector
+   * would satisfy perfectly.
+   *
+   * So: geometry, off the real engine, no pixels. The same shape as the filmstrip's, for
+   * the same stated reason, on the other animation timed from the slide interval.
+   */
+  const event = await anEventWithPublishedPhotos(app, surfaces, 2, 'kenburns-geometrie')
+  const { projector } = surfaces
+
+  // Two photographs and a ten-minute slide: a wall that is genuinely advancing, so the
+  // zoom is declared, and one that will not advance between two measurements.
+  await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
+  const slide = projector.getByTestId('wall-slide')
+  await expect(slide).toHaveCount(1)
+
+  // Stated, not assumed. A wall that declared `still` would stand at its rested size and
+  // satisfy nothing below by never moving — which is precisely the regression this guard
+  // is here to catch, so it is named rather than inferred from a distance of zero.
+  await expect(slide).toHaveAttribute('data-motion', 'kenburns')
+
+  const photograph = slide.locator('img')
+  const rested = await boxOf(photograph)
+
+  // Through the animation rather than through the clock, exactly as the drift does: ten
+  // real minutes is not a test, and a fast interval would put the answer back in the hands
+  // of whichever frame the machine happened to render.
+  await photograph.evaluate((node) => {
+    for (const animation of node.getAnimations()) animation.finish()
+  })
+
+  const zoomed = await boxOf(photograph)
+
+  // 8%, which is `scale(1.08)` in `SlideLayer.module.css` and the number every comment
+  // about this animation quotes. Compared as a ratio rather than as a pixel count, because
+  // the rested size depends on the fixture's aspect and on `--wall-safe` and neither is
+  // what this is about. A tenth of a percent of slack, for sub-pixel layout.
+  expect(rested.width).toBeGreaterThan(0)
+  expect(zoomed.width / rested.width).toBeCloseTo(1.08, 2)
+  expect(zoomed.height / rested.height).toBeCloseTo(1.08, 2)
 })
 
 test('the filmstrip drifts by exactly one frame, and no snapshot is asked to prove it', async ({
