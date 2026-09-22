@@ -7,6 +7,7 @@ import {
   asMissionId,
   asPhotoId,
   asReactionId,
+  asShareLinkId,
   asUserId,
   type ClipJobId,
   type EventId,
@@ -14,6 +15,7 @@ import {
   type MissionId,
   type PhotoId,
   type ReactionId,
+  type ShareLinkId,
   type UserId,
 } from '../../domain/shared/ids'
 
@@ -38,6 +40,7 @@ export const randomIdGenerator: IdGenerator = {
   reactionId: (): ReactionId => asReactionId(randomUUID()),
   clipJobId: (): ClipJobId => asClipJobId(randomUUID()),
   missionId: (): MissionId => asMissionId(randomUUID()),
+  shareLinkId: (): ShareLinkId => asShareLinkId(randomUUID()),
 
   bytes: (count: number): Uint8Array => {
     if (!Number.isInteger(count) || count < 1) {

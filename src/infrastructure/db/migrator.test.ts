@@ -173,6 +173,7 @@ describe('the real schema', () => {
       'reactions',
       'schema_migrations',
       'sessions',
+      'share_links',
       'users',
     ])
     closeDatabase(db)
@@ -196,6 +197,9 @@ describe('the real schema', () => {
         'idx_reactions_guest_recent',
         'idx_reactions_unique',
         'idx_sessions_expires',
+        'idx_share_links_current',
+        'idx_share_links_event',
+        'idx_share_links_token',
         'idx_users_email',
       ]),
     )
@@ -927,6 +931,147 @@ describe('migration 005, photo missions', () => {
     expect(
       db.prepare(`SELECT status, byte_size, mission_id FROM photos WHERE id = 'p1'`).get(),
     ).toEqual({ status: 'published', byte_size: 90000, mission_id: null })
+    closeDatabase(db)
+  })
+})
+
+describe('migration 006, shared gallery links', () => {
+  const AT = '2026-06-21T10:00:00.000Z'
+  const LATER = '2026-07-21T10:00:00.000Z'
+
+  const columnNames = (db: Db): string[] =>
+    (db.prepare(`PRAGMA table_info(share_links)`).all() as { name: string }[]).map(
+      (row) => row.name,
+    )
+
+  /** An album as 005 alone could hold it: an event, its owner, one published photograph. */
+  const seedBeforeLinks = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'hote@example.test', 'hash:x', '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'closed',
+                    '{"moderation":"manual"}', 1000, '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO photos (id, event_id, author_user_id, status, content_hash, width, height,
+                           byte_size, created_at)
+            VALUES ('p1', 'e1', 'u1', 'published', '${'a'.repeat(64)}', 1200, 800, 90000,
+                    '2026-06-20T21:05:00.000Z')`,
+    ).run()
+  }
+
+  const insertLink = (
+    db: Db,
+    id: string,
+    digest: string,
+    revokedAt: string | null = null,
+  ): void => {
+    db.prepare<[string, string, string | null]>(
+      `INSERT INTO share_links (id, event_id, token_digest, created_by, created_at, expires_at,
+                                revoked_at)
+            VALUES (?, 'e1', ?, 'u1', '${AT}', '${LATER}', ?)`,
+    ).run(id, digest, revokedAt)
+  }
+
+  it('creates the table, with a digest column and no column for the token itself', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db)).toEqual([
+      'id',
+      'event_id',
+      'token_digest',
+      'password_hash',
+      'created_by',
+      'created_at',
+      'expires_at',
+      'revoked_at',
+    ])
+    closeDatabase(db)
+  })
+
+  it('holds one current link per event in the database, not only in code', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedBeforeLinks(db)
+    insertLink(db, 'l1', 'b'.repeat(64))
+
+    expect(() => insertLink(db, 'l2', 'c'.repeat(64))).toThrow(/UNIQUE constraint/)
+    closeDatabase(db)
+  })
+
+  it('keeps revoked links beside the current one', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedBeforeLinks(db)
+    insertLink(db, 'l1', 'b'.repeat(64), AT)
+
+    expect(() => insertLink(db, 'l2', 'c'.repeat(64))).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('refuses two links answering to one token', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedBeforeLinks(db)
+    insertLink(db, 'l1', 'b'.repeat(64), AT)
+
+    expect(() => insertLink(db, 'l2', 'b'.repeat(64))).toThrow(/UNIQUE constraint/)
+    closeDatabase(db)
+  })
+
+  it('takes the links with their creator when the account is deleted', () => {
+    // A link is the creator's authority, handed out; with nobody behind it, it grants
+    // nothing and should not survive as a row.
+    const db = freshDb()
+    migrate(db, migrations)
+    seedBeforeLinks(db)
+    insertLink(db, 'l1', 'b'.repeat(64))
+    db.prepare(`DELETE FROM photos`).run()
+    db.prepare(`DELETE FROM events`).run()
+
+    db.prepare(`DELETE FROM users WHERE id = 'u1'`).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM share_links`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('answers the token lookup from its index', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    const plan = (
+      db.prepare(`EXPLAIN QUERY PLAN SELECT * FROM share_links WHERE token_digest = 'x'`).all() as {
+        detail: string
+      }[]
+    )
+      .map((row) => row.detail)
+      .join('; ')
+
+    expect(plan).toContain('idx_share_links_token')
+    closeDatabase(db)
+  })
+
+  it('keeps an album that existed before links did, and gives it none', () => {
+    // The upgrade path, on somebody's wedding album: a new table and nothing touched.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 6),
+    )
+    seedBeforeLinks(db)
+
+    migrate(db, migrations)
+
+    expect(db.prepare(`SELECT status, byte_size FROM photos WHERE id = 'p1'`).get()).toEqual({
+      status: 'published',
+      byte_size: 90000,
+    })
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM share_links`).get()).toEqual({ n: 0 })
     closeDatabase(db)
   })
 })

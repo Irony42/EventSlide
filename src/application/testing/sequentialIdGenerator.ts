@@ -5,6 +5,7 @@ import {
   asMissionId,
   asPhotoId,
   asReactionId,
+  asShareLinkId,
   asUserId,
   type ClipJobId,
   type EventId,
@@ -12,6 +13,7 @@ import {
   type MissionId,
   type PhotoId,
   type ReactionId,
+  type ShareLinkId,
   type UserId,
 } from '../../domain/shared/ids'
 import type { IdGenerator } from '../ports/idGenerator'
@@ -37,6 +39,8 @@ export class SequentialIdGenerator implements IdGenerator {
   private clipJobs = 0
 
   private missions = 0
+
+  private shareLinks = 0
 
   /**
    * How far the byte sequence has run. It advances across calls so two events created
@@ -80,6 +84,11 @@ export class SequentialIdGenerator implements IdGenerator {
     return asMissionId(`mission-${this.missions}`)
   }
 
+  shareLinkId(): ShareLinkId {
+    this.shareLinks += 1
+    return asShareLinkId(`share-link-${this.shareLinks}`)
+  }
+
   /**
    * `0, 1, 2, …` continuing where the previous call stopped, wrapped at a byte.
    *
@@ -109,6 +118,7 @@ export class SequentialIdGenerator implements IdGenerator {
     this.reactions = 0
     this.clipJobs = 0
     this.missions = 0
+    this.shareLinks = 0
     this.byteOffset = 0
     return this
   }
