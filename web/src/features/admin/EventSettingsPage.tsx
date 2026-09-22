@@ -4,8 +4,8 @@ import { Button } from '../../design-system/components/Button'
 import { StatusIcon } from '../../design-system/components/StatusIcon'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
-import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale } from '../../lib/i18n/locale'
-import { useTranslations } from '../../lib/i18n/useTranslations'
+import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../lib/i18n/locale'
+import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { CheckboxField } from './components/CheckboxField'
 import { DateTimeField } from './components/DateTimeField'
@@ -128,9 +128,11 @@ const scheduleIdentity = (event: EventDto): string =>
  * value it cannot read, which falls through to "no schedule" rather than printing
  * something meaningless under the fields.
  */
-const scheduleSummary = (event: EventDto, text: UiText): string => {
-  const opensAt = event.scheduledOpenAt === null ? null : formatDateTime(event.scheduledOpenAt)
-  const closesAt = event.scheduledCloseAt === null ? null : formatDateTime(event.scheduledCloseAt)
+const scheduleSummary = (event: EventDto, text: UiText, locale: Locale): string => {
+  const opensAt =
+    event.scheduledOpenAt === null ? null : formatDateTime(event.scheduledOpenAt, locale)
+  const closesAt =
+    event.scheduledCloseAt === null ? null : formatDateTime(event.scheduledCloseAt, locale)
 
   if (opensAt !== null && closesAt !== null) return text.admin.scheduleArmed(opensAt, closesAt)
   if (opensAt !== null) return text.admin.scheduleOpensOnly(opensAt)
@@ -141,6 +143,9 @@ const scheduleSummary = (event: EventDto, text: UiText): string => {
 /** Surface: the host's laptop, before the event rather than during it. */
 export function EventSettingsPage() {
   const t = useTranslations()
+  // A date is read differently in each of the five: 20/06/26 and 6/20/26 are the same
+  // instant and opposite readings, and this page is where a host confirms a schedule.
+  const { locale } = useLocale()
   const { slug = '' } = useParams()
   const { data: event, loading, error, reload, replace } = useEvent(slug)
   const save = useSaveSettings()
@@ -259,7 +264,7 @@ export function EventSettingsPage() {
    */
   const earliest = toLocalInput(new Date().toISOString())
   const discardedAt =
-    event.scheduleDiscardedAt === null ? null : formatDateTime(event.scheduleDiscardedAt)
+    event.scheduleDiscardedAt === null ? null : formatDateTime(event.scheduleDiscardedAt, locale)
 
   const grace = String(settings.guestSelfDeleteGraceSeconds)
   const retention = settings.retentionDays === null ? NO_LIMIT : String(settings.retentionDays)
@@ -483,7 +488,7 @@ export function EventSettingsPage() {
         />
 
         {/* What is actually armed on the server, not what is typed in the fields. */}
-        <p className={styles['notice']}>{scheduleSummary(event, t)}</p>
+        <p className={styles['notice']}>{scheduleSummary(event, t, locale)}</p>
 
         {scheduleFailure === null ? null : (
           <p className={styles['failure']} role="alert">

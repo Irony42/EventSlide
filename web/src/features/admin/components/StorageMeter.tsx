@@ -1,6 +1,6 @@
 import { Progress, type ProgressTone } from '../../../design-system/components/Progress'
 import { formatBytes } from '../../../lib/format'
-import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './StorageMeter.module.css'
 
 export interface StorageMeterProps {
@@ -30,7 +30,10 @@ const toneFor = (usedBytes: number, quotaBytes: number): ProgressTone => {
 
 export function StorageMeter({ usedBytes, quotaBytes }: StorageMeterProps) {
   const t = useTranslations()
-  const used = formatBytes(usedBytes)
+  // The reader's locale, not the module's: `Mo` and `Go` are French for octets, and the
+  // sentence they are interpolated into is translated.
+  const { locale } = useLocale()
+  const used = formatBytes(usedBytes, locale)
 
   if (quotaBytes === null) {
     return <p className={styles['figure']}>{t.admin.storage(used)}</p>
@@ -44,7 +47,9 @@ export function StorageMeter({ usedBytes, quotaBytes }: StorageMeterProps) {
         label={t.admin.storageLabel}
         tone={toneFor(usedBytes, quotaBytes)}
       />
-      <p className={styles['figure']}>{t.admin.storageUsed(used, formatBytes(quotaBytes))}</p>
+      <p className={styles['figure']}>
+        {t.admin.storageUsed(used, formatBytes(quotaBytes, locale))}
+      </p>
     </div>
   )
 }

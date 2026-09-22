@@ -6,7 +6,7 @@ import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
-import { useTranslations } from '../../lib/i18n/useTranslations'
+import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { useGuests } from './hooks/useEventData'
 import { useRevokeGuest } from './hooks/useEventActions'
@@ -28,6 +28,8 @@ export interface GuestListPanelProps {
  */
 export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
   const t = useTranslations()
+  // The last-seen column is a date, and a date is read differently in each of the five.
+  const { locale } = useLocale()
   const { data, loading, error, reload } = useGuests(slug)
   const revoke = useRevokeGuest()
   const toast = useToast()
@@ -66,7 +68,7 @@ export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
       {!loading && error === null && guests.length > 0 ? (
         <ul className={styles['list']}>
           {guests.map((guest) => {
-            const lastSeen = formatDateTime(guest.lastSeenAt)
+            const lastSeen = formatDateTime(guest.lastSeenAt, locale)
             return (
               <li key={guest.id} className={styles['row']}>
                 <div className={styles['identity']}>

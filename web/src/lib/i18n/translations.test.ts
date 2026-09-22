@@ -92,11 +92,19 @@ describe('the scope', () => {
     )
   })
 
-  it('translates every section away from French', () => {
+  it('leaves no section reading as another language’s', () => {
     // Without this, a table that compiled and was never filled in — every value still the
-    // French it was copied from — would pass every other test in this file. It is the
-    // check that actually bit during the translation of the host surface: a section
-    // pasted across and not yet worked on looks perfect to the compiler.
+    // copy it was pasted from — would pass every other test in this file. It is the check
+    // that actually bit during the translation of the host surface: a section pasted
+    // across and not yet worked on looks perfect to the compiler.
+    //
+    // **Every pair, not just against French**, and that widening came out of the review.
+    // Comparing only with French left the language a translator is most likely to be
+    // *working from* wide open: an English `auth` section pasted verbatim into `it.ts`
+    // passed the whole suite, because English letters are all in the shared repertoire,
+    // `requires` is satisfied by the other ten sections, and English is not French. The
+    // guard has to be about "this section is a copy of another table's", not about one
+    // privileged source.
     //
     // Compared over the plain sentences only. A phrase is compared through `Intl`, and
     // `percent(80)` is "80 %" in French and in German for reasons that have nothing to
@@ -104,19 +112,24 @@ describe('the scope', () => {
     const sentences = (table: object, section: string) =>
       walkTable(table).filter(({ path }) => path.startsWith(`${section}.`) && !path.includes('('))
 
-    for (const locale of SUPPORTED_LOCALES.filter((candidate) => candidate !== 'fr')) {
-      for (const section of SECTIONS) {
-        const french = sentences(fr, section)
-        const other = sentences(TRANSLATIONS[locale], section)
-        const identical = other.filter((entry, index) => entry.text === french[index]?.text)
-        // Not zero: `EventSlide` is the product's name, "Collage" and "Polaroid" are the
-        // same word in more than one of the five, and so are `Notifications` and
-        // `Optional`. Half a section reading identically to French is a table nobody
-        // filled in.
-        expect(
-          identical.length / other.length,
-          `${locale}.${section} is mostly still French`,
-        ).toBeLessThan(0.5)
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const other of SUPPORTED_LOCALES) {
+        if (other === locale) continue
+        for (const section of SECTIONS) {
+          const theirs = sentences(TRANSLATIONS[other], section)
+          const ours = sentences(TRANSLATIONS[locale], section)
+          const identical = ours.filter((entry, index) => entry.text === theirs[index]?.text)
+          // Not zero, and the threshold is why: `EventSlide` is the product's name,
+          // "Collage" and "Polaroid" are the same word in more than one of the five, and
+          // so are `Notifications` and `Optional`. Measured across all twenty pairs and
+          // eleven sections, the worst honest ratio today is 0.25 — `ui`, which is four
+          // strings, two of which are words English and French share. Half a section
+          // reading identically to another table is a section nobody wrote.
+          expect(
+            identical.length / ours.length,
+            `${locale}.${section} reads as ${other}.${section} — it was pasted and not translated`,
+          ).toBeLessThan(0.5)
+        }
       }
     }
   })
