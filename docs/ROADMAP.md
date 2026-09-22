@@ -127,7 +127,7 @@ cost there. A chunk per locale is the next thing to do and is not free —
 The wall is what two hundred people look at all evening. It is also the surface with the
 least engineering attention in most tools of this kind.
 
-_Shipped and moved to §9: [2.3](#93-more-wall-layouts). **[2.1](#21-photo-missions-p1-effort-m-risk-low) and [2.2](#22-per-event-theming-p1-effort-s-risk-low) are shipped and stayed in place.**_
+_Shipped and moved to §9: [2.3](#93-more-wall-layouts). **[2.1](#21-photo-missions-p1-effort-m-risk-low) and [2.2](#22-per-event-theming-p1-effort-s-risk-low) are shipped and stayed in place.** 2.6 (print station) and 2.7 (photobooth mode) were dropped — see [§7](#7-deliberate-non-goals)._
 
 ### 2.1 Photo missions (P1, effort M, risk: low)
 
@@ -220,20 +220,6 @@ regret not having afterwards. Reuses the entire moderation path.
 At the end of the night, a two-minute sequence of the most-reacted photos, slower and
 tighter than the ambient loop. Also the natural artefact to hand the host afterwards.
 Reaction tallies and `topPhotos` already exist.
-
-### 2.6 Print station (P3, effort M, risk: medium)
-
-A connected dye-sublimation printer; a guest taps "print" on their own photo and collects
-it from a table. The physical object is the thing people keep, and it is what
-photobooth rental companies charge three hundred euros an evening for.
-
-Risk: printer drivers are a support burden. Scope it to CUPS on Linux and a documented
-list of two or three known-good models rather than "printers" in general.
-
-### 2.7 Photobooth mode (P3, effort M, risk: low)
-
-A tablet on a stand: countdown, four frames, strip composed server-side, straight to the
-wall and optionally to the printer. A different capture surface over the same pipeline.
 
 ### 2.8 Schedule overlays (P3, effort S, risk: low)
 
@@ -828,17 +814,19 @@ Honest scope: it is visible on exactly one pane today, the guest's upload compos
 
 Saying no is what keeps the rest coherent.
 
-| Not building                        | Why                                                                                                                                                           |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A hosted SaaS with billing**      | The whole proposition is that the photos stay on the host's machine. A hosted tier would compete with the reason to choose this.                              |
-| **Native mobile apps**              | The guest surface must work in the browser that opened the QR code. An app store download is a hard stop at the moment a guest is deciding whether to bother. |
-| **Cloud AI moderation**             | Sending guests' photographs to a third party to be scored contradicts the privacy posture. On-device only (§3.2).                                             |
-| **Face recognition by default**     | Biometric processing of people who never agreed to it. Opt-in, per event, on-device, off unless a host deliberately turns it on — or not at all.              |
-| **Social features between guests**  | Comments, follows, direct messages. This is a photo wall for one evening, not a network. Reactions are the ceiling.                                           |
-| **Music on the wall**               | Licensing is a minefield and the room already has music.                                                                                                      |
-| **A public write API or webhooks**  | Every additional public write surface is another thing to rate-limit and authorize. Not without a concrete integration asking for it.                         |
-| **GraphQL**                         | Thirty endpoints and one client. It would add a schema layer and remove nothing.                                                                              |
-| **Infinite retention as a default** | Keeping photographs of other people's families forever, by default, is not a neutral choice.                                                                  |
+| Not building                        | Why                                                                                                                                                                                                                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A hosted SaaS with billing**      | The whole proposition is that the photos stay on the host's machine. A hosted tier would compete with the reason to choose this.                                                                                                                                    |
+| **Native mobile apps**              | The guest surface must work in the browser that opened the QR code. An app store download is a hard stop at the moment a guest is deciding whether to bother.                                                                                                       |
+| **Cloud AI moderation**             | Sending guests' photographs to a third party to be scored contradicts the privacy posture. On-device only (§3.2).                                                                                                                                                   |
+| **Face recognition by default**     | Biometric processing of people who never agreed to it. Opt-in, per event, on-device, off unless a host deliberately turns it on — or not at all.                                                                                                                    |
+| **Social features between guests**  | Comments, follows, direct messages. This is a photo wall for one evening, not a network. Reactions are the ceiling.                                                                                                                                                 |
+| **Music on the wall**               | Licensing is a minefield and the room already has music.                                                                                                                                                                                                            |
+| **A public write API or webhooks**  | Every additional public write surface is another thing to rate-limit and authorize. Not without a concrete integration asking for it.                                                                                                                               |
+| **GraphQL**                         | Thirty endpoints and one client. It would add a schema layer and remove nothing.                                                                                                                                                                                    |
+| **Infinite retention as a default** | Keeping photographs of other people's families forever, by default, is not a neutral choice.                                                                                                                                                                        |
+| **A print station**                 | Printer drivers are a support burden that lands on whoever set the box up, at the one moment they cannot debug anything. The physical print is what photobooth rental companies already sell; the wall and the gallery are what this product does that they do not. |
+| **A photobooth mode**               | A tablet on a stand with a countdown is a second capture surface to maintain, and its value was mostly as a feeder for the print station above. Guests already carry a better camera than the tablet.                                                               |
 
 ---
 
