@@ -2,11 +2,13 @@ import { formattersFor } from './formatters'
 import type { UiText } from './translations'
 
 /**
- * English, for the guest surface.
+ * English, for every surface: the guest’s phone, the host’s and the moderators’
+ * consoles, and the projected wall.
  *
- * Only the sections a guest can read: `translations.ts` explains why the admin and
- * moderation consoles stay French, and the type on this table is what enforces it — a
- * host-facing section added here is an excess property and fails the build.
+ * The type on this table is `UiText` — the whole of `fr.ts`, every literal widened to
+ * `string` — so a key added to the French table fails the build here until this one
+ * carries it. `translations.ts` has the argument, including the guest-only one it
+ * reversed.
  *
  * Register: "you", polite, sentence case, no exclamation marks. The French table is
  * written in the vouvoiement the app uses everywhere; English has one form, so what

@@ -45,12 +45,13 @@ beforeAll(() => {
   }
 
   // The upload queue creates object URLs for local previews and revokes them on
-  // unmount; jsdom implements neither.
-  if (typeof URL.createObjectURL !== 'function') {
-    let counter = 0
-    URL.createObjectURL = () => `blob:eventslide/${(counter += 1)}`
-    URL.revokeObjectURL = () => {}
-  }
+  // unmount. Replaced unconditionally: jsdom 30.1 ships its own, which throws on the
+  // File objects these tests build ("Cannot read properties of undefined (reading
+  // '_buffer')"), so a "polyfill only if missing" guard now skips the stub and every
+  // upload test fails.
+  let counter = 0
+  URL.createObjectURL = () => `blob:eventslide/${(counter += 1)}`
+  URL.revokeObjectURL = () => {}
 
   // The moderation grid and the mosaic wall lazy-load thumbnails.
   if (typeof window.IntersectionObserver !== 'function') {
