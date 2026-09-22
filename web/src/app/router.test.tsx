@@ -38,14 +38,26 @@ const asHost = (route: string) => {
  * A MutationObserver callback is a microtask queued by the commit itself, so it reads the
  * attribute before anything scheduled after that commit has had a turn — a screen reader
  * arriving on the first frame hears what this sees.
+ *
+ * It gives up after `timeoutMs` with the text it was waiting for, rather than hanging to
+ * the test's own timeout with a message that names nothing, and it disconnects either way
+ * so an abandoned observer cannot resolve on a later test's DOM.
  */
-const langWhenShown = (text: string): Promise<string> =>
-  new Promise((resolve) => {
+const langWhenShown = (text: string, timeoutMs = 3_000): Promise<string> =>
+  new Promise((resolve, reject) => {
     const observer = new MutationObserver(() => {
       if (!document.body.textContent?.includes(text)) return
-      observer.disconnect()
+      stop()
       resolve(document.documentElement.lang)
     })
+    const timer = setTimeout(() => {
+      stop()
+      reject(new Error(`"${text}" never reached the DOM within ${timeoutMs} ms`))
+    }, timeoutMs)
+    const stop = (): void => {
+      observer.disconnect()
+      clearTimeout(timer)
+    }
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
   })
 
@@ -250,6 +262,7 @@ describe('which language each surface speaks', () => {
     const api = fakeApi({
       wall: vi.fn(async () => aWallResponse({ wallLanguage: 'pt' as 'fr' })),
     })
+    const lang = langWhenShown(fr.wall.empty)
     renderWithProviders(<AppRoutes />, {
       api,
       route: '/e/camille-et-sacha/display',
@@ -258,7 +271,7 @@ describe('which language each surface speaks', () => {
 
     expect(await screen.findByText(fr.wall.empty)).toBeVisible()
     expect(screen.queryByText(de.wall.empty)).toBeNull()
-    expect(document.documentElement.lang).toBe('fr')
+    expect(await lang).toBe('fr')
   })
 
   it('falls back to the default for a server build that sends no language at all', async () => {
