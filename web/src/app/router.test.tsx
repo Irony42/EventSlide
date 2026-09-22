@@ -29,6 +29,26 @@ const asHost = (route: string) => {
   return renderWithProviders(<AppRoutes />, { api, route })
 }
 
+/**
+ * The value of `<html lang>` at the moment `text` first reaches the DOM.
+ *
+ * Not "once `findByText` resolves", which is a later moment by an amount nobody controls:
+ * whether React's passive effects have run by then depends on the order of two timers
+ * that Node does not fix, and `main` went red on exactly that once, green on a re-run.
+ * A MutationObserver callback is a microtask queued by the commit itself, so it reads the
+ * attribute before anything scheduled after that commit has had a turn — a screen reader
+ * arriving on the first frame hears what this sees.
+ */
+const langWhenShown = (text: string): Promise<string> =>
+  new Promise((resolve) => {
+    const observer = new MutationObserver(() => {
+      if (!document.body.textContent?.includes(text)) return
+      observer.disconnect()
+      resolve(document.documentElement.lang)
+    })
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+  })
+
 describe('AppRoutes', () => {
   it('opens on the guest join screen', async () => {
     at('/')
@@ -201,14 +221,14 @@ describe('which language each surface speaks', () => {
     const api = fakeApi({
       wall: vi.fn(async () => aWallResponse({ wallLanguage: 'it' })),
     })
+    const lang = langWhenShown(italian.wall.empty)
     renderWithProviders(<AppRoutes />, {
       api,
       route: '/e/camille-et-sacha/display',
       locale: 'de',
     })
 
-    await screen.findByText(italian.wall.empty)
-    expect(document.documentElement.lang).toBe('it')
+    expect(await lang).toBe('it')
   })
 
   /**
@@ -314,16 +334,15 @@ describe('the toast region', () => {
     const api = fakeApi({
       wall: vi.fn(async () => aWallResponse({ wallLanguage: 'it' })),
     })
+    const lang = langWhenShown(italian.wall.empty)
     renderWithProviders(<AppRoutes />, {
       api,
       route: '/e/camille-et-sacha/display',
       locale: 'de',
     })
 
-    await screen.findByText(italian.wall.empty)
-
     // The region is inside `DeferredLocale`, so anything it ever renders is Italian.
-    expect(document.documentElement.lang).toBe('it')
+    expect(await lang).toBe('it')
   })
 })
 
