@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import type { Locator, Page } from '@playwright/test'
-import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
+import { csrfHeaders, expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
@@ -155,6 +155,43 @@ test.describe('the guest surface', () => {
       return style.boxShadow !== 'none' || style.outlineStyle !== 'none'
     })
     expect(visible).toBe(true)
+  })
+})
+
+test.describe('the shared gallery', () => {
+  test('the album and its viewer have no serious violation', async ({ app, surfaces }) => {
+    // Roadmap §4.1: the page somebody who was never at the event opens from a message.
+    const event = await app.seedEvent({ slug: 'album-a11y' })
+    await joinAndUpload(surfaces.guest, app, event.joinCode, { caption: 'Les confettis' })
+    await surfaces.host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+    await surfaces.host
+      .getByTestId('moderation-card')
+      .first()
+      .getByRole('button', { name: /Publier/i })
+      .click()
+    await expect(surfaces.host.getByTestId('moderation-card')).toHaveCount(0)
+    const created = await surfaces.host.request.post(
+      app.url(`/api/events/${event.slug}/share-link`),
+      { data: {}, headers: await csrfHeaders(surfaces.host.request, app) },
+    )
+    const { url } = (await created.json()) as { url: string }
+
+    await surfaces.projector.goto(url)
+    await expect(
+      surfaces.projector.getByRole('button', { name: fr.gallery.openPhoto(1) }),
+    ).toBeVisible()
+    expect(seriousOnly((await scan(surfaces.projector)).violations)).toEqual([])
+
+    await surfaces.projector.getByRole('button', { name: fr.gallery.openPhoto(1) }).click()
+    const viewer = surfaces.projector.getByRole('dialog')
+    await expect(viewer).toBeVisible()
+    // The panel fades in over `--duration-base`, and axe measures contrast on whatever
+    // frame it finds — mid-fade, every colour is blended with the backdrop. Settled first,
+    // so what is measured is the panel a guest reads.
+    await viewer.evaluate((node) =>
+      Promise.all(node.getAnimations({ subtree: true }).map((running) => running.finished)),
+    )
+    expect(seriousOnly((await scan(surfaces.projector)).violations)).toEqual([])
   })
 })
 
