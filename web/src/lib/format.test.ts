@@ -1,38 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { formatBytes, formatDateTime } from './format'
 
-/**
- * What `formatBytes` substitutes for every ordinary space, so a figure never wraps away
- * from its unit. That substitution is this module's, and it is the only thing it does to
- * `Intl`'s output.
- */
+/** What `formatBytes` substitutes for every ordinary space, so a figure never wraps. */
 const NBSP = String.fromCodePoint(0x00a0)
-/**
- * CLDR's choice, not this module's: French groups thousands with a narrow no-break space
- * **and** uses one before the unit, where the other four use an ordinary space that the
- * substitution above then widens.
- */
+/** CLDR's choice: French uses a narrow no-break space for grouping and before the unit. */
 const NARROW_NBSP = String.fromCodePoint(0x202f)
 
 /**
- * Two questions, and this file used to answer only the first.
- *
- * The arithmetic — when a count is promoted, when a decimal is dropped, what a
- * nonsensical value reads as — is language-independent and is asserted in French, which
- * is this product's source language and the shortest way to write it down.
- *
- * The **conventions** are the second question, and the reason it is now asked at all:
- * these figures are interpolated into translated sentences (`admin.storageUsed`,
- * `admin.scheduleArmed`, `admin.lastSeen`), so a module pinned to `fr-FR` put "2,4 Mo"
- * inside a German sentence and `20/06/26` in front of a host reading English. Every case
- * below that names a language is about a reader rather than about the maths.
+ * Two questions, and this file used to answer only the first. The arithmetic — when a
+ * count is promoted, when a decimal is dropped — is language-independent and asserted in
+ * French. The **conventions** are the second, and the reason it is asked at all: these
+ * figures are interpolated into translated sentences, so a module pinned to `fr-FR` put
+ * "2,4 Mo" inside a German one. Every case naming a language is about a reader.
  */
 
 describe('formatBytes', () => {
   it('reports a small count in octets, without a decimal', () => {
-    // Rounded, not just left alone: a byte count that arrives computed rather than
-    // counted — an average, a remaining-quota division — must not read "512,4 o",
-    // because a fraction of an octet is not a thing a host can act on.
+    // Rounded rather than left alone: a count that arrives computed — an average, a
+    // remaining-quota division — must not read "512,4 o".
     expect(formatBytes(512, 'fr')).toBe(`512${NARROW_NBSP}o`)
     expect(formatBytes(512.4, 'fr')).toBe(`512${NARROW_NBSP}o`)
   })
@@ -69,10 +54,8 @@ describe('formatBytes', () => {
   })
 
   it('writes octets in French and bytes in the other four', () => {
-    // The defect this parameter exists for. `Mo` and `Go` are French abbreviations for
-    // *octets*; German, English, Spanish and Italian all write `MB` and `GB`, and the
-    // sentence around this figure is translated — so a moderator reading the console in
-    // German was shown "2,4 Mo von 5 Go verwendet".
+    // The defect this parameter exists for: a moderator reading the console in German
+    // was shown "2,4 Mo von 5 Go verwendet".
     expect(formatBytes(2_400_000, 'de')).toBe(`2,4${NBSP}MB`)
     expect(formatBytes(2_400_000, 'en')).toBe(`2.4${NBSP}MB`)
     expect(formatBytes(2_400_000, 'es')).toBe(`2,4${NBSP}MB`)
@@ -80,9 +63,7 @@ describe('formatBytes', () => {
   })
 
   it('separates its thousands the way each language does', () => {
-    // A hand-built string cannot get this right, which is `lib/i18n/formatters.ts`'s
-    // whole argument: a narrow no-break space in French, a full stop in German and
-    // Italian, a comma in English.
+    // A hand-built string cannot get this right — `lib/i18n/formatters.ts`'s argument.
     expect(formatBytes(3_000_000_000_000_000, 'de')).toBe(`3.000${NBSP}TB`)
     expect(formatBytes(3_000_000_000_000_000, 'en')).toBe(`3,000${NBSP}TB`)
   })
@@ -98,13 +79,10 @@ describe('formatDateTime', () => {
   })
 
   it('puts the month where the reader expects it', () => {
-    // The part that misleads rather than merely jars. `20/06/26` and `6/20/26` are the
-    // same instant and opposite readings, and this string is interpolated into
-    // `admin.scheduleArmed` — the line confirming when a host's event will open and close.
-    //
-    // Compared against each other rather than pinned to a literal, because the exact
-    // pattern is ICU's to choose and it moves between Node versions; what must hold is
-    // that the five do not all answer the same way.
+    // The part that misleads rather than jars: `20/06/26` and `6/20/26` are the same
+    // instant and opposite readings, in the line confirming a schedule a host just armed.
+    // Compared against each other rather than to a literal, because the exact pattern is
+    // ICU's and moves between Node versions.
     const instant = '2026-06-20T12:00:00.000Z'
     const french = formatDateTime(instant, 'fr')
     const english = formatDateTime(instant, 'en')

@@ -88,18 +88,13 @@ export interface EventSettingsProps {
    */
   readonly theme: EventThemeProps
   /**
-   * The language the **projected wall** renders its own words in (roadmap 1.5).
+   * The language the **projected wall** renders its own words in (roadmap 1.5), beside the
+   * theme rather than the guest switches because it is the same kind of decision: what the
+   * room looks like. `eventLanguage.ts` has the argument.
    *
-   * Beside the theme rather than beside `allowCaptions`, because it is the same kind of
-   * decision: what the room looks like, answered once by the host because the room has
-   * nobody in it to ask. `eventLanguage.ts` carries the argument, including why it is
-   * not a claim about what language the event's *content* is in.
-   *
-   * It reaches exactly one surface. A guest's phone and a host's browser each negotiate
-   * their own language and ignore this entirely — which is the property that makes a
-   * French host running an English-speaking conference representable: they set the wall
-   * to English, write their prompts in English, and still read their own console in
-   * French.
+   * It reaches exactly one surface, which is what makes a French host running an
+   * English-speaking conference representable: they set the wall to English, write their
+   * prompts in English, and still read their own console in French.
    */
   readonly wallLanguage: EventLanguage
 }
@@ -135,15 +130,10 @@ const nullableViolation = (value: number | null, range: Range, code: string): Do
   value === null ? null : violation(value, range, code)
 
 /**
- * The one non-numeric field this file validates, and it is validated for the same reason
- * `moderation` is narrowed rather than trusted.
- *
- * The type says `EventLanguage`, which is enough for a caller inside this build — but
- * `restore` is handed a props object assembled from an opaque JSON column, and the
- * settings blob of a self-hosted box is a file an administrator can open in an editor.
- * A tag this build has no table for would reach the projector and render the fallback
- * language with nothing anywhere saying why, which is precisely the silent kind of wrong
- * `settingsOf` refuses everywhere else.
+ * Validated for the reason `moderation` is narrowed rather than trusted: the type is
+ * enough for a caller inside this build, but `restore` is handed props assembled from an
+ * opaque JSON column that an administrator can open in an editor. A tag with no table
+ * would render the fallback language on a projector with nothing saying why.
  */
 const languageViolation = (value: EventLanguage): DomainError | null =>
   isEventLanguage(value) ? null : DomainError.invalid('eventSettings.wallLanguageInvalid')

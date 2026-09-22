@@ -36,9 +36,8 @@ const asOption = (value: number, label: string): SelectOption => ({ value: Strin
  *
  * A constant rather than a function of the table, unlike every other list on this form,
  * and that is the point: these are **endonyms** and are never translated. A host reading
- * the console in French still picks "Deutsch" for a German-speaking room, because the
- * word they are choosing is the one the room will read. It is the same rule the guest's
- * own picker states, for the same reason, from the same map.
+ * the console in French still picks "Deutsch", because the word they choose is the one
+ * the room will read.
  */
 const LANGUAGE_OPTIONS: readonly SelectOption[] = SUPPORTED_LOCALES.map((locale) => ({
   value: locale,
@@ -46,11 +45,9 @@ const LANGUAGE_OPTIONS: readonly SelectOption[] = SUPPORTED_LOCALES.map((locale)
 }))
 
 /**
- * The values each select offers, worded in the language the host is reading.
- *
- * Functions of the table rather than constants, because the wording is not known until
- * something renders: the numbers are the fixed part and they are still written once,
- * here, rather than beside the control.
+ * The values each select offers. Functions of the table rather than constants, because the
+ * wording is not known until something renders; the numbers are the fixed part and are
+ * still written once, here, rather than beside the control.
  */
 const graceOptions = (text: UiText): readonly SelectOption[] =>
   [0, 60, 300, 900, 3600].map((seconds) => asOption(seconds, graceLabel(seconds, text)))
@@ -411,10 +408,9 @@ export function EventSettingsPage() {
           options={LANGUAGE_OPTIONS}
           disabled={readOnly}
           onChange={(value) => {
-            // Parsed rather than cast, exactly as the guest's picker parses its own
-            // `<select>`: the value comes back from the DOM as a bare string, and a
-            // control an extension rewrote must not be able to send the server a tag
-            // nothing has a table for.
+            // Parsed rather than cast, as the guest's picker parses its own `<select>`:
+            // the value comes back as a bare string, and a control an extension rewrote
+            // must not send the server a tag nothing has a table for.
             const chosen = parseLocale(value)
             if (chosen !== null) update({ wallLanguage: chosen })
           }}

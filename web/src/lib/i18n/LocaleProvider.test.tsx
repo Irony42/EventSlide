@@ -15,11 +15,9 @@ import type { Locale } from './locale'
 /**
  * The provider, and the two boundaries around it.
  *
- * Surface: the guest, the host and the room. Ring 5 — these are components and their
- * collaborators are a browser API and a lookup table, both of which jsdom has.
- *
- * `it` from `./it` is imported as `italian`: vitest's own `it` is the test function, and
- * the table would shadow it for the rest of the file.
+ * Ring 5: these are components, and their collaborators are a browser API and a lookup
+ * table, both of which jsdom has. `it` from `./it` is imported as `italian` because
+ * vitest's own `it` is the test function.
  */
 
 const browserSpeaks = (...languages: readonly string[]): void => {
@@ -113,12 +111,9 @@ describe('LocaleProvider', () => {
 
 describe('LocaleOverride', () => {
   it('renders one surface in its own language inside a tree the reader set to German', () => {
-    // What `FrenchSurface` became. The guard is the same and the reason has moved: it used
-    // to stop a guest's choice reaching a console that was French in every language, and it
-    // now stops a reader's choice reaching the one surface whose language belongs to the
-    // event. Without it the shared primitives — `ConfirmDialog`, `Dialog`, `Field`,
-    // `Progress`, `Toast` — would render "Abbrechen" inside an otherwise Italian wall
-    // panel, decided by whichever laptop was plugged into the projector.
+    // Without this the shared primitives — `Dialog`, `Field`, `Progress`, `Toast` —
+    // render "Abbrechen" inside an otherwise Italian wall panel, decided by whichever
+    // laptop was plugged into the projector.
     browserSpeaks('de-DE')
 
     render(
@@ -153,10 +148,7 @@ describe('LocaleOverride', () => {
 })
 
 describe('DeferredLocale', () => {
-  /**
-   * The wall's shape: a shell that renders before the language it is meant to be in has
-   * arrived, and a page underneath it that learns the language and announces upward.
-   */
+  /** The wall's shape: a shell that renders before its language has arrived. */
   function Announcing({ locale }: { readonly locale: Locale | null }) {
     const announce = useAnnounceLocale()
 
@@ -168,9 +160,8 @@ describe('DeferredLocale', () => {
   }
 
   it('renders the default until the surface says what language it is in', () => {
-    // Before the wall response arrives there is no event, so there is no event language.
-    // Reading the browser here would be reading the projector operator's laptop, which is
-    // the single answer this mechanism exists to refuse.
+    // Before the response there is no event, so no event language — and reading the
+    // browser would read the projector operator's laptop, which this exists to refuse.
     browserSpeaks('de-DE')
 
     render(

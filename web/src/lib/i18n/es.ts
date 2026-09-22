@@ -104,8 +104,6 @@ export const es: UiText = {
     notJoinedHint: 'Vuelva a escanear el código QR o introduzca el código de la fiesta.',
     notJoinedAction: 'Introducir el código',
 
-    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
-
     missionsTitle: 'Misiones',
     missionsHint: 'Toque una misión y luego envíe su foto.',
     missionDone: 'Hecho',
@@ -310,7 +308,6 @@ export const es: UiText = {
     'clipJob.illegalTransition': 'Esta acción no es posible en este vídeo.',
     'photo.rangeNotSatisfiable': 'Esta parte del archivo no existe.',
 
-    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
     'mission.notFound': 'Esta misión ya no existe. Recargue la página.',
     'mission.duplicate': 'Esta misión ya existe.',
     'mission.limitReached': 'Ha alcanzado el número máximo de misiones.',
@@ -359,7 +356,6 @@ export const es: UiText = {
     shortcuts: 'Atajos',
     shortcutsHint: 'J / K para navegar, P para publicar, R para rechazar, Z para deshacer.',
 
-    /* ---- Added by features/moderation. Keep additions inside this block. ---- */
     shortcutsMore:
       'H para retirar de la pantalla, Espacio para seleccionar, Esc para deseleccionar todo.',
     queueLabel: 'Fotos por moderar',
@@ -418,8 +414,6 @@ export const es: UiText = {
     dimensions: (width: number, height: number) => `${width} × ${height} píxeles`,
     noCaption: 'Sin pie de foto',
 
-    /* ---- Added by short video clips (roadmap 1.4). ---- */
-
     videoBadge: 'Vídeo',
     videoLength: (seconds: number) => `Vídeo · ${seconds} s`,
     watchVideo: (author: string) => `Ver el vídeo de ${author}`,
@@ -442,10 +436,9 @@ export const es: UiText = {
     offline: 'Conexión perdida — se está reintentando',
     paused: 'Presentación en pausa',
 
-    /* ---- Added by features/wall. Keep additions inside this block. ---- */
     codeLabel: 'Código de la fiesta',
-    // The accessible name of the inline QR. Read by nothing in the room, but the wall
-    // is also opened on a laptop while a host sets the projector up.
+    // Read by nothing in the room: the wall is also opened on a laptop while a host
+    // sets the projector up.
     qrTitle: 'Código QR para unirse a la galería',
     photoBy: (name: string) => `Foto enviada por ${name}`,
     photoByAnonymous: 'Foto enviada por un invitado',
@@ -456,7 +449,6 @@ export const es: UiText = {
     shortcutsHint:
       'Espacio pausa, las flechas cambian de foto, F pasa a pantalla completa, L cambia la disposición.',
 
-    /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     /**
      * The working words a Spanish host at the projector would use for each grid, not
      * translations of the code names. Nothing here is projected.
@@ -471,11 +463,8 @@ export const es: UiText = {
     },
     layoutOrder: (names: readonly string[]) => `Disposiciones, en orden: ${names.join(', ')}.`,
 
-    /* ---- Short video clips (roadmap 1.4). Keep additions inside this block. ---- */
     videoBy: (name: string) => `Vídeo enviado por ${name}`,
     videoByAnonymous: 'Vídeo enviado por un invitado',
-
-    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
     missionsTitle: 'Misiones',
     missionDone: 'Hecho',
@@ -528,13 +517,10 @@ export const es: UiText = {
       'Las fotos y los vídeos aparecerán en la pantalla sin aprobación. Resérvelo para eventos entre personas de confianza.',
     allowCaptions: 'Permitir los pies de foto',
     allowReactions: 'Permitir las reacciones',
-    /** Explains the state and lists the three possible causes, asserting none of them. */
     allowClips: 'Permitir los vídeos',
     allowClipsHint:
       'Los invitados pueden enviar vídeos cortos, además de fotos. Cuando la casilla está desmarcada, los vídeos se rechazan: porque usted la ha desmarcado, porque la plantilla elegida al crear el evento lo dejó así, o porque la galería es anterior a esta función. Márquela para permitirlos.',
     allowGuestSelfDelete: 'Permitir que los invitados eliminen sus fotos',
-
-    /* ---- The language the room screen speaks (roadmap 1.5). ---- */
 
     /**
      * Named for the screen it changes, and for nothing else. The hint says what the
@@ -545,7 +531,6 @@ export const es: UiText = {
     wallLanguageHint:
       'Las palabras de la pantalla de la sala: «Únase a la galería», «Misiones», los mensajes de espera. Lo que usted y sus invitados escriben — el nombre del evento, los pies de foto, los textos de las misiones — se muestra tal cual y nunca se traduce. Sus invitados eligen su propio idioma en su teléfono; este ajuste no les afecta.',
 
-    /* ---- Per-event theming (roadmap 2.2). ---- */
     theme: 'Apariencia',
     themeHint:
       'Visible para sus invitados y en la pantalla de la sala. Los colores propuestos siguen siendo legibles a diez metros.',
@@ -570,7 +555,6 @@ export const es: UiText = {
       round: 'Esquinas muy redondeadas',
     },
     themeMaterial: 'Material de los paneles',
-    /** The difference is subtle, and it reaches exactly one screen. Both halves matter. */
     themeMaterialHint:
       'El cristal deja entrever lo que pasa por debajo; la superficie lisa es opaca. La diferencia es sutil y solo afecta a la pantalla de envío de sus invitados: su consola de moderación y la pantalla de la sala no cambian.',
     themeMaterialNames: {
@@ -578,12 +562,10 @@ export const es: UiText = {
       plain: 'Superficie lisa',
     },
 
-    /* ---- Event templates (roadmap 3.5). ---- */
     template: 'Tipo de evento',
     templateHint:
       'Un punto de partida, adaptado al tipo de fiesta. Todos estos ajustes se pueden modificar en cualquier momento, antes y durante el evento.',
     templateNone: 'Sin plantilla',
-    /** The pre-selected option owes the host its consequences, including the retention. */
     templateNoneSummary:
       'Ajustes por defecto: cada foto se aprueba antes de llegar a la pantalla, conservación ilimitada.',
     templateChanges: 'Esta plantilla ajusta:',
@@ -608,7 +590,6 @@ export const es: UiText = {
     moderators: 'Moderadores',
     inviteModerator: 'Invitar a un moderador',
 
-    /* ---- Added by features/admin (auth, event management). ---- */
     loading: 'Cargando sus eventos…',
     loadFailed: 'No se ha podido cargar',
     eventLoading: 'Cargando el evento…',
@@ -693,10 +674,6 @@ export const es: UiText = {
     purgeConfirmHint: (slug: string) => `Escriba «${slug}» para confirmar la eliminación.`,
     purged: (name: string) => `${name} se ha eliminado.`,
 
-    /* ------------------------------------------------------------------------
-     * Scheduled opening and closing (docs/ROADMAP.md §3.4). Times are typed and
-     * shown in the browser timezone — the host laptop, which is at the venue.
-     * ---------------------------------------------------------------------- */
     schedule: 'Apertura y cierre automáticos',
     scheduleHint:
       'Déjelo en blanco para abrir y cerrar usted mismo. Las horas son las de su ordenador, es decir, las del lugar de la fiesta.',
@@ -705,7 +682,6 @@ export const es: UiText = {
     scheduleCloseAtHint: 'Las fotos y el álbum se conservan: cerrar no borra nada.',
     scheduleSaved: 'El horario se ha guardado.',
     scheduleNone: 'Sin horario: usted abre y cierra el evento.',
-    /** Rendered as a reminder under the fields once a schedule is armed. */
     scheduleArmed: (opensAt: string, closesAt: string) =>
       `Apertura el ${opensAt}, cierre el ${closesAt}.`,
     scheduleOpensOnly: (opensAt: string) => `Apertura el ${opensAt}. Usted cerrará el evento.`,
@@ -713,8 +689,6 @@ export const es: UiText = {
     scheduleSave: 'Guardar el horario',
     scheduleDiscarded: (when: string) =>
       `El horario automático no se pudo aplicar el ${when}: el evento no podía cambiar de estado en ese momento. Se ha borrado. Guarde uno nuevo si todavía lo quiere.`,
-
-    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
     missionsTitle: 'Misiones',
     missionsHint:
@@ -744,7 +718,6 @@ export const es: UiText = {
     missionAdded: 'La misión se ha añadido.',
     missionSaved: 'La misión se ha guardado.',
     missionDeleted: 'La misión se ha eliminado.',
-    /** What the room has done with it. Counted on every read, never stored. */
     missionAnswered: (photos: number, guests: number) =>
       `${t.count(photos, {
         one: `${t.number(photos)} foto`,
@@ -773,7 +746,6 @@ export const es: UiText = {
     confirmPassword: 'Confirmar la contraseña nueva',
     mustChangePassword: 'Elija una contraseña antes de continuar.',
 
-    /* ---- Added by features/auth. ---- */
     changePasswordIntro: 'Elija una contraseña que no use en ningún otro sitio.',
     passwordSaved: 'Contraseña guardada.',
   },
@@ -781,7 +753,6 @@ export const es: UiText = {
   mobileModeration: {
     title: 'Moderación en el teléfono',
     intro: 'Deslice la foto hacia la derecha para publicar y hacia la izquierda para rechazar.',
-    /** The second half of the gesture: the host has gone far enough to decide. */
     releaseToPublish: 'Suelte para publicar',
     releaseToReject: 'Suelte para rechazar',
     nowDeciding: (photo: string) => `Foto por moderar. ${photo}`,

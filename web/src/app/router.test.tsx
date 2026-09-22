@@ -128,14 +128,10 @@ describe('AppRoutes', () => {
 /**
  * Which language each surface speaks, asserted through the real route table.
  *
- * This is the decision from `web/src/lib/i18n/translations.ts` at the one place that
- * enforces it, and it is no longer one rule for two halves of the app. Two of the three
- * surfaces follow the **reader** — a guest and a host are each a person with a browser —
- * and the third follows the **event**, because a projector has nobody in front of it.
- *
- * Getting this wrong does not crash anything. It puts a room's wall in the language of
- * whichever laptop was plugged into it, which is a sentence no exception ever throws, so
- * nothing but a test finds it.
+ * Two of the three surfaces follow the **reader**; the third follows the **event**,
+ * because a projector has nobody in front of it. Getting it wrong crashes nothing — it
+ * puts a room's wall in the language of whichever laptop was plugged in, which is a
+ * sentence no exception ever throws.
  */
 describe('which language each surface speaks', () => {
   it('renders the guest join screen in the language the guest is in', async () => {
@@ -151,8 +147,8 @@ describe('which language each surface speaks', () => {
   })
 
   it('renders the host console in the language the host is in', async () => {
-    // The reader this reverses the old rule for: a moderator invited by e-mail address and
-    // handed a temporary password, who installed nothing and has no reason to read French.
+    // The reader the old rule forgot: a moderator invited by e-mail and handed a
+    // temporary password, who installed nothing and has no reason to read French.
     const api = fakeApi({
       session: vi.fn(async (): Promise<SessionResponse> => ({
         authenticated: true,
@@ -165,8 +161,7 @@ describe('which language each surface speaks', () => {
   })
 
   it('offers the language picker on the host console too', async () => {
-    // One picker, one stored preference, both surfaces. A host at their own wedding is a
-    // guest twenty minutes later.
+    // One picker, one stored preference: a host at their own wedding is a guest later.
     const api = fakeApi({
       session: vi.fn(async (): Promise<SessionResponse> => ({
         authenticated: true,
@@ -214,6 +209,49 @@ describe('which language each surface speaks', () => {
 
     await screen.findByText(italian.wall.empty)
     expect(document.documentElement.lang).toBe('it')
+  })
+
+  /**
+   * Two ways the response can fail to name a language the client has words for, and the
+   * one answer that must not be given to either.
+   *
+   * `WallPage` narrows `wallLanguage` through `parseLocale` rather than casting it, and
+   * that was a rule in a comment with nothing behind it until these two cases: a cast
+   * compiles, and on a French machine it looks fine. What it actually produces is
+   * `translationsFor('pt')`, which is `undefined`, on a projector.
+   *
+   * The reader's language is German in both, so falling back to the browser — the one
+   * answer this whole mechanism exists to refuse — is distinguishable from falling back
+   * to the default.
+   */
+  it('falls back to the default for a language this build has no table for', async () => {
+    // A projector left open across a deploy that added a sixth language, or rolled one
+    // back. The tag is valid to the server and unknown here.
+    const api = fakeApi({
+      wall: vi.fn(async () => aWallResponse({ wallLanguage: 'pt' as 'fr' })),
+    })
+    renderWithProviders(<AppRoutes />, {
+      api,
+      route: '/e/camille-et-sacha/display',
+      locale: 'de',
+    })
+
+    expect(await screen.findByText(fr.wall.empty)).toBeVisible()
+    expect(screen.queryByText(de.wall.empty)).toBeNull()
+    expect(document.documentElement.lang).toBe('fr')
+  })
+
+  it('falls back to the default for a server build that sends no language at all', async () => {
+    const { wallLanguage: _absent, ...withoutLanguage } = aWallResponse()
+    const api = fakeApi({ wall: vi.fn(async () => withoutLanguage) })
+    renderWithProviders(<AppRoutes />, {
+      api,
+      route: '/e/camille-et-sacha/display',
+      locale: 'de',
+    })
+
+    expect(await screen.findByText(fr.wall.empty)).toBeVisible()
+    expect(screen.queryByText(de.wall.empty)).toBeNull()
   })
 })
 

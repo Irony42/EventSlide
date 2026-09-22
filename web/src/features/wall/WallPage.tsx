@@ -55,11 +55,9 @@ const LAYOUT_CYCLE: readonly WallLayout[] = [
 ]
 
 /**
- * The names of the cycle, in cycle order, in the language the room is in.
- *
- * Built per render rather than once at module load, which is what it was while the wall
- * was French in every language. It is six property reads and a join, on a screen that
- * renders a help dialog only when a host presses `?`.
+ * The names of the cycle, in cycle order, in the language the room is in. Built per render
+ * rather than at module load — six property reads and a join, on a dialog that opens only
+ * when a host presses `?`.
  */
 const layoutOrderHint = (text: UiText): string =>
   text.wall.layoutOrder(LAYOUT_CYCLE.map((name) => text.wall.layoutNames[name]))
@@ -140,23 +138,17 @@ export function WallPage() {
   const text = useTranslations()
 
   /**
-   * The language the room is in, told to the shell above this page.
+   * The language the room is in, told to the shell above this page. It is the **event's**,
+   * not this browser's — `src/domain/events/eventLanguage.ts` has the argument.
    *
-   * It is the **event's**, not this browser's, and that is the whole of roadmap 1.5's
-   * third decision: a projector has nobody in front of it, so `navigator.languages` here
-   * is the language of whichever machine the venue had in a cupboard and a guest's stored
-   * preference belongs to one phone out of two hundred. The host answered for this screen
-   * when they created the event; `src/domain/events/eventLanguage.ts` has the argument.
+   * `parseLocale` rather than a cast, as the stored guest preference is narrowed: this
+   * crossed a network boundary, and a projector left open across a deploy that added a
+   * sixth language must render the default rather than index a table with no entry. An
+   * absent field takes the same path, which is what an older server sends. Both halves are
+   * guarded in `router.test.tsx`, under "which language each surface speaks".
    *
-   * `parseLocale` rather than a cast, exactly as the stored guest preference is narrowed:
-   * this value crossed a network boundary, and a projector left open across a deploy that
-   * added a sixth language must render the default rather than index a table that has no
-   * entry. An absent field takes the same path, which is what a server build older than
-   * this one sends.
-   *
-   * Announced from an effect rather than during render because it writes state in the
-   * component above. There is no flash to pay for: the wall renders nothing but a
-   * visually-hidden spinner label until this same response arrives.
+   * Announced from an effect because it writes state in the component above. No flash to
+   * pay for: nothing but a visually-hidden spinner label renders until this same response.
    */
   const announceLocale = useAnnounceLocale()
   const wallLocale = parseLocale(wall?.wallLanguage)

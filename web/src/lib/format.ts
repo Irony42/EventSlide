@@ -7,18 +7,15 @@ import type { Locale } from './i18n/locale'
  * `4831838208` is not. 1.0 printed raw byte counts in the admin page and nobody ever
  * read them.
  *
- * **Both functions used to be hard-wired to `fr-FR`**, and that was right for exactly as
- * long as the console they print on was French. Roadmap 1.5's second half made it wrong
- * in a way the surrounding sentence hides: `admin.storageUsed` is translated, so a
- * moderator reading the console in German got "2,4 Mo von 5 Go verwendet" — `Mo` and `Go`
- * are the French abbreviations for octets, and German writes `MB` and `GB`. The date was
- * worse than jarring: `20/06/26` in front of a host reading English is read as 6 June,
- * and the sentence it appears in is the confirmation of a schedule they just armed.
+ * **Both functions were hard-wired to `fr-FR`**, which was right for exactly as long as
+ * the console they print on was French. `admin.storageUsed` is translated, so a moderator
+ * reading it in German got "2,4 Mo von 5 Go verwendet" — `Mo` and `Go` are French for
+ * octets — and `20/06/26` in front of a host reading English is read as 6 June, in the
+ * line confirming a schedule they just armed. `format.test.ts` pins both.
  *
- * So the locale is a parameter. `lib/i18n/formatters.ts` already argues why a number must
- * not be assembled by hand; this was the module still doing it, and the hand-written
- * `['o', 'ko', 'Mo', 'Go', 'To']` it carried is gone — `Intl` knows the abbreviation in
- * all five, including that French counts octets and the other four count bytes.
+ * So the locale is a parameter, and the hand-written `['o', 'ko', 'Mo', 'Go', 'To']` is
+ * gone: `Intl` knows the abbreviation in all five. `lib/i18n/formatters.ts` argues why a
+ * number must not be assembled by hand; this was the module still doing it.
  */
 
 /**
@@ -32,12 +29,9 @@ const NO_BREAK_SPACE = String.fromCodePoint(0x00a0)
 const STEP = 1000
 
 /**
- * The units a count can be promoted through, as `Intl` names them.
- *
- * `byte` first, then the four prefixes. Destructured rather than indexed for the reason
- * the French array it replaces was: the promotion below walks the prefixes themselves, so
- * the unit is bound by the iteration and there is no index for `noUncheckedIndexedAccess`
- * to type as possibly-undefined.
+ * The units a count can be promoted through, as `Intl` names them. Destructured rather
+ * than indexed so the promotion binds the unit by iteration, leaving no index for
+ * `noUncheckedIndexedAccess` to type as possibly-undefined.
  */
 const UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const
 const [BYTES, ...LARGER_UNITS] = UNITS
@@ -61,10 +55,9 @@ export const formatBytes = (bytes: number, locale: Locale): string => {
     promoted = true
   }
 
-  // `style: 'unit'` rather than a number and a string joined by hand. It is what puts the
-  // right abbreviation in each language — French counts octets (`o`, `ko`, `Mo`) and the
-  // other four count bytes (`B`, `kB`, `MB`) — without this module holding a table of five
-  // vocabularies it would have to keep true.
+  // `style: 'unit'` rather than a number and a string joined by hand: French counts
+  // octets (`o`, `ko`, `Mo`) and the other four count bytes, and this module holds no
+  // table of five vocabularies it would have to keep true.
   const formatted = new Intl.NumberFormat(locale, {
     style: 'unit',
     unit,
@@ -74,28 +67,21 @@ export const formatBytes = (bytes: number, locale: Locale): string => {
   }).format(value)
 
   /**
-   * The one thing `Intl` will not promise, and the product does.
+   * The one thing `Intl` will not promise. CLDR puts an ordinary, breakable space before
+   * the unit in four of the five, so "2,4 MB" in a narrow meter can wrap away from its
+   * figure — the defect the hand-built `NO_BREAK_SPACE` existed to prevent.
    *
-   * CLDR puts a **narrow** no-break space before the unit in French and an ordinary,
-   * breakable one in the other four — so "2,4 MB" in a narrow meter can wrap between the
-   * figure and its unit, which is the defect the hand-built version's `NO_BREAK_SPACE`
-   * existed to prevent and the reason it is not deleted with the rest of it.
-   *
-   * Safe as a blanket substitution because a plain space is the *only* place one can
-   * appear here: these five languages group thousands with U+202F, a full stop, a comma or
-   * nothing at all, never with U+0020. Nothing else about the string is touched — the
-   * abbreviation, the decimal mark and the grouping stay exactly as the language writes
-   * them.
+   * Safe as a blanket substitution because a plain space is the only place one can appear:
+   * these languages group thousands with U+202F, a full stop, a comma or nothing, never
+   * with U+0020.
    */
   return formatted.replace(/ /gu, NO_BREAK_SPACE)
 }
 
 /**
- * A date and time for the reader's own screen: short, local, unambiguous.
- *
- * "Unambiguous" is the word that needed the locale. `20/06/26` and `6/20/26` are the same
- * instant and opposite readings, and this string is interpolated into
- * `admin.scheduleArmed` — the line that tells a host when their event will open and close.
+ * A date and time for the reader's own screen: short, local, unambiguous — and
+ * "unambiguous" is the word that needed the locale, since `20/06/26` and `6/20/26` are
+ * the same instant and opposite readings.
  *
  * `null` rather than a placeholder when the value cannot be read, so the caller chooses
  * the wording instead of this module inventing one in a language it does not know.

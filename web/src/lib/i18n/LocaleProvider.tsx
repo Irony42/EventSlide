@@ -20,28 +20,21 @@ export interface LocaleProviderProps {
 }
 
 /**
- * The reader's language, detected once and then owned by the reader.
+ * The reader's language — a guest **and** a host — detected once and then owned by them.
+ * One preference, one storage key, one picker.
  *
- * "The reader" is a guest **and** a host, and that is the whole of roadmap 1.5's second
- * half: a host is a person with a browser exactly as a guest is, so the signal that works
- * for one works for the other. One preference, one storage key, one picker.
- *
- * The alternative considered and rejected was an attribute on the *account*. It is worse
- * in both directions, and the moderator on a borrowed phone is the case that decides it:
- * a language that follows the account would be written onto somebody else's device and
- * left there, while a host who hands their laptop to an English-speaking friend for an
- * hour would have to sign out to change it. A language is a property of the reading, not
- * of the person — so it lives where the reading happens, which is
+ * **An attribute on the *account* was rejected**, and the moderator on a borrowed phone
+ * decides it: a language following the account would be written onto somebody else's
+ * device and left there, while an owner lending their laptop for an hour would have to
+ * sign out to change it. A language is a property of the reading, which is
  * `localePreference.ts`'s argument for `localStorage`.
  *
- * Detection runs in the `useState` initialiser rather than in an effect, and that
- * placement is the feature: an effect would paint the join screen in French and then
- * repaint it in German, which on a phone reads as a bug and on a slow one is a visible
- * flash of the wrong language.
+ * Detection runs in the `useState` initialiser rather than in an effect: an effect would
+ * paint the join screen in French and repaint it in German, a visible flash of the wrong
+ * language on a slow phone. `LocaleProvider.test.tsx` pins that.
  *
- * `<html lang>` is **not** set here. It belongs to `AppShell`, which is the innermost
- * component every screen renders through and therefore the only one that knows which
- * language is actually on the screen — see {@link LocaleOverride}.
+ * `<html lang>` is **not** set here — it belongs to `AppShell`, the innermost component
+ * every screen renders through and so the only one that knows the language on screen.
  */
 export function LocaleProvider({ initialLocale, children }: LocaleProviderProps) {
   const [locale, setLocaleState] = useState<Locale>(() => initialLocale ?? detectLocale())
@@ -66,30 +59,19 @@ export interface LocaleOverrideProps {
 }
 
 /**
- * One surface, in a language nobody at that surface chose.
+ * One surface, in a language nobody at that surface chose. What `FrenchSurface` became:
+ * it used to answer "which half of the app is translated" and now answers "which surface
+ * has a language of its own". There is exactly one, the projected wall.
  *
- * This is what `FrenchSurface` became, and the change of name is the change of meaning:
- * it used to answer "which half of the app is translated", and it now answers "which
- * surface has a language of its own". There is exactly one — the projected wall, whose
- * language is a setting on the event because a projector has nobody in front of it to
- * ask (`src/domain/events/eventLanguage.ts` carries that argument).
+ * **The guard it inherits is the one worth keeping.** `Dialog`, `Field`, `Progress`,
+ * `Toast` and the other shared primitives read the active table, so without a boundary at
+ * the top of the surface a wall set to Italian renders a French "Fermer" inside its own
+ * panel, taken from whatever the person who launched the projector had stored. Half a
+ * screen in each language looks like a rendering bug rather than a setting, and is
+ * invisible to every test run on a French machine.
  *
- * **The guard it inherits is the one worth keeping.** `Dialog`, `ConfirmDialog`, `Field`,
- * `Progress`, `Spinner` and `Toast` are shared primitives that read their copy from the
- * active table, so without a boundary at the top of the surface a wall set to English
- * would render an English panel with a French "Fermer" inside it, taken from whatever the
- * person who launched the projector happens to have in `localStorage`. Half a screen in
- * the reader's language and half in the surface's is a worse failure than either alone,
- * because it looks like a rendering bug rather than a setting — and it is invisible to
- * every test run on a French machine. The boundary is a component in the route table
- * rather than a rule each primitive has to remember, for exactly that reason.
- *
- * The host console no longer needs one. It is translated now, and a host reading their own
- * console in their own language is the point rather than the hazard.
- *
- * `setLocale` is a no-op: nothing on this surface offers a language, and the wall's comes
- * from the event. A picker here would be a control in a room where nobody can reach the
- * keyboard.
+ * `setLocale` is a no-op rather than absent, so a shared control that happens to render
+ * here does nothing instead of throwing on a projector.
  */
 export function LocaleOverride({ locale, children }: LocaleOverrideProps) {
   const value = useMemo<LocaleState>(
@@ -105,25 +87,14 @@ export interface DeferredLocaleProps {
 }
 
 /**
- * A {@link LocaleOverride} whose language is not known until the surface underneath it
- * says so.
+ * A {@link LocaleOverride} whose language is not known until the surface underneath says
+ * so. The projected wall, and nothing else — `deferredLocale.ts` has the argument.
  *
- * The projected wall, and nothing else. Its language is a property of the **event**, so
- * it arrives on the wall response — one round trip after the shell has rendered — and the
- * shell is what has to be told, because `AppShell` owns `<html lang>` and sits above the
- * page that fetches. `deferredLocale.ts` carries the argument, including why the fetch
- * was not hoisted here instead.
- *
- * **Until the response lands, the default.** Not the browser's language, which on a
- * projector is the language of whichever laptop was plugged in and is precisely the
- * answer this whole mechanism exists to avoid; and not a guess, because before the
- * response there is no event, so there is no event language to use. What renders in that
- * window is a visually-hidden spinner label and, if the fetch fails outright, an error
- * screen for the host who is standing at the projector — and that screen only ever
- * appears when there is no event to have a language.
- *
- * So the room never watches the wall change language: the first frame carrying any
- * interface copy at all is already the event's.
+ * **Until the response lands, the default.** Not the browser's, which on a projector is
+ * the laptop that was plugged in and is the answer this mechanism exists to avoid; and
+ * not a guess, because before the response there is no event to have a language. Only a
+ * visually-hidden spinner label renders in that window, so the room never watches the
+ * wall change language.
  */
 export function DeferredLocale({ children }: DeferredLocaleProps) {
   const [announced, setAnnounced] = useState<Locale | null>(null)

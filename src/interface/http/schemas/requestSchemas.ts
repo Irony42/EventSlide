@@ -182,19 +182,14 @@ export const createEventBody = z
      * The language the room's screen will speak, read from the creator's browser at the
      * moment they create the event (roadmap 1.5).
      *
-     * On the **create** body rather than only on the settings patch, and that is the
-     * whole design of the default. The one signal worth having about what language a
-     * wall should be in is the language the person setting it up is reading right now —
-     * so the form sends it, once, and the event stores it.
+     * On the **create** body because that moment is the whole design of the default: the
+     * one signal about a screen nobody will be holding is the language the person setting
+     * it up is reading. **A snapshot, never a subscription** — nothing re-reads that
+     * preference, so a host who switches their own browser next month has not moved a
+     * projector in a room. `createEvent.test.ts` asserts it as an absence.
      *
-     * **A snapshot, never a subscription.** Nothing re-reads the host's preference
-     * afterwards. A host who switches their own browser to English next month has not
-     * asked for the projector in a room to change, and a setting that silently followed
-     * a preference it never announced is exactly the thing that gets discovered
-     * mid-reception. Changing it later is a deliberate act on the settings page.
-     *
-     * `.optional()` and not `.nullish()`, like `template` above: "no opinion" is the
-     * absence of a choice, and the domain answers it with French.
+     * `.optional()` and not `.nullish()`, like `template`: "no opinion" is the absence of
+     * a choice, and the domain answers it with French.
      */
     wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
   })
@@ -252,17 +247,14 @@ export const updateSettingsBody = z
     /**
      * The language the projected wall speaks (roadmap 1.5).
      *
-     * A scalar beside the theme's object, and not folded into it, because the two are
-     * judged by different rules: `eventTheme.ts` weighs an accent, a font pairing, a
-     * frame and a material *against each other* for legibility at ten metres, and a
-     * language tag takes part in none of that. Folding it in would also mean a host who
-     * changes only the language has to resend a whole theme, and `theme` is required-whole
-     * on purpose.
+     * A scalar beside the theme's object rather than folded into it: `eventTheme.ts`
+     * weighs its four values against each other for legibility at ten metres and a
+     * language takes part in none of that, and `theme` is required-whole on purpose — so
+     * folding it in would make a host who changes only the language resend a palette.
      *
-     * The vocabulary comes from the domain rather than a second `z.enum(['fr', …])` here,
-     * for the reason `template` above does: a language added to the build would otherwise
-     * be accepted by the use case and refused at the boundary, with nothing in either
-     * build noticing.
+     * The vocabulary comes from the domain rather than a second `z.enum(['fr', …])`, for
+     * the reason `template` does: a language added to the build would otherwise be
+     * accepted by the use case and refused here, with neither build noticing.
      */
     wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
   })

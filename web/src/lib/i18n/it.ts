@@ -107,8 +107,6 @@ export const it: UiText = {
     notJoinedHint: 'Scansioni di nuovo il codice QR, oppure inserisca il codice della serata.',
     notJoinedAction: 'Inserisci il codice',
 
-    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
-
     missionsTitle: 'Missioni',
     missionsHint: 'Tocchi una missione, poi invii la sua foto.',
     missionDone: 'Fatto',
@@ -317,7 +315,6 @@ export const it: UiText = {
     'clipJob.illegalTransition': 'Questa azione non è possibile su questo video.',
     'photo.rangeNotSatisfiable': 'Questa parte del file non esiste.',
 
-    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
     'mission.notFound': 'Questa missione non esiste più. Ricarichi la pagina.',
     'mission.duplicate': 'Questa missione esiste già.',
     'mission.limitReached': 'Ha raggiunto il numero massimo di missioni.',

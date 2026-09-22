@@ -69,11 +69,9 @@ test.describe('a guest whose phone is in German', () => {
     app,
     page,
   }) => {
-    // The decision this reversed, end to end. A moderator is invited by e-mail address
-    // and handed a temporary password; nothing about them implies they read French, and
-    // the console they are handed is where a photograph is let onto a projector. The
-    // browser's own preference is the signal, exactly as it is for the guest — and the
-    // picker is there, so a borrowed phone can be put right in one tap.
+    // The decision this reversed, end to end: a moderator invited by e-mail and handed a
+    // temporary password reads their console in their own language, and the picker is
+    // there so a borrowed phone can be put right in one tap.
     await page.goto(app.url('/login'))
 
     await expect(page.getByRole('heading', { name: de.auth.title })).toBeVisible()
@@ -83,18 +81,13 @@ test.describe('a guest whose phone is in German', () => {
 })
 
 /**
- * The one surface whose language is not the reader's.
+ * The one surface whose language is not the reader's, and the only test here where **the
+ * browser is deliberately wrong**: the projector is started on a machine asking for
+ * German, the event was created in Italian, and the room must get Italian.
  *
- * This earns ring 6 for the reason the guest journey above does, and one more: it is the
- * only test in the suite where **the browser is deliberately wrong**. The projector is
- * started on a machine asking for German, the event was created in Italian, and the room
- * must get Italian. Nothing cheaper can prove that, because every ring below stubs the
- * very signal the wall is required to ignore — and a wall that quietly fell back to
- * `navigator.languages` would be green everywhere else and wrong in front of two
- * hundred people.
- *
- * It crosses two surfaces, which is what ring 6 is for: the host creates the event
- * through the API in one language and the projector reads it in another.
+ * Nothing cheaper proves it, because every ring below stubs the very signal the wall is
+ * required to ignore — a wall that quietly fell back to `navigator.languages` would be
+ * green everywhere else and wrong in front of two hundred people.
  */
 test.describe('a projector plugged into a laptop that is not the event’s language', () => {
   test.use({ locale: 'de-DE' })
@@ -104,19 +97,15 @@ test.describe('a projector plugged into a laptop that is not the event’s langu
 
     await page.goto(app.url(`/e/${event.slug}/display`))
 
-    // The empty state is the invitation, and it is the copy the whole room reads while
-    // the first photographs are still being taken.
     await expect(page.getByText(italian.wall.empty)).toBeVisible()
     await expect(page.getByText(de.wall.empty)).toHaveCount(0)
 
-    // And the attribute a screen reader pronounces the page with, on a real document.
     await expect(page.locator('html')).toHaveAttribute('lang', 'it')
   })
 
   test('leaves the event’s own name exactly as the host typed it', async ({ app, page }) => {
-    // Content, not interface. The name is French, the wall is Italian, and the wall shows
-    // the name — a translation pass that routed it through a table would be a real defect
-    // and this is the cheapest place it would show.
+    // Content, not interface: the name is French, the wall is Italian, and the wall shows
+    // the name. A translation pass that routed it through a table would show up here.
     const event = await app.seedEvent({ name: 'Camille & Sacha', wallLanguage: 'it' })
 
     await page.goto(app.url(`/e/${event.slug}/display`))

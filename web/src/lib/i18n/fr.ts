@@ -19,14 +19,14 @@
  * next rather than what went wrong internally.
  *
  * **Adding a string.** Put it in the section it belongs to, as here, and the four other
- * tables stop compiling until they carry it too. There is no longer a half of this file
- * that is exempt: if you are adding a key you are adding five.
+ * tables stop compiling until they carry it too — if you are adding a key you are adding
+ * five. The `/* ---- Added by … ---- *\/` banners in this file mark where a feature
+ * branch appended, so two branches touching one section merge without meeting; they are
+ * this file's convention only, and the four translations carry no copy of them.
  *
  * **What is not in this file, and must never be.** An event's name, a photo's caption, a
- * guest's display name and a mission's prompt are *content* — a person wrote them, in the
- * language the evening is held in, and no table translates them. They arrive on a DTO and
- * are rendered verbatim. `content.test.ts` is what makes that mechanical rather than
- * remembered.
+ * guest's display name and a mission's prompt are *content* — a person wrote them and no
+ * table translates them. `content.test.ts` enforces it.
  */
 
 import { formattersFor } from './formatters'
@@ -336,12 +336,10 @@ export const fr = {
      * The same badge once the duration is known.
      *
      * It reads identically to `moderation.videoLength`, which is what "Vos envois" used
-     * to render — and that was a scope bug rather than reuse: back when `moderation` was
-     * French in every language, a guest reading this app in German had one French badge
-     * in their own list of uploads. Both sections are translated now, so the bug is gone
-     * on its own; the duplication stays because the two sentences are owned by the two
-     * audiences that read them, and a moderator's badge and a guest's badge are free to
-     * diverge without either audience noticing the other move.
+     * to render — a scope bug rather than reuse, back when `moderation` was French in
+     * every language. Both are translated now, so the bug is gone on its own; the
+     * duplication stays because a moderator's badge and a guest's badge are owned by
+     * different audiences and free to diverge.
      */
     mineClipLength: (seconds: number) => `Vidéo · ${t.number(seconds)} s`,
 
@@ -647,18 +645,10 @@ export const fr = {
     /**
      * Named for the screen it changes and for nothing else.
      *
-     * It is **not** "the language of the evening", and the difference is the whole reason
-     * this field is worded the way it is. The wall is the one surface with nobody in front
-     * of it to ask: a guest picks their own language on their phone, a host picks theirs in
-     * their browser, and a projector in a cupboard has neither. So the host answers for it
-     * once, here, beside the accent hue and the frame style — which are the other three
-     * decisions about what the room looks like.
-     *
-     * What it deliberately does not claim is what language the *content* is in. A caption
-     * is written by whichever guest wrote it, and two hundred guests do not share a
-     * language even when the host does, so no single field could be true about them. The
-     * hint says so, because a host who reads "langue de la soirée" will reasonably expect
-     * their consignes to be translated, and they never will be.
+     * It is **not** "la langue de la soirée", and the hint says so at length — a host who
+     * read that wording would reasonably expect their consignes to be translated, and they
+     * never will be. No single field could describe the content's language anyway: a
+     * caption is written by whichever guest wrote it.
      */
     wallLanguage: 'Langue de l’écran de la salle',
     wallLanguageHint:

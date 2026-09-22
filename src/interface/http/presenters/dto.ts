@@ -203,16 +203,12 @@ export interface WallResponseDto {
    */
   readonly theme: EventThemeDto
   /**
-   * The language this screen renders its own words in (roadmap 1.5).
+   * The language this screen renders its own words in (roadmap 1.5). On this response for
+   * the theme's reason — the projector must not paint one language and repaint in another
+   * — and it is the only way the wall can know.
    *
-   * On this response for the same reason the theme is — the projector must not paint a
-   * frame of one language and then repaint in another — and it is the only way the wall
-   * can know. It is the one surface with nobody in front of it to ask: `navigator.languages`
-   * here is the language of whichever machine the venue had in a cupboard, and a guest's
-   * preference belongs to one phone out of two hundred.
-   *
-   * Required, not optional, unlike `theme` and `missions`. Those were added to a response
-   * older clients already parsed; this one is read by a build that ships with it.
+   * Required, not optional, unlike `theme` and `missions`: those were added to a response
+   * older clients already parsed, and this one ships with its reader.
    */
   readonly wallLanguage: EventLanguage
 }
@@ -283,12 +279,9 @@ export interface EventSettingsDto {
   /** The host's own copy: what the picker on the settings form is showing. */
   readonly theme: EventThemeDto
   /**
-   * The language the projected wall speaks (roadmap 1.5).
-   *
-   * On the host's settings response and **not** on `PublicEventDto`: a guest's phone
-   * negotiates its own language and has no use for this one, and putting it on the join
-   * response would invite a client to prefer it over the guest's own choice, which is
-   * the single thing this field must never do.
+   * The language the projected wall speaks (roadmap 1.5). On the host's settings response
+   * and **not** on `PublicEventDto`: putting it on the join response would invite a client
+   * to prefer it over the guest's own choice, the single thing this field must never do.
    */
   readonly wallLanguage: EventLanguage
 }

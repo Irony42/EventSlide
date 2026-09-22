@@ -106,8 +106,6 @@ export const de: UiText = {
     notJoinedHint: 'Scannen Sie den QR-Code erneut oder geben Sie den Code der Feier ein.',
     notJoinedAction: 'Code eingeben',
 
-    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
-
     missionsTitle: 'Missionen',
     missionsHint: 'Tippen Sie auf eine Mission und senden Sie dann Ihr Foto.',
     missionDone: 'Erledigt',
@@ -329,7 +327,6 @@ export const de: UiText = {
     'clipJob.illegalTransition': 'Diese Aktion ist bei diesem Video nicht möglich.',
     'photo.rangeNotSatisfiable': 'Diesen Teil der Datei gibt es nicht.',
 
-    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
     'mission.notFound': 'Diese Mission gibt es nicht mehr. Laden Sie die Seite neu.',
     'mission.duplicate': 'Diese Mission gibt es bereits.',
     'mission.limitReached': 'Sie haben die maximale Anzahl an Missionen erreicht.',
@@ -378,7 +375,6 @@ export const de: UiText = {
     shortcuts: 'Tastenkürzel',
     shortcutsHint: 'J / K zum Blättern, P zum Freigeben, R zum Ablehnen, Z zum Rückgängigmachen.',
 
-    /* ---- Added by features/moderation. Keep additions inside this block. ---- */
     shortcutsMore:
       'H zum Entfernen vom Bildschirm, Leertaste zum Auswählen, Esc zum Aufheben der Auswahl.',
     queueLabel: 'Fotos zur Moderation',
@@ -430,8 +426,6 @@ export const de: UiText = {
     dimensions: (width: number, height: number) => `${width} × ${height} Pixel`,
     noCaption: 'Ohne Bildunterschrift',
 
-    /* ---- Added by short video clips (roadmap 1.4). ---- */
-
     videoBadge: 'Video',
     videoLength: (seconds: number) => `Video · ${seconds} s`,
     watchVideo: (author: string) => `Video von ${author} ansehen`,
@@ -454,7 +448,6 @@ export const de: UiText = {
     offline: 'Verbindung unterbrochen — es wird erneut versucht',
     paused: 'Diashow angehalten',
 
-    /* ---- Added by features/wall. Keep additions inside this block. ---- */
     codeLabel: 'Code der Feier',
     qrTitle: 'QR-Code für den Beitritt zur Galerie',
     photoBy: (name: string) => `Foto, gesendet von ${name}`,
@@ -467,7 +460,6 @@ export const de: UiText = {
     shortcutsHint:
       'Leertaste hält an, die Pfeiltasten wechseln das Foto, F schaltet auf Vollbild, L wechselt die Anordnung.',
 
-    /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     layoutNames: {
       spotlight: 'Vollbild',
       mosaic: 'Mosaik',
@@ -479,11 +471,8 @@ export const de: UiText = {
     layoutOrder: (names: readonly string[]) =>
       `Anordnungen, in dieser Reihenfolge: ${names.join(', ')}.`,
 
-    /* ---- Short video clips (roadmap 1.4). Keep additions inside this block. ---- */
     videoBy: (name: string) => `Video, gesendet von ${name}`,
     videoByAnonymous: 'Video, gesendet von einem Gast',
-
-    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
     missionsTitle: 'Missionen',
     missionDone: 'Erledigt',
@@ -536,13 +525,10 @@ export const de: UiText = {
       'Gäste können zusätzlich zu Fotos kurze Videos senden. Ohne Haken werden Videos abgelehnt: weil Sie den Haken entfernt haben, weil die bei der Erstellung gewählte Vorlage es so eingestellt hat, oder weil die Galerie älter ist als diese Funktion. Setzen Sie den Haken, um Videos zu erlauben.',
     allowGuestSelfDelete: 'Gästen erlauben, ihre Fotos zu löschen',
 
-    /* ---- The language the room screen speaks (roadmap 1.5). ---- */
-
     wallLanguage: 'Sprache der Leinwand im Saal',
     wallLanguageHint:
       'Die Wörter auf der Leinwand im Saal: „Treten Sie der Galerie bei“, „Missionen“, die Wartemeldungen. Was Sie und Ihre Gäste schreiben — der Name der Veranstaltung, die Bildunterschriften, die Aufgaben — erscheint unverändert und wird nie übersetzt. Ihre Gäste wählen ihre eigene Sprache auf ihrem Telefon; diese Einstellung betrifft sie nicht.',
 
-    /* ---- Per-event theming (roadmap 2.2). ---- */
     theme: 'Erscheinungsbild',
     themeHint:
       'Sichtbar für Ihre Gäste und auf der Leinwand im Saal. Die angebotenen Farben bleiben auf zehn Meter lesbar.',
@@ -573,7 +559,6 @@ export const de: UiText = {
       plain: 'Einfarbige Fläche',
     },
 
-    /* ---- Event templates (roadmap 3.5). ---- */
     template: 'Art der Veranstaltung',
     templateHint:
       'Ein Ausgangspunkt, passend zur Art des Abends. Alle diese Einstellungen bleiben jederzeit änderbar, vor wie während der Veranstaltung.',
@@ -601,7 +586,6 @@ export const de: UiText = {
     moderators: 'Moderatoren',
     inviteModerator: 'Moderator einladen',
 
-    /* ---- Added by features/admin (auth, event management). ---- */
     loading: 'Ihre Veranstaltungen werden geladen…',
     loadFailed: 'Laden nicht möglich',
     eventLoading: 'Die Veranstaltung wird geladen…',
@@ -684,7 +668,6 @@ export const de: UiText = {
     purgeConfirmHint: (slug: string) => `Geben Sie „${slug}“ ein, um die Löschung zu bestätigen.`,
     purged: (name: string) => `${name} wurde gelöscht.`,
 
-    /* ---- Scheduled opening and closing (docs/ROADMAP.md §3.4). ---- */
     schedule: 'Automatisches Öffnen und Beenden',
     scheduleHint:
       'Leer lassen, wenn Sie selbst öffnen und beenden wollen. Die Zeiten richten sich nach Ihrem Computer, also nach dem Ort der Feier.',
@@ -700,8 +683,6 @@ export const de: UiText = {
     scheduleSave: 'Zeitplanung speichern',
     scheduleDiscarded: (when: string) =>
       `Die automatische Zeitplanung konnte am ${when} nicht greifen: Die Veranstaltung konnte zu diesem Zeitpunkt den Status nicht wechseln. Sie wurde gelöscht. Speichern Sie eine neue, wenn Sie eine wollen.`,
-
-    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
     missionsTitle: 'Missionen',
     missionsHint:
@@ -757,7 +738,6 @@ export const de: UiText = {
     confirmPassword: 'Neues Passwort bestätigen',
     mustChangePassword: 'Wählen Sie ein Passwort, bevor Sie fortfahren.',
 
-    /* ---- Added by features/auth. ---- */
     changePasswordIntro: 'Wählen Sie ein Passwort, das Sie nirgendwo sonst verwenden.',
     passwordSaved: 'Passwort gespeichert.',
   },

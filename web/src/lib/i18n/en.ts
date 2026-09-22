@@ -99,8 +99,6 @@ export const en: UiText = {
     notJoinedHint: 'Scan the QR code again, or type the event code.',
     notJoinedAction: 'Enter the code',
 
-    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
-
     missionsTitle: 'Missions',
     missionsHint: 'Tap a mission, then send your photo.',
     missionDone: 'Done',
@@ -302,7 +300,6 @@ export const en: UiText = {
     'clipJob.illegalTransition': 'This action is not possible on this video.',
     'photo.rangeNotSatisfiable': 'That part of the file does not exist.',
 
-    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
     'mission.notFound': 'That mission no longer exists. Reload the page.',
     'mission.duplicate': 'That mission already exists.',
     'mission.limitReached': 'You have reached the maximum number of missions.',
@@ -351,7 +348,6 @@ export const en: UiText = {
     shortcuts: 'Shortcuts',
     shortcutsHint: 'J / K to move, P to publish, R to reject, Z to undo.',
 
-    /* ---- Added by features/moderation. Keep additions inside this block. ---- */
     shortcutsMore: 'H to take off the screen, Space to select, Esc to clear the selection.',
     queueLabel: 'Photos to moderate',
     filterLabel: 'Filter by state',
@@ -404,8 +400,6 @@ export const en: UiText = {
     dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
     noCaption: 'No caption',
 
-    /* ---- Added by short video clips (roadmap 1.4). ---- */
-
     videoBadge: 'Video',
     videoLength: (seconds: number) => `Video · ${seconds} s`,
     watchVideo: (author: string) => `Watch the video by ${author}`,
@@ -427,7 +421,6 @@ export const en: UiText = {
     offline: 'Connection lost — reconnecting',
     paused: 'Slideshow paused',
 
-    /* ---- Added by features/wall. Keep additions inside this block. ---- */
     codeLabel: 'Event code',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall
     // is also opened on a laptop while a host sets the projector up.
@@ -442,7 +435,6 @@ export const en: UiText = {
     shortcutsHint:
       'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout.',
 
-    /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     layoutNames: {
       spotlight: 'Full screen',
       mosaic: 'Mosaic',
@@ -453,11 +445,8 @@ export const en: UiText = {
     },
     layoutOrder: (names: readonly string[]) => `Layouts, in order: ${names.join(', ')}.`,
 
-    /* ---- Short video clips (roadmap 1.4). Keep additions inside this block. ---- */
     videoBy: (name: string) => `Video sent by ${name}`,
     videoByAnonymous: 'Video sent by a guest',
-
-    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
     missionsTitle: 'Missions',
     missionDone: 'Done',
@@ -510,13 +499,10 @@ export const en: UiText = {
       'Guests can send short videos as well as photos. When the box is unticked, videos are refused: because you unticked it, because the template chosen when the event was created set it that way, or because the gallery is older than this feature. Tick it to allow them.',
     allowGuestSelfDelete: 'Allow guests to delete their photos',
 
-    /* ---- The language the room’s screen speaks (roadmap 1.5). ---- */
-
     wallLanguage: 'Language of the screen in the room',
     wallLanguageHint:
       'The words on the screen in the room: “Join the gallery”, “Missions”, the waiting messages. What you and your guests write — the event name, the captions, the mission prompts — is shown as it is and is never translated. Your guests choose their own language on their phone; this setting does not apply to them.',
 
-    /* ---- Per-event theming (roadmap 2.2). ---- */
     theme: 'Appearance',
     themeHint:
       'Visible to your guests and on the screen in the room. The colours offered stay readable at ten metres.',
@@ -548,7 +534,6 @@ export const en: UiText = {
       plain: 'Plain surface',
     },
 
-    /* ---- Event templates (roadmap 3.5). ---- */
     template: 'Type of event',
     templateHint:
       'A starting point, suited to the kind of evening. All these settings can still be changed at any time, before the event and during it.',
@@ -576,7 +561,6 @@ export const en: UiText = {
     moderators: 'Moderators',
     inviteModerator: 'Invite a moderator',
 
-    /* ---- Added by features/admin (auth, event management). ---- */
     loading: 'Loading your events…',
     loadFailed: 'Loading failed',
     eventLoading: 'Loading the event…',
@@ -655,7 +639,6 @@ export const en: UiText = {
     purgeConfirmHint: (slug: string) => `Type “${slug}” to confirm the deletion.`,
     purged: (name: string) => `${name} has been deleted.`,
 
-    /* ---- Scheduled opening and closing (docs/ROADMAP.md §3.4). ---- */
     schedule: 'Automatic opening and closing',
     scheduleHint:
       'Leave this empty to open and close the event yourself. The times are your computer’s, so they are the times where the party is.',
@@ -671,8 +654,6 @@ export const en: UiText = {
     scheduleSave: 'Save the schedule',
     scheduleDiscarded: (when: string) =>
       `The automatic schedule could not be applied on ${when}: the event could not change state at that moment. It has been cleared. Save a new one if you still want one.`,
-
-    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
     missionsTitle: 'Missions',
     missionsHint:
@@ -727,7 +708,6 @@ export const en: UiText = {
     confirmPassword: 'Confirm the new password',
     mustChangePassword: 'Choose a password before you continue.',
 
-    /* ---- Added by features/auth. ---- */
     changePasswordIntro: 'Choose a password you do not use anywhere else.',
     passwordSaved: 'Password saved.',
   },

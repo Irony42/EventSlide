@@ -222,11 +222,9 @@ const settingsThemeAddedLater = (value: unknown): EventThemeProps => {
 }
 
 /**
- * The language the wall speaks, for a settings blob written before there was one.
- *
- * Absent is French and not a refusal, for the reason {@link settingsThemeAddedLater}
- * gives: the value it fills in is the one that blob has been rendering all along, because
- * before roadmap 1.5 the projector had no other language to render.
+ * The language the wall speaks, for a settings blob written before there was one. Absent
+ * is French and not a refusal, for {@link settingsThemeAddedLater}'s reason: it is what
+ * that blob has been rendering all along.
  */
 const settingsLanguageAddedLater = (value: unknown): EventLanguage => {
   if (value === undefined) return DEFAULT_EVENT_LANGUAGE
@@ -298,22 +296,16 @@ const settingsOf = (raw: string): EventSettings => {
      */
     theme: settingsThemeAddedLater(decoded['theme']),
     /**
-     * Added by roadmap 1.5, and the **third** field to need the treatment above.
+     * Added by roadmap 1.5, and the **third** field to need the treatment above. Its
+     * answer to "what does an absent key mean" is the theme's shape rather than
+     * `allowClips`': French is what such an event's wall has been rendering since the day
+     * it was created, so filling it in switches nothing on — and "absent" never has to be
+     * told apart from "chose French" later, which is the one-way door `allowClips`
+     * records.
      *
-     * Its answer to "what does an absent key mean" is the theme's shape rather than
-     * `allowClips`': `DEFAULT_EVENT_LANGUAGE` is French, and French is what the wall of
-     * an event written before this field has been rendering since the day it was
-     * created — the whole interface was French then. So filling it in changes nothing
-     * any host would notice, and there is nothing they consented to that it switches on.
-     *
-     * That is also why "absent" never has to be told apart from "chose French" later,
-     * which is the one-way door `allowClips` records: the two mean the same thing here,
-     * so the first save of any unrelated setting writing the key is a no-op.
-     *
-     * Present but outside the vocabulary is corruption, exactly as an unknown moderation
-     * mode is. A tag this build has no table for would put the projector on the fallback
-     * language with nothing anywhere saying why, and a wall quietly in the wrong language
-     * for eight hours is worse than a boot that names the column.
+     * Present but outside the vocabulary is corruption, as an unknown moderation mode is:
+     * a wall quietly in the wrong language for eight hours is worse than a boot that names
+     * the column. Both halves are pinned in `sqliteEventRepository.test.ts`.
      */
     wallLanguage: settingsLanguageAddedLater(decoded['wallLanguage']),
   }
