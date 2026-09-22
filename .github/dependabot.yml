@@ -67,3 +67,21 @@ updates:
     ignore:
       - dependency-name: '@types/node'
         versions: ['>=25']
+      # `typescript` is held below 7, and the reason is not the compiler. TS 7 is ready
+      # for this repository — all five projects typecheck at zero errors under it, the
+      # 170 emitted files are byte-identical to TS 6's, and the full sweep runs in 1.83s
+      # against 11.88s. What is not ready is `typescript-eslint`, and that matters more
+      # than build speed: TS 7 ships the compiler as native Go binaries, `require('typescript')`
+      # exports only `version` and `versionMajorMinor`, and `typescript-estree` — built on
+      # the old JS API — crashes at module evaluation. ESLint then exits 2 having linted
+      # **zero files**, which in this repository means `DOMAIN_FORBIDDEN`,
+      # `APPLICATION_FORBIDDEN` and the `process.env` ban stop being enforced at all. A
+      # green build with no architectural boundary is worse than a slow one with it.
+      #
+      # Not a preference, and not permanent: latest and canary typescript-eslint both
+      # declare `typescript: ">=4.8.4 <6.1.0"` and there is no v9. The unblock is upstream
+      # — TS 7.1 exposing a programmatic API, then typescript-eslint bridging it. Watch
+      # https://github.com/typescript-eslint/typescript-eslint/issues/10940 and lift this
+      # the day it closes.
+      - dependency-name: 'typescript'
+        versions: ['>=7']
