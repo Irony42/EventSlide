@@ -124,12 +124,28 @@ export const useGallery = (
   const current = answer !== null && answer.attempt === attempt ? answer.value : null
   const loaded = current?.phase === 'ready' ? current.loaded : null
   const shown = loaded?.items.length ?? 0
+  const ready = loaded !== null
 
-  // Re-read what is on screen before its signatures lapse. See the file comment.
+  /**
+   * How many photographs are on screen, for the timer below to read at each tick.
+   *
+   * A ref rather than a dependency, and that is the fix for a measured defect: with
+   * `shown` in the timer's dependencies, every "load more" cleared and re-armed it, so a
+   * guest who opened the album at 20:00 and loaded a page at 20:40 was not re-signed until
+   * 21:25 — and from 21:00 every link on the first page answered 404, which reads exactly
+   * like a revoked album.
+   */
+  const shownRef = useRef(shown)
   useEffect(() => {
-    if (loaded === null) return
+    shownRef.current = shown
+  }, [shown])
+
+  // Re-read what is on screen before its signatures lapse, on a cadence nothing but a
+  // fresh first read resets. See the file comment.
+  useEffect(() => {
+    if (!ready) return
     const timer = setInterval(() => {
-      read(shown).then(
+      read(shownRef.current).then(
         (fresh) => {
           if (alive.current) setAnswer({ attempt, value: { phase: 'ready', loaded: fresh } })
         },
@@ -144,25 +160,36 @@ export const useGallery = (
       )
     }, refreshEveryMs)
     return () => clearInterval(timer)
-  }, [loaded, shown, read, attempt, refreshEveryMs])
+  }, [ready, read, attempt, refreshEveryMs])
 
   const loadMore = useCallback(async () => {
     if (loaded === null || loaded.cursor === null || loadingMore) return
+    const after = loaded.cursor
     setLoadingMore(true)
     setMoreFailure(null)
     try {
-      const page = await api.galleryPhotos(token, loaded.cursor)
+      const page = await api.galleryPhotos(token, after)
       if (!alive.current) return
-      setAnswer({
-        attempt,
-        value: {
-          phase: 'ready',
-          loaded: {
-            gallery: loaded.gallery,
-            items: [...loaded.items, ...page.items],
-            cursor: page.nextCursor,
+      // Appended to whatever is on screen **now**, not to what was there when the page was
+      // asked for: a refresh that landed in between re-signed every URL, and writing the
+      // old list back would undo it. Dropped if the album has moved past this cursor.
+      setAnswer((previous) => {
+        if (previous === null || previous.attempt !== attempt) return previous
+        if (previous.value.phase !== 'ready' || previous.value.loaded.cursor !== after) {
+          return previous
+        }
+        const onScreen = previous.value.loaded
+        return {
+          attempt,
+          value: {
+            phase: 'ready',
+            loaded: {
+              gallery: onScreen.gallery,
+              items: [...onScreen.items, ...page.items],
+              cursor: page.nextCursor,
+            },
           },
-        },
+        }
       })
     } catch (cause) {
       if (!alive.current) return

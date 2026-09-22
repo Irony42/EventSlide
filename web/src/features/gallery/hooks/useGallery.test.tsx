@@ -43,6 +43,68 @@ describe('useGallery', () => {
     )
   })
 
+  it('re-signs on its own cadence, however recently the guest loaded another page', async () => {
+    // Measured before the fix: "load more" re-armed the timer, so a page loaded at 20:40
+    // postponed the 21:00 re-sign to 21:25 and the first page's links died at 21:00.
+    vi.useFakeTimers()
+    try {
+      const gallery = vi.fn<Api['gallery']>(async () => aGallery())
+      const galleryPhotos = vi.fn<Api['galleryPhotos']>(async (_token, cursor) =>
+        cursor === null
+          ? { items: [aGalleryPhoto({ id: 'p1' })], nextCursor: 'c1' }
+          : { items: [aGalleryPhoto({ id: 'p2' })], nextCursor: null },
+      )
+      const { result } = mount(fakeApi({ gallery, galleryPhotos }), 1000)
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      expect(result.current.phase).toBe('ready')
+
+      await act(async () => vi.advanceTimersByTimeAsync(800))
+      await act(async () => result.current.loadMore())
+      await act(async () => vi.advanceTimersByTimeAsync(250))
+
+      expect(gallery).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not write old signatures back when a page lands after a refresh', async () => {
+    vi.useFakeTimers()
+    try {
+      let round = 0
+      let releasePage: (page: Awaited<ReturnType<Api['galleryPhotos']>>) => void = () => undefined
+      const galleryPhotos = vi.fn<Api['galleryPhotos']>(async (_token, cursor) => {
+        if (cursor === null) {
+          return {
+            items: [aGalleryPhoto({ id: 'p1', previewUrl: `/p1?r=${round}` })],
+            nextCursor: 'c1',
+          }
+        }
+        return new Promise((resolve) => {
+          releasePage = resolve
+        })
+      })
+      const { result } = mount(fakeApi({ galleryPhotos }), 1000)
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+
+      // A page is asked for; before it lands, the timer re-signs page one.
+      let more: Promise<void> = Promise.resolve()
+      act(() => {
+        more = result.current.loadMore()
+      })
+      round = 1
+      await act(async () => vi.advanceTimersByTimeAsync(1000))
+      expect(result.current.items.map((item) => item.previewUrl)).toEqual(['/p1?r=1'])
+
+      releasePage({ items: [aGalleryPhoto({ id: 'p2', previewUrl: '/p2' })], nextCursor: null })
+      await act(async () => more)
+
+      expect(result.current.items.map((item) => item.previewUrl)).toEqual(['/p1?r=1', '/p2'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows the neutral screen when the link dies while the album is open', async () => {
     let revoked = false
     const api = fakeApi({
