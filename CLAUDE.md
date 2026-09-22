@@ -201,18 +201,32 @@ npm run verify:full   # verify + test:e2e                         <- before open
   requirement itself is wrong.
 - **Prefer deleting to adding.** 1.0 carried duplicate legacy HTML routes alongside
   the JSON API. If you find dead code, remove it in its own commit.
-- **French is the UI language, English is the code language.** Identifiers, comments,
-  commit messages, and docs in English. User-facing strings live in
-  `web/src/lib/i18n/` and are French — with correct accents.
-- **The guest surface is translated; the host surface is not.** `fr.ts` decides which
-  keys exist. Its `app`, `join`, `upload`, `ui`, `shell` and `errors` sections are
-  carried by `de.ts`, `en.ts`, `es.ts` and `it.ts` as well, and adding a key to one of
-  them fails the build until all four have it. `moderation`, `wall`, `admin`, `auth` and
-  `mobileModeration` are French in every language, by decision, which
-  `web/src/lib/i18n/translations.ts` argues. A guest-facing component reads
-  `useTranslations()`; a host-facing one imports `fr` directly. `<html lang>` follows the
-  language actually on screen and is set by `AppShell`, the one component every surface
-  renders through. See §1.5 of the roadmap.
+- **French is the source language, English is the code language.** Identifiers, comments,
+  commit messages, and docs in English. User-facing strings live in `web/src/lib/i18n/`,
+  and `fr.ts` is written by hand with correct accents and a deliberate register — it is
+  the copy the other four are translated *from*, not a peer of theirs.
+- **The whole interface is translated.** `fr.ts` decides which keys exist and all eleven
+  of its sections are carried by `de.ts`, `en.ts`, `es.ts` and `it.ts`, so adding a key
+  anywhere fails the build until all four have it. **Every** component reads
+  `useTranslations()`; a module that is not a component and not a hook takes `UiText` as a
+  parameter (`web/src/features/wall/photoAlt.ts` is the worked example). A file that
+  imports `fr` directly is either a test stating the French wording on purpose or a bug.
+  `web/src/lib/i18n/translations.ts` carries the argument, including the one this reversed.
+- **Three surfaces, two answers about language.** The guest's phone and the host's console
+  take the **reader's** own preference — one `localStorage` key, one picker, in both
+  layouts' headers. The projected wall takes the **event's** `wallLanguage`, a setting the
+  host chooses (defaulted once, at creation, to their own language) because a projector has
+  nobody in front of it to ask: `navigator.languages` there is the language of whichever
+  machine the venue had in a cupboard. `LocaleOverride` is the boundary and
+  `src/domain/events/eventLanguage.ts` is the argument. `<html lang>` follows the language
+  actually on screen and is set by `AppShell`, the one component every surface renders
+  through. See §1.5 of the roadmap.
+- **An event's name, a caption, a display name and a mission prompt are content, not
+  interface.** A person wrote them, in whatever language they were speaking, and no table
+  translates, reformats or normalises them — so a German wall over a French wedding prints
+  a German heading above French prompts, which is correct. `content.test.ts` enforces it by
+  reading `fr.ts`'s own parameter types, so a new content-carrying phrase is covered the
+  moment it is declared.
 
 ---
 

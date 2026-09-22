@@ -62,8 +62,22 @@ And the parts that only show up on the night:
   the phone and sent when there is some, even if the guest has closed the page —
   EventSlide installs as an app if they let it, and keeps working when the network does
   not.
-- **It speaks the guest's language.** French, English, Spanish, German and Italian,
-  chosen from the phone and overridable. International weddings are the normal case.
+- **It speaks everybody's language, not only the guest's.** French, English, Spanish,
+  German and Italian, across the whole interface: the guest's phone, the moderation
+  console, the admin pages and the projected wall. International weddings are the normal
+  case, and so is a moderator who is not the person who installed the box.
+
+  A guest and a host each pick their own from a control in the header, and it is
+  remembered. The wall is the exception and it is the interesting one: there is nobody in
+  front of a projector to ask, so its language is a setting on the **event**, chosen by
+  whoever created it and defaulted to the language they were reading at the time.
+
+  What is never translated is what people write. An event's name, a caption, a guest's
+  display name and a mission prompt are shown exactly as typed — so a German wall over a
+  French wedding prints German labels above French prompts, which is the right way round.
+  A native reader has not yet gone over the German, Spanish and Italian copy on the host
+  and wall surfaces; the French is hand-written and is the source the rest is translated
+  from.
 - **It looks like the evening it is running.** The host picks an accent colour, a font
   pairing and a frame style; the wall and the guest screens follow. Contrast is checked
   against the accessibility contract server-side, so a hue that would make captions
