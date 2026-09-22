@@ -496,11 +496,17 @@ empty `results` array would tell a guest whose picker silently failed that their
 worked. `400 upload.unexpectedField` when a file arrives under any other field name, and
 `400 upload.rejected` for multer's remaining refusals (too many text fields, an
 oversized field name or value).
-`404 mission.notFound` when `missionId` names no prompt **of this event** — the one
-identifier in this request the phone chose, refused before a single byte is decoded. A
-guest whose checklist is stale (the host deleted the prompt) meets this and is told, which
-is the right side of the trade: storing the photograph untagged would tell them their
-mission was answered when nothing recorded it. `400 request.invalid` when it is not a uuid.
+`400 request.invalid` when `missionId` is not a uuid.
+
+A well-formed `missionId` that names no prompt **of this event** is **not** an error: the
+photographs are stored **untagged** and the tag is dropped, with a line in the server's
+log. The bytes were never the problem — the identical request is accepted with the tag
+left off — and a refusal does not stay in the guest's hands: an upload queued on venue
+Wi-Fi replays through the outbox, where a refusal on its merits removes the entry from the
+device. A host correcting a typo on the mission list would otherwise have deleted three
+photographs off a phone whose owner had put it away. Nothing is silently lost either: the
+guest's checklist is re-read after every settled batch, and the row the tag named is gone
+from it.
 
 > Until this audit the per-guest cap was documented here as `403 photo.tooManyForGuest`.
 > The server has never sent that code: it sends `event.photoLimitReached`, and the

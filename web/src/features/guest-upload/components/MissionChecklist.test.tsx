@@ -26,12 +26,8 @@ describe('MissionChecklist', () => {
       />,
     )
 
-    expect(
-      screen.getByRole('button', { name: fr.upload.missionSelect('un selfie avec les mariés') }),
-    ).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: fr.upload.missionSelect('la pire figure de danse') }),
-    ).toBeVisible()
+    expect(screen.getByRole('button', { name: /un selfie avec les mariés/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /la pire figure de danse/ })).toBeVisible()
   })
 
   it('chooses a prompt with one tap', async () => {
@@ -44,9 +40,7 @@ describe('MissionChecklist', () => {
       />,
     )
 
-    await userEvent.click(
-      screen.getByRole('button', { name: fr.upload.missionSelect('un selfie') }),
-    )
+    await userEvent.click(screen.getByRole('button', { name: /un selfie/ }))
 
     expect(onToggle).toHaveBeenCalledWith('m1')
   })
@@ -63,12 +57,14 @@ describe('MissionChecklist', () => {
       />,
     )
 
-    expect(
-      screen.getByRole('button', { name: fr.upload.missionSelect('un selfie') }),
-    ).toHaveAttribute('aria-pressed', 'true')
-    expect(
-      screen.getByRole('button', { name: fr.upload.missionSelect('la danse') }),
-    ).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /un selfie/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: /la danse/ })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
   })
 
   it('offers the same tap again to take the choice back', async () => {
@@ -83,9 +79,7 @@ describe('MissionChecklist', () => {
       />,
     )
 
-    await userEvent.click(
-      screen.getByRole('button', { name: fr.upload.missionSelect('un selfie') }),
-    )
+    await userEvent.click(screen.getByRole('button', { name: /un selfie/ }))
 
     expect(onToggle).toHaveBeenCalledWith('m1')
   })
@@ -119,6 +113,32 @@ describe('MissionChecklist', () => {
     const row = screen.getByRole('button', { name: /la première danse/ })
     expect(row).toHaveTextContent(fr.upload.missionDoneByRoom)
     expect(row).not.toHaveTextContent(fr.upload.missionDone)
+  })
+
+  it('carries the done state in the accessible name, not only in the subtree', async () => {
+    // The guard for what review found: an `aria-label` naming only the prompt sat here
+    // and overrode the content, so a screen-reader user heard the identical sentence for
+    // an answered prompt and an open one — while the assertion above, which reads the DOM
+    // subtree, passed. `getByRole` matches on the accessible name, so this fails if the
+    // label ever comes back.
+    renderWithProviders(
+      <MissionChecklist
+        missions={[
+          aGuestMission({ id: 'm1', prompt: 'un selfie', done: true }),
+          aGuestMission({ id: 'm2', prompt: 'la danse', done: false }),
+        ]}
+        selected={null}
+        onToggle={vi.fn()}
+      />,
+    )
+
+    // A pattern rather than the exact string: how an accessible name joins two adjacent
+    // spans is jsdom's business and differs from a real browser's. What the rule says is
+    // that both the prompt and the state are *in* it.
+    expect(
+      screen.getByRole('button', { name: new RegExp(`un selfie.*${fr.upload.missionDone}`) }),
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'la danse' })).toBeVisible()
   })
 
   it('leaves a done prompt pressable, because a guest may have a better photograph', async () => {

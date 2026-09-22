@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_EVENT_THEME } from '../../../design-system/eventTheme'
-import { aWallResponse } from '../../../testing/renderWithProviders'
+import { aWallMission, aWallResponse } from '../../../testing/renderWithProviders'
 import { SETTINGS_EXEMPT, sameSettings } from './useWallPlaylist'
-import type { EventThemeDto } from '../../../lib/api/dto'
+import type { EventThemeDto, WallMissionDto } from '../../../lib/api/dto'
 
 /**
  * The guard on the guard.
@@ -59,6 +59,41 @@ describe('every field of the wall response is accounted for', () => {
     const changed = { ...aWallResponse(), theme: theme as unknown as EventThemeDto }
 
     expect(sameSettings(kept, changed)).toBe(false)
+  })
+
+  /**
+   * And one level down again, for the same reason and one shape further.
+   *
+   * `missions` is an **array** of objects, so the top-level walk above changes it by
+   * replacing it wholesale — which trips the length comparison and would pass whatever
+   * the per-field comparisons said. Each field a row actually draws is pinned here.
+   *
+   * The one that matters most is `prompt`, and it is the least obvious: a host correcting
+   * a typo mid-evening moves no photograph, so `revision` does not change, and a wall that
+   * did not compare it would keep showing the typo for the rest of a quiet stretch.
+   */
+  it.each(Object.keys(aWallMission()))('notices a change to missions[].%s', (key) => {
+    const kept = { ...aWallResponse(), missions: [aWallMission()] }
+    const row: Record<string, unknown> = { ...aWallMission() }
+    const current: unknown = row[key]
+    row[key] =
+      typeof current === 'number'
+        ? current + 1
+        : typeof current === 'boolean'
+          ? !current
+          : `${String(current)}-moved`
+
+    const changed = { ...aWallResponse(), missions: [row as unknown as WallMissionDto] }
+
+    expect(sameSettings(kept, changed)).toBe(false)
+  })
+
+  it('notices a prompt the host has added or removed', () => {
+    const none = { ...aWallResponse(), missions: [] }
+    const one = { ...aWallResponse(), missions: [aWallMission()] }
+
+    expect(sameSettings(none, one)).toBe(false)
+    expect(sameSettings(one, none)).toBe(false)
   })
 
   it('says nothing changed when nothing did', () => {

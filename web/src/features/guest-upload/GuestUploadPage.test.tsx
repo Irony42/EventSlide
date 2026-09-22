@@ -684,7 +684,7 @@ describe('sending a video', () => {
 
       expect(
         await screen.findByRole('button', {
-          name: fr.upload.missionSelect('un selfie avec les mariés'),
+          name: /un selfie avec les mariés/,
         }),
       ).toBeVisible()
     })
@@ -696,11 +696,9 @@ describe('sending a video', () => {
       })
       havingJoined()
       renderUpload(api)
-      await screen.findByRole('button', { name: fr.upload.missionSelect('un selfie') })
+      await screen.findByRole('button', { name: /un selfie/ })
 
-      await userEvent.click(
-        screen.getByRole('button', { name: fr.upload.missionSelect('un selfie') }),
-      )
+      await userEvent.click(screen.getByRole('button', { name: /un selfie/ }))
       await pickPhotos(aPhotoFile('confettis.jpg'))
       await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
 
@@ -719,7 +717,7 @@ describe('sending a video', () => {
       })
       havingJoined()
       renderUpload(api)
-      await screen.findByRole('button', { name: fr.upload.missionSelect('un selfie') })
+      await screen.findByRole('button', { name: /un selfie/ })
 
       await pickPhotos(aPhotoFile('confettis.jpg'))
       await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
@@ -735,11 +733,9 @@ describe('sending a video', () => {
     it('confirms which prompt the next send counts for', async () => {
       havingJoined()
       renderUpload(fakeApi(withMissions(aGuestMission({ id: 'm1', prompt: 'un selfie' }))))
-      await screen.findByRole('button', { name: fr.upload.missionSelect('un selfie') })
+      await screen.findByRole('button', { name: /un selfie/ })
 
-      await userEvent.click(
-        screen.getByRole('button', { name: fr.upload.missionSelect('un selfie') }),
-      )
+      await userEvent.click(screen.getByRole('button', { name: /un selfie/ }))
 
       expect(await screen.findByText(fr.upload.missionFor('un selfie'))).toBeVisible()
     })
@@ -754,7 +750,7 @@ describe('sending a video', () => {
       const api = fakeApi({ myMissions, uploadPhotos: vi.fn(async () => accepted('photo-1')) })
       havingJoined()
       renderUpload(api)
-      await screen.findByRole('button', { name: fr.upload.missionSelect('un selfie') })
+      await screen.findByRole('button', { name: /un selfie/ })
       expect(myMissions).toHaveBeenCalledTimes(1)
 
       await pickPhotos(aPhotoFile('confettis.jpg'))

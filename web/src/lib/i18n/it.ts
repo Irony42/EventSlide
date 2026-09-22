@@ -113,7 +113,6 @@ export const it: GuestTranslations = {
     missionsHint: 'Tocchi una missione, poi invii la sua foto.',
     missionDone: 'Fatto',
     missionDoneByRoom: 'Già fotografata',
-    missionSelect: (prompt: string) => `Scegliere la missione «${prompt}»`,
     missionFor: (prompt: string) => `Queste foto conteranno per «${prompt}».`,
 
     itemQueued: 'In attesa della rete',

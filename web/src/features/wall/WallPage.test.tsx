@@ -1176,6 +1176,22 @@ describe('WallPage', () => {
       expect(screen.queryByRole('heading', { name: fr.wall.missionsTitle })).not.toBeInTheDocument()
     })
 
+    it('keeps the prompts when the host only puts the join reminder away', async () => {
+      // The button says "Masquer le rappel du code". A host who wants the QR out of the
+      // corner has not asked for the room's mission list to go with it — and nothing on
+      // this screen puts either back, because the projector is unattended.
+      const api = fakeApi({
+        wall: wallSequence(aPopulatedWall({ missions: [aWallMission({ prompt: 'un selfie' })] })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await userEvent.click(screen.getByRole('button', { name: fr.wall.dismissJoinCard }))
+
+      expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+      expect(screen.getByText('un selfie')).toBeVisible()
+    })
+
     it('puts the prompts away with the same key that puts the invitation away', async () => {
       // One key, one meaning: "put away whatever is covering the photos". A ladder that
       // dismissed one and then the other would make Escape mean two things depending on

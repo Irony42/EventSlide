@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { Express } from 'express'
 import request, { type Agent } from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -499,5 +501,38 @@ describe('DELETE /api/events/:eventSlug/missions/:missionId', () => {
     const response = await agent.delete(`/api/events/${SLUG}/missions/pas-un-uuid`)
 
     expect(response.status).toBe(400)
+  })
+})
+
+/**
+ * The one number this feature says twice, held together.
+ *
+ * `MAX_MISSIONS_PER_EVENT` is a domain rule and `POST` above enforces it. The host's panel
+ * has to say it as well — it disables the form at the ceiling and prints the limit — and
+ * it cannot import it: `web/` and `src/` are separate tsconfig projects and the
+ * architecture rule forbids the web app reaching into the server. That is the same trade
+ * `presenters/dtoContract.test.ts` makes about the wire format, and this is its shape for
+ * one constant.
+ *
+ * Without it, lowering the domain constant leaves the console offering a thirteenth row
+ * that this route answers `409 mission.limitReached`, with nothing failing — a host typing
+ * a prompt into a form that cannot accept it. The panel's comment says "Restated so the
+ * panel can say it", and a rule restated in a comment with no failing test is the one
+ * defect this codebase produces over and over.
+ *
+ * Reading a path is not an import: nothing here couples the server's build to the web app's.
+ */
+describe('the mission ceiling, on both sides of the boundary', () => {
+  it('is the same number in the domain and in the host panel', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'web/src/features/admin/MissionsPanel.tsx'),
+      'utf8',
+    )
+    const declared = /const MAX_MISSIONS = ([0-9]+)/.exec(source)
+
+    // A parse that found nothing would make the assertion below vacuous, so it is checked
+    // first: the constant may be renamed, but not silently.
+    expect(declared, 'MissionsPanel no longer declares `const MAX_MISSIONS`').not.toBeNull()
+    expect(Number(declared?.[1])).toBe(MAX_MISSIONS_PER_EVENT)
   })
 })

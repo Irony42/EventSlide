@@ -1069,6 +1069,7 @@ describe('uploadPhotos and the mission tag', () => {
   let images: FakeImageProcessor
   let hasher: FakeContentHasher
   let bus: RecordingEventBus
+  let logger: CapturingLogger
   let uploadPhotos: UploadPhotos
 
   beforeEach(() => {
@@ -1079,6 +1080,7 @@ describe('uploadPhotos and the mission tag', () => {
     images = new FakeImageProcessor()
     hasher = new FakeContentHasher()
     bus = new RecordingEventBus()
+    logger = new CapturingLogger()
     uploadPhotos = makeUploadPhotos({
       events,
       photos,
@@ -1089,7 +1091,7 @@ describe('uploadPhotos and the mission tag', () => {
       bus,
       clock: new FakeClock(),
       ids: new SequentialIdGenerator(),
-      logger: new CapturingLogger(),
+      logger,
       limits: { maxPixels: MAX_PIXELS },
     })
 
@@ -1151,28 +1153,35 @@ describe('uploadPhotos and the mission tag', () => {
     expect(listed[0]?.progress).toEqual({ publishedPhotos: 1, completedByGuests: 1 })
   })
 
-  it('refuses a prompt that belongs to another event, and stores nothing', async () => {
+  it('never files a photograph under another event"s prompt', async () => {
     // A mission id is the one identifier in this request the guest's phone chose. Without
     // the scoped lookup a phone at one wedding could file a photograph under a stranger's
     // prompt, and their wall would count it.
     const result = await send(asMissionId('mission-gala'))
 
-    expect(!result.ok && result.error.code).toBe('mission.notFound')
-    expect((await photos.list(EVENT)).items).toEqual([])
-    expect(bus.published).toEqual([])
+    expect(result.ok).toBe(true)
+    expect((await photos.list(EVENT)).items.map((photo) => photo.missionId)).toEqual([null])
+    const gala = await missions.listWithProgress(asEventId('event-2'))
+    expect(gala[0]?.progress.publishedPhotos).toBe(0)
   })
 
-  it('refuses a prompt that does not exist at all', async () => {
+  it('keeps the photographs when the prompt they named is gone, and drops only the tag', async () => {
+    // The host deleted the prompt while this phone was holding a stale checklist. The
+    // bytes were never the problem — refusing them here removes them from the device on
+    // the outbox path, which is a guest's evening spent on a typo correction.
     const result = await send(asMissionId('mission-ghost'))
 
-    expect(!result.ok && result.error.code).toBe('mission.notFound')
+    expect(result.ok).toBe(true)
+    expect((await photos.list(EVENT)).items.map((photo) => photo.missionId)).toEqual([null])
+    expect(bus.published).toEqual([{ type: 'photo.uploaded', eventId: EVENT, photoId: 'photo-1' }])
   })
 
-  it('refuses before it decodes anything, so a stale checklist costs the box nothing', async () => {
-    // The refusal reaches the guest before their bytes have gone, on venue wifi.
+  it('tells the operator about a tag it could not resolve, since that is a client bug', async () => {
     await send(asMissionId('mission-ghost'))
 
-    expect(images.calls).toEqual([])
-    expect(media.objectCount).toBe(0)
+    expect(logger.lines).toContainEqual({
+      level: 'warn',
+      message: 'an upload named a mission this event does not have; storing it untagged',
+    })
   })
 })

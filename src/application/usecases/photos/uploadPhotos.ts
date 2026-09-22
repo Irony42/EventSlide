@@ -220,24 +220,39 @@ export const makeUploadPhotos = ({
     }
 
     /**
-     * The mission tag, checked against **this** event before anything is decoded.
+     * The mission tag, resolved against **this** event (roadmap §2.1).
      *
      * A mission id is the one identifier in this request that a guest's phone chose, so
      * the scoped lookup is the tenant boundary: without it, a phone at one wedding could
-     * file a photograph under a stranger's prompt and their wall would count it.
+     * file a photograph under a stranger's prompt and their wall would count it. What is
+     * stored is the id the repository handed back, so a tag that named another event —
+     * or nothing — is a tag that is not stored.
      *
-     * It refuses rather than dropping the tag, and the refusal is deliberate in a place
-     * where dropping would be kinder. The realistic cause is a host who deleted a prompt
-     * while this phone was holding a stale checklist — and storing the photograph
-     * untagged would tell the guest their mission was answered when nothing recorded it,
-     * which is the one thing this feature must not do. Placed before `probe`, so the
-     * refusal costs the box nothing and reaches the guest before their bytes have gone.
+     * **An unresolvable tag drops the tag and keeps the photographs.** It refused the
+     * whole request until review, which was wrong in the one direction that costs a guest
+     * their evening. The bytes were never the problem: the identical photographs are
+     * accepted by this identical route with the tag left off. And a refusal here does not
+     * stay in the guest's hands — an upload queued on venue Wi-Fi replays through the
+     * outbox, where a refusal on its merits means the entry is **removed from the device**
+     * (`web/src/lib/offline/outboxPolicy.ts`), so a host correcting a typo on the mission
+     * list by deleting and re-adding it would have deleted three photographs off a phone
+     * whose owner had already put it away.
+     *
+     * Nothing is silently lost by dropping it either, which is what made the refusal look
+     * defensible: the guest's checklist is re-read after every settled batch, and the row
+     * the tag named is gone from it — so what they see is the truth. The log line is for
+     * the operator, because a *malformed* tag is a client bug rather than an evening.
      */
     let tag: MissionId | null = null
     if (missionId !== undefined && missionId !== null) {
       const mission = await missions.findById(eventId, missionId)
-      if (mission === null) return err(DomainError.notFound('mission.notFound'))
-      tag = mission.id
+      if (mission === null) {
+        logger.warn('an upload named a mission this event does not have; storing it untagged', {
+          eventId,
+          missionId,
+        })
+      }
+      tag = mission?.id ?? null
     }
 
     const maxPerGuest = settings.maxPhotosPerGuest

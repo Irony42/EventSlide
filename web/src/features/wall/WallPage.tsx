@@ -143,14 +143,19 @@ export function WallPage() {
   const [layoutOverride, setLayoutOverride] = useState<WallLayout | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
   /**
-   * One flag for everything the wall draws over the photographs.
+   * Two flags, because there are two things a host can mean.
    *
-   * The join card and the mission panel are both chrome, and Escape has always meant
-   * "put away whatever is covering the photos" — a ladder that dismissed one and then
-   * the other would make the same key mean two things depending on what was on screen,
-   * which is the last thing a host walking up to a projector mid-evening needs.
+   * **Escape means "put away whatever is covering the photos"** — it always has, and it
+   * now reaches the mission panel as well, which is the honest reading of one key with
+   * one meaning.
+   *
+   * **The card's own button means what its label says**, and its label is "Masquer le
+   * rappel du code". A host who wants the QR out of the corner has not asked for the
+   * room's mission list to go with it, and nothing on this screen puts either back: the
+   * projector is unattended, so a wrong dismissal lasts until somebody reloads it.
    */
   const [chromeDismissed, setChromeDismissed] = useState(false)
+  const [joinCardDismissed, setJoinCardDismissed] = useState(false)
 
   const serverLayout = wall?.layout
   const closeHelp = useCallback(() => setHelpOpen(false), [])
@@ -197,7 +202,7 @@ export function WallPage() {
     wall?.joinCode !== undefined && wall.joinUrl !== undefined
       ? { code: wall.joinCode, url: wall.joinUrl }
       : null
-  const showsOverlay = join !== null && !chromeDismissed && items.length > 0
+  const showsOverlay = join !== null && !chromeDismissed && !joinCardDismissed && items.length > 0
 
   /**
    * The host's prompts, when there are any (roadmap §2.1).
@@ -291,7 +296,7 @@ export function WallPage() {
       {showsMissions ? <WallMissions missions={missions} /> : null}
 
       {showsOverlay && join !== null ? (
-        <WallOverlay join={join} onDismiss={() => setChromeDismissed(true)} />
+        <WallOverlay join={join} onDismiss={() => setJoinCardDismissed(true)} />
       ) : null}
 
       <ReactionBurst pulse={reactionPulse} />

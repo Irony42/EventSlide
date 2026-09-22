@@ -161,7 +161,6 @@ export const fr = {
     missionDone: 'Fait',
     /** A once-for-the-evening prompt somebody else already answered. */
     missionDoneByRoom: 'Déjà photographiée',
-    missionSelect: (prompt: string) => `Choisir la mission « ${prompt} »`,
     missionFor: (prompt: string) => `Ces photos compteront pour « ${prompt} ».`,
 
     /* ---- Added by the offline outbox. Keep additions inside this block. ---- */

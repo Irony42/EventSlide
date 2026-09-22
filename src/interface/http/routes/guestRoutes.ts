@@ -96,7 +96,7 @@ const PHOTOS_FIELD = 'photos'
 /**
  * A ceiling on text parts, not a schema.
  *
- * `uploadFields` reads exactly one (`caption`) and is `.strict()`, so extras are a 400
+ * `uploadFields` reads two (`caption` and `missionId`) and is `.strict()`, so extras are a 400
  * either way — but the schema only runs once the whole body has been buffered, and a
  * client streaming a hundred thousand tiny fields would exhaust memory before it got a
  * chance. This stops that at the parser.

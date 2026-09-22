@@ -34,8 +34,13 @@ export interface MissionChecklistProps {
  * for their own, "Déjà photographiée" for a once-for-the-evening prompt somebody else
  * answered, which is the only thing that would otherwise read as a bug.
  *
- * Colour is never the only signal here either: a done row carries the check glyph and the
- * word as well as the accent.
+ * Colour is never the only signal here either, and neither is shape. A done row carries
+ * the word as well as the glyph and the accent — and the word is **inside the button**,
+ * so it is part of the accessible name. An `aria-label` naming only the prompt sat here
+ * until review, which overrode the content: a screen-reader user heard the identical
+ * sentence for an answered prompt and an open one, while the test asserting "in a word and
+ * not only in a colour" read the DOM subtree and passed. The affordance needs no label of
+ * its own — the role says it is a button and `aria-pressed` says it is a toggle.
  *
  * ## Nothing at all when the host set no prompts
  *
@@ -61,7 +66,6 @@ export function MissionChecklist({ missions, selected, onToggle }: MissionCheckl
               // A toggle, not a radio: the guest must be able to take the choice back,
               // and `aria-pressed` is the pattern a screen reader already knows.
               aria-pressed={mission.id === selected}
-              aria-label={t.upload.missionSelect(mission.prompt)}
               data-mission-done={mission.done ? 'true' : 'false'}
               onClick={() => onToggle(mission.id)}
             >

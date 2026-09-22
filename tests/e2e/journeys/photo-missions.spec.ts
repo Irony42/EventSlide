@@ -44,7 +44,10 @@ const joinAndSendForMission = async (
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
   await guest.waitForURL(/\/e\/[^/]+\/upload/)
 
-  await guest.getByRole('button', { name: `Choisir la mission « ${prompt} »` }).click()
+  // The prompt is the button's accessible name: the row carries its own state inside it
+  // ("Fait") rather than behind an `aria-label` that would hide it, so Playwright's
+  // substring match is what finds it.
+  await guest.getByRole('button', { name: prompt }).click()
   await guest
     .getByTestId('photo-input')
     .setInputFiles(await aPhoto(`mission-${displayName}`, 1200, 900))
@@ -123,7 +126,7 @@ test('a photograph the host refuses does not answer its mission', async ({ app, 
   // the guest's own checklist becomes the surface that can answer this. It reads the same
   // derivation the wall does.
   await guest.reload()
-  const checklist = guest.getByRole('button', { name: 'Choisir la mission « la première danse »' })
+  const checklist = guest.getByRole('button', { name: 'la première danse' })
   await expect(checklist).toBeVisible()
   await expect(checklist).not.toContainText('Fait')
   await expect(checklist).not.toContainText('Déjà photographiée')
