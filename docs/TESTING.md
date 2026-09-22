@@ -494,11 +494,25 @@ tests/e2e/
   same platform as the checker, commit the images, and **read the diff** — an updated
   snapshot nobody looked at is a test that has been switched off.
 
-- **Nothing may be animating when the shutter fires**, and `animations: 'disabled'` is
-  not what stops it. Playwright's option calls `finish()` on every finite animation on
-  the page, so a running animation is **fast-forwarded to its last frame** and left there
-  for the rest of the test — and whether the captured pixels are the frame before or
-  after that jump is a property of the machine, not of the wall.
+- **A committed baseline rots silently, and one had.** The CI job compares nothing against
+  these images: it renders its own before from the merge base and its own after from the
+  head. So a committed image can stop matching what the source renders and no job goes red
+  — only `npm run test:e2e:visual` on a workstation does, which is the loop these images
+  exist for. Measured by re-rendering the committed set on unmodified `main`: the mosaic was
+  208 146 px out (ratio 0.100), the themed mosaic 0.109 and the split 0.019, all of it the
+  `--surface-scrim` raise from 0.55 to 0.83 in #58 — eleven commits after `wall-mosaic.png`
+  was last written, and against a `display.spec.ts` comment claiming that raise "moved not
+  one pixel of this suite". It moved a tenth of two of them. **A baseline nobody
+  re-rendered is not evidence about today's source**, so regenerate the whole set when you
+  regenerate any of it, and say in the pull request which moved and why.
+
+- **A baseline pins every input that reaches its pixels**, and asserts the surface is in
+  the state it pins before the shutter. Three of those inputs have cost red jobs here.
+
+  **The shutter itself.** `animations: 'disabled'` calls `finish()` on every finite
+  animation on the page, so a running animation is **fast-forwarded to its last frame**
+  and left there for the rest of the test — and whether the captured pixels are the frame
+  before or after that jump is a property of the machine, not of the wall.
 
   `wall-filmstrip.png` paid for that. The strip's drift is timed from
   `--wall-drift-duration`, which is the _slide interval_ and not `--wall-transition`, so
@@ -516,6 +530,61 @@ tests/e2e/
   the drift's presence, duration and anchoring are in `WallLayouts.test.tsx`, and the
   distance it travels is measured from bounding boxes in
   `tests/e2e/journeys/display-wall.spec.ts`.
+
+  `wall-spotlight-bright.png` paid for it a second time, and the knob that fixed the
+  filmstrip could not reach it. Ken Burns is timed from `kenBurnsDurationMs`, which the
+  **server** computes as `interval + CROSSFADE_MS` — `e2e_interval` is read in the
+  browser and never touches it, so the zoom ran for 8 800 ms whatever the URL said.
+  Measured on that shot: 483 ms after the wall rendered the photograph's box was
+  1607×1205, and one `animations: 'disabled'` took it to 1728×1296 — a 4:3 fixture on a
+  16:9 screen, so only the left and right edges are on screen and the diff is two
+  vertical bands with the caption plate untouched. The fix is the filmstrip's: a wall
+  that is not advancing (`slideshow.intervalMs === 0` — one photograph, a paused host, a
+  hidden tab) declares `data-motion="still"` and mounts no zoom, which is a product fix
+  as much as a test one. The zoom was outliving the slide it is derived from on every
+  event's first ten minutes, holding `scale(1.08)` until a second photograph arrived.
+
+  **What the server minted.** `wall-polaroid.png` went red beside it with nothing
+  animating at all. A print's tilt is a static transform hashed from its photo id, and
+  under `E2E_HOOKS` ids come from `sequentialIdGenerator` — whose counter is per
+  **process**, while the server is per Playwright **worker**. So how far the counter had
+  run when a test seeded its album was decided by which other tests that worker took
+  first, the three prints landed at different angles between two renders of one commit,
+  and the diff was 0.02 of the screen against a budget of 0.01. The same counter prints
+  the join code on every full-page wall shot. `freshServerTest` in
+  `tests/e2e/fixtures/app.ts` is the answer: the `@visual` specs get a server nobody else
+  has touched, so the event is always that server's first and the album is always
+  photographs one to six.
+
+  A fixture's promise is asserted rather than trusted, because "one server per test" is
+  the kind of rule that lives in a comment and stops being true silently. `seedAlbum`
+  checks the event's join code is `000001` — the first code a fresh generator mints — and
+  the polaroid shot checks its three prints are photographs six, five and four. Swap
+  `freshServerTest` back to the worker-scoped `test` and both fail by name, in the run that
+  broke it, instead of the run after next failing on 60 000 pixels of tilt.
+
+  **What looked unpinnable was a product bug.** The join card's QR was built in the
+  browser from `window.location.origin` — the test server's ephemeral port — so no
+  fixture could make two runs agree, and eight of the twelve baselines carried it.
+  Measured by diffing two consecutive renders of one commit: 1 050–2 581 px a shot, ratio
+  0.0005–0.0012, all of it inside `x 1485..1572, y 854..1005`, which is the join card and
+  nothing else. **The four shots that came out at exactly zero are exactly the four that
+  carry no card** — `wall-empty.png` and `wall-empty-themed.png` photograph one element
+  and the card is its sibling, and `wall-spotlight-bright.png` and `wall-mosaic-themed.png`
+  press Escape first. That is how the region was identified rather than guessed: the
+  zeroes named it.
+
+  Masking that rectangle would have worked and was the wrong answer. A mask stops a
+  baseline seeing, permanently, and this rectangle is the one place on the wall where
+  being wrong costs a guest their evening rather than the room some polish — trap 1 is
+  what that looks like. The origin was unpinnable because the wall was asking the wrong
+  question: `PUBLIC_URL` is the address a phone can reach, the host's own event page
+  already built `joinUrl` from it, and the projector was the only surface printing the QR
+  a guest actually scans and the only one inventing its own answer. On any reverse-proxied
+  deployment that answer was wrong. The wall response carries `joinUrl` now; the visual
+  fixture starts its servers with a fixed `PUBLIC_URL`, which is the configuration a
+  proxied host already has rather than a state forged for a test; and the QR is compared
+  pixel for pixel, which is what that region deserves.
 
 - **Accessibility.** `@axe-core/playwright` over `/join/:code`, `/e/:slug/upload`,
   `/admin` and the moderation console, tags `wcag2a` + `wcag2aa`, failing on `serious`
