@@ -62,19 +62,21 @@ export const useMissions = (slug: string): MissionsState => {
   }, [])
 
   /**
-   * A selection that no longer names a prompt is dropped.
+   * A selection that no longer names a prompt reads as none.
    *
    * The host can delete a mission mid-evening, and the checklist refetches after every
-   * settled upload — so a guest can be holding a selection the server would refuse with
-   * `mission.notFound`, which costs them the whole batch. Clearing it here means the next
-   * send goes through untagged instead, which is the right failure: the photographs
-   * arrive, and the row they were meant for is gone anyway.
+   * settled upload — so a guest can be holding a selection the server would now refuse
+   * with `mission.notFound`, which on venue Wi-Fi costs them the whole batch. Sending
+   * untagged instead is the better failure: the photographs arrive, and the row they were
+   * meant for is gone anyway.
+   *
+   * **Derived at read rather than cleaned up in an effect.** An effect that called
+   * `setSelected(null)` would be a second render for a value this one already knows, and
+   * `react-hooks/set-state-in-effect` refuses it — rightly: between the two renders the
+   * page would hold an id no row on screen matches, which is exactly the state this is
+   * meant to prevent.
    */
-  useEffect(() => {
-    if (selected !== null && !missions.some((mission) => mission.id === selected)) {
-      setSelected(null)
-    }
-  }, [missions, selected])
+  const live = selected !== null && missions.some((mission) => mission.id === selected)
 
-  return { missions, selected, toggle, refresh }
+  return { missions, selected: live ? selected : null, toggle, refresh }
 }
