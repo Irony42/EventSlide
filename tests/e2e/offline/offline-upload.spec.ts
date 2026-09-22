@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures/app'
+import { passPrivacyNotice } from '../fixtures/guest'
 import { aPhoto } from '../fixtures/media'
 import type { Page } from '@playwright/test'
 
@@ -26,6 +27,9 @@ const join = async (guest: Page, url: string, joinCode: string): Promise<void> =
   await guest.getByLabel(/Votre prénom/i).fill('Léa')
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
   await guest.waitForURL(/\/e\/[^/]+\/upload/)
+  // Read while online, and recorded before the helper returns: a reload with the network
+  // cut renders from the session, which holds what the server confirmed.
+  await passPrivacyNotice(guest)
 }
 
 test('a photo picked with no connection reaches the wall once the network returns @offline', async ({

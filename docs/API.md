@@ -130,8 +130,9 @@ generic fallback sentence to a guest, which is why the lists are kept in step.
 | **Public**           | none                                                                              | —                      |
 
 A guest token grants: upload to **that one event** while it is `live`, deletion of
-**their own** photo inside the grace window, a caption on their own pending photo, and
-a reaction. Nothing else. It is checked against the event in the URL on every request,
+**their own** photo inside the grace window, a caption on their own pending photo, a
+reaction, and reading and acknowledging the event's privacy notice for **that device**.
+Nothing else. It is checked against the event in the URL on every request,
 and the named guest row must not be revoked.
 
 ### CSRF
@@ -263,6 +264,16 @@ which is allowed.
       "frame": "round",
       "material": "glass"
     }
+  },
+  "privacyNotice": {
+    "notice": {
+      "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900",
+      "publication": "afterReview",
+      "audiences": ["room", "organisers"],
+      "retentionDays": 30,
+      "selfRemovalSeconds": 900
+    },
+    "acknowledgement": "none"
   }
 }
 ```
@@ -285,6 +296,13 @@ exactly as they left it. A box with no video encoder answers `false` however the
 it, because `POST /clips` refuses with `500 clip.transcoderUnavailable` **after** multer
 has written the upload to disk: without the conjunction every guest pays a full
 eighty-megabyte upload, every time they try, until somebody redeploys.
+
+`privacyNotice` is what the upload screen shows before a first photo (roadmap §5.1), and
+where **this device** stands with it — the same body `GET /events/:slug/privacy-notice`
+answers (§3), described there. It rides on the join so the upload screen knows before its
+first frame whether to show the picker or the notice, with no second round trip. A new
+device is `none`; a phone re-joining with a device token whose guest already read the
+notice in force is `current` and is not shown it again.
 
 `allowClips`, `maxClipBytes` and `maxClipSeconds` are here so that a refusal can happen
 **before the bytes do**. A phone can read a recording's size and, usually, its duration
@@ -608,6 +626,77 @@ Empty for the overwhelming majority of events, which set no prompts.
 
 **Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.wrongEvent`;
 `403 guest.revoked`; `404 event.notFound`.
+
+### `GET /api/events/:slug/privacy-notice`
+
+The privacy notice in force at this event, and whether **this device** has read it
+(roadmap §5.1). The upload screen reads it when it opens and whenever it comes back into
+view, because the copy the join left in the tab is a snapshot and the host may have changed
+a setting since. `Cache-Control: no-store`.
+
+**200**
+
+```json
+{
+  "notice": {
+    "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900",
+    "publication": "afterReview",
+    "audiences": ["room", "organisers"],
+    "retentionDays": 30,
+    "selfRemovalSeconds": 900
+  },
+  "acknowledgement": "none"
+}
+```
+
+**Values, never sentences.** Every field is derived from the event's settings by
+`src/domain/privacy/privacyNotice.ts` on every read, and the client words them in the
+guest's language, so the notice cannot promise something the configuration contradicts:
+
+| Field                | Derived from                                                        | Meaning                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `publication`        | `moderation`                                                        | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                           |
+| `audiences`          | nothing yet                                                         | `wall` (the projected wall, once published — the room, and anyone its public link reaches) and `organisers` (host and moderators: everything, and the album) |
+| `retentionDays`      | `retentionDays`                                                     | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                             |
+| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation` | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                    |
+| `revision`           | all of the above                                                    | opaque; two notices with the same revision say the same thing                                                                                                |
+
+`audiences` is a list so that a third audience — the shared gallery link of roadmap §4.1 —
+is one more member rather than a new field. A client must treat an audience it has no
+sentence for as a notice it cannot show, not as a shorter one — this one shows no notice and
+keeps the picker, as for a tab older than the feature, until a newer bundle loads.
+
+`acknowledgement` is `none` (never read one here), `current` (read exactly this one) or
+`outdated` (read one the host has since changed). **`outdated` is shown again before the
+next upload**, whatever changed: retention, moderation or the self-delete window. Settings
+the notice does not mention — captions, reactions, clips, the per-guest cap, the theme, the
+wall language — leave every acknowledgement valid.
+
+Nothing here gates the upload routes: the notice is shown by the upload screen, which does
+not offer the picker until it is read. The reasons are on `privacyNoticeRoutes.ts`.
+
+**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.wrongEvent`;
+`403 guest.revoked`; `404 event.notFound`.
+
+### `POST /api/events/:slug/privacy-notice/acknowledgement`
+
+"J'ai compris": records on the guest's own row that this device read the notice.
+
+```json
+{
+  "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900"
+}
+```
+
+`revision` is the one the screen showed, echoed back as received. **200** with the same
+body as the read above, now `current`. Idempotent: a second tap for the same revision keeps
+the first instant.
+
+**Errors** — `409 privacyNotice.outdated` when `revision` is no longer the notice in force
+(the host changed a setting while the guest was reading): nothing is recorded, and the
+client shows the new notice. `400 request.invalid` for a missing, empty or non-string
+`revision`, or any other key. `401 auth.required` / `401 guestToken.*`;
+`403 guest.wrongEvent`; `403 guest.revoked`; `404 event.notFound`.
 
 ### `POST /api/events/:slug/clips`
 

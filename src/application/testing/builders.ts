@@ -9,7 +9,7 @@ import { DisplayName } from '../../domain/guests/displayName'
 import { Mission } from '../../domain/missions/mission'
 import { MissionPrompt } from '../../domain/missions/missionPrompt'
 import { DEFAULT_MISSION_SCOPE, type MissionScope } from '../../domain/missions/missionScope'
-import { Guest } from '../../domain/guests/guest'
+import { Guest, type NoticeAcknowledgement } from '../../domain/guests/guest'
 import { Caption } from '../../domain/photos/caption'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Dimensions } from '../../domain/photos/dimensions'
@@ -408,6 +408,11 @@ export interface GuestInput {
   readonly lastSeenAt?: Date
   readonly revokedAt?: Date | null
   readonly photoCount?: number
+  /**
+   * The privacy notice this guest acknowledged (roadmap §5.1). Omitted means none: a
+   * guest who has read something is a fact a test states, never a default.
+   */
+  readonly noticeAcknowledgement?: NoticeAcknowledgement | null
 }
 
 export const aGuest = (input: GuestInput = {}): Guest => {
@@ -432,6 +437,7 @@ export const aGuest = (input: GuestInput = {}): Guest => {
     lastSeenAt: pick(input.lastSeenAt, joinedAt),
     revokedAt: pick(input.revokedAt, null),
     photoCount: pick(input.photoCount, 0),
+    noticeAcknowledgement: pick(input.noticeAcknowledgement, null),
   })
 }
 

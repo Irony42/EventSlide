@@ -161,6 +161,53 @@ export const en: UiText = {
     mineClipAlt: 'Your video',
     mineClipBadge: 'Video',
     mineClipLength: (seconds: number) => `Video · ${t.number(seconds)} s`,
+    introImmediate: 'Add your photos. They will appear on the screen straight away.',
+    noticeLink: 'How your photos are used',
+    noticeTitle: 'Before your first photo',
+    noticeChangedTitle: 'This information has changed',
+    noticeChangedHint: 'The organiser has changed a setting since you last read this.',
+    noticeAcknowledge: 'I understand',
+    noticeWhatHappens: 'What happens to your photos',
+    noticeWhoSees: 'Who sees your photos',
+    noticeHowLong: 'How long they are kept',
+    noticeRemoval: 'Having one removed',
+    noticeMetadataStripped:
+      'The location and device details are removed from every photo as it arrives.',
+    noticePublication: {
+      afterReview: 'The organiser approves each photo before it appears on the screen.',
+      immediate:
+        'They appear on the screen as soon as they arrive. The organiser can take any of them down at any time.',
+    },
+    noticeAudiences: {
+      wall: 'Anyone looking at the event’s screen, in the room or through its link, once a photo is on it.',
+      organisers:
+        'The organiser and their team, who see everything you send and can download the photos shown on the screen.',
+    },
+    noticeRetentionDays: (days: number) =>
+      t.count(days, {
+        one: `They are deleted automatically ${t.number(days)} day after the gallery closes.`,
+        other: `They are deleted automatically ${t.number(days)} days after the gallery closes.`,
+      }),
+    noticeRetentionNone:
+      'No automatic deletion is planned: they stay until the organiser deletes them.',
+    noticeRemovalSeconds: (seconds: number) =>
+      t.count(seconds, {
+        one: `You can delete one yourself within ${t.number(seconds)} second of sending it, as long as it has not been approved.`,
+        other: `You can delete one yourself within ${t.number(seconds)} seconds of sending it, as long as it has not been approved.`,
+      }),
+    noticeRemovalMinutes: (minutes: number) =>
+      t.count(minutes, {
+        one: `You can delete one yourself within ${t.number(minutes)} minute of sending it, as long as it has not been approved.`,
+        other: `You can delete one yourself within ${t.number(minutes)} minutes of sending it, as long as it has not been approved.`,
+      }),
+    noticeRemovalHours: (hours: number) =>
+      t.count(hours, {
+        one: `You can delete one yourself within ${t.number(hours)} hour of sending it, as long as it has not been approved.`,
+        other: `You can delete one yourself within ${t.number(hours)} hours of sending it, as long as it has not been approved.`,
+      }),
+    noticeRemovalOtherwise: 'Otherwise, ask the organiser: they can delete any photo.',
+    noticeRemovalAskHost: 'Ask the organiser: they can delete any photo.',
+    clipDoneImmediate: 'Video sent. It is going up on the screen.',
   },
 
   ui: {

@@ -33,6 +33,8 @@ import { formattersFor } from './formatters'
 import type { CuratedAccent } from '../../design-system/eventTheme'
 import type {
   EventTemplateKey,
+  NoticeAudience,
+  NoticePublication,
   ThemeFonts,
   ThemeFrame,
   ThemeMaterial,
@@ -342,6 +344,92 @@ export const fr = {
      * different audiences and free to diverge.
      */
     mineClipLength: (seconds: number) => `Vidéo · ${t.number(seconds)} s`,
+
+    /* ---- Added by the privacy notice (roadmap 5.1). Keep additions inside this block. ---- */
+
+    /**
+     * The header line for an event that publishes on arrival.
+     *
+     * `intro` above promises a validation, which is false on such an event — and the
+     * notice under it now says so in so many words, so the two cannot be allowed to
+     * disagree on one screen. Chosen from the notice's `publication`, never guessed.
+     */
+    introImmediate: 'Ajoutez vos photos, elles apparaîtront tout de suite sur l’écran.',
+    /**
+     * The way back to the notice once it has been read, and the title of the dialog it
+     * opens. Worded as the guest's question rather than as "Confidentialité", which is a
+     * legal page's word and not something a wedding guest looks for.
+     */
+    noticeLink: 'Comment vos photos sont utilisées',
+    noticeTitle: 'Avant votre première photo',
+    /**
+     * The same card shown again, because the host changed a setting the notice states.
+     * It says *why* it is back: a notice that reappears unexplained reads as a bug, and a
+     * guest who thinks it is one stops reading it.
+     */
+    noticeChangedTitle: 'Ces informations ont changé',
+    noticeChangedHint: 'L’organisateur a modifié un réglage depuis votre dernière lecture.',
+    noticeAcknowledge: 'J’ai compris',
+    /** The four questions of roadmap 5.1, as the guest would ask them. */
+    noticeWhatHappens: 'Ce que deviennent vos photos',
+    noticeWhoSees: 'Qui voit vos photos',
+    noticeHowLong: 'Combien de temps elles sont gardées',
+    noticeRemoval: 'Pour en faire retirer une',
+    /** True of every event — the ingest pipeline strips it — so it has no setting. */
+    noticeMetadataStripped:
+      'La position et les informations sur l’appareil sont retirées de chaque photo à son arrivée.',
+    noticePublication: {
+      afterReview: 'L’organisateur valide chaque photo avant qu’elle passe à l’écran.',
+      immediate:
+        'Elles passent à l’écran dès leur arrivée. L’organisateur peut en retirer à tout moment.',
+    } satisfies Record<NoticePublication, string>,
+    /**
+     * One sentence per audience, keyed by the server's list. The shared gallery of
+     * roadmap 4.1 lands here as a third key, in all five tables, and nowhere else.
+     */
+    noticeAudiences: {
+      wall: 'Toute personne qui regarde l’écran de la soirée, dans la salle ou par son lien, une fois la photo affichée.',
+      organisers:
+        'L’organisateur et son équipe, qui voient tout ce que vous envoyez et peuvent télécharger les photos passées à l’écran.',
+    } satisfies Record<NoticeAudience, string>,
+    /**
+     * "après la clôture de la galerie", for the reason `admin.retentionDays` says "après
+     * la clôture": the clock starts when the host closes the event, and "après la fête"
+     * would promise a deletion that a gallery left open never reaches.
+     */
+    noticeRetentionDays: (days: number) =>
+      t.count(days, {
+        one: `Elles sont effacées automatiquement ${t.number(days)} jour après la clôture de la galerie.`,
+        other: `Elles sont effacées automatiquement ${t.number(days)} jours après la clôture de la galerie.`,
+      }),
+    /** Said as what it is. The product's default keeps the album, and a guest may ask. */
+    noticeRetentionNone:
+      'Aucune suppression automatique n’est prévue : elles restent jusqu’à ce que l’organisateur les efface.',
+    noticeRemovalSeconds: (seconds: number) =>
+      t.count(seconds, {
+        one: `Vous pouvez en supprimer une vous-même dans la seconde qui suit l’envoi, tant qu’elle n’a pas été validée.`,
+        other: `Vous pouvez en supprimer une vous-même dans les ${t.number(seconds)} secondes qui suivent l’envoi, tant qu’elle n’a pas été validée.`,
+      }),
+    noticeRemovalMinutes: (minutes: number) =>
+      t.count(minutes, {
+        one: `Vous pouvez en supprimer une vous-même dans la minute qui suit l’envoi, tant qu’elle n’a pas été validée.`,
+        other: `Vous pouvez en supprimer une vous-même dans les ${t.number(minutes)} minutes qui suivent l’envoi, tant qu’elle n’a pas été validée.`,
+      }),
+    noticeRemovalHours: (hours: number) =>
+      t.count(hours, {
+        one: `Vous pouvez en supprimer une vous-même dans l’heure qui suit l’envoi, tant qu’elle n’a pas été validée.`,
+        other: `Vous pouvez en supprimer une vous-même dans les ${t.number(hours)} heures qui suivent l’envoi, tant qu’elle n’a pas été validée.`,
+      }),
+    /**
+     * Always the last line, because it is always true: a moderator can delete any photo
+     * of their event. There is no "delete everything I sent" to point at instead — that
+     * is roadmap 5.2 and it is not built, so the notice does not mention it.
+     */
+    noticeRemovalOtherwise:
+      'Sinon, demandez à l’organisateur : il peut supprimer n’importe quelle photo.',
+    noticeRemovalAskHost: 'Demandez à l’organisateur : il peut supprimer n’importe quelle photo.',
+    /** `clipDone` for an event that publishes on arrival, for `introImmediate`'s reason. */
+    clipDoneImmediate: 'Vidéo envoyée. Elle passe à l’écran.',
 
     /* -------------------------- end guest surface --------------------------- */
   },

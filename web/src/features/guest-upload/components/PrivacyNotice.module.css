@@ -1,0 +1,59 @@
+/**
+ * The privacy notice (roadmap §5.1), in the composer and in its dialog.
+ *
+ * The card has **no surface of its own**: it sits inside the composer, which already
+ * wears the glass material or its opaque fallback (§13), so it takes the host's
+ * glass/plain choice and the machine's budget without deciding either. A surface of its
+ * own on top of the sheet would be a panel on a panel.
+ *
+ * Nothing here moves. The card replaces the picker and the picker replaces the card, and
+ * both simply appear: this is a blurred pane with photographs scrolling behind it, where
+ * an animated swap is a backdrop re-filtered every frame (DESIGN-SYSTEM.md §7).
+ */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Focused only programmatically, when a changed notice takes the picker's place. */
+.card:focus {
+  outline: none;
+}
+
+.title {
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}
+
+.hint {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
+
+.sections {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.term {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}
+
+/* Secondary rather than muted: this is the text the guest is being asked to read. */
+.sentence {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}

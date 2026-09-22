@@ -2,7 +2,7 @@ import type { Db } from './connection'
 import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
 import type { GuestRepository } from '../../application/ports/guestRepository'
 import { DisplayName } from '../../domain/guests/displayName'
-import { Guest } from '../../domain/guests/guest'
+import { Guest, type NoticeAcknowledgement } from '../../domain/guests/guest'
 import { asEventId, asGuestId, type EventId, type GuestId } from '../../domain/shared/ids'
 
 /**
@@ -20,6 +20,9 @@ interface GuestRow {
   readonly joined_at: string
   readonly last_seen_at: string
   readonly revoked_at: string | null
+  /** Migration 006. Both or neither — the schema checks it. */
+  readonly notice_revision: string | null
+  readonly notice_acknowledged_at: string | null
   /** Not a column — see {@link SELECT_GUEST}. */
   readonly photo_count: number
 }
@@ -85,6 +88,8 @@ const SELECT_GUEST = `
          g.joined_at,
          g.last_seen_at,
          g.revoked_at,
+         g.notice_revision,
+         g.notice_acknowledged_at,
          (SELECT COUNT(*)
             FROM photos p
            WHERE p.event_id        = g.event_id
@@ -111,12 +116,15 @@ const SELECT_GUEST = `
  * loud failure rather than a silent one.
  */
 const UPSERT_GUEST = `
-  INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, revoked_at)
-       VALUES (?, ?, ?, ?, ?, ?)
-  ON CONFLICT (id) DO UPDATE SET display_name = excluded.display_name,
-                                 joined_at    = excluded.joined_at,
-                                 last_seen_at = excluded.last_seen_at,
-                                 revoked_at   = excluded.revoked_at
+  INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at, revoked_at,
+                      notice_revision, notice_acknowledged_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT (id) DO UPDATE SET display_name           = excluded.display_name,
+                                 joined_at              = excluded.joined_at,
+                                 last_seen_at           = excluded.last_seen_at,
+                                 revoked_at             = excluded.revoked_at,
+                                 notice_revision        = excluded.notice_revision,
+                                 notice_acknowledged_at = excluded.notice_acknowledged_at
                            WHERE guests.event_id = excluded.event_id
 `
 
@@ -149,6 +157,19 @@ const toDisplayName = (raw: string | null): DisplayName | null => {
   return parsed.value
 }
 
+/**
+ * The two notice columns as one value, or `null`.
+ *
+ * Read as a pair because they are written as one, and the `CHECK` in migration 006
+ * refuses a row holding only one of them — so the half-written case cannot be stored, and
+ * the answer for it here would be the safe one anyway: no acknowledgement, which asks the
+ * guest to read the notice again rather than telling them they read one nobody can date.
+ */
+const toNoticeAcknowledgement = (row: GuestRow): NoticeAcknowledgement | null =>
+  row.notice_revision === null || row.notice_acknowledged_at === null
+    ? null
+    : { revision: row.notice_revision, at: fromIsoText(row.notice_acknowledged_at) }
+
 const toGuest = (row: GuestRow): Guest =>
   Guest.restore({
     id: asGuestId(row.id),
@@ -158,6 +179,7 @@ const toGuest = (row: GuestRow): Guest =>
     lastSeenAt: fromIsoText(row.last_seen_at),
     revokedAt: fromNullableIsoText(row.revoked_at),
     photoCount: row.photo_count,
+    noticeAcknowledgement: toNoticeAcknowledgement(row),
   })
 
 /**
@@ -235,7 +257,9 @@ export class SqliteGuestRepository implements GuestRepository {
     const props = guest.toProps()
 
     const written = this.db
-      .prepare<[string, string, string | null, string, string, string | null]>(UPSERT_GUEST)
+      .prepare<
+        [string, string, string | null, string, string, string | null, string | null, string | null]
+      >(UPSERT_GUEST)
       .run(
         props.id,
         props.eventId,
@@ -243,6 +267,8 @@ export class SqliteGuestRepository implements GuestRepository {
         toIsoText(props.joinedAt),
         toIsoText(props.lastSeenAt),
         props.revokedAt === null ? null : toIsoText(props.revokedAt),
+        props.noticeAcknowledgement?.revision ?? null,
+        props.noticeAcknowledgement === null ? null : toIsoText(props.noticeAcknowledgement.at),
       )
 
     // The `WHERE` above skipped the update, so this id is held by a guest at another

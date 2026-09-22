@@ -4,6 +4,7 @@ import { migration002 } from './002_event_scheduled_open_close'
 import { migration003 } from './003_clips'
 import { migration004 } from './004_site_role'
 import { migration005 } from './005_photo_missions'
+import { migration006 } from './006_guest_notice_acknowledgement'
 
 /**
  * The ordering contract, written out rather than globbed.
@@ -18,4 +19,5 @@ export const migrations: readonly Migration[] = [
   migration003,
   migration004,
   migration005,
+  migration006,
 ]

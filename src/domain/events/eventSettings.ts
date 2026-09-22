@@ -64,7 +64,10 @@ export interface EventSettingsProps {
    * that may be live right now is a change its host never consented to. The two answers
    * differ on purpose, and the adapter is where that difference is explained.
    *
-   * Every clip still waits for a moderation decision like everything else.
+   * A clip meets the same moderation as a photograph: held for a decision on a moderated
+   * event, published as soon as it is transcoded on one that publishes on arrival
+   * (`transcodeNextClip`). This sentence used to say every clip waits for a decision, which
+   * is the kind of promise the privacy notice (roadmap §5.1) exists to stop being made.
    */
   readonly allowClips: boolean
   readonly allowGuestSelfDelete: boolean

@@ -15,6 +15,7 @@ import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
 import { mediaRoutes } from './routes/mediaRoutes'
 import { missionRoutes } from './routes/missionRoutes'
 import { moderationRoutes } from './routes/moderationRoutes'
+import { privacyNoticeRoutes } from './routes/privacyNoticeRoutes'
 import { publicRoutes } from './routes/publicRoutes'
 import { streamRoutes } from './routes/streamRoutes'
 import type { HttpDeps } from './types'
@@ -150,6 +151,9 @@ export const buildServer = ({
       uploadRateLimiter,
     }),
   )
+  // The privacy notice a guest reads before their first upload (roadmap §5.1). Its own
+  // path under the event, so where it sits among the routers is for reading order only.
+  app.use('/api', privacyNoticeRoutes(routeDeps))
   app.use('/api', mediaRoutes(routeDeps))
   app.use('/api', moderationRoutes(routeDeps))
   // After the guest router, which owns 'missions/mine' on the same path prefix, and

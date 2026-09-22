@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { EventSettings, type EventSettingsPatch } from '../events/eventSettings'
+import { privacyNoticeFor, type PrivacyNotice } from '../privacy/privacyNotice'
 import { asEventId, asGuestId } from '../shared/ids'
 import { DisplayName } from './displayName'
 import { Guest, type GuestProps } from './guest'
@@ -27,6 +29,7 @@ const aGuest = (overrides: Partial<GuestProps> = {}): Guest =>
     lastSeenAt: JOINED_AT,
     revokedAt: null,
     photoCount: 0,
+    noticeAcknowledgement: null,
     ...overrides,
   })
 
@@ -289,8 +292,10 @@ describe('Guest identity', () => {
       lastSeenAt: at(30_000),
       revokedAt: at(60_000),
       photoCount: 4,
+      noticeAcknowledgement: { revision: 'r1', at: at(45_000) },
     })
 
+    expect(restored.noticeAcknowledgement).toEqual({ revision: 'r1', at: at(45_000) })
     expect(restored.label()).toBe('Léa')
     expect(restored.lastSeenAt).toEqual(at(30_000))
     expect(restored.revokedAt).toEqual(at(60_000))
@@ -308,6 +313,135 @@ describe('Guest identity', () => {
       lastSeenAt: JOINED_AT,
       revokedAt: at(60_000),
       photoCount: 4,
+      noticeAcknowledgement: null,
     })
+  })
+})
+
+// ------------------------------------------------------------ privacy notice --
+
+/** Setup only: a patch the domain refuses is a broken test, not a rule. */
+const noticeFor = (patch: EventSettingsPatch = {}): PrivacyNotice => {
+  const built = EventSettings.create(patch)
+  if (!built.ok) throw new Error(`test setup: ${built.error.code}`)
+  return privacyNoticeFor(built.value)
+}
+
+describe('Guest.create and the privacy notice', () => {
+  it('starts a guest who has not acknowledged any notice, because joining is not reading', () => {
+    const result = Guest.create({ eventId, displayName: null }, guestId, JOINED_AT)
+
+    expect(result.ok && result.value.noticeAcknowledgementFor(noticeFor())).toBe('none')
+  })
+})
+
+describe('Guest.acknowledgeNotice', () => {
+  it('records the notice the guest read, and when', () => {
+    const notice = noticeFor({ retentionDays: 30 })
+
+    const acknowledged = aGuest().acknowledgeNotice(notice, notice.revision, at(5_000))
+
+    expect(acknowledged.ok && acknowledged.value.noticeAcknowledgement).toEqual({
+      revision: notice.revision,
+      at: at(5_000),
+    })
+  })
+
+  it('refuses a notice the host changed after the guest read it', () => {
+    const read = noticeFor({ retentionDays: 30 })
+    const inForce = noticeFor({ retentionDays: null })
+
+    const acknowledged = aGuest().acknowledgeNotice(inForce, read.revision, at(5_000))
+
+    expect(!acknowledged.ok && acknowledged.error.code).toBe('privacyNotice.outdated')
+  })
+
+  it('answers an outdated read as a conflict, so the client knows to fetch the new notice', () => {
+    const read = noticeFor({ retentionDays: 30 })
+    const inForce = noticeFor({ retentionDays: null })
+
+    const acknowledged = aGuest().acknowledgeNotice(inForce, read.revision, at(5_000))
+
+    expect(!acknowledged.ok && acknowledged.error.kind).toBe('conflict')
+  })
+
+  it('keeps the first acknowledgement of a notice when the guest taps twice', () => {
+    const notice = noticeFor()
+    const first = aGuest().acknowledgeNotice(notice, notice.revision, at(5_000))
+    if (!first.ok) throw new Error('test setup: the first acknowledgement was refused')
+
+    const again = first.value.acknowledgeNotice(notice, notice.revision, at(9_000))
+
+    expect(again.ok && again.value.noticeAcknowledgement?.at).toEqual(at(5_000))
+  })
+
+  it('replaces an older acknowledgement once the guest reads the new notice', () => {
+    const old = noticeFor({ retentionDays: 30 })
+    const current = noticeFor({ retentionDays: 7 })
+    const guest = aGuest({ noticeAcknowledgement: { revision: old.revision, at: at(1_000) } })
+
+    const acknowledged = guest.acknowledgeNotice(current, current.revision, at(9_000))
+
+    expect(acknowledged.ok && acknowledged.value.noticeAcknowledgement).toEqual({
+      revision: current.revision,
+      at: at(9_000),
+    })
+  })
+
+  it('refuses a guest the host has removed', () => {
+    const notice = noticeFor()
+
+    const acknowledged = aGuest({ revokedAt: at(1_000) }).acknowledgeNotice(
+      notice,
+      notice.revision,
+      at(5_000),
+    )
+
+    expect(!acknowledged.ok && acknowledged.error.code).toBe('guest.revoked')
+  })
+
+  it('leaves the guest it was called on untouched', () => {
+    const guest = aGuest()
+    const notice = noticeFor()
+
+    guest.acknowledgeNotice(notice, notice.revision, at(5_000))
+
+    expect(guest.noticeAcknowledgement).toBeNull()
+  })
+})
+
+describe('Guest.noticeAcknowledgementFor', () => {
+  it('is none for a guest who never acknowledged a notice', () => {
+    expect(aGuest().noticeAcknowledgementFor(noticeFor())).toBe('none')
+  })
+
+  it('is current for a guest who acknowledged exactly the notice in force', () => {
+    const notice = noticeFor({ retentionDays: 30 })
+    const guest = aGuest({ noticeAcknowledgement: { revision: notice.revision, at: at(1_000) } })
+
+    expect(guest.noticeAcknowledgementFor(notice)).toBe('current')
+  })
+
+  it('is outdated once the host changes retention, so the guest reads it again before the next upload', () => {
+    const read = noticeFor({ retentionDays: 30 })
+    const guest = aGuest({ noticeAcknowledgement: { revision: read.revision, at: at(1_000) } })
+
+    expect(guest.noticeAcknowledgementFor(noticeFor({ retentionDays: null }))).toBe('outdated')
+  })
+
+  it('is outdated even when the change is more protective, because the rule asks whether it reads differently', () => {
+    const read = noticeFor({ retentionDays: null })
+    const guest = aGuest({ noticeAcknowledgement: { revision: read.revision, at: at(1_000) } })
+
+    expect(guest.noticeAcknowledgementFor(noticeFor({ retentionDays: 7 }))).toBe('outdated')
+  })
+
+  it('stays current when the host changes a setting the notice does not mention', () => {
+    const read = noticeFor({ retentionDays: 30 })
+    const guest = aGuest({ noticeAcknowledgement: { revision: read.revision, at: at(1_000) } })
+
+    expect(
+      guest.noticeAcknowledgementFor(noticeFor({ retentionDays: 30, allowCaptions: false })),
+    ).toBe('current')
   })
 })

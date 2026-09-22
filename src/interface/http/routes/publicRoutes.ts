@@ -4,7 +4,11 @@ import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { GUEST_COOKIE, resolvePublicEvent } from '../middleware/authz'
 import { joinLimiter } from '../middleware/rateLimit'
-import { toPublicEventDto, toWallResponseDto } from '../presenters/presenters'
+import {
+  toPrivacyNoticeStateDto,
+  toPublicEventDto,
+  toWallResponseDto,
+} from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
 import { joinBody, wallQuery } from '../schemas/requestSchemas'
 import type { JoinResponseDto } from '../presenters/dto'
@@ -127,6 +131,9 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
           // Not the event entity: a guest learns the name and what they may do. No join
           // code echoed back, no quota, no owner, no counts.
           event: toPublicEventDto(joined.event, presenter),
+          // So the upload screen knows before its first frame whether to show the
+          // picker or the notice (roadmap §5.1), with no second round trip on venue Wi-Fi.
+          privacyNotice: toPrivacyNoticeStateDto(joined.privacyNotice),
         }
         sendJson(response, dto)
       })

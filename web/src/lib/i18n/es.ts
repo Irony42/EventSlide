@@ -166,6 +166,53 @@ export const es: UiText = {
     mineClipAlt: 'Su vídeo',
     mineClipBadge: 'Vídeo',
     mineClipLength: (seconds: number) => `Vídeo · ${t.number(seconds)} s`,
+    introImmediate: 'Añada sus fotos. Aparecerán en la pantalla enseguida.',
+    noticeLink: 'Cómo se usan sus fotos',
+    noticeTitle: 'Antes de su primera foto',
+    noticeChangedTitle: 'Esta información ha cambiado',
+    noticeChangedHint: 'El organizador ha cambiado un ajuste desde su última lectura.',
+    noticeAcknowledge: 'Entendido',
+    noticeWhatHappens: 'Qué pasa con sus fotos',
+    noticeWhoSees: 'Quién ve sus fotos',
+    noticeHowLong: 'Cuánto tiempo se guardan',
+    noticeRemoval: 'Cómo retirar una',
+    noticeMetadataStripped:
+      'La ubicación y los datos del dispositivo se eliminan de cada foto al llegar.',
+    noticePublication: {
+      afterReview: 'El organizador aprueba cada foto antes de que aparezca en la pantalla.',
+      immediate:
+        'Aparecen en la pantalla en cuanto llegan. El organizador puede retirar cualquiera en todo momento.',
+    },
+    noticeAudiences: {
+      wall: 'Cualquiera que mire la pantalla del evento, en la sala o a través de su enlace, una vez que la foto aparece en ella.',
+      organisers:
+        'El organizador y su equipo, que ven todo lo que usted envía y pueden descargar las fotos mostradas en la pantalla.',
+    },
+    noticeRetentionDays: (days: number) =>
+      t.count(days, {
+        one: `Se borran automáticamente ${t.number(days)} día después del cierre de la galería.`,
+        other: `Se borran automáticamente ${t.number(days)} días después del cierre de la galería.`,
+      }),
+    noticeRetentionNone:
+      'No hay ningún borrado automático previsto: se conservan hasta que el organizador las borre.',
+    noticeRemovalSeconds: (seconds: number) =>
+      t.count(seconds, {
+        one: `Puede eliminar una usted mismo durante ${t.number(seconds)} segundo después de enviarla, mientras no haya sido aprobada.`,
+        other: `Puede eliminar una usted mismo durante ${t.number(seconds)} segundos después de enviarla, mientras no haya sido aprobada.`,
+      }),
+    noticeRemovalMinutes: (minutes: number) =>
+      t.count(minutes, {
+        one: `Puede eliminar una usted mismo durante ${t.number(minutes)} minuto después de enviarla, mientras no haya sido aprobada.`,
+        other: `Puede eliminar una usted mismo durante ${t.number(minutes)} minutos después de enviarla, mientras no haya sido aprobada.`,
+      }),
+    noticeRemovalHours: (hours: number) =>
+      t.count(hours, {
+        one: `Puede eliminar una usted mismo durante ${t.number(hours)} hora después de enviarla, mientras no haya sido aprobada.`,
+        other: `Puede eliminar una usted mismo durante ${t.number(hours)} horas después de enviarla, mientras no haya sido aprobada.`,
+      }),
+    noticeRemovalOtherwise: 'Si no, pídaselo al organizador: puede eliminar cualquier foto.',
+    noticeRemovalAskHost: 'Pídaselo al organizador: puede eliminar cualquier foto.',
+    clipDoneImmediate: 'Vídeo enviado. Ya pasa a la pantalla.',
   },
 
   ui: {

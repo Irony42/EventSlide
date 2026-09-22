@@ -302,7 +302,11 @@ promise does not mean losing the album.
 Nothing here is optional for a product that holds photographs of other people's
 families. 2.0 covers the controls in [SECURITY.md](SECURITY.md); these are the gaps.
 
+_**[5.1](#51-consent-notice-on-join-p1-effort-s-risk-low) is shipped and stayed in place.**_
+
 ### 5.1 Consent notice on join (P1, effort S, risk: low)
+
+> **Shipped** in [#83](https://github.com/Irony42/EventSlide/pull/83). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 One screen, before the first upload: what happens to a photo, who sees it, how long it is
 kept, and how to have it removed. Sourced from the event's actual retention setting, so
@@ -310,6 +314,61 @@ it cannot promise something the configuration contradicts.
 
 This is both a GDPR obligation and a trust affordance. A guest who understands where a
 photo goes uploads more, not less.
+
+**Done, and "sourced from the retention setting" turned out to be one setting of four.**
+Every sentence of the notice is a value the server derives from the setting that decides
+it (`src/domain/privacy/privacyNotice.ts`) and the phone words in the guest's language:
+moderation decides whether a person looks before the wall, retention decides the deletion
+line — said as "no automatic deletion" when there is none, because that is what the
+product's default does — and the self-delete switch, its window **and the moderation mode**
+decide whether the guest can take a photo back. The third is the one prose gets wrong: a
+guest can only delete a photo that is not on the wall, and under auto-publication every
+photo is on the wall on arrival, so a notice promising fifteen minutes there is a delete
+button the server refuses. The only removal path it names is asking the host; there is no
+self-service "delete everything I sent" to point at, because that is §5.2. The upload
+screen's own header said "after validation" on every event and was false under
+auto-publication — it now reads the same value, and so does the line a finished video
+shows.
+
+**Not a modal, and not on the join.** The notice stands where the picker will be, inside
+the composer, and only the controls that pick and send a **new** photo wait behind it: a
+guest who opened the page to see their own photos is never stopped. Photos already chosen
+keep their way to the server — the queue's retry and the offline outbox included — because
+they were chosen under the notice the guest had read, and holding them back is how a
+queued photo expires on the phone for a change the host made. After "J'ai compris" focus
+moves to "Ajouter des photos", so the gate costs one tap, once.
+
+**Once per device, and the device is the guest row.** The acknowledgement is two columns
+on `guests` (migration 006) — the row the `es_guest` token names — rather than a
+`localStorage` key, for two reasons. Whether a guest must read it again is a comparison
+between what they read and what the configuration says now, which is a rule and belongs in
+the domain rather than in a browser; and the upload screen's session is per tab, while the
+row is the same phone when it re-scans the code tomorrow. The stored revision is readable
+text (`publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900`), so
+"what was this guest told?" is answered by reading the column.
+
+**Asked again whenever it reads differently, and only then.** A host who changes retention,
+moderation or the self-delete window mid-evening has changed what happens to the next
+photo, so every guest who read the old notice sees the new one — titled "Ces informations
+ont changé" — before their next upload, and the page learns it on open and whenever it
+comes back into view. A "more protective" change is asked about too: the rule has no
+judgement in it to get wrong, and the cost is one tap. Captions, reactions, clips, the
+per-guest cap, the theme and the wall language change nothing about a photo and leave every
+acknowledgement valid.
+
+**Not a gate on the upload routes, deliberately.** The server records the acknowledgement
+but does not refuse a photo without one. A refusal there would sit in front of the offline
+queue, whose drain after a host's mid-evening change would meet it with photos taken under
+the old notice; what it would stop is a client that skipped the screen on purpose, which is
+not a guest who was left uninformed. A tap whose request is lost is kept on the page and
+replayed on the next read, so a guest who read the notice offline is not asked twice.
+
+**The seam §4.1 lands on.** Who sees a photo is a list (`wall`, `organisers`) rather than
+two sentences, so the shared gallery link is one more audience: one conditional in
+`privacyNoticeFor`, one sentence per language in `upload.noticeAudiences` (which is keyed
+by the type and refuses to compile until all five tables have it). Because the revision is
+built from the list, only the guests of an event whose host turns sharing on are asked to
+read the notice again.
 
 ### 5.2 Guest self-service erasure (P2, effort S, risk: low)
 

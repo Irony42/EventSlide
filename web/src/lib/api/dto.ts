@@ -129,10 +129,52 @@ export interface PublicEventDto {
   readonly theme: EventThemeDto
 }
 
+/**
+ * The privacy notice's three closed vocabularies (roadmap §5.1).
+ *
+ * Written out again rather than imported, like every type here, and held to the domain's
+ * `NOTICE_*` tuples by `src/interface/http/presenters/noticeVocabulary.test.ts`: a
+ * member the server can send and this file does not name fails there. Each one keys a copy
+ * table in `web/src/lib/i18n/`, so once a member is added here — the shared gallery of
+ * roadmap §4.1 is the audience already argued for — the tables refuse to compile until all
+ * five languages can say it.
+ */
+export type NoticePublication = 'afterReview' | 'immediate'
+export type NoticeAudience = 'wall' | 'organisers'
+export type NoticeAcknowledgementStatus = 'none' | 'current' | 'outdated'
+
+/**
+ * What happens to a guest's photo, as values the server derived from the event's own
+ * settings. The client words them; it never decides them — so a notice cannot say
+ * "checked before the screen" on an event that publishes on arrival.
+ */
+export interface PrivacyNoticeDto {
+  /** Opaque. Sent back as-is when the guest acknowledges. */
+  readonly revision: string
+  readonly publication: NoticePublication
+  /** Who sees a photo, in the order a guest reads them. */
+  readonly audiences: readonly NoticeAudience[]
+  /** Days after the gallery closes. `null`: nothing deletes the album on its own. */
+  readonly retentionDays: number | null
+  /** How long a guest may take a photo back themselves. `null`: they cannot. */
+  readonly selfRemovalSeconds: number | null
+}
+
+/** A notice and where this device stands with it: the answer of every notice route. */
+export interface PrivacyNoticeState {
+  readonly notice: PrivacyNoticeDto
+  readonly acknowledgement: NoticeAcknowledgementStatus
+}
+
 export interface JoinResponse {
   readonly guestId: string
   readonly displayName: string | null
   readonly event: PublicEventDto
+  /**
+   * On the join so the upload screen knows before its first frame whether to show the
+   * picker or the notice, with no second round trip on venue Wi-Fi.
+   */
+  readonly privacyNotice: PrivacyNoticeState
 }
 
 /**
