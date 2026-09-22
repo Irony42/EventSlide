@@ -172,9 +172,9 @@ have something to show.
 
 Two settings worth a thought before you start:
 
-- **Moderation.** `Valider chaque photo` is the default and the right choice for
-  anything with colleagues or extended family in the room. `Publier automatiquement`
-  is for a small party among close friends, and the app will warn you.
+- **Moderation.** Approving every photo yourself is the default, and the right choice for
+  anything with colleagues or extended family in the room. Publishing automatically is
+  for a small party among close friends, and the app will warn you when you choose it.
 - **Retention.** Nothing is deleted unless you ask. If you set a retention period, the
   album is purged that many days after the event closes — export it first. The server
   checks every hour and deletes what is due, so the promise the setting makes to your
