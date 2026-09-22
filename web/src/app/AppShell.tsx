@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useLayoutEffect, type ReactNode } from 'react'
 import { glassSurfaceProps, type GlassBackdrop } from '../design-system/glass'
 import { useLocale } from '../lib/i18n/useTranslations'
 import { useInteractionBudget } from './useInteractionBudget'
@@ -62,7 +62,10 @@ export function AppShell({ surface, backdrop, header, children, className }: App
    */
   const budget = useInteractionBudget(surface)
 
-  useEffect(() => {
+  // A layout effect, not a passive one: it runs inside the commit that puts the words on
+  // screen, so no frame ever shows Italian under `lang="fr"`. A passive effect ran a turn
+  // later, and `router.test.tsx` measures the difference at the first mutation.
+  useLayoutEffect(() => {
     document.documentElement.lang = locale
   }, [locale])
 
