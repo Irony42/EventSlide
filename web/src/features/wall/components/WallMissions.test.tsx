@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { de } from '../../../lib/i18n/de'
 import { fr } from '../../../lib/i18n/fr'
+import { LocaleOverride } from '../../../lib/i18n/LocaleProvider'
 import { aWallMission } from '../../../testing/renderWithProviders'
 import { WallMissions } from './WallMissions'
 
 /**
  * The room's mission panel.
  *
- * Rendered bare rather than through `renderWithProviders`: the wall is French in every
- * language by decision (`translations.ts`), so this component reads `fr` directly and has
- * no locale to be given.
+ * Rendered bare for the cases about layout and state: outside a provider the locale
+ * context answers with the French table, which is the default `localeContext` declares,
+ * so these read exactly as they always did. The two cases at the bottom put it inside a
+ * `LocaleOverride`, because the panel is the clearest place in the product where a
+ * translated frame sits directly on top of untranslated content.
  */
 describe('WallMissions', () => {
   it('renders nothing at all when the host set no prompts', () => {
@@ -90,5 +94,47 @@ describe('WallMissions', () => {
 
     expect(screen.getByRole('listitem')).toHaveTextContent('<b>gras</b>')
     expect(screen.getByRole('listitem').querySelector('b')).toBeNull()
+  })
+
+  it('translates its own heading', () => {
+    render(
+      <LocaleOverride locale="de">
+        <WallMissions missions={[aWallMission({ prompt: 'un selfie avec les mariés' })]} />
+      </LocaleOverride>,
+    )
+
+    expect(screen.getByRole('heading', { name: de.wall.missionsTitle })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: fr.wall.missionsTitle })).toBeNull()
+  })
+
+  it('leaves the host’s prompt exactly as the host typed it', () => {
+    // The other half of the same panel, and the more important one. A German wall over a
+    // French wedding prints a German heading above French prompts, and that is right: the
+    // heading is the product speaking and the prompt is the host speaking. A translation
+    // pass that routed a prompt through a table would be a real defect and would look,
+    // in review, like somebody being thorough.
+    render(
+      <LocaleOverride locale="de">
+        <WallMissions
+          missions={[
+            aWallMission({ id: 'm1', prompt: 'un selfie avec les mariés' }),
+            aWallMission({
+              id: 'm2',
+              prompt: 'la première danse',
+              scope: 'guest',
+              achieved: true,
+              completedByGuests: 12,
+            }),
+          ]}
+        />
+      </LocaleOverride>,
+    )
+
+    const rows = screen.getAllByRole('listitem')
+    expect(rows[0]?.textContent).toBe('un selfie avec les mariés')
+    // The count beside it is the product's sentence and is German; the prompt beside the
+    // count is the host's and is not.
+    expect(rows[1]).toHaveTextContent('la première danse')
+    expect(rows[1]).toHaveTextContent(de.wall.missionGuests(12))
   })
 })

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AuthForm } from './components/AuthForm'
 import { useLogin } from './hooks/useAuthActions'
 
@@ -33,6 +33,7 @@ const redirectTarget = (state: unknown): string => {
 
 /** Surface: the host's laptop, usually the day before the event. */
 export function LoginPage() {
+  const t = useTranslations()
   const { submit, submitting, error } = useLogin()
   const navigate = useNavigate()
   const location = useLocation()
@@ -50,13 +51,13 @@ export function LoginPage() {
 
   return (
     <AuthForm
-      title={fr.auth.title}
+      title={t.auth.title}
       error={error}
       submitting={submitting}
-      submitLabel={fr.auth.submit}
+      submitLabel={t.auth.submit}
       onSubmit={handleSubmit}
     >
-      <Field label={fr.auth.email}>
+      <Field label={t.auth.email}>
         {(control) => (
           <TextInput
             {...control}
@@ -75,7 +76,7 @@ export function LoginPage() {
         )}
       </Field>
 
-      <Field label={fr.auth.password}>
+      <Field label={t.auth.password}>
         {(control) => (
           <TextInput
             {...control}

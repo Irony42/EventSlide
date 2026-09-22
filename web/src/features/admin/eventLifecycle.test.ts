@@ -17,7 +17,8 @@ import type { EventStatus } from '../../lib/api/dto'
  * this suite is the only thing that fails when the lifecycle moves and the admin
  * screens start offering a button the server refuses.
  */
-const transitionsOf = (status: EventStatus) => lifecycleActions(status).map((action) => action.to)
+const transitionsOf = (status: EventStatus) =>
+  lifecycleActions(status, fr).map((action) => action.to)
 
 describe('the transitions the admin surface offers', () => {
   it('lets a draft open to guests or be archived, and nothing else', () => {
@@ -36,18 +37,18 @@ describe('the transitions the admin surface offers', () => {
   })
 
   it('offers nothing for an archived event, which is terminal', () => {
-    expect(lifecycleActions('archived')).toEqual([])
+    expect(lifecycleActions('archived', fr)).toEqual([])
   })
 
   it('names reopening differently from opening, because they are different moments', () => {
-    expect(lifecycleActions('draft')[0]?.label).toBe(fr.admin.goLive)
-    expect(lifecycleActions('closed')[0]?.label).toBe(fr.admin.reopenEvent)
+    expect(lifecycleActions('draft', fr)[0]?.label).toBe(fr.admin.goLive)
+    expect(lifecycleActions('closed', fr)[0]?.label).toBe(fr.admin.reopenEvent)
   })
 
   it('marks at most one action as the primary one per status', () => {
     for (const status of ['draft', 'live', 'closed', 'archived'] as const) {
       expect(
-        lifecycleActions(status).filter((action) => action.primary).length,
+        lifecycleActions(status, fr).filter((action) => action.primary).length,
       ).toBeLessThanOrEqual(1)
     }
   })
@@ -78,9 +79,9 @@ describe('what each status still allows', () => {
 
 describe('status labels', () => {
   it('gives every status a word, so the badge is never colour alone', () => {
-    expect(statusLabel('draft')).toBe(fr.admin.statusDraft)
-    expect(statusLabel('live')).toBe(fr.admin.statusLive)
-    expect(statusLabel('closed')).toBe(fr.admin.statusClosed)
-    expect(statusLabel('archived')).toBe(fr.admin.statusArchived)
+    expect(statusLabel('draft', fr)).toBe(fr.admin.statusDraft)
+    expect(statusLabel('live', fr)).toBe(fr.admin.statusLive)
+    expect(statusLabel('closed', fr)).toBe(fr.admin.statusClosed)
+    expect(statusLabel('archived', fr)).toBe(fr.admin.statusArchived)
   })
 })

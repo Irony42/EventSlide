@@ -1,6 +1,5 @@
 import { expect, test } from '../fixtures/app'
 import { de } from '../../../web/src/lib/i18n/de'
-import { fr } from '../../../web/src/lib/i18n/fr'
 import { it as italian } from '../../../web/src/lib/i18n/it'
 
 /**
@@ -66,14 +65,51 @@ test.describe('a guest whose phone is in German', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'it')
   })
 
-  test('leaves the host console in French on the same browser', async ({ app, page }) => {
-    // The scope decision, end to end. The host console has one operator, who set the box
-    // up; it is not translated, and a browser asking for German must not half-translate
-    // it through the shared primitives. There is no language control there either.
+  test('renders the host console in German on the same browser, with its own picker', async ({
+    app,
+    page,
+  }) => {
+    // The decision this reversed, end to end: a moderator invited by e-mail and handed a
+    // temporary password reads their console in their own language, and the picker is
+    // there so a borrowed phone can be put right in one tap.
     await page.goto(app.url('/login'))
 
-    await expect(page.getByRole('heading', { name: fr.auth.title })).toBeVisible()
-    await expect(page.locator('html')).toHaveAttribute('lang', 'fr')
-    await expect(page.getByRole('combobox', { name: de.app.language })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: de.auth.title })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de')
+    await expect(page.getByRole('combobox', { name: de.app.language })).toBeVisible()
+  })
+})
+
+/**
+ * The one surface whose language is not the reader's, and the only test here where **the
+ * browser is deliberately wrong**: the projector is started on a machine asking for
+ * German, the event was created in Italian, and the room must get Italian.
+ *
+ * Nothing cheaper proves it, because every ring below stubs the very signal the wall is
+ * required to ignore — a wall that quietly fell back to `navigator.languages` would be
+ * green everywhere else and wrong in front of two hundred people.
+ */
+test.describe('a projector plugged into a laptop that is not the event’s language', () => {
+  test.use({ locale: 'de-DE' })
+
+  test('shows the room the language the host set on the event @smoke', async ({ app, page }) => {
+    const event = await app.seedEvent({ name: 'Camille & Sacha', wallLanguage: 'it' })
+
+    await page.goto(app.url(`/e/${event.slug}/display`))
+
+    await expect(page.getByText(italian.wall.empty)).toBeVisible()
+    await expect(page.getByText(de.wall.empty)).toHaveCount(0)
+
+    await expect(page.locator('html')).toHaveAttribute('lang', 'it')
+  })
+
+  test('leaves the event’s own name exactly as the host typed it', async ({ app, page }) => {
+    // Content, not interface: the name is French, the wall is Italian, and the wall shows
+    // the name. A translation pass that routed it through a table would show up here.
+    const event = await app.seedEvent({ name: 'Camille & Sacha', wallLanguage: 'it' })
+
+    await page.goto(app.url(`/e/${event.slug}/display`))
+
+    await expect(page.getByRole('heading', { name: event.name })).toBeVisible()
   })
 })

@@ -1,5 +1,5 @@
 import { formattersFor } from './formatters'
-import type { GuestTranslations } from './translations'
+import type { UiText } from './translations'
 
 /**
  * German, for the guest surface.
@@ -19,7 +19,7 @@ import type { GuestTranslations } from './translations'
 
 const t = formattersFor('de')
 
-export const de: GuestTranslations = {
+export const de: UiText = {
   app: {
     name: 'EventSlide',
     loading: 'Wird geladen…',
@@ -105,8 +105,6 @@ export const de: GuestTranslations = {
     notJoinedTitle: 'Treten Sie der Galerie bei, um Ihre Fotos zu senden',
     notJoinedHint: 'Scannen Sie den QR-Code erneut oder geben Sie den Code der Feier ein.',
     notJoinedAction: 'Code eingeben',
-
-    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
 
     missionsTitle: 'Missionen',
     missionsHint: 'Tippen Sie auf eine Mission und senden Sie dann Ihr Foto.',
@@ -254,6 +252,8 @@ export const de: GuestTranslations = {
     'eventSettings.graceSecondsInvalid': 'Diese Löschfrist ist nicht zulässig.',
     'eventSettings.retentionDaysInvalid': 'Diese Aufbewahrungsdauer ist nicht zulässig.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Diese Anzahl an Fotos pro Gast ist nicht zulässig.',
+    'eventSettings.wallLanguageInvalid':
+      'Diese Sprache ist nicht verfügbar. Wählen Sie eine aus der Liste.',
     'email.malformed': 'Diese E-Mail-Adresse ist nicht gültig.',
     'user.notFound': 'Zu dieser E-Mail-Adresse gibt es kein Konto.',
     'membership.alreadyExists': 'Diese Person moderiert diese Veranstaltung bereits.',
@@ -327,7 +327,6 @@ export const de: GuestTranslations = {
     'clipJob.illegalTransition': 'Diese Aktion ist bei diesem Video nicht möglich.',
     'photo.rangeNotSatisfiable': 'Diesen Teil der Datei gibt es nicht.',
 
-    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
     'mission.notFound': 'Diese Mission gibt es nicht mehr. Laden Sie die Seite neu.',
     'mission.duplicate': 'Diese Mission gibt es bereits.',
     'mission.limitReached': 'Sie haben die maximale Anzahl an Missionen erreicht.',
@@ -340,5 +339,416 @@ export const de: GuestTranslations = {
       'Diese Farbe wäre auf der Leinwand im Saal nicht lesbar. Wählen Sie eine aus der Liste.',
     'eventTheme.accentTooCloseToStatus':
       'Diese Farbe ähnelt den Statusfarben der Anwendung zu sehr. Wählen Sie eine andere.',
+  },
+
+  moderation: {
+    title: 'Moderation',
+    intro: 'Nichts erscheint ohne Ihre Freigabe auf dem Bildschirm.',
+    pending: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto wartet auf Freigabe`,
+        other: `${t.number(count)} Fotos warten auf Freigabe`,
+      }),
+    empty: 'Im Moment gibt es nichts freizugeben.',
+    emptyHint: 'Neue Fotos erscheinen hier automatisch.',
+    publish: 'Freigeben',
+    reject: 'Ablehnen',
+    hide: 'Vom Bildschirm nehmen',
+    undo: 'Rückgängig',
+    undone: 'Entscheidung rückgängig gemacht.',
+    selectAll: 'Alle auswählen',
+    clearSelection: 'Auswahl aufheben',
+    bulkPublish: (count: number) => `Freigeben (${t.number(count)})`,
+    bulkReject: (count: number) => `Ablehnen (${t.number(count)})`,
+    bulkSkipped: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto übersprungen: Aktion nicht möglich.`,
+        other: `${t.number(count)} Fotos übersprungen: Aktion nicht möglich.`,
+      }),
+    filterAll: 'Alle',
+    filterPending: 'Wartend',
+    filterPublished: 'Auf dem Bildschirm',
+    filterRejected: 'Abgelehnt',
+    filterHidden: 'Entfernt',
+    by: (name: string) => `von ${name}`,
+    byAnonymous: 'Anonymer Gast',
+    shortcuts: 'Tastenkürzel',
+    shortcutsHint: 'J / K zum Blättern, P zum Freigeben, R zum Ablehnen, Z zum Rückgängigmachen.',
+
+    shortcutsMore:
+      'H zum Entfernen vom Bildschirm, Leertaste zum Auswählen, Esc zum Aufheben der Auswahl.',
+    queueLabel: 'Fotos zur Moderation',
+    filterLabel: 'Nach Status filtern',
+    emptyFiltered: 'Keine Fotos in dieser Kategorie.',
+    emptyFilteredHint: 'Wechseln Sie den Filter, um die anderen Fotos zu sehen.',
+    loadFailed: 'Die Moderationsliste konnte nicht geladen werden.',
+    live: 'Live-Aktualisierung',
+    liveLost: 'Verbindung unterbrochen — es wird erneut versucht.',
+    statePending: 'Wartet',
+    statePublished: 'Freigegeben',
+    stateRejected: 'Abgelehnt',
+    stateHidden: 'Vom Bildschirm genommen',
+    selected: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto ausgewählt`,
+        other: `${t.number(count)} Fotos ausgewählt`,
+      }),
+    anonymousInName: 'einem anonymen Gast',
+    selectPhoto: (author: string) => `Foto von ${author} auswählen`,
+    publishPhoto: (author: string) => `Foto von ${author} freigeben`,
+    rejectPhoto: (author: string) => `Foto von ${author} ablehnen`,
+    hidePhoto: (author: string) => `Foto von ${author} vom Bildschirm nehmen`,
+    enlargePhoto: (author: string) => `Foto von ${author} vergrößern`,
+    photoOf: (author: string) => `Foto von ${author}`,
+    photoAlt: (author: string) => `Foto, gesendet von ${author}`,
+    photoAltWithCaption: (caption: string, author: string) =>
+      `${caption} — Foto, gesendet von ${author}`,
+    previousPhoto: 'Vorheriges Foto',
+    nextPhoto: 'Nächstes Foto',
+    bulkHide: (count: number) => `Vom Bildschirm nehmen (${t.number(count)})`,
+    published: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto freigegeben.`,
+        other: `${t.number(count)} Fotos freigegeben.`,
+      }),
+    refused: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto abgelehnt.`,
+        other: `${t.number(count)} Fotos abgelehnt.`,
+      }),
+    removed: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto vom Bildschirm genommen.`,
+        other: `${t.number(count)} Fotos vom Bildschirm genommen.`,
+      }),
+    decisionFailed: 'Die Entscheidung konnte nicht gespeichert werden. Versuchen Sie es erneut.',
+    undoFailed: 'Das Rückgängigmachen konnte nicht gespeichert werden. Versuchen Sie es erneut.',
+    dimensions: (width: number, height: number) => `${width} × ${height} Pixel`,
+    noCaption: 'Ohne Bildunterschrift',
+
+    videoBadge: 'Video',
+    videoLength: (seconds: number) => `Video · ${seconds} s`,
+    watchVideo: (author: string) => `Video von ${author} ansehen`,
+    playVideo: (author: string) => `Video von ${author} abspielen`,
+    pauseVideo: (author: string) => `Video von ${author} anhalten`,
+    videoOf: (author: string) => `Video von ${author}`,
+    videoAlt: (author: string) => `Video, gesendet von ${author}`,
+    videoAltWithCaption: (caption: string, author: string) =>
+      `${caption} — Video, gesendet von ${author}`,
+    videoMuted: 'Der Ton ließ sich nicht einschalten: Dieses Video läuft ohne Ton.',
+    videoUnplayable:
+      'Dieses Video kann hier nicht abgespielt werden. Zu sehen ist nur das Vorschaubild.',
+  },
+
+  wall: {
+    empty: 'Die ersten Fotos kommen gleich',
+    emptyHint: 'Scannen Sie den QR-Code und senden Sie Ihre eigenen Fotos.',
+    joinPrompt: 'Treten Sie der Galerie bei',
+    reactions: 'Reaktionen',
+    offline: 'Verbindung unterbrochen — es wird erneut versucht',
+    paused: 'Diashow angehalten',
+
+    codeLabel: 'Code der Feier',
+    qrTitle: 'QR-Code für den Beitritt zur Galerie',
+    photoBy: (name: string) => `Foto, gesendet von ${name}`,
+    photoByAnonymous: 'Foto, gesendet von einem Gast',
+    errorTitle: 'Die Fotos konnten nicht geladen werden',
+    errorHint:
+      'Es wird erneut versucht. Prüfen Sie das Netz vor Ort, wenn der Bildschirm leer bleibt.',
+    dismissJoinCard: 'Code-Hinweis ausblenden',
+    shortcuts: 'Tastenkürzel',
+    shortcutsHint:
+      'Leertaste hält an, die Pfeiltasten wechseln das Foto, F schaltet auf Vollbild, L wechselt die Anordnung.',
+
+    layoutNames: {
+      spotlight: 'Vollbild',
+      mosaic: 'Mosaik',
+      polaroid: 'Polaroid',
+      filmstrip: 'Filmstreifen',
+      collage: 'Collage',
+      split: 'Nebeneinander',
+    },
+    layoutOrder: (names: readonly string[]) =>
+      `Anordnungen, in dieser Reihenfolge: ${names.join(', ')}.`,
+
+    videoBy: (name: string) => `Video, gesendet von ${name}`,
+    videoByAnonymous: 'Video, gesendet von einem Gast',
+
+    missionsTitle: 'Missionen',
+    missionDone: 'Erledigt',
+    missionGuests: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Gast`,
+        other: `${t.number(count)} Gäste`,
+      }),
+  },
+
+  admin: {
+    title: 'Verwaltung',
+    events: 'Ihre Veranstaltungen',
+    newEvent: 'Neue Veranstaltung',
+    eventName: 'Name der Veranstaltung',
+    eventNameHint: 'Für Ihre Gäste sichtbar, zum Beispiel „Camille & Sacha“.',
+    slug: 'Adresse',
+    joinCode: 'Zugangscode',
+    rotateJoinCode: 'Code ändern',
+    rotateJoinCodeHint:
+      'Bereits verbundene Gäste bleiben verbunden. Der neue Code ersetzt den alten sofort.',
+    qrCode: 'QR-Code',
+    qrCodeHint: 'Zum Ausdrucken und Aufstellen auf den Tischen.',
+    openWall: 'Bildschirm öffnen',
+    openModeration: 'Moderieren',
+    download: 'Album herunterladen',
+    statusDraft: 'Entwurf',
+    statusLive: 'Läuft',
+    statusClosed: 'Beendet',
+    statusArchived: 'Archiviert',
+    goLive: 'Für Gäste öffnen',
+    closeEvent: 'Veranstaltung beenden',
+    reopenEvent: 'Erneut öffnen',
+    archiveEvent: 'Archivieren',
+    photos: (count: number) =>
+      t.count(count, { one: `${t.number(count)} Foto`, other: `${t.number(count)} Fotos` }),
+    guests: (count: number) =>
+      t.count(count, { one: `${t.number(count)} Gast`, other: `${t.number(count)} Gäste` }),
+    storageUsed: (used: string, total: string) => `${used} von ${total}`,
+    settings: 'Einstellungen',
+    moderationMode: 'Moderation',
+    moderationManual: 'Jedes Foto freigeben',
+    moderationAuto: 'Automatisch freigeben',
+    moderationAutoWarning:
+      'Fotos und Videos erscheinen ohne Freigabe auf dem Bildschirm. Nur für Veranstaltungen im engen Kreis.',
+    allowCaptions: 'Bildunterschriften erlauben',
+    allowReactions: 'Reaktionen erlauben',
+    allowClips: 'Videos erlauben',
+    allowClipsHint:
+      'Gäste können zusätzlich zu Fotos kurze Videos senden. Ohne Haken werden Videos abgelehnt: weil Sie den Haken entfernt haben, weil die bei der Erstellung gewählte Vorlage es so eingestellt hat, oder weil die Galerie älter ist als diese Funktion. Setzen Sie den Haken, um Videos zu erlauben.',
+    allowGuestSelfDelete: 'Gästen erlauben, ihre Fotos zu löschen',
+
+    wallLanguage: 'Sprache der Leinwand im Saal',
+    wallLanguageHint:
+      'Die Wörter auf der Leinwand im Saal: „Treten Sie der Galerie bei“, „Missionen“, die Wartemeldungen. Was Sie und Ihre Gäste schreiben — der Name der Veranstaltung, die Bildunterschriften, die Aufgaben — erscheint unverändert und wird nie übersetzt. Ihre Gäste wählen ihre eigene Sprache auf ihrem Telefon; diese Einstellung betrifft sie nicht.',
+
+    theme: 'Erscheinungsbild',
+    themeHint:
+      'Sichtbar für Ihre Gäste und auf der Leinwand im Saal. Die angebotenen Farben bleiben auf zehn Meter lesbar.',
+    themeAccent: 'Farbe',
+    themeAccentNames: {
+      violet: 'Violett',
+      rose: 'Rosa',
+      azure: 'Blau',
+      teal: 'Türkis',
+    },
+    themeFonts: 'Schrift',
+    themeFontsHint: 'Gilt nur für die Leinwand im Saal.',
+    themeFontsNames: {
+      sans: 'Modern',
+      serif: 'Klassisch',
+    },
+    themeFrame: 'Fotorahmen',
+    themeFrameNames: {
+      soft: 'Abgerundete Ecken',
+      square: 'Gerade Ecken',
+      round: 'Stark abgerundete Ecken',
+    },
+    themeMaterial: 'Material der Flächen',
+    themeMaterialHint:
+      'Glas lässt ahnen, was darunter liegt; die einfarbige Fläche ist undurchsichtig. Der Unterschied ist dezent, und er betrifft nur die Seite, auf der Ihre Gäste ihre Fotos senden: Ihre Moderationskonsole und die Leinwand im Saal ändern sich nicht.',
+    themeMaterialNames: {
+      glass: 'Milchglas',
+      plain: 'Einfarbige Fläche',
+    },
+
+    template: 'Art der Veranstaltung',
+    templateHint:
+      'Ein Ausgangspunkt, passend zur Art des Abends. Alle diese Einstellungen bleiben jederzeit änderbar, vor wie während der Veranstaltung.',
+    templateNone: 'Ohne Vorlage',
+    templateNoneSummary:
+      'Standardeinstellungen: jedes Foto wird freigegeben, bevor es auf den Bildschirm kommt; unbegrenzte Aufbewahrung.',
+    templateChanges: 'Diese Vorlage stellt ein:',
+    templateClipsOn: 'Videos erlaubt',
+    templateClipsOff: 'Videos deaktiviert',
+    templateNames: {
+      wedding: 'Hochzeit',
+      birthday: 'Geburtstag',
+      conference: 'Konferenz',
+      party: 'Party',
+    },
+
+    retention: 'Automatische Löschung',
+    retentionNever: 'Nie',
+    retentionDays: (days: number) =>
+      t.count(days, {
+        one: `${t.number(days)} Tag nach dem Ende`,
+        other: `${t.number(days)} Tage nach dem Ende`,
+      }),
+    retentionUnlimited: 'Unbegrenzte Aufbewahrung',
+    moderators: 'Moderatoren',
+    inviteModerator: 'Moderator einladen',
+
+    loading: 'Ihre Veranstaltungen werden geladen…',
+    loadFailed: 'Laden nicht möglich',
+    eventLoading: 'Die Veranstaltung wird geladen…',
+    eventsEmpty: 'Noch keine Veranstaltungen.',
+    eventsEmptyHint:
+      'Legen Sie Ihre erste Veranstaltung an und drucken Sie dann ihren QR-Code für die Tische aus.',
+    create: 'Veranstaltung anlegen',
+    slugHint: 'Optional. Leer lassen, dann wird sie aus dem Namen abgeleitet.',
+    slugPreviewLabel: 'Adresse der Galerie',
+    slugPreviewEmpty: 'Geben Sie einen Namen ein, um die Adresse zu sehen.',
+    eventCreated: (name: string) =>
+      `${name} ist bereit. Drucken Sie den QR-Code, wann immer Sie wollen.`,
+    joinCodeHint: 'Für Gäste, die den QR-Code nicht scannen können.',
+    eventControls: 'Steuerung der Veranstaltung',
+    joinLink: 'Einladungslink',
+    printQr: 'QR-Code drucken',
+    qrScanPrompt: 'Scannen Sie, um Ihre Fotos zu senden.',
+    qrAlt: (eventName: string) => `QR-Code für den Zugang zu ${eventName}`,
+    storageLabel: 'Belegter Speicher für Fotos',
+    storage: (used: string) => `${used} belegt`,
+    statusSaved: 'Der neue Status ist gespeichert.',
+    rotateJoinCodeTitle: 'Zugangscode ändern?',
+    codeRotated: 'Der Zugangscode wurde geändert. Der alte funktioniert nicht mehr.',
+    settingsSaved: 'Einstellungen gespeichert.',
+    settingsReadOnly:
+      'Diese Veranstaltung ist archiviert: Die Einstellungen können nicht mehr geändert werden.',
+    retentionHint: 'Die Fotos werden nach dieser Frist ab dem Ende der Veranstaltung gelöscht.',
+    selfDeleteGrace: 'Löschfrist',
+    selfDeleteGraceHint: 'Innerhalb dieser Frist kann ein Gast sein Foto selbst löschen.',
+    graceNone: 'Keine Frist',
+    graceSeconds: (seconds: number) =>
+      t.count(seconds, {
+        one: `${t.number(seconds)} Sekunde`,
+        other: `${t.number(seconds)} Sekunden`,
+      }),
+    graceMinutes: (minutes: number) =>
+      t.count(minutes, {
+        one: `${t.number(minutes)} Minute`,
+        other: `${t.number(minutes)} Minuten`,
+      }),
+    graceHours: (hours: number) =>
+      t.count(hours, { one: `${t.number(hours)} Stunde`, other: `${t.number(hours)} Stunden` }),
+    maxPhotosPerGuest: 'Fotos pro Gast',
+    maxPhotosUnlimited: 'Ohne Limit',
+    guestList: 'Gäste',
+    guestsEmpty: 'Noch niemand ist der Galerie beigetreten.',
+    guestsEmptyHint: 'Gäste erscheinen hier, sobald sie den QR-Code scannen.',
+    lastSeen: (when: string) => `Letzte Aktivität: ${when}`,
+    dateUnknown: 'Datum unbekannt',
+    guestRevokedBadge: 'Zugang entzogen',
+    revokeGuest: 'Zugang entziehen',
+    revokeGuestTitle: 'Diesem Gast den Zugang entziehen?',
+    revokeGuestHint:
+      'Die bereits freigegebenen Fotos bleiben auf dem Bildschirm. Neue Fotos kann dieser Gast nicht mehr senden.',
+    guestRevoked: 'Der Zugang wurde entzogen.',
+    moderatorsEmpty: 'Sie moderieren diese Veranstaltung allein.',
+    moderatorEmail: 'E-Mail-Adresse des Moderators',
+    moderatorEmailHint: 'Die Rechte gelten nur für diese Veranstaltung.',
+    moderatorPassword: 'Vorläufiges Passwort',
+    moderatorPasswordHint: (min: number) =>
+      `Mindestens ${min} Zeichen. Es wird keine E-Mail versendet: Nennen Sie dem Moderator dieses Passwort. Bei der ersten Anmeldung wählt er ein eigenes.`,
+    inviteSubmit: 'Einladen',
+    moderatorInvited: (email: string) =>
+      `${email} kann diese Veranstaltung ab jetzt moderieren. Geben Sie dieser Person das vorläufige Passwort weiter.`,
+    moderatorInvitedExisting: (email: string) =>
+      `${email} kann diese Veranstaltung ab jetzt moderieren. Dieses Konto gab es bereits: Es behält sein bisheriges Passwort.`,
+    revokeModerator: 'Entfernen',
+    revokeModeratorTitle: 'Diesen Moderator entfernen?',
+    revokeModeratorHint:
+      'Er verliert den Zugang zu dieser Veranstaltung. Seine bisherigen Entscheidungen bleiben erhalten.',
+    moderatorRevoked: 'Der Moderator wurde entfernt.',
+    roleOwner: 'Veranstalter',
+    roleModerator: 'Moderator',
+    lastOwnerHint: 'Der letzte Veranstalter kann nicht entfernt werden.',
+    purge: 'Veranstaltung löschen',
+    purgeTitle: 'Diese Veranstaltung endgültig löschen?',
+    purgeWarning:
+      'Alle Fotos, alle Gäste und das Album werden gelöscht. Das lässt sich nicht rückgängig machen.',
+    purgeConfirmLabel: 'Adresse der Veranstaltung',
+    purgeConfirmHint: (slug: string) => `Geben Sie „${slug}“ ein, um die Löschung zu bestätigen.`,
+    purged: (name: string) => `${name} wurde gelöscht.`,
+
+    schedule: 'Automatisches Öffnen und Beenden',
+    scheduleHint:
+      'Leer lassen, wenn Sie selbst öffnen und beenden wollen. Die Zeiten richten sich nach Ihrem Computer, also nach dem Ort der Feier.',
+    scheduleOpenAt: 'Für Gäste öffnen am',
+    scheduleCloseAt: 'Veranstaltung beenden am',
+    scheduleCloseAtHint: 'Fotos und Album bleiben erhalten: Beenden löscht nichts.',
+    scheduleSaved: 'Die Zeitplanung wurde gespeichert.',
+    scheduleNone: 'Keine Zeitplanung: Sie öffnen und beenden selbst.',
+    scheduleArmed: (opensAt: string, closesAt: string) =>
+      `Öffnung am ${opensAt}, Ende am ${closesAt}.`,
+    scheduleOpensOnly: (opensAt: string) => `Öffnung am ${opensAt}. Sie beenden selbst.`,
+    scheduleClosesOnly: (closesAt: string) => `Ende am ${closesAt}. Sie öffnen selbst.`,
+    scheduleSave: 'Zeitplanung speichern',
+    scheduleDiscarded: (when: string) =>
+      `Die automatische Zeitplanung konnte am ${when} nicht greifen: Die Veranstaltung konnte zu diesem Zeitpunkt den Status nicht wechseln. Sie wurde gelöscht. Speichern Sie eine neue, wenn Sie eine wollen.`,
+
+    missionsTitle: 'Missionen',
+    missionsHint:
+      'Eine kurze Liste von Aufgaben, die Ihre Gäste als Checkliste sehen und die in einer Ecke der Leinwand im Saal erscheint.',
+    missionsEmpty: 'Noch keine Missionen.',
+    missionPrompt: 'Aufgabe',
+    missionPromptHint: (max: number) =>
+      `Höchstens ${t.number(max)} Zeichen. In der Sprache des Abends geschrieben: Sie wird nicht übersetzt.`,
+    missionScope: 'Zu erfüllen',
+    missionScopeGuest: 'Pro Gast',
+    missionScopeEvent: 'Einmal für den Abend',
+    missionScopeHint:
+      'Pro Gast: Jeder kann sie erfüllen. Einmal: Das erste freigegebene Foto hakt sie für alle ab.',
+    missionAdd: 'Mission hinzufügen',
+    missionSave: 'Speichern',
+    missionCancel: 'Abbrechen',
+    missionEditShort: 'Bearbeiten',
+    missionDeleteShort: 'Löschen',
+    missionEdit: (prompt: string) => `„${prompt}“ bearbeiten`,
+    missionDelete: (prompt: string) => `„${prompt}“ löschen`,
+    missionDeleteTitle: 'Diese Mission löschen?',
+    missionDeleteAction: 'Mission löschen',
+    missionDeleteConfirm:
+      'Die bereits gesendeten Fotos bleiben im Album: Sie zählen nur nicht mehr für diese Mission.',
+    missionAdded: 'Die Mission wurde hinzugefügt.',
+    missionSaved: 'Die Mission wurde gespeichert.',
+    missionDeleted: 'Die Mission wurde gelöscht.',
+    missionAnswered: (photos: number, guests: number) =>
+      `${t.count(photos, {
+        one: `${t.number(photos)} Foto`,
+        other: `${t.number(photos)} Fotos`,
+      })}, ${t.count(guests, {
+        one: `${t.number(guests)} Gast`,
+        other: `${t.number(guests)} Gäste`,
+      })}`,
+    missionUnanswered: 'Noch nicht erfüllt',
+    missionsFull: (max: number) =>
+      `Höchstens ${t.number(max)} Missionen: So bleibt die Liste auf zehn Meter lesbar.`,
+  },
+
+  auth: {
+    title: 'Anmeldung',
+    email: 'E-Mail-Adresse',
+    password: 'Passwort',
+    submit: 'Anmelden',
+    submitting: 'Wird angemeldet…',
+    logout: 'Abmelden',
+    changePassword: 'Passwort ändern',
+    currentPassword: 'Aktuelles Passwort',
+    newPassword: 'Neues Passwort',
+    newPasswordHint: (min: number) =>
+      `Mindestens ${min} Zeichen. Ein Satz ist sicherer als ein Wort.`,
+    confirmPassword: 'Neues Passwort bestätigen',
+    mustChangePassword: 'Wählen Sie ein Passwort, bevor Sie fortfahren.',
+
+    changePasswordIntro: 'Wählen Sie ein Passwort, das Sie nirgendwo sonst verwenden.',
+    passwordSaved: 'Passwort gespeichert.',
+  },
+
+  mobileModeration: {
+    title: 'Moderation am Telefon',
+    intro: 'Wischen Sie das Foto nach rechts zum Freigeben, nach links zum Ablehnen.',
+    releaseToPublish: 'Loslassen zum Freigeben',
+    releaseToReject: 'Loslassen zum Ablehnen',
+    nowDeciding: (photo: string) => `Foto zur Moderation. ${photo}`,
+    undoLast: 'Letzte Entscheidung rückgängig machen',
+    undoUnavailable: 'Nur eine Freigabe lässt sich rückgängig machen.',
   },
 }

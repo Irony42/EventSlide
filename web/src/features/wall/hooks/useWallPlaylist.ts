@@ -116,6 +116,13 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.theme?.fonts === fresh.theme?.fonts &&
   kept.theme?.frame === fresh.theme?.frame &&
   kept.theme?.material === fresh.theme?.material &&
+  // The language the room's screen speaks (roadmap 1.5). Compared for the reason the
+  // theme is, and with a sharper failure: a host who realises mid-reception that the wall
+  // is in the wrong language changes it on the settings page, which moves no photograph —
+  // so `revision` does not change, and on the empty wall they are standing in front of
+  // while they fix it, nothing else ever will either. Without this line the correction
+  // would land on the projector at the next upload, or never.
+  kept.wallLanguage === fresh.wallLanguage &&
   sameMissions(kept, fresh)
 
 /**

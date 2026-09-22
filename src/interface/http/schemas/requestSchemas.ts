@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
 import { MISSION_SCOPES } from '../../../domain/missions/missionScope'
 import {
@@ -177,6 +178,20 @@ export const createEventBody = z
      * already gets — no new error code, and nothing for roadmap 1.5 to translate.
      */
     template: z.enum(EVENT_TEMPLATE_KEYS).optional(),
+    /**
+     * The language the room's screen will speak, read from the creator's browser at the
+     * moment they create the event (roadmap 1.5).
+     *
+     * On the **create** body because that moment is the whole design of the default: the
+     * one signal about a screen nobody will be holding is the language the person setting
+     * it up is reading. **A snapshot, never a subscription** — nothing re-reads that
+     * preference, so a host who switches their own browser next month has not moved a
+     * projector in a room. `createEvent.test.ts` asserts it as an absence.
+     *
+     * `.optional()` and not `.nullish()`, like `template`: "no opinion" is the absence of
+     * a choice, and the domain answers it with French.
+     */
+    wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
   })
   .strict()
 
@@ -229,6 +244,19 @@ export const updateSettingsBody = z
       })
       .strict()
       .optional(),
+    /**
+     * The language the projected wall speaks (roadmap 1.5).
+     *
+     * A scalar beside the theme's object rather than folded into it: `eventTheme.ts`
+     * weighs its four values against each other for legibility at ten metres and a
+     * language takes part in none of that, and `theme` is required-whole on purpose — so
+     * folding it in would make a host who changes only the language resend a palette.
+     *
+     * The vocabulary comes from the domain rather than a second `z.enum(['fr', …])`, for
+     * the reason `template` does: a language added to the build would otherwise be
+     * accepted by the use case and refused here, with neither build noticing.
+     */
+    wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
   })
   .strict()
 

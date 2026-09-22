@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { fr } from './fr'
+import { announceLocaleContext } from './deferredLocale'
 import { DEFAULT_LOCALE, type Locale } from './locale'
 import { localeContext, type LocaleState } from './localeContext'
 import { detectLocale, storeLocale } from './localePreference'
@@ -20,16 +20,21 @@ export interface LocaleProviderProps {
 }
 
 /**
- * The guest's language, detected once and then owned by the guest.
+ * The reader's language — a guest **and** a host — detected once and then owned by them.
+ * One preference, one storage key, one picker.
  *
- * Detection runs in the `useState` initialiser rather than in an effect, and that
- * placement is the feature: an effect would paint the join screen in French and then
- * repaint it in German, which on a phone reads as a bug and on a slow one is a visible
- * flash of the wrong language.
+ * **An attribute on the *account* was rejected**, and the moderator on a borrowed phone
+ * decides it: a language following the account would be written onto somebody else's
+ * device and left there, while an owner lending their laptop for an hour would have to
+ * sign out to change it. A language is a property of the reading, which is
+ * `localePreference.ts`'s argument for `localStorage`.
  *
- * `<html lang>` is **not** set here. It belongs to `AppShell`, which is the innermost
- * component every screen renders through and therefore the only one that knows which
- * language is actually on the screen — see {@link FrenchSurface}.
+ * Detection runs in the `useState` initialiser rather than in an effect: an effect would
+ * paint the join screen in French and repaint it in German, a visible flash of the wrong
+ * language on a slow phone. `LocaleProvider.test.tsx` pins that.
+ *
+ * `<html lang>` is **not** set here — it belongs to `AppShell`, the innermost component
+ * every screen renders through and so the only one that knows the language on screen.
  */
 export function LocaleProvider({ initialLocale, children }: LocaleProviderProps) {
   const [locale, setLocaleState] = useState<Locale>(() => initialLocale ?? detectLocale())
@@ -47,31 +52,56 @@ export function LocaleProvider({ initialLocale, children }: LocaleProviderProps)
   return <localeContext.Provider value={value}>{children}</localeContext.Provider>
 }
 
-/**
- * French, whatever the browser asked for.
- *
- * The host console and the projected wall are not translated, and without this they
- * would be *half* translated: `Dialog`, `ConfirmDialog`, `Field`, `Progress` and `Toast`
- * are shared primitives that read their copy from the active table, so a host whose
- * browser is set to English would have got "Cancel" and "Confirm" inside an otherwise
- * French moderation dialog — and would have got it without ever choosing anything,
- * because detection reads `navigator.languages`.
- *
- * So the host and wall layouts re-provide French, and the boundary is a component in the
- * route table rather than a rule each primitive has to remember. A guest's choice stops
- * exactly where the guest surface stops.
- */
-const FRENCH: LocaleState = {
-  locale: DEFAULT_LOCALE,
-  text: fr,
-  // Nothing on a host or wall surface offers a language, so there is nothing to set.
-  setLocale: () => {},
-}
-
-export interface FrenchSurfaceProps {
+export interface LocaleOverrideProps {
+  /** The language everything under this point renders in, whatever the reader chose. */
+  readonly locale: Locale
   readonly children: ReactNode
 }
 
-export function FrenchSurface({ children }: FrenchSurfaceProps) {
-  return <localeContext.Provider value={FRENCH}>{children}</localeContext.Provider>
+/**
+ * One surface, in a language nobody at that surface chose. What `FrenchSurface` became:
+ * it used to answer "which half of the app is translated" and now answers "which surface
+ * has a language of its own". There is exactly one, the projected wall.
+ *
+ * **The guard it inherits is the one worth keeping.** `Dialog`, `Field`, `Progress`,
+ * `Toast` and the other shared primitives read the active table, so without a boundary at
+ * the top of the surface a wall set to Italian renders a French "Fermer" inside its own
+ * panel, taken from whatever the person who launched the projector had stored. Half a
+ * screen in each language looks like a rendering bug rather than a setting, and is
+ * invisible to every test run on a French machine.
+ *
+ * `setLocale` is a no-op rather than absent, so a shared control that happens to render
+ * here does nothing instead of throwing on a projector.
+ */
+export function LocaleOverride({ locale, children }: LocaleOverrideProps) {
+  const value = useMemo<LocaleState>(
+    () => ({ locale, text: translationsFor(locale), setLocale: () => {} }),
+    [locale],
+  )
+
+  return <localeContext.Provider value={value}>{children}</localeContext.Provider>
+}
+
+export interface DeferredLocaleProps {
+  readonly children: ReactNode
+}
+
+/**
+ * A {@link LocaleOverride} whose language is not known until the surface underneath says
+ * so. The projected wall, and nothing else — `deferredLocale.ts` has the argument.
+ *
+ * **Until the response lands, the default.** Not the browser's, which on a projector is
+ * the laptop that was plugged in and is the answer this mechanism exists to avoid; and
+ * not a guess, because before the response there is no event to have a language. Only a
+ * visually-hidden spinner label renders in that window, so the room never watches the
+ * wall change language.
+ */
+export function DeferredLocale({ children }: DeferredLocaleProps) {
+  const [announced, setAnnounced] = useState<Locale | null>(null)
+
+  return (
+    <announceLocaleContext.Provider value={setAnnounced}>
+      <LocaleOverride locale={announced ?? DEFAULT_LOCALE}>{children}</LocaleOverride>
+    </announceLocaleContext.Provider>
+  )
 }

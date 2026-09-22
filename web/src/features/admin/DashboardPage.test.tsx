@@ -86,7 +86,9 @@ describe('DashboardPage', () => {
     expect(screen.getAllByText(fr.admin.photos(42))[0]).toBeVisible()
     expect(screen.getAllByText(fr.admin.guests(18))[0]).toBeVisible()
     expect(screen.getByText(fr.moderation.pending(7))).toBeVisible()
-    expect(screen.getAllByText(spaced(fr.admin.storage(formatBytes(2_400_000))))[0]).toBeVisible()
+    expect(
+      screen.getAllByText(spaced(fr.admin.storage(formatBytes(2_400_000, 'fr'))))[0],
+    ).toBeVisible()
   })
 
   it('offers only the lifecycle actions the event’s status allows', async () => {
@@ -152,7 +154,9 @@ describe('DashboardPage', () => {
 
     renderDashboard(api)
 
-    expect(await screen.findByText(spaced(fr.admin.storage(formatBytes(2_400_000))))).toBeVisible()
+    expect(
+      await screen.findByText(spaced(fr.admin.storage(formatBytes(2_400_000, 'fr')))),
+    ).toBeVisible()
     expect(screen.queryByRole('progressbar')).toBeNull()
   })
 })

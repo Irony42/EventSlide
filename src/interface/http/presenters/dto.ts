@@ -8,6 +8,7 @@
  */
 
 import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
+import type { EventLanguage } from '../../../domain/events/eventLanguage'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import type { ThemeFonts, ThemeFrame, ThemeMaterial } from '../../../domain/events/eventTheme'
 import type { EventRole } from '../../../domain/events/eventRole'
@@ -201,6 +202,15 @@ export interface WallResponseDto {
    * theme and the photos it themes are rendered together.
    */
   readonly theme: EventThemeDto
+  /**
+   * The language this screen renders its own words in (roadmap 1.5). On this response for
+   * the theme's reason — the projector must not paint one language and repaint in another
+   * — and it is the only way the wall can know.
+   *
+   * Required, not optional, unlike `theme` and `missions`: those were added to a response
+   * older clients already parsed, and this one ships with its reader.
+   */
+  readonly wallLanguage: EventLanguage
 }
 
 export type UploadOutcomeDto =
@@ -268,6 +278,12 @@ export interface EventSettingsDto {
   readonly maxPhotosPerGuest: number | null
   /** The host's own copy: what the picker on the settings form is showing. */
   readonly theme: EventThemeDto
+  /**
+   * The language the projected wall speaks (roadmap 1.5). On the host's settings response
+   * and **not** on `PublicEventDto`: putting it on the join response would invite a client
+   * to prefer it over the guest's own choice, the single thing this field must never do.
+   */
+  readonly wallLanguage: EventLanguage
 }
 
 export interface EventSummaryDto {

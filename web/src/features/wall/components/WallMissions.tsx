@@ -1,6 +1,6 @@
 import { Card } from '../../../design-system/components/Card'
 import { StatusIcon } from '../../../design-system/components/StatusIcon'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { WallMissionDto } from '../../../lib/api/dto'
 import styles from './WallMissions.module.css'
 
@@ -46,11 +46,13 @@ export interface WallMissionsProps {
  * use this feature exactly the wall it was, committed visual baselines included.
  */
 export function WallMissions({ missions }: WallMissionsProps) {
+  const text = useTranslations()
+
   if (missions.length === 0) return null
 
   return (
     <Card className={styles['panel']}>
-      <h2 className={styles['title']}>{fr.wall.missionsTitle}</h2>
+      <h2 className={styles['title']}>{text.wall.missionsTitle}</h2>
       <ul className={styles['list']}>
         {missions.map((mission) => (
           <li
@@ -67,8 +69,8 @@ export function WallMissions({ missions }: WallMissionsProps) {
             {mission.achieved ? (
               <span className={styles['answer']}>
                 {mission.scope === 'guest'
-                  ? fr.wall.missionGuests(mission.completedByGuests)
-                  : fr.wall.missionDone}
+                  ? text.wall.missionGuests(mission.completedByGuests)
+                  : text.wall.missionDone}
               </span>
             ) : null}
           </li>

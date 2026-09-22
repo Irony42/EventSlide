@@ -602,4 +602,63 @@ describe('EventSettingsPage', () => {
       expect(screen.queryByText(/n’a pas pu s’appliquer/)).toBeNull()
     })
   })
+
+  /**
+   * The language the projector speaks (roadmap 1.5).
+   *
+   * This is the only place a host can change it after creation, and the only surface in
+   * the product whose language somebody chooses on behalf of other people.
+   */
+  describe('the wall language', () => {
+    it('shows what the event is set to', async () => {
+      const api = fakeApi({
+        getEvent: vi.fn(async () =>
+          anEventDto({ settings: eventSettings({ wallLanguage: 'it' }) }),
+        ),
+      })
+
+      renderPage(api)
+
+      expect(await screen.findByLabelText(fr.admin.wallLanguage)).toHaveValue('it')
+    })
+
+    it('names each language in itself, never translated into the host’s', async () => {
+      // Endonyms, like the guest's own picker and for the same reason one step removed:
+      // the host is choosing a word the *room* will read, so "Deutsch" is the word that
+      // tells them what they are choosing. A French host picking "Allemand" would be
+      // reading a label about a language nobody in that room will see.
+      renderPage(fakeApi())
+
+      const picker = await screen.findByLabelText(fr.admin.wallLanguage)
+      expect([...picker.querySelectorAll('option')].map((option) => option.textContent)).toEqual([
+        'Français',
+        'Deutsch',
+        'English',
+        'Español',
+        'Italiano',
+      ])
+    })
+
+    it('saves the language the host chose', async () => {
+      const api = fakeApi()
+
+      renderPage(api)
+      await userEvent.selectOptions(await screen.findByLabelText(fr.admin.wallLanguage), 'de')
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      expect(api.updateSettings).toHaveBeenCalledWith(
+        'camille-et-sacha',
+        expect.objectContaining({ wallLanguage: 'de' }),
+      )
+    })
+
+    it('says what it does not do, because a host will assume it translates their prompts', async () => {
+      // The hint is the whole reason this field is called "the language of the screen in
+      // the room" rather than "the language of the evening". A host who reads the second
+      // wording expects their consignes to come out in it, and they never will.
+      renderPage(fakeApi())
+
+      expect(await screen.findByText(fr.admin.wallLanguageHint)).toBeVisible()
+    })
+  })
 })

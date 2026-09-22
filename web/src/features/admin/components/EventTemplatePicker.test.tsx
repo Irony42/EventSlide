@@ -55,7 +55,7 @@ describe('EventTemplatePicker', () => {
       name: new RegExp(fr.admin.templateNames.conference),
     })
 
-    for (const line of templateSummary(EVENT_TEMPLATE_PATCHES.conference)) {
+    for (const line of templateSummary(EVENT_TEMPLATE_PATCHES.conference, fr)) {
       expect(conference).toHaveAccessibleDescription(new RegExp(escape(line)))
     }
   })

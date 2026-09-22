@@ -4,12 +4,19 @@ import styles from './LanguagePicker.module.css'
 import type { ChangeEvent } from 'react'
 
 /**
- * The manual override, on the guest surface and nowhere else.
+ * The manual override, on both surfaces a person is actually holding.
  *
- * Surface: the **guest**. It is rendered by `GuestLayout`, so it is on the join screen
- * and on the upload screen and on neither the host console nor the wall — a host has one
- * language by the argument in `web/src/lib/i18n/translations.ts`, and a wall has two
- * hundred people in front of it and no way to ask them.
+ * Surface: the **guest** and the **host**. It is rendered by `GuestLayout` and by
+ * `HostLayout`, so it is on the join screen, the upload screen, the admin console and the
+ * moderation console — and on the wall it is not, because the wall has two hundred people
+ * in front of it, nobody within reach of the keyboard, and a language that belongs to the
+ * event rather than to whoever plugged the laptop in.
+ *
+ * One picker for two audiences, writing one preference, because they are one person with
+ * one browser: a host at their own wedding is a guest twenty minutes later. The reader it
+ * was added for is the one the old French-only console forgot — a moderator invited by
+ * e-mail and handed a phone at 21:00, who installed nothing and has no reason to read
+ * French.
  *
  * Three decisions in a very small component:
  *

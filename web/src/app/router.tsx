@@ -2,8 +2,8 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { Spinner } from '../design-system/components/Spinner'
 import { ToastProvider } from '../design-system/components/ToastProvider'
-import { fr } from '../lib/i18n/fr'
-import { FrenchSurface } from '../lib/i18n/LocaleProvider'
+import { DeferredLocale } from '../lib/i18n/LocaleProvider'
+import { useTranslations } from '../lib/i18n/useTranslations'
 import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
 import { JoinPage } from '../features/join/JoinPage'
 import { AppShell } from './AppShell'
@@ -88,11 +88,21 @@ const MustChangePasswordGate = lazy(async () => ({
   default: (await import('../features/auth/MustChangePasswordGate')).MustChangePasswordGate,
 }))
 
-const RouteFallback = () => (
-  <div className={styles['routeFallback']}>
-    <Spinner size="lg" label={fr.app.loading} />
-  </div>
-)
+/**
+ * The loader between two lazy chunks, mounted twice over — which is the point of the pair
+ * of `Suspense` boundaries below. The inner one, inside each layout, is under that
+ * surface's locale, so a wall waiting for its chunk is labelled in the event's language.
+ * The outer one is a backstop for anything suspending above a layout, where the reader's
+ * own language is the only one in scope.
+ */
+const RouteFallback = () => {
+  const text = useTranslations()
+  return (
+    <div className={styles['routeFallback']}>
+      <Spinner size="lg" label={text.app.loading} />
+    </div>
+  )
+}
 
 /**
  * Which glass tier the address under a layout may claim — roadmap 11.2.
@@ -112,18 +122,15 @@ const useGlassBackdrop = () => glassBackdropFor(useLocation().pathname)
 /**
  * The guest surface, with the language picker in its header.
  *
- * Here rather than inside `JoinPage` and `GuestUploadPage`, because it belongs to both
- * and to nothing else: a feature folder never imports from another feature, and the
- * layout is the one place that already knows "these routes are the guest's".
+ * The picker is here rather than inside `JoinPage` and `GuestUploadPage` because it
+ * belongs to both and to nothing else: a feature folder never imports from another.
  *
- * **`ToastProvider` is inside each layout and not above the router**, and that placement
- * is a correctness fix rather than tidying. The toast region is rendered by the provider
- * itself, so a provider above the router renders its region above every `FrenchSurface`
- * — and `Toast` reads its own copy from the active table. A host whose browser is set to
- * German would have got a German dismiss control inside an otherwise French moderation
- * toast, without ever choosing anything, which is precisely what `FrenchSurface` exists
- * to prevent. Inside the layout, the region is in the same language as the screen that
- * raised it, whichever screen that is.
+ * **`ToastProvider` is inside each layout and not above the router**, which is a
+ * correctness fix rather than tidying. The provider renders the toast region and `Toast`
+ * reads the active table, so one region above the router would serve three surfaces that
+ * disagree about language — a French dismiss control inside an otherwise German wall
+ * panel, decided by whoever plugged the projector in.
+ * `router.test.tsx > the toast region` guards it by driving a real toast.
  */
 const GuestLayout = () => {
   const backdrop = useGlassBackdrop()
@@ -137,57 +144,58 @@ const GuestLayout = () => {
 }
 
 /**
- * The host console and the projected wall speak French, and say so here.
+ * The host console, in the host's own language, re-providing nothing.
  *
- * `main.tsx` provides the guest's language to the whole tree, because the crash boundary
- * above the router has to be readable on a guest's phone too. These two layouts put it
- * back to French for everything underneath them, which is the whole of the admin surface
- * and the whole of the wall. See `web/src/lib/i18n/translations.ts` for why they are not
- * translated, and `FrenchSurface` for what would otherwise go half-translated.
+ * It used to wrap everything under it in a `FrenchSurface`; a host reading their console
+ * in the language they set on their phone is the feature now rather than the hazard, and
+ * that boundary would be the defect. `translations.ts` has the argument that changed, and
+ * the picker in the header is its other half — a host is a person with a browser, and the
+ * reader that argument forgot is a moderator handed a phone at 21:00.
  *
- * **Each carries its own `ErrorBoundary`, and that is not belt-and-braces.** A boundary
- * reads the locale context at *its own* position in the tree, and the outer one in
- * `main.tsx` sits above the router — above `FrenchSurface` — so it renders the guest's
- * language whatever surface crashed under it. Every non-guest screen here is a lazily
- * loaded chunk, so a host who left a tab open across a deploy, or a projector on venue
- * Wi-Fi, gets a loader rejection as a matter of course: that is the failure the lazy
- * split buys and has to pay for. Before this, the answer on both was a German crash
- * screen in front of a French console, or in front of a room. The inner boundary catches
- * first, inside French, and the outer one is still there for anything above it.
+ * **The `ErrorBoundary` stays, for a reason that is not about language.** Every screen
+ * here is a lazy chunk, so a host who left a tab open across a deploy gets a loader
+ * rejection as a matter of course; catching it here keeps the crash screen inside this
+ * layout's shell instead of replacing the document.
  */
 const HostLayout = () => {
   const backdrop = useGlassBackdrop()
   return (
-    <FrenchSurface>
-      <ErrorBoundary>
-        <ToastProvider>
-          <AppShell surface="host" backdrop={backdrop}>
+    <ErrorBoundary>
+      <ToastProvider>
+        <AppShell surface="host" backdrop={backdrop} header={<LanguagePicker />}>
+          <Suspense fallback={<RouteFallback />}>
             <Outlet />
-          </AppShell>
-        </ToastProvider>
-      </ErrorBoundary>
-    </FrenchSurface>
+          </Suspense>
+        </AppShell>
+      </ToastProvider>
+    </ErrorBoundary>
   )
 }
 
 /**
- * The wall passes no backdrop, and that is not an omission.
+ * The projected wall, in the language the **event** is set to.
  *
- * The room takes the opaque tier from the surface rule whatever is behind a pane, so a
- * backdrop here would be a value with no consequence — and a value with no consequence is
- * one somebody later reads as a decision. `glassBackdrop.ts` still records the wall's real
- * answer, where it costs nothing and stays true.
+ * Nothing here reads `navigator.languages`, which is the whole point: on a projector that
+ * is the language of whichever machine the venue had in a cupboard.
+ * `src/domain/events/eventLanguage.ts` has the argument, `lib/i18n/deferredLocale.ts` the
+ * mechanics of a language that arrives a round trip after this shell renders.
+ *
+ * **The wall passes no backdrop, and that is not an omission.** The room takes the opaque
+ * tier whatever is behind a pane, so a backdrop here would be a value with no consequence
+ * — and one somebody later reads as a decision. `glassBackdrop.ts` records the real answer.
  */
 const WallLayout = () => (
-  <FrenchSurface>
+  <DeferredLocale>
     <ErrorBoundary>
       <ToastProvider>
         <AppShell surface="wall">
-          <Outlet />
+          <Suspense fallback={<RouteFallback />}>
+            <Outlet />
+          </Suspense>
         </AppShell>
       </ToastProvider>
     </ErrorBoundary>
-  </FrenchSurface>
+  </DeferredLocale>
 )
 
 export function AppRoutes() {

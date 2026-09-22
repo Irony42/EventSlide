@@ -1,4 +1,4 @@
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { JoinQr } from './JoinQr'
 import styles from './WallEmptyState.module.css'
 
@@ -25,13 +25,15 @@ export interface WallEmptyStateProps {
  * of the room, and the QR is drawn inline so it survives a venue's Wi-Fi.
  */
 export function WallEmptyState({ eventName, join }: WallEmptyStateProps) {
+  const text = useTranslations()
+
   return (
     <section className={styles['empty']} data-testid="wall-empty">
       <div className={styles['copy']} data-testid="wall-empty-copy">
-        <p className={styles['prompt']}>{fr.wall.joinPrompt}</p>
+        <p className={styles['prompt']}>{text.wall.joinPrompt}</p>
         <h1 className={styles['name']}>{eventName}</h1>
-        <p className={styles['title']}>{fr.wall.empty}</p>
-        {join === null ? null : <p className={styles['hint']}>{fr.wall.emptyHint}</p>}
+        <p className={styles['title']}>{text.wall.empty}</p>
+        {join === null ? null : <p className={styles['hint']}>{text.wall.emptyHint}</p>}
       </div>
 
       {/*
@@ -44,7 +46,7 @@ export function WallEmptyState({ eventName, join }: WallEmptyStateProps) {
       {join === null ? null : (
         <div className={styles['join']} data-testid="wall-join">
           <JoinQr url={join.url} size="lg" />
-          <p className={styles['codeLabel']}>{fr.wall.codeLabel}</p>
+          <p className={styles['codeLabel']}>{text.wall.codeLabel}</p>
           <p className={styles['code']}>{join.code}</p>
         </div>
       )}

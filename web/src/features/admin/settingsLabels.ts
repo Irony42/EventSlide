@@ -1,4 +1,4 @@
-import { fr } from '../../lib/i18n/fr'
+import type { UiText } from '../../lib/i18n/translations'
 
 /**
  * How a settings value is worded for a host, in one place.
@@ -16,9 +16,9 @@ import { fr } from '../../lib/i18n/fr'
  * sentence as "no time at all" — and anything under a minute stays in seconds so that a
  * value set over the API is still readable rather than rounded to "0 minutes".
  */
-export const graceLabel = (seconds: number): string => {
-  if (seconds === 0) return fr.admin.graceNone
-  if (seconds < 60) return fr.admin.graceSeconds(seconds)
-  if (seconds % 3600 === 0) return fr.admin.graceHours(seconds / 3600)
-  return fr.admin.graceMinutes(Math.round(seconds / 60))
+export const graceLabel = (seconds: number, text: UiText): string => {
+  if (seconds === 0) return text.admin.graceNone
+  if (seconds < 60) return text.admin.graceSeconds(seconds)
+  if (seconds % 3600 === 0) return text.admin.graceHours(seconds / 3600)
+  return text.admin.graceMinutes(Math.round(seconds / 60))
 }

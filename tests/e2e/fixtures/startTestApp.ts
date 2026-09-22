@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
+import type { EventLanguage } from '../../../web/src/lib/api/dto'
 
 /**
  * Boots a real EventSlide server for the end-to-end suite.
@@ -27,7 +28,18 @@ export interface TestApp {
   readonly baseUrl: string
   url(path: string): string
   /** Creates an event through the API, as a host would. */
-  seedEvent(input: { slug?: string; name?: string }): Promise<SeededEvent>
+  seedEvent(input: {
+    slug?: string
+    name?: string
+    /**
+     * The language the event's projected wall will speak (roadmap 1.5).
+     *
+     * Through the create body, exactly as the host's own form sends it, because that is
+     * the only way a wall language is ever set at creation — a fixture writing the
+     * settings blob directly would be building state the application cannot.
+     */
+    wallLanguage?: EventLanguage
+  }): Promise<SeededEvent>
   /** The owner account the server bootstrapped, for signing in. */
   readonly owner: { readonly email: string; readonly password: string }
   /**
@@ -267,9 +279,11 @@ export const startTestApp = async ({ worker, env = {} }: StartOptions): Promise<
   const seedEvent = async ({
     slug,
     name,
+    wallLanguage,
   }: {
     slug?: string
     name?: string
+    wallLanguage?: EventLanguage
   }): Promise<SeededEvent> => {
     const api = await apiSession(baseUrl)
 
@@ -297,6 +311,7 @@ export const startTestApp = async ({ worker, env = {} }: StartOptions): Promise<
         name:
           attempt === 1 ? (name ?? 'Camille & Sacha') : `${name ?? 'Camille & Sacha'} ${attempt}`,
         ...(slug === undefined ? {} : { slug: attempt === 1 ? slug : `${slug}-${attempt}` }),
+        ...(wallLanguage === undefined ? {} : { wallLanguage }),
       })
       if (response.status === 409 && attempt < 25) return create(attempt + 1)
       return response

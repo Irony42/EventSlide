@@ -3,6 +3,7 @@ import type {
   BulkModerationResponse,
   ClipJobDto,
   EventDto,
+  EventLanguage,
   EventSettingsDto,
   EventStatus,
   EventSummaryDto,
@@ -51,6 +52,17 @@ export interface CreateEventInput {
    * to say "no template", and it is what the server's schema accepts.
    */
   readonly template?: EventTemplateKey
+  /**
+   * The language the event's projected wall will speak (roadmap 1.5).
+   *
+   * Sent by the create form as the language its host was reading at that moment — the one
+   * signal anyone has about a screen nobody will be holding. It is a **snapshot**: nothing
+   * re-reads the host's preference afterwards, so switching their own browser to English
+   * next month does not move a projector in a room.
+   *
+   * Optional, like `template`, and absent means the product default rather than any tag.
+   */
+  readonly wallLanguage?: EventLanguage
 }
 
 /**

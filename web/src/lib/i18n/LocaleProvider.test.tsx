@@ -1,17 +1,23 @@
+import { useEffect } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { FrenchSurface, LocaleProvider } from './LocaleProvider'
+import { DeferredLocale, LocaleOverride, LocaleProvider } from './LocaleProvider'
+import { useAnnounceLocale } from './deferredLocale'
 import { readStoredLocale } from './localePreference'
 import { useLocale, useTranslations } from './useTranslations'
 import { de } from './de'
+import { es } from './es'
 import { fr } from './fr'
+import { it as italian } from './it'
+import type { Locale } from './locale'
 
 /**
- * The provider, and the boundary that stops a guest's choice reaching the host console.
+ * The provider, and the two boundaries around it.
  *
- * Surface: the guest. Ring 5 — this is a component and its collaborators are a browser
- * API and a lookup table, both of which jsdom has.
+ * Ring 5: these are components, and their collaborators are a browser API and a lookup
+ * table, both of which jsdom has. `it` from `./it` is imported as `italian` because
+ * vitest's own `it` is the test function.
  */
 
 const browserSpeaks = (...languages: readonly string[]): void => {
@@ -103,24 +109,85 @@ describe('LocaleProvider', () => {
   })
 })
 
-describe('FrenchSurface', () => {
-  it('renders French inside a tree the guest set to German', () => {
-    // The scope decision, as the tree enforces it. Without this the shared primitives —
-    // `ConfirmDialog`, `Dialog`, `Field`, `Progress`, `Toast` — would render "Cancel"
-    // and "Confirm" inside an otherwise French moderation dialog on any host whose
-    // browser is not set to French. That host never chose anything: detection reads
-    // `navigator.languages`.
+describe('LocaleOverride', () => {
+  it('renders one surface in its own language inside a tree the reader set to German', () => {
+    // Without this the shared primitives — `Dialog`, `Field`, `Progress`, `Toast` —
+    // render "Abbrechen" inside an otherwise Italian wall panel, decided by whichever
+    // laptop was plugged into the projector.
     browserSpeaks('de-DE')
 
     render(
       <LocaleProvider>
-        <FrenchSurface>
+        <LocaleOverride locale="it">
           <Screen />
-        </FrenchSurface>
+        </LocaleOverride>
       </LocaleProvider>,
     )
 
-    expect(screen.getByText(fr.upload.send)).toBeInTheDocument()
+    expect(screen.getByText(italian.upload.send)).toBeInTheDocument()
+    expect(screen.getByTestId('locale')).toHaveTextContent('it')
+  })
+
+  it('offers no way to change it, because nobody at that surface can be asked', () => {
+    // `setLocale` is a no-op inside the override rather than absent, so a shared control
+    // that happens to render under it does nothing instead of throwing on a projector.
+    browserSpeaks('de-DE')
+
+    render(
+      <LocaleProvider>
+        <LocaleOverride locale="it">
+          <Screen />
+        </LocaleOverride>
+      </LocaleProvider>,
+    )
+
+    return userEvent.click(screen.getByRole('button', { name: 'wechseln' })).then(() => {
+      expect(screen.getByTestId('locale')).toHaveTextContent('it')
+    })
+  })
+})
+
+describe('DeferredLocale', () => {
+  /** The wall's shape: a shell that renders before its language has arrived. */
+  function Announcing({ locale }: { readonly locale: Locale | null }) {
+    const announce = useAnnounceLocale()
+
+    useEffect(() => {
+      if (locale !== null) announce(locale)
+    }, [locale, announce])
+
+    return <Screen />
+  }
+
+  it('renders the default until the surface says what language it is in', () => {
+    // Before the response there is no event, so no event language — and reading the
+    // browser would read the projector operator's laptop, which this exists to refuse.
+    browserSpeaks('de-DE')
+
+    render(
+      <LocaleProvider>
+        <DeferredLocale>
+          <Announcing locale={null} />
+        </DeferredLocale>
+      </LocaleProvider>,
+    )
+
     expect(screen.getByTestId('locale')).toHaveTextContent('fr')
+    expect(screen.queryByText(de.upload.send)).not.toBeInTheDocument()
+  })
+
+  it('follows the language the surface announces', () => {
+    browserSpeaks('de-DE')
+
+    render(
+      <LocaleProvider>
+        <DeferredLocale>
+          <Announcing locale="es" />
+        </DeferredLocale>
+      </LocaleProvider>,
+    )
+
+    expect(screen.getByTestId('locale')).toHaveTextContent('es')
+    expect(screen.getByText(es.upload.send)).toBeInTheDocument()
   })
 })

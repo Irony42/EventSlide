@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useSwipeDecision } from '../hooks/useSwipeDecision'
 import type { SwipeIntent } from '../swipe/swipeGesture'
 import type { ModerationPhotoDto } from '../../../lib/api/dto'
@@ -64,6 +64,7 @@ export function SwipeCard({
   playing = false,
   onPlaybackEnded,
 }: SwipeCardProps) {
+  const t = useTranslations()
   const swipe = useSwipeDecision({
     onDecide: (decision) => onDecide(decision, photo.id),
     disabled,
@@ -133,16 +134,16 @@ export function SwipeCard({
     })
   }, [playing])
 
-  const authorInName = photo.authorName ?? fr.moderation.anonymousInName
+  const authorInName = photo.authorName ?? t.moderation.anonymousInName
   const authorLine =
-    photo.authorName === null ? fr.moderation.byAnonymous : fr.moderation.by(photo.authorName)
+    photo.authorName === null ? t.moderation.byAnonymous : t.moderation.by(photo.authorName)
   const alt = isClip
     ? photo.caption === null
-      ? fr.moderation.videoAlt(authorInName)
-      : fr.moderation.videoAltWithCaption(photo.caption, authorInName)
+      ? t.moderation.videoAlt(authorInName)
+      : t.moderation.videoAltWithCaption(photo.caption, authorInName)
     : photo.caption === null
-      ? fr.moderation.photoAlt(authorInName)
-      : fr.moderation.photoAltWithCaption(photo.caption, authorInName)
+      ? t.moderation.photoAlt(authorInName)
+      : t.moderation.photoAltWithCaption(photo.caption, authorInName)
 
   /**
    * What the card says it is about to do.
@@ -156,11 +157,11 @@ export function SwipeCard({
       ? null
       : swipe.intent === 'publish'
         ? swipe.committed
-          ? fr.mobileModeration.releaseToPublish
-          : fr.moderation.publish
+          ? t.mobileModeration.releaseToPublish
+          : t.moderation.publish
         : swipe.committed
-          ? fr.mobileModeration.releaseToReject
-          : fr.moderation.reject
+          ? t.mobileModeration.releaseToReject
+          : t.moderation.reject
 
   return (
     <article
@@ -176,9 +177,7 @@ export function SwipeCard({
       className={styles['card']}
       // A computed value, which is the one thing an inline style is for.
       style={{ transform: `translateX(${swipe.offset}px)` }}
-      aria-label={
-        isClip ? fr.moderation.videoOf(authorInName) : fr.moderation.photoOf(authorInName)
-      }
+      aria-label={isClip ? t.moderation.videoOf(authorInName) : t.moderation.photoOf(authorInName)}
       onPointerDown={swipe.onPointerDown}
     >
       {isClip && photo.videoUrl !== null ? (
@@ -237,7 +236,7 @@ export function SwipeCard({
 
       <div className={styles['meta']}>
         {photo.caption === null ? (
-          <p className={styles['captionEmpty']}>{fr.moderation.noCaption}</p>
+          <p className={styles['captionEmpty']}>{t.moderation.noCaption}</p>
         ) : (
           <p className={styles['caption']}>{photo.caption}</p>
         )}

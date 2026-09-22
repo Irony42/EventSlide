@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '../../../design-system/components/Button'
 import { Dialog } from '../../../design-system/components/Dialog'
-import { fr } from '../../../lib/i18n/fr'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { ModerationDecision, ModerationPhotoDto } from '../../../lib/api/dto'
 import styles from './PhotoLightbox.module.css'
 
@@ -34,6 +34,7 @@ export function PhotoLightbox({
   onNext,
   onDecide,
 }: PhotoLightboxProps) {
+  const t = useTranslations()
   const showing = open && photo !== null
 
   /**
@@ -66,53 +67,53 @@ export function PhotoLightbox({
 
   if (photo === null) return null
 
-  const authorInName = photo.authorName ?? fr.moderation.anonymousInName
+  const authorInName = photo.authorName ?? t.moderation.anonymousInName
   const authorLine =
-    photo.authorName === null ? fr.moderation.byAnonymous : fr.moderation.by(photo.authorName)
+    photo.authorName === null ? t.moderation.byAnonymous : t.moderation.by(photo.authorName)
   const isClip = photo.kind === 'clip' && photo.videoUrl !== null
   const alt = isClip
     ? photo.caption === null
-      ? fr.moderation.videoAlt(authorInName)
-      : fr.moderation.videoAltWithCaption(photo.caption, authorInName)
+      ? t.moderation.videoAlt(authorInName)
+      : t.moderation.videoAltWithCaption(photo.caption, authorInName)
     : photo.caption === null
-      ? fr.moderation.photoAlt(authorInName)
-      : fr.moderation.photoAltWithCaption(photo.caption, authorInName)
+      ? t.moderation.photoAlt(authorInName)
+      : t.moderation.photoAltWithCaption(photo.caption, authorInName)
 
   return (
     <Dialog
       open={showing}
-      title={isClip ? fr.moderation.videoOf(authorInName) : fr.moderation.photoOf(authorInName)}
+      title={isClip ? t.moderation.videoOf(authorInName) : t.moderation.photoOf(authorInName)}
       onClose={onClose}
       // Coalesced because a CSS module is typed as an index signature, so it is string-or-undefined.
       className={styles['lightbox'] ?? ''}
       footer={
         <>
           <Button variant="ghost" size="sm" onClick={onPrevious}>
-            {fr.moderation.previousPhoto}
+            {t.moderation.previousPhoto}
           </Button>
           <Button variant="ghost" size="sm" onClick={onNext}>
-            {fr.moderation.nextPhoto}
+            {t.moderation.nextPhoto}
           </Button>
           <Button
             variant="primary"
-            aria-label={fr.moderation.publishPhoto(authorInName)}
+            aria-label={t.moderation.publishPhoto(authorInName)}
             onClick={() => onDecide(photo.id, 'publish')}
           >
-            {fr.moderation.publish}
+            {t.moderation.publish}
           </Button>
           <Button
             variant="danger"
-            aria-label={fr.moderation.rejectPhoto(authorInName)}
+            aria-label={t.moderation.rejectPhoto(authorInName)}
             onClick={() => onDecide(photo.id, 'reject')}
           >
-            {fr.moderation.reject}
+            {t.moderation.reject}
           </Button>
           <Button
             variant="secondary"
-            aria-label={fr.moderation.hidePhoto(authorInName)}
+            aria-label={t.moderation.hidePhoto(authorInName)}
             onClick={() => onDecide(photo.id, 'hide')}
           >
-            {fr.moderation.hide}
+            {t.moderation.hide}
           </Button>
         </>
       }
@@ -170,7 +171,7 @@ export function PhotoLightbox({
         <figcaption className={styles['caption']}>
           {unplayable === photo.id ? (
             <span className={styles['captionText']} role="status">
-              {fr.moderation.videoUnplayable}
+              {t.moderation.videoUnplayable}
             </span>
           ) : null}
           {photo.caption === null ? null : (

@@ -4,7 +4,7 @@ import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { useToast } from '../../design-system/components/useToast'
-import { fr } from '../../lib/i18n/fr'
+import { useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { EventStatusBadge } from './components/EventStatusBadge'
 import { StorageMeter } from './components/StorageMeter'
@@ -18,6 +18,7 @@ const NEW_EVENT_PATH = '/admin/events/new'
 
 /** Surface: the host's laptop. The first screen a new host sees after signing in. */
 export function DashboardPage() {
+  const t = useTranslations()
   const { data: events, loading, error, reload } = useEventList()
   const statusChange = useStatusChange()
   const toast = useToast()
@@ -28,7 +29,7 @@ export function DashboardPage() {
         toast.show(result.message, { tone: 'danger' })
         return
       }
-      toast.show(fr.admin.statusSaved, { tone: 'success' })
+      toast.show(t.admin.statusSaved, { tone: 'success' })
       // Refetched rather than patched in place: closing an event changes counts the
       // summary carries, and a card showing stale figures next to a fresh status is
       // worse than a second request on a list this size.
@@ -39,23 +40,23 @@ export function DashboardPage() {
   return (
     <div className={styles['page']}>
       <div className={styles['header']}>
-        <h1 className={styles['title']}>{fr.admin.events}</h1>
+        <h1 className={styles['title']}>{t.admin.events}</h1>
         <Link className={styles['actionLink']} to={NEW_EVENT_PATH}>
-          {fr.admin.newEvent}
+          {t.admin.newEvent}
         </Link>
       </div>
 
-      {loading ? <Pending label={fr.admin.loading} /> : null}
+      {loading ? <Pending label={t.admin.loading} /> : null}
 
       {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} /> : null}
 
       {!loading && error === null && events !== null && events.length === 0 ? (
         <EmptyState
-          title={fr.admin.eventsEmpty}
-          description={fr.admin.eventsEmptyHint}
+          title={t.admin.eventsEmpty}
+          description={t.admin.eventsEmptyHint}
           action={
             <Link className={styles['actionLink']} to={NEW_EVENT_PATH}>
-              {fr.admin.newEvent}
+              {t.admin.newEvent}
             </Link>
           }
         />
@@ -76,7 +77,7 @@ export function DashboardPage() {
                 }
                 footer={
                   <>
-                    {lifecycleActions(event.status).map((action) => (
+                    {lifecycleActions(event.status, t).map((action) => (
                       <Button
                         key={action.to}
                         variant={action.primary ? 'primary' : 'secondary'}
@@ -93,12 +94,12 @@ export function DashboardPage() {
                         className={styles['actionLink']}
                         to={`/admin/events/${event.slug}/moderation`}
                       >
-                        {fr.admin.openModeration}
+                        {t.admin.openModeration}
                       </Link>
                     ) : null}
                     {servesWall(event.status) ? (
                       <Link className={styles['actionLink']} to={`/e/${event.slug}/display`}>
-                        {fr.admin.openWall}
+                        {t.admin.openWall}
                       </Link>
                     ) : null}
                   </>
@@ -106,10 +107,10 @@ export function DashboardPage() {
               >
                 <div className={styles['facts']}>
                   <EventStatusBadge status={event.status} />
-                  <span>{fr.admin.photos(event.photoCount)}</span>
-                  <span>{fr.admin.guests(event.guestCount)}</span>
+                  <span>{t.admin.photos(event.photoCount)}</span>
+                  <span>{t.admin.guests(event.guestCount)}</span>
                   {event.pendingCount > 0 ? (
-                    <Badge tone="warning">{fr.moderation.pending(event.pendingCount)}</Badge>
+                    <Badge tone="warning">{t.moderation.pending(event.pendingCount)}</Badge>
                   ) : null}
                 </div>
                 {/*

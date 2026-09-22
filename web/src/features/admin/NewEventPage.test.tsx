@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { NewEventPage } from './NewEventPage'
 import { ApiError } from '../../lib/http'
+import { de } from '../../lib/i18n/de'
 import { fr } from '../../lib/i18n/fr'
 import { anEventDto, fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
@@ -63,7 +64,7 @@ describe('NewEventPage', () => {
 
     // No slug key at all when the field is untouched: the server derives it, and an
     // empty string would be a validation failure instead of an omission.
-    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha' })
+    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha', wallLanguage: 'fr' })
     expect(await screen.findByText(EVENT_PAGE)).toBeVisible()
   })
 
@@ -75,7 +76,11 @@ describe('NewEventPage', () => {
     await userEvent.type(screen.getByLabelText(fr.admin.slug), 'Noces d’Or')
     await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
 
-    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Noces', slug: 'noces-d-or' })
+    expect(api.createEvent).toHaveBeenCalledWith({
+      name: 'Noces',
+      slug: 'noces-d-or',
+      wallLanguage: 'fr',
+    })
   })
 
   it('confirms the creation by name, so the host knows which event opened', async () => {
@@ -135,7 +140,7 @@ describe('NewEventPage', () => {
     await userEvent.type(screen.getByLabelText(fr.admin.eventName), 'Camille & Sacha')
     await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
 
-    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha' })
+    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha', wallLanguage: 'fr' })
   })
 
   it('sends the template the host picked', async () => {
@@ -148,7 +153,11 @@ describe('NewEventPage', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
 
-    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha', template: 'wedding' })
+    expect(api.createEvent).toHaveBeenCalledWith({
+      name: 'Camille & Sacha',
+      template: 'wedding',
+      wallLanguage: 'fr',
+    })
   })
 
   it('sends a template alongside a hand-written address', async () => {
@@ -166,6 +175,7 @@ describe('NewEventPage', () => {
       name: 'Séminaire',
       slug: 'seminaire-2026',
       template: 'conference',
+      wallLanguage: 'fr',
     })
   })
 
@@ -180,6 +190,24 @@ describe('NewEventPage', () => {
     await userEvent.click(screen.getByRole('radio', { name: new RegExp(fr.admin.templateNone) }))
     await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
 
-    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha' })
+    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha', wallLanguage: 'fr' })
+  })
+
+  it('sends the language the host is reading, as the language the room will read', async () => {
+    // The wall has nobody in front of it, so its language is decided here — once — from
+    // the one signal that exists: what the person setting the event up is looking at.
+    // There is no control for it on this form on purpose; the settings page is where a
+    // host changes it, and a fifth decision in front of somebody creating an event at
+    // 18:00 is a decision they would make wrongly.
+    const api = fakeApi()
+
+    renderWithProviders(<NewEventPage />, { api, route: '/admin/events/new', locale: 'de' })
+    await userEvent.type(screen.getByLabelText(de.admin.eventName), 'Camille & Sacha')
+    await userEvent.click(screen.getByRole('button', { name: de.admin.create }))
+
+    expect(api.createEvent).toHaveBeenCalledWith({
+      name: 'Camille & Sacha',
+      wallLanguage: 'de',
+    })
   })
 })

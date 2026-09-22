@@ -1,4 +1,5 @@
 import { Badge } from '../../../design-system/components/Badge'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { statusLabel, statusTone } from '../eventLifecycle'
 import type { EventStatus } from '../../../lib/api/dto'
 
@@ -13,5 +14,7 @@ export interface EventStatusBadgeProps {
  * grey under venue lighting still reads "En cours".
  */
 export function EventStatusBadge({ status }: EventStatusBadgeProps) {
-  return <Badge tone={statusTone(status)}>{statusLabel(status)}</Badge>
+  const t = useTranslations()
+
+  return <Badge tone={statusTone(status)}>{statusLabel(status, t)}</Badge>
 }

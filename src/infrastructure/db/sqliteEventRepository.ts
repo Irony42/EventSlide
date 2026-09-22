@@ -8,6 +8,11 @@ import {
   type EventSettingsProps,
 } from '../../domain/events/eventSettings'
 import {
+  DEFAULT_EVENT_LANGUAGE,
+  isEventLanguage,
+  type EventLanguage,
+} from '../../domain/events/eventLanguage'
+import {
   DEFAULT_EVENT_THEME,
   isThemeFonts,
   isThemeFrame,
@@ -216,6 +221,17 @@ const settingsThemeAddedLater = (value: unknown): EventThemeProps => {
   }
 }
 
+/**
+ * The language the wall speaks, for a settings blob written before there was one. Absent
+ * is French and not a refusal, for {@link settingsThemeAddedLater}'s reason: it is what
+ * that blob has been rendering all along.
+ */
+const settingsLanguageAddedLater = (value: unknown): EventLanguage => {
+  if (value === undefined) return DEFAULT_EVENT_LANGUAGE
+  if (!isEventLanguage(value)) throw corrupt('settings', 'unknown wall language')
+  return value
+}
+
 const decodeJson = (raw: string): unknown => {
   try {
     return JSON.parse(raw)
@@ -279,6 +295,19 @@ const settingsOf = (raw: string): EventSettings => {
      * already renders. See `settingsThemeAddedLater`.
      */
     theme: settingsThemeAddedLater(decoded['theme']),
+    /**
+     * Added by roadmap 1.5, and the **third** field to need the treatment above. Its
+     * answer to "what does an absent key mean" is the theme's shape rather than
+     * `allowClips`': French is what such an event's wall has been rendering since the day
+     * it was created, so filling it in switches nothing on — and "absent" never has to be
+     * told apart from "chose French" later, which is the one-way door `allowClips`
+     * records.
+     *
+     * Present but outside the vocabulary is corruption, as an unknown moderation mode is:
+     * a wall quietly in the wrong language for eight hours is worse than a boot that names
+     * the column. Both halves are pinned in `sqliteEventRepository.test.ts`.
+     */
+    wallLanguage: settingsLanguageAddedLater(decoded['wallLanguage']),
   }
 
   // `restore`, not `create`: a stored theme is judged on its shape and not on the

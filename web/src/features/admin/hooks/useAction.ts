@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { errorMessage } from '../errorMessage'
 
 /**
@@ -30,6 +31,7 @@ export interface ActionState<A extends readonly unknown[], R> {
 export const useAction = <A extends readonly unknown[], R>(
   action: (...args: A) => Promise<R>,
 ): ActionState<A, R> => {
+  const t = useTranslations()
   const [pending, setPending] = useState<string | null>(null)
 
   const run = useCallback(
@@ -38,12 +40,12 @@ export const useAction = <A extends readonly unknown[], R>(
       try {
         return { ok: true, value: await action(...args) }
       } catch (cause) {
-        return { ok: false, message: errorMessage(cause) }
+        return { ok: false, message: errorMessage(cause, t) }
       } finally {
         setPending(null)
       }
     },
-    [action],
+    [action, t],
   )
 
   return { run, pending, busy: pending !== null }
