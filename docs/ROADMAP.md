@@ -306,7 +306,7 @@ _**[5.1](#51-consent-notice-on-join-p1-effort-s-risk-low) is shipped and stayed 
 
 ### 5.1 Consent notice on join (P1, effort S, risk: low)
 
-> **Shipped** in [#PR_NUMBER](https://github.com/Irony42/EventSlide/pull/PR_NUMBER). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
+> **Shipped** in [#83](https://github.com/Irony42/EventSlide/pull/83). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 One screen, before the first upload: what happens to a photo, who sees it, how long it is
 kept, and how to have it removed. Sourced from the event's actual retention setting, so
