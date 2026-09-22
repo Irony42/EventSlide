@@ -10,6 +10,7 @@ import type { MembershipRepository, UserRepository } from '../application/ports/
 import type { MediaStore } from '../application/ports/mediaStore'
 import type { ImageProcessor } from '../application/ports/imageProcessor'
 import type { ClipJobRepository } from '../application/ports/clipJobRepository'
+import type { MissionRepository } from '../application/ports/missionRepository'
 import type { VideoTranscoder } from '../application/ports/videoTranscoder'
 import type { ContentHasher } from '../application/ports/contentHasher'
 import type { ArchiveWriter } from '../application/ports/archiveWriter'
@@ -65,6 +66,12 @@ import { makeUploadClip } from '../application/usecases/clips/uploadClip'
 
 import { makeGetWallPlaylist } from '../application/usecases/slideshow/getWallPlaylist'
 
+import { makeCreateMission } from '../application/usecases/missions/createMission'
+import { makeDeleteMission } from '../application/usecases/missions/deleteMission'
+import { makeGetGuestChecklist } from '../application/usecases/missions/getGuestChecklist'
+import { makeListMissions } from '../application/usecases/missions/listMissions'
+import { makeUpdateMission } from '../application/usecases/missions/updateMission'
+
 /**
  * Every adapter the use cases need, as ports.
  *
@@ -81,6 +88,7 @@ export interface Adapters {
   readonly clips: ClipJobRepository
   readonly guests: GuestRepository
   readonly reactions: ReactionRepository
+  readonly missions: MissionRepository
   readonly users: UserRepository
   readonly memberships: MembershipRepository
   readonly media: MediaStore
@@ -249,6 +257,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   uploadPhotos: makeUploadPhotos({
     events: adapters.events,
     photos: adapters.photos,
+    missions: adapters.missions,
     media: adapters.media,
     imageProcessor: adapters.imageProcessor,
     hasher: adapters.contentHasher,
@@ -377,6 +386,38 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     events: adapters.events,
     photos: adapters.photos,
     guests: adapters.guests,
+    missions: adapters.missions,
+  }),
+
+  // --------------------------------------------------------------- missions --
+  listMissions: makeListMissions({
+    events: adapters.events,
+    missions: adapters.missions,
+    memberships: adapters.memberships,
+  }),
+  createMission: makeCreateMission({
+    events: adapters.events,
+    missions: adapters.missions,
+    memberships: adapters.memberships,
+    ids: adapters.ids,
+    bus: adapters.bus,
+    clock: adapters.clock,
+  }),
+  updateMission: makeUpdateMission({
+    events: adapters.events,
+    missions: adapters.missions,
+    memberships: adapters.memberships,
+    bus: adapters.bus,
+  }),
+  deleteMission: makeDeleteMission({
+    events: adapters.events,
+    missions: adapters.missions,
+    memberships: adapters.memberships,
+    bus: adapters.bus,
+  }),
+  getGuestChecklist: makeGetGuestChecklist({
+    events: adapters.events,
+    missions: adapters.missions,
   }),
 
   // -------------------------------------------------------------- reactions --

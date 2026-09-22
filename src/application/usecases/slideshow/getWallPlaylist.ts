@@ -1,4 +1,6 @@
 import type { Event } from '../../../domain/events/event'
+import type { Mission } from '../../../domain/missions/mission'
+import { isAchieved, type MissionProgress } from '../../../domain/missions/missionProgress'
 import type { Photo } from '../../../domain/photos/photo'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import { kenBurnsDurationMs } from '../../../domain/slideshow/kenBurns'
@@ -15,6 +17,7 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Slug } from '../../../domain/shared/slug'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
+import type { MissionRepository } from '../../ports/missionRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 
 /**
@@ -67,6 +70,30 @@ export interface GetWallPlaylistDeps {
   readonly events: EventRepository
   readonly photos: PhotoRepository
   readonly guests: GuestRepository
+  readonly missions: MissionRepository
+}
+
+/**
+ * One prompt as the room sees it (roadmap §2.1).
+ *
+ * `achieved` is computed here rather than left to the presenter because it is a domain
+ * rule, and it is the same rule for both scopes — see `isAchieved`. What differs between
+ * a per-guest prompt and a once-for-the-evening one is what the wall *draws*: a tick for
+ * the second, a count of guests for the first, which is `progress.completedByGuests` and
+ * is why that number is on the wire at all.
+ *
+ * There is deliberately nothing here about *when* a mission was answered, and therefore
+ * nothing a wall could use to celebrate a completion for a few seconds and then stop.
+ * That was considered and declined: on an evening with two hundred guests a burst per
+ * completion is between one and several hundred bursts on the one surface §11.3 gives a
+ * measured frame budget, and §11.2's finding was that motion carries meaning only where
+ * it is rare. The room sees the standing list instead — legible at any moment from ten
+ * metres, rather than only to whoever happened to be looking three seconds ago.
+ */
+export interface WallMissionStanding {
+  readonly mission: Mission
+  readonly progress: MissionProgress
+  readonly achieved: boolean
 }
 
 export interface WallPlaylistView {
@@ -96,6 +123,12 @@ export interface WallPlaylistView {
   readonly kenBurnsDurationMs: number
   readonly layout: WallLayout
   readonly layoutSpec: WallLayoutSpec
+  /**
+   * The host's prompts and how the room is answering them. Empty for the overwhelming
+   * majority of events, which set none — and an empty list is what stops the wall
+   * drawing a panel at all.
+   */
+  readonly missions: readonly WallMissionStanding[]
 }
 
 export type GetWallPlaylist = (
@@ -138,7 +171,7 @@ const resolveAuthorNames = async (
 }
 
 export const makeGetWallPlaylist =
-  ({ events, photos, guests }: GetWallPlaylistDeps): GetWallPlaylist =>
+  ({ events, photos, guests, missions }: GetWallPlaylistDeps): GetWallPlaylist =>
   async ({ slug, layout, slideIntervalMs, windowSize }) => {
     const event = await events.findBySlug(slug)
     // An event that does not serve its wall is answered exactly as one that does not
@@ -173,6 +206,12 @@ export const makeGetWallPlaylist =
       page.items.filter((photo) => inPlaylist.has(photo.id)),
     )
 
+    // Beside the credits and for the same reason: only once the request is known to be
+    // answerable. The whole list, with its counts, in one read — the wall re-reads this
+    // response on every signal for eight hours, so a query per prompt would be a query
+    // per prompt per guest who joins.
+    const standings = await missions.listWithProgress(event.id)
+
     return ok({
       event,
       playlist: playlist.value,
@@ -182,5 +221,6 @@ export const makeGetWallPlaylist =
       kenBurnsDurationMs: kenBurnsDurationMs(interval.value),
       layout: chosenLayout,
       layoutSpec: wallLayoutSpec(chosenLayout),
+      missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
     })
   }

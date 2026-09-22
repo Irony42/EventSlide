@@ -2,12 +2,14 @@ import {
   asClipJobId,
   asEventId,
   asGuestId,
+  asMissionId,
   asPhotoId,
   asReactionId,
   asUserId,
   type ClipJobId,
   type EventId,
   type GuestId,
+  type MissionId,
   type PhotoId,
   type ReactionId,
   type UserId,
@@ -33,6 +35,8 @@ export class SequentialIdGenerator implements IdGenerator {
   private reactions = 0
 
   private clipJobs = 0
+
+  private missions = 0
 
   /**
    * How far the byte sequence has run. It advances across calls so two events created
@@ -71,6 +75,11 @@ export class SequentialIdGenerator implements IdGenerator {
     return asClipJobId(`clip-job-${this.clipJobs}`)
   }
 
+  missionId(): MissionId {
+    this.missions += 1
+    return asMissionId(`mission-${this.missions}`)
+  }
+
   /**
    * `0, 1, 2, …` continuing where the previous call stopped, wrapped at a byte.
    *
@@ -99,6 +108,7 @@ export class SequentialIdGenerator implements IdGenerator {
     this.users = 0
     this.reactions = 0
     this.clipJobs = 0
+    this.missions = 0
     this.byteOffset = 0
     return this
   }

@@ -3,7 +3,7 @@ import { ContentHash } from '../../../domain/photos/contentHash'
 import { Dimensions } from '../../../domain/photos/dimensions'
 import { Photo, type PhotoAuthor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
-import type { EventId, PhotoId } from '../../../domain/shared/ids'
+import type { EventId, MissionId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
 import type { ContentHasher } from '../../ports/contentHasher'
@@ -12,6 +12,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
 import type { Logger } from '../../ports/logger'
+import type { MissionRepository } from '../../ports/missionRepository'
 import { MEDIA_VARIANTS, type MediaStore, type PhotoVariant } from '../../ports/mediaStore'
 import type {
   PhotoAdmission,
@@ -53,6 +54,14 @@ export interface UploadPhotosInput {
   readonly files: readonly UploadFile[]
   /** One caption for the request, as the upload form offers it. */
   readonly caption?: string | null
+  /**
+   * The prompt the guest tapped before sending, if any (roadmap §2.1).
+   *
+   * One per request rather than one per file, exactly as the caption is: a guest picks a
+   * mission, then picks their photographs, and asking them to file five files one by one
+   * on a phone is asking them not to bother.
+   */
+  readonly missionId?: MissionId | null
 }
 
 /** Header-level ceilings the deployment sets; the render specs below are product policy. */
@@ -64,6 +73,7 @@ export interface UploadLimits {
 export interface UploadPhotosDeps {
   readonly events: EventRepository
   readonly photos: PhotoRepository
+  readonly missions: MissionRepository
   readonly media: MediaStore
   readonly imageProcessor: ImageProcessor
   readonly hasher: ContentHasher
@@ -178,6 +188,7 @@ const settle = (
 export const makeUploadPhotos = ({
   events,
   photos,
+  missions,
   media,
   imageProcessor,
   hasher,
@@ -187,7 +198,7 @@ export const makeUploadPhotos = ({
   logger,
   limits,
 }: UploadPhotosDeps): UploadPhotos => {
-  return async ({ eventId, author, files, caption }) => {
+  return async ({ eventId, author, files, caption, missionId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
@@ -206,6 +217,27 @@ export const makeUploadPhotos = ({
     if (!parsedCaption.ok) return parsedCaption
     if (parsedCaption.value !== null && !settings.allowCaptions) {
       return err(DomainError.forbidden('event.captionsNotAllowed'))
+    }
+
+    /**
+     * The mission tag, checked against **this** event before anything is decoded.
+     *
+     * A mission id is the one identifier in this request that a guest's phone chose, so
+     * the scoped lookup is the tenant boundary: without it, a phone at one wedding could
+     * file a photograph under a stranger's prompt and their wall would count it.
+     *
+     * It refuses rather than dropping the tag, and the refusal is deliberate in a place
+     * where dropping would be kinder. The realistic cause is a host who deleted a prompt
+     * while this phone was holding a stale checklist — and storing the photograph
+     * untagged would tell the guest their mission was answered when nothing recorded it,
+     * which is the one thing this feature must not do. Placed before `probe`, so the
+     * refusal costs the box nothing and reaches the guest before their bytes have gone.
+     */
+    let tag: MissionId | null = null
+    if (missionId !== undefined && missionId !== null) {
+      const mission = await missions.findById(eventId, missionId)
+      if (mission === null) return err(DomainError.notFound('mission.notFound'))
+      tag = mission.id
     }
 
     const maxPerGuest = settings.maxPhotosPerGuest
@@ -333,6 +365,7 @@ export const makeUploadPhotos = ({
           dimensions: rendered.value.display.dimensions,
           byteSize,
           caption: parsedCaption.value,
+          missionId: tag,
         },
         ids.photoId(),
         now,

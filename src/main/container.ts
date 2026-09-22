@@ -15,6 +15,7 @@ import { SqliteReactionRepository } from '../infrastructure/db/sqliteReactionRep
 import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { SqliteMembershipRepository } from '../infrastructure/db/sqliteMembershipRepository'
 import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepository'
+import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
 import { probeFfmpegCapability } from '../infrastructure/media/ffmpegBinaries'
@@ -322,6 +323,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     clips: new SqliteClipJobRepository(db),
     guests: new SqliteGuestRepository(db),
     reactions: new SqliteReactionRepository(db),
+    missions: new SqliteMissionRepository(db),
     users: new SqliteUserRepository(db),
     memberships: new SqliteMembershipRepository(db),
     media: createFsMediaStore({ root: mediaRoot }),

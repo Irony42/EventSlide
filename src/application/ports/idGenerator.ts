@@ -2,6 +2,7 @@ import type {
   ClipJobId,
   EventId,
   GuestId,
+  MissionId,
   PhotoId,
   ReactionId,
   UserId,
@@ -29,6 +30,13 @@ export interface IdGenerator {
    * from their phone, so it appears in a URL and must not enumerate the evening's clips.
    */
   clipJobId(): ClipJobId
+
+  /**
+   * One of the host's prompts (roadmap §2.1). Opaque like the rest: a guest's phone
+   * sends it back on a tagged upload, so it appears in a request body and must not
+   * enumerate the evening's missions.
+   */
+  missionId(): MissionId
 
   /** Cryptographically strong bytes. Used for join codes and guest device tokens. */
   bytes(count: number): Uint8Array

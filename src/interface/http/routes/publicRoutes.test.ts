@@ -11,6 +11,7 @@ import {
   makeGetWallPlaylist,
   type WallPlaylistView,
 } from '../../../application/usecases/slideshow/getWallPlaylist'
+import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import { aGuest, aPhoto, anEvent, atPlus } from '../../../application/testing/builders'
@@ -87,6 +88,7 @@ const world = (
               events: deps.events,
               photos,
               guests: deps.guests,
+              missions: new FakeMissionRepository(photos),
             }),
           },
         }),
@@ -880,6 +882,7 @@ describe('toWallResponseDto', () => {
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',
       layoutSpec: wallLayoutSpec('spotlight'),
+      missions: [],
     }
 
     const dto = toWallResponseDto(view, presenter)
@@ -903,6 +906,7 @@ describe('toWallResponseDto', () => {
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',
       layoutSpec: wallLayoutSpec('spotlight'),
+      missions: [],
     }
 
     const dto = toWallResponseDto(view, { ...presenter, publicUrl: 'https://photos.example.com' })

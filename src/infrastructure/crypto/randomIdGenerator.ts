@@ -4,12 +4,14 @@ import {
   asClipJobId,
   asEventId,
   asGuestId,
+  asMissionId,
   asPhotoId,
   asReactionId,
   asUserId,
   type ClipJobId,
   type EventId,
   type GuestId,
+  type MissionId,
   type PhotoId,
   type ReactionId,
   type UserId,
@@ -35,6 +37,7 @@ export const randomIdGenerator: IdGenerator = {
   userId: (): UserId => asUserId(randomUUID()),
   reactionId: (): ReactionId => asReactionId(randomUUID()),
   clipJobId: (): ClipJobId => asClipJobId(randomUUID()),
+  missionId: (): MissionId => asMissionId(randomUUID()),
 
   bytes: (count: number): Uint8Array => {
     if (!Number.isInteger(count) || count < 1) {
