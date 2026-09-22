@@ -49,6 +49,10 @@ Pi under the projector — and nothing leaves it.
 
 And the parts that only show up on the night:
 
+- **Photo missions give guests something to do.** You write a short list of prompts — "a
+  selfie with the couple", "the worst dance move", "someone crying" — and guests see them
+  as a checklist. It changes the question in their head from "should I bother uploading
+  this" to "which one is left".
 - **Short video clips too**, not only photographs. Fifteen seconds, transcoded on the
   box, played on the wall without sound — because a room already has music.
 - **Moderate from your phone.** One photograph at a time, swipe right to publish, left
@@ -160,9 +164,37 @@ have something to show.
 
 </details>
 
+## Photo missions
+
+<img src="docs/images/missions-checklist.jpg" width="300" align="right" alt="A guest's checklist: four prompts, the first one ticked and marked Done">
+
+The cheapest way to get more photographs is to stop asking guests to decide what is worth
+sending. Write four or five prompts on the event page and they become a checklist on every
+guest's phone.
+
+A guest taps a prompt before sending, which is one tap and no extra screen. The wall shows
+the list with what has been answered so far, in a corner, standing still — it is a
+scoreboard for the room, not a thing that flashes every time somebody uploads.
+
+Two details that matter more than they look:
+
+- **A mission is answered when a _published_ photograph names it**, not when a guest tags
+  one. So a photograph you refuse in moderation never counted, and nothing has to be
+  un-counted. The same holds for one a guest deletes, or one a retention sweep purges.
+- **A prompt can be per guest or once for the evening.** "A selfie with the couple" is
+  something everybody can do; "the first dance" happens once. You choose per prompt, and
+  the default is per guest.
+
+Prompts are content, not interface: you write them in the language of your evening and
+they are shown exactly as typed. There is no leaderboard and no per-guest score — a guest
+sees their own checklist and nothing about anybody else's.
+
+<br clear="right">
+
 ## On the night
 
 1. **Create the event** in `/admin` — a name is enough.
+   Add photo missions here too, if you want them.
 2. **Print the QR code** from the event page and put it on the tables.
 3. **Open the wall** on the projector: the display page, fullscreen. It needs no
    keyboard after that.
