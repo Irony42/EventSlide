@@ -1,7 +1,7 @@
 import type { ClipDuration } from '../clips/clipDuration'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
-import type { EventId, GuestId, PhotoId, UserId } from '../shared/ids'
+import type { EventId, GuestId, MissionId, PhotoId, UserId } from '../shared/ids'
 import type { Caption } from './caption'
 import type { ContentHash } from './contentHash'
 import type { Dimensions } from './dimensions'
@@ -71,6 +71,21 @@ export interface PhotoProps {
   readonly createdAt: Date
   readonly review: PhotoReview | null
   readonly facet: PhotoFacet
+  /**
+   * Which of the host's prompts the guest filed this under (roadmap §2.1), or `null`.
+   *
+   * A nullable column on the photograph rather than a join table, and deliberately
+   * modest: a tagged photograph is an **ordinary photograph**. Nothing in the wall's
+   * playlist, the moderation queue, the album export, the quota or the guest's own list
+   * reads this field, and nothing about a photograph's life changes because it carries
+   * one. It is read in exactly one direction — counting, per mission, how many published
+   * photographs name it — which is what keeps §2.1 from growing a second gallery.
+   *
+   * One mission, not many. A guest holding a phone with one thumb picks one thing, and a
+   * join table would buy the photograph that answers two prompts at the cost of a join
+   * on a read that runs on every wall refresh.
+   */
+  readonly missionId: MissionId | null
 }
 
 export interface NewPhoto {
@@ -82,6 +97,14 @@ export interface NewPhoto {
   readonly caption: Caption | null
   /** Omitted for the overwhelmingly common case, which is a photograph. */
   readonly facet?: PhotoFacet
+  /**
+   * The prompt the guest tapped before sending, if any. Omitted for the common case.
+   *
+   * It arrives already checked against **this** event by the use case — a mission id is
+   * guest-supplied, so a value that names another event's row is refused before a
+   * photograph is created rather than stored and filtered later.
+   */
+  readonly missionId?: MissionId | null
 }
 
 /**
@@ -116,6 +139,7 @@ export class Photo {
         createdAt: now,
         review: null,
         facet: input.facet ?? STILL,
+        missionId: input.missionId ?? null,
       }),
     )
   }
@@ -172,6 +196,11 @@ export class Photo {
 
   get facet(): PhotoFacet {
     return this.props.facet
+  }
+
+  /** The prompt this was filed under, or `null`. See {@link PhotoProps.missionId}. */
+  get missionId(): MissionId | null {
+    return this.props.missionId
   }
 
   get kind(): MediaKind {
