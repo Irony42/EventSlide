@@ -266,7 +266,11 @@ from a family party's.
 The evening ends and the photos are worth more than they were during it. This is the part
 most tools abandon.
 
+_**[4.1](#41-shared-gallery-link-p1-effort-m-risk-medium) is shipped and stayed in place.**_
+
 ### 4.1 Shared gallery link (P1, effort M, risk: medium)
+
+> **Shipped** in [#PR_NUMBER](https://github.com/Irony42/EventSlide/pull/PR_NUMBER). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 A link the host sends afterwards: the published album, optionally password-protected,
 with an expiry, where guests download full-resolution originals — including the ones they
@@ -276,6 +280,55 @@ Risk: it is the product's first genuinely public read surface, so it needs signe
 short-lived media URLs rather than the per-request authorization the app uses internally,
 plus its own rate limiting and a `noindex` policy. Worth doing carefully; the "can you
 send me the photos" message is the single most common thing a host gets the next day.
+
+**Done, and the risk paragraph was the easy half.** Signed URLs, a limit and a `noindex`
+were a day; the questions the item did not ask were the rest.
+
+**What a link shows: what the wall showed, and nothing the host kept back.** Not the
+host's own album, which keeps `hidden` photographs — "take it off the wall" is the host
+deciding who sees a photograph, and a link forwarded to every guest and beyond is a bigger
+room, not a smaller one. The status is read on every request rather than snapshotted, so
+a photograph taken down after the link went out is gone from it on the next page load.
+
+**Whose authority a link is.** A link is an owner's decision handed out, so it grants
+only while the account that made it still owns the event — read from storage on every
+request, the same rule sessions follow. An operator suspending an account, or an owner
+demoted to moderator, ends their links at once; re-enabling gives them back. The console
+shows whether the link actually opens, computed by the rule the gallery asks, because a
+co-owner's switched-off link is the one case a host cannot see from its dates.
+
+**Why the address is shown once.** Only the token's digest is stored — a copy of the
+database, a backup on a USB stick, opens no gallery — so the console cannot show the URL a
+second time. A host who loses it makes a new one, and making a link replaces the current
+one in the same transaction: that is also the lever for a link that has gone further than
+meant. One link per event keeps the host's model to one sentence, "the link I sent".
+
+**Revocation is immediate, not "after the hour".** Media URLs are signed for an hour and
+bind the link, the photograph, the rendition and the expiry — and every request re-reads
+the link anyway, so switching it off kills every URL it ever issued on the next request.
+The ZIP re-checks before every entry and aborts rather than ending early but well formed,
+because a truncated archive that looks complete is how a family thinks it has the album.
+
+**Every dead link is one sentence.** Expired, revoked, mistyped, creator switched off,
+event purged: one `404`, byte for byte. The reader may be somebody the link was forwarded
+to, and "the host took this back" is not theirs to learn.
+
+**The password is a second factor, not a gate on the token.** Posted in a body, hashed by
+the account hasher under the account policy, answered with a two-hour `HttpOnly`,
+`SameSite=Strict` cookie scoped to the gallery's API, and limited per client **and** per
+link, failures only — so a guesser gets a few tries from anywhere and a few dozen in total,
+while thirty relatives unlocking the same album on the morning after spend nothing.
+
+**The GPS was already gone.** The feared defect — a public link serving the coordinates of
+a family home — does not exist, because the stored `original` is ingest's re-encode with
+every metadata block dropped. The end-to-end journey downloads through a real browser and
+reads the bytes to hold that, rather than trusting it.
+
+Deliberately not built: per-guest links, several links per event, download counts or any
+tracking of who opened what (the product keeps no telemetry, [SECURITY.md](SECURITY.md) §9), author names on the tiles — a first
+name was shown in the room, and a forwarded link is a wider audience — and a clip player in
+the viewer: the gallery is for keeping the evening, and a clip downloads as its transcode.
+The guest's own photographs are §4.2, which this does not replace.
 
 ### 4.2 Guest recap (P2, effort S, risk: low)
 

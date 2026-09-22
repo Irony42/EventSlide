@@ -278,6 +278,14 @@ that renders guest-supplied content. The short version:
   An event that hits its quota stops accepting uploads instead of filling the disk.
 - Media is served through the application, never by `express.static`, so authorization
   and event scoping apply to every byte.
+- **The shared gallery link (roadmap §4.1) is the one surface that hands originals to the
+  public**, and it is a capability, not a principal: a token stored only as its SHA-256,
+  granting while its creator is still an owner (read per request), showing `published`
+  and nothing else. Its media goes out only by signed one-hour URLs that carry the link's
+  **id**, never its token, and re-read the link on every request so revocation is
+  immediate; every dead link is the same `404 gallery.notAvailable`. `galleryAccess.ts`
+  is the rule and docs/SECURITY.md §15 the argument — a gallery route that reads media any
+  other way, or answers a dead link differently, is the defect.
 - `helmet` sets a strict CSP. There is **no CDN** — Bootstrap is gone and the CSS is
   bundled. Do not reintroduce a remote `<script>` or `<link>`.
 - **No web font is shipped.** This file used to say fonts were bundled; nothing in the

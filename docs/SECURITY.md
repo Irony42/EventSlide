@@ -47,22 +47,30 @@ internet scanner.
 | T9  | Malicious **video**: a crafted container that makes the box fetch a URL, a decoder bomb, a clip carrying a second payload | SSRF from a guest upload, a wedged encoder holding a core all evening, a polyglot served back to the room | the signature decides the container before a byte is staged; the demuxer is **pinned** and `-protocol_whitelist file` forbids every other protocol; the encoder runs under a wall-clock **and** a progress-stall bound with SIGKILL escalation; the stored bytes are always the encoder output, never `-c copy` | §4.1                                                                                               |
 | T10 | Passive privacy exposure in a clip: per-frame gyroscope and sometimes GPS in an iPhone timed-metadata track               | guests movements and locations, invisible in any player                                                   | `-map 0:v:0 -map 0:a:0? -dn -sn` drops every stream that is not the picture or the sound, rather than merely stripping its metadata; the guest upload is deleted once the transcode succeeds and is never servable                                                                                              | §4.1                                                                                               |
 
+| T11 | A shared gallery link forwarded beyond the host's intent, guessed, crawled, or used after the host took it back | full-resolution photographs of the evening, and the GPS of whoever's home a photograph was taken in | a 256-bit token stored only as its SHA-256; one neutral `404` for every dead link; published photographs only; an optional password with per-client **and** per-link failure limits; media by signed one-hour URLs that re-check the link on every request, so revocation is immediate; originals are the EXIF-stripped re-encode; `noindex` and `no-referrer` on every response | §15 |
+
 **Explicitly out of scope.** A guest you invited is inside the trust boundary for
 uploading; 200 people on one Wi-Fi doing the intended thing is a capacity question, not
 a security one; a malicious _host_ on their own instance owns the data anyway.
 
 ## 2. Identity and authorization
 
-Two principals, no third, and no ambient "logged in means allowed".
+Two principals and one capability, and no ambient "logged in means allowed".
 
 | Principal        | Credential                                    | Lifetime                                              | Grants                                                             |
 | ---------------- | --------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
 | Host / moderator | `express-session` cookie, SQLite-backed store | idle 12 h rolling, **and 7 days absolute** from login | per-event role from the membership table, re-read on every request |
 | Guest            | HMAC-signed device token in a cookie          | 36 h from issue, enforced at verification             | upload to **one** event; delete own photo inside the grace window  |
+| Link holder      | a shared gallery token in the URL (§15)       | the link's own expiry, 1–90 days; revocable at once   | **read** the published photographs of one event; nothing else      |
 
-Still two principals. The account behind the first of them now also carries a **site
-role** — see below — which is authority over the box and never over an event, so it adds
-no third kind of caller and grants nothing any row in this table does not.
+The link holder is a **capability**, not an identity: nobody signs in, the token names no
+person, and whoever holds it holds exactly what the host published. It is borrowed
+authority, too — a link grants only while the account that made it is still an owner of
+the event, read on every request (§15) — so it can never outlive the host's own standing.
+
+The account behind the first principal also carries a **site role** — see below — which
+is authority over the box and never over an event, so it adds no further kind of caller
+and grants nothing any row in this table does not.
 
 ### Two clocks and one account read
 
@@ -183,11 +191,12 @@ phone should re-join rather than be told it is forbidden forever.
 
 ### Cookie flags
 
-| Cookie       | Purpose                  | Flags                                                                                     |
-| ------------ | ------------------------ | ----------------------------------------------------------------------------------------- |
-| `es_session` | host/moderator session   | `HttpOnly; SameSite=Lax; Secure` (prod); `Path=/`; `Max-Age` 12 h; host-only, no `Domain` |
-| `es_guest`   | guest device token       | `HttpOnly; SameSite=Lax; Secure` (prod); `Path=/`; `Max-Age` 36 h = the token's own TTL   |
-| `es_csrf`    | double-submit CSRF value | **not** `HttpOnly` (the app must read it); `SameSite=Lax; Secure` (prod); `Path=/`        |
+| Cookie       | Purpose                  | Flags                                                                                       |
+| ------------ | ------------------------ | ------------------------------------------------------------------------------------------- |
+| `es_session` | host/moderator session   | `HttpOnly; SameSite=Lax; Secure` (prod); `Path=/`; `Max-Age` 12 h; host-only, no `Domain`   |
+| `es_guest`   | guest device token       | `HttpOnly; SameSite=Lax; Secure` (prod); `Path=/`; `Max-Age` 36 h = the token's own TTL     |
+| `es_csrf`    | double-submit CSRF value | **not** `HttpOnly` (the app must read it); `SameSite=Lax; Secure` (prod); `Path=/`          |
+| `es_gallery` | a shared gallery unlock  | `HttpOnly; SameSite=Strict; Secure` (prod); `Path=/api/gallery`; ≤ 2 h, never past the link |
 
 `es_session`, not `connect.sid`: no reason to advertise the stack. The name is a single
 exported constant (`SESSION_COOKIE` in `src/interface/http/routes/authRoutes.ts`) because
@@ -329,16 +338,19 @@ One box hosts many events. Isolation is not a feature; it is the thing that must
 
 ### The documented exceptions, and why each is one
 
-Three methods are not scoped by event, and they are the only three. All belong to
+Five methods are not scoped by event, and they are the only five. Three belong to
 `ClipJobRepository`, because there is **one transcode worker for the whole box** and it
 cannot name the event whose guest is about to upload — the same shape as
-`EventRepository.listDueForPurge`, and the same reasoning.
+`EventRepository.listDueForPurge`, and the same reasoning. Two belong to
+`ShareLinkRepository` (§15), because the caller holds a link and nothing else.
 
-| Method             | Reached from                        | What it can return                                      |
-| ------------------ | ----------------------------------- | ------------------------------------------------------- |
-| `claimNext`        | the worker only, never a route      | one job, any event — handed to the worker, not a reply  |
-| `recoverAbandoned` | the worker, once, at boot           | the jobs a dead process was holding, any event          |
-| `countActive`      | `POST /clips`, on a guest's request | **a number only**: how many clips are waiting, box-wide |
+| Method              | Reached from                                                         | What it can return                                                                           |
+| ------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `claimNext`         | the worker only, never a route                                       | one job, any event — handed to the worker, not a reply                                       |
+| `recoverAbandoned`  | the worker, once, at boot                                            | the jobs a dead process was holding, any event                                               |
+| `countActive`       | `POST /clips`, on a guest's request                                  | **a number only**: how many clips are waiting, box-wide                                      |
+| `findByTokenDigest` | `/api/gallery/:token`, on a link holder's request                    | the link whose token hashes to this digest — whose `eventId` then scopes every read after it |
+| `findById`          | `/api/gallery-media/:linkId/…`, **after** the signature has verified | the same, by the id a signed URL names; an unsigned id never reaches the query               |
 
 `countActive` is the one an outsider can reach, and what it discloses is one integer
 about the box's queue depth — which the guest is then told outright in the
@@ -608,15 +620,19 @@ is the quota doing its job rather than a hole in it: those bytes are on the disk
 **(planned: the store. In the first cut the counters are in-process, which is a real gap
 on a restart loop)**.
 
-| Endpoint                                      | Per IP       | Per event      | Per guest token | Window |
-| --------------------------------------------- | ------------ | -------------- | --------------- | ------ |
-| `POST /api/auth/login`                        | 10           | —              | —               | 15 min |
-| `GET /api/join/:code` (code lookup)           | 20           | 60             | —               | 1 min  |
-| `POST /api/events/:slug/guests` (join)        | 10           | 60             | —               | 1 min  |
-| `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**   | —               | 1 min  |
-| `POST /api/events/:slug/clips`                | **(defect)** | **(defect)**   | —               | 1 min  |
-| `POST /api/events/:slug/photos/:id/reactions` | 120          | 600            | 60              | 1 min  |
-| `GET /api/events/:slug/stream` (SSE)          | 5 concurrent | 200 concurrent | —               | —      |
+| Endpoint                                      | Per IP       | Per event              | Per guest token | Window |
+| --------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
+| `POST /api/auth/login`                        | 10           | —                      | —               | 15 min |
+| `GET /api/join/:code` (code lookup)           | 20           | 60                     | —               | 1 min  |
+| `POST /api/events/:slug/guests` (join)        | 10           | 60                     | —               | 1 min  |
+| `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**           | —               | 1 min  |
+| `POST /api/events/:slug/clips`                | **(defect)** | **(defect)**           | —               | 1 min  |
+| `POST /api/events/:slug/photos/:id/reactions` | 120          | 600                    | 60              | 1 min  |
+| `GET /api/events/:slug/stream` (SSE)          | 5 concurrent | 200 concurrent         | —               | —      |
+| `GET /api/gallery/:token`, `…/photos`         | 60           | —                      | —               | 1 min  |
+| `GET /api/gallery-media/…`                    | 600          | —                      | —               | 1 min  |
+| `POST /api/gallery/:token/unlock` (failures)  | 10           | 50 per link            | —               | 15 min |
+| `GET /api/gallery-media/:linkId/album.zip`    | 2 concurrent | 4 concurrent, box-wide | —               | —      |
 
 **(defect)** The two upload rows describe three independent limits and there is one.
 `uploadLimiter` in `middleware/rateLimit.ts` mints a single bucket keyed by
@@ -711,6 +727,11 @@ loosening.
 | `base-uri`                                | `'none'`             | **(defect)** the code ships `'self'`; the intent — blocking `<base>` injection that repoints relative URLs — is not met. See §14.7                                                                                                                              |
 | `upgrade-insecure-requests`               | on, production only  |                                                                                                                                                                                                                                                                 |
 
+The shared gallery (§15) adds `X-Robots-Tag: noindex, nofollow` and `Cache-Control:
+no-store` to every response it gives, refusals and its `/g/*` page shell included, and
+sets its own `Referrer-Policy: no-referrer` rather than relying on the global one — the
+token is in the page's own URL.
+
 Other headers: HSTS 180 days with `includeSubDomains` (production, behind TLS only),
 `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `COOP: same-origin`,
 `CORP: same-origin`, `Permissions-Policy: geolocation=(), microphone=(), payment=()`,
@@ -736,16 +757,17 @@ and `X-Powered-By` removed.
 Guests do not sign up, do not consent to a policy, and often do not know the software
 exists. That raises the bar rather than lowering it.
 
-| Data                                                | Why                                     | Retention                                                                                                                                                                 |
-| --------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Re-encoded photo bytes                              | the product                             | until photo delete, event purge, or `settings.retentionDays`                                                                                                              |
-| Transcoded clip bytes and its poster frame          | the product                             | as above                                                                                                                                                                  |
-| A clip still waiting for the transcoder             | it is the guest upload, on its way      | minutes — deleted when the transcode succeeds or the clip itself is refused; kept until the event is purged when the box abandoned the job, and **never servable** (§4.1) |
-| `guests.display_name` (a first name, guest-typed)   | attribution on the wall                 | with the event                                                                                                                                                            |
-| Guest device token (cookie only, `gid` in `guests`) | re-identify a device without an account | token TTL                                                                                                                                                                 |
-| `photos.caption`                                    | the guest's words                       | with the photo                                                                                                                                                            |
-| `users.email` + bcrypt hash                         | host/moderator accounts                 | until account delete                                                                                                                                                      |
-| Session rows                                        | login                                   | ≤ 12 h                                                                                                                                                                    |
+| Data                                                           | Why                                     | Retention                                                                                                                                                                 |
+| -------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Re-encoded photo bytes                                         | the product                             | until photo delete, event purge, or `settings.retentionDays`                                                                                                              |
+| Transcoded clip bytes and its poster frame                     | the product                             | as above                                                                                                                                                                  |
+| A clip still waiting for the transcoder                        | it is the guest upload, on its way      | minutes — deleted when the transcode succeeds or the clip itself is refused; kept until the event is purged when the box abandoned the job, and **never servable** (§4.1) |
+| `guests.display_name` (a first name, guest-typed)              | attribution on the wall                 | with the event                                                                                                                                                            |
+| Guest device token (cookie only, `gid` in `guests`)            | re-identify a device without an account | token TTL                                                                                                                                                                 |
+| `photos.caption`                                               | the guest's words                       | with the photo                                                                                                                                                            |
+| `users.email` + bcrypt hash                                    | host/moderator accounts                 | until account delete                                                                                                                                                      |
+| Session rows                                                   | login                                   | ≤ 12 h                                                                                                                                                                    |
+| `share_links`: token **digest**, password hash, creator, times | the host's shared gallery (§15)         | with the event; a revoked link's row is kept, and opens nothing                                                                                                           |
 
 **Deliberately not stored:** EXIF of any kind (GPS, device serial, capture time), the
 original filename as a path, the uploader's IP alongside the photo row, and any
@@ -770,13 +792,14 @@ those against a `requestId` and returns the code only.
 
 ### Data-subject flows a host can actually perform
 
-| Request                    | How                                                                                                                                       | Result                                                                       |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| "Delete that photo of me"  | moderation console → delete, or the guest self-deletes inside the grace window                                                            | row deleted, file unlinked, SSE invalidation removes it from every projector |
-| "Delete everything I sent" | filter the moderation queue by guest, bulk delete                                                                                         | all photos for that `guest_id` in that event                                 |
-| "Give me my photos"        | `GET /api/events/:slug/archive` (`archiver`, streamed, owner only)                                                                        | zip of the event's photos                                                    |
-| "Forget the whole event"   | delete the event → `ON DELETE CASCADE` clears photos, guests, reactions, memberships; the media sweeper removes `<MEDIA_ROOT>/<eventId>/` | nothing left but the audit line that it happened                             |
-| Automatic expiry           | `settings.retentionDays`, swept hourly by `src/main/retentionSweeper.ts` and on demand by `npm run purge` (§11)                           | events age out without the host remembering                                  |
+| Request                    | How                                                                                                                                       | Result                                                                        |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| "Delete that photo of me"  | moderation console → delete, or the guest self-deletes inside the grace window                                                            | row deleted, file unlinked, SSE invalidation removes it from every projector  |
+| "Delete everything I sent" | filter the moderation queue by guest, bulk delete                                                                                         | all photos for that `guest_id` in that event                                  |
+| "Give me my photos"        | `GET /api/events/:slug/archive` (`archiver`, streamed, owner only)                                                                        | zip of the event's photos                                                     |
+| "Send us the photos"       | a shared gallery link (§15) the owner makes, with an expiry and optionally a password, and can revoke at once                             | the published album, full resolution and EXIF-free, to whoever holds the link |
+| "Forget the whole event"   | delete the event → `ON DELETE CASCADE` clears photos, guests, reactions, memberships; the media sweeper removes `<MEDIA_ROOT>/<eventId>/` | nothing left but the audit line that it happened                              |
+| Automatic expiry           | `settings.retentionDays`, swept hourly by `src/main/retentionSweeper.ts` and on demand by `npm run purge` (§11)                           | events age out without the host remembering                                   |
 
 Deletion is real: `DELETE`, not a `deleted_at` column. A soft-delete of a photo someone
 asked you to remove is not a deletion.
@@ -1114,6 +1137,8 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 | Self-hosted operators own their own patching, TLS, and backups           | there is no hosted control plane to push a fix from                                                                                                                                                                                                                                                         | pinned dependencies, published advisories, and boot-time config refusal so a misconfigured instance never starts quietly                                                                |
 | A backup archive is untrusted input with unauthenticated checksums       | signing needs a key, and a key kept beside the archive signs nothing; a self-hosted operator has nowhere to put one that a machine restoring after a total loss can still reach. An archive stays usable by whoever holds it, which is what an attacker uses                                                | paths are constrained at the parse, so an archive no longer chooses where the restore writes; contents are another matter, so restore only from a copy you control (§11)                |
 | A malicious host can read every photo in their own event                 | they organised the event; the data is theirs                                                                                                                                                                                                                                                                | per-event roles limit _moderators_ to their own events                                                                                                                                  |
+| Anyone holding a shared gallery link reads the published album           | that is what a link is: the host chose to send it, and a link that also demanded an account would never be opened by the aunt it was sent to                                                                                                                                                                | it expires (≤ 90 days), it can carry a password, it can be revoked at once, and it shows only what the room already saw (§15)                                                           |
+| A file already downloading from a revoked link finishes                  | a single HTTP response cannot be recalled once its bytes are flowing, and a thumbnail a browser cached (`private`, ≤ 1 h) stays in that browser                                                                                                                                                             | every **new** request is refused at once; a streaming archive re-checks the link before each entry and aborts (§15)                                                                     |
 
 ## 13. Reporting a vulnerability
 
@@ -1472,3 +1497,39 @@ cannot be traced to a file must be marked, never left standing.
 None of these is a reachable vulnerability on its own. They matter because this document is
 what the next reviewer audits against, and four of them describe a control that is not
 there.
+
+## 15. The shared gallery — the first public read surface
+
+Roadmap §4.1. A link the host makes after the event and sends to the guests: the
+published album, full resolution, optionally behind a password, with an expiry. Every
+other surface a stranger reaches shows what a projector in a room already shows; this one
+hands out the originals, so it was built as a public surface from the first line. The
+code is `src/application/usecases/gallery/` (the rule is `galleryAccess.ts`),
+`src/interface/http/routes/galleryRoutes.ts` and `shareLinkRoutes.ts`, and the signer is
+`src/infrastructure/crypto/hmacGallerySigner.ts`.
+
+| Control                                              | How                                                                                                                                                                                                                                                                                       | Held by                                                                                                                 |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| The token is unguessable and not stored              | 32 random bytes, base64url, in the URL; the row holds its SHA-256, and a `CHECK` refuses anything that is not 64 hex characters. A fast hash is right: the secret is random, not chosen, and the lookup has to be an index seek                                                           | `ShareLink.create`, migration 006, `hmacGallerySigner.test.ts`, the shared repository contract                          |
+| One answer for every dead link                       | an unknown, malformed, expired or revoked token, a link whose creator is switched off or no longer an owner, and a purged event: `404 gallery.notAvailable`, byte for byte, on every route                                                                                                | `openGallery.test.ts`, `galleryRoutes.test.ts` ("one refusal, byte for byte")                                           |
+| A link lives only as long as its creator's authority | `roleFor(eventId, createdBy)` must answer `owner`, read on **every** request — the same per-request rule as sessions (§2), so suspending an account or demoting an owner ends their links at once, and re-enabling gives them back                                                        | `galleryAccess.eventBehind`; ring 2 and ring 4 cases for a disabled and a demoted creator                               |
+| Only what the wall shows                             | `published`, read per request; never `pending`, `rejected` or `hidden` — narrower than the host's own ZIP                                                                                                                                                                                 | `isInSharedGallery`, and a case per status at rings 2 and 4                                                             |
+| Every link expires                                   | 1–90 days, a month by default; the host cannot choose "never"                                                                                                                                                                                                                             | `ShareLinkLifetime`                                                                                                     |
+| One current link per event; replacing it is atomic   | a partial unique index over unrevoked rows; `replaceCurrent` revokes and inserts in one transaction, and a refused insert leaves the old link current                                                                                                                                     | migration 006, the shared repository contract (fake **and** SQLite)                                                     |
+| The password is a second factor, not a URL parameter | posted in a body, hashed by the account hasher under the account policy; after a match, an `HttpOnly`, `SameSite=Strict` cookie scoped to `/api/gallery`, holding an expiry and a MAC over the link id — never the password, never the token — for two hours or the link's remaining life | `unlockGallery.ts`, `galleryRoutes.test.ts` (cookie flags)                                                              |
+| Guessing is bounded                                  | failures only, per client (10) **and** per link (50), per quarter hour; a dead link is refused before any hash is compared, so it costs no bcrypt                                                                                                                                         | `galleryUnlockLimiters`; ring 4 cases for both limits and for successes not counting                                    |
+| Media by signed URL, never by token                  | HMAC-SHA256 over the link id, photo id, rendition and expiry, one hour, never past the link. Checked in constant time **before** any storage read; then the expiry; then the link, **now** — so revoking kills every URL at once; then the photograph, looked up in the link's own event  | `getGalleryMedia.ts`; ring 4 cases for each tampered field and for another link's signature                             |
+| Domain-separated keys                                | the signing key is HKDF-derived from `SESSION_SECRET` under `eventslide/gallery/v1`, and every signed statement is length-prefixed with its purpose first, so no gallery signature verifies as another kind and nothing `express-session` signs is one                                    | `hmacGallerySigner.ts`, the shared signer contract                                                                      |
+| Originals carry no coordinates                       | the download is the stored `original`, which is the ingest re-encode with EXIF, GPS, XMP and ICC dropped (§4 step 7); a clip's download is its transcode (§4.1)                                                                                                                           | `sharpImageProcessor.test.ts`, and `shared-gallery.spec.ts`, which downloads through a real browser and reads the bytes |
+| Nobody indexes it, nothing leaks it                  | `X-Robots-Tag: noindex, nofollow`, `Referrer-Policy: no-referrer` and `Cache-Control: no-store` on every response and on the `/g/*` shell, plus `<meta name="robots">` in the page; a thumbnail is at most `private` for its grant's remaining life                                       | `galleryRoutes.test.ts`, `server.test.ts`, `shared-gallery.spec.ts`                                                     |
+| A forged page cursor never reaches the repository    | cursors are sealed per link; anything else is `400 gallery.cursorInvalid` rather than the repository's own throw                                                                                                                                                                          | `listGalleryPhotos.test.ts`                                                                                             |
+
+**A link-preview bot learns nothing.** Messaging apps fetch a pasted URL to draw a preview.
+What they get at `/g/<token>` is the SPA shell — the album is loaded by the page's script —
+with `noindex` on it, so the preview is the product's generic card and nothing of the
+event.
+
+**The residuals**, also in §12: whoever holds a link without a password reads the album,
+by design; a single file already downloading when the link is revoked finishes, and a
+thumbnail a browser cached stays in that browser for at most its grant's hour; the rate
+limits are in-process, like every other limit here (§5).
