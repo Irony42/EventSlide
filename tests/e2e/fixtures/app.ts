@@ -1,4 +1,10 @@
-import { test as base, type APIRequestContext, type Browser, type Page } from '@playwright/test'
+import {
+  test as base,
+  type APIRequestContext,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from '@playwright/test'
 import { startTestApp, type TestApp } from './startTestApp'
 
 /**
@@ -33,6 +39,99 @@ export const test = base.extend<{ surfaces: Surfaces }, { app: TestApp }>({
 })
 
 export { expect } from '@playwright/test'
+
+/**
+ * The origin the visual suite's servers tell a guest's phone to use.
+ *
+ * Deliberately **not** the address those servers listen on. The wall's QR is built from
+ * `PUBLIC_URL` (`toWallResponseDto`) rather than from the projector's own origin, so a
+ * screen opened on `127.0.0.1:<ephemeral>` still prints a link a phone could act on — and
+ * the bit pattern is the same in two renders of one commit, which is what a baseline over
+ * that region needs. It was the last unpinned input in these shots and it sat in eight of
+ * the twelve.
+ *
+ * Not a forged state, either: a fixed public address behind a listening address that is
+ * not it *is* the reverse-proxied deployment, which is how most of these boxes run.
+ * {@link startTestApp} otherwise passes its own base URL, which is the truth for a
+ * directly reachable server and what the journeys should go on exercising.
+ */
+export const VISUAL_PUBLIC_URL = 'http://mur.eventslide.test'
+
+/**
+ * A server nobody else has touched, for one test.
+ *
+ * {@link test} above shares one per worker, which is right for a journey: booting a server
+ * and running the migrations costs a second or two, and a suite that pays that per test
+ * stops being run. It is wrong for a baseline. Under `E2E_HOOKS` the ids come from
+ * `sequentialIdGenerator`, whose counters are per **process** — so what a test is handed
+ * depends on how many calls preceded it on that server, and which other tests a worker
+ * took first is the runner's decision rather than the spec's. A polaroid print's tilt is a
+ * static hash of its photo id and the join code is drawn from the same generator, so two
+ * renders of one commit disagreed by 243 291 pixels on a wall neither had touched.
+ *
+ * Here the event is always its server's first: the album is always photographs one to six
+ * and the code is always {@link FIRST_JOIN_CODE}. The specs **assert** both rather than
+ * trusting this comment — a fixture's promise that nothing checks is the defect class the
+ * 55-mutation audit found every survivor behind.
+ *
+ * The cost is one server boot per test, twelve of them, in a job that already installs
+ * Chromium and builds the application twice.
+ */
+export const freshServerTest = base.extend<{ surfaces: Surfaces; app: TestApp }>({
+  // Playwright parses this parameter list to work out which fixtures the function depends
+  // on, so the first argument must be a destructuring pattern even when empty — see the
+  // note on `test` above.
+  // eslint-disable-next-line no-empty-pattern -- Playwright's API requires it, see above.
+  app: async ({}, use, testInfo) => {
+    const app = await startTestApp({
+      worker: testInfo.workerIndex,
+      env: { PUBLIC_URL: VISUAL_PUBLIC_URL },
+    })
+    await use(app)
+    await app.dispose()
+  },
+
+  surfaces: async ({ browser, app }, use) => {
+    const surfaces = await openSurfaces(browser, app)
+    await use(surfaces)
+    await surfaces.dispose()
+  },
+})
+
+/**
+ * The join code a server with a fresh generator mints first.
+ *
+ * `sequentialIdGenerator.bytes` writes its own call number in the base the join code reads
+ * its bytes in, so call one is `[0, 0, 0, 0, 0, 1]`, and `JoinCode.fromBytes` maps that
+ * through `0123456789ABCDEFGHJKMNPQRSTVWXYZ`. Stated here because it is a property of the
+ * generator; asserted by the specs because it is the property {@link freshServerTest}
+ * exists to give them.
+ */
+export const FIRST_JOIN_CODE = '000001'
+
+/** The nth photo id such a server mints, in the shape `sequentialIdGenerator` gives it. */
+export const photoIdAt = (nth: number): string =>
+  `f0000000-0000-4000-8000-${nth.toString(16).padStart(12, '0')}`
+
+/**
+ * Closes a context the way {@link Surfaces} does, swallowing only Playwright's own
+ * artifact cleanup.
+ *
+ * A spec that opens a context of its own — the two reduced-motion baselines need
+ * `reducedMotion: 'reduce'`, which is a context option — was closing it bare, and so had
+ * none of the protection {@link openSurfaces} carries. On Windows that lost race turns a
+ * suite whose assertions all passed into a red one, on a different test every run. It is
+ * the same false red as the rest of this file's subject, arriving through the teardown
+ * rather than through a pixel: it cost a render pass here, and the retry it provoked moved
+ * the id counter and took the polaroid's tilts with it.
+ */
+export const closeQuietly = async (context: BrowserContext): Promise<void> => {
+  try {
+    await context.close()
+  } catch (cause) {
+    if (!isArtifactCleanupFailure(cause)) throw cause
+  }
+}
 
 /**
  * The three screens, as three browser contexts.

@@ -51,11 +51,22 @@ export const aPhoto = async (label = 'photo', width = 1600, height = 1200): Prom
  * A white dress in full sun — the photograph the wall's caption contract is written for.
  *
  * `aPhoto` derives its colour from its label, which is what makes it deterministic and is
- * also why it is no use here: every fixture the visual suite happens to have drawn came out
- * dark, so the caption scrim rendered against near-black in all eleven committed baselines
- * and **a change to it was invisible in the one suite that exists to make wall changes
- * visible.** Raising `--surface-scrim` from 0.55 to 0.83 under roadmap 11.3 moved not one
- * pixel of them.
+ * also why it is no use here: the album it draws for the spotlight came out dark, so that
+ * shot's caption scrim rendered against near-black and **a change to it was invisible on
+ * the surface the suite exists to watch.**
+ *
+ * This comment used to say raising `--surface-scrim` from 0.55 to 0.83 under roadmap 11.3
+ * "moved not one pixel" of the committed baselines, and that was wrong — it is corrected
+ * here rather than deleted, because the wrong version is the reason this fixture exists at
+ * all. Re-rendering the committed set on unmodified `main` moved the mosaic by 208 146
+ * pixels (ratio 0.100), the themed mosaic by 0.109 and the split by 0.019: the mosaic's
+ * in-tile credit plate sits over a mid-grey tile, where those two alphas are nothing like
+ * the same picture. It looked like nothing had moved because the committed images are not
+ * what CI compares — the visual job renders its own before and after — so nobody ever saw
+ * the diff. `docs/TESTING.md` carries that finding.
+ *
+ * The narrower claim the fixture rests on survives intact: the *spotlight's* caption scrim
+ * was invisible to this suite, which is the shot the contract is about.
  *
  * Pure white rather than merely bright: it is the ceiling of the sRGB gamut, so a caption
  * that reads here reads over every photograph a guest can send. It is the same backdrop

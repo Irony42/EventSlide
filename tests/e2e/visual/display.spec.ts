@@ -1,4 +1,13 @@
-import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
+import {
+  closeQuietly,
+  expect,
+  FIRST_JOIN_CODE,
+  freshServerTest as test,
+  photoIdAt,
+  signInAsHost,
+  VISUAL_PUBLIC_URL,
+  wallUrl,
+} from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
 import { aBrightPhoto, aPhoto } from '../fixtures/media'
 
@@ -31,6 +40,26 @@ import { aBrightPhoto, aPhoto } from '../fixtures/media'
  * element says which layout is up, which a slot count cannot — a filmstrip and a mosaic
  * can both be holding six photos, and a fall back between them would have photographed
  * exactly as well as the `?layout=` generations did.
+ *
+ * **Every test here takes a server of its own** — `freshServerTest`, not the worker-scoped
+ * `test` the journeys use. The pixels in these shots contain values the server minted: a
+ * polaroid print's tilt is a static hash of its photo id, and the join card prints a code
+ * drawn from the same generator. Both come from `sequentialIdGenerator`, whose counters are
+ * per *process* while a shared server is per *worker*, so what a spec was handed depended
+ * on which other tests its worker happened to take first — and two renders of one commit
+ * disagreed by 243 291 pixels, ratio 0.117, on a polaroid neither of them had touched. A
+ * server per test makes each event its server's first, and the assertions below say so out
+ * loud rather than leaving it to this paragraph: {@link FIRST_JOIN_CODE} in `seedAlbum`,
+ * and the three print ids on the polaroid shot.
+ *
+ * The QR beside that code needed a different answer, because no fixture can pin an
+ * ephemeral port. It used to be built in the browser from `window.location.origin`; it now
+ * comes from `joinUrl` on the wall response, which the server derives from `PUBLIC_URL`,
+ * and `freshServerTest` gives its servers a fixed one. That was a product fix as much as a
+ * test one — a projector on a venue LAN was printing a QR no guest's phone could resolve —
+ * and it is why these baselines compare the QR pixel for pixel instead of masking the one
+ * region on this wall whose correctness a guest's evening depends on. `docs/TESTING.md`
+ * carries the numbers.
  */
 
 test.describe('the projected wall @visual', () => {
@@ -53,6 +82,33 @@ test.describe('the projected wall @visual', () => {
     slug: string,
   ) => {
     const event = await app.seedEvent({ slug, name: 'Camille & Sacha' })
+
+    // `freshServerTest`'s promise, asserted rather than trusted. This event is its
+    // server's first, which is what makes the six photo ids below — and therefore the
+    // polaroid's three tilts — and the code printed on every full-page shot the same on
+    // every run. Swap the fixture back to the worker-scoped `test` and this line fails
+    // here, naming its cause, instead of a baseline failing two runs later on 60 000
+    // pixels of nothing.
+    expect(event.joinCode).toBe(FIRST_JOIN_CODE)
+
+    /**
+     * And the other half of the same promise: the origin the QR encodes.
+     *
+     * **This is the one pin a baseline cannot catch on its own, which is exactly why it is
+     * asserted here.** The join card occupies roughly 13 000 pixels and the whole-frame
+     * budget is 20 736, so the card could render *completely differently* and every shot
+     * below would still pass. Drop `PUBLIC_URL` from `freshServerTest` and the QR quietly
+     * goes back to encoding an ephemeral port — no red job, just a baseline that has
+     * stopped meaning anything about the region it was regenerated for.
+     *
+     * Read off the wall response rather than out of the DOM, because the response is where
+     * the value now comes from and a QR's own pixels cannot be read back.
+     */
+    const wall = (await (
+      await surfaces.host.request.get(app.url(`/api/events/${event.slug}/wall`))
+    ).json()) as { joinUrl?: string }
+    expect(wall.joinUrl).toBe(`${VISUAL_PUBLIC_URL}/join/${FIRST_JOIN_CODE}`)
+
     await signInAsHost(surfaces.host, app)
     await surfaces.host.goto(app.url(`/admin/events/${event.slug}/moderation`))
 
@@ -145,19 +201,25 @@ test.describe('the projected wall @visual', () => {
     await projector.goto(wallUrl(app, event.slug, { transitionMs: 0 }))
     await expect(projector.getByTestId('wall-empty')).toBeVisible()
 
-    // Snapshotting the copy, not the page, and masking is not enough to get there.
+    // Snapshotting the copy, not the page — and the reason has changed, so it is restated
+    // rather than left to read as the old one.
     //
-    // The join code is random per event, and `.join` is a content-sized grid, so a code
-    // of wide characters makes that block wider and pushes its flex sibling across the
-    // screen. Masking the block hides its pixels but not the shift it caused, which is
-    // why a full-page baseline here failed intermittently — sometimes 3% of pixels,
-    // sometimes 5%, depending on which six characters the server generated.
+    // It used to be that the code was random per event: `.join` is a content-sized grid, so
+    // a code of wide characters made that block wider and pushed its flex sibling across
+    // the screen, and a full-page baseline here failed intermittently on 3% to 5% of pixels
+    // depending on which six characters the server had generated. Masking the block hid its
+    // pixels but not the shift it caused. **That is fixed** — `freshServerTest` makes the
+    // code `000001` on every run — so a full-page shot here would now be stable.
     //
-    // An element screenshot clips to the element, so the copy's own typography and
-    // spacing are captured regardless of where the sibling pushed it. That is what this
-    // test is for: a caption gone unreadable, a heading that stopped fitting. The join
-    // block's presence is asserted structurally just above, and the code's value is
-    // covered by the journeys, which read it off this screen and join with it.
+    // It stays an element shot because that is what this test is *about*: the copy's own
+    // typography and spacing, a caption gone unreadable, a heading that stopped fitting.
+    // Clipping to the element keeps the diff on the subject instead of spending it on a
+    // frame of dark ground. The join block's presence is asserted structurally just above —
+    // and note it now depends on the response carrying `joinUrl` as well as the code, since
+    // the wall prints no invitation with half of one.
+    //
+    // The code's value is covered by the journeys, which read it off this screen and join
+    // with it.
     await expect(projector.getByTestId('wall-empty-copy')).toHaveScreenshot('wall-empty.png', {
       animations: 'disabled',
     })
@@ -167,10 +229,17 @@ test.describe('the projected wall @visual', () => {
     const event = await seedAlbum(app, surfaces, 'spotlight')
     const { projector } = surfaces
 
-    await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
+    // `intervalMs: 0`, not a very long number. The spotlight's Ken Burns is the second
+    // animation timed from the slide interval, and the one `--wall-transition` cannot
+    // reach; `600_000` left it mounted and running, which made this shot whichever side of
+    // `finish()` the shutter landed on. A wall that is not advancing mounts no zoom at all.
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 0, transitionMs: 0 }))
     await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
 
-    // A very long interval, so the wall is not mid-advance when the shot is taken.
+    // Asserted, so the pin cannot be removed silently: put `600_000` back and this fails
+    // on `Expected: still, Received: kenburns` before a pixel is compared.
+    await expect(projector.getByTestId('wall-slide')).toHaveAttribute('data-motion', 'still')
+
     await expect(projector).toHaveScreenshot('wall-spotlight.png', { animations: 'disabled' })
   })
 
@@ -179,10 +248,20 @@ test.describe('the projected wall @visual', () => {
    *
    * **The baseline this suite did not have, and the gap is worth recording.** `aPhoto`
    * derives its colour from its label, and every colour it happened to draw for the album
-   * above came out dark — so all eleven committed baselines showed the caption scrim over
-   * near-black, where 55% black and 83% black are the same picture. Raising the scrim to
-   * the alpha §8's contrast contract actually requires therefore moved **not one pixel** of
-   * this suite, on the one change the suite exists to make a human look at.
+   * above came out dark — so the spotlight's caption scrim sat over near-black, where 55%
+   * black and 83% black are the same picture, and raising the scrim to the alpha §8's
+   * contrast contract looked like it moved nothing on the one change this suite exists to
+   * make a human look at.
+   *
+   * **That "moved not one pixel" was written here and it was wrong.** Re-rendering the
+   * committed set on unmodified `main` says so: the mosaic's in-tile credit plate sits over
+   * a mid-grey tile and moved 208 146 pixels, ratio 0.100, the themed mosaic 0.109 and the
+   * split 0.019. Nobody saw it because the committed images are not what CI compares — the
+   * `Visual regression (wall)` job renders its own before *and* after — so a committed
+   * baseline can go stale for eleven commits and stay green. The set is regenerated with
+   * this change and those three land the scrim raise they should have landed in #58. The
+   * lesson is the one `docs/TESTING.md` now states: a baseline nobody re-rendered is not
+   * evidence about today's source.
    *
    * A scrim's whole job is the photograph that is brighter than its text. So the case is
    * here now, at the top of the gamut, which is the backdrop `tokens.contrast.test.ts`
@@ -207,11 +286,22 @@ test.describe('the projected wall @visual', () => {
       .click()
     await expect(host.getByTestId('moderation-card')).toHaveCount(0)
 
-    await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 0, transitionMs: 0 }))
     await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
-    // The join card is dismissed rather than masked: it carries a random code, and the
-    // block is content-sized, so its width moves its siblings — which is the failure the
-    // empty-state test above records in full.
+
+    // **This is the shot the Ken Burns fast-forward was actually visible on**, and the
+    // reason is the fixture rather than the layout: `aBrightPhoto` is 4:3 on a 16:9 screen
+    // under `object-fit: contain`, so it is pillarboxed. A flat colour that covers the
+    // screen photographs identically at scale 1 and at 1.08; a pillarboxed one moves its
+    // two vertical edges, which is exactly the diff #56 predicted would appear "the day a
+    // fixture letterboxes". `intervalMs: 0` mounts no zoom, and this asserts it.
+    await expect(projector.getByTestId('wall-slide')).toHaveAttribute('data-motion', 'still')
+
+    // The join card is put away because the subject of this shot is the caption's scrim,
+    // and the card reserves the bottom-right corner that a centred caption would otherwise
+    // use (`data-wall-chrome`). Not because it is unstable — it is not any more: both the
+    // code and the QR now come from the server, so the shots that keep the card compare it
+    // pixel for pixel.
     await projector.keyboard.press('Escape')
     await expect(projector.getByTestId('wall-join')).toHaveCount(0)
 
@@ -224,7 +314,7 @@ test.describe('the projected wall @visual', () => {
     const event = await seedAlbum(app, surfaces, 'mosaique')
     const { projector } = surfaces
 
-    await projector.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 0, transitionMs: 0 }))
     await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
 
     // `L` is the host's layout shortcut. Asserting six tiles before the shot is what
@@ -244,8 +334,14 @@ test.describe('the projected wall @visual', () => {
    * show and fewer than the collage can hold: what each layout does with a playlist that
    * does not match its grid is precisely what a snapshot is for here.
    *
-   * `intervalMs` is what stops the clock, and `0` is not the same instruction as a very
-   * long number.
+   * `intervalMs: 0` is what stops the clock, and it is not the same instruction as a very
+   * long number — so every shot of a *running* wall passes it, including the ones whose
+   * layout animates nothing today. There were two animations timed from the slide interval
+   * and `600_000` left both of them mounted and running; a layout that grows a third gets
+   * the pin for free instead of a red job on somebody else's pull request. The two
+   * reduced-motion shots are the deliberate exception and say why at the call site: their
+   * subject is the preference, and a wall that had stopped anyway would prove nothing
+   * about it.
    *
    * **A screenshot does not freeze a running animation — it fast-forwards it.**
    * `animations: 'disabled'` calls `finish()` on every finite animation on the page, so
@@ -282,18 +378,28 @@ test.describe('the projected wall @visual', () => {
       slug: 'polaroid',
       slides: 3,
       file: 'wall-polaroid.png',
-      intervalMs: 600_000,
       // A 0ms landing, so its end frame is the print at rest whether or not it is
       // fast-forwarded. Asserted, because that is the property this shot depends on.
       motion: 'landing',
+      /**
+       * The photographs the three prints must be holding, and the only entry that names
+       * any — because this is the one shot whose pixels are a **function of the ids**.
+       * `tiltFor` is an FNV-1a hash of the photo id folded into ±4°, so a print holding
+       * photograph five instead of six is a print at a different angle, and that is the
+       * 243 291-pixel disagreement this file used to produce between two renders of one
+       * commit. The wall plays newest first and `rotatingSlots` fills slot *n* from
+       * position *n* before its first turn, so a fresh server's six-photograph album puts
+       * six, five and four on the pile.
+       */
+      photoIds: [photoIdAt(6), photoIdAt(5), photoIdAt(4)],
     },
     {
       layout: 'filmstrip',
       slug: 'pellicule',
       slides: 6,
       file: 'wall-filmstrip.png',
-      intervalMs: 0,
       motion: 'still',
+      photoIds: null,
     },
     // The split declares no motion at all; its fade is the mosaic's, timed from
     // `--wall-transition`.
@@ -302,17 +408,17 @@ test.describe('the projected wall @visual', () => {
       slug: 'cote-a-cote',
       slides: 2,
       file: 'wall-split.png',
-      intervalMs: 600_000,
       motion: null,
+      photoIds: null,
     },
   ] as const
 
-  for (const { layout, slug, slides, file, intervalMs, motion } of LAYOUTS) {
+  for (const { layout, slug, slides, file, motion, photoIds } of LAYOUTS) {
     test(`the ${layout} layout`, async ({ app, surfaces }) => {
       const event = await seedAlbum(app, surfaces, slug)
       const { projector } = surfaces
 
-      await projector.goto(wallUrl(app, event.slug, { layout, intervalMs, transitionMs: 0 }))
+      await projector.goto(wallUrl(app, event.slug, { layout, intervalMs: 0, transitionMs: 0 }))
 
       // Named, then counted. A slot count alone cannot tell a filmstrip from a mosaic —
       // both can be holding six photos — and a silent fall back between two layouts
@@ -325,8 +431,24 @@ test.describe('the projected wall @visual', () => {
 
       // And then: what is moving. See the note above `LAYOUTS` — a baseline taken while
       // something is animating is a baseline of whichever frame the shutter reached.
-      if (motion !== null) {
+      //
+      // `null` means "declares no motion at all", which is a claim and gets checked like
+      // one: the branch asserts the *absence* of the attribute rather than skipping. A
+      // skipped branch is how the next layout added to this table copies the split's row
+      // and silently asserts nothing about the very thing the table exists to pin.
+      if (motion === null) {
+        await expect(projector.locator('[data-motion]')).toHaveCount(0)
+      } else {
         await expect(projector.locator('[data-motion]')).toHaveAttribute('data-motion', motion)
+      }
+
+      // And, where the ids reach the pixels, which photographs are in which slot.
+      if (photoIds !== null) {
+        const held = await projector
+          .locator('[data-photo-id]')
+          .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-photo-id')))
+
+        expect(held).toEqual([...photoIds])
       }
 
       await expect(projector).toHaveScreenshot(file, { animations: 'disabled' })
@@ -341,12 +463,13 @@ test.describe('the projected wall @visual', () => {
     // The wall is driven by the arrow key rather than by a fast interval, so the shot is
     // taken at a known slide instead of at whichever one the clock happened to be on.
     // A 250ms interval would have filled the grid too, and produced a different baseline
-    // on every run.
+    // on every run. `advance` is a callback and not the timer, so it still steps a wall
+    // whose interval is `0`.
     const event = await seedAlbum(app, surfaces, 'collage')
     const { projector } = surfaces
 
     await projector.goto(
-      wallUrl(app, event.slug, { layout: 'collage', intervalMs: 600_000, transitionMs: 0 }),
+      wallUrl(app, event.slug, { layout: 'collage', intervalMs: 0, transitionMs: 0 }),
     )
     await expect(projector.locator('[data-wall-layout]')).toHaveAttribute(
       'data-wall-layout',
@@ -382,16 +505,29 @@ test.describe('the projected wall @visual', () => {
       reducedMotion: 'reduce',
     })
     const page = await context.newPage()
+    // **A long interval here, deliberately, where every other shot in this file pins `0`.**
+    // A wall that is not advancing is already still, so `intervalMs: 0` would make this
+    // baseline's stillness unattributable — it would pass just as well with the preference
+    // ignored entirely. With the wall genuinely advancing, `still` can only have come from
+    // the preference, which is the one thing this test is about. It is not an unpinned
+    // input: under `prefers-reduced-motion` no interval-timed animation is mounted at all,
+    // and the line below asserts that before the shutter.
     await page.goto(
       wallUrl(app, event.slug, { layout: 'filmstrip', intervalMs: 600_000, transitionMs: 0 }),
     )
     await expect(page.getByTestId('wall-slide')).toHaveCount(6)
+    await expect(page.locator('[data-motion]')).toHaveAttribute('data-motion', 'still')
 
     await expect(page).toHaveScreenshot('wall-filmstrip-reduced-motion.png', {
       animations: 'disabled',
     })
 
-    await context.close()
+    // `closeQuietly`, not `context.close()`. This spec opens its own context because
+    // `reducedMotion` is a context option, so it had none of the protection
+    // `openSurfaces` carries for Playwright deleting a passing test's own recordings —
+    // which on Windows loses a race with itself and fails the close with `ENOENT`, on a
+    // different test every run, in a suite whose assertions all passed.
+    await closeQuietly(context)
   })
 
   test('the spotlight layout under reduced motion', async ({ app, surfaces, browser }) => {
@@ -406,14 +542,19 @@ test.describe('the projected wall @visual', () => {
       reducedMotion: 'reduce',
     })
     const page = await context.newPage()
+    // A long interval, for the reason the filmstrip's reduced-motion shot above states: a
+    // stopped wall is still on its own, so pinning `0` here would let this baseline pass
+    // with the preference ignored. The wall is advancing and the frame is at rest anyway,
+    // which is the whole claim.
     await page.goto(wallUrl(app, event.slug, { intervalMs: 600_000, transitionMs: 0 }))
     await expect(page.getByTestId('wall-slide')).toHaveCount(1)
+    await expect(page.getByTestId('wall-slide')).toHaveAttribute('data-motion', 'still')
 
     await expect(page).toHaveScreenshot('wall-spotlight-reduced-motion.png', {
       animations: 'disabled',
     })
 
-    await context.close()
+    await closeQuietly(context)
   })
 
   /**
@@ -443,8 +584,9 @@ test.describe('the projected wall @visual', () => {
     await projector.goto(wallUrl(app, event.slug, { transitionMs: 0 }))
     await expect(projector.getByTestId('wall-empty')).toBeVisible()
 
-    // The same element the unthemed baseline photographs, for the same reason — the join
-    // code is random per event, and a full-page shot moves with it.
+    // The same element the unthemed baseline photographs, for the same reason it gives: the
+    // subject is the copy — the accent on its first line and the display face on the event's
+    // name — and clipping to it keeps the diff on that. Not because the code moves any more.
     await expect(projector.getByTestId('wall-empty-copy')).toHaveScreenshot(
       'wall-empty-themed.png',
       { animations: 'disabled' },
@@ -461,7 +603,7 @@ test.describe('the projected wall @visual', () => {
     // meaning anything.
     await applyTheme(host, app, event.slug, { frame: 'Coins droits' })
 
-    await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic', intervalMs: 600_000 }))
+    await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic', intervalMs: 0 }))
     await expect(projector.locator('[data-wall-layout]')).toHaveAttribute(
       'data-wall-layout',
       'mosaic',
@@ -469,11 +611,11 @@ test.describe('the projected wall @visual', () => {
     await expect(projector.getByTestId('wall-slide')).toHaveCount(6)
 
     // The join card is put away first, which the unthemed layout baselines do not do.
-    // Its QR and its six characters are derived from a code that is random per event, so
-    // a full-page baseline that keeps them is a baseline that only ever matches the run
-    // that produced it — the empty-state test above dodges the same hazard by
-    // photographing one element instead. Here the whole frame is the subject, so the
-    // random part is dismissed rather than cropped out.
+    // The reason used to be that its code and QR were random per event; they are not any
+    // more — the code comes from a server this test has to itself and the QR from that
+    // server's `PUBLIC_URL`, so the eight shots that keep the card compare it pixel for
+    // pixel. It goes because the subject here is the frame style on every tile, and the
+    // card covers two of them.
     await projector.keyboard.press('Escape')
     await expect(projector.getByTestId('wall-join')).toHaveCount(0)
 
