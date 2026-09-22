@@ -343,6 +343,55 @@ Learned the hard way. Do not rediscover them.
     it still. What the animation itself does belongs one ring down, or in a journey
     assertion that measures geometry rather than pixels.
 
+    **It has since fired twice more, and only one of the two was an animation — so the
+    rule above was too narrow and this is the wider one.** `wall-spotlight-bright.png`
+    and `wall-polaroid.png` went red together on #65, a pull request that changed only
+    `.github/workflows/ci.yml` and therefore cannot move a pixel, and both were green on
+    a plain re-run. The spotlight was the same fast-forward: its photograph is 4:3 on a
+    16:9 screen, so only the left and right edges are on screen and the Ken Burns zoom
+    widens it from 1600px to 1728px — the shot was either the frame the shutter reached
+    (1607px, 483ms in) or the end frame `finish()` forced it to. `kenBurnsDurationMs` is
+    computed from the _server's_ interval and `e2e_interval` never touches it, so nothing
+    any baseline set reached that zoom. **The polaroid was not animating at
+    all.** Its tilt is a static transform hashed from the photo id, and the ids come from
+    `sequentialIdGenerator`, whose counter is per **process** while the server is per
+    Playwright **worker** — so how far the counter had run when the album was seeded was
+    decided by which other tests that worker happened to take first. The same counter
+    prints the join code on every full-page wall shot.
+
+    So: **a visual baseline pins every input that reaches its pixels, and asserts the
+    surface is in the state it pins before the shutter.** An animation is one such input
+    and the shutter is its source of variance; a test-only id generator is another, and a
+    fixture that promises "the same ids on every run" is only telling the truth about the
+    process it counts in. The tell is identical in both cases and is what should send you
+    here: **a red visual job on a pull request that touched no rendering, green on a
+    re-run.** The mechanical half: a baseline whose pixels depend on anything the server
+    minted needs a server nobody else has touched — `freshServerTest` in
+    `tests/e2e/fixtures/app.ts`, which the `@visual` specs use, and whose promise they
+    assert (the album is always photographs one to six, the code is always `000001`)
+    rather than trust.
+
+    **The third input is where the rule earns its keep: one that looks unpinnable is
+    usually a product defect wearing a test problem's clothes.** The join card's QR was
+    built in the browser from `window.location.origin`, so every full-page wall baseline
+    contained the test server's ephemeral port — eight of twelve of them, measured at
+    1 000–2 600 px a shot across two renders of one commit, a fifth of the diff budget
+    spent before a real regression could use any. No fixture can pin an ephemeral port,
+    and masking the QR was available and would have been the wrong trade: **that region is
+    the one place on this wall where being wrong costs a guest their evening** (trap 1 is
+    what that looks like), so it is the last region to stop comparing. The origin was
+    unpinnable because the wall was asking the wrong question. `PUBLIC_URL` is the address
+    a phone can actually reach, `joinUrl(publicUrl, code)` already built the link from it
+    for the host's own event page, and the projector — the only surface that prints the QR
+    a guest scans — was the one inventing its own answer, which on any reverse-proxied
+    deployment was the wrong one. It comes from the wall response now, the baselines are
+    exact, and the fixture pins it by declaring a fixed `PUBLIC_URL`, which is a
+    configuration every proxied host already has rather than a state forged for a test.
+
+    So before reaching for a mask: ask what the pixel is derived from, and whether the
+    product should have been deriving it that way. A mask makes a baseline stop seeing,
+    permanently, and this one would have hidden a real bug rather than a test artefact.
+
 ---
 
 ## 10. Definition of done

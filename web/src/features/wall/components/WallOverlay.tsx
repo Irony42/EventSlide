@@ -2,12 +2,12 @@ import { Card } from '../../../design-system/components/Card'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
 import { IconButton } from '../../../design-system/components/IconButton'
 import { fr } from '../../../lib/i18n/fr'
-import { joinUrlFor } from '../photoAlt'
 import { JoinQr } from './JoinQr'
 import styles from './WallOverlay.module.css'
 
 export interface WallOverlayProps {
-  readonly joinCode: string
+  /** The code and its link, both from the wall response — see {@link WallEmptyStateProps}. */
+  readonly join: { readonly code: string; readonly url: string }
   readonly onDismiss: () => void
 }
 
@@ -21,7 +21,7 @@ export interface WallOverlayProps {
  * It sits in the opposite corner from the caption, inside the projector safe area, and
  * a host who walks up can put it away with Escape or with the button.
  */
-export function WallOverlay({ joinCode, onDismiss }: WallOverlayProps) {
+export function WallOverlay({ join, onDismiss }: WallOverlayProps) {
   return (
     <Card className={styles['overlay']}>
       <div className={styles['header']}>
@@ -33,8 +33,8 @@ export function WallOverlay({ joinCode, onDismiss }: WallOverlayProps) {
           onClick={onDismiss}
         />
       </div>
-      <JoinQr url={joinUrlFor(joinCode)} />
-      <p className={styles['code']}>{joinCode}</p>
+      <JoinQr url={join.url} />
+      <p className={styles['code']}>{join.code}</p>
     </Card>
   )
 }

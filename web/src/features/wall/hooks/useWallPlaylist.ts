@@ -71,6 +71,11 @@ export const SETTINGS_EXEMPT: readonly string[] = ['items', 'revision']
 
 export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =>
   kept.joinCode === fresh.joinCode &&
+  // Compared rather than inferred from `joinCode`. The two do move together when a host
+  // rotates the code, but the link also carries `PUBLIC_URL` — so a box that came back on
+  // a corrected public address would otherwise leave the projector drawing yesterday's
+  // QR for the rest of the evening, with the right six characters underneath it.
+  kept.joinUrl === fresh.joinUrl &&
   kept.slideIntervalMs === fresh.slideIntervalMs &&
   kept.kenBurnsDurationMs === fresh.kenBurnsDurationMs &&
   kept.layout === fresh.layout &&

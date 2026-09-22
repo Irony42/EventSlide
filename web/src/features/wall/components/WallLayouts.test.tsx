@@ -290,6 +290,17 @@ describe('WallLayouts', () => {
     expect(container.querySelector('figcaption')).toBeNull()
   })
 
+  it('stops the spotlight’s zoom the moment the host pauses the wall', () => {
+    const { container } = renderWall('spotlight', somePhotos(6), { paused: true })
+
+    // The same rule the filmstrip's drift already follows, on the other animation timed
+    // from the slide interval — there are exactly two, and until now only one of them
+    // stopped when the wall did. `useSlideshow` reports no cadence for a paused wall, for
+    // a hidden tab and for a one-photo playlist alike, so there is one condition here
+    // rather than three that can disagree.
+    expect(motionOf(container)).toBe('still')
+  })
+
   it.each<WallLayout>(['polaroid', 'filmstrip', 'collage', 'split'])(
     'shows nothing and asks for no bytes when %s has an empty playlist',
     (layout) => {

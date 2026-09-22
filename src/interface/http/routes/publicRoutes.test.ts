@@ -498,6 +498,21 @@ describe('GET /api/events/:eventSlug/wall', () => {
     // The relationship, not just the pair of numbers: this is what fails the moment the
     // route computes either side of it instead of presenting what the domain derived.
     expect(response.body.kenBurnsDurationMs).toBe(response.body.slideIntervalMs + CROSSFADE_MS)
+  })
+
+  it('sends the projector a join link built from PUBLIC_URL, over the route', async () => {
+    // The presenter is asserted directly further down; this is the wiring, which is a
+    // separate claim and the one a client actually depends on. The QR on the wall is the
+    // link a guest's phone opens, so "whatever address this screen was opened on" — which
+    // is what the browser used to build it from — is the wrong answer to it, and on a
+    // reverse-proxied box it was a hostname no phone can resolve (§9 trap 1).
+    const { subject, photos } = world()
+    seedWall(photos)
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.joinUrl).toBe(`${presenter.publicUrl}/join/${response.body.joinCode}`)
+    expect(response.body.joinUrl.startsWith(presenter.publicUrl)).toBe(true)
     expect(response.body.layout).toBe('spotlight')
     expect(response.body.reactionsEnabled).toBe(true)
     expect(response.body.revision).toEqual(expect.any(String))
@@ -867,8 +882,34 @@ describe('toWallResponseDto', () => {
       layoutSpec: wallLayoutSpec('spotlight'),
     }
 
-    const dto = toWallResponseDto(view)
+    const dto = toWallResponseDto(view, presenter)
 
     expect(dto.items.map((item) => item.id)).toEqual(['photo-1'])
+  })
+
+  it('builds the projector’s join link from PUBLIC_URL, never from the screen’s own address', () => {
+    // The QR on the wall is the one a guest's phone acts on, so the link inside it has to
+    // be the address that phone can reach — not the address this projector was opened on.
+    // Built in the browser from `window.location.origin`, it pointed at the venue's LAN
+    // name on a proxied deployment and at plain `http` behind a TLS terminator, which is
+    // trap 1 with a different mismatch.
+    const shown = aPhoto({ id: 'photo-1', status: 'published', createdAt: atPlus(1_000) })
+    const view: WallPlaylistView = {
+      event: anEvent({ slug: 'mariage', joinCode: 'H7K2QM' }),
+      playlist: playlistOf([shown]),
+      photos: [shown],
+      authorNames: new Map(),
+      slideIntervalMs: 8_000,
+      kenBurnsDurationMs: 8_800,
+      layout: 'spotlight',
+      layoutSpec: wallLayoutSpec('spotlight'),
+    }
+
+    const dto = toWallResponseDto(view, { ...presenter, publicUrl: 'https://photos.example.com' })
+
+    expect(dto.joinUrl).toBe('https://photos.example.com/join/H7K2QM')
+    // And the two halves of the invitation agree: the characters the room reads out and
+    // the link the QR encodes come from one value.
+    expect(dto.joinUrl.endsWith(`/join/${dto.joinCode}`)).toBe(true)
   })
 })

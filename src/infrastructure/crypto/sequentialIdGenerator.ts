@@ -34,6 +34,17 @@ import {
  * Ids keep the canonical UUID shape, because the HTTP layer validates them with zod
  * `.uuid()` and a test that fed the routes something else would be exercising a
  * different path from production.
+ *
+ * **"The same ids on every run" is a claim about this process, and it is narrower than it
+ * reads.** The counters below start at zero when the server boots, so what a given test
+ * is handed depends on how many calls preceded it — and the end-to-end suite boots one
+ * server per Playwright *worker*, shared by every test that worker happens to take, in an
+ * order the runner decides rather than the spec. So the polaroid's tilts and the join code
+ * on every full-page wall shot moved between two renders of one commit, which is precisely
+ * the failure this file was written to prevent, one level up from where it was looking.
+ * A baseline that photographs anything minted here therefore takes a server of its own —
+ * `freshServerTest` in `tests/e2e/fixtures/app.ts` — and nothing about that belongs in
+ * this adapter: it cannot know who else is calling it.
  */
 
 /**

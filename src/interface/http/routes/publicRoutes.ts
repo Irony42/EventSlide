@@ -184,7 +184,9 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
       // venue has.
       res.setHeader('Cache-Control', 'no-store')
 
-      sendResult(res, result, (response, view) => sendJson(response, toWallResponseDto(view)))
+      sendResult(res, result, (response, view) =>
+        sendJson(response, toWallResponseDto(view, presenter)),
+      )
     }),
   )
 

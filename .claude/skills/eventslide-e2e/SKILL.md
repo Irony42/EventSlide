@@ -266,15 +266,40 @@ Requires the seeded demo album (fixed photo set) and `e2e_transition=0`. Update 
 deliberately with `npm run test:e2e:update-snapshots`, and eyeball the diff before
 committing it.
 
-**Stop what you are photographing, and assert that it stopped.** `animations: 'disabled'`
-does not freeze an animation — it calls `finish()` and photographs the **last** frame, so
-a baseline taken while something is running is a baseline of whichever side of that jump
-the machine reached. `e2e_transition=0` covers the crossfade, the mosaic's fade and the
-polaroid's landing, because all three are timed from `--wall-transition`. It does **not**
-cover the filmstrip's drift, which is timed from the _slide interval_ on purpose (trap 6):
-that one needs `e2e_interval=0`, which mounts no drift at all, and the shot then asserts
-`data-motion="still"` before the shutter so the pinning cannot be removed silently. See
-`docs/TESTING.md` for what that cost.
+**Pin every input that reaches the pixels, and assert the surface is in the state you
+pinned.** Three of them have cost red jobs on pull requests that touched no rendering.
+
+_The shutter._ `animations: 'disabled'` does not freeze an animation — it calls `finish()`
+and photographs the **last** frame, so a baseline taken while something is running is a
+baseline of whichever side of that jump the machine reached. `e2e_transition=0` covers the
+crossfade, the mosaic's fade and the polaroid's landing, because all three are timed from
+`--wall-transition`. It does **not** cover the two animations timed from the _slide
+interval_ (trap 6): the filmstrip's drift and the spotlight's Ken Burns. Both need
+`e2e_interval=0`, which makes `useSlideshow` report no cadence so neither animation is
+mounted at all, and the shot then asserts `data-motion="still"` before the shutter so the
+pinning cannot be removed silently. Note that `e2e_interval` does not shorten the zoom:
+`kenBurnsDurationMs` is computed on the server and the hook never reaches it, which is
+exactly why "a very long interval" was not a pin.
+
+_What the server minted._ Nothing has to be animating. A polaroid print's tilt is a static
+hash of its photo id, and under `E2E_HOOKS` ids come from a counter that is per process
+while the server is per **worker** — so the angles depended on which other tests that
+worker took first. A spec whose pixels contain anything the server minted (a photo id, a
+join code) uses `freshServerTest` from `../fixtures/app`, which gives that test a server
+of its own — and asserts what that buys rather than trusting it: the album's join code is
+`000001` and the polaroid's prints are photographs six, five and four. Put the
+worker-scoped `test` back and those fail by name, before any pixel is compared.
+
+_What looks unpinnable._ Usually a product bug in disguise, so diagnose it before you
+mask it. The join card's QR was built in the browser from `window.location.origin`, i.e.
+the test server's ephemeral port, and it sat in eight of twelve baselines. Masking that
+rectangle was available and wrong — it is the one region on this wall whose correctness a
+guest's evening depends on. The wall was asking the wrong question: the QR now comes from
+`joinUrl` on the wall response, built from `PUBLIC_URL`, which is what a projector on a
+venue LAN needed anyway, and the visual fixture pins it by starting its servers with a
+fixed `PUBLIC_URL`.
+
+See `docs/TESTING.md` for what all three cost, with the numbers.
 
 ## Flake policy
 

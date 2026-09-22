@@ -175,8 +175,20 @@ export function WallPage() {
     },
   })
 
-  const joinCode = wall?.joinCode ?? null
-  const showsOverlay = joinCode !== null && !joinCardDismissed && items.length > 0
+  /**
+   * The invitation, or nothing — never half of it.
+   *
+   * The code and the link arrive together from one presenter, so there is no deployment in
+   * which the server sends one and not the other. Requiring both here is what keeps the
+   * browser from inventing the missing half from `window.location.origin`: that is the
+   * address this projector was opened on rather than the one a guest's phone can reach,
+   * and printing it inside a QR is trap 1 with a different mismatch.
+   */
+  const join =
+    wall?.joinCode !== undefined && wall.joinUrl !== undefined
+      ? { code: wall.joinCode, url: wall.joinUrl }
+      : null
+  const showsOverlay = join !== null && !joinCardDismissed && items.length > 0
 
   /**
    * The event's own look, worn by the element that renders it (roadmap 2.2).
@@ -244,7 +256,7 @@ export function WallPage() {
           )}
         </div>
       ) : items.length === 0 ? (
-        <WallEmptyState eventName={wall.event.name} joinCode={joinCode} />
+        <WallEmptyState eventName={wall.event.name} join={join} />
       ) : (
         <WallLayouts
           layout={layout ?? wall.layout}
@@ -255,8 +267,8 @@ export function WallPage() {
         />
       )}
 
-      {showsOverlay && joinCode !== null ? (
-        <WallOverlay joinCode={joinCode} onDismiss={() => setJoinCardDismissed(true)} />
+      {showsOverlay && join !== null ? (
+        <WallOverlay join={join} onDismiss={() => setJoinCardDismissed(true)} />
       ) : null}
 
       <ReactionBurst pulse={reactionPulse} />

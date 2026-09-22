@@ -134,9 +134,12 @@ const DEFAULT_SCHEDULE_SWEEP_MINUTES = 5
 /**
  * The public origin. `z.string().url()` alone accepts any parseable URL, including
  * `javascript:alert(1)` and `data:text/html,…`: the value is concatenated into the
- * event DTO's `joinUrl`, which the admin console renders as a link and as a QR code,
- * so a non-navigable scheme would put a script URI behind the join button. A guest's
- * phone has to be able to open it, which leaves exactly two schemes; production
+ * `joinUrl` on **two** responses, and this is the only place the scheme is narrowed.
+ * `EventDto.joinUrl` is the admin console's link and QR, so a non-navigable scheme would
+ * put a script URI behind the host's join button; `WallResponseDto.joinUrl` is the QR
+ * **projected in front of the room**, which is the higher-stakes one — it is the code a
+ * guest's phone actually scans, and §9 trap 1 is the record of what a wrong join link
+ * costs. A phone has to be able to open it, which leaves exactly two schemes; production
  * narrows that further to https, or http on localhost behind a TLS proxy.
  */
 const publicUrl = z

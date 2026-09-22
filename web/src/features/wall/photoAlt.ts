@@ -32,18 +32,3 @@ export const photoAlt = (item: WallItemDto): string => {
 
   return item.caption === null || item.caption === '' ? author : `${item.caption} — ${author}`
 }
-
-/**
- * The absolute join link a phone camera can act on.
- *
- * Read once at import: a page's origin cannot change while it is open, and reading a
- * global during render is exactly what the React lint rules forbid.
- *
- * A path, never a query string. 1.0's QR page emitted `?partyname=` while the upload
- * page read `?party`, so every guest who scanned silently uploaded to the default
- * event; the code now travels as a path segment that the server resolves.
- */
-const ORIGIN = window.location.origin
-
-export const joinUrlFor = (joinCode: string): string =>
-  `${ORIGIN}/join/${encodeURIComponent(joinCode)}`

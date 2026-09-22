@@ -20,6 +20,33 @@ export interface SlideLayerProps {
   readonly kenBurnsDurationMs: number
   /** `null` uses `--duration-slow`; the e2e hook passes `0` for a cut. */
   readonly transitionMs: number | null
+  /**
+   * Whether this wall is going to change photo at all.
+   *
+   * `slideshow.intervalMs > 0` — the same number `FilmstripLayout` times its drift from,
+   * and read here for the same reason. There are exactly two animations on this wall
+   * timed from the slide interval, the drift and this zoom, and until now only one of
+   * them stopped when the wall did. That asymmetry was not a decision anybody took; it
+   * is the drift's fix never having been generalised.
+   *
+   * **The zoom is not a duration of its own.** `kenBurnsDurationMs` is
+   * `interval + CROSSFADE_MS` (`src/domain/slideshow/kenBurns.ts`), which is what keeps
+   * it from ever finishing under a photograph the room is still looking at. That holds
+   * while the wall is advancing and stops holding the moment the interval is `0` — a
+   * one-photo playlist, the host's space bar, a hidden tab — where an 8 800 ms animation
+   * runs off a cadence the wall is not keeping, ends, and holds `scale(1.08)`. Nobody in
+   * the room sees that, because this animation's end frame happens to be a photograph
+   * standing still. "Happens to" is the problem, and it is the same one `PolaroidLayout`
+   * refuses to rest its landing on: it is one keyframe edit away from being wrong, on the
+   * wall's most expensive animation. So the wall declines it outright instead.
+   *
+   * **What it costs:** pausing mid-zoom now settles the photograph to its natural size
+   * rather than holding it part-enlarged, so a host's space bar moves the picture by up
+   * to 8%. That is the trade the filmstrip already takes and states — at rest or moving,
+   * never stranded — for a settle of 384px, and it happens on a deliberate keypress that
+   * is already putting a notice on the wall.
+   */
+  readonly advancing: boolean
   /** Monotonic slide counter, used to give each layer a permanent slot. */
   readonly generation: number
   readonly caption?: ReactNode
@@ -57,20 +84,26 @@ export function SlideLayer({
   next,
   kenBurnsDurationMs,
   transitionMs,
+  advancing,
   generation,
   caption,
   plays = false,
 }: SlideLayerProps) {
   const reducedMotion = usePrefersReducedMotion()
 
+  /** The two ways the zoom is declined, in one value the attribute and the style share. */
+  const zooms = !reducedMotion && advancing
+
   const front = generation % 2
   const stageStyle: CSSProperties | StageStyle =
     transitionMs === null ? {} : { '--wall-transition': `${transitionMs}ms` }
   // Under reduced motion the duration is not shortened, it is never declared: there is
-  // no animation left for it to time.
-  const slideStyle: CSSProperties | SlideStyle = reducedMotion
-    ? {}
-    : { '--wall-kenburns-duration': `${kenBurnsDurationMs}ms` }
+  // no animation left for it to time. A wall that is not advancing withholds it for the
+  // same reason — a duration for an animation nobody declared is a number to fall out of
+  // step with the slideshow later.
+  const slideStyle: CSSProperties | SlideStyle = zooms
+    ? { '--wall-kenburns-duration': `${kenBurnsDurationMs}ms` }
+    : {}
 
   return (
     <div className={styles['stage']} style={stageStyle}>
@@ -89,8 +122,10 @@ export function SlideLayer({
             style={slideStyle}
             // Ken Burns is declared from this attribute rather than unconditionally,
             // because base.css collapses animation *duration* under reduced motion and
-            // a 0.01ms `scale(1.08)` with `both` snaps to the zoomed frame and stays.
-            data-motion={reducedMotion ? 'still' : 'kenburns'}
+            // a 0.01ms `scale(1.08)` with `both` snaps to the zoomed frame and stays —
+            // and because a wall that is not advancing has no interval for the zoom to
+            // be derived from, which is what `advancing` above argues.
+            data-motion={zooms ? 'kenburns' : 'still'}
             // Which photo this layer is holding, named on the element itself.
             //
             // The position is derived from the playlist and never stored, so without

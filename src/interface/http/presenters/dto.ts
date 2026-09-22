@@ -156,6 +156,23 @@ export interface WallResponseDto {
    * already has — rotate the code.
    */
   readonly joinCode: string
+  /**
+   * The absolute link the QR on the projector encodes, built from `PUBLIC_URL`.
+   *
+   * Here rather than assembled in the browser, and that is the whole point of the field.
+   * The wall used to build it from `window.location.origin`, which is the address *this
+   * screen* was opened on — so a projector pointed at `http://mini-pc.local:4300` printed
+   * a QR for a hostname no guest's phone can resolve, and one behind a TLS-terminating
+   * proxy printed plain `http`, on which the `Secure` guest cookie is never sent. It is
+   * the 1.0 QR bug (CLAUDE.md §9 trap 1) with a different five-character mismatch: the
+   * code beneath the QR was right and the link inside it was not.
+   *
+   * `PUBLIC_URL` is already validated as *the* origin a guest can reach this box on, and
+   * `joinUrl` already built this same link for the host's own event page. The projector
+   * was the one surface printing the QR a guest actually scans, and the one inventing its
+   * own answer.
+   */
+  readonly joinUrl: string
   readonly revision: string
   readonly items: readonly WallItemDto[]
   readonly slideIntervalMs: number
