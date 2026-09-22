@@ -408,5 +408,22 @@ describe('createEvent', () => {
       // nobody was having.
       expect(created.settings.allowClips).toBe(eventTemplateSettings('conference').allowClips)
     })
+
+    it('refuses a language nothing has a table for, rather than storing it', async () => {
+      // Unreachable through the HTTP boundary, which parses the tag against the same
+      // domain vocabulary — and that is why it is worth a case here rather than a cast to
+      // `never`. The next caller of this use case may not be a route: a seed script, an
+      // import, a future CLI. A use case that trusted its input because one of its callers
+      // happens to validate is a use case whose guarantee belongs to somebody else.
+      const result = await createEvent({
+        ownerId: OWNER,
+        name: 'Camille & Sacha',
+        wallLanguage: 'pt' as 'fr',
+      })
+
+      expect(result.ok).toBe(false)
+      expect(!result.ok && result.error.code).toBe('eventSettings.wallLanguageInvalid')
+      expect(await events.findBySlug(slug('camille-sacha'))).toBeNull()
+    })
   })
 })
