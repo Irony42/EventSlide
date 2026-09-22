@@ -5,7 +5,7 @@ import { Field } from '../../design-system/components/Field'
 import { StatusIcon } from '../../design-system/components/StatusIcon'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
-import { useTranslations } from '../../lib/i18n/useTranslations'
+import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { slugify } from '../../lib/slugify'
 import { EventTemplatePicker } from './components/EventTemplatePicker'
 import { useCreateEvent } from './hooks/useEventActions'
@@ -15,6 +15,7 @@ import type { EventTemplateKey } from '../../lib/api/dto'
 /** Surface: the host's laptop, usually the day before the event. */
 export function NewEventPage() {
   const t = useTranslations()
+  const { locale } = useLocale()
   const create = useCreateEvent()
   const toast = useToast()
   const navigate = useNavigate()
@@ -47,6 +48,12 @@ export function NewEventPage() {
         // Same shape and the same reason. There is no "no template" value on the wire —
         // absence is what says it — so nothing is sent when the host picked none.
         ...(template === null ? {} : { template }),
+        // The language this host is reading, right now, which becomes the language of the
+        // projector in the room (roadmap 1.5). Read once here and stored on the event —
+        // nothing consults the preference again, so a host who later switches their own
+        // browser has not moved a screen two hundred people are looking at. The settings
+        // page is where they change it deliberately.
+        wallLanguage: locale,
       })
       .then((result) => {
         if (!result.ok) {

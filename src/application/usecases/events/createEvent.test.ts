@@ -348,4 +348,65 @@ describe('createEvent', () => {
 
     expect(await memberships.listForUser(OWNER)).toEqual([])
   })
+
+  /**
+   * The language the projector in the room will speak (roadmap 1.5).
+   *
+   * The wall is the one surface with nobody in front of it, so the host answers for it —
+   * and the only moment anybody has a signal worth using is this one, while they are
+   * looking at the create form in a language they chose.
+   */
+  describe('the wall language', () => {
+    it('stores the language the creator was reading', async () => {
+      const created = unwrap(
+        await createEvent({ ownerId: OWNER, name: 'Camille & Sacha', wallLanguage: 'de' }),
+      )
+
+      expect(created.settings.wallLanguage).toBe('de')
+    })
+
+    it('is a snapshot and not a subscription', async () => {
+      // The decision worth a test rather than a comment: the value is copied onto the
+      // event and nothing ever reads the creator's preference again. A host who switches
+      // their own browser to English next month has not asked for a projector in a room
+      // to change, and a setting that silently followed a preference it never announced is
+      // the kind of thing discovered mid-reception.
+      //
+      // Asserted as an absence, because that is what the rule is: creating a second event
+      // in another language moves nothing about the first.
+      const first = unwrap(
+        await createEvent({ ownerId: OWNER, name: 'Camille & Sacha', wallLanguage: 'de' }),
+      )
+      await createEvent({ ownerId: OWNER, name: 'Une autre soirée', wallLanguage: 'es' })
+
+      const stored = await events.findById(first.id)
+      expect(stored?.settings.wallLanguage).toBe('de')
+    })
+
+    it('falls back to French for a caller with no opinion', async () => {
+      // Which is every event created through the API, and every event that existed before
+      // the field did.
+      const created = unwrap(await createEvent({ ownerId: OWNER, name: 'Camille & Sacha' }))
+
+      expect(created.settings.wallLanguage).toBe('fr')
+    })
+
+    it('overrides the template rather than being overridden by it', async () => {
+      // No preset has an opinion about language — a template describes the evening and
+      // this describes the room — so the creator's choice has to survive one being picked.
+      const created = unwrap(
+        await createEvent({
+          ownerId: OWNER,
+          name: 'Conférence',
+          template: 'conference',
+          wallLanguage: 'en',
+        }),
+      )
+
+      expect(created.settings.wallLanguage).toBe('en')
+      // And the template still applied: this is not a test that the language won a fight
+      // nobody was having.
+      expect(created.settings.allowClips).toBe(eventTemplateSettings('conference').allowClips)
+    })
+  })
 })

@@ -4,6 +4,7 @@ import { Button } from '../../design-system/components/Button'
 import { StatusIcon } from '../../design-system/components/StatusIcon'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
+import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale } from '../../lib/i18n/locale'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { CheckboxField } from './components/CheckboxField'
@@ -29,6 +30,20 @@ const numberOrNull = (value: string): number | null =>
   value === NO_LIMIT ? null : Number.parseInt(value, 10)
 
 const asOption = (value: number, label: string): SelectOption => ({ value: String(value), label })
+
+/**
+ * The languages the room's screen can speak, each named in itself (roadmap 1.5).
+ *
+ * A constant rather than a function of the table, unlike every other list on this form,
+ * and that is the point: these are **endonyms** and are never translated. A host reading
+ * the console in French still picks "Deutsch" for a German-speaking room, because the
+ * word they are choosing is the one the room will read. It is the same rule the guest's
+ * own picker states, for the same reason, from the same map.
+ */
+const LANGUAGE_OPTIONS: readonly SelectOption[] = SUPPORTED_LOCALES.map((locale) => ({
+  value: locale,
+  label: LOCALE_NAMES[locale],
+}))
 
 /**
  * The values each select offers, worded in the language the host is reading.
@@ -99,6 +114,10 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.theme.fonts,
     settings.theme.frame,
     settings.theme.material,
+    // The wall's language (roadmap 1.5). Flattened like the theme, and for the same
+    // reason: a host who changed only this would otherwise have their unsaved choice
+    // survive a background refresh that moved it underneath them.
+    settings.wallLanguage,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
@@ -369,6 +388,31 @@ export function EventSettingsPage() {
           options={withCurrent(maxPhotosOptions(t), maxPhotos, t.admin.photos)}
           disabled={readOnly}
           onChange={(value) => update({ maxPhotosPerGuest: numberOrNull(value) })}
+        />
+
+        {/*
+          What the room's screen says, and in which language (roadmap 1.5).
+
+          Beside the appearance rather than beside the guest switches, because it is the
+          same kind of decision — what the projector looks like — and because it changes
+          nothing a guest may do. The options are endonyms and there is no flag: a flag is
+          a country and Spanish is not Spain, which is the rule the guest's own picker
+          states.
+        */}
+        <SelectField
+          label={t.admin.wallLanguage}
+          hint={t.admin.wallLanguageHint}
+          value={settings.wallLanguage}
+          options={LANGUAGE_OPTIONS}
+          disabled={readOnly}
+          onChange={(value) => {
+            // Parsed rather than cast, exactly as the guest's picker parses its own
+            // `<select>`: the value comes back from the DOM as a bare string, and a
+            // control an extension rewrote must not be able to send the server a tag
+            // nothing has a table for.
+            const chosen = parseLocale(value)
+            if (chosen !== null) update({ wallLanguage: chosen })
+          }}
         />
 
         {/*
