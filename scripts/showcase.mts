@@ -18,7 +18,10 @@ import { chromium, type Browser, type Page } from 'playwright'
 import sharp from 'sharp'
 import { startTestApp } from '../tests/e2e/fixtures/startTestApp'
 
-const OUT = process.env['SHOWCASE_OUT'] ?? join(process.cwd(), 'showcase')
+/** `--out <dir>` picks the folder; the environment is read by `env.ts` and nothing else. */
+const outFlag = process.argv.indexOf('--out')
+const OUT =
+  (outFlag >= 0 ? process.argv[outFlag + 1] : undefined) ?? join(process.cwd(), 'showcase')
 
 /** A photograph that reads as one at a glance: a two-stop gradient under a soft vignette. */
 const aPicture = async (name: string, from: string, to: string): Promise<string> => {
