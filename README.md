@@ -78,6 +78,7 @@ And the parts that only show up on the night:
   A native reader has not yet gone over the German, Spanish and Italian copy on the host
   and wall surfaces; the French is hand-written and is the source the rest is translated
   from.
+
 - **It looks like the evening it is running.** The host picks an accent colour, a font
   pairing and a frame style; the wall and the guest screens follow. Contrast is checked
   against the accessibility contract server-side, so a hue that would make captions

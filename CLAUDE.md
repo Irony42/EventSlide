@@ -204,7 +204,7 @@ npm run verify:full   # verify + test:e2e                         <- before open
 - **French is the source language, English is the code language.** Identifiers, comments,
   commit messages, and docs in English. User-facing strings live in `web/src/lib/i18n/`,
   and `fr.ts` is written by hand with correct accents and a deliberate register — it is
-  the copy the other four are translated *from*, not a peer of theirs.
+  the copy the other four are translated _from_, not a peer of theirs.
 - **The whole interface is translated.** `fr.ts` decides which keys exist and all eleven
   of its sections are carried by `de.ts`, `en.ts`, `es.ts` and `it.ts`, so adding a key
   anywhere fails the build until all four have it. **Every** component reads
