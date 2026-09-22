@@ -216,6 +216,29 @@ describe('the shared gallery over HTTP', () => {
       expect(subject.hasher.verifications).toEqual([])
     })
 
+    it('sends the gallery’s headers on refusals made before its router is reached', async () => {
+      // The CSRF gate and the body parser answer from ahead of every router. The token
+      // is in these paths all the same, so their refusals carry the headers too.
+      const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}` })
+      const { agent, csrf } = await browserAgent(subject)
+
+      const noCsrf = await request(subject.app)
+        .post(`/api/gallery/${token}/unlock`)
+        .send({ password: PASSWORD })
+      const malformed = await agent
+        .post(`/api/gallery/${token}/unlock`)
+        .set(CSRF_HEADER, csrf)
+        .set('Content-Type', 'application/json')
+        .send('{"password":')
+
+      expect(noCsrf.status).toBe(403)
+      expect(malformed.status).toBe(400)
+      for (const response of [noCsrf, malformed]) {
+        expectGalleryHeaders(response)
+        expect(response.headers['cache-control']).toBe('no-store')
+      }
+    })
+
     it('answers a dead link with the gallery’s own refusal, not with a password prompt', async () => {
       const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}`, revokedAt: AT })
       const { agent, csrf } = await browserAgent(subject)

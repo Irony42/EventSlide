@@ -73,7 +73,12 @@ export const setGalleryHeaders = (res: Response): void => {
   res.setHeader('Cache-Control', 'no-store')
 }
 
-const galleryHeaders: RequestHandler = (_req, res, next) => {
+/**
+ * `setGalleryHeaders` as a middleware. Mounted by this router for its own paths, and by
+ * `server.ts` ahead of the body parser and the CSRF gate, whose refusals on these paths
+ * would otherwise go out without them.
+ */
+export const galleryHeaders: RequestHandler = (_req, res, next) => {
   setGalleryHeaders(res)
   next()
 }

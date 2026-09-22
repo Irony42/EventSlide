@@ -10,7 +10,7 @@ import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders
 import { authRoutes } from './routes/authRoutes'
 import { clipRoutes } from './routes/clipRoutes'
 import { eventRoutes } from './routes/eventRoutes'
-import { galleryRoutes, setGalleryHeaders } from './routes/galleryRoutes'
+import { galleryHeaders, galleryRoutes, setGalleryHeaders } from './routes/galleryRoutes'
 import { guestRoutes } from './routes/guestRoutes'
 import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
 import { mediaRoutes } from './routes/mediaRoutes'
@@ -80,6 +80,14 @@ export const buildServer = ({
   // from liveness is a container restart — mid-event, that drops every in-flight
   // upload. Being ahead of the CSRF gate follows from the same position.
   app.use('/api', healthRoutes(health))
+
+  // The shared gallery's headers, ahead of everything that can refuse a request before
+  // its router is reached — the body parser, the session, the CSRF gate. The token is in
+  // these paths, so a `400` for a malformed body or a `403` for a missing CSRF token
+  // needs `no-referrer`, `noindex` and `no-store` exactly as much as the album does.
+  // Two mounts, because a mount path matches at a `/` boundary and `/api/gallery` does
+  // not cover `/api/gallery-media`.
+  app.use(['/api/gallery', '/api/gallery-media'], galleryHeaders)
 
   // Bounded well below any legitimate payload: the only JSON bodies here are a login,
   // a caption and a list of at most 200 photo ids. Uploads go through multer.
