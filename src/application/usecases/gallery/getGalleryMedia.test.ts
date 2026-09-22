@@ -113,6 +113,18 @@ describe('getGalleryMedia', () => {
     })
   })
 
+  it('refuses a URL lifted from a revoked link and replayed under the event’s new one', async () => {
+    // The host revoked a leaked link and made a fresh one for the same album. A URL
+    // copied from the old link must not come back to life by swapping in the new link's
+    // id: the id is inside the signature, so the swap breaks it. Without that, the fresh
+    // link would be open, the photograph published and in the same event — and served.
+    const input = signed('original')
+    await world.shareLinks.revokeCurrent(WEDDING, world.clock.now())
+    const fresh = world.seedLink({ id: 'link-fresh' })
+
+    expect(await refusal({ ...input, linkId: fresh.link.id })).toBe('gallery.notAvailable')
+  })
+
   it('refuses a properly signed URL for a photograph in another event', async () => {
     // Signed by this server, under the wedding's link, for a gala photograph id: the
     // photograph is looked up in the link's event and never in the one the id belongs to.

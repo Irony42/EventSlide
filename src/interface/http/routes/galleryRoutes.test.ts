@@ -17,7 +17,8 @@ import {
   type GalleryHarness,
 } from '../testing/galleryHarness'
 import { CSRF_COOKIE } from '../middleware/csrf'
-import { GALLERY_UNLOCK_COOKIE } from './galleryRoutes'
+import { buildHarness } from '../testing/middlewareHarness'
+import { GALLERY_UNLOCK_COOKIE, galleryRoutes } from './galleryRoutes'
 
 /**
  * The shared gallery at ring 4: the real server, the real HMAC signer, fakes behind them.
@@ -421,6 +422,23 @@ describe('the shared gallery over HTTP', () => {
       expect(response.status).toBe(404)
     })
 
+    it('refuses a URL lifted from a revoked link, replayed under the event’s new link', async () => {
+      // The case the link id inside the signature exists for. The swap above is also
+      // refused because the gala photograph is not in the wedding; here the photograph
+      // is, and the new link is open — only the signature stands in the way.
+      const old = subject.seedLink()
+      const [item] = (await galleryPage(old.token)).items
+      await subject.shareLinks.revokeCurrent(WEDDING, subject.clock.now())
+      const fresh = subject.seedLink()
+
+      const response = await request(subject.app).get(
+        (item?.downloadUrl ?? '').replace(old.link.id, fresh.link.id),
+      )
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('gallery.notAvailable')
+    })
+
     it('refuses a correctly signed URL once its photograph is taken off the wall', async () => {
       const { token } = subject.seedLink()
       const [item] = (await galleryPage(token)).items
@@ -525,4 +543,41 @@ const limits = () => ({
   galleryMediaPerMinute: 600,
   galleryUnlockPerClient: 10,
   galleryUnlockPerLink: 50,
+})
+
+describe('the gallery router on its own', () => {
+  it('sends its own no-referrer, noindex and no-store, without helmet in front of it', async () => {
+    // The global `helmet` policy also sets `Referrer-Policy: no-referrer`, so every test
+    // above would pass with the gallery's own line deleted. This mounts the router with
+    // no helmet at all: the token is in the page's URL, and the gallery must not depend on
+    // a line in another file staying put.
+    const refuse = async (): Promise<never> => {
+      throw new Error('no use case is reached for a malformed token')
+    }
+    const harness = buildHarness({
+      routes: (app, deps) => {
+        app.use(
+          '/api',
+          galleryRoutes({
+            deps,
+            usecases: {
+              openGallery: refuse,
+              unlockGallery: refuse,
+              listGalleryPhotos: refuse,
+              getGalleryMedia: refuse,
+              downloadGalleryArchive: refuse,
+            },
+            limits: limits(),
+          }),
+        )
+      },
+    })
+
+    const response = await request(harness.app).get('/api/gallery/short')
+
+    expect(response.status).toBe(404)
+    expect(response.headers['referrer-policy']).toBe('no-referrer')
+    expect(response.headers['x-robots-tag']).toBe('noindex, nofollow')
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
 })

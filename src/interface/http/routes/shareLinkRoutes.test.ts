@@ -175,6 +175,20 @@ describe('the host’s share link over HTTP', () => {
       expect(response.body.error.code).toBe('auth.forbidden')
     })
 
+    it('refuses a moderator before it reads the body, not after', async () => {
+      // The route's own owner gate, which the use case's check would otherwise mask: a
+      // malformed body from a moderator is a 403 — authorization first — never a 400 that
+      // tells a caller with no standing how to shape the request.
+      const moderator = await as('moderator')
+
+      const response = await moderator
+        .post(`/api/events/${SLUG}/share-link`)
+        .send({ expiresInDays: 'forever' })
+
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe('auth.forbidden')
+    })
+
     it.each([
       ['a lifetime that is not a whole number', { expiresInDays: 1.5 }],
       ['a lifetime sent as text', { expiresInDays: '30' }],
