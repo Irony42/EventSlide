@@ -1,0 +1,66 @@
+/* The same shape as `ModeratorsPanel`: a list of records, then the form that adds one. */
+
+.hint {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--border-subtle);
+}
+
+.row:last-child {
+  border-block-end: none;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.prompt {
+  overflow-wrap: anywhere;
+  line-height: var(--leading-snug);
+}
+
+/* What the room has done with it. Counted on every read, never stored. */
+.meta {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* The answer to a disabled control, not a rule the host needs while there is room. */
+.full {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}

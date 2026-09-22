@@ -209,6 +209,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   guestId: A_PHOTO,
   userId: CLIENT,
   clipJobId: A_PHOTO,
+  missionId: A_PHOTO,
   variant: 'display',
   kind: 'love',
 }

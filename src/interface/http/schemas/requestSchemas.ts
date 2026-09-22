@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
+import { MISSION_SCOPES } from '../../../domain/missions/missionScope'
 import {
   accentHueRange,
   THEME_FONTS,
@@ -70,6 +71,8 @@ export const moderatorParams = z.object({ eventSlug: slug, userId: uuid })
 
 export const guestParams = z.object({ eventSlug: slug, guestId: uuid })
 
+export const missionParams = z.object({ eventSlug: slug, missionId: uuid })
+
 // ------------------------------------------------------------------- public --
 
 export const joinBody = z
@@ -91,6 +94,19 @@ export const joinBody = z
 export const uploadFields = z
   .object({
     caption: z.string().max(1_000).nullish(),
+    /**
+     * Which of the host's prompts the guest tapped (roadmap §2.1).
+     *
+     * Strictly a uuid rather than "any string the phone had", because this is the one
+     * identifier in an upload that the *client* chose: rejecting a malformed one here
+     * turns it into a `400` before it reaches a query, and a well-formed one that names
+     * another event's row is refused by the use case's scoped lookup.
+     *
+     * Absent means "no mission", which is what the overwhelming majority of uploads at
+     * an event are. `nullish` for the same reason `caption` has it: a client that spells
+     * "none" as `null` and one that omits the part are saying the same thing.
+     */
+    missionId: z.string().uuid().nullish(),
   })
   .strict()
 
@@ -256,6 +272,29 @@ export const eventScheduleBody = z
 export const inviteModeratorBody = z
   .object({
     email: z.string().min(1).max(254),
+  })
+  .strict()
+
+// --------------------------------------------------------------------- missions --
+
+/**
+ * One prompt as the host writes it (roadmap §2.1).
+ *
+ * The same body for creating and for replacing, and both fields are required on both —
+ * the shape `eventScheduleBody` uses and for the same reason. A prompt and who it is
+ * asked of are one decision made on one row of one form, and a partial update would let
+ * a scope be persisted beside a prompt the domain refused.
+ *
+ * The bound is generous and is not the limit: `MissionPrompt` decides what a projector
+ * can carry, sanitises what is invisible, and owns the error codes. What this does is
+ * keep a multi-kilobyte field out of the domain. The vocabulary comes from the domain
+ * rather than a second `z.enum(['guest', 'event'])`, so a third scope could not be
+ * accepted by the use case and refused at the boundary with nothing noticing.
+ */
+export const missionBody = z
+  .object({
+    prompt: z.string().max(1_000),
+    scope: z.enum(MISSION_SCOPES),
   })
   .strict()
 

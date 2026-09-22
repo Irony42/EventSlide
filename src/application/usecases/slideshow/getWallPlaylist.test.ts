@@ -4,9 +4,10 @@ import type { Event } from '../../../domain/events/event'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { GuestRepository } from '../../ports/guestRepository'
-import { aGuest, anEvent, aPhoto, atPlus, AT } from '../../testing/builders'
+import { aGuest, aMission, anEvent, aPhoto, atPlus, AT } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
+import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 
 const MINUTE = 60_000
@@ -55,13 +56,15 @@ describe('getWallPlaylist', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository
   let guests: FakeGuestRepository
+  let missions: FakeMissionRepository
   let getWallPlaylist: GetWallPlaylist
 
   beforeEach(() => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
     guests = new FakeGuestRepository()
-    getWallPlaylist = makeGetWallPlaylist({ events, photos, guests })
+    missions = new FakeMissionRepository(photos)
+    getWallPlaylist = makeGetWallPlaylist({ events, photos, guests, missions })
   })
 
   const ask = (
@@ -397,7 +400,7 @@ describe('getWallPlaylist', () => {
       ),
     )
     const recorded = recording(guests)
-    getWallPlaylist = makeGetWallPlaylist({ events, photos, guests: recorded.repo })
+    getWallPlaylist = makeGetWallPlaylist({ events, photos, guests: recorded.repo, missions })
 
     const result = await ask()
 
@@ -438,5 +441,108 @@ describe('getWallPlaylist', () => {
     events.seed(wedding)
 
     expect(creditsOf(await ask())).toEqual({})
+  })
+})
+
+describe('getWallPlaylist and the mission panel', () => {
+  let events: FakeEventRepository
+  let photos: FakePhotoRepository
+  let missions: FakeMissionRepository
+  let getWallPlaylist: GetWallPlaylist
+
+  const wedding = anEvent({ id: 'event-1', slug: 'camille-et-sacha', status: 'live' })
+
+  beforeEach(() => {
+    events = new FakeEventRepository()
+    photos = new FakePhotoRepository()
+    missions = new FakeMissionRepository(photos)
+    getWallPlaylist = makeGetWallPlaylist({
+      events,
+      photos,
+      guests: new FakeGuestRepository(),
+      missions,
+    })
+    events.seed(wedding)
+  })
+
+  const ask = () =>
+    getWallPlaylist({ slug: wedding.slug, layout: null, slideIntervalMs: null, windowSize: null })
+
+  const standings = async () => {
+    const result = await ask()
+    if (!result.ok) throw new Error(`wall refused: ${result.error.code}`)
+    return result.value.missions
+  }
+
+  it('carries nothing for an event whose host set no prompts, so the wall draws no panel', async () => {
+    // What keeps every wall that does not use this feature pixel-identical to what it
+    // was — including the committed visual baselines.
+    expect(await standings()).toEqual([])
+  })
+
+  it('carries the prompts in the order the host wrote them', async () => {
+    missions.seed(
+      aMission({ id: 'm2', eventId: 'event-1', createdAt: atPlus(2 * MINUTE) }),
+      aMission({ id: 'm1', eventId: 'event-1', createdAt: atPlus(MINUTE) }),
+    )
+
+    expect((await standings()).map((row) => row.mission.id)).toEqual(['m1', 'm2'])
+  })
+
+  it('marks a prompt answered once a published photograph names it', async () => {
+    missions.seed(aMission({ id: 'm1', eventId: 'event-1', scope: 'event' }))
+    photos.seed(aPhoto({ id: 'photo-1', eventId: 'event-1', status: 'published', missionId: 'm1' }))
+
+    expect((await standings())[0]?.achieved).toBe(true)
+  })
+
+  it('unmarks it the moment the host takes that photograph down', async () => {
+    // Derived rather than stored, so a refusal takes effect on the next read with
+    // nothing to undo — the wall must never say "fait" over a photograph just removed.
+    missions.seed(aMission({ id: 'm1', eventId: 'event-1', scope: 'event' }))
+    const photo = aPhoto({
+      id: 'photo-1',
+      eventId: 'event-1',
+      status: 'published',
+      missionId: 'm1',
+    })
+    photos.seed(photo)
+    expect((await standings())[0]?.achieved).toBe(true)
+
+    await photos.save(
+      aPhoto({ id: 'photo-1', eventId: 'event-1', status: 'hidden', missionId: 'm1' }),
+    )
+
+    expect((await standings())[0]?.achieved).toBe(false)
+  })
+
+  it('carries how many guests have answered a per-guest prompt', async () => {
+    // The number the wall prints beside a per-guest row, and the reason `scope` earns a
+    // column: a tick would be wrong for a prompt two hundred people can each answer.
+    missions.seed(aMission({ id: 'm1', eventId: 'event-1', scope: 'guest' }))
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'published',
+        missionId: 'm1',
+        author: { kind: 'guest', id: 'guest-lea' },
+      }),
+      aPhoto({
+        id: 'photo-2',
+        eventId: 'event-1',
+        status: 'published',
+        missionId: 'm1',
+        author: { kind: 'guest', id: 'guest-sacha' },
+      }),
+    )
+
+    expect((await standings())[0]?.progress.completedByGuests).toBe(2)
+  })
+
+  it('never carries another event"s prompts to this wall', async () => {
+    missions.seed(aMission({ id: 'm-gala', eventId: 'event-2' }))
+
+    expect(await standings()).toEqual([])
   })
 })

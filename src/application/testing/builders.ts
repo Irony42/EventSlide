@@ -6,6 +6,9 @@ import { EventName } from '../../domain/events/eventName'
 import { EventSettings, type EventSettingsPatch } from '../../domain/events/eventSettings'
 import { retentionApplies, type EventStatus } from '../../domain/events/eventStatus'
 import { DisplayName } from '../../domain/guests/displayName'
+import { Mission } from '../../domain/missions/mission'
+import { MissionPrompt } from '../../domain/missions/missionPrompt'
+import { DEFAULT_MISSION_SCOPE, type MissionScope } from '../../domain/missions/missionScope'
 import { Guest } from '../../domain/guests/guest'
 import { Caption } from '../../domain/photos/caption'
 import { ContentHash } from '../../domain/photos/contentHash'
@@ -23,9 +26,11 @@ import {
   asClipJobId,
   asEventId,
   asGuestId,
+  asMissionId,
   asPhotoId,
   asReactionId,
   asUserId,
+  type MissionId,
 } from '../../domain/shared/ids'
 import { JoinCode } from '../../domain/shared/joinCode'
 import type { Result } from '../../domain/shared/result'
@@ -202,6 +207,11 @@ export interface PhotoInput {
    * majority of tests are about — so a test that mentions this is a test about clips.
    */
   readonly clip?: ClipFacetInput
+  /**
+   * Files the photograph under one of the host's prompts (roadmap §2.1). Absent is
+   * untagged, which is what almost every photograph at an event actually is.
+   */
+  readonly missionId?: string | null
 }
 
 /**
@@ -244,6 +254,9 @@ const toFacet = (id: string, clip: ClipFacetInput): PhotoFacet => ({
   ),
 })
 
+const toMissionId = (raw: string | null): MissionId | null =>
+  raw === null ? null : asMissionId(raw)
+
 export const aPhoto = (input: PhotoInput = {}): Photo => {
   const id = pick(input.id, 'photo-1')
   const status = pick(input.status, 'pending')
@@ -268,6 +281,7 @@ export const aPhoto = (input: PhotoInput = {}): Photo => {
         ),
         byteSize: pick(input.byteSize, 2_400_000),
         caption: caption === null ? null : must(Caption.create(caption), 'aPhoto.caption'),
+        missionId: input.missionId === undefined ? null : toMissionId(input.missionId),
       },
       asPhotoId(id),
       createdAt,
@@ -289,6 +303,37 @@ export const aPhoto = (input: PhotoInput = {}): Photo => {
  */
 export const aClip = (input: PhotoInput = {}): Photo =>
   aPhoto({ ...input, clip: pick(input.clip, {}) })
+
+// ------------------------------------------------------------------- missions --
+
+export interface MissionInput {
+  readonly id?: string
+  readonly eventId?: string
+  readonly prompt?: string
+  readonly scope?: MissionScope
+  readonly createdAt?: Date
+}
+
+/**
+ * One of the host's prompts, per-guest by default — which is what all three of the
+ * roadmap's own examples are, and what `DEFAULT_MISSION_SCOPE` gives a host who does
+ * not choose.
+ *
+ * The prompt defaults to the id, so a list of fixtures is distinct under the unique
+ * `(event_id, prompt)` index without every test having to invent French.
+ */
+export const aMission = (input: MissionInput = {}): Mission => {
+  const id = pick(input.id, 'mission-1')
+  return Mission.create(
+    {
+      eventId: asEventId(pick(input.eventId, 'event-1')),
+      prompt: must(MissionPrompt.create(pick(input.prompt, id)), 'aMission.prompt'),
+      scope: pick(input.scope, DEFAULT_MISSION_SCOPE),
+    },
+    asMissionId(id),
+    pick(input.createdAt, AT),
+  )
+}
 
 // ------------------------------------------------------------------ clip job --
 

@@ -449,6 +449,19 @@ export class Event {
     return allowsModeration(this.props.status)
   }
 
+  /**
+   * Whether the event's own configuration may still be changed.
+   *
+   * The same rule `rename`, `withSettings` and `rotateJoinCode` already apply through
+   * `whenMutable`, exposed as a question for the things an event owns that are **not**
+   * fields on it — the mission list of roadmap §2.1 is the first. Without this, a
+   * mission use case would have to restate "archived is a record" in its own words, and
+   * a fifth spelling of one rule is how the four in 1.0's route handlers drifted.
+   */
+  allowsEditing(): boolean {
+    return isMutable(this.props.status)
+  }
+
   // ---------------------------------------------------------------------- quota --
 
   /**

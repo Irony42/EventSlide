@@ -3,7 +3,14 @@ import type { ContentHash } from '../../../domain/photos/contentHash'
 import { Dimensions } from '../../../domain/photos/dimensions'
 import type { Photo, PhotoAuthor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asGuestId, asUserId, type EventId } from '../../../domain/shared/ids'
+import {
+  asEventId,
+  asGuestId,
+  asMissionId,
+  asUserId,
+  type EventId,
+  type MissionId,
+} from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 import type { ContentHasher } from '../../ports/contentHasher'
 import type { ImageProbe, ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
@@ -17,9 +24,10 @@ import {
   type StoredObject,
   type PhotoVariant,
 } from '../../ports/mediaStore'
-import { anEvent, aPhoto, type EventInput } from '../../testing/builders'
+import { aMission, anEvent, aPhoto, type EventInput } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
@@ -376,6 +384,7 @@ const refusal = (result: Result<UploadPhotosResult, DomainError>, index = 0): Do
 describe('uploadPhotos', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository
+  let missions: FakeMissionRepository
   let media: InMemoryMediaStore
   let images: FakeImageProcessor
   let hasher: FakeContentHasher
@@ -389,6 +398,7 @@ describe('uploadPhotos', () => {
     makeUploadPhotos({
       events,
       photos,
+      missions,
       media,
       imageProcessor: images,
       hasher,
@@ -403,6 +413,7 @@ describe('uploadPhotos', () => {
   beforeEach(() => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
+    missions = new FakeMissionRepository(photos)
     media = new InMemoryMediaStore()
     images = new FakeImageProcessor()
     hasher = new FakeContentHasher()
@@ -1047,5 +1058,130 @@ describe('uploadPhotos', () => {
     await uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
     expect(logger.lines.map((line) => line.level)).toEqual(['error'])
+  })
+})
+
+describe('uploadPhotos and the mission tag', () => {
+  let events: FakeEventRepository
+  let photos: FakePhotoRepository
+  let missions: FakeMissionRepository
+  let media: InMemoryMediaStore
+  let images: FakeImageProcessor
+  let hasher: FakeContentHasher
+  let bus: RecordingEventBus
+  let logger: CapturingLogger
+  let uploadPhotos: UploadPhotos
+
+  beforeEach(() => {
+    events = new FakeEventRepository()
+    photos = new FakePhotoRepository()
+    missions = new FakeMissionRepository(photos)
+    media = new InMemoryMediaStore()
+    images = new FakeImageProcessor()
+    hasher = new FakeContentHasher()
+    bus = new RecordingEventBus()
+    logger = new CapturingLogger()
+    uploadPhotos = makeUploadPhotos({
+      events,
+      photos,
+      missions,
+      media,
+      imageProcessor: images,
+      hasher,
+      bus,
+      clock: new FakeClock(),
+      ids: new SequentialIdGenerator(),
+      logger,
+      limits: { maxPixels: MAX_PIXELS },
+    })
+
+    events.seed(anEvent({ id: 'event-1' }), anEvent({ id: 'event-2', slug: 'gala', joinCode: 'Z3N9PT' }))
+    missions.seed(
+      aMission({ id: 'mission-1', eventId: 'event-1' }),
+      aMission({ id: 'mission-gala', eventId: 'event-2' }),
+    )
+  })
+
+  const send = async (missionId: MissionId | null, name = 'sunset') =>
+    uploadPhotos({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile(name)],
+      ...(missionId === null ? {} : { missionId }),
+    })
+
+  it('files the photograph under the prompt the guest tapped', async () => {
+    await send(asMissionId('mission-1'))
+
+    const stored = (await photos.list(EVENT)).items
+    expect(stored.map((photo) => photo.missionId)).toEqual(['mission-1'])
+  })
+
+  it('files every photograph of one request under it, because a guest picks once', async () => {
+    await uploadPhotos({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+      missionId: asMissionId('mission-1'),
+    })
+
+    const stored = (await photos.list(EVENT)).items
+    expect(stored.map((photo) => photo.missionId)).toEqual(['mission-1', 'mission-1'])
+  })
+
+  it('leaves a photograph untagged when the guest chose no prompt', async () => {
+    await send(null)
+
+    const stored = (await photos.list(EVENT)).items
+    expect(stored.map((photo) => photo.missionId)).toEqual([null])
+  })
+
+  it('does not count the tag until the photograph is published', async () => {
+    // The hardest rule in roadmap 2.1, seen from the ingest side: a tag is a claim.
+    await send(asMissionId('mission-1'))
+
+    const listed = await missions.listWithProgress(EVENT)
+    expect(listed[0]?.progress).toEqual({ publishedPhotos: 0, completedByGuests: 0 })
+  })
+
+  it('counts it as soon as an auto-publish event publishes it', async () => {
+    events.seed(anEvent({ id: 'event-1', settings: { moderation: 'auto' } }))
+
+    await send(asMissionId('mission-1'))
+
+    const listed = await missions.listWithProgress(EVENT)
+    expect(listed[0]?.progress).toEqual({ publishedPhotos: 1, completedByGuests: 1 })
+  })
+
+  it('never files a photograph under another event"s prompt', async () => {
+    // A mission id is the one identifier in this request the guest's phone chose. Without
+    // the scoped lookup a phone at one wedding could file a photograph under a stranger's
+    // prompt, and their wall would count it.
+    const result = await send(asMissionId('mission-gala'))
+
+    expect(result.ok).toBe(true)
+    expect((await photos.list(EVENT)).items.map((photo) => photo.missionId)).toEqual([null])
+    const gala = await missions.listWithProgress(asEventId('event-2'))
+    expect(gala[0]?.progress.publishedPhotos).toBe(0)
+  })
+
+  it('keeps the photographs when the prompt they named is gone, and drops only the tag', async () => {
+    // The host deleted the prompt while this phone was holding a stale checklist. The
+    // bytes were never the problem — refusing them here removes them from the device on
+    // the outbox path, which is a guest's evening spent on a typo correction.
+    const result = await send(asMissionId('mission-ghost'))
+
+    expect(result.ok).toBe(true)
+    expect((await photos.list(EVENT)).items.map((photo) => photo.missionId)).toEqual([null])
+    expect(bus.published).toEqual([{ type: 'photo.uploaded', eventId: EVENT, photoId: 'photo-1' }])
+  })
+
+  it('tells the operator about a tag it could not resolve, since that is a client bug', async () => {
+    await send(asMissionId('mission-ghost'))
+
+    expect(logger.lines).toContainEqual({
+      level: 'warn',
+      message: 'an upload named a mission this event does not have; storing it untagged',
+    })
   })
 })

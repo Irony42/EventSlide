@@ -11,6 +11,7 @@ import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import type { ThemeFonts, ThemeFrame, ThemeMaterial } from '../../../domain/events/eventTheme'
 import type { EventRole } from '../../../domain/events/eventRole'
+import type { MissionScope } from '../../../domain/missions/missionScope'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { ReactionKind } from '../../../domain/reactions/reactionKind'
@@ -179,6 +180,18 @@ export interface WallResponseDto {
   readonly kenBurnsDurationMs: number
   readonly layout: WallLayout
   readonly reactionsEnabled: boolean
+  /**
+   * The host's prompts and how the room is answering them (roadmap §2.1).
+   *
+   * On this response rather than on a second request, for the same reason the theme is:
+   * a projector runs unattended and every extra fetch is another thing that can be
+   * half-applied. It is also what makes the panel current without polling — every signal
+   * on the event's channel provokes one refetch of exactly this response.
+   *
+   * **Empty for the overwhelming majority of events**, which set no prompts at all, and
+   * an empty array is what stops the wall drawing a panel.
+   */
+  readonly missions: readonly WallMissionDto[]
   /**
    * What the room is meant to look like.
    *
@@ -397,4 +410,77 @@ export interface PhotoListResponseDto {
 
 export interface TopPhotosResponseDto {
   readonly items: readonly TopPhotoDto[]
+}
+
+/**
+ * One of the host's prompts, on the host's own console (roadmap 2.1).
+ *
+ * The three numbers are what a host at a laptop mid-evening actually wants: has anybody
+ * answered this at all, how many photographs, how many different guests. None of them is
+ * stored — they are counted over published photographs on every read, which is what makes
+ * them fall again the moment a host takes a photograph down.
+ *
+ * What is absent is the list of photographs. A mission's photographs are ordinary
+ * photographs and are already in the queue and the gallery; naming them here would be
+ * the second gallery 2.1 says not to build.
+ */
+export interface MissionDto {
+  readonly id: string
+  /** As the host typed it. Content, never interface copy: nothing translates it. */
+  readonly prompt: string
+  readonly scope: MissionScope
+  /** Has the room answered it at all? See `isAchieved`. */
+  readonly achieved: boolean
+  readonly publishedPhotos: number
+  readonly completedByGuests: number
+}
+
+export interface MissionListResponseDto {
+  readonly items: readonly MissionDto[]
+}
+
+/**
+ * One row of the guest's checklist.
+ *
+ * Deliberately narrower than {@link MissionDto}, and the omissions are the design.
+ * `publishedPhotos` and `completedByGuests` are not here: a guest needs to know whether
+ * there is still something for them to do, and a count of what everybody else has done
+ * is a scoreboard. Section 7 of the roadmap rules out social features between guests,
+ * and the cheapest way to build one by accident is to ship the numbers and let a screen
+ * find a use for them.
+ *
+ * `scope` stays because it is what explains a ticked row the guest did not tick: "la
+ * première danse" is answered once, by somebody, for everybody.
+ */
+export interface GuestMissionDto {
+  readonly id: string
+  readonly prompt: string
+  readonly scope: MissionScope
+  /** Whether this guest still has something to do about this prompt. */
+  readonly done: boolean
+}
+
+export interface GuestMissionListResponseDto {
+  readonly items: readonly GuestMissionDto[]
+}
+
+/**
+ * One prompt as the room sees it.
+ *
+ * `completedByGuests` is on this shape and not on the guest's for a reason that is about
+ * what each screen draws rather than about who may know what: the wall renders a
+ * per-guest prompt as a number because a tick would be wrong for something two hundred
+ * people can each answer, and it renders a once-for-the-evening prompt as a tick. That
+ * is the only place `scope` changes a pixel.
+ *
+ * There is no "answered at" here and therefore nothing a wall could use to celebrate a
+ * completion for three seconds and then stop — see `WallMissionStanding` for why that
+ * was declined.
+ */
+export interface WallMissionDto {
+  readonly id: string
+  readonly prompt: string
+  readonly scope: MissionScope
+  readonly achieved: boolean
+  readonly completedByGuests: number
 }

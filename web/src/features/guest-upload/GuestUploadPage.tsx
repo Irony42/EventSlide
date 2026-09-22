@@ -8,12 +8,14 @@ import { useTranslations } from '../../lib/i18n/useTranslations'
 import { CaptionField } from './components/CaptionField'
 import { ClipComposer } from './components/ClipComposer'
 import { InstallCard } from './components/InstallCard'
+import { MissionChecklist } from './components/MissionChecklist'
 import { MyPhotos } from './components/MyPhotos'
 import { OfflineNotice } from './components/OfflineNotice'
 import { PhotoPicker } from './components/PhotoPicker'
 import { UploadQueue } from './components/UploadQueue'
 import { useClipUpload } from './hooks/useClipUpload'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
+import { useMissions } from './hooks/useMissions'
 import { useMyPhotos } from './hooks/useMyPhotos'
 import { useOutbox } from './hooks/useOutbox'
 import { useUploadQueue } from './hooks/useUploadQueue'
@@ -72,6 +74,13 @@ interface UploadScreenProps {
 function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
   const t = useTranslations()
   const mine = useMyPhotos(slug)
+  /**
+   * The host's prompts, and the one the next send is filed under (roadmap §2.1).
+   *
+   * Empty for most events, in which case nothing below renders and this screen is the
+   * screen it was.
+   */
+  const missions = useMissions(slug)
   const [caption, setCaption] = useState('')
 
   /**
@@ -92,19 +101,34 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
   // Lifted out of the object so the dependency below names the stable function rather
   // than the state container it hangs off, which changes on every fetch.
   const refreshMine = mine.refresh
+  const refreshMissions = missions.refresh
+
+  /**
+   * What a settled batch changes: the guest's own list, and their checklist.
+   *
+   * The checklist has to be re-read from the server rather than ticked here. Whether a
+   * prompt is done is `isDoneForGuest`'s answer over **published** photographs, and an
+   * upload lands `pending` on a moderated event — so a client that ticked the row on
+   * send would tell a guest their mission was answered before anybody had approved it,
+   * which is the one thing this feature must not do.
+   */
+  const onBatchSettled = useCallback(() => {
+    refreshMine()
+    refreshMissions()
+  }, [refreshMine, refreshMissions])
 
   const onDrained = useCallback(
     (report: DrainReport) => {
       settleRef.current?.(report)
       // Only a real arrival is worth a refetch. A drain that only dropped an expired
       // photo has changed nothing the server would report.
-      if (report.sent.length > 0) refreshMine()
+      if (report.sent.length > 0) onBatchSettled()
     },
-    [refreshMine],
+    [onBatchSettled],
   )
 
   const outbox = useOutbox({ slug, onDrained })
-  const queue = useUploadQueue({ slug, outbox, onSettled: mine.refresh })
+  const queue = useUploadQueue({ slug, outbox, onSettled: onBatchSettled })
 
   /**
    * The video path, and it is deliberately not part of the queue above.
@@ -144,6 +168,10 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
   }
 
   const trimmedCaption = caption.trim()
+
+  /** The words of the chosen prompt, for the line under the send button. */
+  const selectedPrompt =
+    missions.missions.find((mission) => mission.id === missions.selected)?.prompt ?? null
 
   return (
     /**
@@ -207,6 +235,19 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
           onSendNow={outbox.drain}
         />
         <UploadQueue items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
+        {/*
+          Above the picker, because the order is the point: the checklist is what tells a
+          guest there is something to photograph, and a list of prompts *after* the button
+          that opens the camera arrives one decision too late. Inside the composer, because
+          everything a thumb presses lives in the bottom half of the screen.
+
+          Nothing at all for the majority of events, which set no prompts.
+        */}
+        <MissionChecklist
+          missions={missions.missions}
+          selected={missions.selected}
+          onToggle={missions.toggle}
+        />
         <PhotoPicker onPick={queue.add} />
         {/* The host's setting, from the event the join step returned. */}
         {event.allowCaptions ? <CaptionField value={caption} onChange={setCaption} /> : null}
@@ -233,10 +274,23 @@ function UploadScreen({ slug, event, displayName }: UploadScreenProps) {
           block
           loading={queue.sending}
           disabled={queue.sendableCount === 0}
-          onClick={() => queue.send(trimmedCaption.length === 0 ? null : trimmedCaption)}
+          onClick={() =>
+            queue.send(trimmedCaption.length === 0 ? null : trimmedCaption, missions.selected)
+          }
         >
           {queue.sendableCount === 0 ? t.upload.send : t.upload.sendCount(queue.sendableCount)}
         </Button>
+        {/*
+          Said once, under the button, rather than on every row of the checklist: the
+          guest has just chosen a prompt and is about to send, and this is the moment a
+          confirmation is worth its line. `aria-live` because the selection is made by a
+          tap somewhere above it.
+        */}
+        {selectedPrompt === null ? null : (
+          <p className={styles['missionNotice']} aria-live="polite">
+            {t.upload.missionFor(selectedPrompt)}
+          </p>
+        )}
       </div>
     </div>
   )

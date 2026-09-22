@@ -99,6 +99,14 @@ export const en: GuestTranslations = {
     notJoinedHint: 'Scan the QR code again, or type the event code.',
     notJoinedAction: 'Enter the code',
 
+    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
+
+    missionsTitle: 'Missions',
+    missionsHint: 'Tap a mission, then send your photo.',
+    missionDone: 'Done',
+    missionDoneByRoom: 'Already photographed',
+    missionFor: (prompt: string) => `These photos will count towards “${prompt}”.`,
+
     itemQueued: 'Waiting for the network',
     itemExpiredHint: 'This photo could not be sent. Send it again if you still have it.',
     offlineTitle: (count: number) =>
@@ -291,6 +299,15 @@ export const en: GuestTranslations = {
     'clipJob.notFound': 'This video no longer exists.',
     'clipJob.illegalTransition': 'This action is not possible on this video.',
     'photo.rangeNotSatisfiable': 'That part of the file does not exist.',
+
+    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
+    'mission.notFound': 'That mission no longer exists. Reload the page.',
+    'mission.duplicate': 'That mission already exists.',
+    'mission.limitReached': 'You have reached the maximum number of missions.',
+    'mission.promptEmpty': 'Write what the mission asks for.',
+    'mission.promptTooLong': 'That wording is too long for the screen.',
+    'mission.promptInvalid': 'That wording is not valid.',
+
     'eventTheme.accentHueInvalid': 'That colour is not recognised. Choose one from the list.',
     'eventTheme.accentUnreadable':
       'That colour would not be readable on the screen in the room. Choose one from the list.',

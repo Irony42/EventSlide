@@ -141,6 +141,15 @@ export const shouldQueue = (status: number): boolean => status === 0 || status >
  * phone past the limit — and every queued photo on all of them would have been thrown
  * away, in a single pass, by the feature whose entire job is not to lose them.
  *
+ * **`mission.notFound` is pointedly absent, and the server is why.** A prompt the host
+ * deleted while a phone was holding a stale checklist is exactly the shape of thing that
+ * would be listed here — and listing it would have deleted the photographs, because the
+ * bytes were never the problem: the identical request is accepted by the identical route
+ * with the tag left off. So the refusal does not exist any more. `uploadPhotos` stores a
+ * photograph whose tag it cannot resolve **untagged** rather than refusing it, which is
+ * the only reading under which a guest's evening is not spent by a host correcting a
+ * typo (roadmap §2.1).
+ *
  * `guest.wrongEvent` is pointedly absent: a guest who scans the after-party's QR code
  * overwrites their device token, and the wedding's queue must survive that rather than
  * be deleted by it. `event.quotaExceeded` is absent too — a host can raise a quota, and

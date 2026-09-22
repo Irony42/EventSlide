@@ -42,6 +42,12 @@ import type { WithdrawReaction } from '../../application/usecases/reactions/with
 
 import type { GetWallPlaylist } from '../../application/usecases/slideshow/getWallPlaylist'
 
+import type { CreateMission } from '../../application/usecases/missions/createMission'
+import type { DeleteMission } from '../../application/usecases/missions/deleteMission'
+import type { GetGuestChecklist } from '../../application/usecases/missions/getGuestChecklist'
+import type { ListMissions } from '../../application/usecases/missions/listMissions'
+import type { UpdateMission } from '../../application/usecases/missions/updateMission'
+
 /**
  * What the HTTP layer needs from the application.
  *
@@ -103,6 +109,13 @@ export interface HttpUseCases {
 
   // the wall
   readonly getWallPlaylist: GetWallPlaylist
+
+  // missions
+  readonly listMissions: ListMissions
+  readonly createMission: CreateMission
+  readonly updateMission: UpdateMission
+  readonly deleteMission: DeleteMission
+  readonly getGuestChecklist: GetGuestChecklist
 
   // reactions
   readonly reactToPhoto: ReactToPhoto

@@ -1,8 +1,8 @@
 import { allowsAnotherPhoto, fitsInQuota, remainingQuota } from '../../domain/events/quota'
-import type { Photo, PhotoReview } from '../../domain/photos/photo'
+import { Photo, type PhotoReview } from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import type { ContentHash } from '../../domain/photos/contentHash'
-import type { ClipJobId, EventId, GuestId, PhotoId } from '../../domain/shared/ids'
+import type { ClipJobId, EventId, GuestId, MissionId, PhotoId } from '../../domain/shared/ids'
 import type { StagedByteSource } from '../ports/clipJobRepository'
 import type {
   PhotoAdmission,
@@ -114,6 +114,36 @@ export class FakePhotoRepository implements PhotoRepository {
 
   private forEvent(eventId: EventId): Photo[] {
     return [...this.rows.values()].filter((photo) => photo.eventId === eventId)
+  }
+
+  /**
+   * Every photograph of one event, unordered. **Test infrastructure, not a port method.**
+   *
+   * `FakeMissionRepository` derives a mission's progress from it, the way the SQLite
+   * adapter derives it from a grouped scan of `idx_photos_event_mission`. Missions live
+   * in a second table in the real schema and in a second fake here, and this is the seam
+   * between them — the same arrangement `chargeStagedBytesFrom` below makes for the
+   * quota's clip half, and for the same reason: two fakes each owning half of one
+   * question must not each invent their own answer.
+   */
+  ofEvent(eventId: EventId): readonly Photo[] {
+    return this.forEvent(eventId)
+  }
+
+  /**
+   * What `ON DELETE SET NULL` does when a mission is deleted. **Test infrastructure.**
+   *
+   * In SQLite the foreign key does this inside the same statement as the delete; here
+   * `FakeMissionRepository.delete` calls it. Without it the fake would keep answering a
+   * deleted mission's progress from photographs the real database had already unfiled —
+   * and a fake that outlives the row it points at is exactly the drift the shared
+   * contract suite exists to catch.
+   */
+  unfileMission(eventId: EventId, missionId: MissionId): void {
+    for (const photo of this.forEvent(eventId)) {
+      if (photo.missionId !== missionId) continue
+      this.rows.set(key(eventId, photo.id), Photo.restore({ ...photo.toProps(), missionId: null }))
+    }
   }
 
   async findById(eventId: EventId, photoId: PhotoId): Promise<Photo | null> {

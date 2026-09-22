@@ -7,7 +7,7 @@ import { Slug } from '../shared/slug'
 import { Event, type EventProps, type NewEvent } from './event'
 import { EventName } from './eventName'
 import { EventSettings } from './eventSettings'
-import type { EventStatus } from './eventStatus'
+import { EVENT_STATUSES, type EventStatus } from './eventStatus'
 
 const unwrap = <T>(result: Result<T, DomainError>): T => {
   if (!result.ok) throw new Error(`unexpected domain error: ${result.error.code}`)
@@ -286,6 +286,21 @@ describe('Event capabilities', () => {
   it('allows moderation until the event is archived', () => {
     expect(anEvent({ status: 'closed' }).allowsModeration()).toBe(true)
     expect(anEvent({ status: 'archived' }).allowsModeration()).toBe(false)
+  })
+
+  it('allows editing until the event is archived, the same rule its own fields follow', () => {
+    expect(anEvent({ status: 'draft' }).allowsEditing()).toBe(true)
+    expect(anEvent({ status: 'live' }).allowsEditing()).toBe(true)
+    expect(anEvent({ status: 'closed' }).allowsEditing()).toBe(true)
+    expect(anEvent({ status: 'archived' }).allowsEditing()).toBe(false)
+  })
+
+  it('answers allowsEditing exactly as withSettings answers, so the two cannot drift', () => {
+    for (const status of EVENT_STATUSES) {
+      const event = anEvent({ status })
+
+      expect(event.allowsEditing()).toBe(event.withSettings(event.settings).ok)
+    }
   })
 })
 

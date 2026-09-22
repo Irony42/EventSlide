@@ -65,7 +65,11 @@ export interface Outbox {
    * not take it — in which case the caller must report the failure to the guest rather
    * than promise a delivery nobody is left to make.
    */
-  readonly enqueue: (file: File, caption: string | null) => Promise<string | null>
+  readonly enqueue: (
+    file: File,
+    caption: string | null,
+    missionId: string | null,
+  ) => Promise<string | null>
   /**
    * Forgets a stored photo.
    *
@@ -290,7 +294,11 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
   }, [drainNow])
 
   const enqueue = useCallback(
-    async (file: File, caption: string | null): Promise<string | null> => {
+    async (
+      file: File,
+      caption: string | null,
+      missionId: string | null,
+    ): Promise<string | null> => {
       const opened = store.current
       if (opened === null) return null
       if (!acceptsFileType(file.type)) {
@@ -321,6 +329,7 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
             fileName: file.name,
             fileType: file.type,
             caption,
+            missionId,
             // Captured now, because the worker that may send this has no
             // `document.cookie`. See `OutboxEntry.csrfToken`.
             csrfToken: currentCsrfToken(),

@@ -90,3 +90,16 @@
 .installSlot:focus {
   outline: none;
 }
+
+/**
+ * The line under the send button naming the chosen mission (roadmap 2.1).
+ *
+ * Centred under the one control it is about, and set at the smallest size on this
+ * screen: it is a confirmation of something the guest just did, not an instruction.
+ */
+.missionNotice {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+  text-align: center;
+}

@@ -24,6 +24,7 @@ export const apiOutboxSender = (api: Api): OutboxSender => {
       const response = await api.uploadPhotos(entry.slug, {
         files: [fileFor(entry)],
         caption: entry.caption,
+        missionId: entry.missionId,
       })
       return outcomeForResults(response.results)
     } catch (cause) {

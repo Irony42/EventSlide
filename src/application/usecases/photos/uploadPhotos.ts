@@ -3,7 +3,7 @@ import { ContentHash } from '../../../domain/photos/contentHash'
 import { Dimensions } from '../../../domain/photos/dimensions'
 import { Photo, type PhotoAuthor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
-import type { EventId, PhotoId } from '../../../domain/shared/ids'
+import type { EventId, MissionId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
 import type { ContentHasher } from '../../ports/contentHasher'
@@ -12,6 +12,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
 import type { Logger } from '../../ports/logger'
+import type { MissionRepository } from '../../ports/missionRepository'
 import { MEDIA_VARIANTS, type MediaStore, type PhotoVariant } from '../../ports/mediaStore'
 import type {
   PhotoAdmission,
@@ -53,6 +54,14 @@ export interface UploadPhotosInput {
   readonly files: readonly UploadFile[]
   /** One caption for the request, as the upload form offers it. */
   readonly caption?: string | null
+  /**
+   * The prompt the guest tapped before sending, if any (roadmap §2.1).
+   *
+   * One per request rather than one per file, exactly as the caption is: a guest picks a
+   * mission, then picks their photographs, and asking them to file five files one by one
+   * on a phone is asking them not to bother.
+   */
+  readonly missionId?: MissionId | null
 }
 
 /** Header-level ceilings the deployment sets; the render specs below are product policy. */
@@ -64,6 +73,7 @@ export interface UploadLimits {
 export interface UploadPhotosDeps {
   readonly events: EventRepository
   readonly photos: PhotoRepository
+  readonly missions: MissionRepository
   readonly media: MediaStore
   readonly imageProcessor: ImageProcessor
   readonly hasher: ContentHasher
@@ -178,6 +188,7 @@ const settle = (
 export const makeUploadPhotos = ({
   events,
   photos,
+  missions,
   media,
   imageProcessor,
   hasher,
@@ -187,7 +198,7 @@ export const makeUploadPhotos = ({
   logger,
   limits,
 }: UploadPhotosDeps): UploadPhotos => {
-  return async ({ eventId, author, files, caption }) => {
+  return async ({ eventId, author, files, caption, missionId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
@@ -206,6 +217,42 @@ export const makeUploadPhotos = ({
     if (!parsedCaption.ok) return parsedCaption
     if (parsedCaption.value !== null && !settings.allowCaptions) {
       return err(DomainError.forbidden('event.captionsNotAllowed'))
+    }
+
+    /**
+     * The mission tag, resolved against **this** event (roadmap §2.1).
+     *
+     * A mission id is the one identifier in this request that a guest's phone chose, so
+     * the scoped lookup is the tenant boundary: without it, a phone at one wedding could
+     * file a photograph under a stranger's prompt and their wall would count it. What is
+     * stored is the id the repository handed back, so a tag that named another event —
+     * or nothing — is a tag that is not stored.
+     *
+     * **An unresolvable tag drops the tag and keeps the photographs.** It refused the
+     * whole request until review, which was wrong in the one direction that costs a guest
+     * their evening. The bytes were never the problem: the identical photographs are
+     * accepted by this identical route with the tag left off. And a refusal here does not
+     * stay in the guest's hands — an upload queued on venue Wi-Fi replays through the
+     * outbox, where a refusal on its merits means the entry is **removed from the device**
+     * (`web/src/lib/offline/outboxPolicy.ts`), so a host correcting a typo on the mission
+     * list by deleting and re-adding it would have deleted three photographs off a phone
+     * whose owner had already put it away.
+     *
+     * Nothing is silently lost by dropping it either, which is what made the refusal look
+     * defensible: the guest's checklist is re-read after every settled batch, and the row
+     * the tag named is gone from it — so what they see is the truth. The log line is for
+     * the operator, because a *malformed* tag is a client bug rather than an evening.
+     */
+    let tag: MissionId | null = null
+    if (missionId !== undefined && missionId !== null) {
+      const mission = await missions.findById(eventId, missionId)
+      if (mission === null) {
+        logger.warn('an upload named a mission this event does not have; storing it untagged', {
+          eventId,
+          missionId,
+        })
+      }
+      tag = mission?.id ?? null
     }
 
     const maxPerGuest = settings.maxPhotosPerGuest
@@ -333,6 +380,7 @@ export const makeUploadPhotos = ({
           dimensions: rendered.value.display.dimensions,
           byteSize,
           caption: parsedCaption.value,
+          missionId: tag,
         },
         ids.photoId(),
         now,

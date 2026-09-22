@@ -11,6 +11,7 @@ import { EventQrCard } from './components/EventQrCard'
 import { EventStatusBadge } from './components/EventStatusBadge'
 import { StorageMeter } from './components/StorageMeter'
 import { GuestListPanel } from './GuestListPanel'
+import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
 import { allowsModeration, isMutable, lifecycleActions, servesWall } from './eventLifecycle'
@@ -182,6 +183,11 @@ export function EventPage() {
 
       <div className={`${styles['column']} ${styles['screenOnly']}`}>
         <GuestListPanel slug={event.slug} canRevoke={allowsModeration(event.status)} />
+        {/* Owner-only for the reason below, and mounted above the moderators because a
+            host sets the prompts up before the evening rather than during it (roadmap
+            §2.1). A moderator may read the list — `GET` allows it — but a panel whose
+            every affordance is refused is worse than no panel. */}
+        {isOwner ? <MissionsPanel slug={event.slug} /> : null}
         {/* Owner-only: every moderator endpoint requires it, so a moderator is not
             shown a panel whose requests would all come back 403. */}
         {isOwner ? <ModeratorsPanel slug={event.slug} /> : null}

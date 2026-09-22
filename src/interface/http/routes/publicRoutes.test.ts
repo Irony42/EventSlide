@@ -11,9 +11,10 @@ import {
   makeGetWallPlaylist,
   type WallPlaylistView,
 } from '../../../application/usecases/slideshow/getWallPlaylist'
+import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
-import { aGuest, aPhoto, anEvent, atPlus } from '../../../application/testing/builders'
+import { aMission, aGuest, aPhoto, anEvent, atPlus } from '../../../application/testing/builders'
 import type { Photo } from '../../../domain/photos/photo'
 import { asEventId } from '../../../domain/shared/ids'
 import { CROSSFADE_MS } from '../../../domain/slideshow/kenBurns'
@@ -49,6 +50,7 @@ const presenter: PresenterContext = {
 interface World {
   readonly subject: Harness
   readonly photos: FakePhotoRepository
+  readonly missions: FakeMissionRepository
 }
 
 /**
@@ -64,6 +66,7 @@ const world = (
   deployment: Partial<PresenterContext> = {},
 ): World => {
   const photos = new FakePhotoRepository()
+  const missions = new FakeMissionRepository(photos)
   const ids = new SequentialIdGenerator()
 
   const subject = buildHarness({
@@ -87,6 +90,7 @@ const world = (
               events: deps.events,
               photos,
               guests: deps.guests,
+              missions,
             }),
           },
         }),
@@ -126,7 +130,7 @@ const world = (
     }),
   )
 
-  return { subject, photos }
+  return { subject, photos, missions }
 }
 
 /** `set-cookie` is an array at runtime and loosely typed; narrow it once, here. */
@@ -880,6 +884,7 @@ describe('toWallResponseDto', () => {
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',
       layoutSpec: wallLayoutSpec('spotlight'),
+      missions: [],
     }
 
     const dto = toWallResponseDto(view, presenter)
@@ -903,6 +908,7 @@ describe('toWallResponseDto', () => {
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',
       layoutSpec: wallLayoutSpec('spotlight'),
+      missions: [],
     }
 
     const dto = toWallResponseDto(view, { ...presenter, publicUrl: 'https://photos.example.com' })
@@ -911,5 +917,57 @@ describe('toWallResponseDto', () => {
     // And the two halves of the invitation agree: the characters the room reads out and
     // the link the QR encodes come from one value.
     expect(dto.joinUrl.endsWith(`/join/${dto.joinCode}`)).toBe(true)
+  })
+})
+
+describe('GET /api/events/:eventSlug/wall — the mission panel', () => {
+  it('sends an empty list for an event whose host set no prompts', async () => {
+    // What keeps every wall that does not use this feature exactly the wall it was,
+    // including the committed visual baselines.
+    const { subject } = world()
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.status).toBe(200)
+    expect(response.body.missions).toEqual([])
+  })
+
+  it('sends the prompts with what the room has answered, and no more', async () => {
+    const { subject, photos, missions } = world()
+    missions.seed(aMission({ id: 'm1', eventId: WEDDING, prompt: 'un selfie', scope: 'guest' }))
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: WEDDING,
+        status: 'published',
+        missionId: 'm1',
+        author: { kind: 'guest', id: 'guest-lea' },
+      }),
+    )
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.missions).toEqual([
+      { id: 'm1', prompt: 'un selfie', scope: 'guest', achieved: true, completedByGuests: 1 },
+    ])
+  })
+
+  it('leaves a prompt unanswered while its only photograph is still pending', async () => {
+    const { subject, photos, missions } = world()
+    missions.seed(aMission({ id: 'm1', eventId: WEDDING }))
+    photos.seed(aPhoto({ id: 'photo-1', eventId: WEDDING, status: 'pending', missionId: 'm1' }))
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.missions[0]).toMatchObject({ achieved: false, completedByGuests: 0 })
+  })
+
+  it('never sends another event"s prompts to this wall', async () => {
+    const { subject, missions } = world()
+    missions.seed(aMission({ id: 'm-gala', eventId: GALA, prompt: 'le discours' }))
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.missions).toEqual([])
   })
 })

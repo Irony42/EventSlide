@@ -36,6 +36,7 @@ const seed = (store: OutboxStore, fileName = 'hier.jpg') =>
       fileName,
       fileType: 'image/jpeg',
       caption: null,
+      missionId: null,
       csrfToken: null,
     },
     // Stamped now, not at a fixed instant: the outbox drops a photo whose event is
@@ -90,7 +91,7 @@ describe('useOutbox', () => {
     await waitFor(() => expect(result.current.ready).toBe(true))
 
     await act(async () => {
-      await result.current.enqueue(aPhotoFile(), 'Les confettis')
+      await result.current.enqueue(aPhotoFile(), 'Les confettis', null)
     })
 
     expect(result.current.waiting).toBe(1)
@@ -112,6 +113,7 @@ describe('useOutbox', () => {
       entryId = await result.current.enqueue(
         new File([new Uint8Array([0, 0, 0, 0x18])], 'danse.mp4', { type: 'video/mp4' }),
         null,
+        null,
       )
     })
 
@@ -127,7 +129,7 @@ describe('useOutbox', () => {
     await waitFor(() => expect(result.current.ready).toBe(true))
 
     await act(async () => {
-      await result.current.enqueue(aPhotoFile(), null)
+      await result.current.enqueue(aPhotoFile(), null, null)
     })
 
     const [held] = await store.list(SLUG)
@@ -171,7 +173,7 @@ describe('useOutbox', () => {
     await waitFor(() => expect(result.current.ready).toBe(true))
 
     await act(async () => {
-      await result.current.enqueue(aPhotoFile(), null)
+      await result.current.enqueue(aPhotoFile(), null, null)
     })
     await act(async () => {
       result.current.drain()
@@ -187,7 +189,7 @@ describe('useOutbox', () => {
     const { result } = mount(fakeApi({ uploadPhotos }))
     await waitFor(() => expect(result.current.ready).toBe(true))
     await act(async () => {
-      await result.current.enqueue(aPhotoFile(), null)
+      await result.current.enqueue(aPhotoFile(), null, null)
     })
     uploadPhotos.mockClear()
 
@@ -203,7 +205,7 @@ describe('useOutbox', () => {
     const { result } = mount(fakeApi({ uploadPhotos }))
     await waitFor(() => expect(result.current.ready).toBe(true))
     await act(async () => {
-      await result.current.enqueue(aPhotoFile(), null)
+      await result.current.enqueue(aPhotoFile(), null, null)
     })
     uploadPhotos.mockClear()
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
@@ -228,7 +230,7 @@ describe('useOutbox', () => {
     await waitFor(() => expect(result.current.ready).toBe(true))
     let id: string | null = null
     await act(async () => {
-      id = await result.current.enqueue(aPhotoFile(), null)
+      id = await result.current.enqueue(aPhotoFile(), null, null)
     })
 
     await act(async () => {
@@ -251,7 +253,7 @@ describe('useOutbox', () => {
 
     await waitFor(() => expect(result.current.ready).toBe(false))
     expect(open).not.toHaveBeenCalled()
-    expect(await result.current.enqueue(aPhotoFile(), null)).toBeNull()
+    expect(await result.current.enqueue(aPhotoFile(), null, null)).toBeNull()
   })
 
   it('comes back on its own after a photo the network would not take', async () => {
@@ -302,7 +304,7 @@ describe('useOutbox', () => {
     })
 
     await act(async () => {
-      await result.current.enqueue(aPhotoFile(), null)
+      await result.current.enqueue(aPhotoFile(), null, null)
     })
 
     expect(onDrained).toHaveBeenCalledWith(
@@ -348,7 +350,7 @@ describe('useOutbox', () => {
 
     let outcome: string | null = 'not-set'
     await act(async () => {
-      outcome = await result.current.enqueue(aPhotoFile(), null)
+      outcome = await result.current.enqueue(aPhotoFile(), null, null)
     })
 
     expect(outcome).toBeNull()

@@ -7,13 +7,19 @@ import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
   aClipJob,
+  aGuestMission,
   aGuestPhoto,
   aPublicEvent,
   fakeApi,
   renderWithProviders,
 } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
-import type { GuestPhotoDto, PublicEventDto, UploadResponse } from '../../lib/api/dto'
+import type {
+  GuestMissionDto,
+  GuestPhotoDto,
+  PublicEventDto,
+  UploadResponse,
+} from '../../lib/api/dto'
 
 const SLUG = 'camille-et-sacha'
 
@@ -651,5 +657,122 @@ describe('sending a video', () => {
     const page = (await screen.findByRole('heading', { name: 'Camille & Sacha' })).closest('div')
 
     expect(page).not.toHaveAttribute('data-glass')
+  })
+
+  describe('the mission checklist', () => {
+    const withMissions = (...missions: readonly GuestMissionDto[]): Partial<Api> => ({
+      myMissions: vi.fn(async () => ({ items: missions })),
+    })
+
+    it('shows nothing at all for an event whose host set no prompts', async () => {
+      // Which is most events, and is what keeps this screen the screen it was.
+      havingJoined()
+      renderUpload(fakeApi())
+
+      await screen.findByTestId('upload-composer')
+
+      expect(
+        screen.queryByRole('heading', { name: fr.upload.missionsTitle }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers the prompts the host set', async () => {
+      havingJoined()
+      renderUpload(
+        fakeApi(withMissions(aGuestMission({ id: 'm1', prompt: 'un selfie avec les mariés' }))),
+      )
+
+      expect(
+        await screen.findByRole('button', {
+          name: /un selfie avec les mariés/,
+        }),
+      ).toBeVisible()
+    })
+
+    it('files the photographs under the prompt the guest tapped', async () => {
+      const api = fakeApi({
+        ...withMissions(aGuestMission({ id: 'm1', prompt: 'un selfie' })),
+        uploadPhotos: vi.fn(async () => accepted('photo-1')),
+      })
+      havingJoined()
+      renderUpload(api)
+      await screen.findByRole('button', { name: /un selfie/ })
+
+      await userEvent.click(screen.getByRole('button', { name: /un selfie/ }))
+      await pickPhotos(aPhotoFile('confettis.jpg'))
+      await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+
+      await waitFor(() =>
+        expect(api.uploadPhotos).toHaveBeenCalledWith(
+          SLUG,
+          expect.objectContaining({ missionId: 'm1' }),
+        ),
+      )
+    })
+
+    it('sends no mission when the guest tapped none', async () => {
+      const api = fakeApi({
+        ...withMissions(aGuestMission({ id: 'm1', prompt: 'un selfie' })),
+        uploadPhotos: vi.fn(async () => accepted('photo-1')),
+      })
+      havingJoined()
+      renderUpload(api)
+      await screen.findByRole('button', { name: /un selfie/ })
+
+      await pickPhotos(aPhotoFile('confettis.jpg'))
+      await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+
+      await waitFor(() =>
+        expect(api.uploadPhotos).toHaveBeenCalledWith(
+          SLUG,
+          expect.objectContaining({ missionId: null }),
+        ),
+      )
+    })
+
+    it('confirms which prompt the next send counts for', async () => {
+      havingJoined()
+      renderUpload(fakeApi(withMissions(aGuestMission({ id: 'm1', prompt: 'un selfie' }))))
+      await screen.findByRole('button', { name: /un selfie/ })
+
+      await userEvent.click(screen.getByRole('button', { name: /un selfie/ }))
+
+      expect(await screen.findByText(fr.upload.missionFor('un selfie'))).toBeVisible()
+    })
+
+    it('re-reads the checklist once a batch has settled, rather than ticking it itself', async () => {
+      // An upload lands `pending` on a moderated event. A client that ticked the row on
+      // send would tell a guest their mission was answered before anybody approved it —
+      // the one thing this feature must not do.
+      const myMissions = vi.fn(async () => ({
+        items: [aGuestMission({ id: 'm1', prompt: 'un selfie' })],
+      }))
+      const api = fakeApi({ myMissions, uploadPhotos: vi.fn(async () => accepted('photo-1')) })
+      havingJoined()
+      renderUpload(api)
+      await screen.findByRole('button', { name: /un selfie/ })
+      expect(myMissions).toHaveBeenCalledTimes(1)
+
+      await pickPhotos(aPhotoFile('confettis.jpg'))
+      await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+
+      await waitFor(() => expect(myMissions).toHaveBeenCalledTimes(2))
+    })
+
+    it('still lets a guest send when the checklist could not be read', async () => {
+      // The checklist is an invitation, not a gate.
+      const api = fakeApi({
+        myMissions: vi.fn(async () => Promise.reject(new Error('offline'))),
+        uploadPhotos: vi.fn(async () => accepted('photo-1')),
+      })
+      havingJoined()
+      renderUpload(api)
+      await screen.findByTestId('upload-composer')
+
+      await pickPhotos(aPhotoFile('confettis.jpg'))
+      await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+
+      await waitFor(() => expect(api.uploadPhotos).toHaveBeenCalled())
+    })
   })
 })

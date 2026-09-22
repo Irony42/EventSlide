@@ -13,6 +13,7 @@ import { messageForCode } from '../../lib/i18n/translations'
 import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallLayouts } from './components/WallLayouts'
+import { WallMissions } from './components/WallMissions'
 import { WallOverlay } from './components/WallOverlay'
 import { useFrameBudget } from './hooks/useFrameBudget'
 import { useLayoutParam } from './hooks/useLayoutParam'
@@ -141,6 +142,19 @@ export function WallPage() {
    */
   const [layoutOverride, setLayoutOverride] = useState<WallLayout | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
+  /**
+   * Two flags, because there are two things a host can mean.
+   *
+   * **Escape means "put away whatever is covering the photos"** — it always has, and it
+   * now reaches the mission panel as well, which is the honest reading of one key with
+   * one meaning.
+   *
+   * **The card's own button means what its label says**, and its label is "Masquer le
+   * rappel du code". A host who wants the QR out of the corner has not asked for the
+   * room's mission list to go with it, and nothing on this screen puts either back: the
+   * projector is unattended, so a wrong dismissal lasts until somebody reloads it.
+   */
+  const [chromeDismissed, setChromeDismissed] = useState(false)
   const [joinCardDismissed, setJoinCardDismissed] = useState(false)
 
   const serverLayout = wall?.layout
@@ -171,7 +185,7 @@ export function WallPage() {
         setHelpOpen(false)
         return
       }
-      setJoinCardDismissed(true)
+      setChromeDismissed(true)
     },
   })
 
@@ -188,7 +202,19 @@ export function WallPage() {
     wall?.joinCode !== undefined && wall.joinUrl !== undefined
       ? { code: wall.joinCode, url: wall.joinUrl }
       : null
-  const showsOverlay = join !== null && !joinCardDismissed && items.length > 0
+  const showsOverlay = join !== null && !chromeDismissed && !joinCardDismissed && items.length > 0
+
+  /**
+   * The host's prompts, when there are any (roadmap §2.1).
+   *
+   * Withheld while the wall is still empty, for the reason the join card is: the empty
+   * state is a full-screen invitation, and a panel over it would be chrome covering the
+   * one message the room needs at that moment. `?? []` because the field is optional on
+   * the response — a server build that predates missions leaves the projector drawing
+   * nothing rather than crashing it.
+   */
+  const missions = wall?.missions ?? []
+  const showsMissions = !chromeDismissed && items.length > 0 && missions.length > 0
 
   /**
    * The event's own look, worn by the element that renders it (roadmap 2.2).
@@ -266,6 +292,8 @@ export function WallPage() {
           transitionMs={transitionMs}
         />
       )}
+
+      {showsMissions ? <WallMissions missions={missions} /> : null}
 
       {showsOverlay && join !== null ? (
         <WallOverlay join={join} onDismiss={() => setJoinCardDismissed(true)} />

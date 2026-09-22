@@ -320,6 +320,37 @@ const ENDPOINTS: readonly EndpointCase[] = [
     path: `/api/events/${SLUG}/moderators/user-2`,
     invoke: (client) => client.revokeModerator(SLUG, 'user-2'),
   },
+  {
+    name: 'myMissions',
+    verb: 'get',
+    path: `/api/events/${SLUG}/missions/mine`,
+    invoke: (client) => client.myMissions(SLUG),
+  },
+  {
+    name: 'listMissions',
+    verb: 'get',
+    path: `/api/events/${SLUG}/missions`,
+    invoke: (client) => client.listMissions(SLUG),
+  },
+  {
+    name: 'createMission',
+    verb: 'post',
+    path: `/api/events/${SLUG}/missions`,
+    invoke: (client) => client.createMission(SLUG, { prompt: 'un selfie', scope: 'guest' }),
+  },
+  {
+    name: 'updateMission',
+    verb: 'patch',
+    path: `/api/events/${SLUG}/missions/mission-1`,
+    invoke: (client) =>
+      client.updateMission(SLUG, 'mission-1', { prompt: 'un selfie', scope: 'event' }),
+  },
+  {
+    name: 'deleteMission',
+    verb: 'del',
+    path: `/api/events/${SLUG}/missions/mission-1`,
+    invoke: (client) => client.deleteMission(SLUG, 'mission-1'),
+  },
 ]
 
 describe('every endpoint addresses the documented method and path', () => {
