@@ -7,9 +7,10 @@ import { describe, expect, it } from 'vitest'
  * Every source file under `scripts/` belongs to a TypeScript project.
  *
  * `scripts/showcase.mts` reached `main` typed by nothing. `tsconfig.tools.json` included
- * `scripts/**\/*.ts`, which does not match `.mts` — so the file was committed, formatted,
- * linted and completely unchecked, and `npm run typecheck` stayed green while covering
- * less than the tree contained. Proven rather than assumed: `tsc --listFiles` named it in
+ * `scripts/**\/*.ts`, which does not match `.mts` — so the file was committed, formatted
+ * and completely unchecked, and `npm run typecheck` stayed green while covering less than
+ * the tree contained. (It was not linted either, for the same reason in a different
+ * config; `lintCoverage.test.ts` is that half.) Proven rather than assumed: `tsc --listFiles` named it in
  * neither the tools project nor the server one.
  *
  * That is CLAUDE.md §9 trap 9 in its second costume. The first was an `include` entry
