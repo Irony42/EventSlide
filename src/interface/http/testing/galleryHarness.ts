@@ -18,6 +18,7 @@ import { makeGetGalleryMedia } from '../../../application/usecases/gallery/getGa
 import { makeListGalleryPhotos } from '../../../application/usecases/gallery/listGalleryPhotos'
 import { makeOpenGallery } from '../../../application/usecases/gallery/openGallery'
 import { makeUnlockGallery } from '../../../application/usecases/gallery/unlockGallery'
+import type { ArchiveWriter } from '../../../application/ports/archiveWriter'
 import type { GallerySigner } from '../../../application/ports/gallerySigner'
 import { VARIANTS_BY_KIND } from '../../../domain/photos/mediaVariant'
 import type { Photo } from '../../../domain/photos/photo'
@@ -67,7 +68,15 @@ export interface GalleryHarness extends ServerHarness {
   seedPhoto(photo: Photo): Promise<void>
 }
 
-export const buildGalleryHarness = (config: Partial<HttpConfig> = {}): GalleryHarness => {
+export interface GalleryHarnessOverrides {
+  /** In place of the recording writer, for a test that needs a download to stay open. */
+  readonly archive?: ArchiveWriter
+}
+
+export const buildGalleryHarness = (
+  config: Partial<HttpConfig> = {},
+  overrides: GalleryHarnessOverrides = {},
+): GalleryHarness => {
   const photos = new FakePhotoRepository()
   const shareLinks = new FakeShareLinkRepository()
   const signer = createHmacGallerySigner({ rootSecret: TEST_SESSION_SECRET })
@@ -75,6 +84,7 @@ export const buildGalleryHarness = (config: Partial<HttpConfig> = {}): GalleryHa
   const archive = new RecordingArchiveWriter()
   const logger = new CapturingLogger()
   const media = new InMemoryMediaStore()
+  const archiveWriter = overrides.archive ?? archive
 
   // The use cases close over `harness` and are only called once it exists, so the rule
   // reads the very repositories the server's own middleware reads.
@@ -86,7 +96,13 @@ export const buildGalleryHarness = (config: Partial<HttpConfig> = {}): GalleryHa
       listGalleryPhotos: (input) => makeListGalleryPhotos({ ...access(), photos })(input),
       getGalleryMedia: (input) => makeGetGalleryMedia({ ...access(), photos, media })(input),
       downloadGalleryArchive: (input) =>
-        makeDownloadGalleryArchive({ ...access(), photos, media, archive, logger })(input),
+        makeDownloadGalleryArchive({
+          ...access(),
+          photos,
+          media,
+          archive: archiveWriter,
+          logger,
+        })(input),
     },
   })
 

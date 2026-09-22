@@ -1,5 +1,6 @@
 import request from 'supertest'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ArchiveWriter } from '../../../application/ports/archiveWriter'
 import { AT, aPhoto, aUser } from '../../../application/testing/builders'
 import {
   browserAgent,
@@ -558,6 +559,77 @@ describe('the shared gallery over HTTP', () => {
       expectGalleryHeaders(response)
       // The recording archive writes one byte per entry: the published photograph only.
       expect(subject.archive.names).toHaveLength(1)
+    })
+
+    describe('how many archives may stream at once', () => {
+      /** A writer that sends one byte and then holds the download open until released. */
+      const holdingWriter = () => {
+        let release = (): void => undefined
+        const gate = new Promise<void>((resolve) => {
+          release = resolve
+        })
+        const state = { open: 0 }
+        const writer: ArchiveWriter = {
+          stream: () =>
+            (async function* () {
+              state.open += 1
+              yield Uint8Array.of(1)
+              await gate
+            })(),
+        }
+        return { writer, state, release }
+      }
+
+      const archiveUrlOf = async (harness: GalleryHarness): Promise<string> => {
+        const { token } = harness.seedLink()
+        const body = (await request(harness.app).get(`/api/gallery/${token}`).expect(200)).body as {
+          archiveUrl: string
+        }
+        return body.archiveUrl
+      }
+
+      it('holds one client to two downloads, and frees the slot when one ends', async () => {
+        // A wedding's ZIP is minutes of disk reads: a rate per minute does not bound how
+        // many run together, and this is the number that does.
+        const hold = holdingWriter()
+        const holding = buildGalleryHarness({}, { archive: hold.writer })
+        const url = await archiveUrlOf(holding)
+        const open = () =>
+          request(holding.app)
+            .get(url)
+            .then((response) => response)
+
+        const held = [open(), open()]
+        await vi.waitFor(() => expect(hold.state.open).toBe(2))
+        const third = await request(holding.app).get(url)
+
+        expect(third.status).toBe(429)
+        expect(third.body.error.code).toBe('rate.limited')
+
+        hold.release()
+        expect((await Promise.all(held)).map((response) => response.status)).toEqual([200, 200])
+        expect((await request(holding.app).get(url)).status).toBe(200)
+      })
+
+      it('holds the whole box to four, whoever is asking', async () => {
+        const hold = holdingWriter()
+        const holding = buildGalleryHarness({ trustProxyHops: 1 }, { archive: hold.writer })
+        const url = await archiveUrlOf(holding)
+        const from = (client: string) =>
+          request(holding.app)
+            .get(url)
+            .set('X-Forwarded-For', client)
+            .then((response) => response)
+
+        const held = ['203.0.113.1', '203.0.113.2', '203.0.113.3', '203.0.113.4'].map(from)
+        await vi.waitFor(() => expect(hold.state.open).toBe(4))
+        const fifth = await from('203.0.113.5')
+
+        expect(fifth.status).toBe(503)
+
+        hold.release()
+        await Promise.all(held)
+      })
     })
 
     it('refuses an archive URL whose signature was altered', async () => {
