@@ -46,6 +46,8 @@ suppress the rule. If domain code seems to need I/O, add a **port** in
    - `eventslide-testing` — which ring, which double
    - `eventslide-e2e` — Playwright journeys across the three surfaces
    - `eventslide-migration` — schema changes
+   - `eventslide-mutation` — not a recipe: the protocol for proving a guard bites, and
+     it applies to every branch rather than to one kind of work
 3. Read [docs/API.md](docs/API.md) if you touch the HTTP surface — **§§1–8 are the
    contract**, and they are kept in sync by hand. **§9 is not the contract**: it is a
    list of known divergences and proposals, and nothing in it is implemented. Never

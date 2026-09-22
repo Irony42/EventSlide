@@ -30,7 +30,11 @@
       "Read(./thumbnails/**)",
       "Bash(rm -rf photos)",
       "Bash(rm -rf thumbnails)",
-      "Bash(rm -rf data)"
+      "Bash(rm -rf data)",
+      "Write(./.env)",
+      "Edit(./.env)",
+      "Write(./.env.*)",
+      "Edit(./.env.*)"
     ]
   },
   "hooks": {
@@ -51,6 +55,29 @@
           {
             "type": "command",
             "command": "C:/Users/pierr/.local/bin/graphify.EXE hook-guard read",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/format-edited-file.mjs",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/warn-uncommitted.mjs",
             "timeout": 10
           }
         ]
