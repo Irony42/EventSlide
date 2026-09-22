@@ -8,6 +8,7 @@ import {
   WEDDING_SLUG,
   type GalleryWorld,
 } from '../../testing/galleryWorld'
+import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
 import type { MediaStore } from '../../ports/mediaStore'
 import { grantArchive } from './galleryAccess'
 import {
@@ -93,17 +94,71 @@ describe('downloadGalleryArchive', () => {
     expect(world.logger.lines.map((line) => line.level)).toEqual(['warn'])
   })
 
-  it('skips a photograph whose bytes vanish between being sized and being read', async () => {
-    // The retention purge is allowed to run while somebody is downloading.
+  it('aborts, rather than archive an empty photograph, when bytes vanish before they are read', async () => {
+    // The retention purge is allowed to run while somebody is downloading. By the time
+    // an entry's bytes are read its name is already in the archive, so the only honest
+    // answer left is to abort: a zero-byte photograph in a ZIP that otherwise looks
+    // complete is exactly the album a family would believe they had.
     const vanishing: MediaStore = Object.assign(Object.create(world.media) as MediaStore, {
       openRead: async () => null,
     })
 
     const result = await makeDownloadGalleryArchive({ ...world, media: vanishing })(signed())
     if (!result.ok) throw new Error('expected an archive')
+
+    await expect(drain(result.value.chunks)).rejects.toThrow(/vanished/)
+    expect(world.archive.names).toEqual([])
+  })
+
+  it('opens an entry’s bytes only when the writer reads them, not while listing', async () => {
+    // What makes the revocation check mean anything against a writer that queues
+    // entries as fast as it is handed them: nothing is opened, and the link is not
+    // asked about, until the bytes are actually wanted.
+    const opened: string[] = []
+    const counting: MediaStore = Object.assign(Object.create(world.media) as MediaStore, {
+      openRead: async (...args: Parameters<MediaStore['openRead']>) => {
+        opened.push(args[2])
+        return world.media.openRead(...args)
+      },
+    })
+    const listed: ArchiveEntry[] = []
+    const lister: ArchiveWriter = {
+      stream: (entries) =>
+        (async function* () {
+          for await (const entry of entries) listed.push(entry)
+          yield Uint8Array.of(listed.length)
+        })(),
+    }
+    const listOnly = await makeDownloadGalleryArchive({
+      ...world,
+      media: counting,
+      archive: lister,
+    })(signed())
+    if (!listOnly.ok) throw new Error('expected an archive')
+    await drain(listOnly.value.chunks)
+
+    expect(listed).toHaveLength(2)
+    expect(opened).toEqual([])
+  })
+
+  it('archives an album longer than one page of the listing', async () => {
+    for (let index = 0; index < 205; index += 1) {
+      const photo = aPhoto({
+        id: `bulk-${index}`,
+        eventId: WEDDING,
+        status: 'published',
+        createdAt: atPlus(10 + index),
+      })
+      world.photos.seed(photo)
+      await world.storeMedia(photo)
+    }
+
+    const result = await download(signed())
+    if (!result.ok) throw new Error('expected an archive')
     await drain(result.value.chunks)
 
-    expect(world.archive.names).toEqual([])
+    expect(world.archive.names).toHaveLength(207)
+    expect(new Set(world.archive.names).size).toBe(207)
   })
 
   it.each<[string, (input: DownloadGalleryArchiveInput) => DownloadGalleryArchiveInput]>([
