@@ -462,3 +462,53 @@ export const moderatorInvitationBody = inviteModeratorBody
     temporaryPassword: z.string().min(1).max(1_000),
   })
   .strict()
+
+// ----------------------------------------------------------- shared gallery --
+
+/**
+ * The host's link (roadmap §4.1): how many days it lasts, and whether it asks for a
+ * password. Both optional — a month and no password is a link — and the bounds are the
+ * domain's (`ShareLinkLifetime`), not repeated here: `.int()` is shape, "at most ninety"
+ * is policy. The password is bounded only so an unbounded string never reaches bcrypt.
+ */
+export const shareLinkBody = z
+  .object({
+    expiresInDays: z.number().int().optional(),
+    password: z.string().max(200).nullable().optional(),
+  })
+  .strict()
+
+/**
+ * A 256-bit token, base64url: exactly 43 characters. Parsed with `safeParse` by the
+ * routes, which answer anything else with the same `gallery.notAvailable` an unknown
+ * token gets — a malformed link and a dead one must be indistinguishable too.
+ */
+export const galleryTokenParams = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) })
+
+export const galleryUnlockBody = z.object({ password: z.string().min(1).max(200) }).strict()
+
+/** Sealed by the server; bounded here so an unbounded string never reaches the MAC. */
+export const galleryPhotosQuery = z
+  .object({ cursor: z.string().min(1).max(1024).optional() })
+  .strict()
+
+/** One signed media URL: the path names what, the query proves it was granted. */
+export const galleryMediaParams = z.object({
+  linkId: uuid,
+  photoId: uuid,
+  variant: z.enum(['thumb', 'display', 'original', 'video', 'poster']),
+})
+
+export const galleryArchiveParams = z.object({ linkId: uuid })
+
+/**
+ * `e` is the grant's expiry in epoch milliseconds, `s` its signature — 43 base64url
+ * characters, the length of an HMAC-SHA256. Short names because they travel on every
+ * thumbnail of a grid. `.strict()`, so a URL carrying anything else was not one of ours.
+ */
+export const galleryGrantQuery = z
+  .object({
+    e: z.coerce.number().int().positive(),
+    s: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  })
+  .strict()

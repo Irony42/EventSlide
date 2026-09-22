@@ -16,6 +16,8 @@ import type { ContentHasher } from '../application/ports/contentHasher'
 import type { ArchiveWriter } from '../application/ports/archiveWriter'
 import type { PasswordHasher } from '../application/ports/passwordHasher'
 import type { GuestTokenService } from '../application/ports/guestTokenService'
+import type { ShareLinkRepository } from '../application/ports/shareLinkRepository'
+import type { GallerySigner } from '../application/ports/gallerySigner'
 
 import { makeAuthenticateUser } from '../application/usecases/auth/authenticateUser'
 import { makeBootstrapOwner } from '../application/usecases/auth/bootstrapOwner'
@@ -72,6 +74,15 @@ import { makeGetGuestChecklist } from '../application/usecases/missions/getGuest
 import { makeListMissions } from '../application/usecases/missions/listMissions'
 import { makeUpdateMission } from '../application/usecases/missions/updateMission'
 
+import { makeCreateShareLink } from '../application/usecases/gallery/createShareLink'
+import { makeDownloadGalleryArchive } from '../application/usecases/gallery/downloadGalleryArchive'
+import { makeGetGalleryMedia } from '../application/usecases/gallery/getGalleryMedia'
+import { makeGetShareLink } from '../application/usecases/gallery/getShareLink'
+import { makeListGalleryPhotos } from '../application/usecases/gallery/listGalleryPhotos'
+import { makeOpenGallery } from '../application/usecases/gallery/openGallery'
+import { makeRevokeShareLink } from '../application/usecases/gallery/revokeShareLink'
+import { makeUnlockGallery } from '../application/usecases/gallery/unlockGallery'
+
 /**
  * Every adapter the use cases need, as ports.
  *
@@ -99,6 +110,10 @@ export interface Adapters {
   readonly archive: ArchiveWriter
   readonly passwordHasher: PasswordHasher
   readonly guestTokens: GuestTokenService
+  /** The shared gallery's links (roadmap §4.1). */
+  readonly shareLinks: ShareLinkRepository
+  /** Tokens, their digests, and the MAC behind every signed gallery URL. */
+  readonly gallerySigner: GallerySigner
 }
 
 /** The policy values a use case needs, drawn from validated configuration. */
@@ -124,6 +139,15 @@ export interface UseCasePolicy {
     readonly maxPixels: number
   }
 }
+
+/** The ports every gallery use case's access rule reads. */
+const galleryAccess = (adapters: Adapters) => ({
+  shareLinks: adapters.shareLinks,
+  events: adapters.events,
+  memberships: adapters.memberships,
+  signer: adapters.gallerySigner,
+  clock: adapters.clock,
+})
 
 /**
  * Builds every use case once, at startup.
@@ -418,6 +442,49 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   getGuestChecklist: makeGetGuestChecklist({
     events: adapters.events,
     missions: adapters.missions,
+  }),
+
+  // --------------------------------------------------------- shared gallery --
+  //
+  // Every one of the link holder's five goes through `galleryAccess.ts`, which is why
+  // they share one bag of ports: the rule they all ask needs the links, the events, the
+  // memberships (a link lives only as long as its creator's ownership), the signer and
+  // the clock.
+  createShareLink: makeCreateShareLink({
+    events: adapters.events,
+    shareLinks: adapters.shareLinks,
+    memberships: adapters.memberships,
+    hasher: adapters.passwordHasher,
+    signer: adapters.gallerySigner,
+    ids: adapters.ids,
+    clock: adapters.clock,
+  }),
+  getShareLink: makeGetShareLink({
+    events: adapters.events,
+    shareLinks: adapters.shareLinks,
+    memberships: adapters.memberships,
+    clock: adapters.clock,
+  }),
+  revokeShareLink: makeRevokeShareLink({
+    events: adapters.events,
+    shareLinks: adapters.shareLinks,
+    memberships: adapters.memberships,
+    clock: adapters.clock,
+  }),
+  openGallery: makeOpenGallery({ ...galleryAccess(adapters), photos: adapters.photos }),
+  unlockGallery: makeUnlockGallery({ ...galleryAccess(adapters), hasher: adapters.passwordHasher }),
+  listGalleryPhotos: makeListGalleryPhotos({ ...galleryAccess(adapters), photos: adapters.photos }),
+  getGalleryMedia: makeGetGalleryMedia({
+    ...galleryAccess(adapters),
+    photos: adapters.photos,
+    media: adapters.media,
+  }),
+  downloadGalleryArchive: makeDownloadGalleryArchive({
+    ...galleryAccess(adapters),
+    photos: adapters.photos,
+    media: adapters.media,
+    archive: adapters.archive,
+    logger: adapters.logger,
   }),
 
   // -------------------------------------------------------------- reactions --

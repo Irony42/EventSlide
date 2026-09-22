@@ -347,6 +347,16 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       JOIN_RATE_LIMIT_PER_MINUTE: positiveInt(20, 600),
       LOGIN_RATE_LIMIT_PER_MINUTE: positiveInt(10, 600),
       REACTION_RATE_LIMIT_PER_MINUTE: positiveInt(30, 600),
+      /**
+       * The shared gallery (roadmap §4.1), the one surface a stranger reaches with only a
+       * URL. Pages and bytes are separate budgets because a grid of sixty thumbnails is
+       * sixty requests the moment it renders; password attempts are per quarter hour and
+       * count failures only, per client and per link.
+       */
+      GALLERY_RATE_LIMIT_PER_MINUTE: positiveInt(60, 600),
+      GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: positiveInt(600, 6_000),
+      GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT: positiveInt(10, 600),
+      GALLERY_UNLOCK_ATTEMPTS_PER_LINK: positiveInt(50, 6_000),
 
       /**
        * Bounded at both ends. `createBcryptPasswordHasher` refuses anything outside
@@ -523,6 +533,12 @@ export interface AppConfig {
     readonly joinPerMinute: number
     readonly loginPerMinute: number
     readonly reactionPerMinute: number
+    readonly galleryPerMinute: number
+    readonly galleryMediaPerMinute: number
+    /** Failed password attempts per client, per fifteen minutes. */
+    readonly galleryUnlockPerClient: number
+    /** Failed password attempts per link, from every client together, per fifteen minutes. */
+    readonly galleryUnlockPerLink: number
   }
 
   readonly crypto: {
@@ -653,6 +669,10 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       joinPerMinute: raw.JOIN_RATE_LIMIT_PER_MINUTE,
       loginPerMinute: raw.LOGIN_RATE_LIMIT_PER_MINUTE,
       reactionPerMinute: raw.REACTION_RATE_LIMIT_PER_MINUTE,
+      galleryPerMinute: raw.GALLERY_RATE_LIMIT_PER_MINUTE,
+      galleryMediaPerMinute: raw.GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE,
+      galleryUnlockPerClient: raw.GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT,
+      galleryUnlockPerLink: raw.GALLERY_UNLOCK_ATTEMPTS_PER_LINK,
     },
 
     crypto: {

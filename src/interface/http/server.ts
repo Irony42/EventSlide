@@ -10,12 +10,14 @@ import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders
 import { authRoutes } from './routes/authRoutes'
 import { clipRoutes } from './routes/clipRoutes'
 import { eventRoutes } from './routes/eventRoutes'
+import { galleryRoutes, setGalleryHeaders } from './routes/galleryRoutes'
 import { guestRoutes } from './routes/guestRoutes'
 import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
 import { mediaRoutes } from './routes/mediaRoutes'
 import { missionRoutes } from './routes/missionRoutes'
 import { moderationRoutes } from './routes/moderationRoutes'
 import { publicRoutes } from './routes/publicRoutes'
+import { shareLinkRoutes } from './routes/shareLinkRoutes'
 import { streamRoutes } from './routes/streamRoutes'
 import type { HttpDeps } from './types'
 import type { PresenterContext } from './presenters/presenters'
@@ -151,6 +153,11 @@ export const buildServer = ({
     }),
   )
   app.use('/api', mediaRoutes(routeDeps))
+  // The shared gallery (roadmap §4.1): public, token-gated, with its own limits and its
+  // own headers. Its own router so that nothing mounted for the host's surface — a role
+  // check, a cache header — can be inherited by the one surface a stranger reaches.
+  app.use('/api', galleryRoutes({ deps, usecases, limits: config.rateLimits }))
+  app.use('/api', shareLinkRoutes(routeDeps))
   app.use('/api', moderationRoutes(routeDeps))
   // After the guest router, which owns 'missions/mine' on the same path prefix, and
   // before the event router for no reason other than reading order: the four routes here
@@ -202,6 +209,14 @@ const mountClient = (app: Express, clientDir: string, isProduction: boolean): vo
       },
     }),
   )
+
+  // The shared gallery's page. The same shell, with the gallery's headers: the token is
+  // in this address, so no referrer may carry it off, no crawler may index it and no
+  // cache may keep the page it opened. `no-store` rather than the shell's `no-cache`.
+  app.get(['/g', '/g/*'], (_req, res) => {
+    setGalleryHeaders(res)
+    res.sendFile('index.html', { root: clientDir, headers: { 'Cache-Control': 'no-store' } })
+  })
 
   // The SPA fallback. Everything that is not /api and not a file is a client route:
   // /join/:code, /e/:slug/display, /admin/**.

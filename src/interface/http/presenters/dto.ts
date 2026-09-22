@@ -500,3 +500,68 @@ export interface WallMissionDto {
   readonly achieved: boolean
   readonly completedByGuests: number
 }
+
+// ----------------------------------------------------------- shared gallery --
+
+/**
+ * The event's shared gallery link as its owner sees it (roadmap §4.1).
+ *
+ * **No URL.** Only the token's digest is stored, so the console cannot show the address a
+ * second time; it is on {@link ShareLinkCreatedDto}, once, and nowhere else. `available`
+ * is what a guest opening it right now would get — computed by the rule the gallery
+ * itself asks, so the console and a phone cannot disagree.
+ */
+export interface ShareLinkDto {
+  readonly id: string
+  readonly createdAt: string
+  readonly expiresAt: string
+  readonly hasPassword: boolean
+  readonly available: boolean
+}
+
+/** `GET /events/:slug/share-link`: the current link, or `null` when there is none. */
+export interface ShareLinkResponseDto {
+  readonly link: ShareLinkDto | null
+}
+
+/** `POST /events/:slug/share-link`: the new link, and its address — the only time it exists. */
+export interface ShareLinkCreatedDto {
+  readonly link: ShareLinkDto
+  readonly url: string
+}
+
+/**
+ * `GET /gallery/:token`: what a guest opening the link is shown above the grid.
+ *
+ * Nothing here is sent before the password: a locked link answers `401` with no body but
+ * the error, so a forwarded link does not even disclose whose wedding it is.
+ */
+export interface GalleryDto {
+  /** Content: the host's own words, shown exactly as typed. */
+  readonly eventName: string
+  /** The event's look, so the guest's own phone wears the accent and material it chose. */
+  readonly theme: EventThemeDto
+  readonly photoCount: number
+  readonly expiresAt: string
+  /** The whole album as a ZIP. Signed, and good for an hour. */
+  readonly archiveUrl: string
+}
+
+/** One tile of the gallery's grid, with the three signed URLs a viewer needs. */
+export interface GalleryPhotoDto {
+  readonly id: string
+  readonly kind: MediaKind
+  readonly width: number
+  readonly height: number
+  /** Content, as the guest typed it; `null` when there is none. */
+  readonly caption: string | null
+  readonly previewUrl: string
+  readonly viewUrl: string
+  readonly downloadUrl: string
+}
+
+/** `GET /gallery/:token/photos`: one page, and the sealed cursor to the next. */
+export interface GalleryPageDto {
+  readonly items: readonly GalleryPhotoDto[]
+  readonly nextCursor: string | null
+}

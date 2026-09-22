@@ -16,6 +16,7 @@ import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { SqliteMembershipRepository } from '../infrastructure/db/sqliteMembershipRepository'
 import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepository'
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
+import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
 import { probeFfmpegCapability } from '../infrastructure/media/ffmpegBinaries'
@@ -28,6 +29,7 @@ import { detectVideoContainer } from '../infrastructure/media/magicBytes'
 import { archiverWriter } from '../infrastructure/media/archiverWriter'
 import { createBcryptPasswordHasher } from '../infrastructure/crypto/bcryptPasswordHasher'
 import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestTokenService'
+import { createHmacGallerySigner } from '../infrastructure/crypto/hmacGallerySigner'
 import { randomIdGenerator } from '../infrastructure/crypto/randomIdGenerator'
 import { createSequentialIdGenerator } from '../infrastructure/crypto/sequentialIdGenerator'
 import { sha256ContentHasher } from '../infrastructure/crypto/sha256ContentHasher'
@@ -333,6 +335,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     archive: archiverWriter,
     passwordHasher: createBcryptPasswordHasher({ cost: config.crypto.bcryptCost }),
     guestTokens: createHmacGuestTokenService({ secret: config.secrets.guestToken }),
+    shareLinks: new SqliteShareLinkRepository(db),
+    // HKDF-derived from the session secret under its own label — see the adapter for why
+    // that parent, and why not a new variable a running installation would lack.
+    gallerySigner: createHmacGallerySigner({ rootSecret: config.secrets.session }),
   }
 
   const usecases = buildUseCases(adapters, {

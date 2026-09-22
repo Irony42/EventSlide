@@ -90,6 +90,19 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
     'the join code **is** the credential, and a guest arrives holding nothing else — the ' +
     'route reaches an event, by a body field rather than by the path, so it is classified ' +
     'here rather than as a route that touches no event at all',
+  'get /api/gallery/:token':
+    'the shared gallery (roadmap §4.1): the link’s token **is** the credential, and the ' +
+    'use case decides everything with it — an operator holding no token gets the neutral ' +
+    '404 every stranger gets, and one holding the token sees exactly what the host sent',
+  'post /api/gallery/:token/unlock':
+    'the gallery’s password, which is the second factor on top of the token and is ' +
+    'answered by the token’s own rule',
+  'get /api/gallery/:token/photos': 'the gallery’s grid, behind the same token',
+  'get /api/gallery-media/:linkId/album.zip':
+    'the gallery’s archive: a signed URL the gallery minted, re-checked against the link',
+  'get /api/gallery-media/:linkId/:photoId/:variant':
+    'one photograph of the gallery, by a signed URL the gallery minted, re-checked against ' +
+    'the link and scoped by the link’s own event',
 }
 
 /**
@@ -212,6 +225,8 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   missionId: A_PHOTO,
   variant: 'display',
   kind: 'love',
+  token: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+  linkId: A_PHOTO,
 }
 
 /**

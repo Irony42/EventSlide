@@ -13,6 +13,8 @@ import type {
   ClipJobDto,
   EventDto,
   EventSettingsDto,
+  GalleryDto,
+  GalleryPhotoDto,
   GuestPhotoDto,
   GuestMissionDto,
   JoinResponse,
@@ -21,6 +23,7 @@ import type {
   PublicEventDto,
   SessionResponse,
   SessionUserDto,
+  ShareLinkDto,
   WallItemDto,
   WallMissionDto,
   WallResponse,
@@ -56,6 +59,42 @@ export const aPublicEvent = (overrides: Partial<PublicEventDto> = {}): PublicEve
   // The default theme, so a component test asserts the product's own look unless it
   // says otherwise — the same starting point an event that chose nothing has.
   theme: DEFAULT_EVENT_THEME,
+  ...overrides,
+})
+
+/** An open shared gallery, as a guest holding its link is shown it (roadmap §4.1). */
+export const aGallery = (overrides: Partial<GalleryDto> = {}): GalleryDto => ({
+  eventName: 'Camille & Sacha',
+  theme: DEFAULT_EVENT_THEME,
+  photoCount: 2,
+  expiresAt: '2026-07-20T21:00:00.000Z',
+  archiveUrl: '/api/gallery-media/link-1/album.zip?e=1&s=signature',
+  ...overrides,
+})
+
+/** One tile of the gallery. The URLs name their rendition, so a test can tell them apart. */
+export const aGalleryPhoto = (overrides: Partial<GalleryPhotoDto> = {}): GalleryPhotoDto => {
+  const id = overrides.id ?? 'photo-1'
+  return {
+    id,
+    kind: 'photo',
+    width: 4032,
+    height: 3024,
+    caption: null,
+    previewUrl: `/api/gallery-media/link-1/${id}/thumb?e=1&s=a`,
+    viewUrl: `/api/gallery-media/link-1/${id}/display?e=1&s=b`,
+    downloadUrl: `/api/gallery-media/link-1/${id}/original?e=1&s=c`,
+    ...overrides,
+  }
+}
+
+/** The host's current link, open, with no password. */
+export const aShareLink = (overrides: Partial<ShareLinkDto> = {}): ShareLinkDto => ({
+  id: 'link-1',
+  createdAt: CREATED_AT,
+  expiresAt: '2026-07-20T21:04:11.031Z',
+  hasPassword: false,
+  available: true,
   ...overrides,
 })
 
@@ -363,6 +402,20 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   createMission: vi.fn(async (): Promise<MissionDto> => aMission()),
   updateMission: vi.fn(async () => undefined),
   deleteMission: vi.fn(async () => undefined),
+
+  // No link by default: the panel's first state is the one a host meets first.
+  shareLink: vi.fn(async () => ({ link: null })),
+  createShareLink: vi.fn(async () => ({
+    link: aShareLink(),
+    url: 'https://photos.example.test/g/le-jeton-du-lien',
+  })),
+  revokeShareLink: vi.fn(async () => undefined),
+  gallery: vi.fn(async () => aGallery()),
+  unlockGallery: vi.fn(async () => undefined),
+  galleryPhotos: vi.fn(async () => ({
+    items: [aGalleryPhoto({ id: 'photo-1' }), aGalleryPhoto({ id: 'photo-2' })],
+    nextCursor: null,
+  })),
 
   albumUrl: vi.fn((slug: string) => `/api/events/${slug}/album.zip`),
   streamUrl: vi.fn((slug: string) => `/api/events/${slug}/stream`),

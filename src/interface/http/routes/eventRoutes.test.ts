@@ -224,6 +224,15 @@ const buildWorld = (): World => {
         deleteMission: absent('deleteMission'),
         getGuestChecklist: absent('getGuestChecklist'),
 
+        createShareLink: absent('createShareLink'),
+        getShareLink: absent('getShareLink'),
+        revokeShareLink: absent('revokeShareLink'),
+        openGallery: absent('openGallery'),
+        unlockGallery: absent('unlockGallery'),
+        listGalleryPhotos: absent('listGalleryPhotos'),
+        getGalleryMedia: absent('getGalleryMedia'),
+        downloadGalleryArchive: absent('downloadGalleryArchive'),
+
         reactToPhoto: absent('reactToPhoto'),
         withdrawReaction: absent('withdrawReaction'),
         getPhotoReactions: absent('getPhotoReactions'),

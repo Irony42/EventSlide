@@ -55,6 +55,10 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
     joinPerMinute: 20,
     loginPerMinute: 10,
     reactionPerMinute: 30,
+    galleryPerMinute: 60,
+    galleryMediaPerMinute: 600,
+    galleryUnlockPerClient: 10,
+    galleryUnlockPerLink: 50,
   },
   ...overrides,
 })

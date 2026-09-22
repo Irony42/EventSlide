@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import rateLimit, { ipKeyGenerator, type RateLimitRequestHandler } from 'express-rate-limit'
 import type { Request, RequestHandler } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
@@ -96,6 +97,86 @@ export const uploadLimiter = (perMinute: number): RateLimitRequestHandler =>
 /** Reactions are cheap but tappable at speed; the domain budget is the finer control. */
 export const reactionLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'reaction.rateLimited', (req) => `${clientKey(req)}:${eventKey(req)}`)
+
+// ----------------------------------------------------------- shared gallery --
+
+/**
+ * The gallery's pages, per client (roadmap §4.1).
+ *
+ * Its own bucket rather than a share of another, because it is the one surface a stranger
+ * reaches with nothing but a URL: a link forwarded to a group chat is opened by people
+ * this box has never seen, and none of them should spend a wedding guest's upload
+ * allowance or be spent by it. Per client and not per link, so a crawler walking a leaked
+ * link cannot also walk every other link from the same address on a fresh budget.
+ */
+export const galleryLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited', clientKey)
+
+/**
+ * The gallery's bytes, per client, on a separate and larger budget.
+ *
+ * A grid of sixty thumbnails is sixty requests the moment it renders, so a limit sized for
+ * pages would starve the grid, and one sized for the grid would let the pages be walked at
+ * sixty times the speed they need to be.
+ */
+export const galleryMediaLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited', clientKey)
+
+/** A quarter of an hour: long enough to stop a guesser, short enough to forgive a typo. */
+const UNLOCK_WINDOW_MS = 15 * 60_000
+
+/**
+ * The link a password attempt is for, as a key — digested, so the limiter's own memory
+ * never holds a gallery's token, and collapsed to one bucket for anything that is not
+ * token-shaped so a sprayer of invented links spends one allowance, not one each.
+ */
+const galleryLinkKey = (req: Request): string => {
+  const token = req.params['token']
+  if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) return `link:${NO_EVENT}`
+  return `link:${createHash('sha256').update(token).digest('hex')}`
+}
+
+export interface GalleryUnlockLimits {
+  /** Failed attempts one client may make, across every link, per window. */
+  readonly perClient: number
+  /** Failed attempts one link may take, from every client together, per window. */
+  readonly perLink: number
+}
+
+/**
+ * Password attempts, limited **per client and per link**, and counting failures only.
+ *
+ * Two limits because each closes what the other leaves open. Per client alone, a botnet
+ * gets a fresh allowance per address against one link; per link alone, one address can
+ * spend a link's whole allowance and lock its family out. Together, a guesser gets a few
+ * tries from anywhere and a few dozen in total, per quarter hour, against a password the
+ * account policy already made twelve characters long.
+ *
+ * **Failures only** (`skipSuccessfulRequests`): thirty relatives unlocking the same album
+ * on the morning after spend nothing, so the per-link limit is a ceiling on guessing
+ * rather than on the family. A dead link's answer is a failure too, so this is also the
+ * limit on probing for tokens through the unlock route.
+ */
+export const galleryUnlockLimiters = ({
+  perClient,
+  perLink,
+}: GalleryUnlockLimits): readonly RequestHandler[] =>
+  [
+    { limit: perClient, keyGenerator: clientKey },
+    { limit: perLink, keyGenerator: galleryLinkKey },
+  ].map(({ limit, keyGenerator }) =>
+    rateLimit({
+      windowMs: UNLOCK_WINDOW_MS,
+      limit,
+      skipSuccessfulRequests: true,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      keyGenerator,
+      handler: (_req, res) => {
+        res.status(429).json(errorBody(DomainError.rateLimited('gallery.tooManyAttempts')))
+      },
+    }),
+  )
 
 /**
  * How many event streams one client key may hold **open at the same time**.

@@ -118,6 +118,10 @@ describe('loadConfig', () => {
           joinPerMinute: 20,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          galleryPerMinute: 60,
+          galleryMediaPerMinute: 600,
+          galleryUnlockPerClient: 10,
+          galleryUnlockPerLink: 50,
         },
         crypto: { bcryptCost: 12 },
         bootstrap: { ownerEmail: null, ownerPassword: null },
@@ -240,6 +244,10 @@ describe('loadConfig', () => {
         JOIN_RATE_LIMIT_PER_MINUTE: '102',
         LOGIN_RATE_LIMIT_PER_MINUTE: '103',
         REACTION_RATE_LIMIT_PER_MINUTE: '104',
+        GALLERY_RATE_LIMIT_PER_MINUTE: '105',
+        GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: '106',
+        GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT: '107',
+        GALLERY_UNLOCK_ATTEMPTS_PER_LINK: '108',
         BCRYPT_COST: '14',
       })
 
@@ -258,6 +266,10 @@ describe('loadConfig', () => {
           joinPerMinute: 102,
           loginPerMinute: 103,
           reactionPerMinute: 104,
+          galleryPerMinute: 105,
+          galleryMediaPerMinute: 106,
+          galleryUnlockPerClient: 107,
+          galleryUnlockPerLink: 108,
         },
         crypto: { bcryptCost: 14 },
       })
