@@ -106,6 +106,15 @@ export const de: GuestTranslations = {
     notJoinedHint: 'Scannen Sie den QR-Code erneut oder geben Sie den Code der Feier ein.',
     notJoinedAction: 'Code eingeben',
 
+    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
+
+    missionsTitle: 'Missionen',
+    missionsHint: 'Tippen Sie auf eine Mission und senden Sie dann Ihr Foto.',
+    missionDone: 'Erledigt',
+    missionDoneByRoom: 'Schon fotografiert',
+    missionSelect: (prompt: string) => `Mission „${prompt}“ wählen`,
+    missionFor: (prompt: string) => `Diese Fotos zählen für „${prompt}“.`,
+
     itemQueued: 'Wartet auf das Netz',
     itemExpiredHint:
       'Dieses Foto konnte nicht gesendet werden. Senden Sie es erneut, falls Sie es noch haben.',
@@ -318,6 +327,15 @@ export const de: GuestTranslations = {
     'clipJob.notFound': 'Dieses Video gibt es nicht mehr.',
     'clipJob.illegalTransition': 'Diese Aktion ist bei diesem Video nicht möglich.',
     'photo.rangeNotSatisfiable': 'Diesen Teil der Datei gibt es nicht.',
+
+    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
+    'mission.notFound': 'Diese Mission gibt es nicht mehr. Laden Sie die Seite neu.',
+    'mission.duplicate': 'Diese Mission gibt es bereits.',
+    'mission.limitReached': 'Sie haben die maximale Anzahl an Missionen erreicht.',
+    'mission.promptEmpty': 'Schreiben Sie, worum die Mission bittet.',
+    'mission.promptTooLong': 'Dieser Text ist zu lang für den Bildschirm.',
+    'mission.promptInvalid': 'Dieser Text ist nicht gültig.',
+
     'eventTheme.accentHueInvalid': 'Diese Farbe ist unbekannt. Wählen Sie eine aus der Liste.',
     'eventTheme.accentUnreadable':
       'Diese Farbe wäre auf der Leinwand im Saal nicht lesbar. Wählen Sie eine aus der Liste.',

@@ -1,0 +1,99 @@
+/**
+ * Top-left, inside the overscan inset.
+ *
+ * The one corner the wall does not already spend: the invitation is bottom-right, the
+ * notices are top-right, and the captions are along the bottom. Nothing is reserved
+ * around this panel the way `--wall-chrome-inline-end` reserves around the join card,
+ * because no layout puts text in the top-left — the mosaic's in-tile credits sit at the
+ * bottom of their tiles and the spotlight's caption is centred under the photograph.
+ *
+ * Only properties `Card` does not set are declared here. Overriding a primitive's own
+ * layout from a feature module would make the result depend on stylesheet order.
+ */
+.panel {
+  position: absolute;
+  inline-size: var(--wall-mission-panel);
+  inset-inline-start: var(--wall-safe);
+  inset-block-start: var(--wall-safe);
+  z-index: var(--z-wall-caption);
+  gap: var(--space-3);
+  box-shadow: var(--shadow-lg);
+}
+
+.title {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  color: var(--text-secondary);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+}
+
+/**
+ * Icon, prompt, answer.
+ *
+ * The prompt takes the free space and the answer sits at the end, so a row of eleven
+ * guests and a row of one line up down the panel rather than each ending where its own
+ * text stops.
+ */
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  /**
+   * `--text-secondary`, never `--text-muted`.
+   *
+   * §8 of the design system holds everything on the wall to 7:1 at any size, and
+   * `tokens.contrast.test.ts` sweeps the ink of every wall stylesheet against three
+   * grounds to enforce it. `--text-muted` measures 5.77 on `--surface-base` — legible on
+   * a laptop, not from ten metres — so an unanswered prompt is the dimmer of the two inks
+   * that do clear the bar rather than the one that reads as dim.
+   */
+  color: var(--text-secondary);
+}
+
+.row[data-mission-answered='true'] {
+  color: var(--text-primary);
+}
+
+/**
+ * Nudged onto the text's baseline.
+ *
+ * `align-items: baseline` on the row puts a replaced element's bottom edge on the
+ * baseline, which leaves the glyph sitting a little high against a line of text.
+ */
+.icon {
+  align-self: center;
+  color: var(--text-secondary);
+}
+
+.row[data-mission-answered='true'] .icon {
+  color: var(--accent);
+}
+
+/**
+ * Two lines at most, then an ellipsis.
+ *
+ * `MissionPrompt` caps a prompt at sixty characters, which is one line here at most
+ * widths and two at the longest; this is the floor under a projector whose font settings
+ * are not the ones this was measured on, so a long prompt cannot push the list past the
+ * bottom of the panel and off the screen.
+ */
+.prompt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.answer {
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}

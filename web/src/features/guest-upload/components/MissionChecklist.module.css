@@ -1,0 +1,93 @@
+/**
+ * The checklist, above the composer and below the guest's own uploads.
+ *
+ * Nothing here animates, deliberately. §7's table records what the guest surface leaves
+ * still and why: this list scrolls **under** the glass composer, and a row changing state
+ * behind a blurred pane is a backdrop re-filtered every frame — on the one machine that is
+ * also encoding a photograph over venue Wi-Fi. A tick that simply appears costs nothing
+ * and says the same thing.
+ */
+.checklist {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}
+
+.hint {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+/**
+ * The whole row is the target.
+ *
+ * `--touch-min` is the floor rather than the aspiration — a dark room, sunlight, one
+ * thumb — and the row takes the full width so there is no aiming involved. The prompt
+ * takes the free space and the state sits at the end, so a list of twelve lines up.
+ */
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  line-height: var(--leading-snug);
+  text-align: start;
+  cursor: pointer;
+}
+
+.row:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/**
+ * The chosen prompt, which the next send will be filed under.
+ *
+ * The accent border and ground rather than a checkbox: the button already reports itself
+ * as pressed, and a second control inside a control is one more thing to hit by mistake.
+ */
+.row[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--surface-overlay);
+}
+
+.icon {
+  color: var(--text-muted);
+}
+
+.row[data-mission-done='true'] .icon {
+  color: var(--success);
+}
+
+.prompt {
+  overflow-wrap: anywhere;
+}
+
+/* The word beside the glyph, so the state survives a colourblind guest in a dark room. */
+.done {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--success);
+  white-space: nowrap;
+}

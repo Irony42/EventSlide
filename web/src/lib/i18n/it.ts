@@ -107,6 +107,15 @@ export const it: GuestTranslations = {
     notJoinedHint: 'Scansioni di nuovo il codice QR, oppure inserisca il codice della serata.',
     notJoinedAction: 'Inserisci il codice',
 
+    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
+
+    missionsTitle: 'Missioni',
+    missionsHint: 'Tocchi una missione, poi invii la sua foto.',
+    missionDone: 'Fatto',
+    missionDoneByRoom: 'Già fotografata',
+    missionSelect: (prompt: string) => `Scegliere la missione «${prompt}»`,
+    missionFor: (prompt: string) => `Queste foto conteranno per «${prompt}».`,
+
     itemQueued: 'In attesa della rete',
     itemExpiredHint:
       'Non è stato possibile inviare questa foto. La invii di nuovo se ce l’ha ancora.',
@@ -306,6 +315,15 @@ export const it: GuestTranslations = {
     'clipJob.notFound': 'Questo video non esiste più.',
     'clipJob.illegalTransition': 'Questa azione non è possibile su questo video.',
     'photo.rangeNotSatisfiable': 'Questa parte del file non esiste.',
+
+    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
+    'mission.notFound': 'Questa missione non esiste più. Ricarichi la pagina.',
+    'mission.duplicate': 'Questa missione esiste già.',
+    'mission.limitReached': 'Ha raggiunto il numero massimo di missioni.',
+    'mission.promptEmpty': 'Scriva che cosa chiede la missione.',
+    'mission.promptTooLong': 'Questo testo è troppo lungo per lo schermo.',
+    'mission.promptInvalid': 'Questo testo non è valido.',
+
     'eventTheme.accentHueInvalid': 'Questo colore non è riconosciuto. Scegline uno dall’elenco.',
     'eventTheme.accentUnreadable':
       'Questo colore non sarebbe leggibile sullo schermo in sala. Scegline uno dall’elenco.',

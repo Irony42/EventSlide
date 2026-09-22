@@ -145,6 +145,25 @@ export const fr = {
     notJoinedHint: 'Scannez à nouveau le QR code, ou saisissez le code de la soirée.',
     notJoinedAction: 'Saisir le code',
 
+    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
+
+    /**
+     * The host's prompts, as a guest reads them.
+     *
+     * The words *around* the list are translated; the prompts themselves are not, and
+     * never will be — a prompt is content the host typed in the language the evening is
+     * held in, not interface copy. A German guest at a French wedding reads a French
+     * prompt under a German label, which is the right way round: the prompt names
+     * something that happened in that room.
+     */
+    missionsTitle: 'Missions',
+    missionsHint: 'Touchez une mission, puis envoyez votre photo.',
+    missionDone: 'Fait',
+    /** A once-for-the-evening prompt somebody else already answered. */
+    missionDoneByRoom: 'Déjà photographiée',
+    missionSelect: (prompt: string) => `Choisir la mission « ${prompt} »`,
+    missionFor: (prompt: string) => `Ces photos compteront pour « ${prompt} ».`,
+
     /* ---- Added by the offline outbox. Keep additions inside this block. ---- */
 
     /**
@@ -519,6 +538,30 @@ export const fr = {
      */
     videoBy: (name: string) => `Vidéo envoyée par ${name}`,
     videoByAnonymous: 'Vidéo envoyée par un invité',
+
+    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
+
+    /**
+     * The corner panel's own words. French in every language, like the rest of `wall`:
+     * there is one wall and two hundred people in front of it, and a per-guest cookie
+     * cannot answer "what language is this room".
+     *
+     * The prompts themselves are not here at all. They are content the host typed, and
+     * they arrive on the wall response.
+     */
+    missionsTitle: 'Missions',
+    missionDone: 'Fait',
+    /**
+     * What the wall prints beside a per-guest prompt, in place of a tick.
+     *
+     * A tick would be wrong for something two hundred people can each answer, and it is
+     * the only place `scope` changes a pixel.
+     */
+    missionGuests: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} invité`,
+        other: `${t.number(count)} invités`,
+      }),
   },
 
   admin: {
@@ -817,6 +860,44 @@ export const fr = {
      */
     scheduleDiscarded: (when: string) =>
       `L’horaire automatique n’a pas pu s’appliquer le ${when} : l’évènement ne pouvait pas changer d’état à ce moment-là. Il a été effacé. Enregistrez-en un nouveau si vous en voulez un.`,
+
+    /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
+
+    missionsTitle: 'Missions',
+    missionsHint:
+      'Une courte liste de consignes que vos invités voient comme une check-list, et que l’écran affiche dans un coin.',
+    missionsEmpty: 'Aucune mission pour le moment.',
+    missionPrompt: 'Consigne',
+    missionPromptHint: (max: number) =>
+      `${t.number(max)} caractères maximum. Écrite dans la langue de la soirée : elle n’est pas traduite.`,
+    missionScope: 'À relever',
+    missionScopeGuest: 'Par invité',
+    missionScopeEvent: 'Une fois pour la soirée',
+    missionScopeHint:
+      'Par invité : chacun peut la relever. Une fois : la première photo validée la coche pour tout le monde.',
+    missionAdd: 'Ajouter la mission',
+    missionSave: 'Enregistrer',
+    missionCancel: 'Annuler',
+    missionEdit: (prompt: string) => `Modifier « ${prompt} »`,
+    missionDelete: (prompt: string) => `Supprimer « ${prompt} »`,
+    /**
+     * Said plainly, because the host is about to be told that deleting is safe. It is:
+     * the schema unfiles the photographs and removes none of them.
+     */
+    missionDeleteConfirm:
+      'Supprimer cette mission ? Les photos déjà envoyées restent dans l’album, elles ne compteront simplement plus pour elle.',
+    /** What the room has done with it. Counted on every read, never stored. */
+    missionAnswered: (photos: number, guests: number) =>
+      `${t.count(photos, {
+        one: `${t.number(photos)} photo`,
+        other: `${t.number(photos)} photos`,
+      })}, ${t.count(guests, {
+        one: `${t.number(guests)} invité`,
+        other: `${t.number(guests)} invités`,
+      })}`,
+    missionUnanswered: 'Pas encore relevée',
+    missionsFull: (max: number) =>
+      `${t.number(max)} missions au maximum : c’est ce qui garde la liste lisible à dix mètres.`,
   },
 
   auth: {
@@ -1009,6 +1090,14 @@ export const fr = {
     // it is here because every code the API can answer with has a sentence of its own,
     // and a code with no copy renders as the generic one if anything ever does show it.
     'photo.rangeNotSatisfiable': 'Cette partie du fichier n’existe pas.',
+
+    /* ---- Added by photo missions (ROADMAP 2.1). ---- */
+    'mission.notFound': 'Cette mission n’existe plus. Rechargez la page.',
+    'mission.duplicate': 'Cette mission existe déjà.',
+    'mission.limitReached': 'Vous avez atteint le nombre de missions autorisé.',
+    'mission.promptEmpty': 'Écrivez la consigne de la mission.',
+    'mission.promptTooLong': 'Cette consigne est trop longue pour l’écran.',
+    'mission.promptInvalid': 'Cette consigne n’est pas valide.',
   },
 
   /**

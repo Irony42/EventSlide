@@ -162,6 +162,11 @@ const TERMINAL_CODES: ReadonlySet<string> = new Set([
   // The caption travelling with them is not something a later attempt improves.
   'caption.tooLong',
   'caption.empty',
+  // The mission tag travelling with them, likewise. A prompt the host deleted while
+  // this phone was holding a stale checklist does not come back on a retry, so the
+  // entry is discarded and the guest is told rather than being made to wait for a
+  // refusal that will never change (roadmap §2.1).
+  'mission.notFound',
   // The request itself is malformed; the same request is malformed tomorrow.
   'request.invalid',
   // The host took this guest's access away. It does not come back.

@@ -6,6 +6,7 @@ import { fr } from '../../lib/i18n/fr'
 import type { WallItemDto, WallLayout, WallResponse } from '../../lib/api/dto'
 import {
   aWallItem,
+  aWallMission,
   aWallResponse,
   fakeApi,
   renderWithProviders,
@@ -1136,6 +1137,82 @@ describe('WallPage', () => {
       paintFrames(364, 60)
 
       expect(theWall()).not.toHaveAttribute('data-wall-budget')
+    })
+  })
+
+  describe('WallPage and the mission panel', () => {
+    it('draws no panel for an event whose host set no prompts', async () => {
+      // Which is nearly every event, and is what keeps the wall that does not use this
+      // feature exactly the wall it was.
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      expect(screen.queryByRole('heading', { name: fr.wall.missionsTitle })).not.toBeInTheDocument()
+    })
+
+    it('keeps the prompts in the corner while the room has photographs to look at', async () => {
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ missions: [aWallMission({ prompt: 'un selfie avec les mariés' })] }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      expect(screen.getByRole('heading', { name: fr.wall.missionsTitle })).toBeVisible()
+      expect(screen.getByText('un selfie avec les mariés')).toBeVisible()
+    })
+
+    it('withholds the panel while the wall is still the invitation', async () => {
+      // The empty state is a full-screen invitation, and chrome over it would cover the one
+      // message the room needs in the first twenty minutes.
+      const api = fakeApi({
+        wall: wallSequence(aWallResponse({ items: [], missions: [aWallMission()] })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-empty')
+
+      expect(screen.queryByRole('heading', { name: fr.wall.missionsTitle })).not.toBeInTheDocument()
+    })
+
+    it('puts the prompts away with the same key that puts the invitation away', async () => {
+      // One key, one meaning: "put away whatever is covering the photos". A ladder that
+      // dismissed one and then the other would make Escape mean two things depending on
+      // what happened to be on screen.
+      const api = fakeApi({
+        wall: wallSequence(aPopulatedWall({ missions: [aWallMission({ prompt: 'un selfie' })] })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await userEvent.keyboard('{Escape}')
+
+      expect(screen.queryByText('un selfie')).not.toBeInTheDocument()
+      expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+    })
+
+    it('follows the server when a prompt becomes answered, without the playlist moving', async () => {
+      // The panel cannot ride on `revision`, which fingerprints the items alone: a
+      // photograph being published on a wall that is already playing it moves no slide at
+      // all, and the panel would stay wrong for the rest of a quiet stretch.
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ missions: [aWallMission({ id: 'm1', prompt: 'un selfie' })] }),
+          aPopulatedWall({
+            missions: [
+              aWallMission({ id: 'm1', prompt: 'un selfie', achieved: true, completedByGuests: 3 }),
+            ],
+          }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      expect(screen.queryByText(fr.wall.missionGuests(3))).not.toBeInTheDocument()
+
+      await streamSignals('mission.changed')
+
+      expect(await screen.findByText(fr.wall.missionGuests(3))).toBeVisible()
     })
   })
 })

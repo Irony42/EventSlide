@@ -51,6 +51,11 @@ export const fetchOutboxSender = ({ fetch, readCsrf }: FetchSenderOptions): Outb
     // Omitted rather than sent empty: the server distinguishes "no caption" from an
     // invalid one, exactly as the live upload path does.
     if (entry.caption !== null && entry.caption !== '') form.append('caption', entry.caption)
+    // The mission tag, on the same terms: the server parses it as a uuid, so an empty
+    // part would be a 400 on an upload that simply had no mission.
+    if (entry.missionId !== null && entry.missionId !== '') {
+      form.append('missionId', entry.missionId)
+    }
 
     const headers: Record<string, string> = { accept: 'application/json' }
     const token = await readCsrf()

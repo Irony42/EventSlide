@@ -30,6 +30,7 @@ const anEntry = (overrides: Partial<OutboxEntry> = {}): OutboxEntry => ({
   fileName: 'confettis.jpg',
   fileType: 'image/jpeg',
   caption: null,
+  missionId: null,
   enqueuedAt: t,
   attempts: 0,
   lastAttemptAt: null,

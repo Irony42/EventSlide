@@ -13,6 +13,7 @@ import { messageForCode } from '../../lib/i18n/translations'
 import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallLayouts } from './components/WallLayouts'
+import { WallMissions } from './components/WallMissions'
 import { WallOverlay } from './components/WallOverlay'
 import { useFrameBudget } from './hooks/useFrameBudget'
 import { useLayoutParam } from './hooks/useLayoutParam'
@@ -141,7 +142,15 @@ export function WallPage() {
    */
   const [layoutOverride, setLayoutOverride] = useState<WallLayout | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
-  const [joinCardDismissed, setJoinCardDismissed] = useState(false)
+  /**
+   * One flag for everything the wall draws over the photographs.
+   *
+   * The join card and the mission panel are both chrome, and Escape has always meant
+   * "put away whatever is covering the photos" — a ladder that dismissed one and then
+   * the other would make the same key mean two things depending on what was on screen,
+   * which is the last thing a host walking up to a projector mid-evening needs.
+   */
+  const [chromeDismissed, setChromeDismissed] = useState(false)
 
   const serverLayout = wall?.layout
   const closeHelp = useCallback(() => setHelpOpen(false), [])
@@ -171,7 +180,7 @@ export function WallPage() {
         setHelpOpen(false)
         return
       }
-      setJoinCardDismissed(true)
+      setChromeDismissed(true)
     },
   })
 
@@ -188,7 +197,19 @@ export function WallPage() {
     wall?.joinCode !== undefined && wall.joinUrl !== undefined
       ? { code: wall.joinCode, url: wall.joinUrl }
       : null
-  const showsOverlay = join !== null && !joinCardDismissed && items.length > 0
+  const showsOverlay = join !== null && !chromeDismissed && items.length > 0
+
+  /**
+   * The host's prompts, when there are any (roadmap §2.1).
+   *
+   * Withheld while the wall is still empty, for the reason the join card is: the empty
+   * state is a full-screen invitation, and a panel over it would be chrome covering the
+   * one message the room needs at that moment. `?? []` because the field is optional on
+   * the response — a server build that predates missions leaves the projector drawing
+   * nothing rather than crashing it.
+   */
+  const missions = wall?.missions ?? []
+  const showsMissions = !chromeDismissed && items.length > 0 && missions.length > 0
 
   /**
    * The event's own look, worn by the element that renders it (roadmap 2.2).
@@ -267,8 +288,10 @@ export function WallPage() {
         />
       )}
 
+      {showsMissions ? <WallMissions missions={missions} /> : null}
+
       {showsOverlay && join !== null ? (
-        <WallOverlay join={join} onDismiss={() => setJoinCardDismissed(true)} />
+        <WallOverlay join={join} onDismiss={() => setChromeDismissed(true)} />
       ) : null}
 
       <ReactionBurst pulse={reactionPulse} />
