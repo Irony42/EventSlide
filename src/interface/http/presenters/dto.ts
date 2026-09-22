@@ -15,6 +15,11 @@ import type { EventRole } from '../../../domain/events/eventRole'
 import type { MissionScope } from '../../../domain/missions/missionScope'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
+import type {
+  NoticeAcknowledgementStatus,
+  NoticeAudience,
+  NoticePublication,
+} from '../../../domain/privacy/privacyNotice'
 import type { ReactionKind } from '../../../domain/reactions/reactionKind'
 import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
 import type { WallLayout } from '../../../domain/slideshow/wallLayout'
@@ -90,10 +95,51 @@ export interface PublicEventDto {
   readonly theme: EventThemeDto
 }
 
+/**
+ * What a guest is told happens to a photo before they send one (roadmap §5.1).
+ *
+ * **Values, not sentences.** The server decides every clause from the event's settings
+ * (`src/domain/privacy/privacyNotice.ts`) and the client words them in the guest's
+ * language, so a notice cannot say "checked before the screen" on an event that
+ * publishes on arrival: there is no field that could carry that sentence independently of
+ * the setting that makes it true.
+ *
+ * This deliberately tells a guest two things `PublicEventDto` does not — the moderation
+ * mode, as `publication`, and the retention period. They are exactly what a guest is
+ * entitled to know about their own photographs, and they reach them only here, framed as
+ * what happens to their photo rather than as the host's settings.
+ */
+export interface PrivacyNoticeDto {
+  /** Opaque. Echoed back when the guest acknowledges, and compared with the one in force. */
+  readonly revision: string
+  readonly publication: NoticePublication
+  /**
+   * Who sees a photo, in reading order. A list so a third audience — the shared gallery
+   * of roadmap §4.1 — is one more member rather than a new field.
+   */
+  readonly audiences: readonly NoticeAudience[]
+  /** Days after the gallery closes. `null`: nothing deletes the album on its own. */
+  readonly retentionDays: number | null
+  /** How long a guest may take a photo back themselves. `null`: they cannot. */
+  readonly selfRemovalSeconds: number | null
+}
+
+/** A notice and where this device stands with it: every read of the notice answers this. */
+export interface PrivacyNoticeStateDto {
+  readonly notice: PrivacyNoticeDto
+  readonly acknowledgement: NoticeAcknowledgementStatus
+}
+
 export interface JoinResponseDto {
   readonly guestId: string
   readonly displayName: string | null
   readonly event: PublicEventDto
+  /**
+   * Beside the event rather than inside it: the notice is about the event, but whether it
+   * has been read is about this device, and the two travel together on every response
+   * that carries either.
+   */
+  readonly privacyNotice: PrivacyNoticeStateDto
 }
 
 /**

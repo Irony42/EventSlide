@@ -14,7 +14,14 @@ import {
 import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
-import { aMission, aGuest, aPhoto, anEvent, atPlus } from '../../../application/testing/builders'
+import {
+  aMission,
+  aGuest,
+  aPhoto,
+  anEvent,
+  anEventSettings,
+  atPlus,
+} from '../../../application/testing/builders'
 import type { Photo } from '../../../domain/photos/photo'
 import { asEventId } from '../../../domain/shared/ids'
 import { CROSSFADE_MS } from '../../../domain/slideshow/kenBurns'
@@ -169,6 +176,39 @@ describe('POST /api/join', () => {
         maxClipSeconds: 15,
         theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
       },
+      privacyNotice: {
+        notice: {
+          revision:
+            'publication=afterReview;audiences=room+organisers;retention=none;selfRemoval=900',
+          publication: 'afterReview',
+          audiences: ['room', 'organisers'],
+          retentionDays: null,
+          selfRemovalSeconds: 900,
+        },
+        acknowledgement: 'none',
+      },
+    })
+  })
+
+  it('tells the phone what happens to a photo here, from the event’s own settings', async () => {
+    // The upload screen shows this before the first photo (roadmap §5.1). It has to come
+    // from the configuration the photo will actually meet, so the retention a host set is
+    // the retention the guest reads.
+    const { subject } = world()
+    const wedding = await subject.events.findById(asEventId(WEDDING))
+    const changed = wedding?.withSettings(
+      anEventSettings({ retentionDays: 30, moderation: 'auto' }),
+    )
+    if (changed === undefined || !changed.ok) throw new Error('test setup: settings refused')
+    await subject.events.save(changed.value)
+
+    const response = await request(subject.app).post('/api/join').send({ joinCode: 'H7K2QM' })
+
+    expect(response.body.privacyNotice.notice).toMatchObject({
+      publication: 'immediate',
+      retentionDays: 30,
+      // Under auto-publication nothing is ever off the wall for a guest to take back.
+      selfRemovalSeconds: null,
     })
   })
 
