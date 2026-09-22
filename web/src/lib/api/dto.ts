@@ -62,6 +62,15 @@ export type ThemeMaterial = 'glass' | 'plain'
 export type EventTemplateKey = 'wedding' | 'birthday' | 'conference' | 'party'
 
 /**
+ * Who one of the host's prompts is asked of (roadmap §2.1).
+ *
+ * `guest` is answered once per guest — "un selfie avec les mariés", which two hundred
+ * people can each do. `event` is answered once for the room — "la première danse", which
+ * happens once, and which one guest's photograph therefore ticks for everybody.
+ */
+export type MissionScope = 'guest' | 'event'
+
+/**
  * How one event looks, as three settled choices rather than as colours.
  *
  * **No colour crosses this wire.** `accentHue` is an angle; the lightness and chroma that
@@ -200,6 +209,34 @@ export interface WallResponse {
    * theming leaves the projector on the default look rather than crashing it.
    */
   readonly theme?: EventThemeDto
+  /**
+   * The host's prompts and how the room is answering them (roadmap §2.1).
+   *
+   * On this response rather than behind a second request, for the reason the theme is: a
+   * projector runs unattended, and one fetch that either arrives or does not beats two
+   * that can half-arrive. It is also what keeps the panel current without polling — the
+   * wall refetches this whole response on every signal on the event's channel.
+   *
+   * Optional, like `theme` and `joinCode` above: a server build that predates missions
+   * leaves the projector drawing no panel rather than crashing it. **An empty array
+   * means the same thing**, and is what nearly every event sends.
+   */
+  readonly missions?: readonly WallMissionDto[]
+}
+
+/**
+ * One prompt as the room sees it.
+ *
+ * `scope` is the only field that changes a pixel here: a once-for-the-evening prompt is
+ * drawn with a tick, a per-guest one with `completedByGuests`, because a tick would be
+ * wrong for something two hundred people can each answer.
+ */
+export interface WallMissionDto {
+  readonly id: string
+  readonly prompt: string
+  readonly scope: MissionScope
+  readonly achieved: boolean
+  readonly completedByGuests: number
 }
 
 /** `duplicate` is a success: the same bytes already exist in this event. */
@@ -343,6 +380,45 @@ export interface GuestDto {
 export interface GuestListResponse {
   readonly items: readonly GuestDto[]
   readonly activeCount: number
+}
+
+/**
+ * One of the host's prompts on the host's own console (roadmap §2.1).
+ *
+ * The three numbers are counted over published photographs on every read, never stored —
+ * which is what makes them fall again the moment a host takes a photograph down.
+ */
+export interface MissionDto {
+  readonly id: string
+  /** As the host typed it. Content, never interface copy: nothing translates it. */
+  readonly prompt: string
+  readonly scope: MissionScope
+  readonly achieved: boolean
+  readonly publishedPhotos: number
+  readonly completedByGuests: number
+}
+
+export interface MissionListResponse {
+  readonly items: readonly MissionDto[]
+}
+
+/**
+ * One row of the guest's checklist, and what it leaves out is the point.
+ *
+ * No counts: a guest needs to know whether there is still something for *them* to do,
+ * and how many other people have done it is a scoreboard — which §7 of the roadmap rules
+ * out, and which the cheapest way to build by accident is to ship the numbers and let a
+ * screen find a use for them.
+ */
+export interface GuestMissionDto {
+  readonly id: string
+  readonly prompt: string
+  readonly scope: MissionScope
+  readonly done: boolean
+}
+
+export interface GuestMissionListResponse {
+  readonly items: readonly GuestMissionDto[]
 }
 
 export interface ModeratorDto {

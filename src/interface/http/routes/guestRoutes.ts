@@ -4,11 +4,16 @@ import type { Event } from '../../../domain/events/event'
 import type { Guest } from '../../../domain/guests/guest'
 import type { Photo, PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
-import { asPhotoId } from '../../../domain/shared/ids'
+import { asMissionId, asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { GUEST_COOKIE, requireGuest } from '../middleware/authz'
 import { reactionLimiter, uploadLimiter } from '../middleware/rateLimit'
-import { toGuestPhotoDto, toReactionsDto, toUploadResponseDto } from '../presenters/presenters'
+import {
+  toGuestMissionDto,
+  toGuestPhotoDto,
+  toReactionsDto,
+  toUploadResponseDto,
+} from '../presenters/presenters'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   captionBody,
@@ -18,6 +23,7 @@ import {
   uploadFields,
 } from '../schemas/requestSchemas'
 import type { HttpDeps } from '../types'
+import type { GuestMissionListResponseDto } from '../presenters/dto'
 import type { HttpUseCases } from '../useCases'
 
 /**
@@ -62,6 +68,7 @@ export interface GuestRouteDeps {
     | 'reactToPhoto'
     | 'withdrawReaction'
     | 'getPhotoReactions'
+    | 'getGuestChecklist'
   >
   /**
    * The aggregate byte bound, overridable so a test can reach it in bytes rather than
@@ -349,6 +356,13 @@ export const guestRoutes = ({
         // `exactOptionalPropertyTypes` an absent field and an explicit `null` are
         // different intents, and only the second means "clear it".
         ...(fields.caption === undefined ? {} : { caption: fields.caption }),
+        // The prompt the guest tapped, if any (roadmap §2.1). Cast here because this is
+        // the boundary at which a parsed request becomes domain input; whether it names a
+        // mission of **this** event is the use case's scoped lookup, and that refusal
+        // lands before a single byte is decoded.
+        ...(fields.missionId === undefined || fields.missionId === null
+          ? {}
+          : { missionId: asMissionId(fields.missionId) }),
       })
 
       sendResult(res, result, (response, value) => {
@@ -385,6 +399,39 @@ export const guestRoutes = ({
             }),
           ),
         })
+      })
+    }),
+  )
+
+  /**
+   * `GET /events/:eventSlug/missions/mine` — the guest's checklist (roadmap §2.1).
+   *
+   * The whole feature in one read, and one read is the requirement rather than an
+   * optimisation: the screen that tells a guest there is something to do cannot be two
+   * round trips on a saturated access point, and it is fetched before they have taken a
+   * single photograph.
+   *
+   * `mine` rather than a query parameter, matching `photos/mine` beside it and for the
+   * same reason: **whose** checklist it is comes from the device token and is never
+   * something a caller may name. There is no route by which one guest can read another's.
+   *
+   * Empty for the overwhelming majority of events, which set no prompts — and the empty
+   * array is what stops the upload screen rendering anything at all.
+   */
+  router.get(
+    '/events/:eventSlug/missions/mine',
+    requireGuest(deps),
+    withGuest(async ({ event, guest }, _req, res) => {
+      const result = await usecases.getGuestChecklist({ eventId: event.id, guestId: guest.id })
+
+      sendResult(res, result, (response, items) => {
+        // Never cached, for the reason "Mes photos" is not: this is the view a guest
+        // reloads to find out whether their photograph counted, and a proxy or a back
+        // button serving it from a store would show them the answer from before the host
+        // published it.
+        response.setHeader('Cache-Control', 'no-store')
+        const dto: GuestMissionListResponseDto = { items: items.map(toGuestMissionDto) }
+        sendJson(response, dto)
       })
     }),
   )

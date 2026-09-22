@@ -13,6 +13,7 @@ import { eventRoutes } from './routes/eventRoutes'
 import { guestRoutes } from './routes/guestRoutes'
 import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
 import { mediaRoutes } from './routes/mediaRoutes'
+import { missionRoutes } from './routes/missionRoutes'
 import { moderationRoutes } from './routes/moderationRoutes'
 import { publicRoutes } from './routes/publicRoutes'
 import { streamRoutes } from './routes/streamRoutes'
@@ -151,6 +152,10 @@ export const buildServer = ({
   )
   app.use('/api', mediaRoutes(routeDeps))
   app.use('/api', moderationRoutes(routeDeps))
+  // After the guest router, which owns 'missions/mine' on the same path prefix, and
+  // before the event router for no reason other than reading order: the four routes here
+  // are all 'events/:eventSlug/missions' and none of them collides with anything above.
+  app.use('/api', missionRoutes(routeDeps))
   app.use('/api', eventRoutes(routeDeps))
   app.use('/api', streamRoutes(deps))
 

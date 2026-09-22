@@ -8,8 +8,12 @@ import type {
   EventSummaryDto,
   EventTemplateKey,
   GuestListResponse,
+  GuestMissionListResponse,
   GuestPhotoDto,
   JoinResponse,
+  MissionDto,
+  MissionListResponse,
+  MissionScope,
   ModerationDecision,
   ModerationQueueResponse,
   ModeratorDto,
@@ -65,6 +69,14 @@ export interface EventScheduleInput {
 export interface UploadInput {
   readonly files: readonly File[]
   readonly caption?: string | null
+  /**
+   * Which of the host prompts the guest tapped before sending (roadmap 2.1).
+   *
+   * One per request rather than one per file, exactly as the caption is: a guest picks a
+   * mission, then picks their photographs, and asking them to file five files one by one
+   * on a phone is asking them not to bother.
+   */
+  readonly missionId?: string | null
   readonly onProgress?: (progress: UploadProgress) => void
   readonly signal?: AbortSignal
 }
@@ -97,6 +109,18 @@ export interface ClipUploadInput {
  * An object rather than two positional strings: an address and a password are both
  * `string`, and a call site that swaps them typechecks.
  */
+/**
+ * One prompt as the host writes it (roadmap §2.1).
+ *
+ * Both fields every time, on create and on edit alike: they are one decision made on one
+ * row of one form, and sending half of it would let a scope be persisted beside a prompt
+ * the server refused.
+ */
+export interface MissionInput {
+  readonly prompt: string
+  readonly scope: MissionScope
+}
+
 export interface ModeratorInvitationInput {
   readonly email: string
   readonly temporaryPassword: string
@@ -144,6 +168,12 @@ export const createApi = (transport: Transport) => ({
     if (input.caption !== undefined && input.caption !== null && input.caption !== '') {
       form.append('caption', input.caption)
     }
+    // Same shape as the caption above: omitted rather than sent empty, because the
+    // server parses this as a uuid and an empty part would be a 400 on an upload that
+    // simply had no mission.
+    if (input.missionId !== undefined && input.missionId !== null && input.missionId !== '') {
+      form.append('missionId', input.missionId)
+    }
     return transport.upload(`/api/events/${encode(slug)}/photos`, form, {
       ...(input.onProgress ? { onProgress: input.onProgress } : {}),
       ...(input.signal ? { signal: input.signal } : {}),
@@ -185,6 +215,16 @@ export const createApi = (transport: Transport) => ({
    */
   clipJob: (slug: string, clipJobId: string, signal?: AbortSignal): Promise<ClipJobDto> =>
     transport.get(`/api/events/${encode(slug)}/clips/${encode(clipJobId)}`, undefined, signal),
+
+  /**
+   * The guest checklist (roadmap 2.1).
+   *
+   * One read, and one is the requirement rather than an optimisation: the screen that
+   * tells a guest there is something to do is fetched on a saturated access point before
+   * they have taken a single photograph.
+   */
+  myMissions: (slug: string, signal?: AbortSignal): Promise<GuestMissionListResponse> =>
+    transport.get(`/api/events/${encode(slug)}/missions/mine`, undefined, signal),
 
   myPhotos: (slug: string, signal?: AbortSignal): Promise<{ items: readonly GuestPhotoDto[] }> =>
     transport.get(`/api/events/${encode(slug)}/photos/mine`, undefined, signal),
@@ -312,6 +352,35 @@ export const createApi = (transport: Transport) => ({
 
   revokeModerator: (slug: string, userId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/moderators/${encode(userId)}`),
+
+  // ---------------------------------------------------------------- missions --
+
+  /**
+   * The host's list, with how the room is answering it (roadmap §2.1).
+   *
+   * No paging: `MAX_MISSIONS_PER_EVENT` is twelve, so the whole list is the page.
+   */
+  listMissions: (slug: string, signal?: AbortSignal): Promise<MissionListResponse> =>
+    transport.get(`/api/events/${encode(slug)}/missions`, undefined, signal),
+
+  createMission: (slug: string, input: MissionInput): Promise<MissionDto> =>
+    transport.post(`/api/events/${encode(slug)}/missions`, input),
+
+  /**
+   * Both fields every time, and it answers `204`.
+   *
+   * A prompt and who it is asked of are one decision on one row of one form. The server
+   * returns nothing because an edit touches no photograph and therefore has no reason to
+   * re-count them — padding the answer with zeros would put a false number on the wire.
+   * The caller refetches the list, which it is doing anyway on the `mission.changed`
+   * signal this edit publishes.
+   */
+  updateMission: (slug: string, missionId: string, input: MissionInput): Promise<void> =>
+    transport.patch(`/api/events/${encode(slug)}/missions/${encode(missionId)}`, input),
+
+  /** Removes the prompt. Every photograph filed under it stays, unfiled. */
+  deleteMission: (slug: string, missionId: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/missions/${encode(missionId)}`),
 
   // ------------------------------------------------------------------- links --
 

@@ -218,6 +218,11 @@ const buildWorld = (): World => {
         moderatePhotosBulk: absent('moderatePhotosBulk'),
 
         getWallPlaylist: absent('getWallPlaylist'),
+        listMissions: absent('listMissions'),
+        createMission: absent('createMission'),
+        updateMission: absent('updateMission'),
+        deleteMission: absent('deleteMission'),
+        getGuestChecklist: absent('getGuestChecklist'),
 
         reactToPhoto: absent('reactToPhoto'),
         withdrawReaction: absent('withdrawReaction'),
