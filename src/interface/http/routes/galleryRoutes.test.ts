@@ -275,6 +275,49 @@ describe('the shared gallery over HTTP', () => {
         }
       })
 
+      it('bounds correct passwords too, on the budget a client has for reading the album', async () => {
+        // Successful unlocks are not guesses, but each one is a password hash verified;
+        // without a budget on them a holder of the password could keep a core busy.
+        const limited = buildGalleryHarness({
+          rateLimits: { ...limits(), galleryPerMinute: 2, galleryUnlockPerClient: 100 },
+        })
+        const { token } = limited.seedLink({ passwordHash: `hash:${PASSWORD}` })
+        const { agent, csrf } = await browserAgent(limited)
+        const unlock = () =>
+          agent
+            .post(`/api/gallery/${token}/unlock`)
+            .set(CSRF_HEADER, csrf)
+            .send({ password: PASSWORD })
+
+        expect((await unlock()).status).toBe(204)
+        expect((await unlock()).status).toBe(204)
+        const third = await unlock()
+
+        expect(third.status).toBe(429)
+        expect(limited.hasher.verifications).toHaveLength(2)
+      })
+
+      it('does not count a request the page budget turned away as a guess against the link', async () => {
+        const limited = buildGalleryHarness({
+          trustProxyHops: 1,
+          rateLimits: { ...limits(), galleryPerMinute: 1, galleryUnlockPerLink: 1 },
+        })
+        const { token } = limited.seedLink({ passwordHash: `hash:${PASSWORD}` })
+        const { agent, csrf } = await browserAgent(limited)
+        const attempt = (client: string, password: string) =>
+          agent
+            .post(`/api/gallery/${token}/unlock`)
+            .set(CSRF_HEADER, csrf)
+            .set('X-Forwarded-For', client)
+            .send({ password })
+
+        expect((await attempt('203.0.113.1', PASSWORD)).status).toBe(204)
+        expect((await attempt('203.0.113.1', 'mauvais mot de passe')).status).toBe(429)
+
+        // Had that 429 been counted against the link, its one allowed failure would be gone.
+        expect((await attempt('203.0.113.2', 'mauvais mot de passe')).status).toBe(401)
+      })
+
       it('stops a link after its allowance, whichever clients the attempts came from', async () => {
         const limited = buildGalleryHarness({
           trustProxyHops: 1,

@@ -145,9 +145,19 @@ export const galleryRoutes = ({ deps, usecases, limits }: GalleryRouteDeps): Rou
     }),
   )
 
-  /** The password, posted. The answer is a cookie and an empty body. */
+  /**
+   * The password, posted. The answer is a cookie and an empty body.
+   *
+   * Two budgets, in this order. The attempt limiters count failures only, so a family can
+   * all open one album — which also means they never stop somebody who *knows* the
+   * password from posting it all day, and every post is a hash verification sized to cost
+   * real CPU. The page budget in front bounds that to what one client may already spend
+   * reading the album. It goes first so that a request it turns away is never counted as
+   * a failed guess against the link.
+   */
   router.post(
     '/gallery/:token/unlock',
+    pages,
     ...attempts,
     asyncHandler(async (req, res) => {
       const token = tokenOf(req)
