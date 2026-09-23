@@ -1,6 +1,16 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
-import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  statfs,
+  writeFile,
+} from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
 import { Transform, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -553,11 +563,48 @@ export interface BackupOptions {
   readonly now: Date
   readonly appVersion: string
   readonly onProgress?: (line: string) => void
+  /**
+   * Free bytes on the filesystem that will hold `path`, or `null` when that cannot be
+   * read. Injected so a test can stand in a full disk; the default asks `statfs`.
+   */
+  readonly freeBytesAt?: (path: string) => Promise<number | null>
 }
 
 export interface BackupResult {
   readonly destination: string
   readonly manifest: BackupManifest
+}
+
+/** The archive does not exist yet, so the nearest ancestor that does is asked instead. */
+const freeBytesOnFilesystemOf = async (path: string): Promise<number | null> => {
+  let probe = resolve(path)
+  for (;;) {
+    try {
+      const { bavail, bsize } = await statfs(probe)
+      return bavail * bsize
+    } catch {
+      const parent = dirname(probe)
+      if (parent === probe) return null
+      probe = parent
+    }
+  }
+}
+
+/**
+ * What the archive will take: the database with whatever its WAL still holds, since the
+ * snapshot carries both, and every file under the media root. An estimate from above —
+ * `VACUUM INTO` drops free pages, and staging files are left behind — which is the right
+ * direction for the only question it answers.
+ */
+const bytesToArchive = async (database: string, mediaRoot: string): Promise<number> => {
+  let total = 0
+  for (const path of [database, `${database}-wal`]) {
+    total += (await stat(path).catch(() => null))?.size ?? 0
+  }
+  for (const file of await walkFiles(mediaRoot, [])) {
+    total += (await stat(file.absolute).catch(() => null))?.size ?? 0
+  }
+  return total
 }
 
 export const createBackup = async ({
@@ -567,6 +614,7 @@ export const createBackup = async ({
   now,
   appVersion,
   onProgress = () => {},
+  freeBytesAt = freeBytesOnFilesystemOf,
 }: BackupOptions): Promise<BackupResult> => {
   const sourceDatabase = resolve(databasePath)
   const sourceMedia = resolve(mediaRoot)
@@ -589,15 +637,66 @@ export const createBackup = async ({
 
   // A backup that overwrote a previous one would destroy the only other copy at the
   // moment the operator is trying to make a second.
-  const occupants = await readdir(archive).catch(() => [])
-  if (occupants.length > 0) {
+  const occupants = await readdir(archive).catch(() => null)
+  if (occupants !== null && occupants.length > 0) {
     throw new BackupError(
       `${archive} already exists and is not empty. Back up to a new directory rather ` +
         `than over the top of an older archive.`,
     )
   }
-  await mkdir(archive, { recursive: true })
 
+  // **Refused before a byte is written, when it cannot fit.** The image's default archive
+  // lives on the data volume, which is also where every upload and every database write
+  // goes. A backup that ran out of room part-way used to stop with ENOSPC and leave the
+  // half it had written, so the volume stayed full and the wall stopped taking photos —
+  // uploads and the host's approvals alike — until somebody thought to look in
+  // /data/backups. Nothing here promises headroom afterwards; it promises not to be the
+  // thing that fills the disk.
+  const needed = await bytesToArchive(sourceDatabase, sourceMedia)
+  const free = await freeBytesAt(archive)
+  if (free !== null && free < needed) {
+    throw new BackupError(
+      `The archive would not fit: it needs about ${needed} bytes and the filesystem ` +
+        `holding ${archive} has ${free} free. Nothing was written. Free some space, or ` +
+        `pass --to a drive with room.`,
+    )
+  }
+
+  await mkdir(archive, { recursive: true })
+  try {
+    return await writeArchive({ sourceDatabase, sourceMedia, archive, now, appVersion, onProgress })
+  } catch (cause) {
+    // Whatever failed, a partial archive is worth nothing and costs its size on a disk
+    // that may be the server's. Only what this call wrote goes: the directory itself
+    // survives if it was there before, because it may be a mount point the operator
+    // made for exactly this.
+    const existed = occupants !== null
+    for (const name of await readdir(archive).catch(() => [])) {
+      await rm(join(archive, name), { recursive: true, force: true })
+    }
+    if (!existed) await rm(archive, { recursive: true, force: true })
+    throw cause
+  }
+}
+
+interface ArchiveInput {
+  readonly sourceDatabase: string
+  readonly sourceMedia: string
+  readonly archive: string
+  readonly now: Date
+  readonly appVersion: string
+  readonly onProgress: (line: string) => void
+}
+
+/** The writing half of `createBackup`, once every refusal has had its chance. */
+const writeArchive = async ({
+  sourceDatabase,
+  sourceMedia,
+  archive,
+  now,
+  appVersion,
+  onProgress,
+}: ArchiveInput): Promise<BackupResult> => {
   // ------------------------------------------------------- the database half --
   // First, deliberately. See the class docstring: an upload that lands after this
   // point is simply not in this backup, which is recoverable; the other ordering

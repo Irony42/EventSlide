@@ -1,6 +1,16 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -426,6 +436,69 @@ describe('backup and restore', () => {
 
       expect(manifest.counts.mediaFiles).toBe(3)
       expect(manifest.skipped.join('\n')).toContain('not a regular file')
+    })
+
+    it('refuses before writing anything when the archive would not fit', async () => {
+      // In the image the default archive shares a volume with every upload and every
+      // database write. Running out of room part-way used to leave that volume full and
+      // the wall unable to take a photo until somebody found the half-written archive.
+      await seedAnEvening()
+      // Room for the database and not for the photographs, which are nearly all of a
+      // real album: an estimate that forgot the media half would let this through.
+      const databaseBytes = (await stat(databasePath)).size
+
+      const attempt = createBackup({
+        databasePath,
+        mediaRoot,
+        destination: archive,
+        now: NOW,
+        appVersion: '2.0.0',
+        freeBytesAt: async () => databaseBytes + 1,
+      })
+
+      await expect(attempt).rejects.toThrow(/would not fit: it needs about \d+ bytes/)
+      expect(await exists(archive)).toBe(false)
+    })
+
+    it('removes what it wrote when it fails part-way', async () => {
+      await seedAnEvening()
+
+      // A file where the media half's directory has to go, planted once the database
+      // half is written: the copy then fails on its first file, as a full disk would.
+      const attempt = createBackup({
+        databasePath,
+        mediaRoot,
+        destination: archive,
+        now: NOW,
+        appVersion: '2.0.0',
+        onProgress: (line) => {
+          if (line.startsWith('Copying the media root')) writeFileSync(join(archive, MEDIA_DIR), '')
+        },
+      })
+
+      await expect(attempt).rejects.toThrow()
+      expect(await exists(archive)).toBe(false)
+    })
+
+    it('keeps a directory that was there before, emptied, when it fails part-way', async () => {
+      // An empty directory the operator made — quite possibly the mount point of the
+      // drive they meant the archive for — is theirs, not this command's to remove.
+      await seedAnEvening()
+      await mkdir(archive)
+
+      const attempt = createBackup({
+        databasePath,
+        mediaRoot,
+        destination: archive,
+        now: NOW,
+        appVersion: '2.0.0',
+        onProgress: (line) => {
+          if (line.startsWith('Copying the media root')) writeFileSync(join(archive, MEDIA_DIR), '')
+        },
+      })
+
+      await expect(attempt).rejects.toThrow()
+      expect(await readdir(archive)).toEqual([])
     })
 
     it('refuses when the database cannot be snapshotted', async () => {
