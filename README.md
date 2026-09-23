@@ -242,8 +242,9 @@ Two settings worth a thought before you start:
   `docker compose exec eventslide node dist/ops/scripts/purge.js --dry-run` lists what
   the next sweep would remove, and the same command without `--dry-run` does it now —
   `npm run purge:dry-run` and `npm run purge` from a source checkout. Both are safe with
-  the server running, and `RETENTION_SWEEP_INTERVAL_MINUTES=off` hands the schedule to
-  your own cron.
+  the server running. `RETENTION_SWEEP_INTERVAL_MINUTES=off` hands the schedule to your
+  own cron; with Docker it goes in the `environment:` block of `compose.yaml`, since the
+  container sees only the variables listed there.
 - **Opening and closing on their own.** The settings page takes an opening time and a
   closing time; leave either empty and you do that one yourself. The times are read on
   your own computer's clock, so 18:00 means 18:00 where the party is. If the server was
@@ -266,10 +267,13 @@ With Docker, from the directory holding `compose.yaml`:
 # 1. Take it. It prints the name, e.g. /data/backups/eventslide-2026-09-12T08-00-00Z
 docker compose exec eventslide node dist/ops/scripts/backup.js
 
-# 2. Take it off the volume, then off the machine. Until then it is on the same disk
-#    as the photographs it is meant to save, and the command says so.
-docker compose cp eventslide:/data/backups/eventslide-2026-09-12T08-00-00Z .
-docker compose exec eventslide rm -r /data/backups/eventslide-2026-09-12T08-00-00Z
+# 2. Take it off the volume, check the copy, and only then delete it there. Until it is
+#    off the machine it is on the same disk as the photographs, and the command says so.
+A=eventslide-2026-09-12T08-00-00Z
+docker compose cp "eventslide:/data/backups/$A" . &&
+  docker compose run --rm -v "$PWD/$A:/restore:ro" eventslide \
+    node dist/ops/scripts/backup.js --verify /restore &&
+  docker compose exec eventslide rm -r "/data/backups/$A"
 ```
 
 The archive is a directory holding a consistent snapshot of the database, every photo,
@@ -281,9 +285,10 @@ that survives a restart — which is also why it cannot stay there, since a copy
 same disk as the album survives everything except that disk failing. `docker compose cp`
 brings it to the host, and it is a backup once a copy is on another machine or on a
 drive you can unplug. Each archive is as large as the album and sits on the volume the
-uploads fill, so delete it there once it is copied. To write it straight to a mounted
-drive instead, hand the command one; the directory must be writable by uid 1000, the
-image's user:
+uploads fill, so delete it there once the copy has verified; the command refuses to
+start one that would not fit, rather than fill the disk the wall is writing to. To
+write it straight to a mounted drive instead, hand the command one; the directory must
+be writable by uid 1000, the image's user:
 
 ```bash
 docker compose run --rm -v /mnt/usb/backups:/backups eventslide \
@@ -320,7 +325,8 @@ before it answers a request, and `restore` brings the database it wrote up to th
 running version itself.
 
 From a source checkout the same commands are npm scripts, and an archive goes to
-`./backups` unless `--to` or `BACKUP_DIR` says otherwise:
+`./backups` unless `--to` says otherwise, or `BACKUP_DIR` is set in the command's own
+environment (`npm run` does not read `.env`):
 
 ```bash
 npm run backup                           # -> ./backups/eventslide-<timestamp>/
@@ -331,8 +337,10 @@ npm run restore -- <archive> --dry-run   # rehearse: verify, print the plan
 npm run restore -- <archive> --force     # with the server stopped
 ```
 
-Keep your `.env` with the archive — the secrets are not in it, and restoring photos with
-new ones signs every host out. Details, and what the checks do and do not catch, are in
+Keep your `.env` with the archive — the secrets are not in it, restoring photos with new
+ones signs every host out, and on a replacement box `docker compose` will not run a
+single command, `stop` and `run` included, until the three variables `compose.yaml`
+requires are back. Details, and what the checks do and do not catch, are in
 [docs/SECURITY.md §11](docs/SECURITY.md#11-deployment-posture).
 
 ## For contributors

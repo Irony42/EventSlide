@@ -1154,21 +1154,27 @@ session row and every photograph — `chmod 0600` on the files, `0700` on the di
 and off this machine, since a backup on the same disk survives everything except the
 thing most likely to happen to it.
 
-**In the image.** Four things are decided rather than left to whoever types the command:
+**In the image.** Four questions the Docker install has to answer, and where each answer
+lives — in the code where it can be, in the procedure where it cannot:
 
 - **Where an archive lands.** `BACKUP_DIR` is `/data/backups`, on the data volume,
   because the only other writable place in the container is a tmpfs that is gone at the
   next restart. That is the same disk as the album, so the command compares the two
-  filesystems and says so when they match. `docker compose cp` takes the archive to the
-  host, and it is worth something once a copy is on another machine. Each archive is as
-  large as the album and sits on the volume uploads fill, so it is deleted there once
-  copied. A drive mounted into a one-off container, given as `--to` and writable by
+  filesystems and says so when they match, and it refuses to start an archive the
+  filesystem has no room for — a backup that filled the volume part-way would stop the
+  wall taking photos. `docker compose cp` takes the archive to the host, and it is
+  worth something once a copy is on another machine. Each archive is as large as the
+  album and sits on the volume uploads fill, so it is deleted there once the copy has
+  verified. A drive mounted into a one-off container, given as `--to` and writable by
   uid 1000, keeps it off the volume entirely.
-- **Restore never races the server.** It is run with `docker compose run --rm` after
-  `docker compose stop`, never with `exec` into the running container. The `-wal`/`-shm`
-  warning above is a hint, not a lock — SQLite offers no way to ask whether another
-  process holds a database open without changing it — so the stop is what makes a
-  restore safe, and the documentation is where that has to be said.
+- **Restore never races the server — by procedure, not by lock.** It is run with
+  `docker compose run --rm` after `docker compose stop`, never with `exec` into the
+  running container. The `-wal`/`-shm` warning above is a hint, not a lock — SQLite
+  offers no way to ask whether another process holds a database open without changing
+  it — so the stop is what makes a restore safe. The documentation says so, and so does
+  the compiled `backup` in the line where it hands the restore command over, because
+  that is the moment an operator who has just typed `exec` would paste it behind the
+  same prefix.
 - **What a restore writes, the server can read.** It runs as the image's own user, uid
   1000, so the database and the media belong to the server. It empties the media root
   rather than removing and recreating it, so the `0700` the Dockerfile gives
@@ -1188,9 +1194,11 @@ and suggested a source checkout pointed at the volume, while the README handed
 `scripts/verify-image.sh` runs each of them in the built image on every push: a backup
 beside the live server, its verification, a purge, the copy off the volume, a restore
 refused without `--force` and completed with it, and a server booted on the result. The
-commands still need no secrets and no running server — only where the database and the
-media are, from the environment or from `--database` and `--media` — so a restore does
-not fail for want of a value the compose file holds.
+commands themselves still need no secrets and no running server — only where the
+database and the media are, from the environment or from `--database` and `--media`.
+`docker compose` is another matter: it refuses every subcommand, `stop` and `run`
+included, while a variable `compose.yaml` marks required is unset, so on a replacement
+box the `.env` has to come back before the archive can.
 
 ## 12. Accepted risks
 
