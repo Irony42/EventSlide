@@ -6,9 +6,6 @@ within seconds.
 
 Self-hosted. The photos stay on your machine.
 
-> **2.0 is on `main`** — this README describes it, and the `git clone` below gets it.
-> The architecture and its reasoning are in [docs/](docs/).
-
 <p align="center">
   <img src="docs/images/wall-spotlight.jpg" width="49%" alt="The wall on a projector, one photograph full-bleed with the sender's caption and the join code in the corner">
   <img src="docs/images/wall-mosaic.jpg" width="49%" alt="The same wall in its mosaic layout, several photographs at once">
@@ -36,9 +33,9 @@ Pi under the projector — and nothing leaves it.
 - **Nothing reaches the screen without you.** Every photo waits in a moderation queue
   until you approve it. Two hundred people are watching that screen; that is not a
   setting to leave to chance.
-- **The wall is meant to be looked at.** Full-bleed photos with a slow zoom, a mosaic
-  layout, captions and the sender's name, a join code in the corner for whoever arrives
-  late.
+- **The wall is meant to be looked at.** Full-bleed photos with a slow zoom or one of
+  five other layouts, captions and the sender's name, a join code in the corner for
+  whoever arrives late.
 - **It survives the venue.** Uploads retry, the wall keeps playing when the network
   drops, and it runs unattended for an eight-hour evening.
 - **Privacy is handled, not mentioned.** Location data and device identifiers are
@@ -91,14 +88,17 @@ And the parts that only show up on the night:
   from.
 
 - **It looks like the evening it is running.** The host picks an accent colour, a font
-  pairing and a frame style; the wall and the guest screens follow. Contrast is checked
-  against the accessibility contract server-side, so a hue that would make captions
-  unreadable at ten metres is refused rather than rendered.
-- **Translucent surfaces that give way before the wall does.** The interface uses a
-  glass material over photographs — and it is measured: if the machine driving the
-  projector cannot hold its frame rate, the blur is given up before the animation, and
-  the animation before the crossfade. A host who prefers the plainer surface turns it
-  off per event.
+  pairing and a frame style; the wall wears all three, and the guests' phones the colour.
+  The colour is checked against the accessibility contract server-side, so one that
+  would leave the text on it unreadable at ten metres, or could be mistaken for a warning
+  or an error, is refused rather than rendered.
+- **Translucent surfaces that give way before the wall does.** The guest's upload screen
+  uses a glass material over the photographs, and it is measured: a phone that stops
+  answering a tap promptly gives up the blur. The projected wall never wears it — its
+  photographs never stop moving, which is exactly what makes a blur expensive — and if
+  the machine driving the projector cannot hold its frame rate, it gives up the slow zoom
+  before the crossfade. A host who prefers the plainer surface turns the glass off per
+  event.
 
 ## Install
 
@@ -365,7 +365,7 @@ npm run verify         # lint + typecheck + coverage + build — the gate
 npm run verify:full    # the above plus the Playwright journeys
 ```
 
-`npm run lint` enforces the architecture, not just the formatting: a file in
+`npm run lint` enforces the architecture, not just code style: a file in
 `src/domain` that imports Express fails the build. `src/domain` and
 `src/application` are held at 100% branch coverage.
 
