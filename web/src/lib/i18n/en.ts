@@ -182,6 +182,8 @@ export const en: UiText = {
       wall: 'Anyone looking at the event’s screen, in the room or through its link, once a photo is on it.',
       organisers:
         'The organiser and their team, who see everything you send and can download the photos shown on the screen.',
+      sharedGallery:
+        'Anyone the organiser sends a private link to the album, if they make one, and anyone that link is forwarded to: they can view and download the photos shown on the screen in full resolution, until the link expires or is withdrawn.',
     },
     noticeRetentionDays: (days: number) =>
       t.count(days, {

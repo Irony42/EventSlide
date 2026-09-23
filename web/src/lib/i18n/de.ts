@@ -191,6 +191,8 @@ export const de: UiText = {
       wall: 'Alle, die den Bildschirm der Veranstaltung sehen, im Saal oder über seinen Link, sobald ein Foto darauf erscheint.',
       organisers:
         'Der Veranstalter und sein Team, die alles sehen, was Sie senden, und die auf dem Bildschirm gezeigten Fotos herunterladen können.',
+      sharedGallery:
+        'Alle, denen der Veranstalter einen privaten Link zum Album schickt, falls er einen erstellt, und alle, an die dieser Link weitergeleitet wird: Sie können die auf dem Bildschirm gezeigten Fotos in voller Auflösung ansehen und herunterladen, bis der Link abläuft oder zurückgezogen wird.',
     },
     noticeRetentionDays: (days: number) =>
       t.count(days, {

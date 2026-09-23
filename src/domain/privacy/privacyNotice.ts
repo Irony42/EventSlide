@@ -16,7 +16,7 @@ import type { ModerationMode } from '../events/eventSettings'
  * | Question               | Answered by                                                    |
  * | ---------------------- | -------------------------------------------------------------- |
  * | what happens to it     | `moderation` → {@link NoticePublication}                        |
- * | who sees it            | {@link NOTICE_AUDIENCES}, which no setting moves yet           |
+ * | who sees it            | {@link NOTICE_AUDIENCES}, which no setting moves — see there   |
  * | how long it is kept    | `retentionDays`, counted from the close of the gallery         |
  * | how to have it removed | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, and `moderation` |
  *
@@ -51,20 +51,31 @@ export type NoticePublication = (typeof NOTICE_PUBLICATIONS)[number]
  * - `organisers` — the host and their moderators, who see **everything** a guest sends,
  *   including what never reaches the screen, and who may download the album
  *   (`GET /album.zip` is `requireRole('moderator')`).
+ * - `sharedGallery` — whoever the host sends the album's private link to (roadmap §4.1),
+ *   and whoever it is forwarded to: a link is a capability, not a list of people. They see
+ *   what the wall shows, `published` and nothing else, and download it in full
+ *   resolution, until the link expires or the host withdraws it.
  *
- * **A list rather than two booleans, because the next audience is already argued.**
- * Roadmap §4.1's shared gallery link — the host sending the published album to guests
- * after the evening — is a third audience, and adding it is meant to be exactly this:
- * one entry in this tuple, one conditional in {@link privacyNoticeFor} reading whatever
- * says sharing is on for the event, and one sentence per language. The chain that forces
- * the sentence is two links, and both are checked: `noticeVocabulary.test.ts` fails until
- * the web's own `NoticeAudience` carries the new member, and once it does,
- * `upload.noticeAudiences` — keyed by that type — refuses to compile until all five tables
- * can say it. Because {@link revisionOf} is built from the list, only the
- * guests of an event whose host turns sharing **on** are asked to read the notice again;
- * every other event's acknowledgements stay valid.
+ * **On every event, not only on one with a link — and that is the honest reading, not
+ * the cautious one.** The obvious condition, "an active link exists", is false for the
+ * notice almost every guest actually reads: it is shown before an upload, uploads happen
+ * while the event is live, and a host makes the link the next morning. A notice
+ * conditioned on it would tell the whole room "the wall and the organisers" and then be
+ * contradicted by a link sent after their last photo — when nobody is ever asked again,
+ * because a closed event takes no upload to ask before. No setting switches the gallery
+ * off, and any owner may make a link at any time, so what is true of every event when a
+ * guest reads this is that the host *may*. The sentence says exactly that. It is the rule
+ * {@link PrivacyNotice.retentionDays} already follows: state what stays true whatever
+ * the host does next.
+ *
+ * Adding it was the seam §5.1 left: one entry here, the web's own `NoticeAudience`
+ * (`noticeVocabulary.test.ts` fails until it has the member), and one sentence per
+ * language in `upload.noticeAudiences`, which is keyed by that type and refuses to
+ * compile until all five tables can say it. {@link revisionOf} is built from the list, so
+ * every guest who acknowledged the two-audience notice is asked once more before their
+ * next photo — which is right: the notice now reads differently.
  */
-export const NOTICE_AUDIENCES = ['wall', 'organisers'] as const
+export const NOTICE_AUDIENCES = ['wall', 'organisers', 'sharedGallery'] as const
 
 export type NoticeAudience = (typeof NOTICE_AUDIENCES)[number]
 
@@ -74,8 +85,8 @@ export type NoticeAudience = (typeof NOTICE_AUDIENCES)[number]
  * A structural slice rather than `EventSettings` itself, so the dependency is written
  * down: `EventSettings` satisfies it through its getters, and a clause that starts
  * reading a fifth setting has to add it here, where a reviewer sees the notice grow a
- * new source of truth. The §4.1 seam lands here too — a `sharedGallery: boolean` beside
- * these four, from wherever the gallery keeps it.
+ * new source of truth. The shared gallery is deliberately not one of them: see
+ * {@link NOTICE_AUDIENCES} for why no setting decides that audience.
  */
 export interface NoticePolicy {
   readonly moderation: ModerationMode
@@ -161,8 +172,8 @@ const selfRemovalFor = (policy: NoticePolicy): number | null => {
  *
  * **Readable text rather than a hash**, and the readability is the feature. It is stored
  * on the guest's row when they acknowledge, so "what was this guest told?" is answered by
- * reading the column — `publication=afterReview;audiences=wall+organisers;retention=30;
- * selfRemoval=900` — rather than by recomputing hashes of every configuration the event
+ * reading the column — `publication=afterReview;audiences=wall+organisers+sharedGallery;
+ * retention=30;selfRemoval=900` — rather than by recomputing hashes of every configuration the event
  * has ever had. It also cannot collide, which a 32-bit hash could, and a collision here
  * would be a guest silently not re-asked about a changed retention period.
  *

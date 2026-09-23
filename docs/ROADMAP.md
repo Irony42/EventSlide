@@ -434,6 +434,14 @@ by the type and refuses to compile until all five tables have it). Because the r
 built from the list, only the guests of an event whose host turns sharing on are asked to
 read the notice again.
 
+_Landed with §4.1, with one reversal:_ `sharedGallery` is on every event, with no
+conditional. "A link exists" is false for the notice nearly every guest reads — before an
+upload, while the event is live, hours before a host makes the link — and nobody is asked
+again after the event closes, so the conditional would have been the promise the
+configuration later contradicts. What is true when the guest reads it is that the host
+_may_; the sentence says that. Every guest of every event is therefore asked once more,
+which is what "the notice reads differently" is supposed to do.
+
 ### 5.2 Guest self-service erasure (P2, effort S, risk: low)
 
 "Delete everything I sent" from the guest's own page, independent of the moderation grace

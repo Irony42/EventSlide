@@ -285,9 +285,9 @@ which is allowed.
   },
   "privacyNotice": {
     "notice": {
-      "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900",
+      "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900",
       "publication": "afterReview",
-      "audiences": ["room", "organisers"],
+      "audiences": ["wall", "organisers", "sharedGallery"],
       "retentionDays": 30,
       "selfRemovalSeconds": 900
     },
@@ -762,9 +762,9 @@ a setting since. `Cache-Control: no-store`.
 ```json
 {
   "notice": {
-    "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900",
+    "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900",
     "publication": "afterReview",
-    "audiences": ["room", "organisers"],
+    "audiences": ["wall", "organisers", "sharedGallery"],
     "retentionDays": 30,
     "selfRemovalSeconds": 900
   },
@@ -776,16 +776,19 @@ a setting since. `Cache-Control: no-store`.
 `src/domain/privacy/privacyNotice.ts` on every read, and the client words them in the
 guest's language, so the notice cannot promise something the configuration contradicts:
 
-| Field                | Derived from                                                        | Meaning                                                                                                                                                      |
-| -------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `publication`        | `moderation`                                                        | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                           |
-| `audiences`          | nothing yet                                                         | `wall` (the projected wall, once published — the room, and anyone its public link reaches) and `organisers` (host and moderators: everything, and the album) |
-| `retentionDays`      | `retentionDays`                                                     | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                             |
-| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation` | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                    |
-| `revision`           | all of the above                                                    | opaque; two notices with the same revision say the same thing                                                                                                |
+| Field                | Derived from                                                        | Meaning                                                                                                                                                                                                                                                                                                                                          |
+| -------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `publication`        | `moderation`                                                        | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                                                                                                                                                                                                               |
+| `audiences`          | nothing: the same on every event                                    | `wall` (the projected wall, once published — the room, and anyone its public link reaches), `organisers` (host and moderators: everything, and the album) and `sharedGallery` (whoever the host may send the album's private link to, and whoever it is forwarded to: published only, in full resolution, until it expires or is withdrawn — §2) |
+| `retentionDays`      | `retentionDays`                                                     | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                 |
+| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation` | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                        |
+| `revision`           | all of the above                                                    | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                    |
 
-`audiences` is a list so that a third audience — the shared gallery link of roadmap §4.1 —
-is one more member rather than a new field. A client must treat an audience it has no
+`audiences` is a list, and the shared gallery link of roadmap §4.1 was the first member
+added to it. It is on every event rather than only on one with a live link: a notice is
+read before an upload, a host makes the link after the event, and a guest is not asked
+again once the event has closed — so the true statement at the moment of reading is that
+the host _may_ share the album. A client must treat an audience it has no
 sentence for as a notice it cannot show, not as a shorter one — this one shows no notice and
 keeps the picker, as for a tab older than the feature, until a newer bundle loads.
 
@@ -807,7 +810,7 @@ not offer the picker until it is read. The reasons are on `privacyNoticeRoutes.t
 
 ```json
 {
-  "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900"
+  "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900"
 }
 ```
 

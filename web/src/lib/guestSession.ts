@@ -146,7 +146,18 @@ const withNarrowedTheme = (event: object): object => {
 }
 
 const PUBLICATIONS: readonly NoticePublication[] = ['afterReview', 'immediate']
-const AUDIENCES: readonly NoticeAudience[] = ['wall', 'organisers']
+/**
+ * Every audience this build has a sentence for, as a record so that a member added to
+ * `NoticeAudience` fails to compile here rather than being quietly left out. Left out, it
+ * would make every notice that names it unreadable (see {@link readNoticeState}), and an
+ * unreadable notice is one the upload screen does not show.
+ */
+const WORDED_AUDIENCES = {
+  wall: true,
+  organisers: true,
+  sharedGallery: true,
+} as const satisfies Record<NoticeAudience, true>
+const AUDIENCES = Object.keys(WORDED_AUDIENCES) as readonly NoticeAudience[]
 const ACKNOWLEDGEMENTS: readonly NoticeAcknowledgementStatus[] = ['none', 'current', 'outdated']
 
 const isOneOf = <T extends string>(members: readonly T[], value: unknown): value is T =>
@@ -171,8 +182,8 @@ const isCountOrNull = (value: unknown): value is number | null =>
  *
  * Exported because the same question is asked of the server's own answers, not only of
  * what a tab stored: a bundle cached by the service worker can be older than the server
- * it talks to, and the day the shared gallery of roadmap §4.1 adds an audience, that
- * bundle is exactly the one with no sentence for it.
+ * it talks to, and the shared gallery of roadmap §4.1 was the first audience such a bundle
+ * had no sentence for.
  */
 export const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
   if (typeof value !== 'object' || value === null) return null

@@ -140,7 +140,7 @@ export interface PublicEventDto {
  * five languages can say it.
  */
 export type NoticePublication = 'afterReview' | 'immediate'
-export type NoticeAudience = 'wall' | 'organisers'
+export type NoticeAudience = 'wall' | 'organisers' | 'sharedGallery'
 export type NoticeAcknowledgementStatus = 'none' | 'current' | 'outdated'
 
 /**

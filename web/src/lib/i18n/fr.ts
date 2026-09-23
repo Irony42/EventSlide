@@ -384,13 +384,17 @@ export const fr = {
         'Elles passent à l’écran dès leur arrivée. L’organisateur peut en retirer à tout moment.',
     } satisfies Record<NoticePublication, string>,
     /**
-     * One sentence per audience, keyed by the server's list. The shared gallery of
-     * roadmap 4.1 lands here as a third key, in all five tables, and nowhere else.
+     * One sentence per audience, keyed by the server's list. `sharedGallery` is on every
+     * event and says "s’il en crée un" for the reason `privacyNotice.ts` gives: the link
+     * usually comes the morning after, when this guest will not be asked again. "Et celles
+     * à qui ce lien est transféré", because a link is not a guest list.
      */
     noticeAudiences: {
       wall: 'Toute personne qui regarde l’écran de la soirée, dans la salle ou par son lien, une fois la photo affichée.',
       organisers:
         'L’organisateur et son équipe, qui voient tout ce que vous envoyez et peuvent télécharger les photos passées à l’écran.',
+      sharedGallery:
+        'Les personnes à qui l’organisateur envoie un lien privé vers l’album, s’il en crée un, et celles à qui ce lien est transféré : elles peuvent voir et télécharger en pleine résolution les photos affichées à l’écran, jusqu’à ce que le lien expire ou soit retiré.',
     } satisfies Record<NoticeAudience, string>,
     /**
      * "après la clôture de la galerie", for the reason `admin.retentionDays` says "après

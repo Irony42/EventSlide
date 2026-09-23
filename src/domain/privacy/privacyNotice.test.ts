@@ -33,9 +33,22 @@ describe('privacyNoticeFor — what happens to a photo', () => {
 })
 
 describe('privacyNoticeFor — who sees it', () => {
-  it('names the wall and the organisers, in the order a guest reads them', () => {
-    expect(privacyNoticeFor(settings()).audiences).toEqual(['wall', 'organisers'])
+  it('names the wall, the organisers and the shared gallery, in the order a guest reads them', () => {
+    expect(privacyNoticeFor(settings()).audiences).toEqual(['wall', 'organisers', 'sharedGallery'])
   })
+
+  it.each<[string, EventSettingsPatch]>([
+    ['moderated by hand', { moderation: 'manual' }],
+    ['publishing on arrival', { moderation: 'auto' }],
+    ['keeping the album', { retentionDays: null }],
+    ['deleting it after a week', { retentionDays: 7 }],
+    ['with no self-delete', { allowGuestSelfDelete: false }],
+  ])(
+    'tells a guest the host may share the album on an event %s, since a link can come after their last photo',
+    (_label, patch) => {
+      expect(privacyNoticeFor(settings(patch)).audiences).toContain('sharedGallery')
+    },
+  )
 
   it('hands out a copy, so a caller cannot change the audiences of the next notice', () => {
     const notice = privacyNoticeFor(settings())
@@ -117,7 +130,7 @@ describe('privacyNoticeFor — the revision', () => {
     )
 
     expect(notice.revision).toBe(
-      'publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900',
+      'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900',
     )
   })
 
@@ -125,7 +138,7 @@ describe('privacyNoticeFor — the revision', () => {
     const notice = privacyNoticeFor(settings({ retentionDays: null, allowGuestSelfDelete: false }))
 
     expect(notice.revision).toBe(
-      'publication=afterReview;audiences=wall+organisers;retention=none;selfRemoval=none',
+      'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=none;selfRemoval=none',
     )
   })
 

@@ -115,7 +115,25 @@ describe('guestSession', () => {
 
   it('reads a notice naming an audience this build cannot word as no notice, rather than a shorter one', () => {
     // Dropping the line would tell a guest less than the truth about who sees a photo —
-    // the shared gallery of roadmap 4.1 is exactly the audience a stale tab would drop.
+    // the shared gallery of roadmap 4.1 was exactly the audience a stale tab would drop.
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({
+        event: aPublicEvent({ slug: 'gala' }),
+        displayName: null,
+        privacyNotice: {
+          notice: { ...aPrivacyNotice(), audiences: ['wall', 'organisers', 'aFutureAudience'] },
+          acknowledgement: 'current',
+        },
+      }),
+    )
+
+    expect(readGuestSession('gala')?.privacyNotice).toBeNull()
+  })
+
+  it('reads a notice naming the shared gallery, which this build words', () => {
+    // The first audience added after the notice shipped. Left out of the list this build
+    // accepts, every notice would be unreadable and the upload screen would show none.
     sessionStorage.setItem(
       'eventslide.guest.gala',
       JSON.stringify({
@@ -128,7 +146,11 @@ describe('guestSession', () => {
       }),
     )
 
-    expect(readGuestSession('gala')?.privacyNotice).toBeNull()
+    expect(readGuestSession('gala')?.privacyNotice?.notice.audiences).toEqual([
+      'wall',
+      'organisers',
+      'sharedGallery',
+    ])
   })
 
   it('replaces the stored notice with the server’s latest answer and keeps the rest', () => {
