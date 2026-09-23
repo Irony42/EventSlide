@@ -104,6 +104,19 @@ describe('npm run backup', () => {
     expect(out).toContain('destroys what is there')
   })
 
+  it('says so when the archive is on the same filesystem as the database it protects', async () => {
+    // Both halves live in one temp directory here, as the image's default BACKUP_DIR is
+    // on the same volume as the database. An "OK" is not a backup until a copy is
+    // elsewhere, and the operator cannot see a device number. The other half — no
+    // warning on another filesystem — needs two filesystems, which the image check has:
+    // it backs up to the container's tmpfs and asserts the line is absent.
+    const { code, out } = await capture(() => run(['--to', archive, ...where()]))
+
+    expect(code).toBe(0)
+    expect(out).toContain('on the same filesystem as the database it was taken from')
+    expect(out).toContain('not a backup until a copy')
+  })
+
   it('names the restore the image can run, when it is the compiled command', async () => {
     // Inside the container there is no `npm run restore` to paste: `scripts/` and tsx
     // are not in the image. The line an operator copies must be one that exists there,

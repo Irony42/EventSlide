@@ -12,7 +12,7 @@
  * everybody discovers too late, so this prints what it captured, what it could not, and
  * what the archive is worth.
  */
-import { mkdir } from 'node:fs/promises'
+import { mkdir, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { migrations } from '../src/infrastructure/db/migrations'
@@ -75,6 +75,22 @@ const option = (argv: readonly string[], name: string): string | null => {
     throw new BackupError(`--${name} needs a value`)
   }
   return value
+}
+
+/**
+ * Do these two paths live on one filesystem?
+ *
+ * `st_dev` rather than a guess from the path, because the path cannot tell: inside the
+ * container `/data/backups` and a bind-mounted `/backups` are both on the host's disk,
+ * while `/tmp` is a tmpfs. A stat that fails answers "no" — this only decides whether a
+ * warning is printed, and a backup that has already verified must not exit 1 over it.
+ */
+const sharesFilesystem = async (a: string, b: string): Promise<boolean> => {
+  try {
+    return (await stat(a)).dev === (await stat(b)).dev
+  } catch {
+    return false
+  }
 }
 
 /** Colons are not legal in a Windows filename, so the stamp cannot be a plain ISO one. */
@@ -184,6 +200,18 @@ const runBackup = async (argv: readonly string[], invocation: Invocation): Promi
   })
   printReport(report, archive)
   if (!report.ok) return 1
+
+  // Measured, not assumed, and said only when true. Both defaults land here: the image's
+  // BACKUP_DIR is on the data volume, and a checkout's `./backups` sits beside `./data`.
+  // An "OK" over an archive on the same disk as the album is the one success message
+  // that should not reassure anybody, and a reader cannot see a device number.
+  if (await sharesFilesystem(archive, databasePath)) {
+    console.log(
+      `\n  ! This archive is on the same filesystem as the database it was taken from, so\n` +
+        `  ! the disk failure that loses one loses both. It is not a backup until a copy\n` +
+        `  ! of it is somewhere else.`,
+    )
+  }
 
   // Without `--force`, deliberately. It is the flag that switches off the refusal to
   // overwrite an existing installation, and a happy path that prints it teaches every
