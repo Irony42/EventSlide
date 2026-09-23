@@ -236,11 +236,14 @@ Two settings worth a thought before you start:
   for a small party among close friends, and the app will warn you when you choose it.
 - **Retention.** Nothing is deleted unless you ask — and your guests are told so. If you
   set a retention period, the album is purged that many days after the event closes —
-  export it first. The server
-  checks every hour and deletes what is due, so the promise the setting makes to your
-  guests is kept without you remembering. `npm run purge:dry-run` lists what the next
-  sweep would remove, `npm run purge` does it now, and
-  `RETENTION_SWEEP_INTERVAL_MINUTES=off` hands the schedule to your own cron.
+  export it first, and take a [backup](#backups). The server checks every hour and
+  deletes what is due, so the promise the setting makes to your guests is kept without
+  you remembering.
+  `docker compose exec eventslide node dist/ops/scripts/purge.js --dry-run` lists what
+  the next sweep would remove, and the same command without `--dry-run` does it now —
+  `npm run purge:dry-run` and `npm run purge` from a source checkout. Both are safe with
+  the server running, and `RETENTION_SWEEP_INTERVAL_MINUTES=off` hands the schedule to
+  your own cron.
 - **Opening and closing on their own.** The settings page takes an opening time and a
   closing time; leave either empty and you do that one yourself. The times are read on
   your own computer's clock, so 18:00 means 18:00 where the party is. If the server was
@@ -254,27 +257,82 @@ Two settings worth a thought before you start:
 
 ## Backups
 
-Take one before the event and one the morning after. It is two commands, the server can
-stay up, and the second one is the half that matters.
+Take one before the event and one the morning after. The server stays up while you do,
+and the step people skip is the one that matters: getting the archive off the box.
+
+With Docker, from the directory holding `compose.yaml`:
+
+```bash
+# 1. Take it. It prints the name, e.g. /data/backups/eventslide-2026-09-12T08-00-00Z
+docker compose exec eventslide node dist/ops/scripts/backup.js
+
+# 2. Take it off the volume, then off the machine. Until then it is on the same disk
+#    as the photographs it is meant to save, and the command says so.
+docker compose cp eventslide:/data/backups/eventslide-2026-09-12T08-00-00Z .
+docker compose exec eventslide rm -r /data/backups/eventslide-2026-09-12T08-00-00Z
+```
+
+The archive is a directory holding a consistent snapshot of the database, every photo,
+and a manifest of counts and checksums. `backup` re-reads everything it just wrote
+before it says OK, so an archive that exits 0 is one you have a reason to trust.
+
+It lands on the data volume because that is the only writable place in the container
+that survives a restart — which is also why it cannot stay there, since a copy on the
+same disk as the album survives everything except that disk failing. `docker compose cp`
+brings it to the host, and it is a backup once a copy is on another machine or on a
+drive you can unplug. Each archive is as large as the album and sits on the volume the
+uploads fill, so delete it there once it is copied. To write it straight to a mounted
+drive instead, hand the command one; the directory must be writable by uid 1000, the
+image's user:
+
+```bash
+docker compose run --rm -v /mnt/usb/backups:/backups eventslide \
+  node dist/ops/scripts/backup.js --to /backups/before-the-party
+```
+
+To restore, **stop the server first.** A restore replaces the database file, and doing
+that underneath the running server leaves the wall serving neither the old evening nor
+the restored one — so never restore with `exec`. `run --rm` starts a one-off container
+on the same volume while the service is stopped:
+
+```bash
+docker compose stop eventslide
+A=eventslide-2026-09-12T08-00-00Z   # the copy you brought back
+docker compose run --rm -v "$PWD/$A:/restore:ro" eventslide \
+  node dist/ops/scripts/restore.js /restore --dry-run  # rehearse: verify, show the plan
+docker compose run --rm -v "$PWD/$A:/restore:ro" eventslide \
+  node dist/ops/scripts/restore.js /restore --force    # overwrites what is there now
+docker compose start eventslide
+```
+
+`restore` verifies the whole archive before it touches anything, refuses to overwrite an
+installation unless you say `--force`, and prints exactly what `--force` is about to
+destroy. It runs as the image's own user, so the server can read everything it writes,
+and the media directory keeps its `0700`. That user, uid 1000, also has to be able to
+read the archive: a copy made by `docker compose cp` is readable, and one you have
+locked down since needs `sudo chown -R 1000 "$A"` first. An archive still on the volume
+needs no mount; pass its `/data/backups/...` path instead. To re-check an archive
+without restoring it, `node dist/ops/scripts/backup.js --verify <archive>` runs the
+same way and is safe with the server up.
+
+There is no migration step. The server applies pending migrations when it starts,
+before it answers a request, and `restore` brings the database it wrote up to the
+running version itself.
+
+From a source checkout the same commands are npm scripts, and an archive goes to
+`./backups` unless `--to` or `BACKUP_DIR` says otherwise:
 
 ```bash
 npm run backup                           # -> ./backups/eventslide-<timestamp>/
 npm run backup -- --to /mnt/usb/mariage  # or somewhere that is not this machine
+npm run backup:verify -- <archive>       # re-check one later
 
-npm run restore -- <archive> --dry-run   # rehearse: verify, print the plan, write nothing
-npm run restore -- <archive> --force     # --force is required to overwrite anything
+npm run restore -- <archive> --dry-run   # rehearse: verify, print the plan
+npm run restore -- <archive> --force     # with the server stopped
 ```
 
-The archive is a directory holding a consistent snapshot of the database, every photo,
-and a manifest of counts and checksums. `backup` re-reads everything it just wrote before
-it says OK, so an archive that exits 0 is one you have a reason to trust;
-`npm run backup:verify -- <archive>` re-checks an older one. `restore` verifies the whole
-archive before it touches anything and refuses to overwrite an installation that is still
-there unless you say `--force`, which tells you exactly what it is about to destroy.
-
-Copy the archive somewhere else, and keep your `.env` with it — the secrets are not in
-the archive, and restoring photos with new ones signs every host out. Details, and what
-the checks do and do not catch, are in
+Keep your `.env` with the archive — the secrets are not in it, and restoring photos with
+new ones signs every host out. Details, and what the checks do and do not catch, are in
 [docs/SECURITY.md §11](docs/SECURITY.md#11-deployment-posture).
 
 ## For contributors
