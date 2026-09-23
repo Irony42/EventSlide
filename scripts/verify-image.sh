@@ -2,7 +2,7 @@
 #
 # Proves what the Dockerfile and compose.yaml claim, instead of asserting it.
 #
-# The image makes seven promises that nothing in the six test rings can reach, because
+# The image makes eight promises that nothing in the six test rings can reach, because
 # none of them runs Docker. They are all promises about the *artefact*, not about the
 # code, so they cannot be moved down a ring: `npm run test:coverage` is green on a tree
 # whose image has no ffmpeg in it, ships the Playwright browsers, or runs as root.
@@ -18,6 +18,12 @@
 #   6. /api/health and /api/ready answer, and SIGTERM stops the process inside the grace
 #      period compose gives it.
 #   7. The process is not root, and what it writes to the volume is not owned by root.
+#   8. The operator can back up, verify, purge and restore with what the image carries.
+#      These are the README's Backups commands minus the `docker compose` in front, and
+#      until they were compiled into `dist/ops/` none of them could run here: the image
+#      has no `scripts/` and no `tsx`. So this takes a backup of the running server,
+#      verifies it, purges, copies the archive off the volume, stops the server, is
+#      refused by a restore without `--force`, restores with it, and boots on the result.
 #
 # Usage:
 #   ./scripts/verify-image.sh              # build, then check
@@ -30,8 +36,10 @@ set -euo pipefail
 
 IMAGE="${IMAGE:-eventslide:verify}"
 CONTAINER="eventslide-verify-$$"
+RESTORED="eventslide-verify-restored-$$"
 VOLUME="eventslide-verify-$$"
 BUILD=1
+host_scratch=""
 
 for arg in "$@"; do
   case "$arg" in
@@ -62,8 +70,9 @@ fail() {
 section() { printf '\n== %s\n' "$1"; }
 
 cleanup() {
-  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  docker rm -f "$CONTAINER" "$RESTORED" >/dev/null 2>&1 || true
   docker volume rm -f "$VOLUME" >/dev/null 2>&1 || true
+  if [ -n "$host_scratch" ]; then rm -rf "$host_scratch"; fi
 }
 trap cleanup EXIT
 
@@ -166,6 +175,24 @@ if in_image '[ -f dist/server/main/index.js ] && [ -f dist/client/index.html ]';
   pass "the server build and the web bundle are both present"
 else
   fail "dist is incomplete — the image would start without a front end"
+fi
+
+# Promise 8's precondition. The devDependency check above is right to refuse `tsx`, and
+# `scripts/` is not copied into the runtime stage, so these compiled files are the only
+# way an operator on this image can back up, restore or purge at all.
+if in_image '[ -f dist/ops/scripts/backup.js ] && [ -f dist/ops/scripts/restore.js ] && [ -f dist/ops/scripts/purge.js ]'; then
+  pass "the backup, restore and purge commands are compiled into the image"
+else
+  fail "dist/ops/scripts is missing a command — a Docker install would have no way to back up or restore"
+fi
+
+# What they carry is their own import graph, and that graph is kept off the composition
+# root on purpose: `container.ts` imports every route in the product, so a command that
+# reached it would put a second, startable copy of the server under dist/ops/.
+if in_image '[ ! -e dist/ops/src/main/container.js ] && [ ! -e dist/ops/src/interface ]'; then
+  pass "dist/ops carries the commands, not a second copy of the server"
+else
+  fail "dist/ops contains the composition root — an operator command imports src/main/container.ts again"
 fi
 
 size="$(docker image inspect "$IMAGE" --format '{{.Size}}')"
@@ -338,6 +365,148 @@ else
   fail "the media root on the volume is mode $mode, expected 700"
 fi
 
+# ------------------------------------------- backing up the evening, while it runs --
+section "Backup, verify and purge, beside the running server"
+
+# `docker compose exec eventslide <command>` is `docker exec` into the service's
+# container: the image's own user, the service's environment, the live volume. Each
+# command below is the README's, with that prefix taken off.
+ops() {
+  local script="$1"
+  shift
+  docker exec "$CONTAINER" node "dist/ops/scripts/$script" "$@"
+}
+
+# Something for the round trip to carry, written where the media store would put it. No
+# photo row names it, which a backup reports as dead weight and keeps — enough to prove
+# the media half travels without driving an upload through the API.
+captured="/data/media/verify-event/thumb/aa/$(printf '%064d' 0 | tr 0 a).jpg"
+if ! docker exec "$CONTAINER" sh -c "mkdir -p \"\$(dirname '$captured')\" && printf captured > '$captured'"; then
+  fail "could not write a media file into the running container's volume as its own user"
+fi
+
+# No arguments, because that is what an operator types first. The default is BACKUP_DIR,
+# which the image sets to /data/backups: the only other writable place is a tmpfs.
+set +e
+backup_out="$(ops backup.js 2>&1)"
+backup_code=$?
+set -e
+archive="$(printf '%s\n' "$backup_out" | sed -n 's/^  archive   //p' | head -n 1)"
+
+if [ "$backup_code" -eq 0 ] && printf '%s' "$backup_out" | grep -q '^OK '; then
+  pass "a backup with no arguments is written and re-read inside the running container"
+else
+  fail "the backup failed in the image (exit $backup_code) — output follows"
+  printf '%s\n' "$backup_out" | tail -20 >&2
+fi
+
+case "$archive" in
+  /data/backups/eventslide-*) pass "it landed in BACKUP_DIR, on the data volume: $archive" ;;
+  *) fail "the archive is not under /data/backups: '$archive'" ;;
+esac
+
+# The default is on the same disk as the album, and the command must say so rather than
+# let an "OK" reassure anybody.
+if printf '%s' "$backup_out" | grep -q 'same filesystem as the database it was taken from'; then
+  pass "it says the archive shares the album's disk"
+else
+  fail "a backup on the data volume did not say it shares the album's disk"
+fi
+
+# The follow-up it prints must be a command this image has. `npm run restore` is not.
+if printf '%s' "$backup_out" | grep -qF "node dist/ops/scripts/restore.js $archive" &&
+  ! printf '%s' "$backup_out" | grep -q 'npm run'; then
+  pass "the restore it prints is the one the image can run, not an npm script"
+else
+  fail "the backup's output names a command the image does not have"
+fi
+
+archive_owner="$(docker exec "$CONTAINER" stat -c '%u' "$archive/database.sqlite" 2>/dev/null || echo unknown)"
+if [ "$archive_owner" = "$uid" ]; then
+  pass "the archive belongs to uid $uid, like everything else on the volume"
+else
+  fail "the archive is owned by uid $archive_owner, expected $uid"
+fi
+
+# The other half of the same-disk warning, which needs a second filesystem: /tmp is the
+# container's tmpfs. Not a place to keep a backup — it is gone at the next restart.
+set +e
+elsewhere_out="$(ops backup.js --to /tmp/verify-other-filesystem 2>&1)"
+elsewhere_code=$?
+set -e
+if [ "$elsewhere_code" -eq 0 ] && ! printf '%s' "$elsewhere_out" | grep -q 'same filesystem'; then
+  pass "an archive on another filesystem is not said to share the album's disk"
+else
+  fail "a backup to the tmpfs exited $elsewhere_code or claimed to share the database's disk"
+fi
+docker exec "$CONTAINER" rm -rf /tmp/verify-other-filesystem || true
+
+set +e
+verify_out="$(ops backup.js --verify "$archive" 2>&1)"
+verify_code=$?
+set -e
+if [ "$verify_code" -eq 0 ] && printf '%s' "$verify_out" | grep -q 'with full checksums'; then
+  pass "backup --verify checks every byte of the archive in the image"
+else
+  fail "backup --verify failed in the image (exit $verify_code)"
+  printf '%s\n' "$verify_out" | tail -20 >&2
+fi
+
+# Retention, on demand. Nothing is due on a fresh volume, so this proves the command runs
+# in the image and a dry run touches nothing; what it deletes is ring 2's business.
+set +e
+purge_dry_out="$(ops purge.js --dry-run 2>&1)"
+purge_dry_code=$?
+set -e
+if [ "$purge_dry_code" -eq 0 ] && printf '%s' "$purge_dry_out" | grep -q 'Nothing is due for purge' &&
+  docker exec "$CONTAINER" test -f "$captured"; then
+  pass "purge --dry-run runs in the image and leaves the media alone"
+else
+  fail "purge --dry-run failed in the image (exit $purge_dry_code)"
+  printf '%s\n' "$purge_dry_out" | tail -20 >&2
+fi
+
+set +e
+purge_out="$(ops purge.js 2>&1)"
+purge_code=$?
+set -e
+if [ "$purge_code" -eq 0 ] && printf '%s' "$purge_out" | grep -q '^Reconciled '; then
+  pass "purge runs in the image, reconciliation sweep included"
+else
+  fail "purge failed in the image (exit $purge_code)"
+  printf '%s\n' "$purge_out" | tail -20 >&2
+fi
+
+# A restore beside the live server is the race the README tells an operator not to run.
+# The dry run is harmless and must still read the archive — and must say, from the WAL
+# the server holds open, that a server is running.
+set +e
+live_dry_out="$(ops restore.js "$archive" --dry-run 2>&1)"
+live_dry_code=$?
+set -e
+if [ "$live_dry_code" -eq 0 ] && printf '%s' "$live_dry_out" | grep -q 'the archive is intact'; then
+  pass "restore --dry-run reads the archive in the image"
+else
+  fail "restore --dry-run could not read the archive in the image (exit $live_dry_code)"
+  printf '%s\n' "$live_dry_out" | tail -20 >&2
+fi
+if printf '%s' "$live_dry_out" | grep -q 'A server is probably still running'; then
+  pass "run beside the live server, the restore says a server is still running"
+else
+  fail "a restore beside the live server did not warn that one is running"
+fi
+
+# Off the volume: `docker compose cp` is `docker cp`, and it has to reach the archive,
+# which it can because BACKUP_DIR is on the volume and not on the container's tmpfs.
+host_scratch="$(mktemp -d)"
+host_copy="$host_scratch/archive"
+if docker cp "$CONTAINER:$archive" "$host_copy" >/dev/null && [ -f "$host_copy/manifest.json" ] &&
+  [ -f "$host_copy/database.sqlite" ] && [ -d "$host_copy/media" ]; then
+  pass "docker cp takes the archive off the volume"
+else
+  fail "docker cp could not copy $archive off the volume"
+fi
+
 # ------------------------------------------------------------------------ shutdown --
 section "Shutdown"
 
@@ -366,6 +535,140 @@ if docker logs "$CONTAINER" 2>&1 | grep -q 'shutdown complete'; then
 else
   fail "'shutdown complete' was never logged — the database may not have been checkpointed"
 fi
+
+# ------------------------------------------------ restoring, with the server stopped --
+section "Restore, with the server stopped"
+
+# `docker compose stop eventslide`, then `docker compose run --rm eventslide <command>`:
+# a one-off container of the same image, on the same volume, with the same hardening and
+# the image's own entrypoint — so an exit code here has come through dumb-init, as the
+# operator's will — and nothing else holding the database open. `docker compose run`
+# publishes no ports and drops the restart policy, which is why it is the documented way
+# to run a command against a stopped service. The extra mount is the archive copied off
+# the box a moment ago, read-only, as the README mounts one coming back from a USB stick.
+one_off() {
+  docker run --rm \
+    -v "$VOLUME:/data" \
+    -v "$host_copy:/restore:ro" \
+    --read-only \
+    --tmpfs /tmp:size=512m,mode=1777 \
+    --security-opt no-new-privileges:true \
+    --cap-drop ALL \
+    -e NODE_ENV=production \
+    -e PUBLIC_URL=https://example.com \
+    -e SESSION_SECRET=verification-session-secret-at-least-32-chars \
+    -e GUEST_TOKEN_SECRET=verification-guest-token-secret-at-least-32-c \
+    "$IMAGE" "$@"
+}
+
+# The clean shutdown above checkpointed the WAL and removed it, so the procedure the
+# README gives — stop, then run — reaches a target with no live journal beside it.
+set +e
+stopped_dry_out="$(one_off node dist/ops/scripts/restore.js /restore --dry-run 2>&1)"
+stopped_dry_code=$?
+set -e
+if [ "$stopped_dry_code" -eq 0 ] && printf '%s' "$stopped_dry_out" | grep -q 'the archive is intact' &&
+  printf '%s' "$stopped_dry_out" | grep -q 'the real run needs --force'; then
+  pass "a copy brought back read-only verifies, and the dry run says the real one needs --force"
+else
+  fail "the dry run from the copied archive failed (exit $stopped_dry_code) — output follows"
+  printf '%s\n' "$stopped_dry_out" | tail -20 >&2
+fi
+if printf '%s' "$stopped_dry_out" | grep -q -- '-wal or -shm is present'; then
+  fail "a journal is still beside the database after a clean stop — the restore would race it"
+else
+  pass "after the stop, no journal is left for a restore to race"
+fi
+
+# The evening moves on after the backup, so that a restore has something to undo: the
+# file it captured goes, and one it never saw arrives.
+later="/data/media/verify-event/thumb/bb/$(printf '%064d' 0 | tr 0 b).jpg"
+if ! one_off sh -c "rm '$captured' && mkdir -p \"\$(dirname '$later')\" && printf later > '$later'"; then
+  fail "could not change the stopped volume as the image's user"
+fi
+
+set +e
+refused_out="$(one_off node dist/ops/scripts/restore.js /restore 2>&1)"
+refused_code=$?
+set -e
+if [ "$refused_code" -eq 1 ] &&
+  printf '%s' "$refused_out" | grep -q 'Refusing to overwrite an existing installation' &&
+  one_off test -f "$later"; then
+  pass "a restore without --force refuses the occupied volume, exits 1 and touches nothing"
+else
+  fail "a restore without --force exited $refused_code or changed the volume — output follows"
+  printf '%s\n' "$refused_out" | tail -20 >&2
+fi
+
+set +e
+forced_out="$(one_off node dist/ops/scripts/restore.js /restore --force 2>&1)"
+forced_code=$?
+set -e
+if [ "$forced_code" -eq 0 ] && printf '%s' "$forced_out" | grep -q '^Restored'; then
+  pass "a restore with --force completes in the image"
+else
+  fail "a restore with --force failed in the image (exit $forced_code) — output follows"
+  printf '%s\n' "$forced_out" | tail -20 >&2
+fi
+
+# Back to the moment of the backup, not a merge of the two.
+if [ "$(one_off cat "$captured" 2>/dev/null)" = "captured" ] && ! one_off test -e "$later"; then
+  pass "the restore put back what the backup captured and removed what came after"
+else
+  fail "the volume after the restore is not the one the backup captured"
+fi
+
+# What a restore writes, the server has to be able to open and write. It runs as the
+# image's user, so both halves belong to that user, and the media root keeps the mode
+# the Dockerfile gave it instead of taking the umask's.
+restored_db_owner="$(one_off stat -c '%u' /data/eventslide.sqlite 2>/dev/null || echo unknown)"
+restored_media_owner="$(one_off stat -c '%u' "$captured" 2>/dev/null || echo unknown)"
+if [ "$restored_db_owner" = "$uid" ] && [ "$restored_media_owner" = "$uid" ]; then
+  pass "the restored database and media belong to uid $uid, the server's user"
+else
+  fail "the restore left files owned by uid $restored_db_owner (database) and $restored_media_owner (media), expected $uid"
+fi
+
+restored_mode="$(one_off stat -c '%a' /data/media 2>/dev/null || echo unknown)"
+if [ "$restored_mode" = "700" ]; then
+  pass "the media root is still mode 700 after the restore"
+else
+  fail "the restore left the media root at mode $restored_mode, expected 700"
+fi
+
+# And the proof that it is a backup rather than a hope: the server comes up on it.
+docker run -d --name "$RESTORED" \
+  -v "$VOLUME:/data" \
+  --read-only \
+  --tmpfs /tmp:size=512m,mode=1777 \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL \
+  -e NODE_ENV=production \
+  -e PUBLIC_URL=https://example.com \
+  -e SESSION_SECRET=verification-session-secret-at-least-32-chars \
+  -e GUEST_TOKEN_SECRET=verification-guest-token-secret-at-least-32-c \
+  "$IMAGE" >/dev/null
+
+restored_ready=""
+for _ in $(seq 1 60); do
+  if body="$(docker exec "$RESTORED" node -e \
+    "fetch('http://127.0.0.1:4300/api/ready').then(r=>r.text()).then(t=>{console.log(t);process.exit(0)}).catch(()=>process.exit(1))" \
+    2>/dev/null)"; then
+    restored_ready="$body"
+    break
+  fi
+  sleep 1
+done
+
+if printf '%s' "$restored_ready" | grep -q '"status":"ready"' &&
+  printf '%s' "$restored_ready" | grep -q '"database":"ok"' &&
+  printf '%s' "$restored_ready" | grep -q '"media":"ok"'; then
+  pass "the server boots on the restored volume and reports it ready"
+else
+  fail "the server did not come up on the restored volume: $restored_ready"
+  docker logs "$RESTORED" 2>&1 | tail -40 >&2
+fi
+docker stop --time 20 "$RESTORED" >/dev/null
 
 # --------------------------------------------------------------------------- done --
 printf '\n%s passed, %s failed\n' "$passed" "$failed"

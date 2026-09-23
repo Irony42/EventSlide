@@ -1312,7 +1312,7 @@ archiver@7.0.1              a real production dependency
 `npm ls --omit=dev` keeps all four. The other copies — `minimatch@10.2.5` and
 `brace-expansion@5.0.5` under `eslint` and `typescript-eslint`, and `minimatch@9.0.9` with
 `brace-expansion@2.1.4` under `glob` — are either outside the vulnerable range or removed
-by `npm prune --omit=dev`, which `scripts/verify-image.sh:113-119` and `:136-140` assert by
+by `npm prune --omit=dev`, which `scripts/verify-image.sh:122-128` and `:145-149` assert by
 refusing an image that still carries a devDependency.
 
 **What makes them unreachable is the call site, not the tree.** Both advisory classes are
@@ -1351,8 +1351,8 @@ eslint-plugin-react-hooks@7.1.1 -> @babel/core@7.29.0 -> browserslist@4.28.2 -> 
 
 Neither chain is imported by anything under `src/` or shipped in the client bundle —
 `nanoid` is postcss's source-map id generator, not an application dependency.
-`scripts/verify-image.sh:136-140` fails the build if `typescript`, `vitest`,
-`@playwright/test`, `eslint`, `prettier` or `tsx` reach the image, and `:128` fails it if a
+`scripts/verify-image.sh:145-149` fails the build if `typescript`, `vitest`,
+`@playwright/test`, `eslint`, `prettier` or `tsx` reach the image, and `:137` fails it if a
 compiler does.
 
 **They can hurt a developer or a CI runner and nothing else.** The two `vite` advisories
