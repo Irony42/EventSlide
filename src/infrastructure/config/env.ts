@@ -264,6 +264,19 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
 
       DATABASE_PATH: z.string().min(1).default('./data/eventslide.sqlite'),
       MEDIA_ROOT: z.string().min(1).default('./media'),
+      /**
+       * Where `backup` writes an archive when it is not given `--to`. Nothing the server
+       * does reads it.
+       *
+       * A variable rather than a constant because the constant was wrong on the install
+       * the README leads with: `./backups` resolves against the working directory, which
+       * in the image is `/app` — owned by root, on a filesystem `compose.yaml` mounts
+       * read-only — so the bare command could not write anywhere. The image sets
+       * `/data/backups` instead, which is on the data volume and therefore on **the same
+       * disk as what it protects** — a place to write an archive, not a place to keep
+       * one. The README's Backups section gives the copy that takes it off the box.
+       */
+      BACKUP_DIR: z.string().min(1).default('./backups'),
 
       MAX_UPLOAD_BYTES: positiveInt(25_000_000),
       MAX_FILES_PER_UPLOAD: positiveInt(20, 100),
@@ -486,6 +499,8 @@ export interface AppConfig {
   readonly storage: {
     readonly databasePath: string
     readonly mediaRoot: string
+    /** The default parent of a backup archive. Read by the backup command only. */
+    readonly backupDir: string
   }
 
   readonly uploads: {
@@ -638,6 +653,7 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
     storage: {
       databasePath: raw.DATABASE_PATH,
       mediaRoot: raw.MEDIA_ROOT,
+      backupDir: raw.BACKUP_DIR,
     },
 
     uploads: {

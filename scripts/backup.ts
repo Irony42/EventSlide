@@ -27,12 +27,13 @@ const VERSION = '2.0.0'
 const USAGE = `
 EventSlide backup
 
-  npm run backup                              back up to ./backups/<timestamp>
+  npm run backup                              back up to BACKUP_DIR/eventslide-<timestamp>
   npm run backup -- --to /mnt/usb/wedding     back up to a chosen directory
   npm run backup:verify -- <archive>          prove an existing archive is intact
 
 Options
   --to <directory>        where to write the archive. Must not already hold one.
+                          Without it: BACKUP_DIR, which is ./backups unless set.
   --database <path>       override DATABASE_PATH (e.g. a Docker volume)
   --media <path>          override MEDIA_ROOT
   --verify <archive>      check an archive instead of taking one
@@ -119,7 +120,10 @@ const runBackup = async (argv: readonly string[]): Promise<number> => {
   const mediaRoot = option(argv, 'media') ?? config.storage.mediaRoot
 
   const now = new Date()
-  const destination = option(argv, 'to') ?? join('./backups', `eventslide-${stampOf(now)}`)
+  // BACKUP_DIR, not a literal `./backups`: that resolves against the working directory,
+  // which in the image is a read-only `/app`. See the variable in env.ts.
+  const destination =
+    option(argv, 'to') ?? join(config.storage.backupDir, `eventslide-${stampOf(now)}`)
   await mkdir(resolve(destination, '..'), { recursive: true })
 
   console.log(`EventSlide backup`)

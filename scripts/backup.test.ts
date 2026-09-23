@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -69,6 +69,26 @@ describe('npm run backup', () => {
     expect(out).toContain('OK ')
     expect(out).toContain('with full checksums')
     expect(await stat(join(archive, 'manifest.json'))).toBeTruthy()
+  })
+
+  it('writes into BACKUP_DIR when it is not told where', async () => {
+    // The bare command is what an operator types first, and in the image the old default
+    // — `./backups` against a read-only `/app` — could not be written at all. The image
+    // sets BACKUP_DIR; this is the half that proves the command reads it.
+    const backups = join(root, 'elsewhere')
+    vi.stubEnv('BACKUP_DIR', backups)
+    try {
+      const { code, out } = await capture(() => run(where()))
+
+      expect(code).toBe(0)
+      const written = await readdir(backups)
+      expect(written).toHaveLength(1)
+      expect(written[0]).toMatch(/^eventslide-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z$/)
+      expect(await stat(join(backups, written[0] ?? '', 'manifest.json'))).toBeTruthy()
+      expect(out).toContain(join(backups, written[0] ?? ''))
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('does not hand the operator --force on the happy path', async () => {
