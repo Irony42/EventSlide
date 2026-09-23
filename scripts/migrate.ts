@@ -1,9 +1,13 @@
 /**
- * `npm run db:migrate` and `npm run db:status`.
+ * `npm run db:migrate` and `npm run db:status`, from a source checkout.
  *
- * Kept as a script rather than folded into server startup so that applying a schema
- * change to a database holding someone's wedding album is a deliberate act with
- * readable output, not a side effect of a restart.
+ * This used to say it was kept apart from server startup so that a schema change would
+ * be a deliberate act rather than a side effect of a restart. The server does it at
+ * startup anyway: `src/main/container.ts` applies pending migrations at boot, before the
+ * port opens, and refuses to start on a ledger it does not recognise. What this adds is
+ * the same step with readable output and without starting anything, plus `--status`.
+ * That is why the image carries no migrate command (see `tsconfig.ops.json`): there it
+ * would only repeat what every start already does.
  */
 import { closeDatabase, openDatabase } from '../src/infrastructure/db/connection'
 import { migrations } from '../src/infrastructure/db/migrations'
