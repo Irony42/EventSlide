@@ -247,6 +247,38 @@ sees their own checklist and nothing about anybody else's.
 
 <br clear="right">
 
+## Shared gallery
+
+<img src="docs/images/gallery-album.jpg" width="300" align="right" alt="The shared album on a relative's phone: the event's name, seven photos, the date the link expires, and a button to download everything as a ZIP">
+<img src="docs/images/gallery-panel.jpg" width="300" align="right" alt="The Shared album panel on the event page: open until a date, protected by a password, the new link shown once with a button to copy it, and buttons to replace it or switch it off">
+
+The morning after, the same question arrives from everybody, one at a time: can you send
+me the photos. The **Shared album** panel on the event page answers it with one link.
+
+Choose how long it stays open — 7, 30 or 90 days — and, if you want one, a password of at
+least 12 characters to send separately. The address is shown once, when you make it: the
+server keeps only a fingerprint of it, so copy it then. Making a new link switches the
+old one off, and so does **Switch off the link**. Only the event's owners see the panel;
+a moderator can publish to the wall, not to the internet.
+
+Whoever opens the link needs no account. They type the password if there is one and get
+the album as a grid; each photograph opens larger with **Download the original**, and
+**Download everything (.zip)** takes the lot.
+
+What the link hands out, and what it does not:
+
+- **Full resolution, without location data.** The originals as the box stored them, which
+  means already stripped of coordinates and device details on arrival. A video comes as
+  the box transcoded it, not as the phone filmed it.
+- **Only what was on the wall.** Pending, refused and hidden photographs are not in it,
+  and one you take off the wall after sending the link is gone from it at the next page
+  load.
+- **Switching it off is immediate.** Nothing more loads from it, in a tab already open
+  either, and a ZIP halfway through downloading is cut off rather than finished — so
+  nobody is left holding an archive that looks complete and is not.
+
+<br clear="right">
+
 ## On the night
 
 1. **Create the event** in `/admin` — a name is enough.
