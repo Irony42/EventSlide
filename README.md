@@ -41,11 +41,12 @@ Pi under the projector — and nothing leaves it.
 - **Privacy is handled, not mentioned.** Location data and device identifiers are
   stripped from every photo on arrival — a guest's camera records the coordinates of
   wherever they are standing, and that is often somebody's home.
-- **Guests are told what happens to their photos, before the first one.** Who sees it,
-  whether you check it before the screen, how long it is kept and how to have it removed
-  — written from your event's own settings, in the guest's language, so it cannot say
-  something your configuration does not do. Read once per phone, and shown again if you
-  change one of those settings mid-evening.
+- **Guests are told what happens to their photos, before the first one.**
+  <img src="docs/images/guest-notice.jpg" width="220" align="right" alt="The notice on a guest's phone before their first photo: what happens to the photos, who sees them, how long they are kept, how to have one removed, and an I understand button">
+  Who sees it, whether you check it before the screen, how long it is kept and how to
+  have it removed — written from your event's own settings, in the guest's language, so
+  it cannot say something your configuration does not do. Read once per phone, and shown
+  again if you change one of those settings mid-evening.
 - **The album is yours afterwards.** One ZIP, full resolution, and an automatic purge
   when you choose one.
 - **And your guests', with one link.** The morning after, make a shared gallery link on
