@@ -146,4 +146,17 @@ describe('npm run restore', () => {
     expect(code).toBe(0)
     expect(out).toContain('Stop the server first')
   })
+
+  it('spells its commands the way the image runs them, when it is compiled', async () => {
+    // `npm run restore` does not exist inside the container, so neither the usage nor
+    // the question it asks when the archive is missing may name it there.
+    const usage = await capture(() => run([], 'node'))
+    const missing = await capture(() => run(where(), 'node'))
+
+    expect(usage.out).toContain('node dist/ops/scripts/restore.js <archive> --dry-run')
+    expect(usage.out).toContain('Stop the server first')
+    expect(missing.code).toBe(1)
+    expect(missing.out).toContain('Pass the directory node dist/ops/scripts/backup.js wrote')
+    expect(`${usage.out}\n${missing.out}`).not.toContain('npm run')
+  })
 })

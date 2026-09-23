@@ -104,6 +104,26 @@ describe('npm run backup', () => {
     expect(out).toContain('destroys what is there')
   })
 
+  it('names the restore the image can run, when it is the compiled command', async () => {
+    // Inside the container there is no `npm run restore` to paste: `scripts/` and tsx
+    // are not in the image. The line an operator copies must be one that exists there,
+    // and must still not carry --force.
+    const { code, out } = await capture(() => run(['--to', archive, ...where()], 'node'))
+
+    expect(code).toBe(0)
+    expect(out).toContain(`node dist/ops/scripts/restore.js ${archive}`)
+    expect(out).not.toContain('npm run')
+    expect(out).not.toMatch(/restore\.js .*--force/)
+  })
+
+  it('prints the compiled spelling of every command in its usage, when it is compiled', async () => {
+    const { code, out } = await capture(() => run(['--help'], 'node'))
+
+    expect(code).toBe(0)
+    expect(out).toContain('node dist/ops/scripts/backup.js --verify <archive>')
+    expect(out).not.toContain('npm run')
+  })
+
   it('exits non-zero and names the damage when --verify finds a broken archive', async () => {
     expect((await capture(() => run(['--to', archive, ...where()]))).code).toBe(0)
     const photo = join(archive, 'media', 'an-event', 'thumb', 'aa', `${'a'.repeat(64)}.jpg`)

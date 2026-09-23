@@ -1,15 +1,16 @@
 /**
- * `npm run backup` and `npm run backup:verify`.
+ * `npm run backup` and `npm run backup:verify` — in the image,
+ * `node dist/ops/scripts/backup.js` and `… --verify`.
  *
  * Takes a verifiable archive of the two things an EventSlide installation is: the
  * SQLite database and the media root. The mechanics, the archive layout and the
  * reasoning about consistency between the two halves all live in
  * `src/infrastructure/db/backupArchive.ts`; this file is the part an operator talks to.
  *
- * A script rather than something the server does on a timer, for the same reason
- * `db:migrate` is one: the output is the interface. A backup that ran silently and
- * wrote nothing useful is the failure everybody discovers too late, so this prints what
- * it captured, what it could not, and what the archive is worth.
+ * A script rather than something the server does on a timer, because the output is the
+ * interface. A backup that ran silently and wrote nothing useful is the failure
+ * everybody discovers too late, so this prints what it captured, what it could not, and
+ * what the archive is worth.
  */
 import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
@@ -21,15 +22,19 @@ import {
   verifyBackup,
   type VerifyReport,
 } from '../src/infrastructure/db/backupArchive'
+import { commandLine, invocationOf, type Invocation, type OperatorCommand } from './invocation'
 
 const VERSION = '2.0.0'
 
-const USAGE = `
+const usage = (invocation: Invocation): string => {
+  const line = (command: OperatorCommand, args: string, what: string): string =>
+    `  ${commandLine(invocation, command, args).padEnd(53)} ${what}`
+  return `
 EventSlide backup
 
-  npm run backup                              back up to BACKUP_DIR/eventslide-<timestamp>
-  npm run backup -- --to /mnt/usb/wedding     back up to a chosen directory
-  npm run backup:verify -- <archive>          prove an existing archive is intact
+${line('backup', '', 'back up to BACKUP_DIR/eventslide-<timestamp>')}
+${line('backup', '--to /mnt/usb/wedding', 'back up to a chosen directory')}
+${line('verify', '<archive>', 'prove an existing archive is intact')}
 
 Options
   --to <directory>        where to write the archive. Must not already hold one.
@@ -46,6 +51,7 @@ directory can be rsynced, resumed and inspected. Copy it somewhere that is not t
 machine — a backup on the same disk survives everything except the thing most likely
 to happen to it.
 `.trim()
+}
 
 /** Bytes as something a person reads, not a benchmark figure. */
 const human = (bytes: number): string => {
@@ -112,7 +118,7 @@ const runVerify = async (argv: readonly string[], archive: string): Promise<numb
   return report.ok ? 0 : 1
 }
 
-const runBackup = async (argv: readonly string[]): Promise<number> => {
+const runBackup = async (argv: readonly string[], invocation: Invocation): Promise<number> => {
   const config = loadMaintenanceConfig()
   // Only the config module reads the environment; the flags exist so an operator can
   // point this at a container volume without editing their .env.
@@ -186,8 +192,8 @@ const runBackup = async (argv: readonly string[]): Promise<number> => {
   // below is the one that is right nearly every time; the sentence after it is for the
   // other times, which is the order those two facts should be met in.
   console.log(
-    `\nCopy it off this machine. Restore with:\n` +
-      `  npm run restore -- ${archive}\n` +
+    `\nCopy it off this machine. Restore with, once the server is stopped:\n` +
+      `  ${commandLine(invocation, 'restore', archive)}\n` +
       `\nThat refuses to run if the target already holds a database or any media.\n` +
       `Adding --force is what gets past the refusal, and it destroys what is there.`,
   )
@@ -201,16 +207,23 @@ const runBackup = async (argv: readonly string[]): Promise<number> => {
  * an operator actually touches — argument parsing, what is printed, what the exit code
  * says — is testable. A CLI whose only tested part is the library underneath it is a
  * CLI whose argument handling has never been run by anything but a person at 2am.
+ *
+ * `invocation` decides only how the commands it prints are spelled — see
+ * `./invocation.ts`. It defaults to the source checkout, which is what every test that
+ * does not say otherwise is about.
  */
-export const run = async (argv: readonly string[]): Promise<number> => {
+export const run = async (
+  argv: readonly string[],
+  invocation: Invocation = 'npm',
+): Promise<number> => {
   try {
     if (flag(argv, 'help')) {
-      console.log(USAGE)
+      console.log(usage(invocation))
       return 0
     }
     const toVerify = option(argv, 'verify')
     if (toVerify !== null) return await runVerify(argv, toVerify)
-    return await runBackup(argv)
+    return await runBackup(argv, invocation)
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
     return 1
@@ -230,7 +243,7 @@ export const run = async (argv: readonly string[]): Promise<number> => {
 if (require.main === module) {
   // `exitCode` rather than `exit`, so buffered stdout reaches a terminal or a pipe
   // before the process goes away.
-  void run(process.argv.slice(2)).then((code) => {
+  void run(process.argv.slice(2), invocationOf(__filename)).then((code) => {
     process.exitCode = code
   })
 }
