@@ -6,11 +6,8 @@ within seconds.
 
 Self-hosted. The photos stay on your machine.
 
-> **2.0 is on `main`** — this README describes it, and the `git clone` below gets it.
-> The architecture and its reasoning are in [docs/](docs/).
-
 <p align="center">
-  <img src="docs/images/wall-spotlight.jpg" width="49%" alt="The wall on a projector, one photograph full-bleed with the sender's caption and the join code in the corner">
+  <img src="docs/images/wall-spotlight.jpg" width="49%" alt="The wall on a projector, one photograph at a time, whole, with the sender's caption and the join code in the corner">
   <img src="docs/images/wall-mosaic.jpg" width="49%" alt="The same wall in its mosaic layout, several photographs at once">
 </p>
 <p align="center">
@@ -36,27 +33,27 @@ Pi under the projector — and nothing leaves it.
 - **Nothing reaches the screen without you.** Every photo waits in a moderation queue
   until you approve it. Two hundred people are watching that screen; that is not a
   setting to leave to chance.
-- **The wall is meant to be looked at.** Full-bleed photos with a slow zoom, a mosaic
-  layout, captions and the sender's name, a join code in the corner for whoever arrives
-  late.
+- **The wall is meant to be looked at.** One photo at a time, whole and with a slow
+  zoom, or one of five other layouts; captions and the sender's name, a join code in the
+  corner for whoever arrives late.
 - **It survives the venue.** Uploads retry, the wall keeps playing when the network
   drops, and it runs unattended for an eight-hour evening.
 - **Privacy is handled, not mentioned.** Location data and device identifiers are
   stripped from every photo on arrival — a guest's camera records the coordinates of
   wherever they are standing, and that is often somebody's home.
-- **Guests are told what happens to their photos, before the first one.** Who sees it,
-  whether you check it before the screen, how long it is kept and how to have it removed
-  — written from your event's own settings, in the guest's language, so it cannot say
-  something your configuration does not do. Read once per phone, and shown again if you
-  change one of those settings mid-evening.
+- **Guests are told what happens to their photos, before the first one.**
+  <img src="docs/images/guest-notice.jpg" width="220" align="right" alt="The notice on a guest's phone before their first photo: what happens to the photos, who sees them, how long they are kept, how to have one removed, and an I understand button">
+  Who sees it, whether you check it before the screen, how long it is kept and how to
+  have it removed — written from your event's own settings, in the guest's language, so
+  it cannot say something your configuration does not do. Read once per phone, and shown
+  again if you change one of those settings mid-evening.
 - **The album is yours afterwards.** One ZIP, full resolution, and an automatic purge
   when you choose one.
 - **And your guests', with one link.** The morning after, make a shared gallery link on
   the event page and send it to everybody: the photographs that were on the wall, in full
   resolution and without their location data, to download one by one or as a ZIP. It
   expires when you say (a month unless you choose otherwise), it can ask for a password,
-  and you can switch it off at any moment — every photo it ever showed stops loading at
-  once.
+  and you can switch it off at any moment — from then on it opens nothing.
 
 And the parts that only show up on the night:
 
@@ -91,18 +88,23 @@ And the parts that only show up on the night:
   from.
 
 - **It looks like the evening it is running.** The host picks an accent colour, a font
-  pairing and a frame style; the wall and the guest screens follow. Contrast is checked
-  against the accessibility contract server-side, so a hue that would make captions
-  unreadable at ten metres is refused rather than rendered.
-- **Translucent surfaces that give way before the wall does.** The interface uses a
-  glass material over photographs — and it is measured: if the machine driving the
-  projector cannot hold its frame rate, the blur is given up before the animation, and
-  the animation before the crossfade. A host who prefers the plainer surface turns it
-  off per event.
+  pairing and a frame style; the wall takes all three (the frame in the layouts that
+  draw one), and the guests' phones the colour. The colour is checked against the
+  accessibility contract server-side — the text on it must read at ten metres, and it
+  must not pass for the colours that mean success, warning or error — and one that fails
+  is refused rather than rendered.
+- **Translucent surfaces that give way before the wall does.** The guest's upload screen
+  uses a glass material over the photographs, and it is measured: a phone that stops
+  answering a tap promptly gives up the blur. The projected wall never wears it — its
+  photographs never stop moving, which is exactly what makes a blur expensive — and if
+  the machine driving the projector cannot hold its frame rate, it gives up the slow zoom
+  before the crossfade. A host who prefers the plainer surface turns the glass off per
+  event.
 
 ## Install
 
-You need Docker, and an HTTPS address for the box. Both are explained below the box.
+You need Docker, and an https address your guests' phones can reach. The commands come
+first; what the https part asks of you is explained after them.
 
 ```bash
 git clone https://github.com/Irony42/EventSlide.git
@@ -112,19 +114,32 @@ cd EventSlide
 node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 echo "PUBLIC_URL=https://photos.example.com" >> .env
+# Your own account, created on the first boot. The password is generated too, because
+# one typed into a README is one everybody who read it could sign in with first.
 echo "BOOTSTRAP_OWNER_EMAIL=you@example.com" >> .env
-echo "BOOTSTRAP_OWNER_PASSWORD=choose-a-long-passphrase" >> .env
+node -e "console.log('BOOTSTRAP_OWNER_PASSWORD='+require('crypto').randomBytes(18).toString('base64url'))" >> .env
 
 docker compose up            # the first time, and read what it says
 docker compose up -d         # once it has booted cleanly
 ```
 
-Then open `PUBLIC_URL/login`.
+Once the https proxy described below is in front of it, open `PUBLIC_URL/login` and sign
+in with that email and the generated password (`grep BOOTSTRAP_OWNER .env` shows it). The
+first sign-in asks you to choose your own before it shows you anything else.
 
 **Run it in the foreground the first time.** A missing or malformed variable makes the
 server print every problem at once and exit rather than start — which is what you want,
 and what you will not see if the first run is detached, because the container restarts
 on its own and the list scrolls away. Once it boots, `-d` is the right way to leave it.
+
+**The two `BOOTSTRAP_OWNER_` lines are how the first account is made.** There is no
+default admin and no setup page: the server creates that owner on its first boot, against
+an empty database, and creates nothing from them once any account exists. It still checks
+them at every boot, so once you have signed in and chosen your own password, delete both
+or keep both — one without the other is refused. A password of your own choosing is held
+to the same rule as every account's, at least 12 characters and not an obvious one, and a
+weak one is refused at boot like any other bad variable. The email is only checked when
+the account is made: a malformed one creates nothing, and the log says so.
 
 **`PUBLIC_URL` must be an https address a phone on the venue Wi-Fi can actually reach**,
 never `localhost`. It is what the QR code encodes, and a QR code pointing at `localhost`
@@ -149,6 +164,13 @@ photos.example.com {
 }
 ```
 
+Whichever proxy it is has to tell the server that the request arrived over https
+(`X-Forwarded-Proto`) and who sent it (`X-Forwarded-For`). Caddy and Traefik do without
+being asked; nginx needs `proxy_set_header X-Forwarded-Proto $scheme;` and
+`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`. Without the first the
+login cookie is never sent, and without the second every guest shares the proxy's address
+in the rate limiter.
+
 **A venue with no domain name is the case this does not cover.** A box on a LAN with no
 DNS and no certificate cannot serve https that a guest's phone will trust, and EventSlide
 will not run over plain http in production. Today the answer is a real domain pointed at
@@ -165,28 +187,53 @@ Node 24 or later.
 ```bash
 npm install
 
-# The same two secrets and the same address as the Docker box above. `npm start` reads
-# this `.env` if it is there; it never overrides a variable your shell or your service
-# manager already set, so a systemd unit can own them instead.
+# The same secrets, address and first owner as the Docker install above. `npm start`
+# reads this `.env` if it is there; it never overrides a variable your shell or your
+# service manager already set, so a systemd unit can own them instead.
 node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 echo "PUBLIC_URL=https://photos.example.com" >> .env
+echo "BOOTSTRAP_OWNER_EMAIL=you@example.com" >> .env
+node -e "console.log('BOOTSTRAP_OWNER_PASSWORD='+require('crypto').randomBytes(18).toString('base64url'))" >> .env
+# The one line `compose.yaml` writes for you: there is one proxy in front of the server.
+echo "TRUST_PROXY_HOPS=1" >> .env
 
 npm run db:migrate
 npm run build
 npm start
 ```
 
+**The login needs `TRUST_PROXY_HOPS=1` behind your https proxy.** Without it the server
+does not take the proxy's word (the `X-Forwarded-Proto` above) that the request arrived
+over https, so it never sends the `Secure` login cookie: the sign-in form accepts your
+password and you are still signed out. It also means the server believes the address the
+proxy forwards, and `npm start` listens on port 4300 on every interface — so firewall that
+port and let only the proxy reach it, or anybody on the network can claim an address of
+their choosing and walk past the per-address rate limits.
+
 **There is no weak default to fall back on, and that is deliberate.** `NODE_ENV` is
 `production` unless something says otherwise, so a server started without those two
 secrets prints both and exits instead of signing cookies with something it made up.
-`.env.example` documents every other variable and is worth reading; copying it verbatim
-stops the boot, because the secrets in it are placeholders and the server knows them by
-sight.
+`.env.example` walks through most of the others — upload limits, quotas, video clips,
+the two sweeps, the shared gallery's rate limits — and is worth reading; copying it
+verbatim stops the boot, because the secrets in it are placeholders and the server knows
+them by sight.
 
-To look around before there is a real event, `npm run db:seed:demo` creates one with
-a handful of photos in each moderation state, so the admin console and the wall both
-have something to show.
+To look around before there is a real event, give the demo a scratch database and run
+the development server on it, with `npm start` stopped — both use port 4300.
+`npm run db:seed:demo` refuses a database that already holds an account, which yours
+does from its first boot:
+
+```bash
+# An event with six photos on the wall and two awaiting moderation, and its login.
+DATABASE_PATH=./data/demo.sqlite MEDIA_ROOT=./data/demo-media npm run db:seed:demo
+# Then sign in at http://localhost:5173/login with what the seed printed.
+DATABASE_PATH=./data/demo.sqlite MEDIA_ROOT=./data/demo-media npm run dev
+```
+
+Set per command rather than exported, so a later `npm start` in the same shell still
+opens your real database; under `data/`, so git ignores it. The demo login asks for a new
+password first, like any first sign-in.
 
 </details>
 
@@ -218,18 +265,55 @@ sees their own checklist and nothing about anybody else's.
 
 <br clear="right">
 
+## Shared gallery
+
+<img src="docs/images/gallery-album.jpg" width="260" align="right" alt="The shared album on a relative's phone: the event's name, seven photos, the date the link expires, and a button to download everything as a ZIP">
+<img src="docs/images/gallery-panel.jpg" width="260" align="right" alt="The Shared album panel on the event page: open until a date, protected by a password, the new link shown once with a button to copy it, and buttons to replace it or switch it off">
+
+The morning after, the same question arrives from everybody, one at a time: can you send
+me the photos. The **Shared album** panel on the event page answers it with one link.
+
+Choose how long it stays open — 7, 30 or 90 days — and, if you want one, a password of at
+least 12 characters to send separately. The address is shown once, when you make it: the
+server keeps only a fingerprint of it, so copy it then. Making a new link switches the
+old one off, and so does **Switch off the link**. Only the event's owners see the panel;
+a moderator can publish to the wall, not to the internet.
+
+Whoever opens the link needs no account. They type the password if there is one and get
+the album as a grid; each photograph opens larger with **Download the original**, and
+**Download everything (.zip)** takes the lot.
+
+What the link hands out, and what it does not:
+
+- **Full resolution, without location data.** The originals as the box stored them, which
+  means already stripped of coordinates and device details on arrival. A video comes as
+  the box transcoded it, not as the phone filmed it.
+- **Only what was on the wall.** Pending, refused and hidden photographs are not in it,
+  and one you take off the wall after sending the link is gone from it at the next page
+  load.
+- **Switching it off is immediate.** Nothing it has not already shown loads any more, in
+  a tab already open either, and a ZIP halfway through downloading is cut off rather than
+  finished — so nobody is left holding an archive that looks complete and is not.
+
+<br clear="right">
+
 ## On the night
 
 1. **Create the event** in `/admin` — a name is enough.
    Add photo missions here too, if you want them.
 2. **Print the QR code** from the event page and put it on the tables.
-3. **Open the wall** on the projector: the display page, fullscreen. It needs no
+3. **Open it to guests** when the evening starts, with **Open to guests** on the event
+   page, or give it an opening time in its settings. Until then it is a draft: the QR
+   code lets nobody in and there is no wall to show.
+4. **Open the wall** on the projector: the display page, fullscreen. It needs no
    keyboard after that.
-4. **Keep the moderation queue open** on your laptop or phone. New photos arrive by
+5. **Keep the moderation queue open** on your laptop or phone. New photos arrive by
    themselves; `J`/`K` to move, `P` to publish, `R` to refuse, `Z` to undo.
-5. **Afterwards**, download the album from the event page.
+6. **The morning after**, make the [shared gallery](#shared-gallery) link on the event
+   page and send it to your guests. Your own copy of the album, with the photos you took
+   off the wall, is **Download the album** on the same page.
 
-Two settings worth a thought before you start:
+Three settings worth a thought before you start:
 
 - **Moderation.** Approving every photo yourself is the default, and the right choice for
   anything with colleagues or extended family in the room. Publishing automatically is
@@ -299,8 +383,8 @@ npm run verify         # lint + typecheck + coverage + build — the gate
 npm run verify:full    # the above plus the Playwright journeys
 ```
 
-`npm run lint` enforces the architecture, not just the formatting: a file in
-`src/domain` that imports Express fails the build. `src/domain` and
+`npm run lint` enforces the architecture itself: a file in
+`src/domain` that imports Express fails `npm run verify`. `src/domain` and
 `src/application` are held at 100% branch coverage.
 
 ## Licence
