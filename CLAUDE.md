@@ -443,6 +443,27 @@ Learned the hard way. Do not rediscover them.
     treating them as links takes the shared tree with it — unlink first with
     `cmd /c rmdir "<worktree>\node_modules"`, which removes the link and not its target.
 
+    **Why the reify rebuilds, and the install that works on a Windows box with no Visual
+    Studio.** `better-sqlite3` declares no `install` script, but it ships a `binding.gyp`,
+    and npm's rule for a package with a `binding.gyp` and no install script is to run
+    `node-gyp rebuild` for it — even though its `prebuilds/win32-x64.node` is what it loads
+    at runtime. With no C++ toolchain that fails, and `npm ci` has already emptied
+    `node_modules` by then, so a plain `npm ci` in the main checkout leaves **every**
+    worktree without dependencies. Measured on this machine, bringing a stale `sharp` up to
+    the lockfile:
+
+    ```bash
+    npm ci --ignore-scripts
+    npm rebuild ffmpeg-static esbuild bcrypt   # the three that need their install step
+    ```
+
+    `ffmpeg-static` is the one that matters: its install step downloads `ffmpeg.exe`, and
+    without it the video path has nothing to transcode with. `bcrypt`'s step only picks its
+    prebuild and `esbuild`'s only verifies its binary. The list came from asking npm which
+    installed packages carry an install step, and goes stale with the lockfile — re-ask
+    after a dependency change rather than trusting it:
+    `npm query ":attr(scripts, [install]), :attr(scripts, [postinstall])"`.
+
 ---
 
 ## 10. Definition of done
