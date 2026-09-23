@@ -270,7 +270,7 @@ _**[4.1](#41-shared-gallery-link-p1-effort-m-risk-medium) is shipped and stayed 
 
 ### 4.1 Shared gallery link (P1, effort M, risk: medium)
 
-> **Shipped** in [#PR_NUMBER](https://github.com/Irony42/EventSlide/pull/PR_NUMBER). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
+> **Shipped** in [#84](https://github.com/Irony42/EventSlide/pull/84). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 A link the host sends afterwards: the published album, optionally password-protected,
 with an expiry, where guests download full-resolution originals — including the ones they
