@@ -1,6 +1,9 @@
 /* The native element is the backdrop; the panel inside it is the visible surface. That
    split is what makes a backdrop click distinguishable from a click on the content. */
 .dialog {
+  /* The user agent centres a modal `<dialog>` with `margin: auto`, and base.css's
+     `* { margin: 0 }` reaches it too: without this line every modal is pinned top-left. */
+  margin: auto;
   padding: 0;
   border: none;
   background: transparent;
