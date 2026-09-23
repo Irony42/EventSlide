@@ -372,7 +372,9 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // NODE_ENV=test. An operator reading a boot log still has to be able to see that
     // nothing in this process will ever act on a retention setting.
     logger.info('automatic retention sweep is off', {
-      detail: 'retention settings are honoured only when `npm run purge` is run',
+      detail:
+        'retention settings are honoured only when the purge command is run: ' +
+        '`npm run purge`, or `node dist/ops/scripts/purge.js` in the image',
     })
   }
 
@@ -408,7 +410,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     logger.info('automatic media reconciliation is off', {
       detail:
         config.retention.sweepIntervalMs === null
-          ? 'orphaned media is collected only when npm run purge is run, which also sweeps'
+          ? 'orphaned media is collected only when the purge command is run, which also ' +
+            'sweeps: `npm run purge`, or `node dist/ops/scripts/purge.js` in the image'
           : 'MEDIA_ROOT is not a directory of its own, so nothing here will delete under it',
     })
   }
