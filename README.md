@@ -284,13 +284,18 @@ What the link hands out, and what it does not:
 1. **Create the event** in `/admin` — a name is enough.
    Add photo missions here too, if you want them.
 2. **Print the QR code** from the event page and put it on the tables.
-3. **Open the wall** on the projector: the display page, fullscreen. It needs no
+3. **Open it to guests** from the event page when the evening starts, or give it an
+   opening time in its settings. Until then it is a draft: the QR code lets nobody in
+   and there is no wall to show.
+4. **Open the wall** on the projector: the display page, fullscreen. It needs no
    keyboard after that.
-4. **Keep the moderation queue open** on your laptop or phone. New photos arrive by
+5. **Keep the moderation queue open** on your laptop or phone. New photos arrive by
    themselves; `J`/`K` to move, `P` to publish, `R` to refuse, `Z` to undo.
-5. **Afterwards**, download the album from the event page.
+6. **The morning after**, make the [shared gallery](#shared-gallery) link on the event
+   page and send it to your guests. Your own copy of the album, with the photos you took
+   off the wall, is **Download the album** on the same page.
 
-Two settings worth a thought before you start:
+Three settings worth a thought before you start:
 
 - **Moderation.** Approving every photo yourself is the default, and the right choice for
   anything with colleagues or extended family in the room. Publishing automatically is
