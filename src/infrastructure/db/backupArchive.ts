@@ -1142,8 +1142,20 @@ export const restoreBackup = async ({
 
   // -------------------------------------------------------------- media --
   onProgress(`Restoring ${manifest.media.entries.length} media file(s) to ${target.mediaRoot}`)
-  await rm(target.mediaRoot, { recursive: true, force: true })
+  // **Emptied, not removed and recreated.** The media root is the operator's directory
+  // and this command owns only what is inside it. It used to be `rm -r` followed by
+  // `mkdir`, which put a new directory in its place with the process umask's mode — so
+  // a restore inside the image turned the `0700` media root the Dockerfile creates, and
+  // docs/SECURITY.md §11 asks for, into `0755`. And a media root that is a mount point
+  // cannot be removed at all: the `rmdir` fails with EBUSY after every file under it is
+  // already gone. Clearing its entries keeps the directory's mode, its owner and
+  // whatever is mounted there exactly as the operator arranged them. What is written
+  // inside it belongs to whoever runs the restore, which is why the documented one runs
+  // as the image's own user.
   await mkdir(target.mediaRoot, { recursive: true })
+  for (const name of await readdir(target.mediaRoot)) {
+    await rm(join(target.mediaRoot, name), { recursive: true, force: true })
+  }
 
   let written = 0
   for (const { entry, from, to } of copies) {

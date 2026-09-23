@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -839,6 +839,39 @@ describe('backup and restore', () => {
       }
       const strayDirectory = join(mediaRoot, EVENT, 'original', hashOf('later').slice(0, 2))
       expect(await exists(join(strayDirectory, `${hashOf('later')}.jpg`))).toBe(false)
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'leaves a 0700 media root at 0700 when it replaces what is inside',
+      async () => {
+        // The mode the image's Dockerfile gives /data/media and docs/SECURITY.md §11 asks
+        // for. A restore that removed the directory and made a new one gave it whatever
+        // the umask said, which on a stock box is 0755. Windows has no such mode to keep.
+        await seedAnEvening()
+        await backup()
+        await chmod(mediaRoot, 0o700)
+
+        await restore({ force: true })
+
+        expect((await stat(mediaRoot)).mode & 0o777).toBe(0o700)
+      },
+    )
+
+    it('restores into the media root it found, not a new directory in its place', async () => {
+      // The platform-neutral witness for the case above, and for the one a mode cannot
+      // show: a media root that is a mount point cannot be removed at all, so replacing
+      // the directory fails with EBUSY after every file under it is already gone. A new
+      // directory is a new file id — on NTFS reliably, since the id carries a sequence
+      // number; ext4 can hand a freed inode number straight back, which is why the mode
+      // test above is the one that bites on Linux.
+      await seedAnEvening()
+      await backup()
+      const before = (await stat(mediaRoot, { bigint: true })).ino
+
+      await restore({ force: true })
+
+      expect((await stat(mediaRoot, { bigint: true })).ino).toBe(before)
+      expect(await exists(join(mediaRoot, EVENT, 'thumb'))).toBe(true)
     })
 
     it('removes a stale write-ahead log before it opens the database it restored', async () => {
