@@ -11,7 +11,6 @@
  * writing.
  */
 import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { migrations } from '../src/infrastructure/db/migrations'
 import {
@@ -218,8 +217,8 @@ export const run = async (argv: readonly string[]): Promise<number> => {
   }
 }
 
-const entry = process.argv[1]
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+/** Run as a program only. See the same check in `scripts/backup.ts` for why this shape. */
+if (require.main === module) {
   void run(process.argv.slice(2)).then((code) => {
     process.exitCode = code
   })

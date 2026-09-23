@@ -1,0 +1,33 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    /* The same module system as tsconfig.build.json, so what runs in the image is the
+       CommonJS the server itself runs as (CLAUDE.md §9 trap 8). It is also what makes
+       this build a guard: `import.meta` and a top-level `await` are errors here, and a
+       script that grew either would still pass `npm run typecheck:tools`, which checks
+       `scripts/` as ESNext. */
+    "module": "node16",
+    "moduleResolution": "node16",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    /* `.`, not `scripts`: the commands import `../src/...`, and those files are compiled
+       along with them so that `dist/ops/` runs on its own. The cost is a second copy of
+       the modules the three commands import, which is what the graph below should be
+       kept to. */
+    "rootDir": ".",
+    "outDir": "dist/ops"
+  },
+  /* The operator commands that must run inside the container, and only those.
+
+     `backup`, `restore` and `purge` exist because a Docker install has no other way to
+     back up, verify, restore or purge: the runtime image carries `dist/` and production
+     dependencies, so `scripts/` and `tsx` are not in it and `npm run backup` cannot run
+     there. `migrate` is deliberately absent — the server applies pending migrations at
+     boot, before it opens the port (`src/main/container.ts`), and a restore brings the
+     database it restored up to this build itself — and so is `seedDemo`, which a
+     production box has no use for.
+
+     `files`, not `include`: a name that no longer exists is `error TS6053` rather than
+     silence (CLAUDE.md §9 trap 9). */
+  "files": ["scripts/backup.ts", "scripts/restore.ts", "scripts/purge.ts"]
+}

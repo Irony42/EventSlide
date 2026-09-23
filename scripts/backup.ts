@@ -13,7 +13,6 @@
  */
 import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { migrations } from '../src/infrastructure/db/migrations'
 import {
@@ -214,8 +213,17 @@ export const run = async (argv: readonly string[]): Promise<number> => {
   }
 }
 
-const entry = process.argv[1]
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+/**
+ * Run as a program, and not when a test imports `run`.
+ *
+ * `require.main === module` rather than the `import.meta.url` comparison this used to
+ * be, because the image runs this file compiled to CommonJS by `tsconfig.ops.json`, and
+ * `import.meta` does not exist there — tsc refuses it outright. tsx already ran it as
+ * CommonJS, `package.json` having no `"type"`, so the one check means the same thing
+ * under `npm run backup`, under `node dist/ops/scripts/backup.js`, and under vitest,
+ * where `require.main` is the runner's own entry and never this module.
+ */
+if (require.main === module) {
   // `exitCode` rather than `exit`, so buffered stdout reaches a terminal or a pipe
   // before the process goes away.
   void run(process.argv.slice(2)).then((code) => {
