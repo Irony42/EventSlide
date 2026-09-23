@@ -35,8 +35,8 @@ import type { Migration } from '../migrator'
  * by hand or by retention, takes its links with it, and a token for an album that no
  * longer exists opens nothing.
  */
-export const migration006: Migration = {
-  id: 6,
+export const migration007: Migration = {
+  id: 7,
   name: 'share_links',
   sql: `
       CREATE TABLE IF NOT EXISTS share_links (

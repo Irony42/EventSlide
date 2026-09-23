@@ -16,6 +16,7 @@ import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
 import { mediaRoutes } from './routes/mediaRoutes'
 import { missionRoutes } from './routes/missionRoutes'
 import { moderationRoutes } from './routes/moderationRoutes'
+import { privacyNoticeRoutes } from './routes/privacyNoticeRoutes'
 import { publicRoutes } from './routes/publicRoutes'
 import { shareLinkRoutes } from './routes/shareLinkRoutes'
 import { streamRoutes } from './routes/streamRoutes'
@@ -160,6 +161,9 @@ export const buildServer = ({
       uploadRateLimiter,
     }),
   )
+  // The privacy notice a guest reads before their first upload (roadmap §5.1). Its own
+  // path under the event, so where it sits among the routers is for reading order only.
+  app.use('/api', privacyNoticeRoutes(routeDeps))
   app.use('/api', mediaRoutes(routeDeps))
   // The shared gallery (roadmap §4.1): public, token-gated, with its own limits and its
   // own headers. Its own router so that nothing mounted for the host's surface — a role

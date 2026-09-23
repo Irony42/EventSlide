@@ -20,6 +20,8 @@ import type {
   JoinResponse,
   MissionDto,
   ModerationPhotoDto,
+  PrivacyNoticeDto,
+  PrivacyNoticeState,
   PublicEventDto,
   SessionResponse,
   SessionUserDto,
@@ -128,10 +130,39 @@ export const aGuestMission = (overrides: Partial<GuestMissionDto> = {}): GuestMi
   ...overrides,
 })
 
+/**
+ * What the product's default event tells a guest (roadmap §5.1): moderated, kept until the
+ * host deletes it, fifteen minutes to take a photo back. The revision is whatever the
+ * server would have minted; a test that cares about one sets it.
+ */
+export const aPrivacyNotice = (overrides: Partial<PrivacyNoticeDto> = {}): PrivacyNoticeDto => ({
+  revision: 'publication=afterReview;audiences=wall+organisers;retention=none;selfRemoval=900',
+  publication: 'afterReview',
+  audiences: ['wall', 'organisers'],
+  retentionDays: null,
+  selfRemovalSeconds: 900,
+  ...overrides,
+})
+
+/**
+ * A notice and where the device stands with it. **Already read, by default** — the
+ * standing of every guest a screen test is not about, so the picker is on screen for
+ * the tests that exercise it. A test about the notice says `none` or `outdated`.
+ */
+export const aPrivacyNoticeState = (
+  overrides: Partial<PrivacyNoticeState> = {},
+): PrivacyNoticeState => ({
+  notice: aPrivacyNotice(),
+  acknowledgement: 'current',
+  ...overrides,
+})
+
 export const aJoinResponse = (overrides: Partial<JoinResponse> = {}): JoinResponse => ({
   guestId: 'guest-1',
   displayName: 'Léa',
   event: aPublicEvent(),
+  // Unread: a join is where a new device arrives, and that is the realistic answer.
+  privacyNotice: aPrivacyNoticeState({ acknowledgement: 'none' }),
   ...overrides,
 })
 
@@ -353,6 +384,10 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   // Empty, which is what nearly every event answers: a host who set no prompts is the
   // common case, and the checklist renders nothing at all for them.
   myMissions: vi.fn(async () => ({ items: [] })),
+  // Already read, matching `aPrivacyNoticeState`: a screen test about photos must not
+  // have the picker replaced by the notice the moment this answers.
+  privacyNotice: vi.fn(async () => aPrivacyNoticeState()),
+  acknowledgePrivacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   deleteMyPhoto: vi.fn(async () => undefined),
   setCaption: vi.fn(async () => undefined),
   react: vi.fn(async () => undefined),

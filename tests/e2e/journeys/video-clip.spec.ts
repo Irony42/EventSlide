@@ -1,4 +1,5 @@
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
+import { passPrivacyNotice } from '../fixtures/guest'
 import { aClip, hasEncoder } from '../fixtures/media'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import type { Page } from '@playwright/test'
@@ -57,6 +58,7 @@ const sendClip = async (
   await page.getByLabel(/Votre prénom/i).fill(displayName)
   await page.getByRole('button', { name: /Rejoindre/i }).click()
   await page.waitForURL(/\/e\/[^/]+\/upload/)
+  await passPrivacyNotice(page)
 
   await page.getByTestId('clip-input').setInputFiles(await aClip('journey', CLIP_SECONDS))
   await page.getByRole('button', { name: fr.upload.clipSend }).click()

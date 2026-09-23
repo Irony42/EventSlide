@@ -11,7 +11,7 @@ import type { Db } from './connection'
 import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
 
 /**
- * `share_links` (migration 006).
+ * `share_links` (migration 007).
  *
  * Two of these statements name no event, and they are the two the port documents as
  * exceptions to "every event-scoped query takes `event_id`": the token lookup, because a

@@ -37,7 +37,9 @@ import { makeRotateJoinCode } from '../application/usecases/events/rotateJoinCod
 import { makeScheduleEvent } from '../application/usecases/events/scheduleEvent'
 import { makeUpdateEventSettings } from '../application/usecases/events/updateEventSettings'
 
+import { makeAcknowledgePrivacyNotice } from '../application/usecases/guests/acknowledgePrivacyNotice'
 import { makeAuthenticateGuest } from '../application/usecases/guests/authenticateGuest'
+import { makeGetPrivacyNotice } from '../application/usecases/guests/getPrivacyNotice'
 import { makeJoinEvent } from '../application/usecases/guests/joinEvent'
 import { makeListGuests } from '../application/usecases/guests/listGuests'
 import { makeRenameGuest } from '../application/usecases/guests/renameGuest'
@@ -274,6 +276,12 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   listGuests: makeListGuests({
     guests: adapters.guests,
     memberships: adapters.memberships,
+    clock: adapters.clock,
+  }),
+  getPrivacyNotice: makeGetPrivacyNotice({ events: adapters.events, guests: adapters.guests }),
+  acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
+    events: adapters.events,
+    guests: adapters.guests,
     clock: adapters.clock,
   }),
 

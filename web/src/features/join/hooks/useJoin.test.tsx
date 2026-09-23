@@ -90,6 +90,9 @@ describe('useJoin', () => {
     expect(readGuestSession('camille-et-sacha')).toEqual({
       event: aJoinResponse().event,
       displayName: 'Léa',
+      // The notice rides along, so the upload screen knows before its first frame
+      // whether to show the picker or the notice (roadmap 5.1).
+      privacyNotice: aJoinResponse().privacyNotice,
     })
   })
 })

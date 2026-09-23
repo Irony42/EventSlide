@@ -8,6 +8,7 @@ import type { EventSummary } from '../../../application/ports/eventRepository'
 import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { EventThemeProps } from '../../../domain/events/eventTheme'
+import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
   EventDto,
   EventSettingsDto,
@@ -19,6 +20,8 @@ import type {
   GuestDto,
   GuestPhotoDto,
   ModerationPhotoDto,
+  PrivacyNoticeDto,
+  PrivacyNoticeStateDto,
   PublicEventDto,
   SessionUserDto,
   ShareLinkCreatedDto,
@@ -169,6 +172,11 @@ export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto =>
  * retention, no per-guest limit. A guest holding the join code learns the event's name,
  * which of the three guest-facing switches are on, and the limits their own upload will
  * be judged against — and nothing else.
+ *
+ * Retention and the moderation mode do reach a guest, but not from here: the privacy
+ * notice beside this on the join response ({@link toPrivacyNoticeStateDto}) states them
+ * as what happens to *their* photo, which is the one framing in which a guest is entitled
+ * to them.
  */
 export const toPublicEventDto = (event: Event, context: PresenterContext): PublicEventDto => ({
   slug: event.slug.value,
@@ -187,6 +195,29 @@ export const toPublicEventDto = (event: Event, context: PresenterContext): Publi
   // Unlike the switches above, this is not a permission: it is what the host's event
   // looks like, and the guest's screen is one of the three places it looks like it.
   theme: toEventThemeDto(event.settings.theme),
+})
+
+/**
+ * The privacy notice and where this device stands with it (roadmap §5.1).
+ *
+ * Copied field by field, for the reason the theme is: a spread would put whatever the
+ * domain grows next on a response every guest can read, without anybody deciding to. The
+ * audiences are copied too, so the wire array is never the domain's own.
+ */
+export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => ({
+  revision: notice.revision,
+  publication: notice.publication,
+  audiences: [...notice.audiences],
+  retentionDays: notice.retentionDays,
+  selfRemovalSeconds: notice.selfRemovalSeconds,
+})
+
+export const toPrivacyNoticeStateDto = ({
+  notice,
+  acknowledgement,
+}: NoticeForGuest): PrivacyNoticeStateDto => ({
+  notice: toPrivacyNoticeDto(notice),
+  acknowledgement,
 })
 
 export const toEventSummaryDto = (summary: EventSummary): EventSummaryDto => ({

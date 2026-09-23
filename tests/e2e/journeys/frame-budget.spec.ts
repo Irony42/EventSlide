@@ -1,5 +1,5 @@
 import { expect, joinAsGuest, signInAsHost, test, wallUrl } from '../fixtures/app'
-import { joinAndUpload } from '../fixtures/guest'
+import { joinAndUpload, passPrivacyNotice } from '../fixtures/guest'
 import { aClip, aPhoto, hasEncoder } from '../fixtures/media'
 import { fr } from '../../../web/src/lib/i18n/fr'
 import {
@@ -430,7 +430,7 @@ test.describe('the guest surface, while a photograph is going out', () => {
 
     await asAMidRangePhone(guest)
     await joinAsGuest(guest, app, event.joinCode, 'Léa')
-    await expect(guest.getByTestId('upload-composer')).toBeVisible()
+    await passPrivacyNotice(guest)
 
     await guest.getByTestId('photo-input').setInputFiles(await aPhoto('sature', 1600, 1200))
     // Sent, and deliberately not waited for. The whole point of the budget is what the

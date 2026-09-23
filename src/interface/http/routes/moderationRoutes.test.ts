@@ -151,6 +151,8 @@ const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): Ht
     renameGuest: notWired,
     revokeGuest: notWired,
     listGuests: notWired,
+    getPrivacyNotice: notWired,
+    acknowledgePrivacyNotice: notWired,
     uploadPhotos: notWired,
     listEventPhotos: makeListEventPhotos({ events, photos }),
     listGuestPhotos: notWired,

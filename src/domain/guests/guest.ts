@@ -1,7 +1,20 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 import type { EventId, GuestId } from '../shared/ids'
+import type { NoticeAcknowledgementStatus, PrivacyNotice } from '../privacy/privacyNotice'
 import type { DisplayName } from './displayName'
+
+/**
+ * That this device was shown a particular privacy notice, and when (roadmap §5.1).
+ *
+ * The revision is the notice's own text-shaped identity (`privacyNotice.ts`), so the
+ * stored value says what the guest was told rather than merely that they were told
+ * something.
+ */
+export interface NoticeAcknowledgement {
+  readonly revision: string
+  readonly at: Date
+}
 
 export interface GuestProps {
   readonly id: GuestId
@@ -11,6 +24,8 @@ export interface GuestProps {
   readonly lastSeenAt: Date
   readonly revokedAt: Date | null
   readonly photoCount: number
+  /** `null` until the guest has acknowledged a privacy notice at this event. */
+  readonly noticeAcknowledgement: NoticeAcknowledgement | null
 }
 
 export interface NewGuest {
@@ -49,6 +64,9 @@ export class Guest {
         lastSeenAt: now,
         revokedAt: null,
         photoCount: 0,
+        // Joining is not reading. The notice is shown before the first upload rather
+        // than at the door, so a guest who only came to look is never stopped by it.
+        noticeAcknowledgement: null,
       }),
     )
   }
@@ -84,6 +102,10 @@ export class Guest {
 
   get photoCount(): number {
     return this.props.photoCount
+  }
+
+  get noticeAcknowledgement(): NoticeAcknowledgement | null {
+    return this.props.noticeAcknowledgement
   }
 
   // ----------------------------------------------------------------- identity --
@@ -140,6 +162,46 @@ export class Guest {
 
   isRevoked(): boolean {
     return !this.isActive()
+  }
+
+  // ------------------------------------------------------------ privacy notice --
+
+  /**
+   * Record that this device read the notice in force (roadmap §5.1).
+   *
+   * **Only the notice in force can be acknowledged.** `read` is the revision the guest's
+   * screen was showing when they pressed the button, compared with the notice the
+   * event's configuration produces *now*. If the host changed retention between the read
+   * and the tap, the guest acknowledged a text that no longer describes what happens to
+   * their photo, and recording it anyway would make the re-ask rule below decorative:
+   * `privacyNotice.outdated` sends them back to read the new one.
+   *
+   * Idempotent, and the first acknowledgement of a revision wins, for the reason `revoke`
+   * keeps its first timestamp: when somebody later asks when this guest was told, the
+   * answer is the first time, not the last double-tap.
+   *
+   * A revoked guest is refused like every other change to their row. Their device token
+   * already grants nothing, and neither does this.
+   */
+  acknowledgeNotice(notice: PrivacyNotice, read: string, at: Date): Result<Guest, DomainError> {
+    if (this.isRevoked()) return err(DomainError.forbidden('guest.revoked'))
+    if (read !== notice.revision) return err(DomainError.conflict('privacyNotice.outdated'))
+    if (this.props.noticeAcknowledgement?.revision === notice.revision) return ok(this)
+    return ok(this.with({ noticeAcknowledgement: { revision: notice.revision, at } }))
+  }
+
+  /**
+   * Where this guest stands with the notice in force.
+   *
+   * **A guest who acknowledged an older notice is asked again** before their next upload,
+   * and not only when the change looks worse for them. The decision and its reason live
+   * where "material" is defined, on `revisionOf` in `privacyNotice.ts`; this only
+   * compares.
+   */
+  noticeAcknowledgementFor(notice: PrivacyNotice): NoticeAcknowledgementStatus {
+    const acknowledged = this.props.noticeAcknowledgement
+    if (acknowledged === null) return 'none'
+    return acknowledged.revision === notice.revision ? 'current' : 'outdated'
   }
 
   // ------------------------------------------------------------------- quotas --

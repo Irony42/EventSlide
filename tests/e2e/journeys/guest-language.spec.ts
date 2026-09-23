@@ -48,6 +48,13 @@ test.describe('a guest whose phone is in German', () => {
     await page.getByLabel(de.join.codeLabel).fill(event.joinCode)
     await page.getByRole('button', { name: de.join.submit }).click()
     await page.waitForURL(/\/e\/[^/]+\/upload/)
+
+    // The privacy notice, in German too (roadmap 5.1): the one screen a guest is asked to
+    // read before a photo is the one screen that must not fall back to French.
+    const notice = page.getByRole('region', { name: de.upload.noticeTitle })
+    await expect(notice.getByText(de.upload.noticePublication.afterReview)).toBeVisible()
+    await notice.getByRole('button', { name: de.upload.noticeAcknowledge }).click()
+
     await expect(page.getByRole('button', { name: de.upload.addPhotos })).toBeVisible()
   })
 

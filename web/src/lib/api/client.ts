@@ -21,6 +21,7 @@ import type {
   ModerationQueueResponse,
   ModeratorDto,
   PhotoStatus,
+  PrivacyNoticeState,
   ReactionKind,
   ReactionsResponse,
   SessionResponse,
@@ -251,6 +252,23 @@ export const createApi = (transport: Transport) => ({
    */
   myMissions: (slug: string, signal?: AbortSignal): Promise<GuestMissionListResponse> =>
     transport.get(`/api/events/${encode(slug)}/missions/mine`, undefined, signal),
+
+  /**
+   * The privacy notice in force and whether this device has read it (roadmap §5.1).
+   *
+   * Asked when the upload screen opens and whenever it comes back into view, because the
+   * copy the join left in the session is a snapshot and the host may have changed a
+   * setting since.
+   */
+  privacyNotice: (slug: string, signal?: AbortSignal): Promise<PrivacyNoticeState> =>
+    transport.get(`/api/events/${encode(slug)}/privacy-notice`, undefined, signal),
+
+  /**
+   * "J'ai compris". The revision is the one the screen showed, sent back as-is; a
+   * notice the host changed in the meantime answers `409 privacyNotice.outdated`.
+   */
+  acknowledgePrivacyNotice: (slug: string, revision: string): Promise<PrivacyNoticeState> =>
+    transport.post(`/api/events/${encode(slug)}/privacy-notice/acknowledgement`, { revision }),
 
   myPhotos: (slug: string, signal?: AbortSignal): Promise<{ items: readonly GuestPhotoDto[] }> =>
     transport.get(`/api/events/${encode(slug)}/photos/mine`, undefined, signal),

@@ -67,6 +67,30 @@ test.describe('the guest surface', () => {
     expect(seriousOnly(violations)).toEqual([])
   })
 
+  test('the privacy notice has no serious violation, and is passed from the keyboard alone', async ({
+    app,
+    surfaces,
+  }) => {
+    // Roadmap 5.1. The notice stands between a guest and their first photo, so a guest
+    // who cannot read it with a screen reader, or cannot get past it without a mouse,
+    // cannot upload at all.
+    const event = await app.seedEvent({ slug: 'avis' })
+    await surfaces.guest.goto(app.url(`/join/${event.joinCode}`))
+    await surfaces.guest.getByRole('button', { name: /Rejoindre/i }).click()
+    const notice = surfaces.guest.getByRole('region', { name: fr.upload.noticeTitle })
+    await expect(notice).toBeVisible()
+
+    const { violations } = await scan(surfaces.guest)
+    expect(seriousOnly(violations)).toEqual([])
+
+    await tabTo(surfaces.guest, notice.getByRole('button', { name: fr.upload.noticeAcknowledge }))
+    await surfaces.guest.keyboard.press('Enter')
+
+    // The button pressed is gone; focus is on the picker, so the next Enter opens it
+    // rather than starting again from the top of the page.
+    await expect(surfaces.guest.getByTestId('photo-input')).toBeFocused()
+  })
+
   test('every control is reachable with one thumb', async ({ app, surfaces }) => {
     // 44 px is the floor. A guest is holding a drink in the other hand, in a dark room,
     // and a 32 px button means three taps to hit it once.

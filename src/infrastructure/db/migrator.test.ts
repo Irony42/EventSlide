@@ -935,7 +935,99 @@ describe('migration 005, photo missions', () => {
   })
 })
 
-describe('migration 006, shared gallery links', () => {
+describe('migration 006, the privacy notice a guest acknowledged', () => {
+  const columnNames = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
+
+  const AT = '2026-06-20T21:00:00.000Z'
+
+  /** One guest as 005 alone could hold them: joined, named, never shown a notice. */
+  const seedPreNotice = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'hote@example.test', 'hash:x', '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'live',
+                    '{"moderation":"manual"}', 1000, '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
+            VALUES ('g1', 'e1', 'Léa', '${AT}', '${AT}')`,
+    ).run()
+  }
+
+  const insertGuest = (db: Db, revision: string | null, at: string | null): void => {
+    db.prepare<[string | null, string | null]>(
+      `INSERT INTO guests (id, event_id, joined_at, last_seen_at, notice_revision,
+                           notice_acknowledged_at)
+            VALUES ('g2', 'e1', '${AT}', '${AT}', ?, ?)`,
+    ).run(revision, at)
+  }
+
+  it('gives guests the revision they acknowledged and the instant they did', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'guests')).toEqual(
+      expect.arrayContaining(['notice_revision', 'notice_acknowledged_at']),
+    )
+    closeDatabase(db)
+  })
+
+  it('refuses a revision with no instant, in the database rather than only in code', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedPreNotice(db)
+
+    expect(() => insertGuest(db, 'publication=afterReview', null)).toThrow(
+      /CHECK constraint failed/,
+    )
+    closeDatabase(db)
+  })
+
+  it('refuses an instant with no revision, which would date a notice without saying which', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedPreNotice(db)
+
+    expect(() => insertGuest(db, null, AT)).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('keeps a guest who joined before notices existed, and records them as never having read one', () => {
+    // The upgrade path, mid-evening. No backfill: that guest was never shown a notice,
+    // and inventing an acknowledgement for them would claim they were told something
+    // they were not. They are asked once, before their next upload.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 6),
+    )
+    seedPreNotice(db)
+
+    migrate(db, migrations)
+
+    expect(
+      db
+        .prepare(
+          `SELECT display_name, joined_at, notice_revision, notice_acknowledged_at
+             FROM guests WHERE id = 'g1'`,
+        )
+        .get(),
+    ).toEqual({
+      display_name: 'Léa',
+      joined_at: AT,
+      notice_revision: null,
+      notice_acknowledged_at: null,
+    })
+    closeDatabase(db)
+  })
+})
+
+describe('migration 007, shared gallery links', () => {
   const AT = '2026-06-21T10:00:00.000Z'
   const LATER = '2026-07-21T10:00:00.000Z'
 
@@ -944,7 +1036,7 @@ describe('migration 006, shared gallery links', () => {
       (row) => row.name,
     )
 
-  /** An album as 005 alone could hold it: an event, its owner, one published photograph. */
+  /** An album as 006 alone could hold it: an event, its owner, one published photograph. */
   const seedBeforeLinks = (db: Db): void => {
     db.prepare(
       `INSERT INTO users (id, email, password_hash, created_at)

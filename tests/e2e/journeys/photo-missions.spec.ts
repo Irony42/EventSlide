@@ -1,4 +1,5 @@
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
+import { passPrivacyNotice } from '../fixtures/guest'
 import { aPhoto } from '../fixtures/media'
 
 /**
@@ -43,6 +44,8 @@ const joinAndSendForMission = async (
   await guest.getByLabel(/Votre prénom/i).fill(displayName)
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
   await guest.waitForURL(/\/e\/[^/]+\/upload/)
+  // The checklist sits with the controls that send, behind the privacy notice.
+  await passPrivacyNotice(guest)
 
   // The prompt is the button's accessible name: the row carries its own state inside it
   // ("Fait") rather than behind an `aria-label` that would hide it, so Playwright's
@@ -148,6 +151,9 @@ test('a wall with no prompts draws no panel at all', async ({ app, surfaces }) =
   await guest.goto(app.url(`/join/${event.joinCode}`))
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
   await guest.waitForURL(/\/e\/[^/]+\/upload/)
+  // Past the privacy notice first, which stands where the checklist would be: asserting
+  // the checklist's absence in front of it would pass whatever the checklist did.
+  await passPrivacyNotice(guest)
   // The guest screen, too: no heading, no rows, nothing between the queue and the picker.
   await expect(guest.getByRole('heading', { name: 'Missions' })).toHaveCount(0)
 

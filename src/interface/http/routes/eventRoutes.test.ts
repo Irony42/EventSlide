@@ -202,6 +202,8 @@ const buildWorld = (): World => {
         renameGuest: absent('renameGuest'),
         revokeGuest: makeRevokeGuest({ guests, memberships, clock: deps.clock }),
         listGuests: makeListGuests({ guests, memberships, clock: deps.clock }),
+        getPrivacyNotice: absent('getPrivacyNotice'),
+        acknowledgePrivacyNotice: absent('acknowledgePrivacyNotice'),
 
         uploadPhotos: absent('uploadPhotos'),
         listEventPhotos: absent('listEventPhotos'),

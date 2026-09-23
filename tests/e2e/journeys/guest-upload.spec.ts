@@ -1,4 +1,5 @@
 import { expect, test, wallUrl } from '../fixtures/app'
+import { passPrivacyNotice } from '../fixtures/guest'
 import { jpegWithOrientation, theSamePhotoTwice } from '../fixtures/media'
 
 /**
@@ -30,6 +31,8 @@ test('a photo from a phone reaches the wall once the host approves it @smoke', a
   await guest.getByLabel(/Votre prénom/i).fill('Léa')
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
   await expect(guest.getByRole('heading', { name: /Camille & Sacha/ })).toBeVisible()
+  // What happens to a photo, read once before the first one (roadmap 5.1).
+  await passPrivacyNotice(guest)
 
   // Orientation 6: the stored pixels are landscape, the correct rendering is portrait.
   await guest.getByTestId('photo-input').setInputFiles(await jpegWithOrientation(6))
@@ -72,6 +75,7 @@ test('a guest sees their own photo waiting, rather than wondering whether it sen
 
   await guest.goto(app.url(`/join/${event.joinCode}`))
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
+  await passPrivacyNotice(guest)
   await guest.getByTestId('photo-input').setInputFiles(await jpegWithOrientation(1))
   await guest.getByRole('button', { name: /Envoyer/i }).click()
   await expect(guest.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done')
@@ -89,6 +93,7 @@ test('an anonymous guest can send a photo without giving a name', async ({ app, 
   // The name field is left untouched on purpose: anonymity is a supported choice, not
   // a validation failure.
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
+  await passPrivacyNotice(guest)
 
   await guest.getByTestId('photo-input').setInputFiles(await jpegWithOrientation(1))
   await guest.getByRole('button', { name: /Envoyer/i }).click()
@@ -106,6 +111,7 @@ test('the same photo sent twice is reported as already sent, not duplicated', as
 
   await guest.goto(app.url(`/join/${event.joinCode}`))
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
+  await passPrivacyNotice(guest)
 
   await guest.getByTestId('photo-input').setInputFiles(first)
   await guest.getByRole('button', { name: /Envoyer/i }).click()

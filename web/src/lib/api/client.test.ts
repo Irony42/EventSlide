@@ -153,6 +153,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.myPhotos(SLUG),
   },
   {
+    name: 'privacyNotice',
+    verb: 'get',
+    path: `/api/events/${SLUG}/privacy-notice`,
+    invoke: (client) => client.privacyNotice(SLUG),
+  },
+  {
+    name: 'acknowledgePrivacyNotice',
+    verb: 'post',
+    path: `/api/events/${SLUG}/privacy-notice/acknowledgement`,
+    invoke: (client) => client.acknowledgePrivacyNotice(SLUG, 'r1'),
+  },
+  {
     name: 'deleteMyPhoto',
     verb: 'del',
     path: `/api/events/${SLUG}/photos/${PHOTO}`,

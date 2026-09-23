@@ -134,6 +134,21 @@ export const reactionBody = z
   })
   .strict()
 
+/**
+ * The privacy notice revision a guest's screen showed when they pressed "J'ai compris"
+ * (roadmap §5.1).
+ *
+ * Bounded, not parsed: a revision is the server's own opaque text, and the only thing done
+ * with this one is to compare it with the notice in force. The ceiling is several times the
+ * longest revision the domain can produce today, so a notice that grows a clause (the
+ * shared gallery of §4.1) does not start answering 400 to the guests who read it.
+ */
+export const noticeAcknowledgementBody = z
+  .object({
+    revision: z.string().min(1).max(512),
+  })
+  .strict()
+
 // --------------------------------------------------------------------- auth --
 
 export const loginBody = z

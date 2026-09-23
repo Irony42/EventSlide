@@ -57,6 +57,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   renameGuest: notWired('renameGuest'),
   revokeGuest: notWired('revokeGuest'),
   listGuests: notWired('listGuests'),
+  getPrivacyNotice: notWired('getPrivacyNotice'),
+  acknowledgePrivacyNotice: notWired('acknowledgePrivacyNotice'),
 
   uploadPhotos: notWired('uploadPhotos'),
   listEventPhotos: notWired('listEventPhotos'),

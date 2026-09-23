@@ -14,7 +14,9 @@ import type { RotateJoinCode } from '../../application/usecases/events/rotateJoi
 import type { ScheduleEvent } from '../../application/usecases/events/scheduleEvent'
 import type { UpdateEventSettings } from '../../application/usecases/events/updateEventSettings'
 
+import type { AcknowledgePrivacyNotice } from '../../application/usecases/guests/acknowledgePrivacyNotice'
 import type { AuthenticateGuest } from '../../application/usecases/guests/authenticateGuest'
+import type { GetPrivacyNotice } from '../../application/usecases/guests/getPrivacyNotice'
 import type { JoinEvent } from '../../application/usecases/guests/joinEvent'
 import type { ListGuests } from '../../application/usecases/guests/listGuests'
 import type { RenameGuest } from '../../application/usecases/guests/renameGuest'
@@ -97,6 +99,8 @@ export interface HttpUseCases {
   readonly renameGuest: RenameGuest
   readonly revokeGuest: RevokeGuest
   readonly listGuests: ListGuests
+  readonly getPrivacyNotice: GetPrivacyNotice
+  readonly acknowledgePrivacyNotice: AcknowledgePrivacyNotice
 
   // photos
   readonly uploadPhotos: UploadPhotos

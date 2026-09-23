@@ -103,3 +103,27 @@
   color: var(--text-secondary);
   text-align: center;
 }
+
+/**
+ * Not sticky while the privacy notice stands in for the picker (roadmap §5.1).
+ *
+ * The notice is the one thing this pane ever holds that can be taller than a phone — four
+ * short answers and a button, at a guest's own text size — and a sticky pane taller than
+ * the viewport has a top edge that can never be scrolled into view: the bottom stays
+ * pinned and the heading sits permanently above the screen. In the flow instead, the page
+ * scrolls to it like any other content. It becomes sticky again the moment the picker is
+ * back, which is when it is short again.
+ */
+.composer[data-gated] {
+  position: static;
+}
+
+/**
+ * "Comment vos photos sont utilisées", under the signature line. A button rather than a
+ * link, because it opens a dialog rather than going anywhere, and held to the touch
+ * floor by the primitive. Its own width rather than the column's, so it reads as a line
+ * of the header and not as a second primary action.
+ */
+.noticeLink {
+  align-self: flex-start;
+}
