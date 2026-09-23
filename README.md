@@ -249,8 +249,8 @@ sees their own checklist and nothing about anybody else's.
 
 ## Shared gallery
 
-<img src="docs/images/gallery-album.jpg" width="300" align="right" alt="The shared album on a relative's phone: the event's name, seven photos, the date the link expires, and a button to download everything as a ZIP">
-<img src="docs/images/gallery-panel.jpg" width="300" align="right" alt="The Shared album panel on the event page: open until a date, protected by a password, the new link shown once with a button to copy it, and buttons to replace it or switch it off">
+<img src="docs/images/gallery-album.jpg" width="260" align="right" alt="The shared album on a relative's phone: the event's name, seven photos, the date the link expires, and a button to download everything as a ZIP">
+<img src="docs/images/gallery-panel.jpg" width="260" align="right" alt="The Shared album panel on the event page: open until a date, protected by a password, the new link shown once with a button to copy it, and buttons to replace it or switch it off">
 
 The morning after, the same question arrives from everybody, one at a time: can you send
 me the photos. The **Shared album** panel on the event page answers it with one link.
