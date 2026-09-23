@@ -20,11 +20,15 @@ and the **risk** that makes it harder than it looks.
 > under, so §9.1 is still "1.1" in every commit message and review that referred to it,
 > and the gaps left in §§1–3 are the point rather than an oversight.
 >
-> Everything still under §§1–6 is unbuilt, and still reads as sensible — with one
-> exception, left in place deliberately. **"Docker image and one-file compose" in
-> [§6](#6-operations) is largely built**, and its note said otherwise for several
-> releases. It stays in §6 rather than moving to §9 because the part of it that matters
-> to an operator is not finished: see the paragraphs under that table.
+> Later items stopped moving. Once an item's section carried a retrospective written
+> against the argument it shipped under, moving it would have split the two, so it stays
+> where it was argued with a **Shipped in #N** line at its top, and each category's
+> opening line lists which of its items are built. **An item under §§1–6, §10 or §11
+> without that line is unbuilt** — with one exception, left in place deliberately.
+> **"Docker image and one-file compose" in [§6](#6-operations) is largely built**, and its
+> note said otherwise for several releases. It stays in §6 rather than moving to §9
+> because the part of it that matters to an operator is not finished: see the paragraphs
+> under that table.
 
 ---
 
@@ -51,7 +55,7 @@ If a guest gives up, nothing else in this document matters. At a wedding the med
 guest spends **under a minute** in the app, once, on a phone with two bars of a
 saturated access point.
 
-_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa), [1.4](#97-short-video-clips). Considered and declined: [1.6](#96-spoken-captions). **[1.5](#15-ui-languages-p2-effort-s-risk-low) is shipped and stayed in place.**_
+_Shipped and moved to §9: [1.1](#91-offline-upload-queue), [1.2](#92-installable-pwa), [1.4](#97-short-video-clips). Considered and declined: [1.6](#96-spoken-captions--considered-and-declined). **[1.5](#15-ui-languages-p2-effort-s-risk-low) is shipped and stayed in place.**_
 
 ### 1.3 Camera-first capture (P1, effort M, risk: low)
 
@@ -546,6 +550,11 @@ room, and is exactly what will not do when the invitee is a bride you have never
 > reference people have written in commits and reviews), so a new category takes the next
 > free number instead of shifting the ones that exist.
 
+_**[10.1](#101-a-site-level-role-distinct-from-an-event-role-p1-effort-m-risk-medium) is
+shipped and stayed in place**, so the account described above now has a site role
+(`none` / `operator`). The rest of the paragraph — no client record, no invitation that
+survives a box with no mail server — is still true._
+
 ### 10.1 A site-level role, distinct from an event role (P1, effort M, risk: medium)
 
 > **Shipped** in [#55](https://github.com/Irony42/EventSlide/pull/55). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
@@ -656,6 +665,12 @@ photograph behind them, depth from layering rather than from borders, motion tha
 to the hand — with a **wahou** on first sight and no cost to how obvious the thing is to
 use. Those two are in tension, and where they conflict the guest wins: an interface that
 impresses and then loses a photo is worse than the plain one it replaced.
+
+_**[11.1](#111-a-glass-material-as-tokens-rather-than-as-css-sprinkled-per-component-p1-effort-m-risk-medium),
+[11.2](#112-motion-that-answers-the-hand-p1-effort-m-risk-medium),
+[11.3](#113-the-budget-that-keeps-it-usable-p1-effort-s-risk-low) and
+[11.5](#115-a-switch-the-host-owns-p2-effort-s-risk-low) are shipped and stayed in place.**
+[11.4](#114-something-behind-the-glass-p2-effort-m-risk-medium) is not built._
 
 ### 11.1 A glass material, as tokens rather than as CSS sprinkled per component (P1, effort M, risk: medium)
 
@@ -858,6 +873,8 @@ measurement of it to come from this item rather than from a synthetic throttle.
 
 ### 11.5 A switch the host owns (P2, effort S, risk: low)
 
+> **Shipped** in [#61](https://github.com/Irony42/EventSlide/pull/61). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
+
 The other answer to what [11.4](#114-something-behind-the-glass-p2-effort-m-risk-medium)
 measured. That item asks how to make the material more visible; this one accepts that some
 hosts will not want it visible at all, and gives them the switch rather than an argument.
@@ -890,7 +907,9 @@ They collapse into one sentence — _every answer may take the material away and
 it back_ — so the shell carries the machine's verdict, the themed surface below it carries
 the host's, and the only value that surface may declare is the opaque one. A type whose sole
 value is `'opaque'` is what stops the tidy-looking edit that would put a blur back on a
-projector.
+projector. The field is `material: 'glass' | 'plain'`, and the change touches no CSS file
+at all — a test now fails if one is added, which is the wrong turn the paragraph above
+warned about, made mechanical.
 
 **And the honest size of it, because 11.4 is next door.** A pane is opaque to 92–95%, so the
 switch changes the five to eight per cent that showed through, plus the blur and the
@@ -906,28 +925,6 @@ answer coincide — `glass` is what every stored theme has been rendering all al
 backfill would rewrite every row of every album to write a value those rows already behave
 as. That also closes the trap `allowClips` recorded: absent and chosen never have to be told
 apart here, so there is no one-way door.
-
-### 11.5 Turning it off (P2, effort S, risk: low)
-
-> **Shipped** in [#61](https://github.com/Irony42/EventSlide/pull/61).
-
-Some couples want the effect and some want the plainer surface, and a venue machine may
-simply look better without it. So the material is a fourth field on the event's theme,
-beside the accent hue, the font pairing and the frame style: `material: 'glass' | 'plain'`.
-
-What made it small is that **the plain rendering already existed and was already
-reviewed**. `--glass-opaque` _is_ `--surface-raised`, the panel this product ships on every
-non-glass surface, and three paths already arrived there — `@supports not
-(backdrop-filter)`, `prefers-reduced-transparency`, and the first rung of 11.3's ladder.
-The change touches no CSS file at all, and a test now fails if anyone adds one.
-
-Two rules decide who wins, and both are pinned by a mutation rather than by a comment.
-**The budget outranks the host**, because a wall holding its frame rate in front of a
-hundred people is a health answer and a preference is not. **The host's "off" is final** —
-no capable device, recovered frame rate or later route may give the material back, which
-is the same one-way property degradation already has.
-
-Honest scope: it is visible on exactly one pane today, the guest's upload composer.
 
 ### What this is not
 
@@ -969,7 +966,7 @@ Saying no is what keeps the rest coherent.
 2. **Photo missions** (§2.1, shipped) — the cheapest large increase in how much guests
    participate, and it changes the wall from a screensaver into something the room is
    part of.
-3. **Shared gallery link** (§4.1) — answers the question every host is asked the next
+3. **Shared gallery link** (§4.1, shipped) — answers the question every host is asked the next
    morning, and the reason they recommend the tool to the next person.
 
 ---
