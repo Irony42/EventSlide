@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
@@ -196,12 +196,17 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
    * notice in order to reach. The other direction — a changed notice taking the picker's
    * place while the page is open — takes focus only if it was lost, so a guest reading
    * their own photos is not pulled away from them.
+   *
+   * A layout effect, so focus moves in the same commit that swaps the two. A passive one
+   * runs later, and until it does focus sits on <body>: ring 5 caught that window as a
+   * test that failed on one CI run and passed on the next, and the negative case beside
+   * it could pass for the wrong reason inside the same window.
    */
   const libraryInput = useRef<HTMLInputElement | null>(null)
   const noticeCard = useRef<HTMLElement | null>(null)
   const gated = notice.mustAcknowledge
   const wasGated = useRef(gated)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (wasGated.current === gated) return
     wasGated.current = gated
     const lost = document.activeElement === null || document.activeElement === document.body
