@@ -221,8 +221,21 @@ const runBackup = async (argv: readonly string[], invocation: Invocation): Promi
   // other times, which is the order those two facts should be met in.
   console.log(
     `\nCopy it off this machine. Restore with, once the server is stopped:\n` +
-      `  ${commandLine(invocation, 'restore', archive)}\n` +
-      `\nThat refuses to run if the target already holds a database or any media.\n` +
+      `  ${commandLine(invocation, 'restore', archive)}`,
+  )
+  if (invocation === 'node') {
+    // The operator reading this has just typed `docker compose exec`, and the natural
+    // thing is to paste the line above behind the same prefix — which runs the restore
+    // beside the live server, the one race the procedure exists to avoid. Nothing in
+    // the restore can refuse it (see `scripts/restore.ts`), so the output says it.
+    console.log(
+      `In Docker that is \`docker compose stop eventslide\`, then the line above behind\n` +
+        `\`docker compose run --rm eventslide\` — never behind \`exec\`, which would run it\n` +
+        `beside the live server.`,
+    )
+  }
+  console.log(
+    `\nThat refuses to run if the target already holds a database or any media.\n` +
       `Adding --force is what gets past the refusal, and it destroys what is there.`,
   )
   return 0

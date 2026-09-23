@@ -129,6 +129,20 @@ describe('npm run backup', () => {
     expect(out).not.toMatch(/restore\.js .*--force/)
   })
 
+  it('says, when compiled, to restore through a one-off container and never through exec', async () => {
+    // The operator has just typed `docker compose exec`, and pasting the restore behind
+    // the same prefix runs it beside the live server. The restore itself can only warn
+    // about that, so the line that hands it over has to say which prefix is the safe one.
+    const compiled = await capture(() => run(['--to', archive, ...where()], 'node'))
+    await rm(archive, { recursive: true, force: true })
+    const checkout = await capture(() => run(['--to', archive, ...where()]))
+
+    expect(compiled.out).toContain('docker compose stop eventslide')
+    expect(compiled.out).toContain('docker compose run --rm eventslide')
+    expect(compiled.out).toContain('never behind `exec`')
+    expect(checkout.out).not.toContain('docker compose')
+  })
+
   it('prints the compiled spelling of every command in its usage, when it is compiled', async () => {
     const { code, out } = await capture(() => run(['--help'], 'node'))
 
