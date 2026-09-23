@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import sharp from 'sharp'
 import { expect, test } from '../fixtures/app'
+import { passPrivacyNotice } from '../fixtures/guest'
 import { jpegWithLocation } from '../fixtures/media'
+import { fr } from '../../../web/src/lib/i18n/fr'
 import { SUITE_LOCALE } from '../fixtures/suiteLocale'
 
 /**
@@ -32,6 +34,10 @@ test('a host sends the album, a relative opens it with the password and download
   await guest.goto(app.url(`/join/${event.joinCode}`))
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
   await guest.waitForURL(/\/e\/[^/]+\/upload/)
+  // Before the first photograph, the guest is told the album may leave the room by link.
+  const notice = guest.getByRole('region', { name: fr.upload.noticeTitle })
+  await expect(notice.getByText(fr.upload.noticeAudiences.sharedGallery)).toBeVisible()
+  await passPrivacyNotice(guest)
   await guest
     .getByTestId('photo-input')
     .setInputFiles([await jpegWithLocation('salle-une'), await jpegWithLocation('salle-deux')])
