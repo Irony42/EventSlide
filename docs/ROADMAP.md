@@ -573,6 +573,10 @@ shipped and stayed in place**, so the account described above now has a site rol
 (`none` / `operator`). The rest of the paragraph — no client record, no invitation that
 survives a box with no mail server — is still true._
 
+_Everything from 10.2 to 10.8 ships behind
+[10.9](#109-one-product-with-site-administration-off-by-default-p1-effort-s-risk-low): one
+product, with site administration switched off unless the box asks for it._
+
 ### 10.1 A site-level role, distinct from an event role (P1, effort M, risk: medium)
 
 > **Shipped** in [#55](https://github.com/Irony42/EventSlide/pull/55). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
@@ -656,6 +660,59 @@ three together are what let an operator stop a relationship without a database c
 Who created this client, who changed that ceiling, who used support access and when. Pairs
 with the moderation audit log (§5.4) and shares its storage — the moment an account can act
 on data it does not own, "what happened" stops being a question the git history can answer.
+
+### 10.9 One product, with site administration off by default (P1, effort S, risk: low)
+
+Everything from 10.2 to 10.8 is for a box that serves other people. Most installs are not
+that box: the person who installed EventSlide is the person whose wedding it is, and for
+them a clients screen, a ceilings form and an operator console are noise. 10.1 promised
+that "an install that never wanted any of this must behave exactly as it does today"; this
+item is how that promise survives the rest of the category landing.
+
+**`SITE_ADMIN=off|on`, `off` by default, parsed once in `env.ts`.** A configuration
+switch — not a build flag, not a second image, not a second repository:
+
+- **`off`** — no `/api/site/*` route is mounted, so each one answers exactly as an unknown
+  route does (`apiNotFound`, same body) rather than 403: the switch must not become an
+  oracle for "is this box operated". The SPA registers no `/admin/site` route, and there is
+  no client space and no ceiling banner. The public instance-info endpoint reports
+  `features.siteAdmin: false`, which is what the SPA reads. Existing journeys and visual
+  baselines pass unchanged.
+- **`on`** — the surfaces of 10.2 to 10.8 are mounted, behind `requireOperator`.
+
+What the switch deliberately does **not** govern:
+
+- **Migrations run in both modes.** One schema and one ledger for every install. The
+  tables this category adds stay empty on a solo box, and turning the mode on later — or
+  off and on again — loses nothing.
+- **Ceilings are enforced from the data, not from the switch.** An event that belongs to a
+  client keeps its ceilings when the mode is turned off: switching off hides the
+  management, it never lifts a limit. Boot logs a warning when clients exist and the mode
+  is off.
+- **The general fixes this category forces ship to everyone.** Link invitations for
+  moderators (10.3 retires the password read aloud), password reset, signing out every
+  other session, `mustChangePassword` checked on the server, a box-wide bound on the
+  `quotaBytes` a host may ask for. None of that is administration; it is the product being
+  correct.
+- **Configuration that only means something with an operator is refused when the mode is
+  off** — restricting event creation to client members, for instance. Boot exits 78 and
+  lists it, rather than silently ignoring a setting the operator believes is in force.
+
+The switch is not a security boundary. Authorization stays `requireOperator`, and the
+operator-scope sweep (`siteOperatorScope.test.ts`) and `tenant-isolation.spec.ts` run in
+**both** modes; the switch only decides how much surface exists. CI runs rings 4 and 6
+once per mode.
+
+Rejected, and why:
+
+- **A separate repository for this category.** Ceilings, clients and suspension live
+  inside the core's transactions and authorization — `saveManyWithinLimits` on every
+  upload path, `createEvent`, the `disabled_at` join in `sqliteMembershipRepository.ts` —
+  so an outside package needs the core to grow a public extension API first, and every
+  refactor after that becomes a compatibility question.
+- **A second build or image.** It doubles CI and e2e, lets the two schemas drift apart so
+  that moving a box from one to the other breaks its database, and saves nothing a lazy
+  route does not already save.
 
 ### Deliberately out of scope for this category
 
