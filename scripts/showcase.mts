@@ -138,8 +138,8 @@ const shotAround = async (page: Page, locator: Locator, name: string, pad: numbe
 /**
  * Waits until every image that is on screen has decoded.
  *
- * On screen only: the gallery's grid is lazy, so a tile below the fold never loads until
- * somebody scrolls to it, and waiting for *every* `<img>` would wait for nothing.
+ * On screen only: the gallery's grid is lazy, so a tile far enough below the fold is not
+ * fetched until somebody scrolls, and waiting for *every* `<img>` would wait out the timeout.
  */
 const visibleImagesDecoded = async (page: Page): Promise<void> => {
   await page
@@ -187,8 +187,8 @@ const passNotice = async (page: Page, photograph?: string): Promise<void> => {
     await recorded
   }
   await page.getByTestId('photo-input').waitFor({ state: 'attached' })
-  // Photographing the card scrolls to it, and the picker takes focus when it replaces the
-  // card; the shots that follow are of the screen a guest lands on, from the top.
+  // Clicking the card's button scrolls down to it, and the picker takes focus when it
+  // replaces the card; the shots that follow are of the screen a guest lands on, from the top.
   await page.evaluate(() => window.scrollTo(0, 0))
 }
 
@@ -432,8 +432,9 @@ const main = async (): Promise<void> => {
 
     // ---- the morning after: the shared gallery ---------------------------------
     //
-    // Last, because it is the last thing that happens: every photograph above is already
-    // decided, so the album holds what the wall showed — published, and nothing pending.
+    // Last, because it is the last thing that happens: every photograph above has been
+    // sent and moderated, and the album holds what the wall showed. The two left pending
+    // on purpose are not in it, because a shared album is published photos only.
     //
     // The host's half is taken on the phone: on a laptop the panel is as wide as the event
     // page's content, and at the size a README floats an image its text would be unreadable.
