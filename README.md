@@ -102,7 +102,8 @@ And the parts that only show up on the night:
 
 ## Install
 
-You need Docker, and an HTTPS address for the box. Both are explained below the box.
+You need Docker, and an https address your guests' phones can reach. The commands come
+first; what the https part asks of you is explained after them.
 
 ```bash
 git clone https://github.com/Irony42/EventSlide.git
@@ -112,6 +113,7 @@ cd EventSlide
 node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 echo "PUBLIC_URL=https://photos.example.com" >> .env
+# Your own account, created on the first boot.
 echo "BOOTSTRAP_OWNER_EMAIL=you@example.com" >> .env
 echo "BOOTSTRAP_OWNER_PASSWORD=choose-a-long-passphrase" >> .env
 
@@ -119,12 +121,20 @@ docker compose up            # the first time, and read what it says
 docker compose up -d         # once it has booted cleanly
 ```
 
-Then open `PUBLIC_URL/login`.
+Then open `PUBLIC_URL/login` and sign in with that email and password. The first sign-in
+asks you to choose a new password before it shows you anything else.
 
 **Run it in the foreground the first time.** A missing or malformed variable makes the
 server print every problem at once and exit rather than start — which is what you want,
 and what you will not see if the first run is detached, because the container restarts
 on its own and the list scrolls away. Once it boots, `-d` is the right way to leave it.
+
+**The two `BOOTSTRAP_OWNER_` lines are how the first account is made.** There is no
+default admin and no setup page: the server creates that owner on its first boot, against
+an empty database, and does nothing with the two lines after that — once you have signed
+in and chosen your own password, you can delete them. Set both or neither. The password
+is held to the same rule as every account's, at least 12 characters and not an obvious
+one, and a weak one is refused at boot like any other bad variable.
 
 **`PUBLIC_URL` must be an https address a phone on the venue Wi-Fi can actually reach**,
 never `localhost`. It is what the QR code encodes, and a QR code pointing at `localhost`
@@ -165,28 +175,47 @@ Node 24 or later.
 ```bash
 npm install
 
-# The same two secrets and the same address as the Docker box above. `npm start` reads
-# this `.env` if it is there; it never overrides a variable your shell or your service
-# manager already set, so a systemd unit can own them instead.
+# The same secrets, address and first owner as the Docker install above. `npm start`
+# reads this `.env` if it is there; it never overrides a variable your shell or your
+# service manager already set, so a systemd unit can own them instead.
 node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 echo "PUBLIC_URL=https://photos.example.com" >> .env
+echo "BOOTSTRAP_OWNER_EMAIL=you@example.com" >> .env
+echo "BOOTSTRAP_OWNER_PASSWORD=choose-a-long-passphrase" >> .env
+# The one line `compose.yaml` writes for you: there is one proxy in front of the server.
+echo "TRUST_PROXY_HOPS=1" >> .env
 
 npm run db:migrate
 npm run build
 npm start
 ```
 
+**`TRUST_PROXY_HOPS=1` is what makes the login work behind your https proxy.** Without it
+the server does not take the proxy's word that the request arrived over https, so it
+never sends the `Secure` login cookie: the sign-in form accepts your password and you are
+still signed out. It also means the server believes the address the proxy forwards, and
+`npm start` listens on port 4300 on every interface — so firewall that port and let only
+the proxy reach it, or anybody on the network can claim an address of their choosing and
+walk past the per-address rate limits.
+
 **There is no weak default to fall back on, and that is deliberate.** `NODE_ENV` is
 `production` unless something says otherwise, so a server started without those two
 secrets prints both and exits instead of signing cookies with something it made up.
-`.env.example` documents every other variable and is worth reading; copying it verbatim
-stops the boot, because the secrets in it are placeholders and the server knows them by
-sight.
+`.env.example` walks through most of the others — upload limits, quotas, video clips,
+the two sweeps, the shared gallery's rate limits — and is worth reading; copying it
+verbatim stops the boot, because the secrets in it are placeholders and the server knows
+them by sight.
 
-To look around before there is a real event, `npm run db:seed:demo` creates one with
-a handful of photos in each moderation state, so the admin console and the wall both
-have something to show.
+To look around before there is a real event, give the demo a scratch database and run
+the development server on it. `npm run db:seed:demo` refuses a database that already
+holds an account, which yours does from its first boot:
+
+```bash
+export DATABASE_PATH=./demo/eventslide.sqlite MEDIA_ROOT=./demo/media
+npm run db:seed:demo   # an event with six photos on the wall and two awaiting moderation
+npm run dev            # then sign in at http://localhost:5173/login as the seed says
+```
 
 </details>
 
