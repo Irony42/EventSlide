@@ -46,10 +46,17 @@ RUN npm prune --omit=dev
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 
+# BACKUP_DIR is where `node dist/ops/scripts/backup.js` writes when it is not given `--to`.
+# The default outside the image, `./backups`, resolves against `/app` here, which is
+# root's and read-only under compose, so the bare command could not write at all.
+# `/data/backups` is on the data volume, which makes it **the same disk as the album**:
+# somewhere to write an archive, not somewhere to keep one. The command says so when it
+# runs, and the README's Backups section gives the copy that takes it off the box.
 ENV NODE_ENV=production \
     PORT=4300 \
     DATABASE_PATH=/data/eventslide.sqlite \
-    MEDIA_ROOT=/data/media
+    MEDIA_ROOT=/data/media \
+    BACKUP_DIR=/data/backups
 
 # `dumb-init` so SIGTERM reaches Node as pid 1 and the graceful shutdown actually runs:
 # without it the WAL is not checkpointed and in-flight uploads are cut off.
@@ -70,11 +77,16 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=production-deps /app/node_modules ./node_modules
+# `dist/` includes `dist/ops/`: backup, restore and purge compiled to plain JavaScript by
+# tsconfig.ops.json. They are the only way to run those commands in this image, because
+# `scripts/` is not copied here and `tsx` is a devDependency the prune above removed.
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 
-# The album and the database belong to the operator. One volume, so a backup is one
-# path and a host can copy the whole event to a USB stick.
+# The album and the database belong to the operator. One volume, so everything an event
+# is lives under one path. That is not the same as "copy the path to back it up": a copy
+# of a live SQLite file misses whatever is still in its WAL, which is why the backup
+# command snapshots the database with `VACUUM INTO` instead.
 #
 # `0700` because docs/SECURITY.md §11 asks for it and the reason is real: the SQLite file
 # holds every session row and every password hash, and the media root holds photographs
