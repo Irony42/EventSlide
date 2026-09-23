@@ -12,8 +12,10 @@
     "types": ["node"],
     /* `.`, not `scripts`: the commands import `../src/...`, and those files are compiled
        along with them so that `dist/ops/` runs on its own. The cost is a second copy of
-       the modules the three commands import, which is what the graph below should be
-       kept to. */
+       the modules the three commands import — backupArchive, the migrations, the purge
+       and sweep use cases, a few adapters — and not of the server: `purge.ts` reads its
+       sweep policy from `src/main/mediaSweeper.ts` so that this graph does not reach
+       `container.ts`, which imports every route in the product. */
     "rootDir": ".",
     "outDir": "dist/ops"
   },

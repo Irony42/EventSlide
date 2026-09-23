@@ -43,7 +43,12 @@ import type { PresenterContext } from '../interface/http/presenters/presenters'
 import { buildUseCases, type Adapters, type UseCases } from './usecases'
 import { createClipWorker, type ClipWorker } from './clipWorker'
 import { clipUploadTempDir } from '../interface/http/routes/clipRoutes'
-import { createMediaSweeper, isTooDangerousToSweep, type MediaSweeper } from './mediaSweeper'
+import {
+  createMediaSweeper,
+  isTooDangerousToSweep,
+  MEDIA_SWEEP_MIN_AGE_MS,
+  type MediaSweeper,
+} from './mediaSweeper'
 import { createReservationReaper, type ReservationReaper } from './reservationReaper'
 import { createRetentionSweeper, type RetentionSweeper } from './retentionSweeper'
 import { createScheduleSweeper, type ScheduleSweeper } from './scheduleSweeper'
@@ -138,22 +143,6 @@ const CLIP_RESERVATION_TIMEOUT_MS = 5 * 60 * 1000
 
 /** The longest edge of the still frame the grid, the album and the wall render. */
 const CLIP_POSTER_MAX_EDGE = 640
-
-/**
- * How recently written an object must be for the reconciliation sweep to spare it.
- *
- * Every write path in the product is bytes first, row second, so there is always an
- * instant in which an object exists and nothing names it. Fifteen minutes is a hundred
- * times the longest of those gaps and costs only that a leak survives one more sweep,
- * which is the right direction to be wrong in: the other direction deletes a guest's
- * photograph a millisecond before the row that would have saved it.
- *
- * Exported because `scripts/purge.ts` runs the same use case from a terminal and had its
- * own copy of the number, with a comment saying it matched this one — which is a claim a
- * reader has to verify and an edit here would quietly falsify. The CLI is a different
- * trigger, never a second policy.
- */
-export const MEDIA_SWEEP_MIN_AGE_MS = 15 * 60 * 1000
 
 /**
  * The most digests one reconciliation pass considers, across every event.
