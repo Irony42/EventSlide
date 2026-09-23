@@ -6,6 +6,7 @@ import {
   asMissionId,
   asPhotoId,
   asReactionId,
+  asShareLinkId,
   asUserId,
   type ClipJobId,
   type EventId,
@@ -13,6 +14,7 @@ import {
   type MissionId,
   type PhotoId,
   type ReactionId,
+  type ShareLinkId,
   type UserId,
 } from '../../domain/shared/ids'
 
@@ -59,7 +61,7 @@ import {
 const JOIN_CODE_ALPHABET_SIZE = 32
 
 /** One counter per kind, so a photo and a guest do not share a sequence. */
-type Kind = 'event' | 'photo' | 'guest' | 'user' | 'reaction' | 'clipJob' | 'mission'
+type Kind = 'event' | 'photo' | 'guest' | 'user' | 'reaction' | 'clipJob' | 'mission' | 'shareLink'
 
 const PREFIX: Record<Kind, string> = {
   event: 'e0000000',
@@ -69,6 +71,7 @@ const PREFIX: Record<Kind, string> = {
   reaction: '30000000',
   clipJob: '40000000',
   mission: '50000000',
+  shareLink: '60000000',
 }
 
 export const createSequentialIdGenerator = (): IdGenerator => {
@@ -95,6 +98,7 @@ export const createSequentialIdGenerator = (): IdGenerator => {
     reactionId: (): ReactionId => asReactionId(next('reaction')),
     clipJobId: (): ClipJobId => asClipJobId(next('clipJob')),
     missionId: (): MissionId => asMissionId(next('mission')),
+    shareLinkId: (): ShareLinkId => asShareLinkId(next('shareLink')),
 
     bytes: (count: number): Uint8Array => {
       if (!Number.isInteger(count) || count < 1) {

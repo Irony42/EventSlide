@@ -278,6 +278,10 @@ describe('buildServer: which client a rate limit is counting', () => {
           uploadPerMinute: 12,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          galleryPerMinute: 60,
+          galleryMediaPerMinute: 600,
+          galleryUnlockPerClient: 10,
+          galleryUnlockPerLink: 50,
         },
       },
     })
@@ -324,6 +328,10 @@ describe('buildServer: which client a rate limit is counting', () => {
           uploadPerMinute: 1,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          galleryPerMinute: 60,
+          galleryMediaPerMinute: 600,
+          galleryUnlockPerClient: 10,
+          galleryUnlockPerLink: 50,
         },
       },
     })
@@ -598,6 +606,18 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     const response = await request(withClient().app).get('/join/H7K2QM')
 
     expect(response.get('cache-control')).toBe('no-cache')
+  })
+
+  it('serves the shared gallery page with no referrer, no index and no cache', async () => {
+    // The token is in this address (roadmap §4.1), so the page itself carries what every
+    // gallery API response carries — and `no-store`, not the shell's `no-cache`.
+    const response = await request(withClient().app).get(`/g/${'Q'.repeat(43)}`)
+
+    expect(response.status).toBe(200)
+    expect(response.text).toContain(SPA_MARKER)
+    expect(response.get('cache-control')).toBe('no-store')
+    expect(response.get('x-robots-tag')).toBe('noindex, nofollow')
+    expect(response.get('referrer-policy')).toBe('no-referrer')
   })
 
   it('never caches index.html when it is requested by name', async () => {

@@ -836,6 +836,7 @@ describe('the privacy notice', () => {
     expect(region.getByText(fr.upload.noticePublication.afterReview)).toBeVisible()
     expect(region.getByText(fr.upload.noticeAudiences.wall)).toBeVisible()
     expect(region.getByText(fr.upload.noticeAudiences.organisers)).toBeVisible()
+    expect(region.getByText(fr.upload.noticeAudiences.sharedGallery)).toBeVisible()
     expect(region.getByText(fr.upload.noticeRetentionDays(30))).toBeVisible()
     expect(region.getByText(fr.upload.noticeRemovalMinutes(15))).toBeVisible()
     expect(region.getByText(fr.upload.noticeRemovalOtherwise)).toBeVisible()

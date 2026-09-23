@@ -8,6 +8,8 @@ import type {
   EventStatus,
   EventSummaryDto,
   EventTemplateKey,
+  GalleryDto,
+  GalleryPage,
   GuestListResponse,
   GuestMissionListResponse,
   GuestPhotoDto,
@@ -24,6 +26,8 @@ import type {
   ReactionsResponse,
   SessionResponse,
   SessionUserDto,
+  ShareLinkCreated,
+  ShareLinkResponse,
   TopPhotoDto,
   UploadResponse,
   WallResponse,
@@ -132,6 +136,16 @@ export interface ClipUploadInput {
 export interface MissionInput {
   readonly prompt: string
   readonly scope: MissionScope
+}
+
+/**
+ * The host's shared gallery link as they choose it (roadmap §4.1). Both optional, and
+ * each sent only when chosen: absent is the server's month and no password, and an empty
+ * password field is "no password" rather than a 400.
+ */
+export interface ShareLinkInput {
+  readonly expiresInDays?: number
+  readonly password?: string
 }
 
 export interface ModeratorInvitationInput {
@@ -411,6 +425,50 @@ export const createApi = (transport: Transport) => ({
   /** Removes the prompt. Every photograph filed under it stays, unfiled. */
   deleteMission: (slug: string, missionId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/missions/${encode(missionId)}`),
+
+  // ---------------------------------------------------------- shared gallery --
+
+  /** The host's link: its status, never its address, which is not stored. */
+  shareLink: (slug: string, signal?: AbortSignal): Promise<ShareLinkResponse> =>
+    transport.get(`/api/events/${encode(slug)}/share-link`, undefined, signal),
+
+  /** A new link, replacing the current one. The answer carries the address, once. */
+  createShareLink: (slug: string, input: ShareLinkInput): Promise<ShareLinkCreated> =>
+    transport.post(`/api/events/${encode(slug)}/share-link`, {
+      ...(input.expiresInDays === undefined ? {} : { expiresInDays: input.expiresInDays }),
+      ...(input.password === undefined || input.password === ''
+        ? {}
+        : { password: input.password }),
+    }),
+
+  revokeShareLink: (slug: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/share-link`),
+
+  /**
+   * What a guest holding the link is shown. `401 gallery.passwordRequired` until the
+   * password has been entered in this browser; `404 gallery.notAvailable` for a dead link,
+   * whatever killed it.
+   */
+  gallery: (token: string, signal?: AbortSignal): Promise<GalleryDto> =>
+    transport.get(`/api/gallery/${encode(token)}`, undefined, signal),
+
+  /**
+   * The password, in a body and never in a URL. The answer is an `HttpOnly` cookie this
+   * code cannot read, which the two reads beside it then carry.
+   */
+  unlockGallery: (token: string, password: string): Promise<void> =>
+    transport.post(`/api/gallery/${encode(token)}/unlock`, { password }),
+
+  galleryPhotos: (
+    token: string,
+    cursor: string | null,
+    signal?: AbortSignal,
+  ): Promise<GalleryPage> =>
+    transport.get(
+      `/api/gallery/${encode(token)}/photos`,
+      cursor === null ? undefined : { cursor },
+      signal,
+    ),
 
   // ------------------------------------------------------------------- links --
 

@@ -191,6 +191,8 @@ export const it: UiText = {
       wall: 'Chiunque guardi lo schermo dell’evento, in sala o tramite il suo link, una volta che la foto vi compare.',
       organisers:
         'L’organizzatore e il suo staff, che vedono tutto ciò che invia e possono scaricare le foto mostrate sullo schermo.',
+      sharedGallery:
+        'Le persone a cui l’organizzatore invia un link privato all’album, se ne crea uno, e quelle a cui il link viene inoltrato: possono vedere e scaricare in piena risoluzione le foto mostrate sullo schermo, finché il link non scade o viene ritirato.',
     },
     noticeRetentionDays: (days: number) =>
       t.count(days, {
@@ -377,6 +379,12 @@ export const it: UiText = {
       'Questo colore non sarebbe leggibile sullo schermo in sala. Scegline uno dall’elenco.',
     'eventTheme.accentTooCloseToStatus':
       'Questo colore somiglia troppo ai colori di stato dell’applicazione. Scegline un altro.',
+    'gallery.notAvailable': 'Questo link non è più disponibile.',
+    'gallery.passwordRequired': 'Questo album è protetto da password.',
+    'gallery.wrongPassword': 'Password errata.',
+    'gallery.tooManyAttempts': 'Troppi tentativi. Riprovi tra un quarto d’ora.',
+    'gallery.cursorInvalid': 'L’elenco delle foto è cambiato. Ricarichi la pagina.',
+    'shareLink.lifetimeInvalid': 'Scelga una durata tra 1 e 90 giorni.',
   },
 
   moderation: {
@@ -746,6 +754,33 @@ export const it: UiText = {
     missionUnanswered: 'Non ancora completata',
     missionsFull: (max: number) =>
       `${t.number(max)} missioni al massimo: è quello che mantiene l’elenco leggibile a dieci metri.`,
+    shareLink: 'Album condiviso',
+    shareLinkHint:
+      'Un link da inviare dopo la festa: le foto pubblicate, da scaricare a piena risoluzione.',
+    shareLinkNone: 'Nessun link è attivo.',
+    shareLinkActive: (date: string) => `Aperto fino al ${date}`,
+    shareLinkUnavailable:
+      'Questo link non si apre più: è scaduto, oppure la persona che lo ha creato non organizza più l’evento.',
+    shareLinkProtected: 'Protetto da password',
+    shareLinkUnprotected: 'Senza password',
+    shareLinkLifetime: 'Aperto per',
+    shareLinkDays: (days: number) =>
+      t.count(days, { one: `${t.number(days)} giorno`, other: `${t.number(days)} giorni` }),
+    shareLinkPassword: 'Password',
+    shareLinkPasswordHint: (min: number) =>
+      `Almeno ${t.number(min)} caratteri. La comunichi separatamente dal link.`,
+    shareLinkCreate: 'Crea il link',
+    shareLinkReplace: 'Sostituisci con un nuovo link',
+    shareLinkReplaceHint: 'Il link attuale smetterà subito di funzionare.',
+    shareLinkCreated: 'Ecco il link. Lo copi adesso: non verrà più mostrato.',
+    shareLinkUrl: 'Indirizzo del link',
+    shareLinkCopy: 'Copia il link',
+    shareLinkCopied: 'Link copiato.',
+    shareLinkRevoke: 'Disattiva il link',
+    shareLinkRevokeTitle: 'Disattivare questo link?',
+    shareLinkRevokeHint:
+      'Nessuno potrà più aprire l’album con questo link, nemmeno con la password. Potrà crearne uno nuovo.',
+    shareLinkRevoked: 'Il link è stato disattivato.',
   },
 
   auth: {
@@ -774,5 +809,30 @@ export const it: UiText = {
     nowDeciding: (photo: string) => `Foto da moderare. ${photo}`,
     undoLast: 'Annulla l’ultima decisione',
     undoUnavailable: 'Si può annullare solo una pubblicazione.',
+  },
+  gallery: {
+    title: 'Album condiviso',
+    opening: 'Apertura dell’album…',
+    unavailableTitle: 'Questo link non è più disponibile',
+    unavailableHint:
+      'Potrebbe essere scaduto o essere stato disattivato. Chieda un nuovo link alla persona che glielo ha inviato.',
+    lockedTitle: 'Album protetto',
+    lockedHint: 'Inserisca la password che ha ricevuto insieme al link.',
+    passwordLabel: 'Password',
+    unlock: 'Apri l’album',
+    photoCount: (count: number) =>
+      t.count(count, { one: `${t.number(count)} foto`, other: `${t.number(count)} foto` }),
+    availableUntil: (date: string) => `Disponibile fino al ${date}`,
+    privacyNote: 'Le foto si scaricano a piena risoluzione, senza i loro dati di posizione.',
+    downloadAll: 'Scarica tutto (.zip)',
+    download: 'Scarica l’originale',
+    downloadClip: 'Scarica il video',
+    openPhoto: (position: number) => `Ingrandisci la foto ${t.number(position)}`,
+    photoAlt: (position: number) => `Foto ${t.number(position)} dell’album`,
+    clipBadge: 'Video',
+    empty: 'In questo album non è ancora stata pubblicata nessuna foto.',
+    loadMore: 'Mostra altre foto',
+    viewerTitle: (position: number, total: number) =>
+      `Foto ${t.number(position)} di ${t.number(total)}`,
   },
 }

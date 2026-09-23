@@ -83,6 +83,15 @@ export const notWiredUseCases = (): HttpUseCases => ({
   deleteMission: notWired('deleteMission'),
   getGuestChecklist: notWired('getGuestChecklist'),
 
+  createShareLink: notWired('createShareLink'),
+  getShareLink: notWired('getShareLink'),
+  revokeShareLink: notWired('revokeShareLink'),
+  openGallery: notWired('openGallery'),
+  unlockGallery: notWired('unlockGallery'),
+  listGalleryPhotos: notWired('listGalleryPhotos'),
+  getGalleryMedia: notWired('getGalleryMedia'),
+  downloadGalleryArchive: notWired('downloadGalleryArchive'),
+
   reactToPhoto: notWired('reactToPhoto'),
   withdrawReaction: notWired('withdrawReaction'),
   getPhotoReactions: notWired('getPhotoReactions'),

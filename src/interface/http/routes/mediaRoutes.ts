@@ -77,7 +77,7 @@ const etagFor = (media: PhotoMedia): string => `"${media.contentHash.value}-${me
  * `pipeline` has already destroyed the response: handing it on would have the error
  * handler write a JSON body to a dead socket.
  */
-const streamOrAbandon = async (
+export const streamOrAbandon = async (
   res: Response,
   logger: Logger,
   message: string,

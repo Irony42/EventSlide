@@ -5,6 +5,7 @@ import type {
   MissionId,
   PhotoId,
   ReactionId,
+  ShareLinkId,
   UserId,
 } from '../../domain/shared/ids'
 
@@ -37,6 +38,12 @@ export interface IdGenerator {
    * enumerate the evening's missions.
    */
   missionId(): MissionId
+
+  /**
+   * A shared gallery link (roadmap §4.1). The row's name, which signed media URLs carry;
+   * the secret a guest holds is the link's token, which comes from `GallerySigner`.
+   */
+  shareLinkId(): ShareLinkId
 
   /** Cryptographically strong bytes. Used for join codes and guest device tokens. */
   bytes(count: number): Uint8Array

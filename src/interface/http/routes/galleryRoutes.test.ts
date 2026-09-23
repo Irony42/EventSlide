@@ -1,0 +1,765 @@
+import request from 'supertest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ArchiveWriter } from '../../../application/ports/archiveWriter'
+import { AT, aPhoto, aUser } from '../../../application/testing/builders'
+import type { PhotoStatus } from '../../../domain/photos/photoStatus'
+import {
+  browserAgent,
+  buildGalleryHarness,
+  CSRF_HEADER,
+  GALA,
+  GALA_OWNER,
+  GALA_PHOTO,
+  OWNER,
+  PASSWORD,
+  PENDING,
+  PHOTO,
+  WEDDING,
+  WEDDING_SLUG,
+  type GalleryHarness,
+} from '../testing/galleryHarness'
+import { CSRF_COOKIE } from '../middleware/csrf'
+import { buildHarness } from '../testing/middlewareHarness'
+import { GALLERY_UNLOCK_COOKIE, galleryRoutes } from './galleryRoutes'
+
+/**
+ * The shared gallery at ring 4: the real server, the real HMAC signer, fakes behind them.
+ *
+ * Every security property the gallery states has a named case here — the neutral refusal,
+ * the password and its cookie, the per-client and per-link limits, the signature and what
+ * it binds, immediate revocation, the unpublished photograph, and the headers on every
+ * response, refusals included.
+ */
+
+const HOUR = 60 * 60 * 1000
+/** UUIDs, like the harness's own, for the statuses `beforeEach` does not seed. */
+const REJECTED = '66666666-6666-4666-8666-666666666666'
+const HIDDEN = '77777777-7777-4777-8777-777777777777'
+/** A well-formed token nobody issued. */
+const UNKNOWN_TOKEN = 'Q'.repeat(43)
+
+const setCookies = (response: request.Response): string[] => {
+  const raw: unknown = response.headers['set-cookie']
+  return Array.isArray(raw) ? raw.map(String) : []
+}
+
+const unlockCookieOf = (response: request.Response): string | undefined =>
+  setCookies(response).find((value) => value.startsWith(`${GALLERY_UNLOCK_COOKIE}=`))
+
+const expectGalleryHeaders = (response: request.Response): void => {
+  expect(response.headers['referrer-policy']).toBe('no-referrer')
+  expect(response.headers['x-robots-tag']).toBe('noindex, nofollow')
+}
+
+describe('the shared gallery over HTTP', () => {
+  let subject: GalleryHarness
+
+  beforeEach(async () => {
+    subject = buildGalleryHarness()
+    await subject.seedPhoto(aPhoto({ id: PHOTO, eventId: WEDDING, status: 'published' }))
+    await subject.seedPhoto(aPhoto({ id: PENDING, eventId: WEDDING, status: 'pending' }))
+  })
+
+  const galleryPage = async (token: string, agent = request.agent(subject.app)) => {
+    const response = await agent.get(`/api/gallery/${token}/photos`).expect(200)
+    return response.body as {
+      items: { id: string; previewUrl: string; viewUrl: string; downloadUrl: string }[]
+      nextCursor: string | null
+    }
+  }
+
+  describe('GET /api/gallery/:token', () => {
+    it('opens the album of an available link', async () => {
+      const { token, link } = subject.seedLink()
+
+      const response = await request(subject.app).get(`/api/gallery/${token}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body).toMatchObject({
+        eventName: 'Camille & Sacha',
+        photoCount: 1,
+        expiresAt: link.expiresAt.toISOString(),
+      })
+      expect(response.body.archiveUrl).toMatch(
+        new RegExp(`^/api/gallery-media/${link.id}/album[.]zip[?]e=\\d+&s=[A-Za-z0-9_-]{43}$`),
+      )
+      expect(response.body.theme).toMatchObject({ material: expect.any(String) })
+    })
+
+    it('tells no referrer, no crawler and no cache about the page', async () => {
+      const { token } = subject.seedLink()
+
+      const response = await request(subject.app).get(`/api/gallery/${token}`)
+
+      expectGalleryHeaders(response)
+      expect(response.headers['cache-control']).toBe('no-store')
+    })
+
+    it('answers every dead link with one refusal, byte for byte', async () => {
+      // An unknown token, a malformed one, and every way a real link can die: the answers
+      // must be indistinguishable, or the difference is an oracle for whoever holds a link.
+      const expired = subject.seedLink({
+        lifetimeDays: 1,
+        createdAt: new Date(AT.getTime() - 25 * HOUR),
+      })
+      const revoked = subject.seedLink({ revokedAt: AT })
+      const orphaned = subject.seedLink({ eventId: GALA, createdBy: GALA_OWNER })
+      await subject.users.save(
+        aUser({ id: GALA_OWNER, email: 'gala@example.test', disabledAt: AT }),
+      )
+
+      const answers = await Promise.all(
+        ['short', UNKNOWN_TOKEN, expired.token, revoked.token, orphaned.token].map((token) =>
+          request(subject.app).get(`/api/gallery/${token}`),
+        ),
+      )
+
+      for (const response of answers) {
+        expect(response.status).toBe(404)
+        expect(response.text).toBe(answers[0]?.text)
+        expectGalleryHeaders(response)
+        expect(response.headers['cache-control']).toBe('no-store')
+      }
+      expect(answers[0]?.body.error.code).toBe('gallery.notAvailable')
+    })
+
+    it('says a purged event’s link is not available, like any other dead link', async () => {
+      const { token } = subject.seedLink()
+      await subject.events.delete(WEDDING)
+
+      const response = await request(subject.app).get(`/api/gallery/${token}`)
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('gallery.notAvailable')
+    })
+
+    it('treats the link of a creator who is no longer an owner as dead', async () => {
+      // Authority is read per request: demoting the host who made the link ends it, the
+      // same as switching their account off, and says so in the same words.
+      const { token } = subject.seedLink()
+      await subject.memberships.grant({
+        eventId: WEDDING,
+        userId: OWNER,
+        role: 'moderator',
+        grantedAt: AT,
+      })
+
+      const response = await request(subject.app).get(`/api/gallery/${token}`)
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('gallery.notAvailable')
+    })
+
+    it('asks for the password, and discloses nothing about the album before it', async () => {
+      const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}` })
+
+      const response = await request(subject.app).get(`/api/gallery/${token}`)
+
+      expect(response.status).toBe(401)
+      expect(response.body.error.code).toBe('gallery.passwordRequired')
+      expect(response.text).not.toContain('Camille')
+      expectGalleryHeaders(response)
+    })
+  })
+
+  describe('POST /api/gallery/:token/unlock', () => {
+    it('sets a short-lived, HttpOnly, SameSite=Strict cookie scoped to the gallery API', async () => {
+      const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}` })
+      const { agent, csrf } = await browserAgent(subject)
+
+      const response = await agent
+        .post(`/api/gallery/${token}/unlock`)
+        .set(CSRF_HEADER, csrf)
+        .send({ password: PASSWORD })
+
+      expect(response.status).toBe(204)
+      const cookie = unlockCookieOf(response) ?? ''
+      expect(cookie).toMatch(/; HttpOnly/)
+      expect(cookie).toMatch(/; SameSite=Strict/)
+      expect(cookie).toMatch(/; Path=\/api\/gallery(;|$)/)
+      expect(cookie).toMatch(/; Max-Age=7200(;|$)/)
+      expect(cookie).not.toMatch(/; Secure/)
+      expect(cookie).not.toContain(encodeURIComponent(PASSWORD))
+      expect(cookie).not.toContain(token)
+    })
+
+    it('marks the cookie Secure on a box behind TLS', async () => {
+      const secure = buildGalleryHarness({ secureCookie: true })
+      const { token } = secure.seedLink({ passwordHash: `hash:${PASSWORD}` })
+      const { csrf } = await browserAgent(secure)
+
+      // A cookie jar keeps a Secure cookie off plain http, so the CSRF pair is sent by hand.
+      const response = await request(secure.app)
+        .post(`/api/gallery/${token}/unlock`)
+        .set('Cookie', `${CSRF_COOKIE}=${csrf}`)
+        .set(CSRF_HEADER, csrf)
+        .send({ password: PASSWORD })
+
+      expect(unlockCookieOf(response)).toMatch(/; Secure/)
+    })
+
+    it('opens the album for the browser that entered the password, and for no other', async () => {
+      const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}` })
+      const { agent, csrf } = await browserAgent(subject)
+      await agent
+        .post(`/api/gallery/${token}/unlock`)
+        .set(CSRF_HEADER, csrf)
+        .send({ password: PASSWORD })
+
+      expect((await agent.get(`/api/gallery/${token}`)).status).toBe(200)
+      expect((await agent.get(`/api/gallery/${token}/photos`)).status).toBe(200)
+      expect((await request(subject.app).get(`/api/gallery/${token}`)).status).toBe(401)
+    })
+
+    it('refuses the wrong password and sets no cookie', async () => {
+      const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}` })
+      const { agent, csrf } = await browserAgent(subject)
+
+      const response = await agent
+        .post(`/api/gallery/${token}/unlock`)
+        .set(CSRF_HEADER, csrf)
+        .send({ password: 'les mariés de juillet' })
+
+      expect(response.status).toBe(401)
+      expect(response.body.error.code).toBe('gallery.wrongPassword')
+      expect(unlockCookieOf(response)).toBeUndefined()
+      expectGalleryHeaders(response)
+    })
+
+    it('refuses a password posted without the CSRF token', async () => {
+      const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}` })
+
+      const response = await request(subject.app)
+        .post(`/api/gallery/${token}/unlock`)
+        .send({ password: PASSWORD })
+
+      expect(response.status).toBe(403)
+      expect(subject.hasher.verifications).toEqual([])
+    })
+
+    it('sends the gallery’s headers on refusals made before its router is reached', async () => {
+      // The CSRF gate and the body parser answer from ahead of every router. The token
+      // is in these paths all the same, so their refusals carry the headers too.
+      const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}` })
+      const { agent, csrf } = await browserAgent(subject)
+
+      const noCsrf = await request(subject.app)
+        .post(`/api/gallery/${token}/unlock`)
+        .send({ password: PASSWORD })
+      const malformed = await agent
+        .post(`/api/gallery/${token}/unlock`)
+        .set(CSRF_HEADER, csrf)
+        .set('Content-Type', 'application/json')
+        .send('{"password":')
+
+      expect(noCsrf.status).toBe(403)
+      expect(malformed.status).toBe(400)
+      for (const response of [noCsrf, malformed]) {
+        expectGalleryHeaders(response)
+        expect(response.headers['cache-control']).toBe('no-store')
+      }
+    })
+
+    it('answers a dead link with the gallery’s own refusal, not with a password prompt', async () => {
+      const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}`, revokedAt: AT })
+      const { agent, csrf } = await browserAgent(subject)
+
+      const response = await agent
+        .post(`/api/gallery/${token}/unlock`)
+        .set(CSRF_HEADER, csrf)
+        .send({ password: PASSWORD })
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('gallery.notAvailable')
+    })
+
+    it('refuses a body with no password as malformed', async () => {
+      const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}` })
+      const { agent, csrf } = await browserAgent(subject)
+
+      const response = await agent
+        .post(`/api/gallery/${token}/unlock`)
+        .set(CSRF_HEADER, csrf)
+        .send({})
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+    })
+
+    describe('the limits on guessing', () => {
+      it('stops one client after its allowance of failed attempts, right password or not', async () => {
+        const limited = buildGalleryHarness({
+          rateLimits: { ...limits(), galleryUnlockPerClient: 2 },
+        })
+        const { token } = limited.seedLink({ passwordHash: `hash:${PASSWORD}` })
+        const { agent, csrf } = await browserAgent(limited)
+        const attempt = (password: string) =>
+          agent.post(`/api/gallery/${token}/unlock`).set(CSRF_HEADER, csrf).send({ password })
+
+        expect((await attempt('mauvais mot de passe 1')).status).toBe(401)
+        expect((await attempt('mauvais mot de passe 2')).status).toBe(401)
+        const third = await attempt(PASSWORD)
+
+        expect(third.status).toBe(429)
+        expect(third.body.error.code).toBe('gallery.tooManyAttempts')
+      })
+
+      it('does not count a successful unlock, so a whole family can open one album', async () => {
+        const limited = buildGalleryHarness({
+          rateLimits: { ...limits(), galleryUnlockPerClient: 2 },
+        })
+        const { token } = limited.seedLink({ passwordHash: `hash:${PASSWORD}` })
+        const { agent, csrf } = await browserAgent(limited)
+
+        for (let index = 0; index < 4; index += 1) {
+          const response = await agent
+            .post(`/api/gallery/${token}/unlock`)
+            .set(CSRF_HEADER, csrf)
+            .send({ password: PASSWORD })
+          expect(response.status).toBe(204)
+        }
+      })
+
+      it('bounds correct passwords too, on the budget a client has for reading the album', async () => {
+        // Successful unlocks are not guesses, but each one is a password hash verified;
+        // without a budget on them a holder of the password could keep a core busy.
+        const limited = buildGalleryHarness({
+          rateLimits: { ...limits(), galleryPerMinute: 2, galleryUnlockPerClient: 100 },
+        })
+        const { token } = limited.seedLink({ passwordHash: `hash:${PASSWORD}` })
+        const { agent, csrf } = await browserAgent(limited)
+        const unlock = () =>
+          agent
+            .post(`/api/gallery/${token}/unlock`)
+            .set(CSRF_HEADER, csrf)
+            .send({ password: PASSWORD })
+
+        expect((await unlock()).status).toBe(204)
+        expect((await unlock()).status).toBe(204)
+        const third = await unlock()
+
+        expect(third.status).toBe(429)
+        expect(limited.hasher.verifications).toHaveLength(2)
+      })
+
+      it('does not count a request the page budget turned away as a guess against the link', async () => {
+        const limited = buildGalleryHarness({
+          trustProxyHops: 1,
+          rateLimits: { ...limits(), galleryPerMinute: 1, galleryUnlockPerLink: 1 },
+        })
+        const { token } = limited.seedLink({ passwordHash: `hash:${PASSWORD}` })
+        const { agent, csrf } = await browserAgent(limited)
+        const attempt = (client: string, password: string) =>
+          agent
+            .post(`/api/gallery/${token}/unlock`)
+            .set(CSRF_HEADER, csrf)
+            .set('X-Forwarded-For', client)
+            .send({ password })
+
+        expect((await attempt('203.0.113.1', PASSWORD)).status).toBe(204)
+        expect((await attempt('203.0.113.1', 'mauvais mot de passe')).status).toBe(429)
+
+        // Had that 429 been counted against the link, its one allowed failure would be gone.
+        expect((await attempt('203.0.113.2', 'mauvais mot de passe')).status).toBe(401)
+      })
+
+      it('stops a link after its allowance, whichever clients the attempts came from', async () => {
+        const limited = buildGalleryHarness({
+          trustProxyHops: 1,
+          rateLimits: { ...limits(), galleryUnlockPerClient: 100, galleryUnlockPerLink: 2 },
+        })
+        const { token } = limited.seedLink({ passwordHash: `hash:${PASSWORD}` })
+        const other = limited.seedLink({
+          eventId: GALA,
+          createdBy: GALA_OWNER,
+          passwordHash: `hash:${PASSWORD}`,
+        })
+        const { agent, csrf } = await browserAgent(limited)
+        const attempt = (link: string, client: string) =>
+          agent
+            .post(`/api/gallery/${link}/unlock`)
+            .set(CSRF_HEADER, csrf)
+            .set('X-Forwarded-For', client)
+            .send({ password: 'mauvais mot de passe' })
+
+        expect((await attempt(token, '203.0.113.1')).status).toBe(401)
+        expect((await attempt(token, '203.0.113.2')).status).toBe(401)
+
+        expect((await attempt(token, '203.0.113.3')).status).toBe(429)
+        // Another link is its own allowance.
+        expect((await attempt(other.token, '203.0.113.3')).status).toBe(401)
+      })
+    })
+  })
+
+  describe('GET /api/gallery/:token/photos', () => {
+    it('lists the published photograph and never a pending, rejected or hidden one', async () => {
+      await subject.seedPhoto(aPhoto({ id: REJECTED, eventId: WEDDING, status: 'rejected' }))
+      await subject.seedPhoto(aPhoto({ id: HIDDEN, eventId: WEDDING, status: 'hidden' }))
+      const { token } = subject.seedLink()
+
+      const page = await galleryPage(token)
+
+      expect(page.items.map((item) => item.id)).toEqual([PHOTO])
+      expect(page.nextCursor).toBeNull()
+    })
+
+    it('refuses a cursor the server did not seal, rather than failing on it', async () => {
+      const { token } = subject.seedLink()
+
+      const response = await request(subject.app).get(`/api/gallery/${token}/photos?cursor=abc`)
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('gallery.cursorInvalid')
+    })
+
+    it('asks for the password before listing a protected album', async () => {
+      const { token } = subject.seedLink({ passwordHash: `hash:${PASSWORD}` })
+
+      const response = await request(subject.app).get(`/api/gallery/${token}/photos`)
+
+      expect(response.status).toBe(401)
+    })
+
+    it('has its own budget per client', async () => {
+      const limited = buildGalleryHarness({ rateLimits: { ...limits(), galleryPerMinute: 1 } })
+      const { token } = limited.seedLink()
+
+      await request(limited.app).get(`/api/gallery/${token}`).expect(200)
+      const second = await request(limited.app).get(`/api/gallery/${token}/photos`)
+
+      expect(second.status).toBe(429)
+    })
+  })
+
+  describe('GET /api/gallery-media/…', () => {
+    it('downloads the full-resolution original as an attachment the server named', async () => {
+      const { token } = subject.seedLink()
+      const [item] = (await galleryPage(token)).items
+
+      const response = await request(subject.app).get(item?.downloadUrl ?? '')
+
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toBe('image/jpeg')
+      expect(response.headers['content-disposition']).toMatch(
+        new RegExp(`^attachment; filename="${WEDDING_SLUG}-[0-9a-f]+[.]jpg"$`),
+      )
+      expect(response.headers['cache-control']).toBe('no-store')
+      expect(response.headers['x-content-type-options']).toBe('nosniff')
+      expectGalleryHeaders(response)
+      expect([...(response.body as Buffer)]).toEqual([7, 8, 9])
+    })
+
+    it('serves a grid tile inline, cacheable privately for no longer than its signature', async () => {
+      const { token } = subject.seedLink()
+      const [item] = (await galleryPage(token)).items
+
+      const response = await request(subject.app).get(item?.previewUrl ?? '')
+
+      expect(response.status).toBe(200)
+      expect(response.headers['content-disposition']).toBe('inline')
+      expect(response.headers['cache-control']).toBe('private, max-age=3600')
+      expectGalleryHeaders(response)
+    })
+
+    it('carries the link’s id and never its token', async () => {
+      const { token, link } = subject.seedLink()
+      const [item] = (await galleryPage(token)).items
+
+      expect(item?.downloadUrl).toContain(link.id)
+      expect(item?.downloadUrl).not.toContain(token)
+    })
+
+    describe('a URL that does not verify', () => {
+      const tampered: readonly (readonly [string, (url: string) => string])[] = [
+        [
+          'a flipped character in the signature',
+          (url) => url.replace(/s=(.)/, (_m, c: string) => `s=${c === 'A' ? 'B' : 'A'}`),
+        ],
+        ['another photograph in the path', (url) => url.replace(PHOTO, PENDING)],
+        ['another rendition in the path', (url) => url.replace('/original?', '/display?')],
+        [
+          'a later expiry',
+          (url) => url.replace(/e=(\d+)/, (_m, e: string) => `e=${Number(e) + HOUR}`),
+        ],
+        ['no signature', (url) => url.replace(/&s=.*$/, '')],
+        ['a signature that is not one', (url) => url.replace(/s=.*$/, 's=%27%3B--')],
+      ]
+
+      it.each(tampered)('refuses %s with the neutral refusal', async (_label, tamper) => {
+        const { token } = subject.seedLink()
+        const [item] = (await galleryPage(token)).items
+
+        const response = await request(subject.app).get(tamper(item?.downloadUrl ?? ''))
+
+        expect(response.status).toBe(404)
+        expect(response.body.error.code).toBe('gallery.notAvailable')
+        expectGalleryHeaders(response)
+      })
+    })
+
+    it('refuses a signature minted for another link', async () => {
+      // A gala guest with a working URL for their own album swaps in the wedding's link id.
+      const wedding = subject.seedLink()
+      const gala = subject.seedLink({ eventId: GALA, createdBy: GALA_OWNER })
+      await subject.seedPhoto(aPhoto({ id: GALA_PHOTO, eventId: GALA, status: 'published' }))
+      const [galaItem] = (await galleryPage(gala.token)).items
+
+      const response = await request(subject.app).get(
+        (galaItem?.downloadUrl ?? '').replace(gala.link.id, wedding.link.id),
+      )
+
+      expect(response.status).toBe(404)
+    })
+
+    it('refuses a URL lifted from a revoked link, replayed under the event’s new link', async () => {
+      // The case the link id inside the signature exists for. The swap above is also
+      // refused because the gala photograph is not in the wedding; here the photograph
+      // is, and the new link is open — only the signature stands in the way.
+      const old = subject.seedLink()
+      const [item] = (await galleryPage(old.token)).items
+      await subject.shareLinks.revokeCurrent(WEDDING, subject.clock.now())
+      const fresh = subject.seedLink()
+
+      const response = await request(subject.app).get(
+        (item?.downloadUrl ?? '').replace(old.link.id, fresh.link.id),
+      )
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('gallery.notAvailable')
+    })
+
+    it.each<PhotoStatus>(['hidden', 'rejected', 'pending'])(
+      'refuses a correctly signed URL once its photograph is %s',
+      async (status) => {
+        const { token } = subject.seedLink()
+        const [item] = (await galleryPage(token)).items
+
+        subject.photos.seed(aPhoto({ id: PHOTO, eventId: WEDDING, status }))
+
+        for (const url of [item?.previewUrl, item?.viewUrl, item?.downloadUrl]) {
+          const response = await request(subject.app).get(url ?? '')
+          expect(response.status).toBe(404)
+          expect(response.body.error.code).toBe('gallery.notAvailable')
+        }
+      },
+    )
+
+    it('refuses every URL of a revoked link at once, not when its hour is up', async () => {
+      const { token } = subject.seedLink()
+      const [item] = (await galleryPage(token)).items
+      await request(subject.app)
+        .get(item?.previewUrl ?? '')
+        .expect(200)
+
+      await subject.shareLinks.revokeCurrent(WEDDING, subject.clock.now())
+
+      expect((await request(subject.app).get(item?.previewUrl ?? '')).status).toBe(404)
+      expect((await request(subject.app).get(item?.downloadUrl ?? '')).status).toBe(404)
+    })
+
+    it('refuses every URL of a link whose creator was switched off', async () => {
+      const { token } = subject.seedLink()
+      const [item] = (await galleryPage(token)).items
+
+      await subject.users.save(aUser({ id: OWNER, email: 'hote@example.test', disabledAt: AT }))
+
+      expect((await request(subject.app).get(item?.downloadUrl ?? '')).status).toBe(404)
+    })
+
+    it('refuses every URL of a link whose creator is no longer an owner', async () => {
+      const { token } = subject.seedLink()
+      const [item] = (await galleryPage(token)).items
+
+      await subject.memberships.grant({
+        eventId: WEDDING,
+        userId: OWNER,
+        role: 'moderator',
+        grantedAt: AT,
+      })
+
+      expect((await request(subject.app).get(item?.downloadUrl ?? '')).status).toBe(404)
+    })
+
+    it('refuses a URL whose hour has run out', async () => {
+      const { token } = subject.seedLink()
+      const [item] = (await galleryPage(token)).items
+
+      subject.clock.advance(HOUR)
+
+      expect((await request(subject.app).get(item?.downloadUrl ?? '')).status).toBe(404)
+    })
+
+    it('has its own budget per client', async () => {
+      const limited = buildGalleryHarness({ rateLimits: { ...limits(), galleryMediaPerMinute: 1 } })
+      await limited.seedPhoto(aPhoto({ id: PHOTO, eventId: WEDDING, status: 'published' }))
+      const { token } = limited.seedLink()
+      const page = (await request(limited.app).get(`/api/gallery/${token}/photos`).expect(200))
+        .body as {
+        items: { previewUrl: string; downloadUrl: string }[]
+      }
+
+      await request(limited.app)
+        .get(page.items[0]?.previewUrl ?? '')
+        .expect(200)
+      const second = await request(limited.app).get(page.items[0]?.downloadUrl ?? '')
+
+      expect(second.status).toBe(429)
+    })
+  })
+
+  describe('GET /api/gallery-media/:linkId/album.zip', () => {
+    it('streams the published album as a ZIP attachment named after the event', async () => {
+      const { token } = subject.seedLink()
+      const { archiveUrl } = (await request(subject.app).get(`/api/gallery/${token}`)).body as {
+        archiveUrl: string
+      }
+
+      const response = await request(subject.app).get(archiveUrl)
+
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toBe('application/zip')
+      expect(response.headers['content-disposition']).toBe(
+        `attachment; filename="${WEDDING_SLUG}-album.zip"`,
+      )
+      expect(response.headers['cache-control']).toBe('no-store')
+      expectGalleryHeaders(response)
+      // The recording archive writes one byte per entry: the published photograph only.
+      expect(subject.archive.names).toHaveLength(1)
+    })
+
+    describe('how many archives may stream at once', () => {
+      /** A writer that sends one byte and then holds the download open until released. */
+      const holdingWriter = () => {
+        let release = (): void => undefined
+        const gate = new Promise<void>((resolve) => {
+          release = resolve
+        })
+        const state = { open: 0 }
+        const writer: ArchiveWriter = {
+          stream: () =>
+            (async function* () {
+              state.open += 1
+              yield Uint8Array.of(1)
+              await gate
+            })(),
+        }
+        return { writer, state, release }
+      }
+
+      const archiveUrlOf = async (harness: GalleryHarness): Promise<string> => {
+        const { token } = harness.seedLink()
+        const body = (await request(harness.app).get(`/api/gallery/${token}`).expect(200)).body as {
+          archiveUrl: string
+        }
+        return body.archiveUrl
+      }
+
+      it('holds one client to two downloads, and frees the slot when one ends', async () => {
+        // A wedding's ZIP is minutes of disk reads: a rate per minute does not bound how
+        // many run together, and this is the number that does.
+        const hold = holdingWriter()
+        const holding = buildGalleryHarness({}, { archive: hold.writer })
+        const url = await archiveUrlOf(holding)
+        const open = () =>
+          request(holding.app)
+            .get(url)
+            .then((response) => response)
+
+        const held = [open(), open()]
+        await vi.waitFor(() => expect(hold.state.open).toBe(2))
+        const third = await request(holding.app).get(url)
+
+        expect(third.status).toBe(429)
+        expect(third.body.error.code).toBe('rate.limited')
+
+        hold.release()
+        expect((await Promise.all(held)).map((response) => response.status)).toEqual([200, 200])
+        expect((await request(holding.app).get(url)).status).toBe(200)
+      })
+
+      it('holds the whole box to four, whoever is asking', async () => {
+        const hold = holdingWriter()
+        const holding = buildGalleryHarness({ trustProxyHops: 1 }, { archive: hold.writer })
+        const url = await archiveUrlOf(holding)
+        const from = (client: string) =>
+          request(holding.app)
+            .get(url)
+            .set('X-Forwarded-For', client)
+            .then((response) => response)
+
+        const held = ['203.0.113.1', '203.0.113.2', '203.0.113.3', '203.0.113.4'].map(from)
+        await vi.waitFor(() => expect(hold.state.open).toBe(4))
+        const fifth = await from('203.0.113.5')
+
+        expect(fifth.status).toBe(503)
+
+        hold.release()
+        await Promise.all(held)
+      })
+    })
+
+    it('refuses an archive URL whose signature was altered', async () => {
+      const { token } = subject.seedLink()
+      const { archiveUrl } = (await request(subject.app).get(`/api/gallery/${token}`)).body as {
+        archiveUrl: string
+      }
+
+      const response = await request(subject.app).get(
+        archiveUrl.replace(/e=(\d+)/, (_m, e: string) => `e=${Number(e) + 1}`),
+      )
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('gallery.notAvailable')
+    })
+  })
+})
+
+/** The harness defaults, for a test that lowers one of them. */
+const limits = () => ({
+  uploadPerMinute: 12,
+  joinPerMinute: 20,
+  loginPerMinute: 10,
+  reactionPerMinute: 30,
+  galleryPerMinute: 60,
+  galleryMediaPerMinute: 600,
+  galleryUnlockPerClient: 10,
+  galleryUnlockPerLink: 50,
+})
+
+describe('the gallery router on its own', () => {
+  it('sends its own no-referrer, noindex and no-store, without helmet in front of it', async () => {
+    // The global `helmet` policy also sets `Referrer-Policy: no-referrer`, so every test
+    // above would pass with the gallery's own line deleted. This mounts the router with
+    // no helmet at all: the token is in the page's URL, and the gallery must not depend on
+    // a line in another file staying put.
+    const refuse = async (): Promise<never> => {
+      throw new Error('no use case is reached for a malformed token')
+    }
+    const harness = buildHarness({
+      routes: (app, deps) => {
+        app.use(
+          '/api',
+          galleryRoutes({
+            deps,
+            usecases: {
+              openGallery: refuse,
+              unlockGallery: refuse,
+              listGalleryPhotos: refuse,
+              getGalleryMedia: refuse,
+              downloadGalleryArchive: refuse,
+            },
+            limits: limits(),
+          }),
+        )
+      },
+    })
+
+    const response = await request(harness.app).get('/api/gallery/short')
+
+    expect(response.status).toBe(404)
+    expect(response.headers['referrer-policy']).toBe('no-referrer')
+    expect(response.headers['x-robots-tag']).toBe('noindex, nofollow')
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
+})

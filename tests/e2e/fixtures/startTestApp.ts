@@ -235,6 +235,8 @@ export const startTestApp = async ({ worker, env = {} }: StartOptions): Promise<
         JOIN_RATE_LIMIT_PER_MINUTE: '600',
         LOGIN_RATE_LIMIT_PER_MINUTE: '600',
         REACTION_RATE_LIMIT_PER_MINUTE: '600',
+        GALLERY_RATE_LIMIT_PER_MINUTE: '600',
+        GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: '6000',
         // Cost 10 rather than 12: this is the floor the hasher accepts, and it takes
         // roughly a quarter of the time. Every login in the suite pays it.
         BCRYPT_COST: '10',

@@ -155,6 +155,23 @@ describe('AppRoutes', () => {
 
     expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
   })
+
+  it('opens the shared gallery for the token in the path, with no session', async () => {
+    // Roadmap §4.1: the token is a path segment, like the join code, and it is the whole
+    // credential. The page is a lazy chunk under the guest layout, so this is also the
+    // case that proves the layout gave it a place to load into.
+    const { api } = at(`/g/${'Q'.repeat(43)}`)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
+    expect(api.gallery).toHaveBeenCalledWith('Q'.repeat(43), expect.any(AbortSignal))
+    expect(api.session).not.toHaveBeenCalled()
+  })
+
+  it('answers a gallery address with a segment too many with a 404', async () => {
+    at(`/g/${'Q'.repeat(43)}/extra`)
+
+    expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
+  })
 })
 
 /**

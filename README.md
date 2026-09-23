@@ -51,6 +51,12 @@ Pi under the projector — and nothing leaves it.
   change one of those settings mid-evening.
 - **The album is yours afterwards.** One ZIP, full resolution, and an automatic purge
   when you choose one.
+- **And your guests', with one link.** The morning after, make a shared gallery link on
+  the event page and send it to everybody: the photographs that were on the wall, in full
+  resolution and without their location data, to download one by one or as a ZIP. It
+  expires when you say (a month unless you choose otherwise), it can ask for a password,
+  and you can switch it off at any moment — every photo it ever showed stops loading at
+  once.
 
 And the parts that only show up on the night:
 

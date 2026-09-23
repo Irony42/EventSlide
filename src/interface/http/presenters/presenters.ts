@@ -14,6 +14,9 @@ import type {
   EventSettingsDto,
   EventSummaryDto,
   EventThemeDto,
+  GalleryDto,
+  GalleryPageDto,
+  GalleryPhotoDto,
   GuestDto,
   GuestPhotoDto,
   ModerationPhotoDto,
@@ -21,7 +24,17 @@ import type {
   PrivacyNoticeStateDto,
   PublicEventDto,
   SessionUserDto,
+  ShareLinkCreatedDto,
+  ShareLinkDto,
 } from './dto'
+import type { CreatedShareLink } from '../../../application/usecases/gallery/createShareLink'
+import type { ArchiveGrant, MediaGrant } from '../../../application/usecases/gallery/galleryAccess'
+import type { ShareLinkView } from '../../../application/usecases/gallery/getShareLink'
+import type {
+  GalleryItem,
+  GalleryPage,
+} from '../../../application/usecases/gallery/listGalleryPhotos'
+import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
 
 /**
  * Entity to wire format.
@@ -707,4 +720,82 @@ export const toWallMissionDto = (row: WallMissionStanding): WallMissionDto => ({
   scope: row.mission.scope,
   achieved: row.achieved,
   completedByGuests: row.progress.completedByGuests,
+})
+
+// ----------------------------------------------------------- shared gallery --
+
+/**
+ * The address a host sends (roadmap §4.1). A path, like the join link, and built from
+ * `PUBLIC_URL` like the join link, so it is the address a phone can actually reach
+ * rather than whatever the host's own browser happened to be pointed at.
+ */
+export const galleryUrl = (publicUrl: string, token: string): string =>
+  `${publicUrl}/g/${encodeURIComponent(token)}`
+
+/**
+ * A signed media URL. Relative, like every other media URL here, because the page that
+ * renders it is on this origin.
+ *
+ * The link's **id** is in it, never its token: this is the URL a guest's browser shows
+ * for "copy image address", and it must not carry the key to the whole album. `e` and
+ * `s` are the expiry and the signature — both inside the MAC, with the path's three
+ * segments.
+ */
+export const galleryMediaUrl = (grant: MediaGrant): string =>
+  `/api/gallery-media/${encodeURIComponent(grant.linkId)}/${encodeURIComponent(
+    grant.photoId,
+  )}/${grant.variant}?e=${grant.expiresAt.getTime()}&s=${grant.signature}`
+
+export const galleryArchiveUrl = (grant: ArchiveGrant): string =>
+  `/api/gallery-media/${encodeURIComponent(grant.linkId)}/album.zip?e=${grant.expiresAt.getTime()}&s=${grant.signature}`
+
+export const toShareLinkDto = ({ link, available }: ShareLinkView): ShareLinkDto => ({
+  id: link.id,
+  createdAt: link.createdAt.toISOString(),
+  expiresAt: link.expiresAt.toISOString(),
+  hasPassword: link.requiresPassword,
+  available,
+})
+
+/** A new link is available by construction: it was made, just now, by an owner. */
+export const toShareLinkCreatedDto = (
+  { link, token }: CreatedShareLink,
+  context: Pick<PresenterContext, 'publicUrl'>,
+): ShareLinkCreatedDto => ({
+  link: toShareLinkDto({ link, available: true }),
+  url: galleryUrl(context.publicUrl, token),
+})
+
+export const toGalleryDto = (view: GalleryView): GalleryDto => ({
+  eventName: view.event.name.value,
+  theme: toEventThemeDto(view.event.settings.theme),
+  photoCount: view.photoCount,
+  expiresAt: view.link.expiresAt.toISOString(),
+  archiveUrl: galleryArchiveUrl(view.archive),
+})
+
+/**
+ * One tile. No author: a guest's first name was shown in the room, and a link that is
+ * forwarded beyond the room is a different audience. The caption stays — it was the
+ * photograph's own words on the wall, and it is what makes an `alt` worth reading.
+ */
+export const toGalleryPhotoDto = ({
+  photo,
+  preview,
+  view,
+  download,
+}: GalleryItem): GalleryPhotoDto => ({
+  id: photo.id,
+  kind: photo.kind,
+  width: photo.dimensions.width,
+  height: photo.dimensions.height,
+  caption: photo.caption?.value ?? null,
+  previewUrl: galleryMediaUrl(preview),
+  viewUrl: galleryMediaUrl(view),
+  downloadUrl: galleryMediaUrl(download),
+})
+
+export const toGalleryPageDto = (page: GalleryPage): GalleryPageDto => ({
+  items: page.items.map(toGalleryPhotoDto),
+  nextCursor: page.nextCursor,
 })

@@ -188,12 +188,12 @@ describe('usePrivacyNotice', () => {
   })
 
   it('shows no notice rather than a shorter one when the server names an audience this bundle cannot word', async () => {
-    // A bundle the service worker cached can be older than the server. The day the shared
-    // gallery of roadmap 4.1 adds an audience, a notice rendered without that line would
-    // tell the guest less than the truth about who sees a photo.
+    // A bundle the service worker cached can be older than the server. The shared gallery
+    // of roadmap 4.1 was the first audience such a bundle could not word; a notice
+    // rendered without that line would tell the guest less than the truth.
     const newer = {
       ...UNREAD,
-      notice: { ...UNREAD.notice, audiences: ['wall', 'organisers', 'sharedGallery'] },
+      notice: { ...UNREAD.notice, audiences: ['wall', 'organisers', 'aFutureAudience'] },
     } as unknown as PrivacyNoticeState
     const api = fakeApi({ privacyNotice: vi.fn(async () => newer) })
 

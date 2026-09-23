@@ -108,6 +108,9 @@ interface EndpointCase {
 }
 
 /** Every path here is transcribed from docs/API.md, not from `client.ts`. */
+/** A token-shaped value: 43 base64url characters, as the server mints them. */
+const GALLERY_TOKEN = 'Q'.repeat(43)
+
 const ENDPOINTS: readonly EndpointCase[] = [
   // public
   {
@@ -363,6 +366,42 @@ const ENDPOINTS: readonly EndpointCase[] = [
     path: `/api/events/${SLUG}/missions/mission-1`,
     invoke: (client) => client.deleteMission(SLUG, 'mission-1'),
   },
+  {
+    name: 'shareLink',
+    verb: 'get',
+    path: `/api/events/${SLUG}/share-link`,
+    invoke: (client) => client.shareLink(SLUG),
+  },
+  {
+    name: 'createShareLink',
+    verb: 'post',
+    path: `/api/events/${SLUG}/share-link`,
+    invoke: (client) => client.createShareLink(SLUG, { expiresInDays: 30 }),
+  },
+  {
+    name: 'revokeShareLink',
+    verb: 'del',
+    path: `/api/events/${SLUG}/share-link`,
+    invoke: (client) => client.revokeShareLink(SLUG),
+  },
+  {
+    name: 'gallery',
+    verb: 'get',
+    path: `/api/gallery/${GALLERY_TOKEN}`,
+    invoke: (client) => client.gallery(GALLERY_TOKEN),
+  },
+  {
+    name: 'unlockGallery',
+    verb: 'post',
+    path: `/api/gallery/${GALLERY_TOKEN}/unlock`,
+    invoke: (client) => client.unlockGallery(GALLERY_TOKEN, 'une phrase de passe'),
+  },
+  {
+    name: 'galleryPhotos',
+    verb: 'get',
+    path: `/api/gallery/${GALLERY_TOKEN}/photos`,
+    invoke: (client) => client.galleryPhotos(GALLERY_TOKEN, null),
+  },
 ]
 
 describe('every endpoint addresses the documented method and path', () => {
@@ -418,6 +457,35 @@ describe('what comes back', () => {
       .catch((cause: unknown) => cause)
 
     expect(failure).toBe(refusal)
+  })
+})
+
+describe('the shared gallery’s requests', () => {
+  it('posts the gallery password in a body, never in the address', async () => {
+    await subject().unlockGallery(GALLERY_TOKEN, 'une phrase de passe')
+
+    expect(only().path).not.toContain('phrase')
+    expect(only().body).toEqual({ password: 'une phrase de passe' })
+  })
+
+  it('sends only the choices the host made for a new link', async () => {
+    await subject().createShareLink(SLUG, { expiresInDays: 7, password: '' })
+
+    // An empty password field is "no password", not a 400 for a string too short.
+    expect(only().body).toEqual({ expiresInDays: 7 })
+  })
+
+  it('sends a password the host did type', async () => {
+    await subject().createShareLink(SLUG, { password: 'une phrase de passe' })
+
+    expect(only().body).toEqual({ password: 'une phrase de passe' })
+  })
+
+  it('asks for the next page with the cursor the server sealed, and the first without one', async () => {
+    await subject().galleryPhotos(GALLERY_TOKEN, 'scellé.1')
+    await subject().galleryPhotos(GALLERY_TOKEN, null)
+
+    expect(calls.map((call) => call.query)).toEqual([{ cursor: 'scellé.1' }, undefined])
   })
 })
 

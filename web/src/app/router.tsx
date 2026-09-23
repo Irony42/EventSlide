@@ -74,6 +74,15 @@ const EventSettingsPage = lazy(async () => ({
   default: (await import('../features/admin/EventSettingsPage')).EventSettingsPage,
 }))
 
+/**
+ * The shared gallery (roadmap §4.1): a guest surface, and lazy all the same. The person
+ * who opens it is not standing at the venue on its Wi-Fi with a photo to send — they are
+ * at home the next week — so the guest's own eager chunk does not pay for it.
+ */
+const GalleryPage = lazy(async () => ({
+  default: (await import('../features/gallery/GalleryPage')).GalleryPage,
+}))
+
 const ChangePasswordPage = lazy(async () => ({
   default: (await import('../features/auth/ChangePasswordPage')).ChangePasswordPage,
 }))
@@ -142,6 +151,22 @@ const GuestLayout = () => {
     </ToastProvider>
   )
 }
+
+/**
+ * The loader and the crash screen for the one lazy page under the guest layout.
+ *
+ * The guest's own pages are eager, so `GuestLayout` has neither; without this the shared
+ * gallery's chunk would suspend all the way up to the router's outer boundary and take the
+ * shell — header, language picker and all — off the screen while it loads, and a chunk
+ * that failed after a deploy would have no boundary to land in at all.
+ */
+const LazyGuestPage = () => (
+  <ErrorBoundary>
+    <Suspense fallback={<RouteFallback />}>
+      <Outlet />
+    </Suspense>
+  </ErrorBoundary>
+)
 
 /**
  * The host console, in the host's own language, re-providing nothing.
@@ -221,6 +246,12 @@ export function AppRoutes() {
               mistyped `/admin` address. */}
           <Route path="/join/*" element={<NotFoundView />} />
           <Route path="/e/*" element={<NotFoundView />} />
+          {/* The shared gallery. The token is a path segment, like the join code, and it
+              is the whole credential: nothing here signs anybody in. */}
+          <Route element={<LazyGuestPage />}>
+            <Route path="/g/:token" element={<GalleryPage />} />
+          </Route>
+          <Route path="/g/*" element={<NotFoundView />} />
         </Route>
 
         {/* Public, and behind no session: a projector has nobody to log it in. */}

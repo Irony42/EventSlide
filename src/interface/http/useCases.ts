@@ -50,6 +50,15 @@ import type { GetGuestChecklist } from '../../application/usecases/missions/getG
 import type { ListMissions } from '../../application/usecases/missions/listMissions'
 import type { UpdateMission } from '../../application/usecases/missions/updateMission'
 
+import type { CreateShareLink } from '../../application/usecases/gallery/createShareLink'
+import type { DownloadGalleryArchive } from '../../application/usecases/gallery/downloadGalleryArchive'
+import type { GetGalleryMedia } from '../../application/usecases/gallery/getGalleryMedia'
+import type { GetShareLink } from '../../application/usecases/gallery/getShareLink'
+import type { ListGalleryPhotos } from '../../application/usecases/gallery/listGalleryPhotos'
+import type { OpenGallery } from '../../application/usecases/gallery/openGallery'
+import type { RevokeShareLink } from '../../application/usecases/gallery/revokeShareLink'
+import type { UnlockGallery } from '../../application/usecases/gallery/unlockGallery'
+
 /**
  * What the HTTP layer needs from the application.
  *
@@ -120,6 +129,16 @@ export interface HttpUseCases {
   readonly updateMission: UpdateMission
   readonly deleteMission: DeleteMission
   readonly getGuestChecklist: GetGuestChecklist
+
+  // the shared gallery (roadmap §4.1): the host's three, then the link holder's five
+  readonly createShareLink: CreateShareLink
+  readonly getShareLink: GetShareLink
+  readonly revokeShareLink: RevokeShareLink
+  readonly openGallery: OpenGallery
+  readonly unlockGallery: UnlockGallery
+  readonly listGalleryPhotos: ListGalleryPhotos
+  readonly getGalleryMedia: GetGalleryMedia
+  readonly downloadGalleryArchive: DownloadGalleryArchive
 
   // reactions
   readonly reactToPhoto: ReactToPhoto

@@ -5,6 +5,8 @@ import { Event } from '../../domain/events/event'
 import { EventName } from '../../domain/events/eventName'
 import { EventSettings, type EventSettingsPatch } from '../../domain/events/eventSettings'
 import { retentionApplies, type EventStatus } from '../../domain/events/eventStatus'
+import { ShareLink } from '../../domain/gallery/shareLink'
+import { ShareLinkLifetime } from '../../domain/gallery/shareLinkLifetime'
 import { DisplayName } from '../../domain/guests/displayName'
 import { Mission } from '../../domain/missions/mission'
 import { MissionPrompt } from '../../domain/missions/missionPrompt'
@@ -29,6 +31,7 @@ import {
   asMissionId,
   asPhotoId,
   asReactionId,
+  asShareLinkId,
   asUserId,
   type MissionId,
 } from '../../domain/shared/ids'
@@ -333,6 +336,56 @@ export const aMission = (input: MissionInput = {}): Mission => {
     asMissionId(id),
     pick(input.createdAt, AT),
   )
+}
+
+// ----------------------------------------------------------------- share link --
+
+export interface ShareLinkInput {
+  readonly id?: string
+  readonly eventId?: string
+  /** Sixty-four hex characters. Defaults to one derived from the id, so fixtures differ. */
+  readonly tokenDigest?: string
+  readonly passwordHash?: string | null
+  readonly createdBy?: string
+  readonly createdAt?: Date
+  /** Whole days, as a host chooses them. */
+  readonly lifetimeDays?: number
+  readonly revokedAt?: Date | null
+}
+
+/** A hex digest unique to a label, so two fixtures never collide on the token index. */
+const hexDigestFor = (label: string): string =>
+  [...label]
+    .map((character) => character.charCodeAt(0).toString(16).padStart(2, '0'))
+    .join('')
+    .padEnd(64, '0')
+    .slice(0, 64)
+
+/**
+ * A shared gallery link, open, with no password and the product's default lifetime.
+ *
+ * `createdBy` defaults to `user-1`, which is `aUser()`'s id: a link is only usable while
+ * its creator owns the event, so a fixture world that seeds the default owner and the
+ * default link agrees about who that is without every test spelling it.
+ */
+export const aShareLink = (input: ShareLinkInput = {}): ShareLink => {
+  const id = pick(input.id, 'share-link-1')
+  const created = must(
+    ShareLink.create(
+      {
+        eventId: asEventId(pick(input.eventId, 'event-1')),
+        tokenDigest: pick(input.tokenDigest, hexDigestFor(id)),
+        passwordHash: pick(input.passwordHash, null),
+        createdBy: asUserId(pick(input.createdBy, 'user-1')),
+        lifetime: must(ShareLinkLifetime.create(input.lifetimeDays), 'aShareLink.lifetime'),
+      },
+      asShareLinkId(id),
+      pick(input.createdAt, AT),
+    ),
+    'aShareLink',
+  )
+  const revokedAt = pick(input.revokedAt, null)
+  return revokedAt === null ? created : created.revoke(revokedAt)
 }
 
 // ------------------------------------------------------------------ clip job --

@@ -179,9 +179,9 @@ describe('POST /api/join', () => {
       privacyNotice: {
         notice: {
           revision:
-            'publication=afterReview;audiences=wall+organisers;retention=none;selfRemoval=900',
+            'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=none;selfRemoval=900',
           publication: 'afterReview',
-          audiences: ['wall', 'organisers'],
+          audiences: ['wall', 'organisers', 'sharedGallery'],
           retentionDays: null,
           selfRemovalSeconds: 900,
         },
@@ -454,6 +454,10 @@ describe('POST /api/join', () => {
         joinPerMinute: 1,
         loginPerMinute: 10,
         reactionPerMinute: 30,
+        galleryPerMinute: 60,
+        galleryMediaPerMinute: 600,
+        galleryUnlockPerClient: 10,
+        galleryUnlockPerLink: 50,
       },
     })
 

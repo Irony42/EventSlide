@@ -7,6 +7,7 @@ import type {
   GuestListResponse,
   MissionDto,
   ModeratorDto,
+  ShareLinkResponse,
 } from '../../../lib/api/dto'
 
 /**
@@ -67,5 +68,15 @@ export const useMissions = (slug: string): LoaderState<readonly MissionDto[]> =>
     async (signal: AbortSignal) => (await api.listMissions(slug, signal)).items,
     [api, slug],
   )
+  return useLoader(load)
+}
+
+/**
+ * The event's shared gallery link (roadmap §4.1): its status, never its address — only the
+ * token's digest is stored, so the address exists once, in the answer to making it.
+ */
+export const useShareLink = (slug: string): LoaderState<ShareLinkResponse> => {
+  const api = useApi()
+  const load = useCallback((signal: AbortSignal) => api.shareLink(slug, signal), [api, slug])
   return useLoader(load)
 }

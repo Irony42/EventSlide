@@ -182,6 +182,8 @@ export const en: UiText = {
       wall: 'Anyone looking at the event’s screen, in the room or through its link, once a photo is on it.',
       organisers:
         'The organiser and their team, who see everything you send and can download the photos shown on the screen.',
+      sharedGallery:
+        'Anyone the organiser sends a private link to the album, if they make one, and anyone that link is forwarded to: they can view and download the photos shown on the screen in full resolution, until the link expires or is withdrawn.',
     },
     noticeRetentionDays: (days: number) =>
       t.count(days, {
@@ -361,6 +363,12 @@ export const en: UiText = {
       'That colour would not be readable on the screen in the room. Choose one from the list.',
     'eventTheme.accentTooCloseToStatus':
       'That colour is too close to the application’s status colours. Choose another one.',
+    'gallery.notAvailable': 'This link is no longer available.',
+    'gallery.passwordRequired': 'This album is protected by a password.',
+    'gallery.wrongPassword': 'Incorrect password.',
+    'gallery.tooManyAttempts': 'Too many attempts. Try again in a quarter of an hour.',
+    'gallery.cursorInvalid': 'The list of photos has changed. Reload the page.',
+    'shareLink.lifetimeInvalid': 'Choose a length between 1 and 90 days.',
   },
 
   moderation: {
@@ -741,6 +749,33 @@ export const en: UiText = {
     missionUnanswered: 'Not answered yet',
     missionsFull: (max: number) =>
       `${t.number(max)} missions at most: that is what keeps the list readable at ten metres.`,
+    shareLink: 'Shared album',
+    shareLinkHint:
+      'A link to send after the party: the published photos, to download at full resolution.',
+    shareLinkNone: 'No link is active.',
+    shareLinkActive: (date: string) => `Open until ${date}`,
+    shareLinkUnavailable:
+      'This link no longer opens: it has expired, or the person who made it no longer organises the event.',
+    shareLinkProtected: 'Protected by a password',
+    shareLinkUnprotected: 'No password',
+    shareLinkLifetime: 'Open for',
+    shareLinkDays: (days: number) =>
+      t.count(days, { one: `${t.number(days)} day`, other: `${t.number(days)} days` }),
+    shareLinkPassword: 'Password',
+    shareLinkPasswordHint: (min: number) =>
+      `At least ${t.number(min)} characters. Send it separately from the link.`,
+    shareLinkCreate: 'Create the link',
+    shareLinkReplace: 'Replace with a new link',
+    shareLinkReplaceHint: 'The current link will stop working at once.',
+    shareLinkCreated: 'Here is the link. Copy it now: it will not be shown again.',
+    shareLinkUrl: 'Link address',
+    shareLinkCopy: 'Copy the link',
+    shareLinkCopied: 'Link copied.',
+    shareLinkRevoke: 'Switch off the link',
+    shareLinkRevokeTitle: 'Switch off this link?',
+    shareLinkRevokeHint:
+      'Nobody will be able to open the album with this link any more, even with the password. You can make a new one.',
+    shareLinkRevoked: 'The link has been switched off.',
   },
 
   auth: {
@@ -769,5 +804,30 @@ export const en: UiText = {
     nowDeciding: (photo: string) => `Photo to moderate. ${photo}`,
     undoLast: 'Undo the last decision',
     undoUnavailable: 'Only publishing can be undone.',
+  },
+  gallery: {
+    title: 'Shared album',
+    opening: 'Opening the album…',
+    unavailableTitle: 'This link is no longer available',
+    unavailableHint:
+      'It may have expired or been switched off. Ask the person who sent it to you for a new one.',
+    lockedTitle: 'Protected album',
+    lockedHint: 'Enter the password you were given with the link.',
+    passwordLabel: 'Password',
+    unlock: 'Open the album',
+    photoCount: (count: number) =>
+      t.count(count, { one: `${t.number(count)} photo`, other: `${t.number(count)} photos` }),
+    availableUntil: (date: string) => `Available until ${date}`,
+    privacyNote: 'Photos download at full resolution, without their location data.',
+    downloadAll: 'Download everything (.zip)',
+    download: 'Download the original',
+    downloadClip: 'Download the video',
+    openPhoto: (position: number) => `Enlarge photo ${t.number(position)}`,
+    photoAlt: (position: number) => `Photo ${t.number(position)} of the album`,
+    clipBadge: 'Video',
+    empty: 'No photo has been published in this album yet.',
+    loadMore: 'Show more photos',
+    viewerTitle: (position: number, total: number) =>
+      `Photo ${t.number(position)} of ${t.number(total)}`,
   },
 }

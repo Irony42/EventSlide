@@ -10,6 +10,7 @@ import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders
 import { authRoutes } from './routes/authRoutes'
 import { clipRoutes } from './routes/clipRoutes'
 import { eventRoutes } from './routes/eventRoutes'
+import { galleryHeaders, galleryRoutes, setGalleryHeaders } from './routes/galleryRoutes'
 import { guestRoutes } from './routes/guestRoutes'
 import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
 import { mediaRoutes } from './routes/mediaRoutes'
@@ -17,6 +18,7 @@ import { missionRoutes } from './routes/missionRoutes'
 import { moderationRoutes } from './routes/moderationRoutes'
 import { privacyNoticeRoutes } from './routes/privacyNoticeRoutes'
 import { publicRoutes } from './routes/publicRoutes'
+import { shareLinkRoutes } from './routes/shareLinkRoutes'
 import { streamRoutes } from './routes/streamRoutes'
 import type { HttpDeps } from './types'
 import type { PresenterContext } from './presenters/presenters'
@@ -79,6 +81,14 @@ export const buildServer = ({
   // from liveness is a container restart — mid-event, that drops every in-flight
   // upload. Being ahead of the CSRF gate follows from the same position.
   app.use('/api', healthRoutes(health))
+
+  // The shared gallery's headers, ahead of everything that can refuse a request before
+  // its router is reached — the body parser, the session, the CSRF gate. The token is in
+  // these paths, so a `400` for a malformed body or a `403` for a missing CSRF token
+  // needs `no-referrer`, `noindex` and `no-store` exactly as much as the album does.
+  // Two mounts, because a mount path matches at a `/` boundary and `/api/gallery` does
+  // not cover `/api/gallery-media`.
+  app.use(['/api/gallery', '/api/gallery-media'], galleryHeaders)
 
   // Bounded well below any legitimate payload: the only JSON bodies here are a login,
   // a caption and a list of at most 200 photo ids. Uploads go through multer.
@@ -155,6 +165,11 @@ export const buildServer = ({
   // path under the event, so where it sits among the routers is for reading order only.
   app.use('/api', privacyNoticeRoutes(routeDeps))
   app.use('/api', mediaRoutes(routeDeps))
+  // The shared gallery (roadmap §4.1): public, token-gated, with its own limits and its
+  // own headers. Its own router so that nothing mounted for the host's surface — a role
+  // check, a cache header — can be inherited by the one surface a stranger reaches.
+  app.use('/api', galleryRoutes({ deps, usecases, limits: config.rateLimits }))
+  app.use('/api', shareLinkRoutes(routeDeps))
   app.use('/api', moderationRoutes(routeDeps))
   // After the guest router, which owns 'missions/mine' on the same path prefix, and
   // before the event router for no reason other than reading order: the four routes here
@@ -206,6 +221,14 @@ const mountClient = (app: Express, clientDir: string, isProduction: boolean): vo
       },
     }),
   )
+
+  // The shared gallery's page. The same shell, with the gallery's headers: the token is
+  // in this address, so no referrer may carry it off, no crawler may index it and no
+  // cache may keep the page it opened. `no-store` rather than the shell's `no-cache`.
+  app.get(['/g', '/g/*'], (_req, res) => {
+    setGalleryHeaders(res)
+    res.sendFile('index.html', { root: clientDir, headers: { 'Cache-Control': 'no-store' } })
+  })
 
   // The SPA fallback. Everything that is not /api and not a file is a client route:
   // /join/:code, /e/:slug/display, /admin/**.

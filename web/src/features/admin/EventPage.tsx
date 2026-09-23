@@ -14,6 +14,7 @@ import { GuestListPanel } from './GuestListPanel'
 import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
+import { ShareLinkPanel } from './ShareLinkPanel'
 import { allowsModeration, isMutable, lifecycleActions, servesWall } from './eventLifecycle'
 import { useAlbumUrl, useEvent } from './hooks/useEventData'
 import { usePurgeEvent, useRotateJoinCode, useStatusChange } from './hooks/useEventActions'
@@ -189,6 +190,9 @@ export function EventPage() {
             §2.1). A moderator may read the list — `GET` allows it — but a panel whose
             every affordance is refused is worse than no panel. */}
         {isOwner ? <MissionsPanel slug={event.slug} /> : null}
+        {/* Owner-only, like every endpoint behind it: sending the album beyond the room
+            is a decision about the whole event (roadmap §4.1). */}
+        {isOwner ? <ShareLinkPanel slug={event.slug} /> : null}
         {/* Owner-only: every moderator endpoint requires it, so a moderator is not
             shown a panel whose requests would all come back 403. */}
         {isOwner ? <ModeratorsPanel slug={event.slug} /> : null}

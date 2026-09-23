@@ -127,6 +127,7 @@ generic fallback sentence to a guest, which is why the lists are kept in step.
 | -------------------- | --------------------------------------------------------------------------------- | ---------------------- |
 | **Host / moderator** | `es_session` cookie, `HttpOnly` `SameSite=Lax`                                    | `POST /api/auth/login` |
 | **Guest**            | `es_guest` cookie, `HttpOnly` `SameSite=Lax`, HMAC-signed and scoped to one event | `POST /api/join`       |
+| **Link holder**      | a gallery token in the path; for a protected link, an `es_gallery` unlock cookie  | a host, §6 share link  |
 | **Public**           | none                                                                              | —                      |
 
 A guest token grants: upload to **that one event** while it is `live`, deletion of
@@ -134,6 +135,11 @@ A guest token grants: upload to **that one event** while it is `live`, deletion 
 reaction, and reading and acknowledging the event's privacy notice for **that device**.
 Nothing else. It is checked against the event in the URL on every request,
 and the named guest row must not be revoked.
+
+A gallery token grants one thing: reading the **published** photographs of one event, in
+full resolution, while the link is open and its creator still owns the event. It is not a
+guest token and carries no event in the URL; §2's shared gallery routes resolve everything
+from it.
 
 ### CSRF
 
@@ -155,13 +161,25 @@ no cookie jar.
 
 Per minute, configurable, `429` with `Retry-After` when exceeded.
 
-| Endpoint                                      | Default | Bucket                  | Code                   |
-| --------------------------------------------- | ------- | ----------------------- | ---------------------- |
-| `POST /api/join`                              | 20      | client IP               | `rate.limited`         |
-| `POST /api/auth/login`                        | 10      | client IP               | `rate.limited`         |
-| `POST /api/events/:slug/photos`               | 12      | client IP **and** event | `rate.limited`         |
-| `POST /api/events/:slug/clips`                | 12      | client IP **and** event | `rate.limited`         |
-| `POST /api/events/:slug/photos/:id/reactions` | 30      | client IP **and** event | `reaction.rateLimited` |
+| Endpoint                                      | Default | Bucket                  | Code                      |
+| --------------------------------------------- | ------- | ----------------------- | ------------------------- |
+| `POST /api/join`                              | 20      | client IP               | `rate.limited`            |
+| `POST /api/auth/login`                        | 10      | client IP               | `rate.limited`            |
+| `POST /api/events/:slug/photos`               | 12      | client IP **and** event | `rate.limited`            |
+| `POST /api/events/:slug/clips`                | 12      | client IP **and** event | `rate.limited`            |
+| `POST /api/events/:slug/photos/:id/reactions` | 30      | client IP **and** event | `reaction.rateLimited`    |
+| `GET /api/gallery/:token`, `…/photos`, unlock | 120     | client IP               | `rate.limited`            |
+| `GET /api/gallery-media/…`                    | 3000    | client IP               | `rate.limited`            |
+| `POST /api/gallery/:token/unlock`             | 10 / 50 | IP / link, per 15 min   | `gallery.tooManyAttempts` |
+
+The gallery unlock is the one row counted per **quarter hour** and per **failure**: a
+successful unlock spends none of that allowance, so a family opening one album on the
+morning after is never locked out, and ten wrong passwords from one address — or fifty
+against one link, from anywhere — are. Every unlock, right or wrong, also spends one
+request of the page budget above, which is what bounds the hash verifications somebody who
+knows the password can ask for; a request that budget refuses is not counted as a guess. The archive (`album.zip` under `gallery-media`) is bounded by
+concurrency instead, two per client and four for the box, because one request is minutes
+of disk reads.
 
 The two guest write endpoints key on IP **and** event on purpose: a whole table of
 guests shares one access point and therefore one public IP, so a per-IP-only limit would
@@ -267,9 +285,9 @@ which is allowed.
   },
   "privacyNotice": {
     "notice": {
-      "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900",
+      "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900",
       "publication": "afterReview",
-      "audiences": ["room", "organisers"],
+      "audiences": ["wall", "organisers", "sharedGallery"],
       "retentionDays": 30,
       "selfRemovalSeconds": 900
     },
@@ -469,6 +487,111 @@ The name is resolved event-scoped, like every other read here.
 `archived`. A `closed` event still serves its wall: the projector is usually still on
 while people say goodbye.
 
+### The shared gallery (roadmap §4.1)
+
+The link a host makes in §6 and sends after the event: `<PUBLIC_URL>/g/<token>`, where
+the token is 43 base64url characters (256 random bits). The page at that address is the
+SPA shell, served with the headers below; the five routes here are what it calls.
+
+**One refusal for every dead link.** A malformed token, an unknown one, an expired or
+revoked link, a link whose creator has been switched off or is no longer an owner of the
+event, and a purged event all answer **`404 gallery.notAvailable`**, byte for byte, on
+every route here. The host's console is where the reason is shown.
+
+**Headers on every response, refusals included:** `Referrer-Policy: no-referrer`,
+`X-Robots-Tag: noindex, nofollow`, and `Cache-Control: no-store` — relaxed only for an
+inline rendition, to `private, max-age=<seconds until its URL expires>`. The SPA shell at
+`/g/*` carries the same three.
+
+**What is shown**: `published` photographs and clips of the link's event, never
+`pending`, `rejected` or `hidden` — narrower than the host's own `album.zip` (§4),
+which keeps hidden ones. Status is read on every request, so a photograph unpublished
+after the page loaded is refused although its URL is correctly signed.
+
+#### `GET /api/gallery/:token`
+
+**200**
+
+```json
+{
+  "eventName": "Camille & Sacha",
+  "theme": { "accentHue": 305, "fonts": "…", "frame": "…", "material": "glass" },
+  "photoCount": 124,
+  "expiresAt": "2026-07-20T21:00:00.000Z",
+  "archiveUrl": "/api/gallery-media/<linkId>/album.zip?e=<ms>&s=<signature>"
+}
+```
+
+**401 `gallery.passwordRequired`** for a protected link this browser has not unlocked —
+with no body but the error, so a forwarded link does not even say whose wedding it is.
+
+#### `POST /api/gallery/:token/unlock`
+
+`{ "password": "…" }`, **`.strict()`**. The password travels in a body and never in a
+URL. **204**, setting `es_gallery`: `HttpOnly`, `SameSite=Strict`, `Secure` behind TLS,
+`Path=/api/gallery`, `Max-Age` two hours or the link's remaining life, whichever is
+shorter. Its value is an expiry and a MAC over the link's id — not the password, and not
+the token. A link with no password answers 204 too.
+
+**Errors** — `401 gallery.wrongPassword`; `404 gallery.notAvailable` for a dead link,
+decided **before** any hash is compared; `429 gallery.tooManyAttempts` (§1);
+`400 request.invalid` for a body without a password; `403 request.csrfMissing` without
+the CSRF pair.
+
+#### `GET /api/gallery/:token/photos?cursor=…`
+
+One page of sixty, newest first. `cursor` is the `nextCursor` of the previous page, sealed
+by the server for this link; anything else is **`400 gallery.cursorInvalid`**.
+
+```json
+{
+  "items": [
+    {
+      "id": "…",
+      "kind": "photo",
+      "width": 4032,
+      "height": 3024,
+      "caption": "Les confettis !",
+      "previewUrl": "/api/gallery-media/<linkId>/<photoId>/thumb?e=<ms>&s=<signature>",
+      "viewUrl": "/api/gallery-media/<linkId>/<photoId>/display?e=<ms>&s=<signature>",
+      "downloadUrl": "/api/gallery-media/<linkId>/<photoId>/original?e=<ms>&s=<signature>"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+A clip's `previewUrl` and `viewUrl` are its `poster` and its `downloadUrl` its `video`.
+No author name: a guest's first name was shown in the room, and a forwarded link is a
+wider audience. Same `401` as above for a protected link.
+
+#### `GET /api/gallery-media/:linkId/:photoId/:variant?e=…&s=…`
+
+The bytes behind one signed URL. `e` is the expiry in epoch milliseconds and `s` an
+HMAC-SHA256 over the link id, the photo id, the rendition and `e` — so a URL altered in
+any of the four, or signed for another link, is refused. URLs live **one hour**, never
+past the link's own expiry. They carry the link's **id**, never its token.
+
+The signature is checked before anything is read; then the expiry; then **the link, on
+this request** — so revoking a link kills every URL it ever issued at once rather than
+when their hour is up; then the photograph, looked up in the link's own event.
+
+The download rendition (`original` for a photograph — the ingest re-encode, EXIF and GPS
+already stripped — and `video` for a clip) is `Content-Disposition: attachment;
+filename="<slug>-<digest>.<jpg|mp4>"` with `Cache-Control: no-store`; the others are
+`inline`. `X-Content-Type-Options: nosniff` on both.
+
+**Errors** — `404 gallery.notAvailable` for every refusal; `404 photo.mediaMissing` for a
+correctly signed URL whose bytes are gone.
+
+#### `GET /api/gallery-media/:linkId/album.zip?e=…&s=…`
+
+Every published photograph and clip, as their downloads, in one streamed ZIP:
+`Content-Disposition: attachment; filename="<slug>-album.zip"`, `Cache-Control:
+no-store`. The link is re-checked **before every entry**: revoked mid-download, the
+response is aborted rather than ended cleanly, because a well-formed ZIP that stops early
+looks exactly like a complete album. `404 gallery.notAvailable` otherwise.
+
 ---
 
 ## 3. Guest
@@ -639,9 +762,9 @@ a setting since. `Cache-Control: no-store`.
 ```json
 {
   "notice": {
-    "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900",
+    "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900",
     "publication": "afterReview",
-    "audiences": ["room", "organisers"],
+    "audiences": ["wall", "organisers", "sharedGallery"],
     "retentionDays": 30,
     "selfRemovalSeconds": 900
   },
@@ -653,16 +776,19 @@ a setting since. `Cache-Control: no-store`.
 `src/domain/privacy/privacyNotice.ts` on every read, and the client words them in the
 guest's language, so the notice cannot promise something the configuration contradicts:
 
-| Field                | Derived from                                                        | Meaning                                                                                                                                                      |
-| -------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `publication`        | `moderation`                                                        | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                           |
-| `audiences`          | nothing yet                                                         | `wall` (the projected wall, once published — the room, and anyone its public link reaches) and `organisers` (host and moderators: everything, and the album) |
-| `retentionDays`      | `retentionDays`                                                     | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                             |
-| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation` | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                    |
-| `revision`           | all of the above                                                    | opaque; two notices with the same revision say the same thing                                                                                                |
+| Field                | Derived from                                                        | Meaning                                                                                                                                                                                                                                                                                                                                          |
+| -------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `publication`        | `moderation`                                                        | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                                                                                                                                                                                                               |
+| `audiences`          | nothing: the same on every event                                    | `wall` (the projected wall, once published — the room, and anyone its public link reaches), `organisers` (host and moderators: everything, and the album) and `sharedGallery` (whoever the host may send the album's private link to, and whoever it is forwarded to: published only, in full resolution, until it expires or is withdrawn — §2) |
+| `retentionDays`      | `retentionDays`                                                     | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                 |
+| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation` | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                        |
+| `revision`           | all of the above                                                    | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                    |
 
-`audiences` is a list so that a third audience — the shared gallery link of roadmap §4.1 —
-is one more member rather than a new field. A client must treat an audience it has no
+`audiences` is a list, and the shared gallery link of roadmap §4.1 was the first member
+added to it. It is on every event rather than only on one with a live link: a notice is
+read before an upload, a host makes the link after the event, and a guest is not asked
+again once the event has closed — so the true statement at the moment of reading is that
+the host _may_ share the album. A client must treat an audience it has no
 sentence for as a notice it cannot show, not as a shorter one — this one shows no notice and
 keeps the picker, as for a tab older than the feature, until a newer bundle loads.
 
@@ -684,7 +810,7 @@ not offer the picker until it is read. The reasons are on `privacyNoticeRoutes.t
 
 ```json
 {
-  "revision": "publication=afterReview;audiences=wall+organisers;retention=30;selfRemoval=900"
+  "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900"
 }
 ```
 
@@ -1738,6 +1864,51 @@ password.
 unowned has no route back, since inviting is itself an owner's action.
 **Errors** — `409 membership.lastOwner`, `404 membership.notFound`.
 
+### `GET /api/events/:slug/share-link`
+
+The event's shared gallery link (roadmap §4.1). **`owner`**, like the two below:
+publishing the album beyond the room is a decision about the whole event. **200**,
+`Cache-Control: no-store`:
+
+```json
+{
+  "link": {
+    "id": "…",
+    "createdAt": "2026-06-21T10:00:00.000Z",
+    "expiresAt": "2026-07-21T10:00:00.000Z",
+    "hasPassword": true,
+    "available": true
+  }
+}
+```
+
+`link` is `null` when the event has none. An expired link is still reported until it is
+replaced, with `available: false`; so is one made by a co-owner whose account has since
+been switched off. `available` is computed by the rule the gallery itself asks. **There is
+no URL**: only the token's SHA-256 is stored, so the address exists once, in the answer
+below.
+
+### `POST /api/events/:slug/share-link`
+
+**`owner`**. `{ "expiresInDays"?: 1–90, "password"?: string | null }`, **`.strict()`**.
+Absent lifetime is 30 days; absent, `null` or empty password is none. Any event status,
+archived included — the album is usually sent after the event is over.
+
+**201**, `Cache-Control: no-store`: `{ "link": { …as above }, "url":
+"<PUBLIC_URL>/g/<token>" }`. Making a link **revokes the current one in the same
+transaction**, so a link that has gone further than meant is dealt with by making a new
+one.
+
+**Errors** — `400 shareLink.lifetimeInvalid` outside 1–90 days; the account policy's
+`400 password.*` codes (twelve characters, not the event's name); `400 request.invalid`
+for a lifetime that is not a whole number or an extra key; `403 auth.forbidden` for a
+moderator; `404 event.notFound` for a non-member.
+
+### `DELETE /api/events/:slug/share-link`
+
+**`owner`**. **204**, idempotent: revoking when there is no link succeeds. Takes effect
+on the next request any gallery page, thumbnail, download or archive entry makes.
+
 ### `GET /api/events/:slug/missions`
 
 The host's prompt list (roadmap §2.1), with how the room is answering it.
@@ -2020,8 +2191,10 @@ wall channel instead, which worked only because the frames are identical.
 ## 8. Not in 2.0
 
 Deliberate omissions, with reasons in [ROADMAP.md](ROADMAP.md): no public write API for
-third parties, no webhook delivery, no OAuth for hosts, no per-photo signed URLs (media
-is authorized per request instead), and no GraphQL.
+third parties, no webhook delivery, no OAuth for hosts, no signed URLs for the event's own
+media (it is authorized per request instead — the shared gallery's signed URLs in §2 are
+the one exception, and they are re-checked against the link per request too), and no
+GraphQL.
 
 ---
 

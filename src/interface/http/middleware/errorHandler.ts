@@ -6,6 +6,23 @@ import type { Logger } from '../../../application/ports/logger'
 import { errorBody, sendError, statusForKind } from '../presenters/send'
 
 /**
+ * Where a shared gallery's token sits in a path: `/g/<token>` and `/api/gallery/<token>/…`.
+ * Case-insensitive, as Express's routing is — `/API/Gallery/<token>` reaches the same
+ * route. `/api/gallery-media/…` does not match: it carries a link's id and a signature,
+ * neither of which opens anything alone.
+ */
+const TOKEN_IN_PATH = /^(\/api\/gallery|\/g)\/[^/]+/i
+
+/**
+ * The request path as it may be logged: a gallery's token written as `:token`.
+ *
+ * That token is the credential itself — whoever reads it reads the album — and a log line
+ * is read by whoever operates the box and by whatever ships its logs, long after the link
+ * was sent. Every other path is logged as it is.
+ */
+export const loggablePath = (path: string): string => path.replace(TOKEN_IN_PATH, '$1/:token')
+
+/**
  * Attaches a request id and a child logger before anything else runs.
  *
  * The id is echoed in the `X-Request-Id` response header and appears on every log line
@@ -26,7 +43,7 @@ export const requestContext =
     res.setHeader('x-request-id', requestId)
     req.context = {
       requestId,
-      logger: logger.child({ requestId, method: req.method, path: req.path }),
+      logger: logger.child({ requestId, method: req.method, path: loggablePath(req.path) }),
     }
     next()
   }

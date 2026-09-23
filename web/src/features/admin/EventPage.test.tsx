@@ -179,6 +179,15 @@ describe('EventPage', () => {
     expect(screen.queryByRole('button', { name: fr.admin.rotateJoinCode })).toBeNull()
   })
 
+  it('gives the owner the shared gallery link, on the event it belongs to', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+
+    expect(await screen.findByRole('heading', { name: fr.admin.shareLink })).toBeVisible()
+    expect(api.shareLink).toHaveBeenCalledWith('camille-et-sacha', expect.any(AbortSignal))
+  })
+
   it('hides the owner-only controls from a moderator', async () => {
     const api = fakeApi({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) })
 
@@ -188,6 +197,10 @@ describe('EventPage', () => {
     // Every moderator endpoint requires an owner, so the panel is not rendered at all
     // rather than shown with every request coming back 403.
     expect(screen.queryByRole('heading', { name: fr.admin.moderators })).toBeNull()
+    // Sending the album beyond the room is the owner's decision (roadmap §4.1), and every
+    // share-link endpoint says so; a moderator is not shown a panel of 403s.
+    expect(screen.queryByRole('heading', { name: fr.admin.shareLink })).toBeNull()
+    expect(api.shareLink).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: fr.admin.purge })).toBeNull()
     expect(screen.queryByRole('button', { name: fr.admin.rotateJoinCode })).toBeNull()
     expect(screen.queryByRole('button', { name: fr.admin.closeEvent })).toBeNull()

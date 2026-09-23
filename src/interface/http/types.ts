@@ -122,6 +122,14 @@ export interface HttpConfig {
     readonly joinPerMinute: number
     readonly loginPerMinute: number
     readonly reactionPerMinute: number
+    /** The shared gallery's pages, per client (roadmap §4.1). */
+    readonly galleryPerMinute: number
+    /** Its bytes: thumbnails, downloads, the archive. Per client. */
+    readonly galleryMediaPerMinute: number
+    /** Failed password attempts per client, per fifteen minutes. */
+    readonly galleryUnlockPerClient: number
+    /** Failed password attempts per link, from everybody, per fifteen minutes. */
+    readonly galleryUnlockPerLink: number
   }
 }
 
