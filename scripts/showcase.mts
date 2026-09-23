@@ -10,11 +10,15 @@
  * what the guest's phone and the host's console read their language from, and the
  * seeded event's `wallLanguage` is set to `en` explicitly, because the projector has
  * nobody in front of it to negotiate anything — see `src/domain/events/eventLanguage.ts`.
+ *
+ * Run it against a fresh build, because the server it boots is `dist/`:
+ *
+ *   npm run build && npx tsx scripts/showcase.mts --out <dir>
  */
 
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { chromium, type Browser, type Page } from 'playwright'
+import { chromium, type Browser, type Locator, type Page } from 'playwright'
 import sharp from 'sharp'
 import { startTestApp } from '../tests/e2e/fixtures/startTestApp'
 
@@ -80,10 +84,112 @@ const PICTURES = [
   },
 ]
 
+/**
+ * The address the server builds links from, and the one the README's install uses.
+ *
+ * Only two things are built from it — the join link the QR code encodes, and the shared
+ * gallery's address — and the second is printed on the host's panel, so a shot of that
+ * panel would otherwise show `http://127.0.0.1:<ephemeral port>`. Nothing checks a
+ * request's origin against it, so the browsers keep talking to `app.baseUrl`, and a link
+ * the server hands out is followed with its origin swapped for that one (`local`).
+ */
+const PUBLIC_URL = 'https://photos.example.com'
+
+const local = (baseUrl: string, link: string): string => {
+  const { pathname, search } = new URL(link)
+  return `${baseUrl}${pathname}${search}`
+}
+
 const shot = async (page: Page, name: string, fullPage = false): Promise<void> => {
   await page.waitForTimeout(400)
   await page.screenshot({ path: join(OUT, `${name}.png`), fullPage })
   console.log(`  ✓ ${name}.png`)
+}
+
+/** An element on its own, for a panel that means something without the page around it. */
+const shotOf = async (page: Page, locator: Locator, name: string): Promise<void> => {
+  await page.waitForTimeout(400)
+  await locator.screenshot({ path: join(OUT, `${name}.png`) })
+  console.log(`  ✓ ${name}.png`)
+}
+
+/**
+ * An element with a margin of the page around it, for one that draws no edge of its own.
+ *
+ * Clipped from a full-page capture rather than the viewport, so an element taller than the
+ * screen comes out whole; the box is read at the top of the page, where the viewport's
+ * coordinates and the page's are the same.
+ */
+const shotAround = async (page: Page, locator: Locator, name: string, pad: number) => {
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.waitForTimeout(400)
+  const box = await locator.boundingBox()
+  if (box === null) throw new Error(`${name}: the element never reported a bounding box`)
+  const x = Math.max(0, box.x - pad)
+  const y = Math.max(0, box.y - pad)
+  await page.screenshot({
+    path: join(OUT, `${name}.png`),
+    fullPage: true,
+    clip: { x, y, width: box.x + box.width + pad - x, height: box.y + box.height + pad - y },
+  })
+  console.log(`  ✓ ${name}.png`)
+}
+
+/**
+ * Waits until every image that is on screen has decoded.
+ *
+ * On screen only: the gallery's grid is lazy, so a tile below the fold never loads until
+ * somebody scrolls to it, and waiting for *every* `<img>` would wait for nothing.
+ */
+const visibleImagesDecoded = async (page: Page): Promise<void> => {
+  await page
+    .waitForFunction(
+      () => {
+        const onScreen = [...document.querySelectorAll('img')].filter((img) => {
+          const box = img.getBoundingClientRect()
+          return box.width > 0 && box.bottom > 0 && box.top < window.innerHeight
+        })
+        return onScreen.length > 0 && onScreen.every((img) => img.complete && img.naturalWidth > 0)
+      },
+      undefined,
+      { timeout: 15_000 },
+    )
+    .catch(() => console.log('  ! an image on screen never decoded'))
+}
+
+/**
+ * Gets a guest past the privacy notice and onto the picker (roadmap §5.1).
+ *
+ * The upload screen offers nothing that sends until this phone has read the notice, so
+ * every first visit meets it and a later one does not. The composer is waited on first,
+ * because the card and the picker render in the same commit from the session the join
+ * wrote — once it is on screen, whether the card is there is already decided. The
+ * acknowledgement is waited on as a response, not only as a picker, because the screen
+ * hands the picker over at the tap, before the server has recorded anything.
+ *
+ * The same moves as `passPrivacyNotice` in `tests/e2e/fixtures/guest.ts`, restated rather
+ * than imported because that one asserts with `@playwright/test`'s `expect`, and this
+ * driver asserts nothing (see the file comment).
+ */
+const passNotice = async (page: Page, photograph?: string): Promise<void> => {
+  await page.getByTestId('upload-composer').waitFor({ state: 'visible' })
+  const notice = page.getByTestId('privacy-notice')
+  if ((await notice.count()) > 0) {
+    // The card alone: on a phone it is taller than the screen, so a viewport shot holds
+    // either its heading or its button and never both. With a margin, because the card
+    // sits inside the composer and has no border of its own.
+    if (photograph !== undefined) await shotAround(page, notice, photograph, 16)
+    const recorded = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/privacy-notice/acknowledgement') && response.status() === 200,
+    )
+    await notice.getByRole('button', { name: 'I understand' }).click()
+    await recorded
+  }
+  await page.getByTestId('photo-input').waitFor({ state: 'attached' })
+  // Photographing the card scrolls to it, and the picker takes focus when it replaces the
+  // card; the shots that follow are of the screen a guest lands on, from the top.
+  await page.evaluate(() => window.scrollTo(0, 0))
 }
 
 const joinAndSend = async (
@@ -97,6 +203,7 @@ const joinAndSend = async (
   await page.getByLabel(/Your first name/i).fill(displayName)
   await page.getByRole('button', { name: /Join/i }).click()
   await page.waitForURL(/\/e\/[^/]+\/upload/)
+  await passNotice(page)
 
   for (const [index, file] of files.entries()) {
     await page.getByTestId('photo-input').setInputFiles(file.path)
@@ -118,7 +225,7 @@ const main = async (): Promise<void> => {
   )
 
   console.log('booting a real server…')
-  const app = await startTestApp({ worker: 41 })
+  const app = await startTestApp({ worker: 41, env: { PUBLIC_URL } })
   let browser: Browser | undefined
 
   try {
@@ -145,6 +252,8 @@ const main = async (): Promise<void> => {
     await guest.getByLabel(/Your first name/i).fill('Mia')
     await guest.getByRole('button', { name: /Join/i }).click()
     await guest.waitForURL(/\/e\/[^/]+\/upload/)
+    // The notice stands where the picker will be until this phone has read it.
+    await passNotice(guest, 'mobile-02-notice')
     await shot(guest, 'mobile-02-upload-empty')
 
     await guest.getByTestId('photo-input').setInputFiles(pictures[0]!.path)
@@ -318,20 +427,86 @@ const main = async (): Promise<void> => {
       .locator('..')
       .locator('..')
     await missionsPanel.waitFor({ state: 'visible', timeout: 15_000 })
-    await wall.waitForTimeout(1000)
-    const panelBox = await missionsPanel.boundingBox()
-    if (panelBox === null) throw new Error('the missions panel never reported a bounding box')
-    const pad = 24
-    await wall.screenshot({
-      path: join(OUT, 'wall-missions.png'),
-      clip: {
-        x: Math.max(0, panelBox.x - pad),
-        y: Math.max(0, panelBox.y - pad),
-        width: panelBox.width + pad * 2,
-        height: panelBox.height + pad * 2,
-      },
+    await wall.waitForTimeout(600)
+    await shotAround(wall, missionsPanel, 'wall-missions', 24)
+
+    // ---- the morning after: the shared gallery ---------------------------------
+    //
+    // Last, because it is the last thing that happens: every photograph above is already
+    // decided, so the album holds what the wall showed — published, and nothing pending.
+    //
+    // The host's half is taken on the phone: on a laptop the panel is as wide as the event
+    // page's content, and at the size a README floats an image its text would be unreadable.
+    console.log('sharing the album…')
+    const password = 'june wedding'
+    await mobileHost.goto(`${app.baseUrl}/admin/events/${event.slug}`)
+    await mobileHost.waitForLoadState('networkidle')
+    // The panel is a titled `Card`, which renders as a `<section>` holding its heading.
+    const sharePanel = mobileHost
+      .locator('section')
+      .filter({ has: mobileHost.getByRole('heading', { level: 2, name: 'Shared album' }) })
+    await sharePanel.getByText('No link is active.').waitFor({ state: 'visible' })
+    await shotOf(mobileHost, sharePanel, 'mobile-07-gallery-panel')
+
+    await sharePanel.getByLabel(/^Password/).fill(password)
+    await sharePanel.getByRole('button', { name: 'Create the link' }).click()
+    const address = sharePanel.getByLabel('Link address')
+    await address.waitFor({ state: 'visible' })
+    const link = local(app.baseUrl, await address.inputValue())
+    // The status line reloads after the address arrives; wait for it to say the link is open.
+    await sharePanel.getByText(/^Open until/).waitFor({ state: 'visible' })
+    await shotOf(mobileHost, sharePanel, 'mobile-08-gallery-panel-created')
+
+    // A relative who was never in the room, on a phone: a fresh context, so no cookie from
+    // the evening is carried in.
+    const relativePhone = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 2,
+      locale: 'en-GB',
     })
-    console.log('  ✓ wall-missions.png')
+    const relative = await relativePhone.newPage()
+    await relative.goto(link)
+    await relative.getByRole('heading', { name: 'Protected album' }).waitFor()
+    await shot(relative, 'gallery-01-locked')
+    await relative.getByLabel('Password').fill(password)
+    await relative.getByRole('button', { name: 'Open the album' }).click()
+    await relative.getByRole('heading', { level: 1, name: event.name }).waitFor()
+    await visibleImagesDecoded(relative)
+    await shot(relative, 'gallery-02-album')
+    await relative.getByRole('button', { name: 'Enlarge photo 2' }).click()
+    await relative.getByRole('dialog').waitFor({ state: 'visible' })
+    await visibleImagesDecoded(relative)
+    await shot(relative, 'gallery-03-viewer')
+    await relative.keyboard.press('Escape')
+
+    // The same album on a laptop, where a centred dialog and a pinned one look different.
+    const relativeLaptop = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      deviceScaleFactor: 2,
+      locale: 'en-GB',
+    })
+    const cousin = await relativeLaptop.newPage()
+    await cousin.goto(link)
+    await cousin.getByLabel('Password').fill(password)
+    await cousin.getByRole('button', { name: 'Open the album' }).click()
+    await cousin.getByRole('heading', { level: 1, name: event.name }).waitFor()
+    await visibleImagesDecoded(cousin)
+    await shot(cousin, 'gallery-04-album-laptop')
+    await cousin.getByRole('button', { name: 'Enlarge photo 3' }).click()
+    await cousin.getByRole('dialog').waitFor({ state: 'visible' })
+    await visibleImagesDecoded(cousin)
+    await shot(cousin, 'gallery-05-viewer-laptop')
+
+    // Switched off: the same address, one reload later.
+    await sharePanel.getByRole('button', { name: 'Switch off the link' }).click()
+    await mobileHost
+      .getByRole('dialog', { name: 'Switch off this link?' })
+      .getByRole('button', { name: 'Switch off the link' })
+      .click()
+    await sharePanel.getByText('No link is active.').waitFor({ state: 'visible' })
+    await relative.reload()
+    await relative.getByRole('heading', { name: 'This link is no longer available' }).waitFor()
+    await shot(relative, 'gallery-06-switched-off')
 
     console.log(`\nscreenshots in ${OUT}`)
   } finally {
