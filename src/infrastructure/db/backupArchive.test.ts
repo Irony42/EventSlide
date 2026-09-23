@@ -1,6 +1,16 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -428,6 +438,69 @@ describe('backup and restore', () => {
       expect(manifest.skipped.join('\n')).toContain('not a regular file')
     })
 
+    it('refuses before writing anything when the archive would not fit', async () => {
+      // In the image the default archive shares a volume with every upload and every
+      // database write. Running out of room part-way used to leave that volume full and
+      // the wall unable to take a photo until somebody found the half-written archive.
+      await seedAnEvening()
+      // Room for the database and not for the photographs, which are nearly all of a
+      // real album: an estimate that forgot the media half would let this through.
+      const databaseBytes = (await stat(databasePath)).size
+
+      const attempt = createBackup({
+        databasePath,
+        mediaRoot,
+        destination: archive,
+        now: NOW,
+        appVersion: '2.0.0',
+        freeBytesAt: async () => databaseBytes + 1,
+      })
+
+      await expect(attempt).rejects.toThrow(/would not fit: it needs about \d+ bytes/)
+      expect(await exists(archive)).toBe(false)
+    })
+
+    it('removes what it wrote when it fails part-way', async () => {
+      await seedAnEvening()
+
+      // A file where the media half's directory has to go, planted once the database
+      // half is written: the copy then fails on its first file, as a full disk would.
+      const attempt = createBackup({
+        databasePath,
+        mediaRoot,
+        destination: archive,
+        now: NOW,
+        appVersion: '2.0.0',
+        onProgress: (line) => {
+          if (line.startsWith('Copying the media root')) writeFileSync(join(archive, MEDIA_DIR), '')
+        },
+      })
+
+      await expect(attempt).rejects.toThrow()
+      expect(await exists(archive)).toBe(false)
+    })
+
+    it('keeps a directory that was there before, emptied, when it fails part-way', async () => {
+      // An empty directory the operator made — quite possibly the mount point of the
+      // drive they meant the archive for — is theirs, not this command's to remove.
+      await seedAnEvening()
+      await mkdir(archive)
+
+      const attempt = createBackup({
+        databasePath,
+        mediaRoot,
+        destination: archive,
+        now: NOW,
+        appVersion: '2.0.0',
+        onProgress: (line) => {
+          if (line.startsWith('Copying the media root')) writeFileSync(join(archive, MEDIA_DIR), '')
+        },
+      })
+
+      await expect(attempt).rejects.toThrow()
+      expect(await readdir(archive)).toEqual([])
+    })
+
     it('refuses when the database cannot be snapshotted', async () => {
       // A typo in --database, or a path pointing at the wrong file. The header is read
       // before a connection is opened, so this is one sentence rather than a driver
@@ -839,6 +912,39 @@ describe('backup and restore', () => {
       }
       const strayDirectory = join(mediaRoot, EVENT, 'original', hashOf('later').slice(0, 2))
       expect(await exists(join(strayDirectory, `${hashOf('later')}.jpg`))).toBe(false)
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'leaves a 0700 media root at 0700 when it replaces what is inside',
+      async () => {
+        // The mode the image's Dockerfile gives /data/media and docs/SECURITY.md §11 asks
+        // for. A restore that removed the directory and made a new one gave it whatever
+        // the umask said, which on a stock box is 0755. Windows has no such mode to keep.
+        await seedAnEvening()
+        await backup()
+        await chmod(mediaRoot, 0o700)
+
+        await restore({ force: true })
+
+        expect((await stat(mediaRoot)).mode & 0o777).toBe(0o700)
+      },
+    )
+
+    it('restores into the media root it found, not a new directory in its place', async () => {
+      // The platform-neutral witness for the case above, and for the one a mode cannot
+      // show: a media root that is a mount point cannot be removed at all, so replacing
+      // the directory fails with EBUSY after every file under it is already gone. A new
+      // directory is a new file id — on NTFS reliably, since the id carries a sequence
+      // number; ext4 can hand a freed inode number straight back, which is why the mode
+      // test above is the one that bites on Linux.
+      await seedAnEvening()
+      await backup()
+      const before = (await stat(mediaRoot, { bigint: true })).ino
+
+      await restore({ force: true })
+
+      expect((await stat(mediaRoot, { bigint: true })).ino).toBe(before)
+      expect(await exists(join(mediaRoot, EVENT, 'thumb'))).toBe(true)
     })
 
     it('removes a stale write-ahead log before it opens the database it restored', async () => {

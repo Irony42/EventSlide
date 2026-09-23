@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -71,6 +71,26 @@ describe('npm run backup', () => {
     expect(await stat(join(archive, 'manifest.json'))).toBeTruthy()
   })
 
+  it('writes into BACKUP_DIR when it is not told where', async () => {
+    // The bare command is what an operator types first, and in the image the old default
+    // — `./backups` against a read-only `/app` — could not be written at all. The image
+    // sets BACKUP_DIR; this is the half that proves the command reads it.
+    const backups = join(root, 'elsewhere')
+    vi.stubEnv('BACKUP_DIR', backups)
+    try {
+      const { code, out } = await capture(() => run(where()))
+
+      expect(code).toBe(0)
+      const written = await readdir(backups)
+      expect(written).toHaveLength(1)
+      expect(written[0]).toMatch(/^eventslide-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z$/)
+      expect(await stat(join(backups, written[0] ?? '', 'manifest.json'))).toBeTruthy()
+      expect(out).toContain(join(backups, written[0] ?? ''))
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('does not hand the operator --force on the happy path', async () => {
     // --force turns off the refusal to overwrite an existing installation, which is the
     // only guard a restore has. Printing it on every successful backup makes it the
@@ -82,6 +102,53 @@ describe('npm run backup', () => {
     expect(out).toContain(`npm run restore -- ${archive}`)
     expect(out).not.toMatch(/npm run restore -- .*--force/)
     expect(out).toContain('destroys what is there')
+  })
+
+  it('says so when the archive is on the same filesystem as the database it protects', async () => {
+    // Both halves live in one temp directory here, as the image's default BACKUP_DIR is
+    // on the same volume as the database. An "OK" is not a backup until a copy is
+    // elsewhere, and the operator cannot see a device number. The other half — no
+    // warning on another filesystem — needs two filesystems, which the image check has:
+    // it backs up to the container's tmpfs and asserts the line is absent.
+    const { code, out } = await capture(() => run(['--to', archive, ...where()]))
+
+    expect(code).toBe(0)
+    expect(out).toContain('on the same filesystem as the database it was taken from')
+    expect(out).toContain('not a backup until a copy')
+  })
+
+  it('names the restore the image can run, when it is the compiled command', async () => {
+    // Inside the container there is no `npm run restore` to paste: `scripts/` and tsx
+    // are not in the image. The line an operator copies must be one that exists there,
+    // and must still not carry --force.
+    const { code, out } = await capture(() => run(['--to', archive, ...where()], 'node'))
+
+    expect(code).toBe(0)
+    expect(out).toContain(`node dist/ops/scripts/restore.js ${archive}`)
+    expect(out).not.toContain('npm run')
+    expect(out).not.toMatch(/restore\.js .*--force/)
+  })
+
+  it('says, when compiled, to restore through a one-off container and never through exec', async () => {
+    // The operator has just typed `docker compose exec`, and pasting the restore behind
+    // the same prefix runs it beside the live server. The restore itself can only warn
+    // about that, so the line that hands it over has to say which prefix is the safe one.
+    const compiled = await capture(() => run(['--to', archive, ...where()], 'node'))
+    await rm(archive, { recursive: true, force: true })
+    const checkout = await capture(() => run(['--to', archive, ...where()]))
+
+    expect(compiled.out).toContain('docker compose stop eventslide')
+    expect(compiled.out).toContain('docker compose run --rm eventslide')
+    expect(compiled.out).toContain('never behind `exec`')
+    expect(checkout.out).not.toContain('docker compose')
+  })
+
+  it('prints the compiled spelling of every command in its usage, when it is compiled', async () => {
+    const { code, out } = await capture(() => run(['--help'], 'node'))
+
+    expect(code).toBe(0)
+    expect(out).toContain('node dist/ops/scripts/backup.js --verify <archive>')
+    expect(out).not.toContain('npm run')
   })
 
   it('exits non-zero and names the damage when --verify finds a broken archive', async () => {

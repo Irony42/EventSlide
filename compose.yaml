@@ -71,7 +71,12 @@ services:
       BOOTSTRAP_OWNER_EMAIL: ${BOOTSTRAP_OWNER_EMAIL:-}
       BOOTSTRAP_OWNER_PASSWORD: ${BOOTSTRAP_OWNER_PASSWORD:-}
     volumes:
-      # The database and every photo. Back up this one path.
+      # The database, every photo, and under /data/backups the archives the backup
+      # command writes (BACKUP_DIR, set in the Dockerfile). Everything is here, but do not
+      # back it up by copying this path: a copy of a live SQLite file misses whatever is
+      # still in its WAL. `docker compose exec eventslide node dist/ops/scripts/backup.js`
+      # takes a consistent snapshot, and the README's Backups section covers the rest —
+      # taking the archive off this disk, and restoring with the service stopped.
       - eventslide-data:/data
     # A photo wall is not a target worth much, but the container writes only to /data
     # and there is no reason for it to be able to write anywhere else.

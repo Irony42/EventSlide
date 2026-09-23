@@ -1,19 +1,19 @@
 /**
- * `npm run backup` and `npm run backup:verify`.
+ * `npm run backup` and `npm run backup:verify` — in the image,
+ * `node dist/ops/scripts/backup.js` and `… --verify`.
  *
  * Takes a verifiable archive of the two things an EventSlide installation is: the
  * SQLite database and the media root. The mechanics, the archive layout and the
  * reasoning about consistency between the two halves all live in
  * `src/infrastructure/db/backupArchive.ts`; this file is the part an operator talks to.
  *
- * A script rather than something the server does on a timer, for the same reason
- * `db:migrate` is one: the output is the interface. A backup that ran silently and
- * wrote nothing useful is the failure everybody discovers too late, so this prints what
- * it captured, what it could not, and what the archive is worth.
+ * A script rather than something the server does on a timer, because the output is the
+ * interface. A backup that ran silently and wrote nothing useful is the failure
+ * everybody discovers too late, so this prints what it captured, what it could not, and
+ * what the archive is worth.
  */
-import { mkdir } from 'node:fs/promises'
+import { mkdir, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { migrations } from '../src/infrastructure/db/migrations'
 import {
@@ -22,18 +22,23 @@ import {
   verifyBackup,
   type VerifyReport,
 } from '../src/infrastructure/db/backupArchive'
+import { commandLine, invocationOf, type Invocation, type OperatorCommand } from './invocation'
 
 const VERSION = '2.0.0'
 
-const USAGE = `
+const usage = (invocation: Invocation): string => {
+  const line = (command: OperatorCommand, args: string, what: string): string =>
+    `  ${commandLine(invocation, command, args).padEnd(53)} ${what}`
+  return `
 EventSlide backup
 
-  npm run backup                              back up to ./backups/<timestamp>
-  npm run backup -- --to /mnt/usb/wedding     back up to a chosen directory
-  npm run backup:verify -- <archive>          prove an existing archive is intact
+${line('backup', '', 'back up to BACKUP_DIR/eventslide-<timestamp>')}
+${line('backup', '--to /mnt/usb/wedding', 'back up to a chosen directory')}
+${line('verify', '<archive>', 'prove an existing archive is intact')}
 
 Options
   --to <directory>        where to write the archive. Must not already hold one.
+                          Without it: BACKUP_DIR, which is ./backups unless set.
   --database <path>       override DATABASE_PATH (e.g. a Docker volume)
   --media <path>          override MEDIA_ROOT
   --verify <archive>      check an archive instead of taking one
@@ -46,6 +51,7 @@ directory can be rsynced, resumed and inspected. Copy it somewhere that is not t
 machine — a backup on the same disk survives everything except the thing most likely
 to happen to it.
 `.trim()
+}
 
 /** Bytes as something a person reads, not a benchmark figure. */
 const human = (bytes: number): string => {
@@ -69,6 +75,22 @@ const option = (argv: readonly string[], name: string): string | null => {
     throw new BackupError(`--${name} needs a value`)
   }
   return value
+}
+
+/**
+ * Do these two paths live on one filesystem?
+ *
+ * `st_dev` rather than a guess from the path, because the path cannot tell: inside the
+ * container `/data/backups` and a bind-mounted `/backups` are both on the host's disk,
+ * while `/tmp` is a tmpfs. A stat that fails answers "no" — this only decides whether a
+ * warning is printed, and a backup that has already verified must not exit 1 over it.
+ */
+const sharesFilesystem = async (a: string, b: string): Promise<boolean> => {
+  try {
+    return (await stat(a)).dev === (await stat(b)).dev
+  } catch {
+    return false
+  }
 }
 
 /** Colons are not legal in a Windows filename, so the stamp cannot be a plain ISO one. */
@@ -112,7 +134,7 @@ const runVerify = async (argv: readonly string[], archive: string): Promise<numb
   return report.ok ? 0 : 1
 }
 
-const runBackup = async (argv: readonly string[]): Promise<number> => {
+const runBackup = async (argv: readonly string[], invocation: Invocation): Promise<number> => {
   const config = loadMaintenanceConfig()
   // Only the config module reads the environment; the flags exist so an operator can
   // point this at a container volume without editing their .env.
@@ -120,7 +142,10 @@ const runBackup = async (argv: readonly string[]): Promise<number> => {
   const mediaRoot = option(argv, 'media') ?? config.storage.mediaRoot
 
   const now = new Date()
-  const destination = option(argv, 'to') ?? join('./backups', `eventslide-${stampOf(now)}`)
+  // BACKUP_DIR, not a literal `./backups`: that resolves against the working directory,
+  // which in the image is a read-only `/app`. See the variable in env.ts.
+  const destination =
+    option(argv, 'to') ?? join(config.storage.backupDir, `eventslide-${stampOf(now)}`)
   await mkdir(resolve(destination, '..'), { recursive: true })
 
   console.log(`EventSlide backup`)
@@ -176,6 +201,18 @@ const runBackup = async (argv: readonly string[]): Promise<number> => {
   printReport(report, archive)
   if (!report.ok) return 1
 
+  // Measured, not assumed, and said only when true. Both defaults land here: the image's
+  // BACKUP_DIR is on the data volume, and a checkout's `./backups` sits beside `./data`.
+  // An "OK" over an archive on the same disk as the album is the one success message
+  // that should not reassure anybody, and a reader cannot see a device number.
+  if (await sharesFilesystem(archive, databasePath)) {
+    console.log(
+      `\n  ! This archive is on the same filesystem as the database it was taken from, so\n` +
+        `  ! the disk failure that loses one loses both. It is not a backup until a copy\n` +
+        `  ! of it is somewhere else.`,
+    )
+  }
+
   // Without `--force`, deliberately. It is the flag that switches off the refusal to
   // overwrite an existing installation, and a happy path that prints it teaches every
   // operator to paste it — including on the day the target was not supposed to be
@@ -183,9 +220,22 @@ const runBackup = async (argv: readonly string[]): Promise<number> => {
   // below is the one that is right nearly every time; the sentence after it is for the
   // other times, which is the order those two facts should be met in.
   console.log(
-    `\nCopy it off this machine. Restore with:\n` +
-      `  npm run restore -- ${archive}\n` +
-      `\nThat refuses to run if the target already holds a database or any media.\n` +
+    `\nCopy it off this machine. Restore with, once the server is stopped:\n` +
+      `  ${commandLine(invocation, 'restore', archive)}`,
+  )
+  if (invocation === 'node') {
+    // The operator reading this has just typed `docker compose exec`, and the natural
+    // thing is to paste the line above behind the same prefix — which runs the restore
+    // beside the live server, the one race the procedure exists to avoid. Nothing in
+    // the restore can refuse it (see `scripts/restore.ts`), so the output says it.
+    console.log(
+      `In Docker that is \`docker compose stop eventslide\`, then the line above behind\n` +
+        `\`docker compose run --rm eventslide\` — never behind \`exec\`, which would run it\n` +
+        `beside the live server.`,
+    )
+  }
+  console.log(
+    `\nThat refuses to run if the target already holds a database or any media.\n` +
       `Adding --force is what gets past the refusal, and it destroys what is there.`,
   )
   return 0
@@ -198,27 +248,43 @@ const runBackup = async (argv: readonly string[]): Promise<number> => {
  * an operator actually touches — argument parsing, what is printed, what the exit code
  * says — is testable. A CLI whose only tested part is the library underneath it is a
  * CLI whose argument handling has never been run by anything but a person at 2am.
+ *
+ * `invocation` decides only how the commands it prints are spelled — see
+ * `./invocation.ts`. It defaults to the source checkout, which is what every test that
+ * does not say otherwise is about.
  */
-export const run = async (argv: readonly string[]): Promise<number> => {
+export const run = async (
+  argv: readonly string[],
+  invocation: Invocation = 'npm',
+): Promise<number> => {
   try {
     if (flag(argv, 'help')) {
-      console.log(USAGE)
+      console.log(usage(invocation))
       return 0
     }
     const toVerify = option(argv, 'verify')
     if (toVerify !== null) return await runVerify(argv, toVerify)
-    return await runBackup(argv)
+    return await runBackup(argv, invocation)
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
     return 1
   }
 }
 
-const entry = process.argv[1]
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+/**
+ * Run as a program, and not when a test imports `run`.
+ *
+ * `require.main === module` rather than the `import.meta.url` comparison this used to
+ * be, because the image runs this file compiled to CommonJS by `tsconfig.ops.json`, and
+ * `import.meta` does not exist there — tsc refuses it outright. tsx already ran it as
+ * CommonJS, `package.json` having no `"type"`, so the one check means the same thing
+ * under `npm run backup`, under `node dist/ops/scripts/backup.js`, and under vitest,
+ * where `require.main` is the runner's own entry and never this module.
+ */
+if (require.main === module) {
   // `exitCode` rather than `exit`, so buffered stdout reaches a terminal or a pipe
   // before the process goes away.
-  void run(process.argv.slice(2)).then((code) => {
+  void run(process.argv.slice(2), invocationOf(__filename)).then((code) => {
     process.exitCode = code
   })
 }

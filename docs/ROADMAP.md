@@ -530,6 +530,24 @@ The round trip is proven at ring 6 by backing up a live server, destroying both 
 restoring, and booting a second server that serves the same wall. See
 [SECURITY.md §11](SECURITY.md#11-deployment-posture).
 
+**It shipped for a source checkout, and not for the install the README leads with.**
+`npm run backup`, `backup:verify`, `restore` and `purge` are `tsx` scripts under
+`scripts/`, and the runtime image carries `dist/` and production dependencies only — no
+`scripts/`, no `tsx` — so an operator who installed the documented way had no documented
+way to back up the album. SECURITY.md admitted it in one paragraph at the end of §11, the
+README gave the npm commands without a word, and this section called the item shipped.
+The ring-6 proof above could not see it, because it runs the scripts from the checkout;
+none of the six rings runs Docker. `tsconfig.ops.json` now compiles the three commands
+into `dist/ops/`, the README and §11 give the `docker compose exec` and `run --rm` forms
+and settle where an archive lands, why a restore waits for the server to stop, whose
+files it writes and why there is no migration step, and `scripts/verify-image.sh` backs
+up a running container, verifies, purges, restores and boots on the result on every
+push. Writing that check turned up three more defects on the same path: the bare
+`backup` could not write anywhere in the image, its default resolving against a
+read-only `/app`; a restore replaced the media root with a new `0755` directory where the
+Dockerfile had made a `0700` one; and the commands' own output told the operator to run
+npm scripts the container does not have. All three are fixed.
+
 ---
 
 ## 10. Running a box for other people — site administration

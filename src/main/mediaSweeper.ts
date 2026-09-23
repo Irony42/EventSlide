@@ -59,6 +59,31 @@ export interface MediaSweeper {
 }
 
 /**
+ * How recently written an object must be for the reconciliation sweep to spare it.
+ *
+ * Every write path in the product is bytes first, row second, so there is always an
+ * instant in which an object exists and nothing names it. Fifteen minutes is a hundred
+ * times the longest of those gaps and costs only that a leak survives one more sweep,
+ * which is the right direction to be wrong in: the other direction deletes a guest's
+ * photograph a millisecond before the row that would have saved it.
+ *
+ * Exported because `scripts/purge.ts` runs the same use case from a terminal and had its
+ * own copy of the number, with a comment saying it matched this one — which is a claim a
+ * reader has to verify and an edit here would quietly falsify. The CLI is a different
+ * trigger, never a second policy.
+ *
+ * **Here rather than in `container.ts`, where it used to be**, because that import made
+ * the purge command load the entire server: `container.ts` imports every route, adapter
+ * and use case in the product. It did not matter while `purge.ts` only ran under tsx. It
+ * matters now that `tsconfig.ops.json` compiles it for the image, where the command's
+ * import graph *is* what ships — and a second copy of the whole server under
+ * `dist/ops/`, one `node` invocation away from being started by mistake, is not a
+ * price one number should cost. This module is the one `purge.ts` already needed for
+ * `isTooDangerousToSweep`, and the timer this constant configures.
+ */
+export const MEDIA_SWEEP_MIN_AGE_MS = 15 * 60 * 1000
+
+/**
  * Is a recursive delete under this root a delete of somebody's whole life?
  *
  * Lives **here rather than in `container.ts`** for the reason `transcodeNextClip` states

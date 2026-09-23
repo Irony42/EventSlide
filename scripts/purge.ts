@@ -1,5 +1,6 @@
 /**
- * `npm run purge` and `npm run purge -- --dry-run`.
+ * `npm run purge` and `npm run purge -- --dry-run` — in the image,
+ * `node dist/ops/scripts/purge.js [--dry-run]`.
  *
  * The retention sweep, on demand. The same use case the server runs on a timer
  * (`src/main/retentionSweeper.ts`), so the two can never drift apart: this is a
@@ -31,8 +32,7 @@ import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepos
 import { SqlitePhotoRepository } from '../src/infrastructure/db/sqlitePhotoRepository'
 import { createFsMediaStore } from '../src/infrastructure/media/fsMediaStore'
 import { systemClock } from '../src/infrastructure/time/systemClock'
-import { MEDIA_SWEEP_MIN_AGE_MS } from '../src/main/container'
-import { isTooDangerousToSweep } from '../src/main/mediaSweeper'
+import { isTooDangerousToSweep, MEDIA_SWEEP_MIN_AGE_MS } from '../src/main/mediaSweeper'
 
 /** The sweep wants a `Logger`; on a terminal that is the console. */
 const consoleLogger: Logger = {
@@ -195,7 +195,12 @@ main()
     const message = error instanceof Error ? error.message : String(error)
     console.error(`Purge failed: ${message}`)
     if (message.includes('no such table')) {
-      console.error('The database has no schema yet. Run `npm run db:migrate` first.')
+      // Both ways, because this runs in both places: the image has no `db:migrate`, and
+      // does not need one, since the server applies its migrations at boot.
+      console.error(
+        'The database has no schema yet. Start the server once, which applies the ' +
+          'migrations, or run `npm run db:migrate` from a source checkout.',
+      )
     }
     process.exitCode = 1
   })

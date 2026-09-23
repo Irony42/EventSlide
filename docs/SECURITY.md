@@ -906,7 +906,7 @@ soon as an owner exists. Password rules live in `src/domain/users/`, not the con
 | Video             | leave `ffmpeg` installed (the image does) and raise the proxy read timeout above a clip upload, not above a transcode: a clip is encoded **after** the response, so no request waits on the encoder                                 | a missing encoder is reported by `/api/ready` as a detail and refuses clips by name; it never takes the wall out of service                                                                                                                     |
 | File permissions  | run as a dedicated non-root user; DB `0600`, `MEDIA_ROOT` `0700`; both outside the web root                                                                                                                                         | the SQLite file contains session data and every hash                                                                                                                                                                                            |
 | Process hardening | systemd: `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `ReadWritePaths=` the data dir                                                                                                                            | limits what a `sharp` or Node CVE can reach                                                                                                                                                                                                     |
-| Backups           | `npm run backup`, then copy the archive off the machine; rehearse with `npm run restore -- <archive> --dry-run`. Below.                                                                                                             | copying a live WAL database yields a corrupt backup, and an untested restore is not a backup. A wedding album has no second take                                                                                                                |
+| Backups           | `docker compose exec eventslide node dist/ops/scripts/backup.js` (`npm run backup` from a checkout), copy the archive off the machine, and rehearse a restore with `--dry-run`. Below.                                              | copying a live WAL database yields a corrupt backup, and an untested restore is not a backup. A wedding album has no second take                                                                                                                |
 | Shutdown          | leave `stop_grace_period: 20s` alone, or keep it above the 15 s backstop in `src/main/index.ts`                                                                                                                                     | Docker's own default is 10 s, which `SIGKILL`s the process five seconds _before_ its own backstop runs — the WAL never checkpointed and whatever was mid-upload lost                                                                            |
 | The image itself  | `bash scripts/verify-image.sh` builds it and checks every claim on this page that is a property of the container. CI runs the same script on every push                                                                             | an image that quietly lost `ffmpeg`, shipped its devDependencies or went back to running as root is green on all six test rings — none of them runs Docker                                                                                      |
 | Updates           | pin the version, read the release notes, `npm audit` before a deploy                                                                                                                                                                | see §12: self-hosted means you own patching                                                                                                                                                                                                     |
@@ -920,7 +920,9 @@ matters when the volume is a **bind mount on a shared host**, where another acco
 then read every session row and every password hash. Set the mode on the host directory,
 or run the container with a umask, if that is your deployment. This is stated rather than
 quietly fixed because forcing `0077` on the process would also make the album unreadable
-to a backup running as a different uid, which is the more common arrangement.
+to anything that reads the volume as another uid — a host-side job copying a bind mount,
+say. The backup command is no longer one of those: it used to have to run from a source
+checkout on the host, and in the image it now runs as the server's own user.
 
 **If the join code leaks** (screenshotted, posted, printed on the wrong sign):
 `POST /api/events/:slug/join-code`, then reprint the QR — the old code stops
@@ -989,10 +991,10 @@ stayed on the disk indefinitely.
 
 Two triggers now, for two kinds of operator:
 
-| Trigger                                              | Owns the schedule       | Use it when                                                                                                          |
-| ---------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| In-process sweep, hourly by default                  | the application         | the ordinary single-box install — `docker compose up` honours retention with nothing else configured                 |
-| `npm run purge` (`npm run purge:dry-run` to preview) | cron or a systemd timer | you want the schedule outside the app — then set `RETENTION_SWEEP_INTERVAL_MINUTES=off` — or you need the answer now |
+| Trigger                                                                                                                   | Owns the schedule       | Use it when                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| In-process sweep, hourly by default                                                                                       | the application         | the ordinary single-box install — `docker compose up` honours retention with nothing else configured                 |
+| The purge command, `--dry-run` to preview: `node dist/ops/scripts/purge.js` in the image, `npm run purge` from a checkout | cron or a systemd timer | you want the schedule outside the app — then set `RETENTION_SWEEP_INTERVAL_MINUTES=off` — or you need the answer now |
 
 Both run the same use case, so the two can never disagree about what is due.
 
@@ -1036,9 +1038,11 @@ What the sweep guarantees, and what it does not:
   section are two halves of one control. Purging on a schedule without a tested restore
   is how a wedding album disappears for good — take the archive first.
 
-Running `npm run purge` while the server is up is safe: the deletions are per-event and
-idempotent, so the worst a race with the in-process sweep produces is an event reported
-as failed by one of them because the other had already removed it.
+Running the purge while the server is up is safe, which is why in the image it is a
+`docker compose exec` into the running container rather than a one-off beside a stopped
+one: the deletions are per-event and idempotent, so the worst a race with the in-process
+sweep produces is an event reported as failed by one of them because the other had
+already removed it.
 
 ### Backup and restore
 
@@ -1048,12 +1052,24 @@ manual steps whose agreement with each other nobody checks, and no way to find o
 whether the result is intact short of restoring it somewhere.
 
 ```bash
+# In the image, from the directory holding compose.yaml
+docker compose exec eventslide node dist/ops/scripts/backup.js  # -> /data/backups/...
+docker compose exec eventslide node dist/ops/scripts/backup.js --verify <archive>
+docker compose stop eventslide
+docker compose run --rm eventslide node dist/ops/scripts/restore.js <archive> --dry-run
+docker compose run --rm eventslide node dist/ops/scripts/restore.js <archive> --force
+docker compose start eventslide
+
+# From a source checkout
 npm run backup                          # -> ./backups/eventslide-<timestamp>/
 npm run backup -- --to /mnt/usb/mariage
 npm run backup:verify -- <archive>      # re-check one later; --quick for sizes only
 npm run restore -- <archive> --dry-run  # verify and print the plan, write nothing
 npm run restore -- <archive> --force    # required to overwrite anything
 ```
+
+The README's Backups section has the whole Docker sequence, including the copy off the
+volume and the read-only mount an archive comes back through.
 
 The server may keep running during a backup. That is the case that matters — a host
 takes the backup mid-event, not after — and it is the case a file copy gets wrong:
@@ -1138,10 +1154,51 @@ session row and every photograph — `chmod 0600` on the files, `0700` on the di
 and off this machine, since a backup on the same disk survives everything except the
 thing most likely to happen to it.
 
-One operational limitation, shared with `npm run db:migrate`: these are `tsx` scripts, so
-the pruned production container does not carry them. Run them from a source checkout and
-point them at the data with `--database` and `--media` — the commands need no running
-server and no configuration beyond those two paths.
+**In the image.** Four questions the Docker install has to answer, and where each answer
+lives — in the code where it can be, in the procedure where it cannot:
+
+- **Where an archive lands.** `BACKUP_DIR` is `/data/backups`, on the data volume,
+  because the only other writable place in the container is a tmpfs that is gone at the
+  next restart. That is the same disk as the album, so the command compares the two
+  filesystems and says so when they match, and it refuses to start an archive the
+  filesystem has no room for — a backup that filled the volume part-way would stop the
+  wall taking photos. `docker compose cp` takes the archive to the host, and it is
+  worth something once a copy is on another machine. Each archive is as large as the
+  album and sits on the volume uploads fill, so it is deleted there once the copy has
+  verified. A drive mounted into a one-off container, given as `--to` and writable by
+  uid 1000, keeps it off the volume entirely.
+- **Restore never races the server — by procedure, not by lock.** It is run with
+  `docker compose run --rm` after `docker compose stop`, never with `exec` into the
+  running container. The `-wal`/`-shm` warning above is a hint, not a lock — SQLite
+  offers no way to ask whether another process holds a database open without changing
+  it — so the stop is what makes a restore safe. The documentation says so, and so does
+  the compiled `backup` in the line where it hands the restore command over, because
+  that is the moment an operator who has just typed `exec` would paste it behind the
+  same prefix.
+- **What a restore writes, the server can read.** It runs as the image's own user, uid
+  1000, so the database and the media belong to the server. It empties the media root
+  rather than removing and recreating it, so the `0700` the Dockerfile gives
+  `/data/media` survives, and so does a media root that is a mount point, which cannot
+  be removed at all. The archive has to be readable by that same uid: a copy made with
+  `docker compose cp` is, and one locked down to `0600` under another owner needs a
+  `chown` first.
+- **There is no migration step.** The server applies pending migrations at boot, before
+  it opens the port, and a restore brings the database it wrote up to the running build
+  itself, so the image carries no `db:migrate` and needs none.
+
+These used to be `tsx` scripts and nothing else, which the pruned image does not carry:
+`scripts/` is not copied into it and `tsx` is a devDependency. This paragraph said so,
+and suggested a source checkout pointed at the volume, while the README handed
+`npm run backup` to an operator whose documented install could not run it.
+`tsconfig.ops.json` now compiles backup, restore and purge into `dist/ops/`, and
+`scripts/verify-image.sh` runs each of them in the built image on every push: a backup
+beside the live server, its verification, a purge, the copy off the volume, a restore
+refused without `--force` and completed with it, and a server booted on the result. The
+commands themselves still need no secrets and no running server — only where the
+database and the media are, from the environment or from `--database` and `--media`.
+`docker compose` is another matter: it refuses every subcommand, `stop` and `run`
+included, while a variable `compose.yaml` marks required is unset, so on a replacement
+box the `.env` has to come back before the archive can.
 
 ## 12. Accepted risks
 
@@ -1312,7 +1369,7 @@ archiver@7.0.1              a real production dependency
 `npm ls --omit=dev` keeps all four. The other copies — `minimatch@10.2.5` and
 `brace-expansion@5.0.5` under `eslint` and `typescript-eslint`, and `minimatch@9.0.9` with
 `brace-expansion@2.1.4` under `glob` — are either outside the vulnerable range or removed
-by `npm prune --omit=dev`, which `scripts/verify-image.sh:113-119` and `:136-140` assert by
+by `npm prune --omit=dev`, which `scripts/verify-image.sh:122-128` and `:145-149` assert by
 refusing an image that still carries a devDependency.
 
 **What makes them unreachable is the call site, not the tree.** Both advisory classes are
@@ -1351,8 +1408,8 @@ eslint-plugin-react-hooks@7.1.1 -> @babel/core@7.29.0 -> browserslist@4.28.2 -> 
 
 Neither chain is imported by anything under `src/` or shipped in the client bundle —
 `nanoid` is postcss's source-map id generator, not an application dependency.
-`scripts/verify-image.sh:136-140` fails the build if `typescript`, `vitest`,
-`@playwright/test`, `eslint`, `prettier` or `tsx` reach the image, and `:128` fails it if a
+`scripts/verify-image.sh:145-149` fails the build if `typescript`, `vitest`,
+`@playwright/test`, `eslint`, `prettier` or `tsx` reach the image, and `:137` fails it if a
 compiler does.
 
 **They can hurt a developer or a CI runner and nothing else.** The two `vite` advisories

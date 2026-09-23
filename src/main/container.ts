@@ -43,7 +43,12 @@ import type { PresenterContext } from '../interface/http/presenters/presenters'
 import { buildUseCases, type Adapters, type UseCases } from './usecases'
 import { createClipWorker, type ClipWorker } from './clipWorker'
 import { clipUploadTempDir } from '../interface/http/routes/clipRoutes'
-import { createMediaSweeper, isTooDangerousToSweep, type MediaSweeper } from './mediaSweeper'
+import {
+  createMediaSweeper,
+  isTooDangerousToSweep,
+  MEDIA_SWEEP_MIN_AGE_MS,
+  type MediaSweeper,
+} from './mediaSweeper'
 import { createReservationReaper, type ReservationReaper } from './reservationReaper'
 import { createRetentionSweeper, type RetentionSweeper } from './retentionSweeper'
 import { createScheduleSweeper, type ScheduleSweeper } from './scheduleSweeper'
@@ -138,22 +143,6 @@ const CLIP_RESERVATION_TIMEOUT_MS = 5 * 60 * 1000
 
 /** The longest edge of the still frame the grid, the album and the wall render. */
 const CLIP_POSTER_MAX_EDGE = 640
-
-/**
- * How recently written an object must be for the reconciliation sweep to spare it.
- *
- * Every write path in the product is bytes first, row second, so there is always an
- * instant in which an object exists and nothing names it. Fifteen minutes is a hundred
- * times the longest of those gaps and costs only that a leak survives one more sweep,
- * which is the right direction to be wrong in: the other direction deletes a guest's
- * photograph a millisecond before the row that would have saved it.
- *
- * Exported because `scripts/purge.ts` runs the same use case from a terminal and had its
- * own copy of the number, with a comment saying it matched this one — which is a claim a
- * reader has to verify and an edit here would quietly falsify. The CLI is a different
- * trigger, never a second policy.
- */
-export const MEDIA_SWEEP_MIN_AGE_MS = 15 * 60 * 1000
 
 /**
  * The most digests one reconciliation pass considers, across every event.
@@ -383,7 +372,9 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // NODE_ENV=test. An operator reading a boot log still has to be able to see that
     // nothing in this process will ever act on a retention setting.
     logger.info('automatic retention sweep is off', {
-      detail: 'retention settings are honoured only when `npm run purge` is run',
+      detail:
+        'retention settings are honoured only when the purge command is run: ' +
+        '`npm run purge`, or `node dist/ops/scripts/purge.js` in the image',
     })
   }
 
@@ -419,7 +410,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     logger.info('automatic media reconciliation is off', {
       detail:
         config.retention.sweepIntervalMs === null
-          ? 'orphaned media is collected only when npm run purge is run, which also sweeps'
+          ? 'orphaned media is collected only when the purge command is run, which also ' +
+            'sweeps: `npm run purge`, or `node dist/ops/scripts/purge.js` in the image'
           : 'MEDIA_ROOT is not a directory of its own, so nothing here will delete under it',
     })
   }

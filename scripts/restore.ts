@@ -1,5 +1,5 @@
 /**
- * `npm run restore`.
+ * `npm run restore` — in the image, `node dist/ops/scripts/restore.js`.
  *
  * Writes an archive produced by `npm run backup` back over a database and a media root.
  *
@@ -11,7 +11,6 @@
  * writing.
  */
 import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { migrations } from '../src/infrastructure/db/migrations'
 import {
@@ -22,13 +21,17 @@ import {
   verifyBackup,
   type RestoreTarget,
 } from '../src/infrastructure/db/backupArchive'
+import { commandLine, invocationOf, type Invocation } from './invocation'
 
-const USAGE = `
+const usage = (invocation: Invocation): string => {
+  const line = (args: string, what: string): string =>
+    `  ${commandLine(invocation, 'restore', args).padEnd(53)} ${what}`
+  return `
 EventSlide restore
 
-  npm run restore -- <archive>                     restore into an empty installation
-  npm run restore -- <archive> --force             overwrite what is there now
-  npm run restore -- <archive> --dry-run           verify and print the plan, write nothing
+${line('<archive>', 'restore into an empty installation')}
+${line('<archive> --force', 'overwrite what is there now')}
+${line('<archive> --dry-run', 'verify and print the plan, write nothing')}
 
 Options
   --database <path>       override DATABASE_PATH (e.g. a Docker volume)
@@ -40,6 +43,7 @@ Options
 Stop the server first. Restoring underneath a running EventSlide replaces the file it
 has open, and what the wall shows after that is neither the old data nor the new.
 `.trim()
+}
 
 const flag = (argv: readonly string[], name: string): boolean => argv.includes(`--${name}`)
 
@@ -129,10 +133,12 @@ const runDryRun = async (archive: string, target: RestoreTarget): Promise<number
   return 0
 }
 
-const restore = async (argv: readonly string[]): Promise<number> => {
+const restore = async (argv: readonly string[], invocation: Invocation): Promise<number> => {
   const archive = positional(argv)
   if (archive === null) {
-    throw new BackupError('Which archive? Pass the directory npm run backup wrote.')
+    throw new BackupError(
+      `Which archive? Pass the directory ${commandLine(invocation, 'backup')} wrote.`,
+    )
   }
 
   const config = loadMaintenanceConfig()
@@ -202,15 +208,20 @@ const restore = async (argv: readonly string[]): Promise<number> => {
 
 /**
  * The whole command, as a function of its arguments. See `scripts/backup.ts` for why
- * this is exported and returns an exit code instead of calling `process.exit`.
+ * this is exported and returns an exit code instead of calling `process.exit`, and
+ * `./invocation.ts` for what `invocation` changes: the spelling of the commands it
+ * prints, and nothing else.
  */
-export const run = async (argv: readonly string[]): Promise<number> => {
+export const run = async (
+  argv: readonly string[],
+  invocation: Invocation = 'npm',
+): Promise<number> => {
   if (flag(argv, 'help') || argv.length === 0) {
-    console.log(USAGE)
+    console.log(usage(invocation))
     return 0
   }
   try {
-    return await restore(argv)
+    return await restore(argv, invocation)
   } catch (error) {
     console.error('')
     console.error(error instanceof Error ? error.message : String(error))
@@ -218,9 +229,9 @@ export const run = async (argv: readonly string[]): Promise<number> => {
   }
 }
 
-const entry = process.argv[1]
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
-  void run(process.argv.slice(2)).then((code) => {
+/** Run as a program only. See the same check in `scripts/backup.ts` for why this shape. */
+if (require.main === module) {
+  void run(process.argv.slice(2), invocationOf(__filename)).then((code) => {
     process.exitCode = code
   })
 }

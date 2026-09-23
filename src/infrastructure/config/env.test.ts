@@ -88,7 +88,11 @@ describe('loadConfig', () => {
           generated: ['SESSION_SECRET', 'GUEST_TOKEN_SECRET'],
         },
         session: { secureCookie: false },
-        storage: { databasePath: './data/eventslide.sqlite', mediaRoot: './media' },
+        storage: {
+          databasePath: './data/eventslide.sqlite',
+          mediaRoot: './media',
+          backupDir: './backups',
+        },
         uploads: {
           maxBytes: 25_000_000,
           maxFiles: 20,
@@ -285,6 +289,7 @@ describe('loadConfig', () => {
           TRUST_PROXY_HOPS: '1',
           DATABASE_PATH: '/srv/eventslide/eventslide.sqlite',
           MEDIA_ROOT: '/srv/eventslide/media',
+          BACKUP_DIR: '/srv/eventslide/backups',
           BCRYPT_COST: '13',
         }),
       )
@@ -301,6 +306,7 @@ describe('loadConfig', () => {
         storage: {
           databasePath: '/srv/eventslide/eventslide.sqlite',
           mediaRoot: '/srv/eventslide/media',
+          backupDir: '/srv/eventslide/backups',
         },
         crypto: { bcryptCost: 13 },
         e2eHooks: false,
@@ -551,6 +557,7 @@ describe('loadConfig', () => {
     it.each([
       ['DATABASE_PATH', ''],
       ['MEDIA_ROOT', ''],
+      ['BACKUP_DIR', ''],
     ])('refuses an empty %s', (name, value) => {
       const issues = refusalIssues({ [name]: value })
 
