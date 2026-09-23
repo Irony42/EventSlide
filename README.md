@@ -7,7 +7,7 @@ within seconds.
 Self-hosted. The photos stay on your machine.
 
 <p align="center">
-  <img src="docs/images/wall-spotlight.jpg" width="49%" alt="The wall on a projector, one photograph full-bleed with the sender's caption and the join code in the corner">
+  <img src="docs/images/wall-spotlight.jpg" width="49%" alt="The wall on a projector, one photograph at a time, whole, with the sender's caption and the join code in the corner">
   <img src="docs/images/wall-mosaic.jpg" width="49%" alt="The same wall in its mosaic layout, several photographs at once">
 </p>
 <p align="center">
@@ -33,9 +33,9 @@ Pi under the projector — and nothing leaves it.
 - **Nothing reaches the screen without you.** Every photo waits in a moderation queue
   until you approve it. Two hundred people are watching that screen; that is not a
   setting to leave to chance.
-- **The wall is meant to be looked at.** Full-bleed photos with a slow zoom or one of
-  five other layouts, captions and the sender's name, a join code in the corner for
-  whoever arrives late.
+- **The wall is meant to be looked at.** One photo at a time, whole and with a slow
+  zoom, or one of five other layouts; captions and the sender's name, a join code in the
+  corner for whoever arrives late.
 - **It survives the venue.** Uploads retry, the wall keeps playing when the network
   drops, and it runs unattended for an eight-hour evening.
 - **Privacy is handled, not mentioned.** Location data and device identifiers are
@@ -53,8 +53,7 @@ Pi under the projector — and nothing leaves it.
   the event page and send it to everybody: the photographs that were on the wall, in full
   resolution and without their location data, to download one by one or as a ZIP. It
   expires when you say (a month unless you choose otherwise), it can ask for a password,
-  and you can switch it off at any moment — every photo it ever showed stops loading at
-  once.
+  and you can switch it off at any moment — from then on it opens nothing.
 
 And the parts that only show up on the night:
 
@@ -89,10 +88,11 @@ And the parts that only show up on the night:
   from.
 
 - **It looks like the evening it is running.** The host picks an accent colour, a font
-  pairing and a frame style; the wall wears all three, and the guests' phones the colour.
-  The colour is checked against the accessibility contract server-side, so one that
-  would leave the text on it unreadable at ten metres, or could be mistaken for a warning
-  or an error, is refused rather than rendered.
+  pairing and a frame style; the wall takes all three (the frame in the layouts that
+  draw one), and the guests' phones the colour. The colour is checked against the
+  accessibility contract server-side — the text on it must read at ten metres, and it
+  must not pass for the colours that mean success, warning or error — and one that fails
+  is refused rather than rendered.
 - **Translucent surfaces that give way before the wall does.** The guest's upload screen
   uses a glass material over the photographs, and it is measured: a phone that stops
   answering a tap promptly gives up the blur. The projected wall never wears it — its
@@ -114,16 +114,18 @@ cd EventSlide
 node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 echo "PUBLIC_URL=https://photos.example.com" >> .env
-# Your own account, created on the first boot.
+# Your own account, created on the first boot. The password is generated too, because
+# one typed into a README is one everybody who read it could sign in with first.
 echo "BOOTSTRAP_OWNER_EMAIL=you@example.com" >> .env
-echo "BOOTSTRAP_OWNER_PASSWORD=choose-a-long-passphrase" >> .env
+node -e "console.log('BOOTSTRAP_OWNER_PASSWORD='+require('crypto').randomBytes(18).toString('base64url'))" >> .env
 
 docker compose up            # the first time, and read what it says
 docker compose up -d         # once it has booted cleanly
 ```
 
-Then open `PUBLIC_URL/login` and sign in with that email and password. The first sign-in
-asks you to choose a new password before it shows you anything else.
+Once the https proxy described below is in front of it, open `PUBLIC_URL/login` and sign
+in with that email and the generated password (`grep BOOTSTRAP_OWNER .env` shows it). The
+first sign-in asks you to choose your own before it shows you anything else.
 
 **Run it in the foreground the first time.** A missing or malformed variable makes the
 server print every problem at once and exit rather than start — which is what you want,
@@ -132,10 +134,12 @@ on its own and the list scrolls away. Once it boots, `-d` is the right way to le
 
 **The two `BOOTSTRAP_OWNER_` lines are how the first account is made.** There is no
 default admin and no setup page: the server creates that owner on its first boot, against
-an empty database, and does nothing with the two lines after that — once you have signed
-in and chosen your own password, you can delete them. Set both or neither. The password
-is held to the same rule as every account's, at least 12 characters and not an obvious
-one, and a weak one is refused at boot like any other bad variable.
+an empty database, and creates nothing from them once any account exists. It still checks
+them at every boot, so once you have signed in and chosen your own password, delete both
+or keep both — one without the other is refused. A password of your own choosing is held
+to the same rule as every account's, at least 12 characters and not an obvious one, and a
+weak one is refused at boot like any other bad variable. The email is only checked when
+the account is made: a malformed one creates nothing, and the log says so.
 
 **`PUBLIC_URL` must be an https address a phone on the venue Wi-Fi can actually reach**,
 never `localhost`. It is what the QR code encodes, and a QR code pointing at `localhost`
@@ -160,6 +164,13 @@ photos.example.com {
 }
 ```
 
+Whichever proxy it is has to tell the server that the request arrived over https
+(`X-Forwarded-Proto`) and who sent it (`X-Forwarded-For`). Caddy and Traefik do without
+being asked; nginx needs `proxy_set_header X-Forwarded-Proto $scheme;` and
+`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`. Without the first the
+login cookie is never sent, and without the second every guest shares the proxy's address
+in the rate limiter.
+
 **A venue with no domain name is the case this does not cover.** A box on a LAN with no
 DNS and no certificate cannot serve https that a guest's phone will trust, and EventSlide
 will not run over plain http in production. Today the answer is a real domain pointed at
@@ -183,7 +194,7 @@ node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toStrin
 node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 echo "PUBLIC_URL=https://photos.example.com" >> .env
 echo "BOOTSTRAP_OWNER_EMAIL=you@example.com" >> .env
-echo "BOOTSTRAP_OWNER_PASSWORD=choose-a-long-passphrase" >> .env
+node -e "console.log('BOOTSTRAP_OWNER_PASSWORD='+require('crypto').randomBytes(18).toString('base64url'))" >> .env
 # The one line `compose.yaml` writes for you: there is one proxy in front of the server.
 echo "TRUST_PROXY_HOPS=1" >> .env
 
@@ -192,13 +203,13 @@ npm run build
 npm start
 ```
 
-**`TRUST_PROXY_HOPS=1` is what makes the login work behind your https proxy.** Without it
-the server does not take the proxy's word that the request arrived over https, so it
-never sends the `Secure` login cookie: the sign-in form accepts your password and you are
-still signed out. It also means the server believes the address the proxy forwards, and
-`npm start` listens on port 4300 on every interface — so firewall that port and let only
-the proxy reach it, or anybody on the network can claim an address of their choosing and
-walk past the per-address rate limits.
+**The login needs `TRUST_PROXY_HOPS=1` behind your https proxy.** Without it the server
+does not take the proxy's word (the `X-Forwarded-Proto` above) that the request arrived
+over https, so it never sends the `Secure` login cookie: the sign-in form accepts your
+password and you are still signed out. It also means the server believes the address the
+proxy forwards, and `npm start` listens on port 4300 on every interface — so firewall that
+port and let only the proxy reach it, or anybody on the network can claim an address of
+their choosing and walk past the per-address rate limits.
 
 **There is no weak default to fall back on, and that is deliberate.** `NODE_ENV` is
 `production` unless something says otherwise, so a server started without those two
@@ -209,14 +220,20 @@ verbatim stops the boot, because the secrets in it are placeholders and the serv
 them by sight.
 
 To look around before there is a real event, give the demo a scratch database and run
-the development server on it. `npm run db:seed:demo` refuses a database that already
-holds an account, which yours does from its first boot:
+the development server on it, with `npm start` stopped — both use port 4300.
+`npm run db:seed:demo` refuses a database that already holds an account, which yours
+does from its first boot:
 
 ```bash
-export DATABASE_PATH=./demo/eventslide.sqlite MEDIA_ROOT=./demo/media
-npm run db:seed:demo   # an event with six photos on the wall and two awaiting moderation
-npm run dev            # then sign in at http://localhost:5173/login as the seed says
+# An event with six photos on the wall and two awaiting moderation, and its login.
+DATABASE_PATH=./data/demo.sqlite MEDIA_ROOT=./data/demo-media npm run db:seed:demo
+# Then sign in at http://localhost:5173/login with what the seed printed.
+DATABASE_PATH=./data/demo.sqlite MEDIA_ROOT=./data/demo-media npm run dev
 ```
+
+Set per command rather than exported, so a later `npm start` in the same shell still
+opens your real database; under `data/`, so git ignores it. The demo login asks for a new
+password first, like any first sign-in.
 
 </details>
 
@@ -274,9 +291,9 @@ What the link hands out, and what it does not:
 - **Only what was on the wall.** Pending, refused and hidden photographs are not in it,
   and one you take off the wall after sending the link is gone from it at the next page
   load.
-- **Switching it off is immediate.** Nothing more loads from it, in a tab already open
-  either, and a ZIP halfway through downloading is cut off rather than finished — so
-  nobody is left holding an archive that looks complete and is not.
+- **Switching it off is immediate.** Nothing it has not already shown loads any more, in
+  a tab already open either, and a ZIP halfway through downloading is cut off rather than
+  finished — so nobody is left holding an archive that looks complete and is not.
 
 <br clear="right">
 
@@ -285,9 +302,9 @@ What the link hands out, and what it does not:
 1. **Create the event** in `/admin` — a name is enough.
    Add photo missions here too, if you want them.
 2. **Print the QR code** from the event page and put it on the tables.
-3. **Open it to guests** from the event page when the evening starts, or give it an
-   opening time in its settings. Until then it is a draft: the QR code lets nobody in
-   and there is no wall to show.
+3. **Open it to guests** when the evening starts, with **Open to guests** on the event
+   page, or give it an opening time in its settings. Until then it is a draft: the QR
+   code lets nobody in and there is no wall to show.
 4. **Open the wall** on the projector: the display page, fullscreen. It needs no
    keyboard after that.
 5. **Keep the moderation queue open** on your laptop or phone. New photos arrive by
@@ -366,8 +383,8 @@ npm run verify         # lint + typecheck + coverage + build — the gate
 npm run verify:full    # the above plus the Playwright journeys
 ```
 
-`npm run lint` enforces the architecture, not just code style: a file in
-`src/domain` that imports Express fails the build. `src/domain` and
+`npm run lint` enforces the architecture itself: a file in
+`src/domain` that imports Express fails `npm run verify`. `src/domain` and
 `src/application` are held at 100% branch coverage.
 
 ## Licence
