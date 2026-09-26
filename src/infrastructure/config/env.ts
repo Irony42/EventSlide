@@ -163,6 +163,23 @@ const publicUrl = z
 const blankAsAbsent = (value: unknown): unknown => (value === '' ? undefined : value)
 
 /**
+ * Whether this box is run for other people (docs/ROADMAP.md §10.9): `off` or `on`, and
+ * nothing else.
+ *
+ * **Two words, lower case, exactly as `NODE_ENV` and `LOG_LEVEL` take theirs.** Not
+ * {@link boolish}: the roadmap, `.env.example` and `compose.yaml` all write this switch as
+ * `off|on`, and a second set of spellings would be a second thing to document and to get
+ * wrong. So `true`, `1`, `yes` and `ON` are refusals that name the variable at boot, beside
+ * every other bad one — never a guess at which side of the switch was meant.
+ *
+ * **Absent is `off`, and so is blank**, for the reason written on `NODE_ENV`: a dangling
+ * `SITE_ADMIN=` or a template that rendered empty lands on the default like any other
+ * absence. Here the default is also the posture with less surface — no `/api/site` router
+ * is mounted at all — so a blank can only ever take something away.
+ */
+const siteAdmin = z.preprocess(blankAsAbsent, z.enum(['off', 'on']).default('off'))
+
+/**
  * The domain's password policy, applied at boot so the failure is a named ConfigError.
  *
  * This is exactly the reasoning written on `BCRYPT_COST` below, for the same shape of
@@ -401,6 +418,9 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
 
       /** Enables the display timing hooks the Playwright suite drives. Never in production. */
       E2E_HOOKS: boolish.optional(),
+
+      /** See {@link siteAdmin}. `off` unless the box says otherwise. */
+      SITE_ADMIN: siteAdmin,
     })
     .superRefine((raw, ctx) => {
       // The first owner is a pair, and half of one creates nothing. Before `""` meant
@@ -572,6 +592,16 @@ export interface AppConfig {
   }
 
   readonly e2eHooks: boolean
+
+  /**
+   * `SITE_ADMIN=on`: this box is run for other people, and the operator's own namespace,
+   * `/api/site`, is mounted (docs/ROADMAP.md §10.9). `false` on every install that never
+   * said so, which is what keeps a solo box exactly as it was.
+   *
+   * It decides how much surface exists and nothing else. Authorization on that surface is
+   * `requireOperator`'s, in both modes; migrations run in both modes.
+   */
+  readonly siteAdmin: boolean
 }
 
 export class ConfigError extends Error {
@@ -707,6 +737,8 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
     },
 
     e2eHooks: raw.E2E_HOOKS ?? false,
+
+    siteAdmin: raw.SITE_ADMIN === 'on',
   }
 }
 
