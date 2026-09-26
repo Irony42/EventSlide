@@ -663,6 +663,16 @@ on data it does not own, "what happened" stops being a question the git history 
 
 ### 10.9 One product, with site administration off by default (P1, effort S, risk: low)
 
+> **Partly shipped** in [#95](https://github.com/Irony42/EventSlide/pull/95): the
+> `SITE_ADMIN` switch, the `/api/site` namespace gated by `requireOperator` and mounted
+> only when on, migrations applied in both modes, and the ring-4 guards — the
+> operator-scope sweep once per mode and the structural case that keeps every other
+> router out of the namespace. **Still to come**, each with the item that gives it
+> something to act on: `features.siteAdmin` on the instance-info endpoint and the SPA's
+> `/admin/site` routes; the boot warning when clients exist and the mode is off; refusing
+> operator-only settings when off; and the ring-6 half — CI running rings 4 and 6 once per
+> mode, `tenant-isolation.spec.ts` included.
+
 Everything from 10.2 to 10.8 is for a box that serves other people. Most installs are not
 that box: the person who installed EventSlide is the person whose wedding it is, and for
 them a clients screen, a ceilings form and an operator console are noise. 10.1 promised
@@ -673,11 +683,12 @@ item is how that promise survives the rest of the category landing.
 switch — not a build flag, not a second image, not a second repository:
 
 - **`off`** — no `/api/site/*` route is mounted, so each one answers exactly as an unknown
-  route does (`apiNotFound`, same body) rather than 403: the switch must not become an
-  oracle for "is this box operated". The SPA registers no `/admin/site` route, and there is
-  no client space and no ceiling banner. The public instance-info endpoint reports
-  `features.siteAdmin: false`, which is what the SPA reads. Existing journeys and visual
-  baselines pass unchanged.
+  route does (`apiNotFound`, same body) rather than 403: a box that never asked for this
+  exposes no operator surface at all, not even a gate that refuses. That is not meant to
+  hide whether a box is operated, which the public flag below states anyway. The SPA
+  registers no `/admin/site` route, and there is no client space and no ceiling banner.
+  The public instance-info endpoint reports `features.siteAdmin: false`, which is what
+  the SPA reads. Existing journeys and visual baselines pass unchanged.
 - **`on`** — the surfaces of 10.2 to 10.8 are mounted, behind `requireOperator`.
 
 What the switch deliberately does **not** govern:

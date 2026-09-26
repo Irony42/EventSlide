@@ -70,6 +70,12 @@ services:
       # form that will not let you in.
       BOOTSTRAP_OWNER_EMAIL: ${BOOTSTRAP_OWNER_EMAIL:-}
       BOOTSTRAP_OWNER_PASSWORD: ${BOOTSTRAP_OWNER_PASSWORD:-}
+      # `on` only if this box is run for other people: it mounts the operator's own
+      # namespace, /api/site, behind the operator check. `off` — the default, and all a box
+      # you run for yourself ever needs — leaves those paths unmounted, answering exactly
+      # like any path that does not exist. Exactly `off` or `on`; anything else stops the
+      # boot and names this variable. See .env.example.
+      SITE_ADMIN: ${SITE_ADMIN:-off}
     volumes:
       # The database, every photo, and under /data/backups the archives the backup
       # command writes (BACKUP_DIR, set in the Dockerfile). Everything is here, but do not

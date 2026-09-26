@@ -231,17 +231,17 @@ and the entity do.
 
 Everything in `src/interface/http/middleware/authz.ts`:
 
-| Middleware                       | Grants                                                                                                                                |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `enforceSessionAge(deps)`        | nothing. Ends a session older than the absolute cap, ahead of identity resolution                                                     |
-| `attachUser()`                   | nothing. Reads the session into a principal — identity, never permission                                                              |
-| `requireUser(deps)`              | any authenticated user **whose account is still enabled**, for the routes that are not event-scoped                                   |
-| `requireRole('owner', deps)`     | event owner only, and only while that account is enabled                                                                              |
-| `requireRole('moderator', deps)` | owner or moderator of **that** event, same condition                                                                                  |
-| `requireOperator(deps)`          | the account that operates the **box** — and nothing inside any event. No route uses it yet; see the site role below                   |
-| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                         |
-| `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                     |
-| _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` |
+| Middleware                       | Grants                                                                                                                                             |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enforceSessionAge(deps)`        | nothing. Ends a session older than the absolute cap, ahead of identity resolution                                                                  |
+| `attachUser()`                   | nothing. Reads the session into a principal — identity, never permission                                                                           |
+| `requireUser(deps)`              | any authenticated user **whose account is still enabled**, for the routes that are not event-scoped                                                |
+| `requireRole('owner', deps)`     | event owner only, and only while that account is enabled                                                                                           |
+| `requireRole('moderator', deps)` | owner or moderator of **that** event, same condition                                                                                               |
+| `requireOperator(deps)`          | the account that operates the **box**, nothing inside any event. Gates `/api/site` and `/api/site/*` when `SITE_ADMIN=on`; see the site role below |
+| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                                      |
+| `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                                  |
+| _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`              |
 
 There is no `requireGuestOwnsPhoto`. Ownership is not a middleware question: the rule is
 their photo, their window, and a status still off the wall, and all three live on the
@@ -280,6 +280,17 @@ credential at all without an authorization refusal, and a not-event-scoped one h
 unable to answer `event.notFound`. Adding a guarded route to either to quiet a failure
 fails in its own named case rather than passing on the strength of its reason string.
 
+A third, `OPERATOR_ROUTES`, holds the routes of the operator's own namespace, the one
+surface an operator is meant to reach, and replaces the sweep's rule with theirs rather
+than with none: with `SITE_ADMIN=on` every entry is a route the router mounted at
+`/api/site` carries, every route under `/api/site` is an entry, and each refuses a
+signed-in account that does not operate the box with `requireOperator`'s own 403; with
+`off`, nothing under `/api/site` is mounted. An entry is checked against the **mount**, not
+the name: one naming a route of any other router excuses nothing and that route is swept
+like every other, because a `requireOperator` written on an event route refuses a
+non-operator exactly as the namespace's gate does while letting the operator into a
+client's evening.
+
 ### The site role, and what it deliberately does not grant
 
 An account carries one more thing since roadmap §10.1: `users.site_role`, either `none` or
@@ -287,14 +298,40 @@ An account carries one more thing since roadmap §10.1: `users.site_role`, eithe
 runs this instance for other people — and it is answered from a different table, by a
 different middleware, from the question of what anybody may do inside an event.
 
-| Rule                                                                    | Why, and where it is held                                                                                                                                                                                                                                                            |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A site role grants **nothing** inside an event                          | an operator who could accidentally moderate a client's photographs is worse than one who cannot help at all. Support access is §10.6: time-boxed, announced and logged                                                                                                               |
-| `requireRole` never reads it                                            | `authz.test.ts` asserts the refusals **and**, through `CallLog`, that the question is never even asked — including on the path where the membership is missing                                                                                                                       |
-| Every event-scoped route refuses an operator who is not a member        | `siteOperatorScope.test.ts` sweeps every route off the assembled server, so a route added later is covered the day it is mounted rather than the day somebody adds it to a list                                                                                                      |
-| Media is reached as a member of the public                              | `mediaRoutes` resolves its own viewer, so an operator asking for a photograph is `{kind:'public'}` and a pending photo stays unreadable — asserted at rings 4 and 6                                                                                                                  |
-| It is read from storage on every request, never carried in the session  | a capability in a cookie outlives the account being switched off. `siteRoleFor` answers `none` for an unknown **or disabled** account, and **throws** on a value the domain does not know rather than guessing at it                                                                 |
-| An operator is created in exactly two places, both on a box's first day | `bootstrapOwner` on a fresh install, and migration `004_site_role` on an upgrade — never both, since `bootstrapOwner` stops on a non-empty `users` table. An invitation creates `none` explicitly (`registerModerator`), and there is no route that changes a site role at all today |
+| Rule                                                                    | Why, and where it is held                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A site role grants **nothing** inside an event                          | an operator who could accidentally moderate a client's photographs is worse than one who cannot help at all. Support access is §10.6: time-boxed, announced and logged                                                                                                                                                                |
+| `requireRole` never reads it                                            | `authz.test.ts` asserts the refusals **and**, through `CallLog`, that the question is never even asked — including on the path where the membership is missing                                                                                                                                                                        |
+| Every event-scoped route refuses an operator who is not a member        | `siteOperatorScope.test.ts` sweeps every route off the assembled server, so a route added later is covered the day it is mounted rather than the day somebody adds it to a list                                                                                                                                                       |
+| Media is reached as a member of the public                              | `mediaRoutes` resolves its own viewer, so an operator asking for a photograph is `{kind:'public'}` and a pending photo stays unreadable — asserted at rings 4 and 6                                                                                                                                                                   |
+| It is read from storage on every request, never carried in the session  | a capability in a cookie outlives the account being switched off. `siteRoleFor` answers `none` for an unknown **or disabled** account, and **throws** on a value the domain does not know rather than guessing at it                                                                                                                  |
+| An operator is created in exactly two places, both on a box's first day | `bootstrapOwner` on a fresh install, and migration `004_site_role` on an upgrade — never both, since `bootstrapOwner` stops on a non-empty `users` table. An invitation creates `none` explicitly (`registerModerator`), and there is no route that changes a site role at all today                                                  |
+| The operator's namespace exists only on a box that asked for it         | `/api/site` — itself and `/api/site/*`, never `/api/sites` — is mounted only with `SITE_ADMIN=on` (roadmap §10.9) and gated by `requireOperator` at **router level**, so a route there inherits the check. Off, every path under it answers as an unknown route does, headers included (`siteAdminMode.test.ts`): no operator surface |
+
+`SITE_ADMIN` is not a security boundary, and nothing may treat it as one. It decides how
+much surface exists; who may use that surface is `requireOperator`'s answer in both modes,
+and `siteOperatorScope.test.ts` runs its whole sweep once per mode. On, the namespace is
+mounted first among the routers behind the CSRF gate, so a request that reaches the
+`/api/site` mount meets the operator check before any other router sees it. Ordering
+promises no more than that: `GET /api//site/x` never reaches that mount, and the `/api`
+routers are handed it as `/site/x`. What keeps every other router out of the namespace is
+structural — a case in `siteOperatorScope.test.ts` walks the assembled server in both
+modes and fails on any route at `/api/site` or `/api/site/*` that a router other than the
+one mounted there declares, however it spells the path: `/site`, `//site/x`, `/SITE/x`.
+The walk refuses to guess: a route path that is anything but literal segments and
+`:parameters` (`/(site)/x`, `/sit?e/x`, `/[s]ite/x`, `/s{1}ite/x`, `/sit\e/x`, `/site*` —
+it accepts one known shape rather than listing forbidden characters, a list `{n}` and `\`
+had walked past), a middleware mounted at a path inside a router, and a
+sub-app each make it fail loudly, because each can answer `/api//site/x` without spelling
+`/site` anywhere a walk could read it. The one path-mounted middleware it lets through is
+`galleryHeaders`, named with its reason in `testing/routeTable.ts`. Refusing `//` at
+request time would close the same gap from the other side; it is deliberately not done,
+because while the walk holds the double slash reaches no route in the namespace, only the
+API's own 404. Off, the namespace is not mounted rather than mounted and refusing, so a
+solo box exposes no operator surface at all: every `/api/site` path is indistinguishable
+from an unknown route. That does not make the mode a secret, and nothing relies on it
+being one: on, an anonymous request there is refused `401` where off answers `404`, and
+the planned public `features.siteAdmin` flag states it outright.
 
 Upgrade path: migration `004_site_role` gives the role to the **first account ever
 created** — the one `bootstrapOwner` made for whoever installed the box, since it only ever
@@ -303,7 +340,7 @@ disabled. It never walks to the next-oldest row. That distinction is the point: 
 account that is not disabled" reads like the same rule and stops being the same rule the
 moment the installer's login is switched off, at which point it names the first person
 somebody _invited_ — a moderator from one wedding, handed the box. A box with no operator
-costs nothing today, because `requireOperator` is mounted on no route and §10.4 is both the
+costs nothing today, because `requireOperator` guards no route yet and §10.4 is both the
 first item that needs an operator and the item that ships a way to appoint one; a box with
 the wrong one holds a grant nothing can revoke. The two cases the migration cannot
 distinguish — a first account **deleted** rather than disabled — is written down in the
@@ -851,6 +888,7 @@ once with zod at startup, exported as a frozen typed object.
 | `PORT` / `LOG_LEVEL`               | no                    | `4300`, `info`                        |                                                                        |
 | `RETENTION_SWEEP_INTERVAL_MINUTES` | no                    | `60`, and `off` under `NODE_ENV=test` | how often expired events are deleted; see §11                          |
 | `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                    | `5`, and `off` under `NODE_ENV=test`  | how often scheduled openings and closings are applied; deletes nothing |
+| `SITE_ADMIN`                       | no                    | `off`                                 | `on` mounts `/api/site` behind `requireOperator` (§2); `off`/`on` only |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,

@@ -111,6 +111,25 @@ so in `PUBLIC_ROUTES` or `NOT_EVENT_SCOPED` with a reason. Both lists are checke
 behaviour, not against the reason you wrote, so neither is a way to make a failing case go
 away.
 
+**Operator routes are the one exception to "declare it per route".** They live only in
+`src/interface/http/routes/siteRoutes.ts`, mounted at `/api/site` when `SITE_ADMIN=on`,
+and that router's `router.use(requireOperator(deps))` — first, above every route — is
+their authorization decision; do not restate it per route, and never register a route
+above it. Each one is listed in `OPERATOR_ROUTES` in `siteOperatorScope.test.ts` with a
+reason, which checks per mode that it is mounted only when on, carried by `siteRoutes`
+itself (an entry naming a route of any other router excuses nothing), and refused to a
+signed-in account that does not operate the box. No other router may declare a path in
+the namespace — `/api/site` or `/api/site/*`, however it is spelled (`/site`, `//site/x`,
+`/SITE/x`); `/api/sites` is outside it. A structural case in the same file fails if one
+does, because `GET /api//site/x` reaches the `/api` routers without ever meeting the
+gate. The walk behind that case refuses to guess, so do not write what it cannot read: a
+route path that is anything but literal segments and `:parameters` (`*`, `?`, `+`, `(…)`,
+`[…]`, `{n}`, `\`, `|` and every other pattern character alike), a middleware
+mounted at a path inside a router (`router.use('/x', fn)`; declare a route, or name the
+middleware in `PATH_MOUNTED_MIDDLEWARE` in `testing/routeTable.ts` with the reason it
+answers nothing), or a sub-app. Each makes it fail loudly, in both modes. Every other
+route keeps the per-route rule above.
+
 ## 4. Error mapping — one place, exhaustive
 
 ```ts

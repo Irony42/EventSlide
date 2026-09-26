@@ -19,6 +19,7 @@ import { moderationRoutes } from './routes/moderationRoutes'
 import { privacyNoticeRoutes } from './routes/privacyNoticeRoutes'
 import { publicRoutes } from './routes/publicRoutes'
 import { shareLinkRoutes } from './routes/shareLinkRoutes'
+import { siteRoutes } from './routes/siteRoutes'
 import { streamRoutes } from './routes/streamRoutes'
 import type { HttpDeps } from './types'
 import type { PresenterContext } from './presenters/presenters'
@@ -133,6 +134,39 @@ export const buildServer = ({
   app.use('/api', requireCsrfToken)
 
   const routeDeps = { deps, usecases, presenter }
+
+  // The operator's namespace (roadmap §10.9), and only on a box that asked for it.
+  //
+  // **Off, it is not mounted at all** — not mounted and refusing, not mounted and hidden.
+  // Every `/api/site` path then falls through to `apiNotFound` below and answers the same
+  // status, body and headers as any path nobody wrote: a box that never asked for
+  // administration exposes no operator surface, not even a gate. The mode itself is no
+  // secret — on answers 401 where off answers 404 — and nothing relies on it being one.
+  //
+  // **On, `requireOperator` guards the whole mount point** from inside `siteRoutes`: 401
+  // with no session, 403 for an account that does not operate the box, and an operator on
+  // a path no route claims falls through to the same `apiNotFound`.
+  //
+  // After the CSRF gate and `attachUser`, so a mutating request is proven same-origin
+  // before anything else is asked of it and the gate has an identity to read. **First of
+  // the routers behind that gate**, so a request that reaches this mount meets the operator
+  // check before any `/api` router below sees it. Ordering cannot cover a request that
+  // never reaches the mount: `GET /api//site/x` matches only `/api`, whose routers are
+  // handed `/site/x`, so a route written `/site/…` in the wrong file would answer it
+  // ungated. What keeps the namespace this router's alone is the structural case in
+  // `siteOperatorScope.test.ts`, which fails, in both modes, on any route at `/api/site`
+  // or `/api/site/*` that another router declares — and whose walk of the route table
+  // refuses to guess: a route path that is anything but literal segments and
+  // `:parameters` (`/(site)/x`, `/sit?e/x`, `/s{1}ite/x`), a middleware
+  // mounted at a path inside a router, or a sub-app makes it fail loudly, because each can
+  // answer `/api//site/x` without spelling `/site` where a walk could read it.
+  // (Collapsing `//` app-wide would close the request side as well. It is deliberately not
+  // done: while that walk holds, the double slash reaches no route in this namespace, only
+  // `apiNotFound`.)
+  if (config.siteAdmin) {
+    app.use('/api/site', siteRoutes(routeDeps))
+  }
+
   app.use('/api', publicRoutes(routeDeps))
   app.use('/api', authRoutes(routeDeps))
 
