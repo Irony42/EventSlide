@@ -673,11 +673,12 @@ item is how that promise survives the rest of the category landing.
 switch — not a build flag, not a second image, not a second repository:
 
 - **`off`** — no `/api/site/*` route is mounted, so each one answers exactly as an unknown
-  route does (`apiNotFound`, same body) rather than 403: the switch must not become an
-  oracle for "is this box operated". The SPA registers no `/admin/site` route, and there is
-  no client space and no ceiling banner. The public instance-info endpoint reports
-  `features.siteAdmin: false`, which is what the SPA reads. Existing journeys and visual
-  baselines pass unchanged.
+  route does (`apiNotFound`, same body) rather than 403: a box that never asked for this
+  exposes no operator surface at all, not even a gate that refuses. That is not meant to
+  hide whether a box is operated, which the public flag below states anyway. The SPA
+  registers no `/admin/site` route, and there is no client space and no ceiling banner.
+  The public instance-info endpoint reports `features.siteAdmin: false`, which is what
+  the SPA reads. Existing journeys and visual baselines pass unchanged.
 - **`on`** — the surfaces of 10.2 to 10.8 are mounted, behind `requireOperator`.
 
 What the switch deliberately does **not** govern:
