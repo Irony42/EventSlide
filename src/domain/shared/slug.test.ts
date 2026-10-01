@@ -232,6 +232,28 @@ describe('Slug.fromNameWithRandomSuffix', () => {
 
     expect(!result.ok && result.error.code).toBe('slug.malformed')
   })
+
+  /**
+   * A byte source that reports the right length but yields a value no real `Uint8Array`
+   * can hold — the same device `joinCode.test.ts` uses for `JoinCode.fromBytes`'s own
+   * fallback. Nothing in the application does this; it is the only way to exercise the
+   * index fallback, and that fallback is load-bearing: without it a missed index would
+   * append the literal text `undefined` into a URL every guest's phone has to resolve.
+   */
+  class LyingByteSource extends Uint8Array {
+    override *[Symbol.iterator](): Generator<number> {
+      for (let index = 0; index < this.length; index += 1) yield Number.NaN
+    }
+  }
+
+  it('still lands inside the alphabet when an index cannot be resolved', () => {
+    const result = Slug.fromNameWithRandomSuffix(
+      'Camille & Sacha',
+      new LyingByteSource(Slug.suffixEntropyBytes),
+    )
+
+    expect(result.ok && result.value.value).toBe('camille-sacha-000000')
+  })
 })
 
 describe('Slug.isReserved', () => {

@@ -318,6 +318,17 @@ describe('createEvent', () => {
       expect(!result.ok && result.error.code).toBe('event.slugExhausted')
       expect(!result.ok && result.error.kind).toBe('unexpected')
     })
+
+    it('refuses a name that folds away to nothing even with a suffix to append', async () => {
+      // `EventName` accepts this — 東京 has alphanumeric characters by its own rule,
+      // `\p{L}` — but `slugify` keeps only `[a-z0-9]`, so it folds to '' exactly as pure
+      // punctuation does. `Slug.fromNameWithRandomSuffix` then builds a bare `-xxxxxx`,
+      // which `Slug.create` refuses for the leading dash. That refusal must stop the
+      // attempt loop outright, rather than being swallowed as "try the next suffix".
+      const result = await createWithRandomSuffix({ ownerId: OWNER, name: '東京' })
+
+      expect(!result.ok && result.error.code).toBe('slug.malformed')
+    })
   })
 
   // -------------------------------------------------------- JOIN_CODE_LENGTH --
