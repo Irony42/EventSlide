@@ -116,7 +116,7 @@ describe('.github/dependabot.yml', () => {
     expect(valuesOf('versions', ignored).join(' ')).toContain('>=25')
   })
 
-  it("names the Node version actually built and run, not a stale one", () => {
+  it('names the Node version actually built and run, not a stale one', () => {
     // The comment above the @types/node pin used to say "Node 22" long after the
     // Dockerfile and CI moved to 24 (package.json's engines.node agrees). A reader
     // sizing the pin against the wrong runtime would draw the wrong line.

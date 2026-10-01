@@ -47,7 +47,9 @@ describe('docs/SECURITY.md', () => {
     const rateLimit = read('src', 'interface', 'http', 'middleware', 'rateLimit.ts')
     // loginLimiter shares the generic 60-second limiter; only galleryUnlockLimiters
     // uses the 15-minute UNLOCK_WINDOW_MS, and that is a different endpoint.
-    expect(rateLimit).toMatch(/export const loginLimiter[\s\S]{0,80}limiter\(perMinute, 'rate\.limited'\)/)
+    expect(rateLimit).toMatch(
+      /export const loginLimiter[\s\S]{0,80}limiter\(perMinute, 'rate\.limited'\)/,
+    )
     const loginRow = security
       .split('\n')
       .find((line) => line.trimStart().startsWith('| `POST /api/auth/login`'))
@@ -82,7 +84,7 @@ describe('docs/ARCHITECTURE.md', () => {
     expect(architecture).not.toContain('buildContainer')
   })
 
-  it("defaults NODE_ENV the way env.ts does, in the §9 config example", () => {
+  it('defaults NODE_ENV the way env.ts does, in the §9 config example', () => {
     expect(read('src', 'infrastructure', 'config', 'env.ts')).toMatch(
       /NODE_ENV:[\s\S]{0,200}\.default\('production'\)/,
     )
@@ -113,7 +115,7 @@ describe('docs/ARCHITECTURE.md', () => {
 describe('AGENTS.md', () => {
   const agents = read('AGENTS.md')
 
-  it("keeps the node_modules-junction rule on one row, not split by a stray control character", () => {
+  it('keeps the node_modules-junction rule on one row, not split by a stray control character', () => {
     // Rule 18's cell once carried a literal line break where "\node_modules" belongs,
     // which split one table row into a well-formed row and a second line markdown then
     // read as a new, malformed one starting "| ode_modules...".
