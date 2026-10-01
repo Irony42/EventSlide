@@ -31,6 +31,13 @@ export interface RotateJoinCodeDeps {
   readonly memberships: MembershipRepository
   readonly ids: IdGenerator
   readonly bus: EventBus
+  /**
+   * `JOIN_CODE_LENGTH` (P4-09 / D-14), 6 to 10. The rotated code is minted at the
+   * box's **current** configuration, which may differ from the length the event's old
+   * code was given — nothing requires every code on a box to be the same length,
+   * `JoinCode.create` accepts the whole range on the way back in.
+   */
+  readonly joinCodeLength: number
 }
 
 export type RotateJoinCode = (input: RotateJoinCodeInput) => Promise<Result<Event, DomainError>>
@@ -45,9 +52,10 @@ export type RotateJoinCode = (input: RotateJoinCodeInput) => Promise<Result<Even
 const allocateJoinCode = async (
   events: EventRepository,
   ids: IdGenerator,
+  length: number,
 ): Promise<Result<JoinCode, DomainError>> => {
   for (let attempt = 0; attempt < MAX_JOIN_CODE_ATTEMPTS; attempt += 1) {
-    const candidate = JoinCode.fromBytes(ids.bytes(JoinCode.entropyBytes))
+    const candidate = JoinCode.fromBytes(ids.bytes(length), length)
     if (!candidate.ok) return candidate
     if (!(await events.joinCodeTaken(candidate.value))) return ok(candidate.value)
   }
@@ -57,7 +65,7 @@ const allocateJoinCode = async (
 }
 
 export const makeRotateJoinCode =
-  ({ events, memberships, ids, bus }: RotateJoinCodeDeps): RotateJoinCode =>
+  ({ events, memberships, ids, bus, joinCodeLength }: RotateJoinCodeDeps): RotateJoinCode =>
   async ({ eventId, actorId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -70,7 +78,7 @@ export const makeRotateJoinCode =
       return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
     }
 
-    const joinCode = await allocateJoinCode(events, ids)
+    const joinCode = await allocateJoinCode(events, ids, joinCodeLength)
     if (!joinCode.ok) return joinCode
 
     const updated = event.rotateJoinCode(joinCode.value)
