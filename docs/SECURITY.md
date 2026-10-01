@@ -760,6 +760,17 @@ behalf — is served by the composite key rather than by three tiers.
   concurrent uploads can both pass a check made outside it. When it is reached the event
   stops accepting uploads and the host can raise it. Filling the disk takes down every
   other event on the box, so this is the one limit enforced transactionally.
+- **Two more guards close the gap the quota leaves open (G3-06 / P4-10): a per-event
+  quota says nothing about the box as a whole.** A process-wide semaphore,
+  `MAX_CONCURRENT_UPLOAD_REQUESTS` (default 4), bounds how many upload requests —
+  photos and clips together, the same shared bucket as the rate limit above — may be
+  buffering at once: past it, `429 upload.busy`. And a `statfs`-based guard refuses a
+  request below `MIN_FREE_DISK_BYTES` free on the directory holding `DATABASE_PATH` or
+  on `MEDIA_ROOT` (which, without a separate `SCRATCH_ROOT` (P4-04), is also where a
+  clip stages while it uploads) with `413 storage.boxFull`, before a byte is read or
+  written. Neither is a `503`: an upload refused either way is a refusal of that
+  request, not a state of the service, so `GET /api/ready` reports the disk margin
+  without ever acting on it (`routes/healthRoutes.ts`, `src/domain/shared/diskSpaceGuard.ts`).
 - Each SSE subscriber is a held socket plus a heartbeat timer. The hub caps subscribers
   per event and drops the oldest idle connection rather than refusing the projector, the
   one client that must never be disconnected. **(defect)** No drop-oldest logic exists:
@@ -1727,6 +1738,7 @@ cannot be traced to a file must be marked, never left standing.
 | §5          | `GET /api/join/:code` limited per code as well as per IP                         | **That route does not exist.** The code is resolved inside `POST /api/join`, limited per IP only — `routes/publicRoutes.ts:94`                                                                                                                  |
 | §5          | the SSE hub "drops the oldest idle connection rather than refusing"              | It **refuses**, cleanly and before headers — `middleware/rateLimit.ts:156-168`, `routes/streamRoutes.ts:295`. The per-IP and per-event numbers in that table are also wrong: the code is 12 per client, 200 per event, 500 per process          |
 | §8          | "fonts are bundled, self-hosted"                                                 | No font is shipped; `CLAUDE.md` §8 already corrected this. `font-src 'self'` is right, the note beside it is not                                                                                                                                |
+| §14, "Fill the disk?" | "no `statfs` or `checkDiskSpace` in `src/`"                             | No longer: G3-06 / P4-10 added a process-wide upload concurrency cap and a `statfs`-based free-disk-space guard (`429 upload.busy`, `413 storage.boxFull`), reported without gating at `GET /api/ready`. See §5 |
 
 None of these is a reachable vulnerability on its own. They matter because this document is
 what the next reviewer audits against, and four of them describe a control that is not

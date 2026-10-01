@@ -262,6 +262,18 @@ The two SSE routes are bounded differently, by **how many connections are open a
 rather than how many are made per minute, because a stream holds its socket for the whole
 evening. The numbers and the codes are in §7.
 
+**Uploads carry two more guards, neither a per-minute rate** (G3-06 / P4-10). A
+process-wide semaphore, `MAX_CONCURRENT_UPLOAD_REQUESTS` (default 4), bounds how many
+upload requests — photos and clips together, the same shared bucket as the rate limit
+above — may be buffering at once: past it, **429** `upload.busy` with a short
+`Retry-After`, because a slot frees the moment one of the requests ahead of it finishes,
+seconds away rather than the clip queue's "about a minute". And below
+`MIN_FREE_DISK_BYTES` free — `statfs` on the directory holding `DATABASE_PATH` and on
+`MEDIA_ROOT` — a request answers **413** `storage.boxFull` instead, before a single byte
+of it is read. Neither is a 503: an upload refused for either reason is a refusal of that
+request, not a state of the service, so `GET /api/ready` reports the disk margin without
+ever acting on it (§2).
+
 ---
 
 ## 2. Public
@@ -285,17 +297,31 @@ read-only bind mount and a full disk as writable and then fails on the first upl
 **200**
 
 ```json
-{ "status": "ready", "checks": { "database": "ok", "media": "ok", "video": "ok" } }
+{
+  "status": "ready",
+  "checks": {
+    "database": "ok",
+    "media": "ok",
+    "video": "ok",
+    "disk": { "sufficient": true, "freeBytes": 42949672960 }
+  }
+}
 ```
 
-**503** `service.notReady` when either fails, with `details` naming which:
+**503** `service.notReady` when the database or the media root fails, with `details`
+naming which:
 
 ```json
 {
   "error": {
     "code": "service.notReady",
     "message": "A dependency is unavailable",
-    "details": { "database": "ok", "media": "unavailable", "video": "ok" }
+    "details": {
+      "database": "ok",
+      "media": "unavailable",
+      "video": "ok",
+      "disk": { "sufficient": true, "freeBytes": 42949672960 }
+    }
   }
 }
 ```
@@ -309,11 +335,19 @@ encoder still serves a photo wall, and taking a venue out of service over a miss
 would be a far worse outage than the one it reports — clip uploads are refused by name
 instead (§3). It is decided once at boot, so this route starts no subprocess of its own.
 
+`disk` is the same (G3-06 / P4-10): **reported, never acted on**, for the matching
+reason — the free-disk-space guard already refuses the one request that would have
+minded (§1), so a tight margin here must never flip this route's own status and take a
+whole venue's wall out of service over headroom no request currently needs. `freeBytes`
+is the tighter of the two checked paths, or `null` when either could not be read, in
+which case `sufficient` is `false`.
+
 **Once a shutdown signal has been received, this always answers 503** —
 `{ "database": "unavailable", "media": "unavailable", "video": <as above> }` — whatever
 the database and the media root would otherwise say (docs/ARCHITECTURE.md "Graceful
 shutdown"). An orchestrator stops sending new traffic the moment this is true, ahead of
-the connections it is about to lose.
+the connections it is about to lose. `disk` is left out of that body: it takes an
+asynchronous probe, and this answer is given without awaiting anything.
 
 ### `POST /api/join`
 
@@ -717,7 +751,10 @@ invalid token; `403 guest.wrongEvent` when the token names another event;
 over `maxUploadBytes`, refused by multer before any of our code runs);
 `400 upload.tooManyFiles`; `400 caption.tooLong`; `403 event.captionsNotAllowed` when a
 caption is sent to an event with captions off; `413 event.photoLimitReached` when the
-batch would take the guest past the event's `maxPhotosPerGuest`; `429 rate.limited`.
+batch would take the guest past the event's `maxPhotosPerGuest`; `429 rate.limited`;
+**`429 upload.busy` with `Retry-After`** when the box's upload concurrency cap is
+spent (shared with clips, §1); **`413 storage.boxFull`** when the box is nearly out of
+disk space, decided before multer reads a byte (G3-06 / P4-10).
 `400 upload.noFiles` when the request carries no `photos` part at all — a 201 with an
 empty `results` array would tell a guest whose picker silently failed that their upload
 worked. `400 upload.unexpectedField` when a file arrives under any other field name, and
@@ -946,6 +983,10 @@ this event; `403 event.captionsNotAllowed`; `409 event.notAcceptingUploads`;
 **`429 clip.queueFull` with `Retry-After`** when the box has more clips waiting than it
 will accept — a condition that clears in about a minute, and deliberately not the
 quota's `413`, which tells a guest the gallery is full and to go and find the organiser;
+**`429 upload.busy` with `Retry-After`** when the box's upload concurrency cap is
+spent (shared with photos, §1) — a different condition from the queue, and one that
+clears in seconds rather than about a minute; **`413 storage.boxFull`** when the box is
+nearly out of disk space, decided before anything is written to it (G3-06 / P4-10);
 `500 clip.stageFailed`; and `500 clip.transcoderUnavailable` when this deployment has no
 video encoder at all — decided on the request, so a box with no ffmpeg refuses here
 rather than accepting the upload and failing the job minutes later.
