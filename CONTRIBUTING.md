@@ -26,12 +26,27 @@ files (`001_initial_schema.ts`, `002_…`, …). The full recipe — writing the
 indexes, constraints, backfills, the repository and its contract tests — is
 `.claude/skills/eventslide-migration/SKILL.md`. This section is only about the number.
 
-**The rule:** ids are unique, contiguous from `001`, and never renumbered once a
-migration has merged to `main`. The order also respects foreign-key parentage — a
-migration that `REFERENCES` a table carries an id greater than or equal to the id of the
-migration that creates that table. `scripts/migrationIds.test.ts` checks all of this in
-CI, as part of `npm run verify`; it fails by name on a duplicate id, a gap, or a
-reference to a table that does not exist yet.
+**The rule:** ids are unique, contiguous from `001`, never renumbered once a migration
+has merged to `main`, and ordered so that a migration referencing a table carries an id
+greater than or equal to the id of the migration that creates that table.
+
+**What `scripts/migrationIds.test.ts` actually checks in CI**, as part of
+`npm run verify`: it fails by name on a duplicate id, a gap in the contiguous sequence,
+or a reference to a table that does not exist yet. That is three of the four — a
+duplicate, a gap or a bad forward reference are all visible from the current
+`migrations` array alone, so a test can catch them mechanically.
+
+**"Never renumbered once merged" is not merge-time CI-checked here.** Catching it
+would mean diffing the current ids/names against what `origin/main` had at the
+migration's own merge, and a standard shallow, single-ref CI checkout
+(`actions/checkout@v4`'s default `fetch-depth: 1`) does not have `origin/main` to diff
+against without first changing `.github/workflows/ci.yml` to fetch full history on
+every run — a real cost, for a rule two cheaper layers already cover: code review (this
+is a visible, one-line diff), and `migrator.ts`'s own boot-time guard, which refuses to
+start against a database that already applied the old id/name/SQL the moment anyone
+relabels a merged migration (`MigrationError`, loud, before any query runs). The gap is
+real and known, not silently assumed to be covered — see the pull request that added
+this file for the tradeoff.
 
 **Why a rule is needed at all:** more than one branch regularly adds "the next
 migration" at the same time, each one correct against whatever `main` looked like when
