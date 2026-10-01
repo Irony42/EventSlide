@@ -76,6 +76,9 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   // every request every HTTP test in this repository makes. `accessLog.test.ts` and
   // `logCanary.test.ts` are the two places that turn it on.
   accessLog: { enabled: false },
+  // Unchanged from the constants `streamConnectionLimiter` used to hard-code, so a test
+  // that never touches this setting describes the same product it always has.
+  realtime: { maxStreamsPerClient: 12, maxStreamsTotal: 500 },
   ...overrides,
 })
 

@@ -152,6 +152,8 @@ export interface UseCasePolicy {
   readonly mediaSweepMaxDigestsPerPass: number
   readonly clips: {
     readonly maxQueuedClips: number
+    /** The same backpressure, scoped to one event. */
+    readonly maxQueuedClipsPerEvent: number
     /** How long a reservation may sit before recovery treats it as wreckage. */
     readonly reservationTimeoutMs: number
     readonly maxHeight: number
@@ -361,7 +363,10 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     clock: adapters.clock,
     ids: adapters.ids,
     logger: adapters.logger,
-    limits: { maxQueuedClips: policy.clips.maxQueuedClips },
+    limits: {
+      maxQueuedClips: policy.clips.maxQueuedClips,
+      maxQueuedClipsPerEvent: policy.clips.maxQueuedClipsPerEvent,
+    },
   }),
   getClipJob: makeGetClipJob({ clips: adapters.clips }),
   /**

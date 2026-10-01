@@ -60,6 +60,8 @@ export interface UploadClipLimits {
    * `src/domain/clips/clipQueue.ts`.
    */
   readonly maxQueuedClips: number
+  /** The same backpressure, scoped to one event — see `ClipAdmissionLimits`. */
+  readonly maxQueuedClipsPerEvent: number
 }
 
 export interface UploadClipDeps {
@@ -234,6 +236,7 @@ export const makeUploadClip = ({
       admission = await clips.stage(job.value, {
         quotaBytes: event.quotaBytes,
         maxQueuedClips: limits.maxQueuedClips,
+        maxQueuedClipsPerEvent: limits.maxQueuedClipsPerEvent,
       })
     } catch (cause) {
       // **A raise here is not necessarily a failure.** The port says `stage` raises on a
@@ -264,7 +267,9 @@ export const makeUploadClip = ({
       // point of reserving first.
       return err(
         refusal.reason === 'queueFull'
-          ? clipQueueFull(refusal.depth, limits.maxQueuedClips)
+          ? // `refusal.maxDepth` names whichever cap actually refused this — the
+            // box-wide one or this event's own — rather than assuming it was the former.
+            clipQueueFull(refusal.depth, refusal.maxDepth)
           : DomainError.quotaExceeded('event.quotaExceeded', {
               remaining: refusal.remaining,
               required: byteSize,

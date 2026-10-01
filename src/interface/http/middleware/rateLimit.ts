@@ -261,10 +261,12 @@ export interface StreamConnectionLimits {
  * /64, and inventing a second notion of "client" for this one route is how two limits
  * end up disagreeing about who is being limited.
  *
- * Both bounds are constants rather than configuration because `HttpConfig` carries
- * nothing that means "connections", and deriving a concurrency ceiling from a
- * requests-per-minute figure would be numerology wearing a config key's clothes. They
- * are parameters so a test can reach them in two connections instead of five hundred.
+ * Both bounds are configurable (`MAX_STREAMS_PER_CLIENT`, `MAX_STREAMS_TOTAL`, wired
+ * through `HttpConfig.realtime` — deriving a concurrency ceiling from a
+ * requests-per-minute figure would still be numerology wearing a config key's clothes,
+ * which is why they are their own variables rather than a share of `rateLimits`. The
+ * values here remain the defaults, and are also what lets a test reach the limit in two
+ * connections instead of five hundred by passing its own.
  */
 export const streamConnectionLimiter = ({
   perClient = MAX_STREAMS_PER_CLIENT,

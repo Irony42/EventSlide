@@ -154,6 +154,13 @@ export class FakeClipJobRepository implements ClipJobRepository {
     return [...this.rows.values()].filter((job) => holdsStagedBytes(job.status)).length
   }
 
+  /** The same count, scoped to one event — the fake's half of `stage`'s other check. */
+  private activeForEventNow(eventId: EventId): number {
+    return [...this.rows.values()].filter(
+      (job) => job.eventId === eventId && holdsStagedBytes(job.status),
+    ).length
+  }
+
   /**
    * Count, sum, decide and insert, with nothing able to interleave.
    *
@@ -169,9 +176,23 @@ export class FakeClipJobRepository implements ClipJobRepository {
   async stage(job: ClipJob, limits: ClipAdmissionLimits): Promise<ClipAdmission> {
     const photoBytes = (await this.photos?.photoBytes(job.eventId)) ?? 0
 
+    // Per event first, then box-wide — the same order and the same reasoning as the
+    // SQLite adapter: an event at its own cap is refused without ever reading, let
+    // alone being judged against, a count another event's guests built up.
+    const eventDepth = this.activeForEventNow(job.eventId)
+    if (!admitsAnotherClip(eventDepth, limits.maxQueuedClipsPerEvent)) {
+      return {
+        refusal: {
+          reason: 'queueFull',
+          depth: eventDepth,
+          maxDepth: limits.maxQueuedClipsPerEvent,
+        },
+      }
+    }
+
     const depth = this.activeNow()
     if (!admitsAnotherClip(depth, limits.maxQueuedClips)) {
-      return { refusal: { reason: 'queueFull', depth } }
+      return { refusal: { reason: 'queueFull', depth, maxDepth: limits.maxQueuedClips } }
     }
 
     const used = photoBytes + this.stagedBytesNow(job.eventId)

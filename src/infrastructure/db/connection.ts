@@ -78,20 +78,36 @@ export const applyPragmas = (db: Db, { readonly = false }: { readonly?: boolean 
   db.pragma('cache_size = -64000')
 }
 
+/** What `closeDatabase` runs before it closes. See `SQLITE_SHUTDOWN_CHECKPOINT` in env.ts. */
+export type ShutdownCheckpoint = 'truncate' | 'passive' | 'none'
+
 /**
  * Closes cleanly, checkpointing the WAL so the `.sqlite` file is self-contained.
  *
  * A host who copies `data/eventslide.sqlite` to a USB stick after the party should get
  * the whole album, not a file missing everything still in `-wal`. 1.0 registered
  * `process.on('exit')` with an async `db.close()`, which never completed.
+ *
+ * `checkpoint` defaults to `'truncate'`, the only mode this ran before the parameter
+ * existed, so every existing caller — and there are dozens, across every adapter's test
+ * suite — keeps closing exactly as it always has. `'passive'` and `'none'` exist for
+ * Litestream, which replicates the WAL and is sensitive to how a clean shutdown leaves
+ * it: `'truncate'` can be partial while a replica is attached and still reading older
+ * frames, where `'passive'` never blocks on one. **Unused by this self-hosted instance**,
+ * which runs no Litestream adapter — `'truncate'` is the only mode that has ever run here
+ * and the only one that keeps a bare `cp data/eventslide.sqlite` honest, since it is the
+ * one mode that actually shrinks `-wal` rather than leaving its content for the next open
+ * to replay.
  */
-export const closeDatabase = (db: Db): void => {
+export const closeDatabase = (db: Db, checkpoint: ShutdownCheckpoint = 'truncate'): void => {
   if (!db.open) return
-  try {
-    db.pragma('wal_checkpoint(TRUNCATE)')
-  } catch {
-    // A checkpoint can fail if another connection holds a read lock. Closing is still
-    // correct and the WAL stays valid, so this is not worth failing shutdown over.
+  if (checkpoint !== 'none') {
+    try {
+      db.pragma(`wal_checkpoint(${checkpoint.toUpperCase()})`)
+    } catch {
+      // A checkpoint can fail if another connection holds a read lock. Closing is still
+      // correct and the WAL stays valid, so this is not worth failing shutdown over.
+    }
   }
   db.close()
 }

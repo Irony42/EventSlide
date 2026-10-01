@@ -412,6 +412,37 @@ describe('streamRoutes', () => {
     }
   })
 
+  it('honours a configured per-client stream cap, refusing a second connection from the same client', async () => {
+    // Proves the wiring, not the limiter: `streamConnectionLimiter` itself is covered in
+    // rateLimit.test.ts. What only a test through the real route can show is that
+    // `deps.config.realtime.maxStreamsPerClient` is the number that actually reaches it,
+    // rather than the constant it used to be.
+    const tight = buildHarness({
+      config: { realtime: { maxStreamsPerClient: 1, maxStreamsTotal: 500 } },
+      routes: (app, deps) => {
+        app.use('/api', streamRoutes(deps))
+      },
+    })
+    tight.events.seed(anEvent({ slug: 'mariage', status: 'live', joinCode: 'H7K2QM' }))
+    const tightServer = http.createServer(tight.app)
+    await new Promise<void>((resolve) => tightServer.listen(0, '127.0.0.1', resolve))
+    const tightPort = (tightServer.address() as AddressInfo).port
+
+    try {
+      const first = await openStream(tightPort, '/api/events/mariage/stream')
+      await first.waitFor((text) => text.includes(': connected'), 'the first connection')
+
+      const second = await openStream(tightPort, '/api/events/mariage/stream')
+      await second.waitFor((text) => text.includes('rate.limited'), 'the refusal')
+
+      expect(second.statusCode).toBe(429)
+      first.close()
+      second.close()
+    } finally {
+      await new Promise<void>((resolve) => tightServer.close(() => resolve()))
+    }
+  })
+
   it('serves the moderation channel to a moderator of that event', async () => {
     // The session cookie has to be carried by hand here, since this is a raw socket
     // rather than a supertest agent.

@@ -80,6 +80,13 @@ const bootstrap = async (): Promise<void> => {
       { env: config.env, generated: config.secrets.generated },
     )
   }
+  // Configuration problems real enough to name but not real enough to refuse — see
+  // `computeWarnings` in env.ts. Said once, here, beside the other boot-time notices,
+  // rather than discovered later as a host who cannot sign in or a guest whose QR code
+  // points nowhere.
+  for (const warning of config.warnings) {
+    logger.warn(warning)
+  }
   if (!config.isProduction) {
     // The one place a banner on stdout is the right thing to do: a developer needs the
     // URL, and a guest's phone needs it to be the LAN address rather than localhost.

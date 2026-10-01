@@ -1,9 +1,9 @@
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { applyPragmas, closeDatabase, openDatabase, type Db } from './connection'
 
 /**
@@ -101,5 +101,82 @@ describe('closeDatabase', () => {
 
     expect(() => closeDatabase(db)).not.toThrow()
     expect(db.open).toBe(false)
+  })
+
+  /**
+   * SQLite itself checkpoints and removes `-wal` when the **last** connection to a
+   * database closes, whatever this file asked for — which would make every mode below
+   * look identical if these cases closed the only open handle. A second connection kept
+   * open throughout is what isolates `closeDatabase`'s own behaviour from SQLite's.
+   */
+  describe('the shutdown checkpoint mode', () => {
+    let directory: string
+    let file: string
+    let writer: Db
+    let reader: Db
+
+    beforeEach(async () => {
+      directory = await mkdtemp(join(tmpdir(), 'eventslide-checkpoint-'))
+      file = join(directory, 'eventslide.sqlite')
+      writer = openDatabase({ path: file })
+      writer.exec('CREATE TABLE note (body TEXT)')
+      const insert = writer.prepare('INSERT INTO note (body) VALUES (?)')
+      // Enough rows that the WAL file is unambiguously non-empty before any checkpoint.
+      for (let index = 0; index < 500; index += 1) insert.run('x'.repeat(200))
+      reader = openDatabase({ path: file, readonly: true })
+    })
+
+    afterEach(async () => {
+      if (writer.open) closeDatabase(writer)
+      if (reader.open) closeDatabase(reader)
+      await rm(directory, { recursive: true, force: true })
+    })
+
+    const walBytes = (): number => statSync(`${file}-wal`).size
+
+    it('truncates the WAL on the default mode, which is what a bare file copy relies on', () => {
+      expect(walBytes()).toBeGreaterThan(0)
+
+      closeDatabase(writer)
+
+      expect(walBytes()).toBe(0)
+    })
+
+    it('leaves the WAL exactly as it was on "none", issuing no checkpoint at all', () => {
+      const before = walBytes()
+      expect(before).toBeGreaterThan(0)
+
+      closeDatabase(writer, 'none')
+
+      expect(walBytes()).toBe(before)
+    })
+
+    it('checkpoints without truncating on "passive", which is the mode Litestream needs', () => {
+      // `passive` merges the WAL into the main file (provable here only through the
+      // adapter's own call, since SQLite replays an untruncated WAL identically either
+      // way on the next open) but — unlike `truncate` — never shrinks the WAL file
+      // itself, which is exactly why it never blocks on a reader still attached to it.
+      const before = walBytes()
+
+      closeDatabase(writer, 'passive')
+
+      expect(walBytes()).toBe(before)
+    })
+
+    it('issues no checkpoint pragma at all on "none"', () => {
+      const pragma = vi.spyOn(writer, 'pragma')
+
+      closeDatabase(writer, 'none')
+
+      expect(pragma).not.toHaveBeenCalled()
+    })
+
+    it('issues exactly the pragma the mode names on "passive"', () => {
+      const pragma = vi.spyOn(writer, 'pragma')
+
+      closeDatabase(writer, 'passive')
+
+      expect(pragma).toHaveBeenCalledWith('wal_checkpoint(PASSIVE)')
+    })
   })
 })
