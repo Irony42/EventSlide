@@ -7,9 +7,11 @@ import type {
   MediaViewer,
 } from '../../../application/usecases/photos/getPhotoMedia'
 import { AT, anEvent, aUser } from '../../../application/testing/builders'
+import type { EventRole } from '../../../domain/events/eventRole'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { err } from '../../../domain/shared/result'
+import type { SiteRole } from '../../../domain/users/siteRole'
 import { CSRF_HEADER } from '../middleware/csrf'
 import { mountedRoutes, type Route } from '../testing/routeTable'
 import { buildServerHarness, type ServerHarness } from '../testing/serverHarness'
@@ -390,6 +392,17 @@ interface Answer {
   readonly code: string | null
 }
 
+/** Where an account stands on the box, and in the gala. */
+interface Standing {
+  readonly siteRole: SiteRole
+  readonly inTheGala: EventRole | null
+}
+
+interface Asked {
+  readonly standing: Standing
+  readonly answer: Answer
+}
+
 /**
  * The answer a request gets, including from a response that never ends.
  *
@@ -417,20 +430,6 @@ const answerOf = (test: request.Test): Promise<Answer> =>
       test.abort()
     })
   })
-
-/**
- * What `route` answers the account behind `email`, on a server of its own.
- *
- * A server per caller, seeded alike, so that neither answer depends on what the other
- * request did first: a logout, a created event or a rate limiter's count would otherwise
- * be shared between the two sides of a comparison.
- */
-const answerTo = async (siteAdmin: boolean, email: string, route: Route): Promise<Answer> => {
-  const subject = buildOperatorHarness(siteAdmin)
-  seedClientEvent(subject)
-  const { agent, csrf } = await signedInAs(subject.app, email)
-  return answerOf(send(agent, route, csrf))
-}
 
 /**
  * The mounted route an exemption names, or a loud failure.
@@ -684,6 +683,31 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
   const siteAdmin = mode === 'on'
   const operatorHarness = (overrides: HarnessOverrides = {}) =>
     buildOperatorHarness(siteAdmin, overrides)
+
+  /**
+   * What `route` tells the account behind `email`, and where that account stands, both read
+   * on one server of its own.
+   *
+   * A server per caller, seeded alike, so that neither answer depends on what the other
+   * request did first: a logout, a created event or a rate limiter's count would otherwise
+   * be shared between the two sides of a comparison. Built by `operatorHarness`, so it is
+   * the server whose mode this block's own guard reads back.
+   *
+   * The standing is read for the account **the login signed in**, on that same server, from
+   * the storage `requireOperator` and `requireRole` ask, before the request goes out. A
+   * comparison whose two sides were secretly one account would pass on every route, and a
+   * check run on some other server than the two compared would not notice.
+   */
+  const askAs = async (email: string, route: Route): Promise<Asked> => {
+    const subject = operatorHarness()
+    seedClientEvent(subject)
+    const { agent, csrf, userId } = await signedInAs(subject.app, email)
+    const standing: Standing = {
+      siteRole: await subject.users.siteRoleFor(asUserId(userId)),
+      inTheGala: await subject.memberships.roleFor(GALA, asUserId(userId)),
+    }
+    return { standing, answer: await answerOf(send(agent, route, csrf)) }
+  }
 
   describe('the route table this sweep covers', () => {
     it('finds the routes this is actually about', () => {
@@ -983,41 +1007,19 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
      * Filtered on the mount and on nothing else, so that no list above can take a route out
      * of it. The lists decide which rule a route is held to; this is the rule they are all
      * held to: off the operator's own mount, the site role changes no answer. A route listed
-     * in `NOT_EVENT_SCOPED` or `PUBLIC_ROUTES` that let the operator in, by a
-     * `requireOperator` of its own, satisfied both of those lists' checks — 200 is not
-     * `event.notFound`, and the anonymous caller is refused by the same gate as anybody else
-     * who does not operate the box. It cannot satisfy this one.
+     * in `NOT_EVENT_SCOPED` that let the operator in, by a `requireOperator` of its own,
+     * satisfied that list's check — 200 is not `event.notFound` — and nothing else asked.
+     * (`PUBLIC_ROUTES`' own check already refuses that shape: a caller with no credential
+     * gets `requireOperator`'s 401.)
+     *
+     * What it compares is the first answer a request with no body and no query earns, so a
+     * route that refused both callers 400 for want of a body before it asked who they were
+     * would pass here whatever it did next. Every route in this codebase asks first —
+     * authorization is middleware, and `zod` runs inside the handler — which is the shape
+     * this catches. Where both callers get as far as a use case, the harness's `notWired`
+     * one answers them both 500 and the comparison stops at the handler.
      */
     const offTheSiteMount = table.routes.filter((route) => !carriedBySite(route))
-
-    it('compares the operator with an account that differs from it in the site role alone', async () => {
-      // The guard on the comparison's control. Were the stranger an operator too, or the
-      // operator's address to sign in somebody else, the parity case below would compare
-      // one account with itself and pass on every route. So each side is signed in as the
-      // sweep signs it in, and asked who it is, and that account's site role and standing
-      // in the gala are read from storage — the very questions `requireOperator` and
-      // `requireRole` ask.
-      const subject = operatorHarness()
-      seedClientEvent(subject)
-      const standingOf = async (email: string) => {
-        const { agent } = await signedInAs(subject.app, email)
-        const me = await agent.get('/api/auth/me').expect(200)
-        const userId = asUserId(String(me.body.user.userId))
-        return {
-          siteRole: await subject.users.siteRoleFor(userId),
-          inTheGala: await subject.memberships.roleFor(GALA, userId),
-        }
-      }
-
-      expect(await standingOf('ops@example.test')).toEqual({
-        siteRole: 'operator',
-        inTheGala: null,
-      })
-      expect(await standingOf('inconnu@example.test')).toEqual({
-        siteRole: 'none',
-        inTheGala: null,
-      })
-    })
 
     it('compares the two on every route siteRoutes does not carry, the exempted ones included', () => {
       // The guard on the table below. Filtering it by the exemption lists, as the sweep is
@@ -1037,16 +1039,23 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
       offTheSiteMount.map((route): [string, Route] => [`${route.method} ${route.path}`, route]),
     )('is told by %s exactly what a signed-in stranger is told', async (_name, route) => {
       // Same request, same seeded box, one server each: the only thing that differs is
-      // who is asking, and they differ only in the site role. Status and error code
-      // rather than the whole body, because a body may rightly name its caller —
-      // `GET /api/auth/me` does.
-      const stranger = await answerTo(siteAdmin, 'inconnu@example.test', route)
-      const operator = await answerTo(siteAdmin, 'ops@example.test', route)
+      // who is asking. Status and error code rather than the whole body, because a body
+      // may rightly name its caller — `GET /api/auth/me` does.
+      const stranger = await askAs('inconnu@example.test', route)
+      const operator = await askAs('ops@example.test', route)
 
-      // Two refusals by the CSRF gate are equal and say nothing about authorization, so
-      // the comparison is only worth making once it is known neither side died there.
-      expect(CSRF_REFUSALS.has(stranger.code ?? '')).toBe(false)
-      expect(operator).toEqual(stranger)
+      // Two preconditions, either of which would make the comparison pass on every route
+      // while comparing nothing. The two accounts differ in the site role and in nothing
+      // else — were the stranger an operator too, or one address to sign in the other's
+      // account, this would compare an account with itself. And neither side died at the
+      // CSRF gate, whose two refusals are equal and say nothing about authorization.
+      expect([operator.standing, stranger.standing]).toEqual([
+        { siteRole: 'operator', inTheGala: null },
+        { siteRole: 'none', inTheGala: null },
+      ])
+      expect(CSRF_REFUSALS.has(stranger.answer.code ?? '')).toBe(false)
+
+      expect(operator.answer).toEqual(stranger.answer)
     })
 
     it('is told nothing by the moderation queue, the one screen this item is about', async () => {

@@ -60,6 +60,19 @@ export const anonymousCaller = async (app: Express): Promise<Caller> => {
   return { agent, csrf }
 }
 
+/** A caller with a session, and the account the login said it signed in. */
+export interface SignedInCaller extends Caller {
+  readonly userId: string
+}
+
+/** The `userId` a login response names, or a loud failure. */
+const userIdFrom = (body: unknown): string => {
+  const userId: unknown =
+    typeof body === 'object' && body !== null ? (body as Record<string, unknown>)['userId'] : null
+  if (typeof userId !== 'string') throw new Error('the login response named no userId')
+  return userId
+}
+
 /**
  * Signed in as the account behind `email`, with the token **the login response** issued.
  *
@@ -70,13 +83,16 @@ export const anonymousCaller = async (app: Express): Promise<Caller> => {
  * refuses every unsafe method carrying it before a single authorization middleware runs.
  * A browser re-reads the cookie; so does this. `siteOperatorScope.test.ts` fell into
  * exactly that trap once, and its sweep was green on 18 routes it was not exercising.
+ *
+ * The `userId` is read off the same response, so a suite that needs to know whom it
+ * signed in learns it without spending a request on `GET /api/auth/me`.
  */
-export const signedInAs = async (app: Express, email: string): Promise<Caller> => {
+export const signedInAs = async (app: Express, email: string): Promise<SignedInCaller> => {
   const { agent, csrf: beforeLogin } = await anonymousCaller(app)
   const login = await agent
     .post('/api/auth/login')
     .set(CSRF_HEADER, beforeLogin)
     .send({ email, password: 'peu-importe-ici' })
     .expect(200)
-  return { agent, csrf: csrfTokenFrom(login.headers) }
+  return { agent, csrf: csrfTokenFrom(login.headers), userId: userIdFrom(login.body) }
 }
