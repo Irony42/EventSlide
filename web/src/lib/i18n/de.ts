@@ -253,6 +253,7 @@ export const de: UiText = {
     'auth.invalidCredentials': 'E-Mail-Adresse oder Passwort ist falsch.',
     'auth.required': 'Melden Sie sich an, um fortzufahren.',
     'auth.forbidden': 'Sie haben nicht die Rechte für diese Aktion.',
+    'auth.passwordChangeRequired': 'Wählen Sie ein neues Passwort, bevor Sie fortfahren.',
 
     'event.notFound': 'Zu diesem Code gehört keine offene Galerie.',
     'event.notAcceptingUploads': 'Diese Galerie nimmt keine Fotos mehr an.',
