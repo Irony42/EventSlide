@@ -275,7 +275,8 @@ looks the same to it. `requireOperator` mounted **ahead of** `requireRole` on a 
 reaches an event no longer passes — the parity rule below sees the stranger refused 403 by
 the one and the operator 404 by the other — but mounted **behind** it, both are refused by
 `requireRole` alike and nothing here notices. That shape cannot hand an operator anything a
-membership would not, only narrow what a member gets, and it is still review's job.
+membership would not, only narrow what a member gets, and it is still review's job — as is
+a `requireOperator` placed behind anything else that refuses both callers first.
 
 Two lists can take a route out of that sweep, `PUBLIC_ROUTES` and `NOT_EVENT_SCOPED`, and
 both are themselves exercised: a public exemption has to answer a caller holding no
@@ -283,23 +284,31 @@ credential at all without an authorization refusal, and a not-event-scoped one h
 unable to answer `event.notFound`. Adding a guarded route to either to quiet a failure
 fails in its own named case rather than passing on the strength of its reason string.
 
-Neither of those checks is enough on its own, and for a while they were all there was. A
-route carrying a `requireOperator` of its own — `GET /api/events/:eventSlug/support-queue`,
-say, answering the operator a client's queue — satisfies both: 200 is not `event.notFound`,
-and a caller with no credential is refused by that gate like anybody else. Listed in
-`NOT_EVENT_SCOPED`, it left the whole server project green while the operator read
-somebody's evening, and `GET /api/support/queue` did the same. So under all three lists
-sits a rule that none of them can lift: on **every** route the `/api/site` mount does not
-carry — swept, public or reaching no event — the operator gets the same status and error
-code as a signed-in account with site role `none` and no membership anywhere, each asked on
-a server of its own seeded alike. The table is filtered on the mount and on nothing else, a
-named case requires it to hold every exempted route, and another reads both accounts back
-from storage through their own sessions, so the comparison cannot quietly become one
-account compared with itself. It compares status and code, not bodies, because a body may
-rightly name its caller (`GET /api/auth/me`); and where both callers reach a use case the
-harness leaves unwired, both get the same 500 and the comparison stops at the handler —
-the five routes where that happens today are the wall, a photograph's bytes, the two
-gallery reads and the caller's own dashboard.
+The not-event-scoped check is not enough on its own, and for a while it was all there was.
+A route carrying a `requireOperator` of its own — `GET /api/events/:eventSlug/support-queue`,
+say, answering the operator a client's queue — satisfies it: 200 is not `event.notFound`.
+Listed in `NOT_EVENT_SCOPED`, it left the whole server project green while the operator read
+somebody's evening, and `GET /api/support/queue` did the same. (Listed in `PUBLIC_ROUTES`
+it was already caught: the caller with no credential gets `requireOperator`'s 401.) So
+under all three lists sits a rule that none of them can lift: on every route the harness's
+assembled server mounts that the `/api/site` mount does not carry — swept, public or
+reaching no event — the operator gets the same status and error code as a signed-in
+account with site role `none` and no membership anywhere, each asked on a server of its own
+seeded alike. The table is filtered on the mount and on nothing else, a named case requires
+it to hold every exempted route, and every comparison reads both accounts' site role and
+standing in the event from storage, on the very servers that answered, for the account each
+login named — so it cannot quietly become one account compared with itself.
+
+What it compares is the **first** answer a request with no body and no query earns, and
+three things follow from that. A route that refused both callers `400` for want of a body
+before it asked who they were would pass whatever it did next; every route here asks first
+— authorization is middleware, and `zod` runs inside the handler — which is the shape this
+catches, and one written the other way round is review's. Where both callers get as far as
+a use case, the harness's unwired one answers them both `500`, so the comparison stops at
+the handler and what the use case would have handed the operator is ring 2's to hold. And
+it compares status and code, not bodies, because a body may rightly name its caller
+(`GET /api/auth/me`). The harness also builds the server with no client bundle, so a route
+`mountClient` adds is outside every sweep in that file.
 
 A third, `OPERATOR_ROUTES`, holds the routes of the operator's own namespace, the one
 surface an operator is meant to reach, and replaces the sweep's rule with theirs rather
