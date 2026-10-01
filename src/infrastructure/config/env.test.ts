@@ -139,11 +139,17 @@ describe('loadConfig', () => {
           galleryMediaPerMinute: 3000,
           galleryUnlockPerClient: 10,
           galleryUnlockPerLink: 50,
+          eventCreationPerHour: 20,
         },
         crypto: { bcryptCost: 12 },
         bootstrap: { ownerEmail: null, ownerPassword: null },
         e2eHooks: false,
         siteAdmin: false,
+        events: {
+          slugSuffix: 'none',
+          allowCustomSlugs: true,
+          joinCodeLength: 6,
+        },
       })
     })
 
@@ -266,7 +272,11 @@ describe('loadConfig', () => {
         GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: '106',
         GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT: '107',
         GALLERY_UNLOCK_ATTEMPTS_PER_LINK: '108',
+        // Distinct from JOIN_RATE_LIMIT_PER_MINUTE's default on purpose: both default
+        // to 20, so a field reading the wrong one would pass against two defaults.
+        EVENT_CREATION_RATE_LIMIT_PER_HOUR: '109',
         BCRYPT_COST: '14',
+        JOIN_CODE_LENGTH: '9',
       })
 
       expect(config).toMatchObject({
@@ -288,8 +298,10 @@ describe('loadConfig', () => {
           galleryMediaPerMinute: 106,
           galleryUnlockPerClient: 107,
           galleryUnlockPerLink: 108,
+          eventCreationPerHour: 109,
         },
         crypto: { bcryptCost: 14 },
+        events: { joinCodeLength: 9 },
       })
     })
 
@@ -935,6 +947,103 @@ describe('loadConfig', () => {
       expect(issue).toContain("'off'")
       expect(issue).toContain("'on'")
       expect(issues.some((candidate) => candidate.startsWith('LOG_LEVEL: '))).toBe(true)
+    })
+  })
+
+  /**
+   * P4-09 / D-14 (roadmap G3-05): random slug suffix, custom slugs, join code length,
+   * and the creation limit. **D-14's whole point is the three defaults below** — a
+   * self-hosted box that sets none of them keeps 2.0's only behaviour exactly, and the
+   * hosted instance is the one that turns each switch.
+   */
+  describe('the slug and join-code configuration (P4-09 / D-14)', () => {
+    describe('EVENT_SLUG_SUFFIX', () => {
+      const NAME = 'EVENT_SLUG_SUFFIX'
+
+      it('is "none" on a box that never mentions it, so a derived slug stays bare', () => {
+        expect(loadConfig({ ...DEV }).events.slugSuffix).toBe('none')
+        expect(loadConfig(aProductionEnv()).events.slugSuffix).toBe('none')
+      })
+
+      it("is 'random' for the word 'random', which the hosted instance sets", () => {
+        expect(loadConfig(aProductionEnv({ [NAME]: 'random' })).events.slugSuffix).toBe('random')
+      })
+
+      it('reads a blank EVENT_SLUG_SUFFIX as absent, landing on "none" like any other absence', () => {
+        expect(loadConfig(aProductionEnv({ [NAME]: '' })).events.slugSuffix).toBe('none')
+      })
+
+      it.each(['RANDOM', 'Random', 'true', 'sequential', 'always'])(
+        "refuses EVENT_SLUG_SUFFIX='%s' rather than guessing which behaviour was meant",
+        (value) => {
+          const issues = refusalIssues(aProductionEnv({ [NAME]: value }))
+
+          expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+        },
+      )
+    })
+
+    describe('ALLOW_CUSTOM_SLUGS', () => {
+      const NAME = 'ALLOW_CUSTOM_SLUGS'
+
+      it('is true on a box that never mentions it, so a host keeps choosing their own address', () => {
+        expect(loadConfig({ ...DEV }).events.allowCustomSlugs).toBe(true)
+        expect(loadConfig(aProductionEnv()).events.allowCustomSlugs).toBe(true)
+      })
+
+      it('is false for "false", which the hosted instance sets', () => {
+        expect(loadConfig(aProductionEnv({ [NAME]: 'false' })).events.allowCustomSlugs).toBe(false)
+      })
+
+      it.each(['true', '1'])('treats %s as true', (value) => {
+        expect(loadConfig(aProductionEnv({ [NAME]: value })).events.allowCustomSlugs).toBe(true)
+      })
+
+      it.each(['false', '0'])('treats %s as false', (value) => {
+        expect(loadConfig(aProductionEnv({ [NAME]: value })).events.allowCustomSlugs).toBe(false)
+      })
+
+      it.each(['yes', 'no', 'TRUE', 'on'])(
+        "refuses ALLOW_CUSTOM_SLUGS='%s' rather than guessing which side was meant",
+        (value) => {
+          const issues = refusalIssues(aProductionEnv({ [NAME]: value }))
+
+          expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+        },
+      )
+    })
+
+    describe('JOIN_CODE_LENGTH', () => {
+      const NAME = 'JOIN_CODE_LENGTH'
+
+      it('is six on a box that never mentions it — 2.0’s only length', () => {
+        expect(loadConfig({ ...DEV }).events.joinCodeLength).toBe(6)
+        expect(loadConfig(aProductionEnv()).events.joinCodeLength).toBe(6)
+      })
+
+      it.each([6, 7, 8, 9, 10])('accepts %i, the whole configurable range', (length) => {
+        expect(loadConfig(aProductionEnv({ [NAME]: String(length) })).events.joinCodeLength).toBe(
+          length,
+        )
+      })
+
+      it.each(['5', '11', '0', '-1', 'six'])('refuses JOIN_CODE_LENGTH=%s', (value) => {
+        const issues = refusalIssues(aProductionEnv({ [NAME]: value }))
+
+        expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+      })
+    })
+
+    describe('EVENT_CREATION_RATE_LIMIT_PER_HOUR', () => {
+      it('is twenty on a box that never mentions it', () => {
+        expect(loadConfig({ ...DEV }).rateLimits.eventCreationPerHour).toBe(20)
+      })
+
+      it('reaches its own field rather than another numeric limit', () => {
+        const config = loadConfig({ ...DEV, EVENT_CREATION_RATE_LIMIT_PER_HOUR: '42' })
+
+        expect(config.rateLimits.eventCreationPerHour).toBe(42)
+      })
     })
   })
 })

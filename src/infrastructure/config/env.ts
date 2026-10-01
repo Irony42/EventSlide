@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
+import { JoinCode } from '../../domain/shared/joinCode'
 import { Password } from '../../domain/users/password'
 
 /**
@@ -22,6 +23,20 @@ const positiveInt = (fallback: number, max?: number) => {
 const boolish = z
   .enum(['true', 'false', '1', '0'])
   .transform((value) => value === 'true' || value === '1')
+
+/**
+ * {@link boolish}, with a default. Kept separate rather than adding `.default()` to
+ * `boolish` itself: every existing caller passes it through `.optional()` and reads the
+ * product's own fallback afterwards (`SESSION_COOKIE_SECURE` follows `NODE_ENV`,
+ * `E2E_HOOKS` is refused outright in production), so none of them needed zod to supply
+ * one — `ALLOW_CUSTOM_SLUGS` is the first variable here where the default is as simple
+ * as "true, unless told otherwise", with nothing else to layer on top of it.
+ */
+const boolishWithDefault = (fallback: 'true' | 'false') =>
+  z
+    .enum(['true', 'false', '1', '0'])
+    .default(fallback)
+    .transform((value) => value === 'true' || value === '1')
 
 /**
  * Values shipped in `.env.example`. Booting production with one of these is worse than
@@ -178,6 +193,49 @@ const blankAsAbsent = (value: unknown): unknown => (value === '' ? undefined : v
  * is mounted at all — so a blank can only ever take something away.
  */
 const siteAdmin = z.preprocess(blankAsAbsent, z.enum(['off', 'on']).default('off'))
+
+/**
+ * Whether a derived slug always carries a random suffix (P4-09 / D-14, roadmap G3-05).
+ *
+ * **`'none'` reproduces 2.0's only behaviour exactly**, and is the core default a
+ * self-hosted box keeps without setting anything: a derived slug is the bare folded
+ * name, `camille-sacha`, exactly as every event created before this variable existed
+ * has it. `'random'` is what the hosted instance sets from its first beta boot — see
+ * `Slug.fromNameWithRandomSuffix` for why the suffix is **always** appended rather than
+ * only on collision.
+ *
+ * Same spelling convention as {@link siteAdmin}: two lower-case words, blank or absent
+ * lands on the default exactly as a dangling `EVENT_SLUG_SUFFIX=` would otherwise be a
+ * silent and unintended change of posture, never a guess at a third spelling.
+ */
+const eventSlugSuffix = z.preprocess(blankAsAbsent, z.enum(['none', 'random']).default('none'))
+
+/**
+ * Whether a host — or, over the API, any caller — may address their own event by a
+ * slug they chose (P4-09 / D-14). `true` is the core default: a self-hosted host could
+ * always type their own address, and nothing here takes that away. The hosted instance
+ * sets `false`, so every event there is addressed by a derived, suffixed slug and a
+ * caller handing one in anyway is refused outright (`400 event.customSlugNotAllowed`)
+ * rather than silently overridden — overriding it would save a different event than the
+ * one the caller believes they are about to open.
+ */
+const allowCustomSlugs = boolishWithDefault('true')
+
+/**
+ * How many characters a newly minted or rotated join code has (P4-09 / D-14), 6 to 10.
+ * `JoinCode.minLength` is both the floor of the accepted range and the default — 2.0's
+ * only length, and what every pre-existing printed card already is — so the two are
+ * quoted from the same constant rather than restated as a second `6` free to drift away
+ * from it. A code already on an event keeps whatever length it was minted with:
+ * `JoinCode.create` accepts the whole range on the way back in, so lowering this
+ * variable later does not strand an existing card.
+ */
+const joinCodeLength = z.coerce
+  .number()
+  .int()
+  .min(JoinCode.minLength, `JOIN_CODE_LENGTH must be at least ${JoinCode.minLength}`)
+  .max(JoinCode.maxLength, `JOIN_CODE_LENGTH must be at most ${JoinCode.maxLength}`)
+  .default(JoinCode.minLength)
 
 /**
  * The domain's password policy, applied at boot so the failure is a named ConfigError.
@@ -411,6 +469,15 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       LOGIN_RATE_LIMIT_PER_MINUTE: positiveInt(10, 600),
       REACTION_RATE_LIMIT_PER_MINUTE: positiveInt(30, 600),
       /**
+       * Per **account** and per **hour**, not per minute (P4-09 / D-14):
+       * `eventCreationLimiter` keys on who is signed in rather than on an address, so an
+       * office or a venue's guest Wi-Fi shared by several hosts is not throttled as if
+       * it were one determined attacker. The ceiling is generous headroom above the
+       * default of twenty — high enough that a test environment creating many events in
+       * a loop is never the one tripping it.
+       */
+      EVENT_CREATION_RATE_LIMIT_PER_HOUR: positiveInt(20, 1_000),
+      /**
        * The shared gallery (roadmap §4.1), the one surface a stranger reaches with only a
        * URL. Pages and bytes are separate budgets because a grid of sixty thumbnails is
        * sixty requests the moment it renders; password attempts are per quarter hour and
@@ -454,6 +521,13 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
 
       /** See {@link siteAdmin}. `off` unless the box says otherwise. */
       SITE_ADMIN: siteAdmin,
+
+      /** See {@link eventSlugSuffix}. `none` unless the box says otherwise. */
+      EVENT_SLUG_SUFFIX: eventSlugSuffix,
+      /** See {@link allowCustomSlugs}. `true` unless the box says otherwise. */
+      ALLOW_CUSTOM_SLUGS: allowCustomSlugs,
+      /** See {@link joinCodeLength}. Six unless the box says otherwise. */
+      JOIN_CODE_LENGTH: joinCodeLength,
     })
     .superRefine((raw, ctx) => {
       // The first owner is a pair, and half of one creates nothing. Before `""` meant
@@ -648,6 +722,8 @@ export interface AppConfig {
     readonly galleryUnlockPerClient: number
     /** Failed password attempts per link, from every client together, per fifteen minutes. */
     readonly galleryUnlockPerLink: number
+    /** `EVENT_CREATION_RATE_LIMIT_PER_HOUR` — per account, not per client. See {@link eventSlugSuffix}'s siblings below for the rest of P4-09. */
+    readonly eventCreationPerHour: number
   }
 
   readonly crypto: {
@@ -670,6 +746,21 @@ export interface AppConfig {
    * `requireOperator`'s, in both modes; migrations run in both modes.
    */
   readonly siteAdmin: boolean
+
+  /**
+   * P4-09 / D-14, grouped the way `createEvent` and `rotateJoinCode` consume them. A
+   * self-hosted box that sets none of the three keeps 2.0's only behaviour exactly; the
+   * hosted instance sets `slugSuffix: 'random'` and `allowCustomSlugs: false` from its
+   * first beta boot, and may widen `joinCodeLength` independently of either.
+   */
+  readonly events: {
+    /** `EVENT_SLUG_SUFFIX`. See {@link eventSlugSuffix}. */
+    readonly slugSuffix: 'none' | 'random'
+    /** `ALLOW_CUSTOM_SLUGS`. See {@link allowCustomSlugs}. */
+    readonly allowCustomSlugs: boolean
+    /** `JOIN_CODE_LENGTH`. See {@link joinCodeLength}. */
+    readonly joinCodeLength: number
+  }
 }
 
 export class ConfigError extends Error {
@@ -802,6 +893,7 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       galleryMediaPerMinute: raw.GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE,
       galleryUnlockPerClient: raw.GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT,
       galleryUnlockPerLink: raw.GALLERY_UNLOCK_ATTEMPTS_PER_LINK,
+      eventCreationPerHour: raw.EVENT_CREATION_RATE_LIMIT_PER_HOUR,
     },
 
     crypto: {
@@ -816,6 +908,12 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
     e2eHooks: raw.E2E_HOOKS ?? false,
 
     siteAdmin: raw.SITE_ADMIN === 'on',
+
+    events: {
+      slugSuffix: raw.EVENT_SLUG_SUFFIX,
+      allowCustomSlugs: raw.ALLOW_CUSTOM_SLUGS,
+      joinCodeLength: raw.JOIN_CODE_LENGTH,
+    },
   }
 }
 
