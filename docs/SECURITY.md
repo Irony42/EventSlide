@@ -714,6 +714,15 @@ includes clips that will never become photographs until the worker says so — u
 `MAX_QUEUED_CLIPS x MAX_CLIP_BYTES` of an event's own quota, held by its own queue. That
 is the quota doing its job rather than a hole in it: those bytes are on the disk.
 
+**The queue depth is itself checked twice**, in the same `stage` transaction: once
+against `MAX_QUEUED_CLIPS`, box-wide, and once against `MAX_QUEUED_CLIPS_PER_EVENT`,
+scoped to the event doing the staging. The second cap exists for a box running more than
+one event at a time — this product's deployment target is one box at one venue, where the
+two are reached together and nothing is observable, but a wedding that fills every
+box-wide slot would otherwise make a gala on the same machine wait behind its backlog.
+Checked in that order — per event, then box-wide — so an event at its own cap is refused
+without its upload ever being judged against a number another event's guests built up.
+
 ## 5. Rate limits and quotas
 
 `express-rate-limit`, with a SQLite-backed store so limits survive a restart
@@ -967,36 +976,60 @@ asked you to remove is not a deletion.
 `src/infrastructure/config/env.ts` is the **only** file that reads `process.env`: parsed
 once with zod at startup, exported as a frozen typed object.
 
-| Variable                           | Required              | Default                               | Effect                                                                                    |
-| ---------------------------------- | --------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `SESSION_SECRET`                   | **yes in production** | none                                  | signs `es_sid`                                                                            |
-| `GUEST_TOKEN_SECRET`               | **yes in production** | none                                  | HMAC key for guest tokens                                                                 |
-| `NODE_ENV`                         | no                    | **`production`**                      | gates `Secure` cookies, HSTS, strict CSP, and both secrets — see below                    |
-| `PUBLIC_URL`                       | no                    | `http://localhost:5173`               | join links, QR codes, `Origin` check — production refuses `http://` except on `localhost` |
-| `DATABASE_PATH` / `MEDIA_ROOT`     | no                    | `./data/eventslide.sqlite`, `./media` | see file permissions in §11                                                               |
-| `TRUST_PROXY_HOPS`                 | no                    | `0`                                   | see §11 — wrong values break rate limiting                                                |
-| `MAX_UPLOAD_BYTES`                 | no                    | `25000000`                            | multer's per-photo limit                                                                  |
-| `MAX_FILES_PER_UPLOAD`             | no                    | `20`                                  | photos in one request                                                                     |
-| `MAX_CLIP_BYTES`                   | no                    | `80000000`                            | multer's per-clip limit; **separate on purpose** — see §4.1                               |
-| `MAX_CLIP_SECONDS`                 | no                    | `15`                                  | the duration cap, applied at the probe and at the encoder                                 |
-| `MAX_QUEUED_CLIPS`                 | no                    | `20`                                  | queue depth before `429 clip.queueFull`                                                   |
-| `CLIP_MAX_HEIGHT`                  | no                    | `720`                                 | the projected height a clip is encoded at                                                 |
-| `MAX_CLIP_PIXELS`                  | no                    | `33177600`                            | the video decompression bomb bound, from the header — see §4.1                            |
-| `FFMPEG_PATH` / `FFPROBE_PATH`     | no                    | none                                  | set, and wrong, is a refusal rather than a fallback — see §4.1                            |
-| `DEFAULT_EVENT_QUOTA_BYTES`        | no                    | `5000000000`                          | new events' `quota_bytes`                                                                 |
-| `PORT` / `LOG_LEVEL`               | no                    | `4300`, `info`                        |                                                                                           |
-| `RETENTION_SWEEP_INTERVAL_MINUTES` | no                    | `60`, and `off` under `NODE_ENV=test` | how often expired events are deleted; see §11                                             |
-| `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                    | `5`, and `off` under `NODE_ENV=test`  | how often scheduled openings and closings are applied; deletes nothing                    |
-| `SITE_ADMIN`                       | no                    | `off`                                 | `on` mounts `/api/site` behind `requireOperator` (§2); `off`/`on` only                    |
-| `SOURCE_CODE_URL`                  | no                    | upstream tag of this version          | the AGPL §13 source link: https only, no credentials, never hidden (API.md §2)            |
-| `SOURCE_REF`                       | no                    | none                                  | Docker build argument behind the same link: a git tag, branch or commit                   |
+| Variable                           | Required                                  | Default                               | Effect                                                                                                                       |
+| ---------------------------------- | ----------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_SECRET`                   | **yes in production**                     | none                                  | signs `es_sid`                                                                                                               |
+| `GUEST_TOKEN_SECRET`               | **yes in production**                     | none                                  | HMAC key for guest tokens                                                                                                    |
+| `NODE_ENV`                         | no                                        | **`production`**                      | gates `Secure` cookies, HSTS, strict CSP, and both secrets — see below                                                       |
+| `PUBLIC_URL`                       | no, but **warned** if unset in production | `http://localhost:5173`               | join links, QR codes, `Origin` check — production refuses `http://` except on `localhost`; see below                         |
+| `DATABASE_PATH` / `MEDIA_ROOT`     | no                                        | `./data/eventslide.sqlite`, `./media` | see file permissions in §11                                                                                                  |
+| `TRUST_PROXY_HOPS`                 | no                                        | `0`                                   | see §11 — wrong values break rate limiting, and warned below                                                                 |
+| `MAX_UPLOAD_BYTES`                 | no                                        | `25000000`                            | multer's per-photo limit                                                                                                     |
+| `MAX_FILES_PER_UPLOAD`             | no                                        | `20`                                  | photos in one request                                                                                                        |
+| `MAX_CLIP_BYTES`                   | no                                        | `80000000`                            | multer's per-clip limit; **separate on purpose** — see §4.1                                                                  |
+| `MAX_CLIP_SECONDS`                 | no                                        | `15`                                  | the duration cap, applied at the probe and at the encoder                                                                    |
+| `MAX_QUEUED_CLIPS`                 | no                                        | `20`                                  | queue depth, box-wide, before `429 clip.queueFull`                                                                           |
+| `MAX_QUEUED_CLIPS_PER_EVENT`       | no                                        | `20`                                  | the same cap, scoped to one event — see §4.1                                                                                 |
+| `MAX_STREAMS_PER_CLIENT`           | no                                        | `12`                                  | open SSE connections one client may hold at once                                                                             |
+| `MAX_STREAMS_TOTAL`                | no                                        | `500`                                 | open SSE connections the box serves at once, across every client                                                             |
+| `MAX_SUBSCRIBERS_PER_EVENT`        | no                                        | `200`                                 | the event bus's own per-event subscriber cap, one level under the two above                                                  |
+| `CLIP_MAX_HEIGHT`                  | no                                        | `720`                                 | the projected height a clip is encoded at                                                                                    |
+| `MAX_CLIP_PIXELS`                  | no                                        | `33177600`                            | the video decompression bomb bound, from the header — see §4.1                                                               |
+| `FFMPEG_PATH` / `FFPROBE_PATH`     | no                                        | none                                  | set, and wrong, is a refusal rather than a fallback — see §4.1                                                               |
+| `DEFAULT_EVENT_QUOTA_BYTES`        | no                                        | `5000000000`                          | new events' `quota_bytes`                                                                                                    |
+| `PORT` / `LOG_LEVEL`               | no                                        | `4300`, `info`                        |                                                                                                                              |
+| `RETENTION_SWEEP_INTERVAL_MINUTES` | no                                        | `60`, and `off` under `NODE_ENV=test` | how often expired events are deleted; see §11                                                                                |
+| `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                                        | `5`, and `off` under `NODE_ENV=test`  | how often scheduled openings and closings are applied; deletes nothing                                                       |
+| `SQLITE_SHUTDOWN_CHECKPOINT`       | no                                        | `truncate`                            | what `closeDatabase` runs at shutdown (`truncate`, `passive`, `none`); **unused on this instance**, which runs no Litestream |
+| `SITE_ADMIN`                       | no                                        | `off`                                 | `on` mounts `/api/site` behind `requireOperator` (§2); `off`/`on` only                                                       |
+| `SOURCE_CODE_URL`                  | no                                        | upstream tag of this version          | the AGPL §13 source link: https only, no credentials, never hidden (API.md §2)                                               |
+| `SOURCE_REF`                       | no                                        | none                                  | Docker build argument behind the same link: a git tag, branch or commit                                                      |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,
-`dev-session-secret`, `secret`), or when `PUBLIC_URL` is missing. 1.0's `.env.example`
-shipped `change-me-in-production` next to a `sessionSecret ?? 'dev-session-secret'`
-fallback, so the likely production value was a public constant. The process prints every
-failing key at once and exits non-zero; it does not start degraded.
+`dev-session-secret`, `secret`), or when `PUBLIC_URL` uses plain `http` on anything but
+`localhost`. 1.0's `.env.example` shipped `change-me-in-production` next to a
+`sessionSecret ?? 'dev-session-secret'` fallback, so the likely production value was a
+public constant. The process prints every failing key at once and exits non-zero; it
+does not start degraded.
+
+**An unset `PUBLIC_URL` is not among those refusals** — it falls back to
+`http://localhost:5173`, which boots cleanly and serves nobody, because no guest's phone
+can reach `localhost` on the box that is running it. Two cases are real enough to tell an
+operator about and not severe enough to refuse the boot over, so `computeWarnings` in
+`env.ts` logs each once, after the container exists, rather than exiting:
+
+- **production with no configured `PUBLIC_URL`** — the QR code on the wall would encode an
+  address only the server itself can reach;
+- **production with a `Secure` session cookie and `TRUST_PROXY_HOPS=0`** — the same
+  misconfiguration §11 already names for rate limiting, here risked against a host's own
+  session.
+
+Both were a boot refusal in an earlier draft of this file and are not one now: the
+configurations they describe already run on boxes in the wild, and a self-hosted operator
+who upgrades expects a changed default to warn before it ever refuses. A refusal for
+either belongs in a major version, announced in the CHANGELOG, not a silent tightening of
+an existing minor.
 
 **Saying nothing means production, and that is the security default of the file.** It used
 to mean development, and five controls hang off the answer at once: both secrets fell back
@@ -1051,6 +1084,7 @@ request. Password rules live in `src/domain/users/`, not the controller.
 | Shutdown          | leave `stop_grace_period: 20s` alone, or keep it above the 15 s backstop in `src/main/shutdown.ts`                                                                                                                                  | Docker's own default is 10 s, which `SIGKILL`s the process five seconds _before_ its own backstop runs — the WAL never checkpointed and whatever was mid-upload lost                                                                            |
 | The image itself  | `bash scripts/verify-image.sh` builds it and checks every claim on this page that is a property of the container. CI runs the same script on every push                                                                             | an image that quietly lost `ffmpeg`, shipped its devDependencies or went back to running as root is green on all six test rings — none of them runs Docker                                                                                      |
 | Updates           | pin the version, read the release notes, `npm audit` before a deploy                                                                                                                                                                | see §12: self-hosted means you own patching                                                                                                                                                                                                     |
+| `.env`            | one file, next to `compose.yaml`, with every variable you mean to set — `compose.yaml` loads it whole through `env_file`                                                                                                            | before this, only the handful of variables named under `environment:` reached the container at all; a setting `.env.example` documented but `environment:` did not list was silently ignored, which is the gap this closes                      |
 
 **Graceful shutdown, in order (`src/main/shutdown.ts`, P4-06).** `SIGTERM`/`SIGINT` first
 flips `GET /api/ready` to `503` unconditionally — database and media root healthy or not
