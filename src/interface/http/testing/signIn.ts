@@ -1,3 +1,4 @@
+import type { Agent as Connections, Server } from 'node:http'
 import type { Express } from 'express'
 import request from 'supertest'
 import type { AuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
@@ -53,11 +54,42 @@ export interface Caller {
   readonly csrf: string
 }
 
+/**
+ * Where these helpers send their requests.
+ *
+ * The app itself, which supertest listens on afresh for every request; or a server already
+ * listening, which it reuses, with a pool of kept-alive connections that every request the
+ * caller makes goes out on. superagent opts out of pooling unless it is handed one, so
+ * without it each request is a connection of its own.
+ */
+export type Target = Express | { readonly server: Server; readonly connections: Connections }
+
+const agentFor = (target: Target): request.Agent => {
+  if (typeof target === 'function') return request.agent(target)
+  const { server, connections } = target
+  return request.agent(server).use((each: request.Request) => {
+    each.agent(connections)
+  })
+}
+
 /** No session, but holding the CSRF cookie already, so no later response sets a fresh one. */
-export const anonymousCaller = async (app: Express): Promise<Caller> => {
-  const agent = request.agent(app)
+export const anonymousCaller = async (app: Target): Promise<Caller> => {
+  const agent = agentFor(app)
   const csrf = csrfTokenFrom((await agent.get(A_PATH_NOBODY_WROTE)).headers)
   return { agent, csrf }
+}
+
+/** A caller with a session, and the account the login said it signed in. */
+export interface SignedInCaller extends Caller {
+  readonly userId: string
+}
+
+/** The `userId` a login response names, or a loud failure. */
+const userIdFrom = (body: unknown): string => {
+  const userId: unknown =
+    typeof body === 'object' && body !== null ? (body as Record<string, unknown>)['userId'] : null
+  if (typeof userId !== 'string') throw new Error('the login response named no userId')
+  return userId
 }
 
 /**
@@ -70,13 +102,16 @@ export const anonymousCaller = async (app: Express): Promise<Caller> => {
  * refuses every unsafe method carrying it before a single authorization middleware runs.
  * A browser re-reads the cookie; so does this. `siteOperatorScope.test.ts` fell into
  * exactly that trap once, and its sweep was green on 18 routes it was not exercising.
+ *
+ * The `userId` is read off the same response, so a suite that needs to know whom it
+ * signed in learns it without spending a request on `GET /api/auth/me`.
  */
-export const signedInAs = async (app: Express, email: string): Promise<Caller> => {
+export const signedInAs = async (app: Target, email: string): Promise<SignedInCaller> => {
   const { agent, csrf: beforeLogin } = await anonymousCaller(app)
   const login = await agent
     .post('/api/auth/login')
     .set(CSRF_HEADER, beforeLogin)
     .send({ email, password: 'peu-importe-ici' })
     .expect(200)
-  return { agent, csrf: csrfTokenFrom(login.headers) }
+  return { agent, csrf: csrfTokenFrom(login.headers), userId: userIdFrom(login.body) }
 }
