@@ -1,6 +1,13 @@
+import { EventEmitter } from 'node:events'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import express, { type Express, type RequestHandler, type Response } from 'express'
+import express, {
+  type Express,
+  type NextFunction,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from 'express'
 import request from 'supertest'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { Logger } from '../../../application/ports/logger'
@@ -529,20 +536,67 @@ describe('uploadConcurrencyLimiter', () => {
     expect((await afterward).status).toBe(204)
   })
 
-  it('never double-releases a slot when a response fires both close and finish', async () => {
-    // The same hazard `streamConnectionLimiter` guards against: counting a short
-    // response's `close` and `finish` both would let the ceiling drift upwards over a
-    // long-running process, eventually admitting more than `max` at once.
-    const app = express()
-    app.get('/upload', uploadConcurrencyLimiter(1), (_req, res) => {
-      res.status(204).end()
-    })
+  /**
+   * A fake response good enough to drive `uploadConcurrencyLimiter` directly: it is an
+   * `EventEmitter` (so `res.on('close', …)` and a manual `emit('close')` work) and
+   * records the status/body a refusal would set, without a real socket.
+   *
+   * Real HTTP cannot be made to fire `close` twice for one response on demand — in
+   * today's Node that event fires exactly once per response — so this is the only way
+   * to exercise the hazard the guard names: `close` firing again regardless.
+   */
+  class FakeUploadResponse extends EventEmitter {
+    statusCode = 200
+    body: unknown
 
-    // Two requests in sequence: if the first's slot leaked (never released), the
-    // second would be refused even though nothing is held any more.
-    await request(app).get('/upload')
-    const second = await request(app).get('/upload')
+    setHeader(): this {
+      return this
+    }
 
-    expect(second.status).toBe(204)
+    status(code: number): this {
+      this.statusCode = code
+      return this
+    }
+
+    json(payload: unknown): this {
+      this.body = payload
+      return this
+    }
+  }
+
+  const callLimiter = (
+    limiter: RequestHandler,
+    res: FakeUploadResponse,
+  ): { admitted: boolean } => {
+    const result = { admitted: false }
+    const next: NextFunction = () => {
+      result.admitted = true
+    }
+    limiter({} as unknown as Request, res as unknown as Response, next)
+    return result
+  }
+
+  it('never double-releases a slot when the same response fires close twice', () => {
+    // One instance, one slot: everything below shares it, the same way one middleware
+    // instance is shared by every request to a mounted route.
+    const limiter = uploadConcurrencyLimiter(1)
+
+    const held = new FakeUploadResponse()
+    expect(callLimiter(limiter, held).admitted).toBe(true)
+
+    // The hazard itself: the same response's `close` firing a second time. If `release`
+    // were not idempotent, this would free the slot twice.
+    held.emit('close')
+    held.emit('close')
+
+    // One slot was freed, not two: the next request is admitted and takes it...
+    const first = new FakeUploadResponse()
+    expect(callLimiter(limiter, first).admitted).toBe(true)
+
+    // ...and a second, concurrent one is refused — exactly `max` in flight, not `max`
+    // plus whatever the double release handed out for free.
+    const second = new FakeUploadResponse()
+    expect(callLimiter(limiter, second).admitted).toBe(false)
+    expect(second.statusCode).toBe(429)
   })
 })

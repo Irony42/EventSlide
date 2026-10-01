@@ -356,9 +356,14 @@ export const uploadConcurrencyLimiter = (max: number): RequestHandler => {
     inFlight += 1
     let released = false
     const release = (): void => {
-      // The same double-release hazard as `streamConnectionLimiter`: a short response
-      // sees `close` and can also see `finish`, and counting both would let the ceiling
-      // drift upwards over a long-running process.
+      // `close` is the only event wired below, and today's Express/Node fires it once
+      // per response — so this guard is not live against today's wiring. It is here for
+      // the same reason `streamConnectionLimiter` carries it: a second call to
+      // `release` (`close` firing again, or a future change that also wires `finish`)
+      // must free the slot once, not twice, or the ceiling drifts upwards over a
+      // long-running process and silently admits more than `max` at once. Proven
+      // directly by the "never double-releases" test below, which emits `close` twice
+      // on a fake response rather than relying on a real socket to do it.
       if (released) return
       released = true
       inFlight -= 1
