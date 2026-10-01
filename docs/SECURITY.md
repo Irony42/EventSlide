@@ -888,6 +888,11 @@ not `/api/events/our-wedding-2026`), the status, the duration, the request id, a
 serializers that replace `pino-http`'s own — the defaults carry the raw URL with its
 query string and every header, `set-cookie` included, which is exactly how a fresh
 session id would otherwise leave the process in a log line nobody meant to write.
+**The log canary sweep** (`src/interface/http/testing/logCanary.ts`) is what proves this
+holds for every mounted route at once rather than for the handful a test author thought
+to try: it calls each one with a gallery token, a join code, a slug, a caption, an email,
+a password and a cookie, placed in the path, the query, the headers and the body, and
+asserts none of them appears anywhere a logger wrote. It runs in `npm run verify`.
 
 ### Data-subject flows a host can actually perform
 
