@@ -1,3 +1,4 @@
+import type { Agent as Connections, Server } from 'node:http'
 import type { Express } from 'express'
 import request from 'supertest'
 import type { AuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
@@ -53,9 +54,27 @@ export interface Caller {
   readonly csrf: string
 }
 
+/**
+ * Where these helpers send their requests.
+ *
+ * The app itself, which supertest listens on afresh for every request; or a server already
+ * listening, which it reuses, with a pool of kept-alive connections that every request the
+ * caller makes goes out on. superagent opts out of pooling unless it is handed one, so
+ * without it each request is a connection of its own.
+ */
+export type Target = Express | { readonly server: Server; readonly connections: Connections }
+
+const agentFor = (target: Target): request.Agent => {
+  if (typeof target === 'function') return request.agent(target)
+  const { server, connections } = target
+  return request.agent(server).use((each: request.Request) => {
+    each.agent(connections)
+  })
+}
+
 /** No session, but holding the CSRF cookie already, so no later response sets a fresh one. */
-export const anonymousCaller = async (app: Express): Promise<Caller> => {
-  const agent = request.agent(app)
+export const anonymousCaller = async (app: Target): Promise<Caller> => {
+  const agent = agentFor(app)
   const csrf = csrfTokenFrom((await agent.get(A_PATH_NOBODY_WROTE)).headers)
   return { agent, csrf }
 }
@@ -87,7 +106,7 @@ const userIdFrom = (body: unknown): string => {
  * The `userId` is read off the same response, so a suite that needs to know whom it
  * signed in learns it without spending a request on `GET /api/auth/me`.
  */
-export const signedInAs = async (app: Express, email: string): Promise<SignedInCaller> => {
+export const signedInAs = async (app: Target, email: string): Promise<SignedInCaller> => {
   const { agent, csrf: beforeLogin } = await anonymousCaller(app)
   const login = await agent
     .post('/api/auth/login')

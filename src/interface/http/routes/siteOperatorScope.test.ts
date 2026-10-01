@@ -1,4 +1,4 @@
-import type { IncomingMessage } from 'node:http'
+import { Agent, createServer, type IncomingMessage } from 'node:http'
 import express, { type Express } from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
@@ -15,7 +15,13 @@ import type { SiteRole } from '../../../domain/users/siteRole'
 import { CSRF_HEADER } from '../middleware/csrf'
 import { mountedRoutes, type Route } from '../testing/routeTable'
 import { buildServerHarness, type ServerHarness } from '../testing/serverHarness'
-import { anonymousCaller, signedInAs, signInByAddress, type Caller } from '../testing/signIn'
+import {
+  anonymousCaller,
+  signedInAs,
+  signInByAddress,
+  type Caller,
+  type Target,
+} from '../testing/signIn'
 import { galleryHeaders } from './galleryRoutes'
 
 /**
@@ -392,6 +398,35 @@ interface Answer {
   readonly code: string | null
 }
 
+type Listening = Extract<Target, { readonly server: unknown }>
+
+/**
+ * The app on one port of its own, and one kept-alive connection to it, for every request a
+ * side of the comparison makes.
+ *
+ * Handed the app itself, supertest listens on a fresh port for **each** request, and
+ * superagent opens a fresh connection for each — so the parity case, two servers and three
+ * requests a side on every route in both modes, tripled this file's sockets, and on a
+ * Windows box whose dynamic port range is 16 384 the server project began failing with
+ * `connect EADDRINUSE`. A server already listening is reused, and a pool keeps one socket.
+ */
+const listeningOn = (app: Express): Promise<Listening> =>
+  new Promise((resolve, reject) => {
+    const server = createServer(app)
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () =>
+      resolve({ server, connections: new Agent({ keepAlive: true }) }),
+    )
+  })
+
+/** Closed, an abandoned event stream included: `close` alone would wait for it forever. */
+const closed = ({ server, connections }: Listening): Promise<void> =>
+  new Promise((resolve, reject) => {
+    connections.destroy()
+    server.closeAllConnections()
+    server.close((error) => (error ? reject(error) : resolve()))
+  })
+
 /** Where an account stands on the box, and in the gala. */
 interface Standing {
   readonly siteRole: SiteRole
@@ -701,12 +736,17 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
   const askAs = async (email: string, route: Route): Promise<Asked> => {
     const subject = operatorHarness()
     seedClientEvent(subject)
-    const { agent, csrf, userId } = await signedInAs(subject.app, email)
-    const standing: Standing = {
-      siteRole: await subject.users.siteRoleFor(asUserId(userId)),
-      inTheGala: await subject.memberships.roleFor(GALA, asUserId(userId)),
+    const listening = await listeningOn(subject.app)
+    try {
+      const { agent, csrf, userId } = await signedInAs(listening, email)
+      const standing: Standing = {
+        siteRole: await subject.users.siteRoleFor(asUserId(userId)),
+        inTheGala: await subject.memberships.roleFor(GALA, asUserId(userId)),
+      }
+      return { standing, answer: await answerOf(send(agent, route, csrf)) }
+    } finally {
+      await closed(listening)
     }
-    return { standing, answer: await answerOf(send(agent, route, csrf)) }
   }
 
   describe('the route table this sweep covers', () => {
