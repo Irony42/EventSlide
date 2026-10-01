@@ -40,6 +40,11 @@ import { galleryHeaders } from './galleryRoutes'
  * with nothing saying so. Every exemption list is itself exercised below, because a list
  * that removes a case is otherwise the cheapest way to make a failing sweep green.
  *
+ * And under all three lists sits a rule that none of them can lift: on every route
+ * `siteRoutes` does not carry, the operator gets the status and error code that a
+ * signed-in account with site role `none` and no membership gets. Each list says why a
+ * route is not swept; none of them is a reason for the site role to change an answer.
+ *
  * The use cases behind these routes are the harness's `notWired` ones, which throw. That
  * is deliberate: a request that got *past* authorization answers 500 rather than a
  * plausible 200, so "the operator was let in" cannot hide inside a 4xx.
@@ -58,6 +63,14 @@ import { galleryHeaders } from './galleryRoutes'
 
 const OPERATOR = '11111111-1111-4111-8111-111111111111'
 const CLIENT = '22222222-2222-4222-8222-222222222222'
+/**
+ * The account the operator is compared with: signed in, site role `none`, and a member of
+ * no event — so it differs from the operator in the site role and in nothing else.
+ *
+ * Not `CLIENT`: she owns the gala, so every event-scoped route lets her in, and the
+ * comparison would measure her membership instead of the operator's role.
+ */
+const STRANGER = '44444444-4444-4444-8444-444444444444'
 const GALA = asEventId('evt-gala')
 const A_PHOTO = '33333333-3333-4333-8333-333333333333'
 
@@ -121,6 +134,14 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
  * corresponding to a mounted route and for the exemption actually holding. A new route is
  * covered the day it is mounted whatever it calls its event, and taking it out of the
  * sweep is a deliberate line in a diff somebody reads.
+ *
+ * "Holding" used to mean only that the operator was not answered `event.notFound`, and
+ * that is not enough. A route carrying `requireOperator` of its own — say
+ * `GET /events/:eventSlug/support-queue` on `eventRoutes` — answers the operator 200 with a
+ * client's queue, which is not `event.notFound`, so listing it here made the whole project
+ * green while the operator read somebody's evening. What catches it is the parity case
+ * below: that route answers a signed-in stranger 403, and the operator has to get the
+ * same answer as the stranger on every route `siteRoutes` does not carry, listed here or not.
  */
 const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
   'get /api/health': 'liveness: the process is up, and it is the same answer for everyone',
@@ -302,6 +323,7 @@ const seedClientEvent = (subject: ServerHarness): void => {
   subject.users.seed(
     aUser({ id: OPERATOR, email: 'ops@example.test', siteRole: 'operator' }),
     aUser({ id: CLIENT, email: 'mariee@example.test' }),
+    aUser({ id: STRANGER, email: 'inconnu@example.test', siteRole: 'none' }),
   )
 }
 
@@ -309,6 +331,7 @@ const seedClientEvent = (subject: ServerHarness): void => {
 const ACCOUNTS: Readonly<Record<string, string>> = {
   'ops@example.test': OPERATOR,
   'mariee@example.test': CLIENT,
+  'inconnu@example.test': STRANGER,
 }
 
 /**
@@ -361,27 +384,53 @@ const refusedByTheCsrfGate = (response: request.Response): boolean => {
 /** What `middleware/authz` answers a caller it will not let through. */
 const AUTHORIZATION_REFUSALS: ReadonlySet<number> = new Set([401, 403])
 
+/** What a caller is told: the status, and the error code when the answer is a refusal. */
+interface Answer {
+  readonly status: number
+  readonly code: string | null
+}
+
 /**
- * The status line alone, read off the socket without waiting for the body.
+ * The answer a request gets, including from a response that never ends.
  *
  * `GET /api/events/:eventSlug/stream` is a public route **and** a response that never
  * ends, and supertest resolves on `end`. So the one exemption whose public-ness is most
- * worth checking is the one an ordinary `await` cannot check at all. The status line is
- * the whole question here — "was this caller refused for want of a credential" — so the
- * request is abandoned the moment it arrives, which also means no test leaves an SSE
- * socket and a heartbeat interval behind it.
+ * worth checking is the one an ordinary `await` cannot check at all. An event stream is
+ * therefore read for its status line alone and abandoned the moment it arrives, which also
+ * means no test leaves an SSE socket and a heartbeat interval behind it. It has no error
+ * code to read: a refusal is JSON, and ends. Every other response is awaited to its end and
+ * its code read.
  */
-const statusFor = (test: request.Test): Promise<number> =>
+const answerOf = (test: request.Test): Promise<Answer> =>
   new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('the server sent no status line')), 5_000)
-    test.end(() => {})
+    const timer = setTimeout(() => reject(new Error('the server did not answer')), 5_000)
+    test.end((error: unknown, response: request.Response) => {
+      clearTimeout(timer)
+      if (error) reject(error instanceof Error ? error : new Error(String(error)))
+      else resolve({ status: response.status, code: errorCodeOf(response) })
+    })
     const underlying = (test as unknown as { readonly req: NodeJS.EventEmitter }).req
     underlying.on('response', (incoming: IncomingMessage) => {
+      if (!String(incoming.headers['content-type']).startsWith('text/event-stream')) return
       clearTimeout(timer)
-      resolve(incoming.statusCode ?? 0)
+      resolve({ status: incoming.statusCode ?? 0, code: null })
       test.abort()
     })
   })
+
+/**
+ * What `route` answers the account behind `email`, on a server of its own.
+ *
+ * A server per caller, seeded alike, so that neither answer depends on what the other
+ * request did first: a logout, a created event or a rate limiter's count would otherwise
+ * be shared between the two sides of a comparison.
+ */
+const answerTo = async (siteAdmin: boolean, email: string, route: Route): Promise<Answer> => {
+  const subject = buildOperatorHarness(siteAdmin)
+  seedClientEvent(subject)
+  const { agent, csrf } = await signedInAs(subject.app, email)
+  return answerOf(send(agent, route, csrf))
+}
 
 /**
  * The mounted route an exemption names, or a loud failure.
@@ -734,7 +783,9 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
         // resolves an event the operator has no part in answers `event.notFound`, which is
         // precisely what a route reaching no event cannot answer. Parking
         // `patch /api/events/:eventSlug/settings` here to silence a failure fails here
-        // instead.
+        // instead. What this cannot see is a route that reaches an event without asking
+        // `requireRole` — a `requireOperator` of its own answers the operator 200 — and that
+        // is the parity case's to refuse, not this one's.
         const route = routeNamed(siteAdmin, name)
         const subject = operatorHarness()
         seedClientEvent(subject)
@@ -765,7 +816,7 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
         seedClientEvent(subject)
         const stranger = await anonymousCaller(subject.app)
 
-        const status = await statusFor(send(stranger.agent, route, stranger.csrf))
+        const { status } = await answerOf(send(stranger.agent, route, stranger.csrf))
 
         expect(AUTHORIZATION_REFUSALS.has(status)).toBe(false)
       },
@@ -900,7 +951,7 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
     })
 
     it.each(scopedRoutes.map((route): [string, Route] => [`${route.method} ${route.path}`, route]))(
-      'is refused by %s, exactly as a stranger is',
+      'is refused by %s',
       async (_name, route) => {
         const subject = operatorHarness()
         seedClientEvent(subject)
@@ -925,6 +976,78 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
         expect(response.status).toBeLessThan(500)
       },
     )
+
+    /**
+     * Every route `siteRoutes` does not carry — swept, public or reaching no event alike.
+     *
+     * Filtered on the mount and on nothing else, so that no list above can take a route out
+     * of it. The lists decide which rule a route is held to; this is the rule they are all
+     * held to: off the operator's own mount, the site role changes no answer. A route listed
+     * in `NOT_EVENT_SCOPED` or `PUBLIC_ROUTES` that let the operator in, by a
+     * `requireOperator` of its own, satisfied both of those lists' checks — 200 is not
+     * `event.notFound`, and the anonymous caller is refused by the same gate as anybody else
+     * who does not operate the box. It cannot satisfy this one.
+     */
+    const offTheSiteMount = table.routes.filter((route) => !carriedBySite(route))
+
+    it('compares the operator with an account that differs from it in the site role alone', async () => {
+      // The guard on the comparison's control. Were the stranger an operator too, or the
+      // operator's address to sign in somebody else, the parity case below would compare
+      // one account with itself and pass on every route. So each side is signed in as the
+      // sweep signs it in, and asked who it is, and that account's site role and standing
+      // in the gala are read from storage — the very questions `requireOperator` and
+      // `requireRole` ask.
+      const subject = operatorHarness()
+      seedClientEvent(subject)
+      const standingOf = async (email: string) => {
+        const { agent } = await signedInAs(subject.app, email)
+        const me = await agent.get('/api/auth/me').expect(200)
+        const userId = asUserId(String(me.body.user.userId))
+        return {
+          siteRole: await subject.users.siteRoleFor(userId),
+          inTheGala: await subject.memberships.roleFor(GALA, userId),
+        }
+      }
+
+      expect(await standingOf('ops@example.test')).toEqual({
+        siteRole: 'operator',
+        inTheGala: null,
+      })
+      expect(await standingOf('inconnu@example.test')).toEqual({
+        siteRole: 'none',
+        inTheGala: null,
+      })
+    })
+
+    it('compares the two on every route siteRoutes does not carry, the exempted ones included', () => {
+      // The guard on the table below. Filtering it by the exemption lists, as the sweep is
+      // filtered, is the one edit that reopens the hole it closes — so it is required to
+      // hold every exempted route by name, and to hold exactly the routes off the mount.
+      const names = offTheSiteMount.map((route) => `${route.method} ${route.path}`)
+
+      expect(names).toEqual(
+        expect.arrayContaining([...Object.keys(PUBLIC_ROUTES), ...Object.keys(NOT_EVENT_SCOPED)]),
+      )
+      expect(offTheSiteMount.length).toBe(
+        table.routes.length - table.routes.filter(carriedBySite).length,
+      )
+    })
+
+    it.each(
+      offTheSiteMount.map((route): [string, Route] => [`${route.method} ${route.path}`, route]),
+    )('is told by %s exactly what a signed-in stranger is told', async (_name, route) => {
+      // Same request, same seeded box, one server each: the only thing that differs is
+      // who is asking, and they differ only in the site role. Status and error code
+      // rather than the whole body, because a body may rightly name its caller —
+      // `GET /api/auth/me` does.
+      const stranger = await answerTo(siteAdmin, 'inconnu@example.test', route)
+      const operator = await answerTo(siteAdmin, 'ops@example.test', route)
+
+      // Two refusals by the CSRF gate are equal and say nothing about authorization, so
+      // the comparison is only worth making once it is known neither side died there.
+      expect(CSRF_REFUSALS.has(stranger.code ?? '')).toBe(false)
+      expect(operator).toEqual(stranger)
+    })
 
     it('is told nothing by the moderation queue, the one screen this item is about', async () => {
       const subject = operatorHarness()
