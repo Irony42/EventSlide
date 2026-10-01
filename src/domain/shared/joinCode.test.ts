@@ -16,7 +16,7 @@ interface UntypedJoinCodeFactory {
 
 const untyped: UntypedJoinCodeFactory = JoinCode
 
-const bytesOf = (byte: number): Uint8Array => new Uint8Array(JoinCode.entropyBytes).fill(byte)
+const bytesOf = (byte: number): Uint8Array => new Uint8Array(JoinCode.minLength).fill(byte)
 
 /**
  * A byte source that reports the right length but yields a value no real `Uint8Array`
@@ -32,14 +32,18 @@ class LyingByteSource extends Uint8Array {
 }
 
 /*
- * Every case in this file is written in terms of `JoinCode.length` and
- * `JoinCode.alphabet`, so these pin the format itself. Without them a silent change to
- * either constant would keep the whole file green while the printed cards stopped
- * matching the codes the server accepts.
+ * Every case in this file is written in terms of `JoinCode.minLength`,
+ * `JoinCode.maxLength` and `JoinCode.alphabet`, so these pin the format itself. Without
+ * them a silent change to any of the three would keep the whole file green while the
+ * printed cards stopped matching the codes the server accepts.
  */
 describe('the join code format', () => {
-  it('is six characters long, which is what the printed join cards are laid out for', () => {
-    expect(JoinCode.length).toBe(6)
+  it('defaults to six characters, which is what every pre-existing printed card is', () => {
+    expect(JoinCode.minLength).toBe(6)
+  })
+
+  it('accepts a configured code of up to ten characters (JOIN_CODE_LENGTH)', () => {
+    expect(JoinCode.maxLength).toBe(10)
   })
 
   it('offers 32 characters, so one byte maps onto one character without bias', () => {
@@ -50,10 +54,6 @@ describe('the join code format', () => {
   // most of the six-character codes a host would be embarrassed to hand out.
   it.each([...'ILOU'])('leaves %s out of the alphabet', (character) => {
     expect(JoinCode.alphabet.includes(character)).toBe(false)
-  })
-
-  it('needs one byte of entropy per character', () => {
-    expect(JoinCode.entropyBytes).toBe(6)
   })
 })
 
@@ -111,14 +111,14 @@ describe('JoinCode.create', () => {
     expect(result.ok && result.value.value).toBe('H7K2Q0')
   })
 
-  it('refuses a code one character short', () => {
+  it('refuses a code one character below the minimum', () => {
     const result = JoinCode.create('H7K2Q')
 
     expect(!result.ok && result.error.code).toBe('joinCode.wrongLength')
   })
 
-  it('refuses a code one character too long', () => {
-    const result = JoinCode.create('H7K2QMN')
+  it('refuses a code one character above the maximum', () => {
+    const result = JoinCode.create('H7K2QMN8DVX')
 
     expect(!result.ok && result.error.code).toBe('joinCode.wrongLength')
   })
@@ -129,10 +129,25 @@ describe('JoinCode.create', () => {
     expect(!result.ok && result.error.code).toBe('joinCode.wrongLength')
   })
 
-  it('reports the expected length so the UI can size its input', () => {
+  it('reports the accepted range so the UI can size its input', () => {
     const result = JoinCode.create('H7K2Q')
 
-    expect(!result.ok && result.error.details).toEqual({ length: JoinCode.length })
+    expect(!result.ok && result.error.details).toEqual({
+      min: JoinCode.minLength,
+      max: JoinCode.maxLength,
+    })
+  })
+
+  // JOIN_CODE_LENGTH accepts 6 to 10 (P4-09 / D-14): a host's own code may be any
+  // length in that range, and a renewed or rotated code may land anywhere in it too —
+  // the exact length 6 this class used to require is gone, and every length the range
+  // admits must parse exactly as the others do.
+  it.each([6, 7, 8, 9, 10])('accepts a configured code %i characters long', (length) => {
+    const candidate = JoinCode.alphabet.repeat(2).slice(0, length)
+
+    const result = JoinCode.create(candidate)
+
+    expect(result.ok && result.value.value).toBe(candidate)
   })
 
   // U is excluded from the alphabet on purpose, so it can never be a valid character
@@ -159,8 +174,8 @@ describe('JoinCode.fromBytes', () => {
 
   // Deriving a code from too little entropy is the one mistake here that would not
   // look like a bug: the code would still be six characters, just guessable.
-  it.each([0, JoinCode.entropyBytes - 1, JoinCode.entropyBytes + 1])(
-    'refuses %i bytes of entropy',
+  it.each([0, JoinCode.minLength - 1, JoinCode.minLength + 1])(
+    'refuses %i bytes of entropy when no length is given (the default, six)',
     (count) => {
       const result = JoinCode.fromBytes(new Uint8Array(count))
 
@@ -171,13 +186,13 @@ describe('JoinCode.fromBytes', () => {
   it('reports how many bytes of entropy it wanted', () => {
     const result = JoinCode.fromBytes(new Uint8Array(1))
 
-    expect(!result.ok && result.error.details).toEqual({ length: JoinCode.entropyBytes })
+    expect(!result.ok && result.error.details).toEqual({ length: JoinCode.minLength })
   })
 
   it('still lands inside the alphabet when an index cannot be resolved', () => {
-    const result = JoinCode.fromBytes(new LyingByteSource(JoinCode.entropyBytes))
+    const result = JoinCode.fromBytes(new LyingByteSource(JoinCode.minLength))
 
-    expect(result.ok && result.value.value).toBe('0'.repeat(JoinCode.entropyBytes))
+    expect(result.ok && result.value.value).toBe('0'.repeat(JoinCode.minLength))
   })
 
   it.each([
@@ -194,7 +209,40 @@ describe('JoinCode.fromBytes', () => {
   ])('maps byte %i to %s', (byte, character) => {
     const result = JoinCode.fromBytes(bytesOf(byte))
 
-    expect(result.ok && result.value.value).toBe(character.repeat(JoinCode.entropyBytes))
+    expect(result.ok && result.value.value).toBe(character.repeat(JoinCode.minLength))
+  })
+
+  /**
+   * `JOIN_CODE_LENGTH` (P4-09 / D-14): a configured deployment asks for more entropy,
+   * and `fromBytes` has to produce a code of exactly that length rather than silently
+   * keeping the default.
+   */
+  describe('a configured length', () => {
+    it('derives a code of the requested length from exactly that many bytes', () => {
+      const eight = new Uint8Array([0, 1, 17, 31, 32, 255, 10, 9])
+
+      const result = JoinCode.fromBytes(eight, 8)
+
+      expect(result.ok && result.value.value).toBe('01HZ0ZA9')
+    })
+
+    it('refuses entropy that does not match the requested length', () => {
+      const result = JoinCode.fromBytes(new Uint8Array(6), 8)
+
+      expect(!result.ok && result.error.code).toBe('joinCode.wrongEntropyLength')
+    })
+
+    it('reports the requested length it wanted, not the default', () => {
+      const result = JoinCode.fromBytes(new Uint8Array(6), 8)
+
+      expect(!result.ok && result.error.details).toEqual({ length: 8 })
+    })
+
+    it('refuses a requested length outside the configurable range, through JoinCode.create', () => {
+      const result = JoinCode.fromBytes(new Uint8Array(11), 11)
+
+      expect(!result.ok && result.error.code).toBe('joinCode.wrongLength')
+    })
   })
 
   /*

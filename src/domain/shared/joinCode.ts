@@ -11,10 +11,11 @@ import { err, ok, type Result } from './result'
  *    indistinguishable in most fonts, and dropping `U` removes most accidental
  *    obscenities. That is Crockford's base32 alphabet, and its normalisation rules
  *    (`I`/`L` → `1`, `O` → `0`) are applied on input so a mistyped code still resolves.
- * 2. **It is a bearer credential.** 32^6 ≈ 1.07 × 10⁹ codes. Combined with the
- *    per-IP rate limit on the join endpoint, guessing an active code is not a
- *    practical attack. It is not a secret against someone who photographs the card —
- *    it is not meant to be; see docs/SECURITY.md on accepted risks.
+ * 2. **It is a bearer credential.** 32^6 ≈ 1.07 × 10⁹ codes for the default length, and
+ *    a deployment may configure a longer one — `JOIN_CODE_LENGTH`, 6 to 10 — for more.
+ *    Combined with the per-IP rate limit on the join endpoint, guessing an active code
+ *    is not a practical attack. It is not a secret against someone who photographs the
+ *    card — it is not meant to be; see docs/SECURITY.md on accepted risks.
  * 3. **It is rotatable.** A host who finds the link circulating outside the venue
  *    rotates the code and the old one stops working immediately.
  *
@@ -23,7 +24,21 @@ import { err, ok, type Result } from './result'
  */
 
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
-const LENGTH = 6
+
+/**
+ * 2.0's only length, and still what a box that never sets `JOIN_CODE_LENGTH` gets —
+ * every code already printed on a card is this long, and the lower bound of the
+ * configurable range is written as this constant rather than restated so the two can
+ * never drift apart.
+ */
+const MIN_LENGTH = 6
+
+/**
+ * The upper end of the configurable range (P4-09 / D-14). Wide enough that a hosted
+ * instance can ask for meaningfully more entropy than the default without turning the
+ * code into something nobody will retype from a printed card.
+ */
+const MAX_LENGTH = 10
 
 /** `I` and `L` are read as `1`, `O` as `0`; separators are noise. */
 const CONFUSABLES: Readonly<Record<string, string>> = { I: '1', L: '1', O: '0' }
@@ -48,8 +63,8 @@ export class JoinCode {
     if (typeof raw !== 'string') return err(DomainError.invalid('joinCode.invalid'))
     const candidate = normaliseJoinCode(raw)
 
-    if (candidate.length !== LENGTH) {
-      return err(DomainError.invalid('joinCode.wrongLength', { length: LENGTH }))
+    if (candidate.length < MIN_LENGTH || candidate.length > MAX_LENGTH) {
+      return err(DomainError.invalid('joinCode.wrongLength', { min: MIN_LENGTH, max: MAX_LENGTH }))
     }
     for (const character of candidate) {
       if (!ALPHABET.includes(character)) {
@@ -60,15 +75,25 @@ export class JoinCode {
   }
 
   /**
-   * Deterministically map random bytes to a code.
+   * Deterministically map random bytes to a code of the given length.
    *
    * 256 is an exact multiple of 32, so `byte % 32` is uniform — no modulo bias, and
-   * no rejection sampling needed. Requires exactly {@link JoinCode.length} bytes so a
-   * caller cannot accidentally derive a code from too little entropy.
+   * no rejection sampling needed. Requires exactly `length` bytes so a caller cannot
+   * accidentally derive a code from too little entropy, and `length` itself is not
+   * re-bounded here: {@link JoinCode.create} is the single place that enforces
+   * {@link JoinCode.minLength} to {@link JoinCode.maxLength}, so a caller configured
+   * with an out-of-range `JOIN_CODE_LENGTH` meets the same refusal env validation
+   * already stops at the door.
+   *
+   * `length` defaults to {@link JoinCode.minLength} — 2.0's only length, and what every
+   * call site that has not been handed a configured `JOIN_CODE_LENGTH` still gets.
    */
-  static fromBytes(bytes: Readonly<Uint8Array>): Result<JoinCode, DomainError> {
-    if (bytes.length !== LENGTH) {
-      return err(DomainError.invalid('joinCode.wrongEntropyLength', { length: LENGTH }))
+  static fromBytes(
+    bytes: Readonly<Uint8Array>,
+    length: number = MIN_LENGTH,
+  ): Result<JoinCode, DomainError> {
+    if (bytes.length !== length) {
+      return err(DomainError.invalid('joinCode.wrongEntropyLength', { length }))
     }
     let value = ''
     for (const byte of bytes) {
@@ -80,10 +105,11 @@ export class JoinCode {
     return JoinCode.create(value)
   }
 
-  static readonly length = LENGTH
   static readonly alphabet = ALPHABET
-  /** Bytes the `IdGenerator` port must supply to {@link JoinCode.fromBytes}. */
-  static readonly entropyBytes = LENGTH
+  /** The floor of the configurable range, and the length every pre-existing code is. */
+  static readonly minLength = MIN_LENGTH
+  /** The ceiling of the configurable range (`JOIN_CODE_LENGTH`). */
+  static readonly maxLength = MAX_LENGTH
 
   equals(other: JoinCode): boolean {
     return this.value === other.value

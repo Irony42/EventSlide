@@ -185,6 +185,55 @@ describe('Slug.fromName', () => {
   })
 })
 
+describe('Slug.fromNameWithRandomSuffix', () => {
+  const bytes = (...values: readonly number[]): Uint8Array => new Uint8Array(values)
+
+  it('appends a lowercase Crockford suffix to the name folded into slug shape', () => {
+    const result = Slug.fromNameWithRandomSuffix('Camille & Sacha', bytes(0, 1, 17, 31, 32, 255))
+
+    expect(result.ok && result.value.value).toBe('camille-sacha-01hz0z')
+  })
+
+  it('needs six bytes of entropy, matching the alphabet it draws from', () => {
+    expect(Slug.suffixEntropyBytes).toBe(6)
+  })
+
+  it('refuses the wrong amount of suffix entropy', () => {
+    const result = Slug.fromNameWithRandomSuffix('Camille & Sacha', bytes(0, 0, 0, 0, 0))
+
+    expect(!result.ok && result.error.code).toBe('slug.suffixWrongEntropyLength')
+  })
+
+  it('reserves room for the suffix, so a long name is truncated to make space for it rather than into it', () => {
+    const longName = 'a'.repeat(100)
+
+    const result = Slug.fromNameWithRandomSuffix(longName, bytes(0, 0, 0, 0, 0, 0))
+
+    expect(result.ok && result.value.value).toBe(`${'a'.repeat(Slug.maxLength - 7)}-000000`)
+    expect(result.ok && result.value.value).toHaveLength(Slug.maxLength)
+  })
+
+  it('never produces the bare slug a sequential suffix would have revealed existed', () => {
+    // Draft 3's mistake: a fallback that only appended on collision proved the bare
+    // slug existed the moment a second "Mariage" asked for it. This is the regression
+    // test for always appending instead.
+    const first = Slug.fromNameWithRandomSuffix('Mariage', bytes(0, 0, 0, 0, 0, 0))
+    const second = Slug.fromNameWithRandomSuffix('Mariage', bytes(1, 1, 1, 1, 1, 1))
+
+    expect(first.ok && first.value.value).not.toBe('mariage')
+    expect(second.ok && second.value.value).not.toBe('mariage')
+    expect(first.ok && second.ok && first.value.equals(second.value)).toBe(false)
+  })
+
+  it('still refuses a name that folds away to nothing, as a malformed slug rather than a bare suffix', () => {
+    // `slugify('??? !!!')` is `''`, so the candidate is `-000000`: a leading dash,
+    // which `Slug.create` rejects exactly as it would reject one typed by a host.
+    const result = Slug.fromNameWithRandomSuffix('??? !!!', bytes(0, 0, 0, 0, 0, 0))
+
+    expect(!result.ok && result.error.code).toBe('slug.malformed')
+  })
+})
+
 describe('Slug.isReserved', () => {
   it('is true for a word that would collide with a route', () => {
     expect(Slug.isReserved('moderation')).toBe(true)
