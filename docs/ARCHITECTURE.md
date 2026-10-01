@@ -708,7 +708,7 @@ that is what makes the entire HTTP surface testable with supertest and zero open
 ### Graceful shutdown
 
 ```
-SIGTERM / SIGINT (src/main/index.ts: installShutdown)
+SIGTERM / SIGINT (src/main/shutdown.ts: createShutdownHandler, installed by index.ts)
   1. flip a `shuttingDown` flag; a second signal → process.exit(1)  (a wedged shutdown
      must not become an unkillable process)
   2. container.readiness.markShuttingDown() — GET /api/ready now answers 503
@@ -730,6 +730,16 @@ stream keeps a "graceful" shutdown hanging for the full grace period, every time
 of only when the backstop is actually needed. `scripts/verify-image.sh`'s "Shutdown"
 section is what proves this against a real container: `docker stop --time 20` (Docker's
 own default is 10s, which would SIGKILL the process before the 15s backstop could run)
+
+Steps 1–6 are built by `createShutdownHandler` (`src/main/shutdown.ts`), taking the
+server, the container and `process.exit` as arguments instead of reading them from module
+scope — `index.ts` itself cannot be imported without booting the real process, so pulling
+the handler out is what lets `shutdown.test.ts` call it directly with fakes and assert the
+call order (steps 2→3→4) and the grace backstop (step 5) without a real signal, a real
+socket or a real 15 seconds. `container.test.ts` separately drives a real `createContainer`
+through `container.readiness.markShuttingDown()` and a real `/api/ready` request, which is
+the half of this wiring `shutdown.test.ts`'s fakes cannot see — that step 2's flag is the
+*same* flag the health route reads.
 must see a clean `exit 0` and `shutdown complete` logged.
 
 ---

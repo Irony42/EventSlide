@@ -1,7 +1,7 @@
-import { createServer, type Server } from 'node:http'
+import { createServer } from 'node:http'
 import { loadConfig, ConfigError } from '../infrastructure/config/env'
-import { drainStreams } from '../interface/http/routes/streamRoutes'
-import { createContainer, type Container } from './container'
+import { createContainer } from './container'
+import { installShutdown } from './shutdown'
 
 /**
  * The bootstrap. The only file that listens on a port.
@@ -20,8 +20,6 @@ import { createContainer, type Container } from './container'
  *     event's `retentionDays` on its own, and scheduling, the only thing that acts on a
  *     scheduled opening or closing.
  */
-
-const shutdownGrace = 15_000
 
 const bootstrap = async (): Promise<void> => {
   let config
@@ -113,79 +111,6 @@ const bootstrap = async (): Promise<void> => {
   // Its first pass is immediate too, and for the same reason: whatever killed the last
   // process may have left a reservation charging an event for bytes that never arrived.
   container.reservationReaper.start()
-}
-
-/**
- * Graceful shutdown.
- *
- * 1.0 registered `process.on('exit')` with an async `db.close()`, which never
- * completed — so the WAL was never checkpointed and a host copying the `.sqlite` file
- * after the party got one missing everything still in `-wal`.
- */
-const installShutdown = (server: Server, container: Container): void => {
-  let shuttingDown = false
-
-  const shutdown = (signal: string): void => {
-    if (shuttingDown) {
-      // A second Ctrl-C means the operator has stopped waiting.
-      container.logger.warn('second signal received, exiting immediately', { signal })
-      process.exit(1)
-    }
-    shuttingDown = true
-    container.logger.info('shutting down', { signal })
-
-    // First of all, so an orchestrator stops sending new traffic before anything else
-    // here changes — docs/ARCHITECTURE.md "Graceful shutdown".
-    container.readiness.markShuttingDown()
-
-    // Every open SSE connection is told to reconnect, then ended. Without this,
-    // `server.close()`'s callback below never fires: an SSE response is by design never
-    // finished on its own (CLAUDE.md §9 trap 3), so a projector holding an eight-hour
-    // stream would keep a "graceful" shutdown hanging for the full grace period, every
-    // time, instead of only when the backstop below is actually needed.
-    drainStreams()
-
-    // Stop accepting new connections, then let in-flight requests finish. An upload
-    // that has already been re-encoded but not yet written would otherwise be lost.
-    server.close(() => {
-      void (async () => {
-        try {
-          await container.dispose()
-          container.logger.info('shutdown complete')
-          process.exit(0)
-        } catch (error) {
-          container.logger.error('shutdown failed', {
-            error: error instanceof Error ? error.message : String(error),
-          })
-          process.exit(1)
-        }
-      })()
-    })
-
-    // The backstop: an SSE stream is open for hours by design and will not close on
-    // its own, so waiting for every connection would mean never exiting.
-    setTimeout(() => {
-      container.logger.warn('shutdown grace elapsed, forcing exit')
-      void container.dispose().finally(() => process.exit(0))
-    }, shutdownGrace).unref()
-  }
-
-  process.on('SIGTERM', () => shutdown('SIGTERM'))
-  process.on('SIGINT', () => shutdown('SIGINT'))
-
-  // A bug, not an expected failure. Log it with everything available and exit: staying
-  // up in an unknown state is worse than restarting, and the container restarts.
-  process.on('uncaughtException', (error) => {
-    container.logger.error('uncaught exception', { error: error.message, stack: error.stack })
-    process.exit(1)
-  })
-  process.on('unhandledRejection', (reason) => {
-    container.logger.error('unhandled rejection', {
-      error: reason instanceof Error ? reason.message : String(reason),
-      stack: reason instanceof Error ? reason.stack : undefined,
-    })
-    process.exit(1)
-  })
 }
 
 void bootstrap().catch((error: unknown) => {
