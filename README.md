@@ -433,6 +433,7 @@ The interesting parts are documented rather than left to be inferred:
 
 |                                                |                                                                                      |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [CONTRIBUTING.md](CONTRIBUTING.md)             | The short version: before a pull request, commit style, migration numbers            |
 | [CLAUDE.md](CLAUDE.md)                         | The rules, the layer boundaries, and the traps this codebase has already fallen into |
 | [AGENTS.md](AGENTS.md)                         | The same, for any AI coding agent                                                    |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)   | Layers, a guest upload traced file by file, the ports, the schema                    |
