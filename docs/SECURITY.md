@@ -991,6 +991,17 @@ request. Password rules live in `src/domain/users/`, not the controller.
 | The image itself  | `bash scripts/verify-image.sh` builds it and checks every claim on this page that is a property of the container. CI runs the same script on every push                                                                             | an image that quietly lost `ffmpeg`, shipped its devDependencies or went back to running as root is green on all six test rings — none of them runs Docker                                                                                      |
 | Updates           | pin the version, read the release notes, `npm audit` before a deploy                                                                                                                                                                | see §12: self-hosted means you own patching                                                                                                                                                                                                     |
 
+**Graceful shutdown, in order (`src/main/index.ts`, P4-06).** `SIGTERM`/`SIGINT` first
+flips `GET /api/ready` to `503` unconditionally — database and media root healthy or not
+— so an orchestrator stops sending new traffic before anything else changes; then every
+open SSE connection is told `retry: 2000` and ended
+(`src/interface/http/routes/streamRoutes.ts`'s `drainStreams`), because an SSE response
+is by design never finished on its own and `server.close()`'s callback would otherwise
+never fire; only then does the process stop accepting new connections and let in-flight
+requests finish, with the 15 s backstop in the Shutdown row above as the fallback.
+Without the drain step, a single projector left open turns every deploy into a full 15 s
+wait instead of an ordinary fast exit.
+
 **The `0600` on the database is the one row the image does not keep for you.** The
 container creates `/data` and `/data/media` as `0700` owned by the unprivileged user, and
 `scripts/verify-image.sh` checks it — but the mode of the SQLite file itself is whatever

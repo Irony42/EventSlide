@@ -708,21 +708,29 @@ that is what makes the entire HTTP surface testable with supertest and zero open
 ### Graceful shutdown
 
 ```
-SIGTERM / SIGINT
+SIGTERM / SIGINT (src/main/index.ts: installShutdown)
   1. flip a `shuttingDown` flag; a second signal → process.exit(1)  (a wedged shutdown
      must not become an unkillable process)
-  2. /healthz answers 503 so a load balancer drains first
-  3. server.close()   — stop accepting new connections
-  4. hub.closeAll()   — end every SSE response, clear every heartbeat interval. Without
-     this, step 3's callback NEVER fires: SSE responses are by design never finished.
-  5. wait for in-flight requests, max config.shutdownTimeoutMs, then destroy sockets
-  6. bus.removeAllListeners(); await logger.flush(); db.close() — which checkpoints the
-     WAL, so the next boot does not replay it
+  2. container.readiness.markShuttingDown() — GET /api/ready now answers 503
+     unconditionally (P4-06), so an orchestrator stops sending new traffic before
+     anything else here changes
+  3. drainStreams() — every open SSE connection (src/interface/http/routes/streamRoutes.ts)
+     is told `retry: 2000` and ended. Without this, step 4's callback NEVER fires: an SSE
+     response is by design never finished on its own (CLAUDE.md §9 trap 3)
+  4. server.close()   — stop accepting new connections, let in-flight requests finish
+  5. a 15s backstop (unref'd) forces `container.dispose()` and exits, in case something
+     is still open when the grace period ends
+  6. container.dispose() — stops the sweepers and the clip worker, closes the database
+     (which checkpoints the WAL, so the next boot does not replay it)
   7. process.exit(0)
 ```
 
-Step 4 is the one always forgotten and always fatal: a projector holding an eight-hour
-stream keeps a "graceful" shutdown hanging forever.
+Step 3 is the one always forgotten and always fatal: a projector holding an eight-hour
+stream keeps a "graceful" shutdown hanging for the full grace period, every time, instead
+of only when the backstop is actually needed. `scripts/verify-image.sh`'s "Shutdown"
+section is what proves this against a real container: `docker stop --time 20` (Docker's
+own default is 10s, which would SIGKILL the process before the 15s backstop could run)
+must see a clean `exit 0` and `shutdown complete` logged.
 
 ---
 

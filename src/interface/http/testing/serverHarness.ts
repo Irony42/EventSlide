@@ -118,6 +118,7 @@ export interface MutableHealthChecks {
   databaseReady: () => Promise<boolean>
   mediaWritable: () => Promise<boolean>
   videoTranscoding: () => 'ok' | 'unavailable'
+  isShuttingDown: () => boolean
 }
 
 export interface ServerHarnessOptions {
@@ -172,6 +173,9 @@ export const buildServerHarness = ({
     databaseReady: async () => true,
     mediaWritable: async () => true,
     videoTranscoding: () => 'ok',
+    // A test flips this directly to drive `/api/ready`, exactly as `main/index.ts`
+    // flips the real one from inside its SIGTERM handler.
+    isShuttingDown: () => false,
   }
 
   const app = buildServer({

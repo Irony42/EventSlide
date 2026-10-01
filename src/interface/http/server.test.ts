@@ -222,6 +222,36 @@ describe('buildServer: liveness and readiness', () => {
     expect(response.status).toBe(503)
     expect(response.body.error.details.media).toBe('unavailable')
   })
+
+  it('answers 503 once a shutdown has begun, even with both dependencies healthy', async () => {
+    // P4-06 / docs/ARCHITECTURE.md "Graceful shutdown": SIGTERM flips this before
+    // anything else, so an orchestrator stops sending new traffic ahead of the
+    // connections it is about to lose — the database and the media root being fine is
+    // not the question once this is true.
+    const subject = buildServerHarness()
+    subject.health.isShuttingDown = () => true
+
+    const response = await request(subject.app).get('/api/ready')
+
+    expect(response.status).toBe(503)
+    expect(response.body.error.code).toBe('service.notReady')
+  })
+
+  it('does not wait on the database or the media root once shutting down', async () => {
+    // The whole point of checking first: a probe during a shutdown must not be stuck
+    // behind a dependency this process is about to stop caring about.
+    const subject = buildServerHarness()
+    subject.health.isShuttingDown = () => true
+    let probed = false
+    subject.health.databaseReady = async () => {
+      probed = true
+      return true
+    }
+
+    await request(subject.app).get('/api/ready')
+
+    expect(probed).toBe(false)
+  })
 })
 
 describe('buildServer: the CSRF gate in front of the routers', () => {

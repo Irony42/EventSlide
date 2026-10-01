@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { loadConfig, ConfigError } from '../infrastructure/config/env'
+import { drainStreams } from '../interface/http/routes/streamRoutes'
 import { createContainer, type Container } from './container'
 
 /**
@@ -132,6 +133,17 @@ const installShutdown = (server: Server, container: Container): void => {
     }
     shuttingDown = true
     container.logger.info('shutting down', { signal })
+
+    // First of all, so an orchestrator stops sending new traffic before anything else
+    // here changes — docs/ARCHITECTURE.md "Graceful shutdown".
+    container.readiness.markShuttingDown()
+
+    // Every open SSE connection is told to reconnect, then ended. Without this,
+    // `server.close()`'s callback below never fires: an SSE response is by design never
+    // finished on its own (CLAUDE.md §9 trap 3), so a projector holding an eight-hour
+    // stream would keep a "graceful" shutdown hanging for the full grace period, every
+    // time, instead of only when the backstop below is actually needed.
+    drainStreams()
 
     // Stop accepting new connections, then let in-flight requests finish. An upload
     // that has already been re-encoded but not yet written would otherwise be lost.
