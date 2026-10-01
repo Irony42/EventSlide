@@ -53,6 +53,12 @@ export interface BinaryOverrides {
   readonly ffprobePath?: string | undefined
   readonly search: ExecutableSearch
   /**
+   * What the boot-time `-encoders` probe below hands to {@link runProcess} as the
+   * child's whole environment (menace T9). Built by {@link minimalChildEnv}; this
+   * module only forwards it.
+   */
+  readonly env: Readonly<Record<string, string>>
+  /**
    * The packages the bundled-binary fallback resolves through. Production never passes
    * it; {@link STATIC_PACKAGES} is the answer there.
    *
@@ -213,6 +219,7 @@ export const probeFfmpegCapability = async (
   const encoders = await runProcess({
     binary: ffmpeg.path,
     args: ['-hide_banner', '-loglevel', 'error', '-nostdin', '-encoders'],
+    env: overrides.env,
     timeoutMs: CAPABILITY_TIMEOUT_MS,
     stallMs: CAPABILITY_TIMEOUT_MS,
     // The listing is some thirty kilobytes of stdout, which is output rather than a

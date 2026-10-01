@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { probeFfmpegCapability, resolveBinary } from './ffmpegBinaries'
+import { minimalChildEnv } from './runProcess'
 
 /**
  * Finding the encoder, and deciding whether it can do the job.
@@ -39,6 +40,20 @@ const NOWHERE = { path: '', extensions: '' }
  * Every case about absence names these instead, so what it asserts is the same everywhere.
  */
 const NO_PACKAGES = { ffmpeg: 'no-such-package', ffprobe: 'no-such-package' }
+
+/**
+ * What the boot-time probe hands `-encoders` as its whole environment (menace T9). A
+ * real one, built the way `container.ts` builds it, because `'asks what the build can
+ * do'` below actually spawns a resolved ffmpeg and needs it to run at all.
+ */
+const ENV = minimalChildEnv({
+  path: process.env['PATH'] ?? '',
+  pathExt: process.env['PATHEXT'] ?? '',
+  systemRoot: process.env['SYSTEMROOT'] ?? '',
+  winDir: process.env['WINDIR'] ?? '',
+  temp: process.env['TEMP'] ?? '',
+  tmp: process.env['TMP'] ?? '',
+})
 
 describe('resolveBinary', () => {
   it('takes a configured path that exists', () => {
@@ -154,7 +169,7 @@ describe('resolveBinary', () => {
 
 describe('probeFfmpegCapability', () => {
   it('reports what is missing when there is no encoder on the box', async () => {
-    const capability = await probeFfmpegCapability({ search: NOWHERE, packages: NO_PACKAGES })
+    const capability = await probeFfmpegCapability({ search: NOWHERE, packages: NO_PACKAGES, env: ENV })
 
     expect(capability.available).toBe(false)
     expect(!capability.available && capability.reason).toContain('ffmpeg')
@@ -166,6 +181,7 @@ describe('probeFfmpegCapability', () => {
       ffmpegPath: NODE,
       search: NOWHERE,
       packages: NO_PACKAGES,
+      env: ENV,
     })
 
     expect(!capability.available && capability.reason).toContain('ffprobe')
@@ -176,6 +192,7 @@ describe('probeFfmpegCapability', () => {
       ffmpegPath: NODE,
       ffprobePath: NODE,
       search: NOWHERE,
+      env: ENV,
     })
 
     expect(capability.available).toBe(false)
@@ -191,7 +208,7 @@ describe('probeFfmpegCapability', () => {
     // of the answer. That is why every case about absence overrides both sources instead
     // — an assertion that depends on what happens to be installed is a report about a
     // laptop, which is how two of these came to disagree with CI.
-    const capability = await probeFfmpegCapability({ search: MACHINE })
+    const capability = await probeFfmpegCapability({ search: MACHINE, env: ENV })
 
     if (!capability.available) {
       expect(capability.reason).toMatch(/ffmpeg|ffprobe|encoder/)

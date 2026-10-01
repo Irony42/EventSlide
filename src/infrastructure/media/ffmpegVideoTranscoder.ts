@@ -202,6 +202,12 @@ export interface FfmpegTranscoderOptions {
    * budget — and the container has nowhere else to write.
    */
   readonly scratchRoot: string
+  /**
+   * The whole environment every ffmpeg and ffprobe child this adapter spawns is given
+   * (menace T9) — never the server's own. Built once by {@link minimalChildEnv} and
+   * forwarded to every call `run` makes below; nothing in this file reads `process.env`.
+   */
+  readonly env: Readonly<Record<string, string>>
   readonly timeoutMs?: number
   readonly stallMs?: number
 }
@@ -221,6 +227,7 @@ export interface FfmpegVideoTranscoder extends VideoTranscoder {
 export const createFfmpegVideoTranscoder = ({
   paths,
   scratchRoot,
+  env,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   stallMs = DEFAULT_STALL_MS,
 }: FfmpegTranscoderOptions): FfmpegVideoTranscoder => {
@@ -236,10 +243,14 @@ export const createFfmpegVideoTranscoder = ({
      * bigger stdout budget had it silently dropped here — which is how ffprobe's answer
      * ended up capped at the 8 KB tail meant for a failure's last line, and an ordinary
      * iPhone clip was answered `clip.corrupt` and destroyed.
+     *
+     * `env` is taken from this factory's own options instead, and is deliberately not
+     * part of what a caller below can override: every child this adapter starts gets the
+     * same minimal environment, with no per-call escape hatch back to the server's own.
      */
-    bounds: Omit<RunProcessOptions, 'binary' | 'args'>,
+    bounds: Omit<RunProcessOptions, 'binary' | 'args' | 'env'>,
   ): Promise<RunResult> => {
-    const process_ = startProcess({ binary, args, ...bounds })
+    const process_ = startProcess({ binary, args, env, ...bounds })
     running.add(process_)
     try {
       return await process_.finished

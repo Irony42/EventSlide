@@ -30,6 +30,16 @@ import { spawn, type ChildProcess } from 'node:child_process'
  * 7. **`kill()` is exposed**, because a child is orphaned by a container stop rather than
  *    stopped by it — a new container would start the same job while the old ffmpeg burns
  *    a core for the rest of the evening.
+ * 8. **`env` is given explicitly, and is never optional.** Node's own default for a
+ *    missing `env` is "inherit mine whole" — so until this field existed, every ffmpeg
+ *    and ffprobe child saw `SESSION_SECRET`, `S3_SECRET_ACCESS_KEY`, `SMTP_URL`,
+ *    `MFA_ENCRYPTION_KEY`, every secret this process holds (menace T9,
+ *    `docs/SECURITY.md` §1 and §4.1). No guest input reaches that environment today, but
+ *    a decoder is exactly the kind of thing a crafted file eventually compromises, and an
+ *    attacker who can run code inside ffmpeg should not find the keys to the building
+ *    lying on the floor. Making the field required rather than optional-with-a-fallback
+ *    is deliberate: a caller cannot forget to think about it. {@link minimalChildEnv}
+ *    builds the one whitelist every caller in this repository actually uses.
  */
 
 /**
@@ -58,6 +68,14 @@ export interface RunProcessOptions {
   /** An absolute path. Never a bare name, and never anything the shell would parse. */
   readonly binary: string
   readonly args: readonly string[]
+  /**
+   * The child's **entire** environment. Never merged with this process's own — `spawn`
+   * is given exactly this object, so an empty one means an empty environment, not "the
+   * defaults plus nothing". There is deliberately no optional form that falls back to
+   * inheriting `process.env`: see point 8 on the doc comment above. Build it with
+   * {@link minimalChildEnv} rather than assembling it by hand.
+   */
+  readonly env: Readonly<Record<string, string>>
   /** Wall-clock ceiling for the whole run. */
   readonly timeoutMs: number
   /**
@@ -112,6 +130,65 @@ export interface RunResult {
   readonly stderr: string
 }
 
+/**
+ * What `env.ts` reads and hands down, as values — the same split as {@link ExecutableSearch}
+ * in `ffmpegBinaries.ts`: this module decides the policy, `env.ts` is the only place
+ * allowed to read `process.env`, and lint enforces that everywhere else. A field left
+ * `undefined` or `''` is "the parent did not have this one either", never "use the
+ * parent's own" — {@link minimalChildEnv} drops it rather than guessing.
+ */
+export interface MinimalChildEnvSource {
+  /** `PATH`. Kept on every platform: ffmpeg itself may need it to find a shared library. */
+  readonly path: string
+  /** `PATHEXT`. Windows resolves an executable by extension; ignored everywhere else. */
+  readonly pathExt?: string | undefined
+  /** `SYSTEMROOT`. Several Win32 APIs ffmpeg's own runtime calls refuse to work without it. */
+  readonly systemRoot?: string | undefined
+  /** `WINDIR`. The older spelling of the same thing; some tools still look for it by name. */
+  readonly winDir?: string | undefined
+  /** `TEMP`. Where a Windows build may stage its own scratch files. */
+  readonly temp?: string | undefined
+  /** `TMP`. The second spelling Windows tools check, not always identical to `TEMP`. */
+  readonly tmp?: string | undefined
+}
+
+const WINDOWS_ONLY_KEYS: ReadonlyArray<readonly [string, keyof MinimalChildEnvSource]> = [
+  ['PATHEXT', 'pathExt'],
+  ['SYSTEMROOT', 'systemRoot'],
+  ['WINDIR', 'winDir'],
+  ['TEMP', 'temp'],
+  ['TMP', 'tmp'],
+]
+
+/**
+ * The whitelist a forked ffmpeg or ffprobe is allowed to see (menace T9,
+ * `docs/SECURITY.md` §1 and §4.1).
+ *
+ * `PATH` always, `LANG=C` always — a stable, unlocalised locale so a decoder's own text
+ * output (an error message, a number's decimal separator) does not vary with whatever
+ * locale happens to be configured on the box reading it. Everything else is Windows-only,
+ * because `CreateProcess` wants a handful of its own system variables to function at all
+ * and POSIX `execve` needs none of them.
+ *
+ * Nothing here is a secret, and that is the point: every name on this list is public
+ * information about the *machine*, never about this deployment — contrast `SESSION_SECRET`
+ * or `SMTP_URL`, which this function never sees in the first place because `env.ts` does
+ * not pass them in.
+ */
+export const minimalChildEnv = (
+  source: MinimalChildEnvSource,
+  platform: NodeJS.Platform = process.platform,
+): Readonly<Record<string, string>> => {
+  const env: Record<string, string> = { PATH: source.path, LANG: 'C' }
+  if (platform !== 'win32') return env
+
+  for (const [key, field] of WINDOWS_ONLY_KEYS) {
+    const value = source[field]
+    if (value !== undefined && value !== '') env[key] = value
+  }
+  return env
+}
+
 const DEFAULT_KILL_GRACE_MS = 2_000
 
 /** A bounded tail. Keeps the end of the stream, which is where a failure's reason is. */
@@ -157,6 +234,7 @@ export interface RunningProcess {
 export const startProcess = ({
   binary,
   args,
+  env,
   timeoutMs,
   stallMs,
   killGraceMs = DEFAULT_KILL_GRACE_MS,
@@ -231,6 +309,10 @@ export const startProcess = ({
       // stdin ignored, both output streams piped and read. Never `shell`.
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      // Exactly this object, never merged with `process.env` — see point 8 above and
+      // `RunProcessOptions.env`. Node's own default for an absent `env` is "inherit
+      // mine whole", which is the bug this field exists to make impossible to reach.
+      env: { ...env },
     })
   } catch (cause) {
     // A synchronous throw is possible for a malformed argument list, which is a bug
