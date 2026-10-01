@@ -109,7 +109,10 @@ Your new route is in that sweep whatever it calls its event, because the sweep n
 filters on `:eventSlug` — so if it is genuinely public, or genuinely reaches no event, say
 so in `PUBLIC_ROUTES` or `NOT_EVENT_SCOPED` with a reason. Both lists are checked against
 behaviour, not against the reason you wrote, so neither is a way to make a failing case go
-away.
+away. And listed or not, every route outside `/api/site` must answer the operator exactly
+what it answers a signed-in account with site role `none` — status and error code — so a
+`requireOperator` on your route that lets the operator further than that account fails the
+build wherever you list the route.
 
 **Operator routes are the one exception to "declare it per route".** They live only in
 `src/interface/http/routes/siteRoutes.ts`, mounted at `/api/site` when `SITE_ADMIN=on`,

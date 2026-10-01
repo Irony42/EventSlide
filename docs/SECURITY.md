@@ -271,14 +271,35 @@ server's own layer stack, drives each one as a signed-in account that is a membe
 event, and requires a 4xx. A route mounted with no authorization decision answers that
 caller 200 and fails the sweep the day it is mounted. What it does not do: read the
 middleware list. A route that carries the _wrong_ decision but still refuses a non-member
-looks the same to it, and `requireOperator` mounted alongside `requireRole` on a route that
-reaches an event is the shape that would pass — that one is still review's job.
+looks the same to it. `requireOperator` mounted **ahead of** `requireRole` on a route that
+reaches an event no longer passes — the parity rule below sees the stranger refused 403 by
+the one and the operator 404 by the other — but mounted **behind** it, both are refused by
+`requireRole` alike and nothing here notices. That shape cannot hand an operator anything a
+membership would not, only narrow what a member gets, and it is still review's job.
 
 Two lists can take a route out of that sweep, `PUBLIC_ROUTES` and `NOT_EVENT_SCOPED`, and
 both are themselves exercised: a public exemption has to answer a caller holding no
 credential at all without an authorization refusal, and a not-event-scoped one has to be
 unable to answer `event.notFound`. Adding a guarded route to either to quiet a failure
 fails in its own named case rather than passing on the strength of its reason string.
+
+Neither of those checks is enough on its own, and for a while they were all there was. A
+route carrying a `requireOperator` of its own — `GET /api/events/:eventSlug/support-queue`,
+say, answering the operator a client's queue — satisfies both: 200 is not `event.notFound`,
+and a caller with no credential is refused by that gate like anybody else. Listed in
+`NOT_EVENT_SCOPED`, it left the whole server project green while the operator read
+somebody's evening, and `GET /api/support/queue` did the same. So under all three lists
+sits a rule that none of them can lift: on **every** route the `/api/site` mount does not
+carry — swept, public or reaching no event — the operator gets the same status and error
+code as a signed-in account with site role `none` and no membership anywhere, each asked on
+a server of its own seeded alike. The table is filtered on the mount and on nothing else, a
+named case requires it to hold every exempted route, and another reads both accounts back
+from storage through their own sessions, so the comparison cannot quietly become one
+account compared with itself. It compares status and code, not bodies, because a body may
+rightly name its caller (`GET /api/auth/me`); and where both callers reach a use case the
+harness leaves unwired, both get the same 500 and the comparison stops at the handler —
+the five routes where that happens today are the wall, a photograph's bytes, the two
+gallery reads and the caller's own dashboard.
 
 A third, `OPERATOR_ROUTES`, holds the routes of the operator's own namespace, the one
 surface an operator is meant to reach, and replaces the sweep's rule with theirs rather
@@ -302,7 +323,7 @@ different middleware, from the question of what anybody may do inside an event.
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A site role grants **nothing** inside an event                          | an operator who could accidentally moderate a client's photographs is worse than one who cannot help at all. Support access is §10.6: time-boxed, announced and logged                                                                                                                                                                |
 | `requireRole` never reads it                                            | `authz.test.ts` asserts the refusals **and**, through `CallLog`, that the question is never even asked — including on the path where the membership is missing                                                                                                                                                                        |
-| Every event-scoped route refuses an operator who is not a member        | `siteOperatorScope.test.ts` sweeps every route off the assembled server, so a route added later is covered the day it is mounted rather than the day somebody adds it to a list                                                                                                                                                       |
+| Every event-scoped route refuses an operator who is not a member        | `siteOperatorScope.test.ts` sweeps every route off the assembled server, so a route added later is covered the day it is mounted rather than the day somebody adds it to a list; and on every route `/api/site` does not carry, exempted or not, the operator is answered what a signed-in account with site role `none` is           |
 | Media is reached as a member of the public                              | `mediaRoutes` resolves its own viewer, so an operator asking for a photograph is `{kind:'public'}` and a pending photo stays unreadable — asserted at rings 4 and 6                                                                                                                                                                   |
 | It is read from storage on every request, never carried in the session  | a capability in a cookie outlives the account being switched off. `siteRoleFor` answers `none` for an unknown **or disabled** account, and **throws** on a value the domain does not know rather than guessing at it                                                                                                                  |
 | An operator is created in exactly two places, both on a box's first day | `bootstrapOwner` on a fresh install, and migration `004_site_role` on an upgrade — never both, since `bootstrapOwner` stops on a non-empty `users` table. An invitation creates `none` explicitly (`registerModerator`), and there is no route that changes a site role at all today                                                  |
