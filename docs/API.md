@@ -190,13 +190,16 @@ no cookie jar.
 
 ### Rate limits
 
-Per minute, configurable, `429` with `Retry-After` when exceeded.
+Per minute, configurable, `429` with `Retry-After` when exceeded — **except event
+creation**, which is per **hour** and per **account** (see the row below and the
+paragraph beneath the table).
 
-| Endpoint                                      | Default | Bucket                  | Code                      |
-| --------------------------------------------- | ------- | ----------------------- | ------------------------- |
-| `POST /api/join`                              | 20      | client IP               | `rate.limited`            |
-| `POST /api/auth/login`                        | 10      | client IP               | `rate.limited`            |
-| `POST /api/events/:slug/photos`               | 12      | client IP **and** event | `rate.limited`            |
+| Endpoint                                      | Default       | Bucket                  | Code                        |
+| ---------------------------------------------- | ------------- | ----------------------- | --------------------------- |
+| `POST /api/join`                              | 20            | client IP               | `rate.limited`              |
+| `POST /api/auth/login`                        | 10            | client IP               | `rate.limited`              |
+| `POST /api/events` (create)                   | 20 / **hour** | account                 | `event.creationRateLimited` |
+| `POST /api/events/:slug/photos`               | 12            | client IP **and** event | `rate.limited`              |
 | `POST /api/events/:slug/clips`                | 12      | client IP **and** event | `rate.limited`            |
 | `POST /api/events/:slug/photos/:id/reactions` | 30      | client IP **and** event | `reaction.rateLimited`    |
 | `GET /api/gallery/:token`, `…/photos`, unlock | 120     | client IP               | `rate.limited`            |
@@ -217,6 +220,12 @@ guests shares one access point and therefore one public IP, so a per-IP-only lim
 throttle the venue rather than an abuser, and a burst on one event must not close
 another event running on the same box. IPv6 addresses are collapsed to their /56 subnet,
 because a per-address limit on a /64 residential allocation is no limit at all.
+
+Event creation keys on **account**, the opposite choice, for the opposite reason: an
+office or a venue's own guest Wi-Fi is one address shared by several hosts, and one
+host's burst of event creation must not spend a colleague's allowance. The window is an
+hour, not a minute — creating an event is rare by nature, one per occasion, so the
+window matches the behaviour it bounds rather than every other endpoint's minute.
 
 Photos and clips share **one** bucket, not two: a guest sending both is one guest, and
 two independent allowances would be twice the limit. Clips are additionally bounded by
@@ -1241,22 +1250,25 @@ a caller with no membership of it; `403 auth.forbidden` — `details.required` n
 `owner` or `moderator` — for a moderator on an owner-only route. Beyond the
 cross-cutting codes in §1:
 
-| Code                       | Status | Where                                                           |
-| -------------------------- | ------ | --------------------------------------------------------------- |
-| `event.slugTaken`          | 409    | Create, when the slug is in use                                 |
-| `event.quotaAboveCeiling`  | 400    | Create, when `quotaBytes` exceeds `MAX_EVENT_QUOTA_BYTES`       |
-| `event.immutable`          | 409    | Rename, settings or schedule on an `archived` event             |
-| `event.illegalTransition`  | 409    | A status change the lifecycle does not allow                    |
-| `event.scheduleInPast`     | 400    | A scheduled instant whose minute has already gone by            |
-| `event.scheduleOutOfOrder` | 400    | A scheduled closing at or before the scheduled opening          |
-| `event.notModeratable`     | 409    | A single or bulk decision on an `archived` event                |
-| `photo.illegalTransition`  | 409    | A decision the photo's status machine does not allow            |
-| `guest.notFound`           | 404    | Revoking a guest id that is not in this event                   |
-| `membership.alreadyExists` | 409    | Inviting someone who already moderates this event               |
-| `membership.notFound`      | 404    | Revoking a membership that is not there                         |
-| `membership.lastOwner`     | 409    | Revoking the only remaining owner                               |
-| `event.joinCodeExhausted`  | 500    | Rotation could not find a free code — a bug, not a client error |
-| `event.mediaPurgeFailed`   | 500    | A purge that could not remove the bytes; rows are left alone    |
+| Code                          | Status | Where                                                               |
+| ----------------------------- | ------ | -------------------------------------------------------------------- |
+| `event.slugUnavailable`       | 409    | Create, when the slug is in use — custom or derived, never echoed  |
+| `event.customSlugNotAllowed`  | 400    | Create, with a `slug` when `ALLOW_CUSTOM_SLUGS=false`               |
+| `event.creationRateLimited`   | 429    | Create, beyond the account's hourly allowance                      |
+| `event.quotaAboveCeiling`     | 400    | Create, when `quotaBytes` exceeds `MAX_EVENT_QUOTA_BYTES`           |
+| `event.immutable`             | 409    | Rename, settings or schedule on an `archived` event                |
+| `event.illegalTransition`     | 409    | A status change the lifecycle does not allow                       |
+| `event.scheduleInPast`        | 400    | A scheduled instant whose minute has already gone by                |
+| `event.scheduleOutOfOrder`    | 400    | A scheduled closing at or before the scheduled opening              |
+| `event.notModeratable`        | 409    | A single or bulk decision on an `archived` event                    |
+| `photo.illegalTransition`     | 409    | A decision the photo's status machine does not allow                |
+| `guest.notFound`              | 404    | Revoking a guest id that is not in this event                       |
+| `membership.alreadyExists`    | 409    | Inviting someone who already moderates this event                   |
+| `membership.notFound`         | 404    | Revoking a membership that is not there                             |
+| `membership.lastOwner`        | 409    | Revoking the only remaining owner                                   |
+| `event.joinCodeExhausted`     | 500    | Rotation could not find a free code — a bug, not a client error    |
+| `event.slugExhausted`         | 500    | `EVENT_SLUG_SUFFIX=random` could not find a free suffix — likewise |
+| `event.mediaPurgeFailed`      | 500    | A purge that could not remove the bytes; rows are left alone       |
 
 ### `GET /api/events`
 
@@ -1320,7 +1332,31 @@ is the only signal anybody has about a screen nobody will be holding — and it 
 their own browser has not moved a projector in a room. `PATCH /settings` is where it
 changes deliberately.
 
-**Errors** — `409 event.slugTaken`, `400 eventName.*`, `400 slug.*`,
+**The slug (roadmap G3-05 / P4-09, decision D-14).** Three environment variables govern
+it, all backward-compatible by default:
+
+- `EVENT_SLUG_SUFFIX` (`none` default, `random` on the hosted instance): when `random`, a
+  derived slug (`slug` absent from the body) **always** carries a random six-character
+  suffix, `camille-sacha-h7k2qm` — never only on a collision, which would prove the bare
+  slug exists.
+- `ALLOW_CUSTOM_SLUGS` (`true` default, `false` on the hosted instance): when `false`, a
+  body that sends `slug` at all is refused with `400 event.customSlugNotAllowed`, rather
+  than the field being silently dropped.
+- A slug collision — custom or derived — is always `409 event.slugUnavailable`, with
+  **no slug in the response**. This replaces `event.slugTaken`, which echoed the
+  computed slug back and so let a caller who only ever sent a free-text `name` learn
+  another tenant's literal, already-normalised address.
+
+**The join code.** `JOIN_CODE_LENGTH` (6 to 10, default 6) sets how many characters a
+newly minted code has; an existing event's code keeps whatever length it was minted
+with.
+
+**The creation limit.** Beyond `EVENT_CREATION_RATE_LIMIT_PER_HOUR` (default 20)
+creations from one **account** in an hour, `429 event.creationRateLimited`. See §1's
+rate limit table.
+
+**Errors** — `409 event.slugUnavailable`, `400 event.customSlugNotAllowed`,
+`429 event.creationRateLimited`, `400 eventName.*`, `400 slug.*`,
 `400 event.quotaAboveCeiling {maxBytes}` for a `quotaBytes` above `MAX_EVENT_QUOTA_BYTES`,
 `400 request.invalid` for a language outside the five.
 
@@ -1688,6 +1724,10 @@ it. Clear the schedules of any affected event before re-enabling it.
 No body. The emergency lever: a join link is circulating outside the venue, so the old
 code stops working immediately. **200** with the event, carrying the new code and the
 new `joinUrl`, so the console reprints the QR without a second request.
+
+The new code is minted at the box's **current** `JOIN_CODE_LENGTH` (6 to 10, default 6),
+which may differ from the length the old code had — nothing requires every code on a box
+to be the same length.
 
 ### `DELETE /api/events/:slug`
 
