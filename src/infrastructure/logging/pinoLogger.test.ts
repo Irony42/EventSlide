@@ -283,6 +283,35 @@ describe('createPinoLogger', () => {
   })
 })
 
+describe('createPinoLogger: instance bindings', () => {
+  const BINDINGS = { service: 'eventslide', version: '2.0.0', instance: 'box-7f3a' }
+
+  it('carries service, version and instance on every line, when given', async () => {
+    const logger = createPinoLogger({ level: 'debug', pretty: false, bindings: BINDINGS })
+
+    const line = await oneLineFrom(logger, (subject) => subject.info('a line'))
+
+    expect(parsed(line)).toMatchObject(BINDINGS)
+  })
+
+  it('carries them on a child too, alongside the child’s own bindings', async () => {
+    const logger = createPinoLogger({ level: 'debug', pretty: false, bindings: BINDINGS })
+
+    const line = await oneLineFrom(logger.child({ requestId: 'req-1' }), (subject) =>
+      subject.info('a line'),
+    )
+
+    expect(parsed(line)).toMatchObject({ ...BINDINGS, requestId: 'req-1' })
+  })
+
+  it('says nothing about an instance when none is given, as every test in this file relies on', async () => {
+    const line = await oneLineFrom(aLogger(), (logger) => logger.info('a line'))
+
+    expect(parsed(line)).not.toHaveProperty('service')
+    expect(parsed(line)).not.toHaveProperty('instance')
+  })
+})
+
 describe('silentLogger', () => {
   it.each(['debug', 'info', 'warn', 'error'] as const)(
     'prints no trace of a %s line through any stdout channel, so a test harness produces no output',

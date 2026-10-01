@@ -193,11 +193,18 @@ const recreateDirectory = async (path: string): Promise<void> => {
 }
 
 export const createContainer = async (config: AppConfig): Promise<Container> => {
+  // Minted once per process, never read from the environment: it exists so a log
+  // shipper aggregating several boxes can tell one instance's lines from another's, not
+  // to be chosen or repeated by an operator.
+  const instanceId = randomUUID()
+  const instanceBindings = { service: 'eventslide', version: VERSION, instance: instanceId }
+
   const logger = createPinoLogger({
     level: config.logLevel,
     // Pretty output is for a person watching a terminal; production ships JSON a log
     // shipper can index.
     pretty: !config.isProduction,
+    bindings: instanceBindings,
   })
 
   // ---------------------------------------------------------------- storage --
