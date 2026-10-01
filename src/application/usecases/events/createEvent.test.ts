@@ -75,6 +75,7 @@ describe('createEvent', () => {
       ids,
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
+      maxQuotaBytes: null,
     })
   })
 
@@ -180,6 +181,7 @@ describe('createEvent', () => {
       ids,
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
+      maxQuotaBytes: null,
     })
 
     const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
@@ -195,6 +197,7 @@ describe('createEvent', () => {
       ids,
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
+      maxQuotaBytes: null,
     })
 
     await create({ ownerId: OWNER, name: 'Camille & Sacha' })
@@ -209,6 +212,7 @@ describe('createEvent', () => {
       ids: new ShortEntropyIdGenerator(),
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
+      maxQuotaBytes: null,
     })
 
     const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
@@ -246,6 +250,83 @@ describe('createEvent', () => {
     const result = await createEvent({ ownerId: OWNER, name: 'Camille & Sacha', quotaBytes: 0 })
 
     expect(!result.ok && result.error.code).toBe('event.quotaBytesInvalid')
+  })
+
+  // ------------------------------------------------------- box-wide ceiling --
+  // G3-02: a box-wide MAX_EVENT_QUOTA_BYTES nobody's request may cross.
+
+  describe('the box-wide ceiling', () => {
+    const MAX_QUOTA = 10_000_000_000
+
+    let ceilinged: CreateEvent
+
+    beforeEach(() => {
+      ceilinged = makeCreateEvent({
+        events,
+        memberships,
+        ids,
+        clock,
+        defaultQuotaBytes: DEFAULT_QUOTA,
+        maxQuotaBytes: MAX_QUOTA,
+      })
+    })
+
+    it('accepts a quota exactly at the ceiling', async () => {
+      const result = await ceilinged({
+        ownerId: OWNER,
+        name: 'Camille & Sacha',
+        quotaBytes: MAX_QUOTA,
+      })
+
+      expect(unwrap(result).quotaBytes).toBe(MAX_QUOTA)
+    })
+
+    it('refuses a quota one byte over the ceiling, and does not silently reduce it to the ceiling', async () => {
+      const result = await ceilinged({
+        ownerId: OWNER,
+        name: 'Camille & Sacha',
+        quotaBytes: MAX_QUOTA + 1,
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.quotaAboveCeiling')
+      expect(!result.ok && result.error.details).toEqual({ maxBytes: MAX_QUOTA })
+    })
+
+    it('saves nothing when the requested quota is above the ceiling', async () => {
+      await ceilinged({ ownerId: OWNER, name: 'Camille & Sacha', quotaBytes: MAX_QUOTA + 1 })
+
+      expect(await events.listForUser(OWNER)).toEqual([])
+    })
+
+    it('never compares the configured default against the ceiling, because env.ts already guarantees it fits', async () => {
+      // No `quotaBytes` in the request at all — the path that falls back to
+      // `defaultQuotaBytes` — must never be refused for a ceiling reason, even one set
+      // below the default: that combination cannot be configured (env.ts refuses it),
+      // so this is what proves the comparison is skipped rather than coincidentally
+      // passing.
+      const create = makeCreateEvent({
+        events,
+        memberships,
+        ids,
+        clock,
+        defaultQuotaBytes: DEFAULT_QUOTA,
+        maxQuotaBytes: DEFAULT_QUOTA,
+      })
+
+      const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+      expect(unwrap(result).quotaBytes).toBe(DEFAULT_QUOTA)
+    })
+
+    it('imposes no ceiling when none is configured', async () => {
+      const result = await createEvent({
+        ownerId: OWNER,
+        name: 'Camille & Sacha',
+        quotaBytes: 1_000_000_000_000_000,
+      })
+
+      expect(unwrap(result).quotaBytes).toBe(1_000_000_000_000_000)
+    })
   })
 
   // ------------------------------------------------------------- start time --

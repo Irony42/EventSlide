@@ -332,6 +332,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   const usecases = buildUseCases(adapters, {
     defaultEventQuotaBytes: config.uploads.defaultEventQuotaBytes,
+    maxEventQuotaBytes: config.uploads.maxEventQuotaBytes,
     maxImagePixels: config.uploads.maxPixels,
     reactionBudget: { windowMs: REACTION_WINDOW_MS, maxPerWindow: REACTION_MAX_PER_WINDOW },
     mediaSweepMinimumAgeMs: MEDIA_SWEEP_MIN_AGE_MS,

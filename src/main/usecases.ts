@@ -121,6 +121,8 @@ export interface Adapters {
 /** The policy values a use case needs, drawn from validated configuration. */
 export interface UseCasePolicy {
   readonly defaultEventQuotaBytes: number
+  /** `uploads.maxEventQuotaBytes`: the box-wide ceiling (G3-02), `null` meaning none. */
+  readonly maxEventQuotaBytes: number | null
   readonly maxImagePixels: number
   readonly reactionBudget: {
     readonly windowMs: number
@@ -192,6 +194,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     ids: adapters.ids,
     clock: adapters.clock,
     defaultQuotaBytes: policy.defaultEventQuotaBytes,
+    maxQuotaBytes: policy.maxEventQuotaBytes,
   }),
   getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
   listEventsForHost: makeListEventsForHost({ events: adapters.events }),
