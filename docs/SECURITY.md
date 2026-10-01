@@ -327,12 +327,17 @@ app `/api/site/x` itself, without a route spelling `/site` anywhere a walk could
 The path-mounted middleware it lets through is named by identity, each with its reason, in
 `testing/routeTable.ts`: inside a router `galleryHeaders`; on the app `galleryHeaders`,
 `requireCsrfToken` and `apiNotFound`. A router mounted on the app is walked, not listed.
-Middleware at the root of the app or of a router — the plumbing, and `siteRoutes`' own
-gate — is outside that refusal: its layer reaches no namespace by a path, and one that
-reads `req.path` and answers is beyond what any walk of the layers can see. Refusing `//` at
-request time would close the same gap from the other side; it is deliberately not done,
-because while the walk holds the double slash reaches no route in the namespace, only the
-API's own 404. Off, the namespace is not mounted rather than mounted and refusing, so a
+Middleware at the root of the app — the plumbing — is outside that refusal: it has no
+mount path to reach a namespace by, and one that reads `req.path` to decide what to answer
+is beyond what any walk of the layers can see. **Middleware at the root of a router is
+outside it too, and that is a known gap, not a reason.** It runs for everything under the
+router's mount point, so `app.use('/api/site/leak', Router().use(h))` — or the same router
+mounted at `/site/leak` inside an `/api` router — answers exactly as the bare handler would,
+with every case green. The walk lets it through because `siteRoutes`' own gate is one, and
+`requireOperator(deps)` is built per server, with no identity to name it by. Refusing `//`
+at request time would close part of the same gap from the other side; it is deliberately
+not done, because while the walk holds the double slash reaches no route in the namespace —
+only the API's own 404, or a middleware at the root of a router. Off, the namespace is not mounted rather than mounted and refusing, so a
 solo box exposes no operator surface at all: every `/api/site` path is indistinguishable
 from an unknown route. That does not make the mode a secret, and nothing relies on it
 being one: on, an anonymous request there is refused `401` where off answers `404`, and
