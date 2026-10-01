@@ -44,7 +44,7 @@ internet scanner.
 | T6  | Passive privacy exposure: GPS of a private home in EXIF                                                                   | guests' home addresses, device serials, timestamps                                                        | EXIF is stripped on ingest by re-encoding; orientation is baked in first; raw bytes never reach the media root                                                                                                                                                                                                  | §4                                                                                                 |
 | T7  | Attacker on the venue Wi-Fi reading traffic                                                                               | session cookie, guest token, photos in flight                                                             | HTTPS terminated in front of the app, `Secure` cookies in production, HSTS, `upgrade-insecure-requests`                                                                                                                                                                                                         | §11                                                                                                |
 | T8  | Malicious file dressed as a photo (renamed `.php`, `.svg`, polyglot, pixel bomb)                                          | RCE via a served payload, CPU/RAM exhaustion in `sharp`                                                   | magic bytes decide the type, dimension probe before decode, everything re-encoded to a known format, media never served from a static handler                                                                                                                                                                   | §4                                                                                                 |
-| T9  | Malicious **video**: a crafted container that makes the box fetch a URL, a decoder bomb, a clip carrying a second payload | SSRF from a guest upload, a wedged encoder holding a core all evening, a polyglot served back to the room | the signature decides the container before a byte is staged; the demuxer is **pinned** and `-protocol_whitelist file` forbids every other protocol; the encoder runs under a wall-clock **and** a progress-stall bound with SIGKILL escalation; the stored bytes are always the encoder output, never `-c copy` | §4.1                                                                                               |
+| T9  | Malicious **video**: a crafted container that makes the box fetch a URL, a decoder bomb, a clip carrying a second payload | SSRF from a guest upload, a wedged encoder holding a core all evening, a polyglot served back to the room, a compromised decoder reading this process's secrets | the signature decides the container before a byte is staged; the demuxer is **pinned** and `-protocol_whitelist file` forbids every other protocol; the encoder runs under a wall-clock **and** a progress-stall bound with SIGKILL escalation; the stored bytes are always the encoder output, never `-c copy`; every ffmpeg/ffprobe child gets a minimal, explicit `env` — `PATH`, `LANG=C` and, on Windows only, `SYSTEMROOT`/`WINDIR`/`PATHEXT`/`TEMP`/`TMP` — never this process's own | §4.1                                                                                               |
 | T10 | Passive privacy exposure in a clip: per-frame gyroscope and sometimes GPS in an iPhone timed-metadata track               | guests movements and locations, invisible in any player                                                   | `-map 0:v:0 -map 0:a:0? -dn -sn` drops every stream that is not the picture or the sound, rather than merely stripping its metadata; the guest upload is deleted once the transcode succeeds and is never servable                                                                                              | §4.1                                                                                               |
 
 | T11 | A shared gallery link forwarded beyond the host's intent, guessed, crawled, or used after the host took it back | full-resolution photographs of the evening, and the GPS of whoever's home a photograph was taken in | a 256-bit token stored only as its SHA-256; one neutral `404` for every dead link; published photographs only; an optional password with per-client **and** per-link failure limits; media by signed one-hour URLs that re-check the link on every request, so revocation is immediate; originals are the EXIF-stripped re-encode; `noindex` and `no-referrer` on every response | §15 |
@@ -632,6 +632,22 @@ purge`, which is the _only_ place it runs when an operator has moved the schedul
   replaced by a Null Object, clip uploads are refused with `clip.transcoderUnavailable`,
   photo ingest is untouched, and `/api/ready` reports `video: unavailable` **without
   failing**: a photo wall with no video still serves the room.
+- **Every ffmpeg and ffprobe child gets a minimal, explicit environment — never this
+  process's own (menace T9).** `runProcess.ts` makes `env` a required field rather than
+  an optional one with a fallback, specifically so a caller cannot start a child without
+  having decided what it sees. `minimalChildEnv` builds the whitelist: `PATH` and a
+  pinned `LANG=C` on every platform, plus `SYSTEMROOT`, `WINDIR`, `PATHEXT`, `TEMP` and
+  `TMP` on Windows, where `CreateProcess` wants a few of its own system variables to
+  function at all. Nothing on that list is a secret — it is public information about the
+  machine, never about this deployment. `env.ts` reads the raw values (the one module
+  allowed to), `container.ts` builds the whitelist once at boot, and both the boot-time
+  capability probe and every transcode or probe afterwards are given that same object.
+  Before this, `spawn` was given no `env` at all, which is Node's own default for
+  "inherit mine whole": `SESSION_SECRET`, `S3_SECRET_ACCESS_KEY`, `SMTP_URL` and
+  `MFA_ENCRYPTION_KEY` were all one `process.env` dump away from a compromised decoder.
+  No guest input reaches that today — this is depth, not a patched hole — proved at
+  ring 3 by handing a stand-in `node` child a real parent secret and asserting it never
+  arrives (`runProcess.test.ts`).
 
 ### The residual, stated plainly
 
@@ -1576,9 +1592,15 @@ multipart uploads are genuinely covered, as §7 claims.
   the response body (`presenters/presenters.ts:443-456`). `express.static` serves only the
   built web bundle (`server.ts:182`), never `MEDIA_ROOT`.
 
-One hardening note rather than a hole: `runProcess.ts:230-234` passes neither `env` nor
-`cwd`, so ffmpeg children inherit the server's full environment, including both secrets. No
-guest input reaches it; an explicit minimal `env` would be defence in depth.
+**Closed since this was written.** `runProcess.ts` passed neither `env` nor `cwd`, so
+ffmpeg children inherited the server's full environment, including both secrets — no
+guest input reached it, so this was defence in depth rather than a hole, which is why it
+was recorded as a note here rather than a finding. `env` is now a required field on
+`RunProcessOptions` and `minimalChildEnv` builds the whitelist every caller uses; see
+§4.1. `cwd` is still not passed, which remains fine: nothing in this codebase resolves a
+relative path against the process's working directory, every path handed to `spawn` is
+already absolute (`ffmpegBinaries.ts`'s own resolver, or a `file:`-prefixed `mkdtemp`
+scratch path), so there is no relative lookup for an inherited `cwd` to redirect.
 
 #### Availability: what a guest can still do to the box
 
