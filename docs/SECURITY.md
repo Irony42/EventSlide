@@ -321,10 +321,15 @@ one mounted there declares, however it spells the path: `/site`, `//site/x`, `/S
 The walk refuses to guess: a route path that is anything but literal segments and
 `:parameters` (`/(site)/x`, `/sit?e/x`, `/[s]ite/x`, `/s{1}ite/x`, `/sit\e/x`, `/site*` —
 it accepts one known shape rather than listing forbidden characters, a list `{n}` and `\`
-had walked past), a middleware mounted at a path inside a router, and a
-sub-app each make it fail loudly, because each can answer `/api//site/x` without spelling
-`/site` anywhere a walk could read it. The one path-mounted middleware it lets through is
-`galleryHeaders`, named with its reason in `testing/routeTable.ts`. Refusing `//` at
+had walked past), a middleware mounted at a path — inside a router or on the app itself —
+and a sub-app each make it fail loudly, because each can answer `/api//site/x`, or on the
+app `/api/site/x` itself, without a route spelling `/site` anywhere a walk could read it.
+The path-mounted middleware it lets through is named by identity, each with its reason, in
+`testing/routeTable.ts`: inside a router `galleryHeaders`; on the app `galleryHeaders`,
+`requireCsrfToken` and `apiNotFound`. A router mounted on the app is walked, not listed.
+Middleware at the root of the app or of a router — the plumbing, and `siteRoutes`' own
+gate — is outside that refusal: its layer reaches no namespace by a path, and one that
+reads `req.path` and answers is beyond what any walk of the layers can see. Refusing `//` at
 request time would close the same gap from the other side; it is deliberately not done,
 because while the walk holds the double slash reaches no route in the namespace, only the
 API's own 404. Off, the namespace is not mounted rather than mounted and refusing, so a

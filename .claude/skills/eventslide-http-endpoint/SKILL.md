@@ -125,9 +125,11 @@ does, because `GET /api//site/x` reaches the `/api` routers without ever meeting
 gate. The walk behind that case refuses to guess, so do not write what it cannot read: a
 route path that is anything but literal segments and `:parameters` (`*`, `?`, `+`, `(…)`,
 `[…]`, `{n}`, `\`, `|` and every other pattern character alike), a middleware
-mounted at a path inside a router (`router.use('/x', fn)`; declare a route, or name the
-middleware in `PATH_MOUNTED_MIDDLEWARE` in `testing/routeTable.ts` with the reason it
-answers nothing), or a sub-app. Each makes it fail loudly, in both modes. Every other
+mounted at a path, inside a router or on the app itself (`router.use('/x', fn)`,
+`app.use('/api/x', fn)`; declare a route, or name the middleware by identity in
+`testing/routeTable.ts` with the reason it may run there — `PATH_MOUNTED_MIDDLEWARE` inside
+a router, `APP_PATH_MOUNTED_MIDDLEWARE` on the app), or a sub-app. Each makes it fail
+loudly, in both modes. Every other
 route keeps the per-route rule above.
 
 ## 4. Error mapping — one place, exhaustive
