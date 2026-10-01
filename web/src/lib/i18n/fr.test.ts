@@ -104,6 +104,7 @@ const DOCUMENTED_CODES: readonly string[] = [
   'event.notAcceptingUploads',
   'event.quotaExceeded',
   'event.slugTaken',
+  'event.quotaAboveCeiling',
   'event.immutable',
   'event.illegalTransition',
   'event.captionsNotAllowed',

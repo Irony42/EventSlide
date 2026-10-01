@@ -258,6 +258,8 @@ export const de: UiText = {
     'event.notAcceptingUploads': 'Diese Galerie nimmt keine Fotos mehr an.',
     'event.quotaExceeded': 'Die Galerie ist voll. Sagen Sie dem Veranstalter Bescheid.',
     'event.slugTaken': 'Diese Adresse ist bereits vergeben.',
+    'event.quotaAboveCeiling':
+      'Dieses Kontingent überschreitet das von diesem Server erlaubte Limit.',
     'event.immutable': 'Diese Veranstaltung ist archiviert und kann nicht mehr geändert werden.',
     'event.illegalTransition': 'Dieser Statuswechsel ist nicht möglich.',
 
