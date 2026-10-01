@@ -123,10 +123,11 @@ services:
           #           the figure knowable at all: multer bounds a file and a count but
           #           never the total, so before that bound existed one request could
           #           hold MAX_FILES_PER_UPLOAD x MAX_UPLOAD_BYTES — 20 x 25 MB = 500 MB
-          #           against this same 1 GB, and nothing refused it.
+          #           against this same limit, and nothing refused it.
           #   ~200 MB sharp decoding one accepted photo into three variants. A bomb is
           #           rejected from the header before it is decoded, but a legitimate
-          #           50-megapixel photo still needs the room.
+          #           50-megapixel photo still needs the room. The upload stays buffered
+          #           while this runs, so the two add rather than replace one another.
           #   ~100 MB Node, SQLite and the rest of the process.
           #   ~150 MB one clip being transcoded. The queue runs at concurrency 1 for
           #           every event on the box, so this is charged once however many are
@@ -136,15 +137,23 @@ services:
           #           so MAX_CLIP_BYTES does **not** multiply by the requests in flight
           #           the way MAX_UPLOAD_BYTES would.
           #
-          # 1 GB therefore holds a couple of uploads in flight at once. The upload rate
-          # limiter bounds requests per minute, not concurrency, so if you run a venue
-          # where many guests submit at the same second, raise this rather than assume
-          # the limiter spaced them out.
+          # The first two lines are **per request**, and MAX_CONCURRENT_UPLOAD_REQUESTS
+          # (G3-06 / P4-10) is what decides how many requests that really means: a slot is
+          # held from the moment a guest's upload is admitted until its response is sent,
+          # which spans both the buffering and the decode above, not just the buffering.
+          # At the default of 4, that is 4 x (150 MB + 200 MB) = 1.4 GB, not 4 x 150 MB —
+          # a request past the limit is refused 429 `upload.busy` before it buffers
+          # anything, so it costs nothing. 1.4 GB plus the ~100 MB baseline and the clip
+          # transcode's ~150 MB (independent of upload concurrency, so it adds rather than
+          # multiplies) is where the 2 GB below comes from, with a little headroom rather
+          # than none.
           #
           # Raising MAX_FILES_PER_UPLOAD no longer changes the first line. Raising
           # MAX_UPLOAD_BYTES does — the per-request bound is never below one file you
-          # declared acceptable — so raise this with it, or leave it alone.
-          memory: 1g
+          # declared acceptable — so raise this with it, or leave it alone. Raising
+          # MAX_CONCURRENT_UPLOAD_REQUESTS multiplies the 350 MB per-request figure
+          # directly, so redo this arithmetic before raising it rather than after.
+          memory: 2g
 
 volumes:
   eventslide-data:

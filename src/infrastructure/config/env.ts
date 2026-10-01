@@ -429,11 +429,13 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       MAX_CLIP_PIXELS: positiveInt(33_177_600),
 
       /**
-       * How many upload requests — photos and clips together — may be buffering at
+       * How many upload requests — photos and clips together — may be in flight at
        * once, process-wide (G3-06 / P4-10). Past it: `429 upload.busy` with
-       * `Retry-After`. Four in flight at the default is 600 MB of buffers against
-       * `guestRoutes.ts`'s 150 MB per-request ceiling, which is the number an
-       * operator's memory limit actually has to cover.
+       * `Retry-After`. A slot is held from admission to response, which spans both the
+       * buffering (`guestRoutes.ts`'s 150 MB per-request ceiling) and the `sharp` decode
+       * after it (~200 MB) — so four in flight at the default is ~1.4 GB, not 600 MB of
+       * buffers alone, and that full figure is what an operator's memory limit actually
+       * has to cover. See `compose.yaml`'s own budget comment for the rest of it.
        */
       MAX_CONCURRENT_UPLOAD_REQUESTS: positiveInt(4, 1_000),
 
