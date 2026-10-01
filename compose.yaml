@@ -47,6 +47,16 @@ services:
     # backstop — the WAL unbrought to a checkpoint and whatever was mid-upload lost.
     # Twenty gives the backstop room to run and still return the prompt promptly.
     stop_grace_period: 20s
+    # Every key in `.env` reaches the container through this, not only the handful
+    # substituted below. Compose already reads `.env` to fill in `${VAR}` references in
+    # this file — that part worked before and still does — but without `env_file` a
+    # setting that is not named under `environment:` never reached the process at all:
+    # an operator who followed `.env.example` and set, say, MAX_UPLOAD_BYTES or
+    # MAX_QUEUED_CLIPS_PER_EVENT edited a file the container never read. `environment:`
+    # still wins on the few keys both set, which is why the explicit `${VAR:?...}`
+    # refusals below keep working unchanged.
+    env_file:
+      - .env
     environment:
       NODE_ENV: production
       PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL to the address guests will reach, e.g. https://photos.example.com}
