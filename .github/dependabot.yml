@@ -61,7 +61,7 @@ updates:
     # arriving inside a batch whose title says "weekly".
     #
     # `@types/node` is held below 25. Types describe the runtime that executes, and this
-    # one is Node 22 in CI and in the image. Types ahead of the runtime make the compiler
+    # one is Node 24 in CI and in the image. Types ahead of the runtime make the compiler
     # believe in APIs that are not there, which is a green typecheck for code that throws
     # at a wedding. Raise this the day the runtime moves, and not before.
     ignore:

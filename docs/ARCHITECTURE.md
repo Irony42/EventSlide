@@ -4,21 +4,18 @@ Layers, the request pipeline, the ports, the domain model, the schema, the realt
 design. Companions: [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md) (rules),
 [docs/API.md](API.md) (the HTTP contract), `.claude/skills/` (recipes).
 
-> **Status.** The 2.0 implementation on branch `deuxpointzero`. The 1.0 implementation
-> (`src/index.ts`, `src/database.ts`, `src/routes/`, `src/frontend/`) was removed in
-> `fa6e9bd` and remains on `main`. The `src/**` tree this document describes is
-> **complete**: the domain, the ports and use cases, every adapter, the HTTP layer and
-> the composition root all exist, and so does the toolchain that enforces the boundaries
-> — `eslint.config.mjs`, the tsconfig projects, `vitest.config.ts`,
-> `playwright.config.ts`.
+> **Status.** The 2.0 implementation, merged to `main` (the `deuxpointzero` branch it
+> shipped on is gone from `origin`). The 1.0 implementation (`src/index.ts`,
+> `src/database.ts`, `src/routes/`, `src/frontend/`) was removed in `fa6e9bd`. The
+> `src/**` tree this document describes is **complete**: the domain, the ports and use
+> cases, every adapter, the HTTP layer and the composition root all exist, and so does
+> the toolchain that enforces the boundaries — `eslint.config.mjs`, the tsconfig
+> projects, `vitest.config.ts`, `playwright.config.ts`.
 >
-> Complete is not the same as green. `npm run test:coverage` passes — 175 files, 3691
-> tests, every per-layer gate met — but `npm run test:e2e` has **seven product-side
-> failures**, identical on both Chromium projects: four on the wall and the keyboard join
-> flow, one on moderation undo, one on the guest-upload smoke journey, and one on a
-> security control — the pixel-budget refusal answers `image.corrupt` instead of
-> `image.tooManyPixels` (§3, step 18). Read a claim here as describing the code, not as
-> describing a passing suite.
+> Complete is not the same as green, at every commit — check `npm run verify`'s own
+> output rather than this paragraph's word for it; "complete" is a claim about the tree,
+> not a standing guarantee that every suite is passing right now. Read a claim here as
+> describing the code, not as describing a passing suite.
 >
 > Mechanisms described here but not yet wired are marked **[planned]**. The retention
 > purge job is no longer one of them: `src/main/retentionSweeper.ts` drives it on an
@@ -349,17 +346,17 @@ Adding a port method means adding a contract case.
 | `GuestRepository`    | Event-scoped device identity and display name                                                                                    | `db/sqliteGuestRepository.ts`                                                                    | `FakeGuestRepository`                                                                         |
 | `UserRepository`     | Host/moderator accounts and per-event role membership                                                                            | `db/sqliteUserRepository.ts`                                                                     | `FakeUserRepository`                                                                          |
 | `ReactionRepository` | Event-scoped reactions, one per guest per photo                                                                                  | `db/sqliteReactionRepository.ts`                                                                 | `FakeReactionRepository`                                                                      |
-| `MediaStore`         | `put`/`get`/`delete`/`stat` of content-addressed bytes                                                                           | `media/filesystemMediaStore.ts`                                                                  | `InMemoryMediaStore` (byte buffers, reports sizes)                                            |
+| `MediaStore`         | `put`/`get`/`delete`/`stat` of content-addressed bytes                                                                           | `media/fsMediaStore.ts`                                                                          | `InMemoryMediaStore` (byte buffers, reports sizes)                                            |
 | `ImageProcessor`     | `probe` (magic bytes + dimensions), `transcode` (rotate → strip → resize)                                                        | `media/sharpImageProcessor.ts`                                                                   | `FakeImageProcessor` (deterministic metadata, simulates rotation and failure)                 |
 | `VideoTranscoder`    | `identify` (signature, no subprocess), `probe` (ffprobe, rotation applied), `transcode` (H.264/AAC + a poster frame)             | `media/ffmpegVideoTranscoder.ts`, or `media/nullVideoTranscoder.ts` where the box has no encoder | `FakeVideoTranscoder` (really scales, really bounds the duration, really drops to even edges) |
 | `ClipJobRepository`  | The transcode queue: event-scoped reads, an **atomic** `claimNext`, crash recovery, and the staged bytes the quota counts        | `db/sqliteClipJobRepository.ts`                                                                  | `FakeClipJobRepository` (keyed `${eventId}:${clipJobId}`)                                     |
 | `PasswordHasher`     | Hash and verify host credentials                                                                                                 | `crypto/bcryptPasswordHasher.ts`, cost 12                                                        | `FakePasswordHasher` (`hash:<password>` — no bcrypt cost in tests)                            |
-| `TokenService`       | Sign and verify event-scoped guest device tokens                                                                                 | `crypto/hmacTokenService.ts`, HMAC-SHA-256                                                       | `FakeTokenService` (`token:<eventId>:<guestId>`)                                              |
+| `GuestTokenService`  | Sign and verify event-scoped guest device tokens                                                                                 | `crypto/hmacGuestTokenService.ts`, HMAC-SHA-256                                                  | `FakeGuestTokenService` (`token:<eventId>:<guestId>`)                                         |
 | `IdGenerator`        | Opaque, non-enumerable application ids                                                                                           | `crypto/cryptoIdGenerator.ts`                                                                    | `SequentialIdGenerator` (`id-1`, `id-2` — readable assertions)                                |
 | `Clock`              | `now(): Date`                                                                                                                    | `time/systemClock.ts`                                                                            | `FakeClock` (`advance(ms)`)                                                                   |
 | `EventBus`           | Publish/subscribe domain events in-process                                                                                       | `realtime/inMemoryEventBus.ts`                                                                   | `RecordingEventBus` (`published: DomainEvent[]`)                                              |
 | `Logger`             | Structured logging with `requestId`                                                                                              | `logging/pinoLogger.ts`                                                                          | `CapturingLogger` (assert a warning was emitted, never a message string)                      |
-| `ArchiveBuilder`     | Stream an event's album as a zip                                                                                                 | `archive/archiverAlbumArchiver.ts`                                                               | `FakeArchiveBuilder` (records the entries requested)                                          |
+| `ArchiveWriter`      | Stream an event's album as a zip                                                                                                 | `media/archiverWriter.ts`                                                                        | `FakeArchiveWriter` (records the entries requested)                                           |
 
 Port design rules: **no storage vocabulary** — no `WHERE`, no row types, no `Statement`;
 an interface that mentions SQLite is not a port. **`eventId` comes first** on every
@@ -517,7 +514,7 @@ timezone ambiguity); booleans `INTEGER 0/1`; closed enums get a `CHECK`.
 | ------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `events`            | `id TEXT`              | `slug`, `name`, `join_code`, `status`, `settings` (JSON `TEXT`), `quota_bytes INTEGER`, `created_at`, `updated_at`, `scheduled_open_at`, `scheduled_close_at`, `schedule_discarded_at`    | `UNIQUE(slug)`, `UNIQUE(join_code)`, `(status, created_at DESC)`, partial `(scheduled_open_at)` and `(scheduled_close_at)`               |
 | `users`             | `id TEXT`              | `email` (normalised lowercase), `password_hash`, `created_at`, `site_role CHECK (site_role IN ('none','operator'))`                                                                       | `UNIQUE(email)`                                                                                                                          |
-| `event_members`     | `(event_id, user_id)`  | `role TEXT CHECK (role IN ('host','moderator'))`, `created_at`                                                                                                                            | `(event_id, role)`, `(user_id)`                                                                                                          |
+| `event_memberships` | `(event_id, user_id)`  | `role TEXT NOT NULL CHECK (role IN ('owner','moderator'))`, `granted_at`                                                                                                                  | `(user_id, event_id)`                                                                                                                    |
 | `guests`            | `id TEXT`              | `event_id`, `display_name`, `token_hash`, `created_at`, `last_seen_at`                                                                                                                    | `(event_id, created_at DESC)`, `UNIQUE(event_id, token_hash)`                                                                            |
 | `photos`            | `id TEXT`              | `event_id`, `guest_id`, `status CHECK (…)`, `content_hash`, `caption`, `width`, `height`, `byte_size`, `created_at`, `moderated_at`, `media_kind CHECK (…)`, `duration_ms`, `poster_hash` | `(event_id, status, created_at DESC)`, `UNIQUE(event_id, content_hash)`, `(event_id, guest_id, created_at DESC)`                         |
 | `clip_jobs`         | `id TEXT`              | `event_id`, `photo_id`, author, `status CHECK (…)`, `source_hash`, `source_byte_size`, `caption`, `attempts`, `not_before`, `failure_code`                                                | `UNIQUE(event_id, source_hash)`, partial `(not_before, created_at, id) WHERE status='queued'`, partial `(status) WHERE status='running'` |
@@ -641,8 +638,9 @@ adapter. It reads configuration once, opens infrastructure, wires use cases, and
 the dependency object plus a shutdown function.
 
 ```ts
-export const buildContainer = async (env: NodeJS.ProcessEnv): Promise<Container> => {
-  const config = loadConfig(env) // zod, once, fails fast
+// The caller parses first: `loadConfig()` in src/main/index.ts, once, fails fast — this
+// function never reads `process.env` itself, it only ever takes the parsed result.
+export const createContainer = async (config: AppConfig): Promise<Container> => {
   const logger = createPinoLogger(config)
   const db = openDatabase(config.databasePath) // WAL + foreign_keys ON
   runMigrations(db, migrations, logger) // refuses on checksum drift
@@ -737,7 +735,8 @@ argument so tests pass a plain object and never mutate global state.
 
 ```ts
 const schema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // Saying nothing means production: the strict posture is the default, not an opt-in.
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('production'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4300),
   DATABASE_PATH: z.string().min(1).default('data/eventslide.sqlite'),
   MEDIA_ROOT: z.string().min(1).default('data/media'),
@@ -770,8 +769,8 @@ const schema = z.object({
   // that nothing happens. Both default to `off` under NODE_ENV=test.
   RETENTION_SWEEP_INTERVAL_MINUTES: sweepInterval(…), // 60
   SCHEDULE_SWEEP_INTERVAL_MINUTES: sweepInterval(…), // 5
-  // …DEFAULT_EVENT_QUOTA_BYTES, GUEST_DELETE_GRACE_SECONDS, LOG_LEVEL,
-  //   PUBLIC_BASE_URL, SHUTDOWN_TIMEOUT_MS
+  // …DEFAULT_EVENT_QUOTA_BYTES, LOG_LEVEL, PUBLIC_URL, SITE_ADMIN, and the rest of
+  //   env.ts — abridged here, not exhaustive
 })
 ```
 
@@ -819,7 +818,7 @@ change that makes it unrepresentable rather than merely fixed.
 | No EXIF rotation — mobile photos displayed sideways                                               | `routes/pictures.ts`                                               | `sharp(...).rotate()` before `.resize()` in `sharpImageProcessor.ts`; orientation asserted from **pixel dimensions** in a ring-6 test                                                                                 |
 | No EXIF stripping — GPS of a private venue stored                                                 | `routes/pictures.ts`                                               | Re-encode without `withMetadata()`; a named test asserts GPS and device tags are absent from stored output                                                                                                            |
 | `fileFilter` trusted the client MIME type                                                         | `pictureStorage.ts`                                                | `magicBytes.ts` sniffs the header before any decode; MIME and filename are never consulted, and multer has no `fileFilter` at all                                                                                     |
-| Client filename normalised and joined into the storage path                                       | `pictureStorage.ts`                                                | Content-addressed, server-generated paths in `filesystemMediaStore.ts`; the original filename is metadata, never a path segment                                                                                       |
+| Client filename normalised and joined into the storage path                                       | `pictureStorage.ts`                                                | Content-addressed, server-generated paths in `fsMediaStore.ts`; the original filename is metadata, never a path segment                                                                                               |
 | `/api/upload` public with arbitrary `partyname`, `mkdirSync` per request, no rate limit, no quota | `pictureStorage.ts`, `routes/pictures.ts`                          | `requireGuest()` HMAC token scoped to one event; per-IP **and** per-event `express-rate-limit`; `quota_bytes` checked in `src/domain/events/quota.ts`; the media root is sharded by content hash, never by user input |
 | `sharp` failing **after** the DB insert left rows with no file                                    | `routes/pictures.ts`                                               | Write → verify → insert in one synchronous `better-sqlite3` transaction, with an unwind on every exit path (§3)                                                                                                       |
 | Default credentials `admin`/`password` recreated on every boot                                    | `src/database.ts`                                                  | No seeded account; first-run host creation is an explicit provisioning step, bcrypt cost 12                                                                                                                           |

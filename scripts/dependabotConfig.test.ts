@@ -104,7 +104,7 @@ describe('.github/dependabot.yml', () => {
   })
 
   it('holds @types/node below 25, because types describe the runtime that executes', () => {
-    // The runtime is Node 22 in CI and in the image. Types ahead of it make the compiler
+    // The runtime is Node 24 in CI and in the image. Types ahead of it make the compiler
     // believe in APIs that are not there — a green typecheck for code that throws at a
     // wedding. The day the runtime moves, this pin moves with it and this test says so.
     const ignored = yaml
@@ -114,6 +114,23 @@ describe('.github/dependabot.yml', () => {
 
     expect(ignored).toContain('@types/node')
     expect(valuesOf('versions', ignored).join(' ')).toContain('>=25')
+  })
+
+  it('names the Node version actually built and run, not a stale one', () => {
+    // The comment above the @types/node pin used to say "Node 22" long after the
+    // Dockerfile and CI moved to 24 (package.json's engines.node agrees). A reader
+    // sizing the pin against the wrong runtime would draw the wrong line.
+    const runtimeMajor = /FROM node:(\d+)-/.exec(
+      readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'Dockerfile'), 'utf8'),
+    )?.[1]
+    expect(runtimeMajor, 'Dockerfile FROM node:<major>').toBeDefined()
+
+    const commentLines = yaml
+      .split('\n')
+      .filter((line) => line.trimStart().startsWith('#'))
+      .join('\n')
+    expect(commentLines).toContain(`Node ${runtimeMajor}`)
+    expect(commentLines).not.toMatch(/Node 22\b/)
   })
 
   it('holds typescript below 7, because typescript-eslint cannot run against it', () => {

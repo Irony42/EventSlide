@@ -375,26 +375,31 @@ One box hosts many events. Isolation is not a feature; it is the thing that must
 
 ### The documented exceptions, and why each is one
 
-Five methods are not scoped by event, and they are the only five. Three belong to
+Seven methods are not scoped by event, and they are the only seven. Four belong to
 `ClipJobRepository`, because there is **one transcode worker for the whole box** and it
 cannot name the event whose guest is about to upload — the same shape as
 `EventRepository.listDueForPurge`, and the same reasoning. Two belong to
-`ShareLinkRepository` (§15), because the caller holds a link and nothing else.
+`ShareLinkRepository` (§15), because the caller holds a link and nothing else. One belongs
+to `MediaStore`, for the same single-process-sweep reason as the `ClipJobRepository`
+methods below it.
 
-| Method              | Reached from                                                         | What it can return                                                                           |
-| ------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `claimNext`         | the worker only, never a route                                       | one job, any event — handed to the worker, not a reply                                       |
-| `recoverAbandoned`  | the worker, once, at boot                                            | the jobs a dead process was holding, any event                                               |
-| `countActive`       | `POST /clips`, on a guest's request                                  | **a number only**: how many clips are waiting, box-wide                                      |
-| `findByTokenDigest` | `/api/gallery/:token`, on a link holder's request                    | the link whose token hashes to this digest — whose `eventId` then scopes every read after it |
-| `findById`          | `/api/gallery-media/:linkId/…`, **after** the signature has verified | the same, by the id a signed URL names; an unsigned id never reaches the query               |
+| Method                    | Reached from                                                         | What it can return                                                                           |
+| ------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `claimNext`               | the worker only, never a route                                       | one job, any event — handed to the worker, not a reply                                       |
+| `recoverAbandoned`        | the worker, once, at boot                                            | the jobs a dead process was holding, any event                                               |
+| `deleteStaleReservations` | `reapStaleReservations`, on an interval — never a route              | the reservation rows it deleted, any event — logged as a count, never returned to a caller   |
+| `countActive`             | `POST /clips`, on a guest's request                                  | **a number only**: how many clips are waiting, box-wide                                      |
+| `findByTokenDigest`       | `/api/gallery/:token`, on a link holder's request                    | the link whose token hashes to this digest — whose `eventId` then scopes every read after it |
+| `findById`                | `/api/gallery-media/:linkId/…`, **after** the signature has verified | the same, by the id a signed URL names; an unsigned id never reaches the query               |
+| `MediaStore.listEvents`   | `sweepOrphanedMedia`, on an interval — never a route                 | every event id with media on disk, box-wide — the sweep's own cursor, not a reply            |
 
 `countActive` is the one an outsider can reach, and what it discloses is one integer
 about the box's queue depth — which the guest is then told outright in the
 `429 clip.queueFull` body, because a `Retry-After` computed from a depth the client may
 not know would be a worse answer. It names no event, no guest and no photo.
-`HttpUseCases` does not list the use cases that call the other two, so no route can
-reach them at all.
+`HttpUseCases` does not list the use cases that call `claimNext`, `recoverAbandoned`,
+`deleteStaleReservations` or `MediaStore.listEvents`, so no route can reach any of them at
+all.
 
 Tests that hold the line, each with its own name and no happy-path folding:
 
@@ -675,7 +680,7 @@ on a restart loop)**.
 
 | Endpoint                                      | Per IP       | Per event              | Per guest token | Window |
 | --------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
-| `POST /api/auth/login`                        | 10           | —                      | —               | 15 min |
+| `POST /api/auth/login`                        | 10           | —                      | —               | 1 min  |
 | `GET /api/join/:code` (code lookup)           | 20           | 60                     | —               | 1 min  |
 | `POST /api/events/:slug/guests` (join)        | 10           | 60                     | —               | 1 min  |
 | `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**           | —               | 1 min  |
@@ -884,27 +889,27 @@ asked you to remove is not a deletion.
 `src/infrastructure/config/env.ts` is the **only** file that reads `process.env`: parsed
 once with zod at startup, exported as a frozen typed object.
 
-| Variable                           | Required              | Default                               | Effect                                                                 |
-| ---------------------------------- | --------------------- | ------------------------------------- | ---------------------------------------------------------------------- |
-| `SESSION_SECRET`                   | **yes in production** | none                                  | signs `es_sid`                                                         |
-| `GUEST_TOKEN_SECRET`               | **yes in production** | none                                  | HMAC key for guest tokens                                              |
-| `NODE_ENV`                         | no                    | **`production`**                      | gates `Secure` cookies, HSTS, strict CSP, and both secrets — see below |
-| `PUBLIC_URL`                       | yes in production     | none                                  | join links, QR codes, `Origin` check                                   |
-| `DATABASE_PATH` / `MEDIA_ROOT`     | no                    | `./data/eventslide.sqlite`, `./media` | see file permissions in §11                                            |
-| `TRUST_PROXY_HOPS`                 | no                    | `0`                                   | see §11 — wrong values break rate limiting                             |
-| `MAX_UPLOAD_BYTES`                 | no                    | `25000000`                            | multer's per-photo limit                                               |
-| `MAX_FILES_PER_UPLOAD`             | no                    | `20`                                  | photos in one request                                                  |
-| `MAX_CLIP_BYTES`                   | no                    | `80000000`                            | multer's per-clip limit; **separate on purpose** — see §4.1            |
-| `MAX_CLIP_SECONDS`                 | no                    | `15`                                  | the duration cap, applied at the probe and at the encoder              |
-| `MAX_QUEUED_CLIPS`                 | no                    | `20`                                  | queue depth before `429 clip.queueFull`                                |
-| `CLIP_MAX_HEIGHT`                  | no                    | `720`                                 | the projected height a clip is encoded at                              |
-| `MAX_CLIP_PIXELS`                  | no                    | `33177600`                            | the video decompression bomb bound, from the header — see §4.1         |
-| `FFMPEG_PATH` / `FFPROBE_PATH`     | no                    | none                                  | set, and wrong, is a refusal rather than a fallback — see §4.1         |
-| `DEFAULT_EVENT_QUOTA_BYTES`        | no                    | `5000000000`                          | new events' `quota_bytes`                                              |
-| `PORT` / `LOG_LEVEL`               | no                    | `4300`, `info`                        |                                                                        |
-| `RETENTION_SWEEP_INTERVAL_MINUTES` | no                    | `60`, and `off` under `NODE_ENV=test` | how often expired events are deleted; see §11                          |
-| `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                    | `5`, and `off` under `NODE_ENV=test`  | how often scheduled openings and closings are applied; deletes nothing |
-| `SITE_ADMIN`                       | no                    | `off`                                 | `on` mounts `/api/site` behind `requireOperator` (§2); `off`/`on` only |
+| Variable                           | Required              | Default                               | Effect                                                                                    |
+| ---------------------------------- | --------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `SESSION_SECRET`                   | **yes in production** | none                                  | signs `es_sid`                                                                            |
+| `GUEST_TOKEN_SECRET`               | **yes in production** | none                                  | HMAC key for guest tokens                                                                 |
+| `NODE_ENV`                         | no                    | **`production`**                      | gates `Secure` cookies, HSTS, strict CSP, and both secrets — see below                    |
+| `PUBLIC_URL`                       | no                    | `http://localhost:5173`               | join links, QR codes, `Origin` check — production refuses `http://` except on `localhost` |
+| `DATABASE_PATH` / `MEDIA_ROOT`     | no                    | `./data/eventslide.sqlite`, `./media` | see file permissions in §11                                                               |
+| `TRUST_PROXY_HOPS`                 | no                    | `0`                                   | see §11 — wrong values break rate limiting                                                |
+| `MAX_UPLOAD_BYTES`                 | no                    | `25000000`                            | multer's per-photo limit                                                                  |
+| `MAX_FILES_PER_UPLOAD`             | no                    | `20`                                  | photos in one request                                                                     |
+| `MAX_CLIP_BYTES`                   | no                    | `80000000`                            | multer's per-clip limit; **separate on purpose** — see §4.1                               |
+| `MAX_CLIP_SECONDS`                 | no                    | `15`                                  | the duration cap, applied at the probe and at the encoder                                 |
+| `MAX_QUEUED_CLIPS`                 | no                    | `20`                                  | queue depth before `429 clip.queueFull`                                                   |
+| `CLIP_MAX_HEIGHT`                  | no                    | `720`                                 | the projected height a clip is encoded at                                                 |
+| `MAX_CLIP_PIXELS`                  | no                    | `33177600`                            | the video decompression bomb bound, from the header — see §4.1                            |
+| `FFMPEG_PATH` / `FFPROBE_PATH`     | no                    | none                                  | set, and wrong, is a refusal rather than a fallback — see §4.1                            |
+| `DEFAULT_EVENT_QUOTA_BYTES`        | no                    | `5000000000`                          | new events' `quota_bytes`                                                                 |
+| `PORT` / `LOG_LEVEL`               | no                    | `4300`, `info`                        |                                                                                           |
+| `RETENTION_SWEEP_INTERVAL_MINUTES` | no                    | `60`, and `off` under `NODE_ENV=test` | how often expired events are deleted; see §11                                             |
+| `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                    | `5`, and `off` under `NODE_ENV=test`  | how often scheduled openings and closings are applied; deletes nothing                    |
+| `SITE_ADMIN`                       | no                    | `off`                                 | `on` mounts `/api/site` behind `requireOperator` (§2); `off`/`on` only                    |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,
@@ -943,10 +948,12 @@ default, not the override.
 `NODE_ENV=` blanked and no secrets and requires exit 78 naming both.
 
 **There is no default account in 2.0.** 1.0 recreated `admin` / `password` on every
-boot, in `initDatabase`, in production, forever. Instead: while the `users` table is
-empty the server logs a one-time bootstrap token, and `POST /api/setup/owner` accepts it
-once with an email and password to create the first owner. That endpoint returns 404 as
-soon as an owner exists. Password rules live in `src/domain/users/`, not the controller.
+boot, in `initDatabase`, in production, forever. Instead: there is no HTTP endpoint and
+no bootstrap token. The operator sets `BOOTSTRAP_OWNER_EMAIL` and
+`BOOTSTRAP_OWNER_PASSWORD` before the first boot, and `bootstrapFirstOwner`
+(`src/main/container.ts`) runs the `makeBootstrapOwner` use case once, from that
+configuration, gated on the `users` table being empty — never again, and never from a
+request. Password rules live in `src/domain/users/`, not the controller.
 
 ## 11. Deployment posture
 
@@ -1317,7 +1324,7 @@ the routers on `chore/security-audit` at `d8f6c0f`.
 | **Any authenticated user**, no event scope | `es_session` cookie, **trusted from the session payload with no database read** _(since fixed: `requireUser` reads `isActive` — see §14.7)_ | `middleware/authz.ts:22-34` and `:37-43`                                                                    | `GET /api/events`, `POST /api/events` (`routes/eventRoutes.ts:115`, `:131`), `POST /api/auth/password` (`routes/authRoutes.ts:183`)                                    |
 | **Moderator of one event**                 | `es_session` plus an `event_memberships` row                                                                                                | `middleware/authz.ts:75` and `:81` via `canModerate` (`domain/events/eventRole.ts:37`)                      | publish/hide/delete photos, bulk moderate, revoke a guest, download `album.zip`                                                                                        |
 | **Owner of one event**                     | as above, role `owner`                                                                                                                      | `middleware/authz.ts:81` via `canManageEvent` (`domain/events/eventRole.ts:40`)                             | everything a moderator has, plus settings, lifecycle, join-code rotation, **event deletion**, and **moderator registration**                                           |
-| **Operator** (site role)                   | —                                                                                                                                           | —                                                                                                           | **Does not exist on this branch.** See §14.6                                                                                                                           |
+| **Operator** (site role)                   | `es_session` plus `users.site_role = 'operator'`                                                                                            | `middleware/authz.ts` — `requireOperator`; `db/migrations/004_site_role.ts`                                 | **Authority over the box, not over any event.** `requireRole` never reads it; it grants nothing a membership would not. See §14.6                                      |
 
 `EVENT_ROLES = ['owner', 'moderator']` at `domain/events/eventRole.ts:14`, and
 `eventRole.ts:4` states the intent: a role is always per event, there is no global
@@ -1330,6 +1337,14 @@ authorization decision**.
 
 `reachable` means a guest, a stranger or a host can drive attacker-controlled bytes into
 the vulnerable code on a default install. Everything else names the thing that stops it.
+
+**This table is the audit's own snapshot, at the `sharp` version installed on
+2026-09-18.** `package.json` has since moved to `^0.35.4` (shipped in #47); the two rows
+below are kept as the record of what the reachability analysis found and why — the
+_reasoning_ (which loaders the allow-list admits) still holds against the current
+version, but the CVSS scores and advisory ids are only verified against 0.34.5. Re-run
+this table's analysis against the advisories open for 0.35.4 before relying on it as a
+current statement rather than a historical one.
 
 | Package (installed)                                                                                                               | Advisory                                                                                                          | Scope       | Verdict                                                                                                                            | The line that decides it                                                                                                                                                                                                                   |
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -1471,18 +1486,19 @@ are dev-server issues and there is no dev server in production. Patch them on th
 dependency cadence; none of them is an event-night problem. That is the whole finding, and
 padding it further would only dilute §14.3.
 
-### 14.6 The operator role is not here yet
+### 14.6 The operator role, since shipped
 
-Roadmap 10.1's `site_role` column and `requireOperator` middleware are **not on `main`
-(`d8f6c0f`) and not on this branch** — `grep -rn 'site_role\|requireOperator' src/ docs/`
-is empty. They exist only on an unmerged sibling branch. The principal table in §14.1 is
-therefore complete as shipped.
+> **Fixed.** When this audit was written, roadmap §10.1's `site_role` column and
+> `requireOperator` middleware were not on `main` and not on this branch — the sibling
+> branch they lived on had not merged. That branch is now in: `site_role` is migration
+> `004_site_role.ts`, `requireOperator` is in `middleware/authz.ts`, and the principal
+> row in §14.1 reflects it. `grep -rn 'site_role\|requireOperator' src/ docs/` is no
+> longer empty — it is one of the first things a fresh checkout finds.
 
-One property of that branch is worth recording now, because it bears directly on §14.7:
-its `requireOperator` re-reads the role from the database on every request, and the query
-is `SELECT site_role FROM users WHERE id = ? AND disabled_at IS NULL`, so a disabled
-operator is refused. That was precisely the behaviour `requireRole` did **not** have when
-this was written; `roleFor` now carries the same `disabled_at IS NULL` clause, which is
+`requireOperator` re-reads the role from the database on every request, and the query is
+`SELECT site_role FROM users WHERE id = ? AND disabled_at IS NULL`, so a disabled operator
+is refused. That was precisely the behaviour `requireRole` did **not** have when this
+audit was written; `roleFor` now carries the same `disabled_at IS NULL` clause, which is
 where that observation led. See §2 and §14.7.
 
 ### 14.7 Confirmations, corrections, and what the alerts cannot see
