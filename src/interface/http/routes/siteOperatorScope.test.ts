@@ -406,9 +406,10 @@ type Listening = Extract<Target, { readonly server: unknown }>
  *
  * Handed the app itself, supertest listens on a fresh port for **each** request, and
  * superagent opens a fresh connection for each — so the parity case, two servers and three
- * requests a side on every route in both modes, tripled this file's sockets, and on a
- * Windows box whose dynamic port range is 16 384 the server project began failing with
+ * requests a side on every route in both modes, tripled this file's sockets, and under load
+ * on a Windows box whose dynamic port range is 16 384 the server project failed with
  * `connect EADDRINUSE`. A server already listening is reused, and a pool keeps one socket.
+ * Nothing but this comment guards the pooling: dropping it changes no answer, only the count.
  */
 const listeningOn = (app: Express): Promise<Listening> =>
   new Promise((resolve, reject) => {
@@ -419,7 +420,10 @@ const listeningOn = (app: Express): Promise<Listening> =>
     )
   })
 
-/** Closed, an abandoned event stream included: `close` alone would wait for it forever. */
+/**
+ * Closed, sockets and pool included. Belt and braces: on Node 24 `close` already drops idle
+ * kept-alive sockets, and `answerOf` has already destroyed an abandoned event stream's.
+ */
 const closed = ({ server, connections }: Listening): Promise<void> =>
   new Promise((resolve, reject) => {
     connections.destroy()

@@ -111,11 +111,12 @@ so in `PUBLIC_ROUTES` or `NOT_EVENT_SCOPED` with a reason. Both lists are checke
 behaviour, not against the reason you wrote, so neither is a way to make a failing case go
 away. And listed or not, every route outside `/api/site` must answer the operator exactly
 what it answers a signed-in account with site role `none` — status and error code — so a
-`requireOperator` on your route fails the build wherever you list the route. That holds
-while nothing ahead of it refuses both callers first: the sweep's requests carry no body
-and no query, so a route that answers `400` before it asks who is calling compares two
-`400`s. Written the house way — authorization as middleware, `zod` inside the handler —
-nothing does.
+`requireOperator` on your route fails the build wherever you list the route — but only while
+nothing ahead of it refuses both callers first. The sweep's requests carry no body, no query
+and no device token, so `requireRole` or `requireGuest` placed ahead of it, or a handler that
+answers `400` before asking who is calling, gives both callers the same refusal and the
+comparison stops there. Put no `requireOperator` outside `siteRoutes` at all; review is
+what catches one that hides behind another gate.
 
 **Operator routes are the one exception to "declare it per route".** They live only in
 `src/interface/http/routes/siteRoutes.ts`, mounted at `/api/site` when `SITE_ADMIN=on`,
