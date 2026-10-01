@@ -114,7 +114,7 @@ generic fallback sentence to a guest, which is why the lists are kept in step.
 | `request.csrfMissing`     | 403    | No `es_csrf` cookie, or no `X-CSRF-Token` header                |
 | `request.csrfMismatch`    | 403    | The header does not equal the cookie                            |
 | `auth.required`           | 401    | A route needs a principal and there is none                     |
-| `auth.forbidden`          | 403    | In scope for the event, but the role is too weak                |
+| `auth.forbidden`          | 403    | In scope for the event, role too weak; or not the site operator |
 | `guestToken.expired`      | 401    | The device token is past its 36 hours                           |
 | `guestToken.badSignature` | 401    | The device token does not verify                                |
 | `guestToken.malformed`    | 401    | The token is unreadable, or its guest row no longer exists      |
@@ -140,6 +140,37 @@ A gallery token grants one thing: reading the **published** photographs of one e
 full resolution, while the link is open and its creator still owns the event. It is not a
 guest token and carries no event in the URL; §2's shared gallery routes resolve everything
 from it.
+
+### `/api/site` and `/api/site/*` — reserved for the box's operator
+
+The namespace for running one box for other people (roadmap §10.9): `/api/site` itself and
+every path below it, at a segment boundary — `/api/sites` is not in it and answers as any
+unknown path does. **No route is mounted in it yet**; the clients, invitations and
+ceilings of roadmap §10.2–§10.8 will be, each documented here when it ships.
+
+A state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) without a valid token meets
+CSRF (below) first, in both modes — `403 request.csrfMissing` or `request.csrfMismatch` —
+before this table applies. What is already contract is how the namespace itself answers
+once a request is past that gate:
+
+| `SITE_ADMIN`      | Caller                                                    | Answer, on `/api/site` or any `/api/site/*` path                                   |
+| ----------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `off` _(default)_ | anybody, signed in or not, operator or not                | `404 route.notFound` — status, body and headers exactly as for a path nobody wrote |
+| `on`              | no session                                                | `401 auth.required`                                                                |
+| `on`              | signed in, not the operator — or an operator now disabled | `403 auth.forbidden`, `details: { "required": "operator" }`                        |
+| `on`              | the operator, on a path no route claims                   | `404 route.notFound`, as anywhere else under `/api`                                |
+
+Off, the namespace is **not mounted**, rather than mounted and refusing, so a box that never
+asked for administration exposes no operator surface at all. That does not hide the mode,
+and is not meant to: the table answers an anonymous caller `401` in one mode and `404` in
+the other, and `features.siteAdmin` (below) will state it outright. On, `requireOperator` is
+applied to the namespace as a whole, so every route that lands under it inherits the check
+without restating it. The operator is the account whose site role is `operator`, read from
+storage on every request, and the role grants nothing inside any event — docs/SECURITY.md §2.
+
+The web client does not probe this namespace to learn the mode. It will read
+`features.siteAdmin` from a public instance-information endpoint, which does not exist yet
+and is therefore not documented here.
 
 ### CSRF
 

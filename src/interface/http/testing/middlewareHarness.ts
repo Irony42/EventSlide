@@ -40,6 +40,10 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   sessionSecret: TEST_SESSION_SECRET,
   secureCookie: false,
   e2eHooks: false,
+  // Off, as on a box that never set `SITE_ADMIN`: every existing HTTP test describes the
+  // product a solo install runs. A test about the operator's namespace passes
+  // `{ siteAdmin: true }` through `config`, the same way it would any other setting.
+  siteAdmin: false,
   uploads: { maxBytes: 25_000_000, maxFiles: 20 },
   // A clip carries its own limit and its own temp directory. The photo path's ceiling
   // feeds a per-request heap calculation the deployment's memory limit was reasoned

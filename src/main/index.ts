@@ -61,6 +61,9 @@ const bootstrap = async (): Promise<void> => {
     port: config.port,
     publicUrl: config.publicUrl,
     env: config.env,
+    // Said once, where the operator reads the boot: off, every /api/site path is a 404
+    // by design, and this line is how that 404 is told apart from a misconfiguration.
+    siteAdmin: config.siteAdmin ? 'on' : 'off',
   })
   // Which arrangement is in force, said once, where somebody can read it. Production
   // cannot reach this branch — the boot refuses without both secrets — so this is a

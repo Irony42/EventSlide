@@ -490,6 +490,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     sessionSecret: config.secrets.session,
     secureCookie: config.session.secureCookie,
     e2eHooks: config.e2eHooks,
+    siteAdmin: config.siteAdmin,
     uploads: { maxBytes: config.uploads.maxBytes, maxFiles: config.uploads.maxFiles },
     clips: {
       maxBytes: config.clips.maxBytes,

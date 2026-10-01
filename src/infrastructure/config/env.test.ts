@@ -130,6 +130,7 @@ describe('loadConfig', () => {
         crypto: { bcryptCost: 12 },
         bootstrap: { ownerEmail: null, ownerPassword: null },
         e2eHooks: false,
+        siteAdmin: false,
       })
     })
 
@@ -803,6 +804,56 @@ describe('loadConfig', () => {
 
       expect(issue).toContain('1 to 1440')
       expect(issue).toContain("'off'")
+    })
+  })
+
+  /**
+   * docs/ROADMAP.md §10.9: one product, with site administration off unless the box asks.
+   *
+   * The default is the half that carries the promise. §10.1 said an install that never
+   * wanted any of this must behave exactly as it does today, and on a box whose compose
+   * file predates the variable, "never wanted" is spelled as silence.
+   */
+  describe('the site administration switch', () => {
+    const NAME = 'SITE_ADMIN'
+
+    it('is off on a box that never mentions it, so a solo install mounts no operator surface', () => {
+      expect(loadConfig({ ...DEV }).siteAdmin).toBe(false)
+      expect(loadConfig(aProductionEnv()).siteAdmin).toBe(false)
+    })
+
+    it("is on for the word 'on', which is the only way to turn it on", () => {
+      expect(loadConfig({ ...DEV, [NAME]: 'on' }).siteAdmin).toBe(true)
+      expect(loadConfig(aProductionEnv({ [NAME]: 'on' })).siteAdmin).toBe(true)
+    })
+
+    it("is off for the word 'off', which is what compose.yaml sends when nothing is set", () => {
+      expect(loadConfig(aProductionEnv({ [NAME]: 'off' })).siteAdmin).toBe(false)
+    })
+
+    it('reads a blank SITE_ADMIN as absent, so a dangling compose variable lands on off', () => {
+      expect(loadConfig(aProductionEnv({ [NAME]: '' })).siteAdmin).toBe(false)
+    })
+
+    it.each(['ON', 'Off', 'yes', 'no', 'true', 'false', '1', '0', ' on', 'enabled'])(
+      "refuses SITE_ADMIN='%s' rather than guessing which side of the switch was meant",
+      (value) => {
+        // Strict lower case, like NODE_ENV and LOG_LEVEL. A boolean spelling accepted here
+        // would be a second vocabulary for one switch, and `yes` read as off is an operator
+        // who believes their console is mounted and meets a 404 instead of a boot refusal.
+        const issues = refusalIssues(aProductionEnv({ [NAME]: value }))
+
+        expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+      },
+    )
+
+    it('names both accepted words when it refuses, beside every other problem at once', () => {
+      const issues = refusalIssues({ ...DEV, [NAME]: 'yes', LOG_LEVEL: 'verbose' })
+      const issue = issues.find((candidate) => candidate.startsWith(`${NAME}: `)) ?? ''
+
+      expect(issue).toContain("'off'")
+      expect(issue).toContain("'on'")
+      expect(issues.some((candidate) => candidate.startsWith('LOG_LEVEL: '))).toBe(true)
     })
   })
 })

@@ -82,6 +82,15 @@ export interface HttpConfig {
   readonly sessionSecret: string
   readonly secureCookie: boolean
   readonly e2eHooks: boolean
+  /**
+   * `SITE_ADMIN=on` (docs/ROADMAP.md §10.9). Read once, by `buildServer`, to decide
+   * whether the operator's namespace `/api/site` is mounted at all.
+   *
+   * Not an authorization input, and no handler may treat it as one: every route under
+   * that namespace is behind `requireOperator` whatever this says, so turning it on grants
+   * nothing to anybody who is not the operator. It decides how much surface exists.
+   */
+  readonly siteAdmin: boolean
   readonly uploads: {
     readonly maxBytes: number
     readonly maxFiles: number
