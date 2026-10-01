@@ -458,6 +458,7 @@ describe('POST /api/join', () => {
         galleryMediaPerMinute: 600,
         galleryUnlockPerClient: 10,
         galleryUnlockPerLink: 50,
+        eventCreationPerHour: 20,
       },
     })
 

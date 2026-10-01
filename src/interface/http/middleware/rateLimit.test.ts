@@ -3,7 +3,20 @@ import type { AddressInfo } from 'node:net'
 import express, { type Express, type RequestHandler, type Response } from 'express'
 import request from 'supertest'
 import { afterEach, describe, expect, it } from 'vitest'
-import { reactionLimiter, streamConnectionLimiter, uploadLimiter } from './rateLimit'
+import type { Logger } from '../../../application/ports/logger'
+import type { UserId } from '../../../domain/shared/ids'
+import { asUserId } from '../../../domain/shared/ids'
+import type { UserPrincipal } from '../types'
+import { eventCreationLimiter, reactionLimiter, streamConnectionLimiter, uploadLimiter } from './rateLimit'
+
+/** A logger nobody reads: these tests are about keying, never about what gets logged. */
+const noopLogger: Logger = {
+  debug: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+  child: () => noopLogger,
+}
 
 /**
  * How a rate-limit bucket is **keyed**, which is the part that decides whether a limit
@@ -178,6 +191,60 @@ describe('the event segment of an event-keyed limiter', () => {
       .set('X-Forwarded-For', SAME_SUBNET[0])
 
     expect(real.status).toBe(204)
+  })
+})
+
+describe('the account key', () => {
+  /** What `requireUser` leaves on the request ahead of this limiter. */
+  const signedInAs = (userId: UserId): RequestHandler => {
+    const user: UserPrincipal = { kind: 'user', userId, email: 'host@example.test', mustChangePassword: false }
+    return (req, _res, next) => {
+      req.context = { requestId: 'test', logger: noopLogger, user }
+      next()
+    }
+  }
+
+  const HOST_ONE = asUserId('user-host-one')
+  const HOST_TWO = asUserId('user-host-two')
+
+  it('spends one account’s allowance regardless of which address it comes from', async () => {
+    const limiter = eventCreationLimiter(1)
+    const app = behindOneProxy((subject) => {
+      subject.post('/events', signedInAs(HOST_ONE), limiter, noContent)
+    })
+
+    await request(app).post('/events').set('X-Forwarded-For', SAME_SUBNET[0]).expect(204)
+    const fromElsewhere = await request(app)
+      .post('/events')
+      .set('X-Forwarded-For', OTHER_SUBNET)
+
+    expect(fromElsewhere.status).toBe(429)
+    expect(fromElsewhere.body).toMatchObject({ error: { code: 'event.creationRateLimited' } })
+  })
+
+  it('keeps two accounts behind the same address in separate buckets', async () => {
+    // The ordinary case this key exists for: an office, or a venue's own guest Wi-Fi,
+    // is one address shared by several hosts, and one of them spending their allowance
+    // must not spend a colleague's.
+    const limiter = eventCreationLimiter(1)
+    const app = express()
+    app.set('trust proxy', 1)
+    app.post('/events/as/:who', (req, res, next) => {
+      signedInAs(req.params['who'] === 'one' ? HOST_ONE : HOST_TWO)(req, res, next)
+    })
+    app.post('/events/as/:who', limiter, noContent)
+
+    await request(app)
+      .post('/events/as/one')
+      .set('X-Forwarded-For', SAME_SUBNET[0])
+      .expect(204)
+    const second = await request(app).post('/events/as/one').set('X-Forwarded-For', SAME_SUBNET[0])
+    const otherAccount = await request(app)
+      .post('/events/as/two')
+      .set('X-Forwarded-For', SAME_SUBNET[0])
+
+    expect(second.status).toBe(429)
+    expect(otherAccount.status).toBe(204)
   })
 })
 

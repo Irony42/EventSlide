@@ -1,4 +1,4 @@
-import { Router, type Response } from 'express'
+import { Router, type RequestHandler, type Response } from 'express'
 import type { EventSummary } from '../../../application/ports/eventRepository'
 import { makeListModerators } from '../../../application/usecases/events/listModerators'
 import { makeRenameEvent } from '../../../application/usecases/events/renameEvent'
@@ -35,6 +35,17 @@ import type { RequestContext, UserPrincipal } from '../types'
 import type { RouteDeps } from '../useCases'
 
 /**
+ * `RouteDeps` plus the one piece of this surface that is not a use case: the limiter
+ * guarding `POST /events`. Built once in `server.ts`, exactly as `uploadRateLimiter` is
+ * — `express-rate-limit` mints a fresh `MemoryStore` per call, so constructing it here
+ * instead would give every test (and, in `server.ts`, every request) its own store
+ * wearing one configuration key.
+ */
+export interface EventRouteDeps extends RouteDeps {
+  readonly creationLimiter: RequestHandler
+}
+
+/**
  * The host's surface: the dashboard, one event, its settings and lifecycle, its guests
  * and its moderators.
  *
@@ -55,7 +66,7 @@ import type { RouteDeps } from '../useCases'
  *   the raw parameter. `req.params` is parsed where something else is read out of it —
  *   a guest id, a user id — and `req.body` and `req.query` always.
  */
-export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router => {
+export const eventRoutes = ({ deps, usecases, presenter, creationLimiter }: EventRouteDeps): Router => {
   const router = Router()
 
   /**
@@ -131,6 +142,9 @@ export const eventRoutes = ({ deps, usecases, presenter }: RouteDeps): Router =>
   router.post(
     '/events',
     requireUser(deps),
+    // After `requireUser`, which is what puts an account on the request for this
+    // limiter to key on (P4-09 / D-14: 20 creations per account per hour, by default).
+    creationLimiter,
     asyncHandler(async (req, res) => {
       const user = currentUser(req.context)
       const body = createEventBody.parse(req.body)

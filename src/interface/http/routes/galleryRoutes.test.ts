@@ -725,6 +725,7 @@ const limits = () => ({
   galleryMediaPerMinute: 600,
   galleryUnlockPerClient: 10,
   galleryUnlockPerLink: 50,
+  eventCreationPerHour: 20,
 })
 
 describe('the gallery router on its own', () => {

@@ -139,6 +139,8 @@ export interface HttpConfig {
     readonly galleryUnlockPerClient: number
     /** Failed password attempts per link, from everybody, per fifteen minutes. */
     readonly galleryUnlockPerLink: number
+    /** Per **account**, per hour — `eventCreationLimiter` keys on who is signed in, not on an address (P4-09 / D-14). */
+    readonly eventCreationPerHour: number
   }
 }
 
