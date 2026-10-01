@@ -195,16 +195,16 @@ creation**, which is per **hour** and per **account** (see the row below and the
 paragraph beneath the table).
 
 | Endpoint                                      | Default       | Bucket                  | Code                        |
-| ---------------------------------------------- | ------------- | ----------------------- | --------------------------- |
+| --------------------------------------------- | ------------- | ----------------------- | --------------------------- |
 | `POST /api/join`                              | 20            | client IP               | `rate.limited`              |
 | `POST /api/auth/login`                        | 10            | client IP               | `rate.limited`              |
 | `POST /api/events` (create)                   | 20 / **hour** | account                 | `event.creationRateLimited` |
 | `POST /api/events/:slug/photos`               | 12            | client IP **and** event | `rate.limited`              |
-| `POST /api/events/:slug/clips`                | 12      | client IP **and** event | `rate.limited`            |
-| `POST /api/events/:slug/photos/:id/reactions` | 30      | client IP **and** event | `reaction.rateLimited`    |
-| `GET /api/gallery/:token`, `…/photos`, unlock | 120     | client IP               | `rate.limited`            |
-| `GET /api/gallery-media/…`                    | 3000    | client IP               | `rate.limited`            |
-| `POST /api/gallery/:token/unlock`             | 10 / 50 | IP / link, per 15 min   | `gallery.tooManyAttempts` |
+| `POST /api/events/:slug/clips`                | 12            | client IP **and** event | `rate.limited`              |
+| `POST /api/events/:slug/photos/:id/reactions` | 30            | client IP **and** event | `reaction.rateLimited`      |
+| `GET /api/gallery/:token`, `…/photos`, unlock | 120           | client IP               | `rate.limited`              |
+| `GET /api/gallery-media/…`                    | 3000          | client IP               | `rate.limited`              |
+| `POST /api/gallery/:token/unlock`             | 10 / 50       | IP / link, per 15 min   | `gallery.tooManyAttempts`   |
 
 The gallery unlock is the one row counted per **quarter hour** and per **failure**: a
 successful unlock spends none of that allowance, so a family opening one album on the
@@ -1250,25 +1250,25 @@ a caller with no membership of it; `403 auth.forbidden` — `details.required` n
 `owner` or `moderator` — for a moderator on an owner-only route. Beyond the
 cross-cutting codes in §1:
 
-| Code                          | Status | Where                                                               |
-| ----------------------------- | ------ | -------------------------------------------------------------------- |
-| `event.slugUnavailable`       | 409    | Create, when the slug is in use — custom or derived, never echoed  |
-| `event.customSlugNotAllowed`  | 400    | Create, with a `slug` when `ALLOW_CUSTOM_SLUGS=false`               |
-| `event.creationRateLimited`   | 429    | Create, beyond the account's hourly allowance                      |
-| `event.quotaAboveCeiling`     | 400    | Create, when `quotaBytes` exceeds `MAX_EVENT_QUOTA_BYTES`           |
-| `event.immutable`             | 409    | Rename, settings or schedule on an `archived` event                |
-| `event.illegalTransition`     | 409    | A status change the lifecycle does not allow                       |
-| `event.scheduleInPast`        | 400    | A scheduled instant whose minute has already gone by                |
-| `event.scheduleOutOfOrder`    | 400    | A scheduled closing at or before the scheduled opening              |
-| `event.notModeratable`        | 409    | A single or bulk decision on an `archived` event                    |
-| `photo.illegalTransition`     | 409    | A decision the photo's status machine does not allow                |
-| `guest.notFound`              | 404    | Revoking a guest id that is not in this event                       |
-| `membership.alreadyExists`    | 409    | Inviting someone who already moderates this event                   |
-| `membership.notFound`         | 404    | Revoking a membership that is not there                             |
-| `membership.lastOwner`        | 409    | Revoking the only remaining owner                                   |
-| `event.joinCodeExhausted`     | 500    | Rotation could not find a free code — a bug, not a client error    |
-| `event.slugExhausted`         | 500    | `EVENT_SLUG_SUFFIX=random` could not find a free suffix — likewise |
-| `event.mediaPurgeFailed`      | 500    | A purge that could not remove the bytes; rows are left alone       |
+| Code                         | Status | Where                                                              |
+| ---------------------------- | ------ | ------------------------------------------------------------------ |
+| `event.slugUnavailable`      | 409    | Create, when the slug is in use — custom or derived, never echoed  |
+| `event.customSlugNotAllowed` | 400    | Create, with a `slug` when `ALLOW_CUSTOM_SLUGS=false`              |
+| `event.creationRateLimited`  | 429    | Create, beyond the account's hourly allowance                      |
+| `event.quotaAboveCeiling`    | 400    | Create, when `quotaBytes` exceeds `MAX_EVENT_QUOTA_BYTES`          |
+| `event.immutable`            | 409    | Rename, settings or schedule on an `archived` event                |
+| `event.illegalTransition`    | 409    | A status change the lifecycle does not allow                       |
+| `event.scheduleInPast`       | 400    | A scheduled instant whose minute has already gone by               |
+| `event.scheduleOutOfOrder`   | 400    | A scheduled closing at or before the scheduled opening             |
+| `event.notModeratable`       | 409    | A single or bulk decision on an `archived` event                   |
+| `photo.illegalTransition`    | 409    | A decision the photo's status machine does not allow               |
+| `guest.notFound`             | 404    | Revoking a guest id that is not in this event                      |
+| `membership.alreadyExists`   | 409    | Inviting someone who already moderates this event                  |
+| `membership.notFound`        | 404    | Revoking a membership that is not there                            |
+| `membership.lastOwner`       | 409    | Revoking the only remaining owner                                  |
+| `event.joinCodeExhausted`    | 500    | Rotation could not find a free code — a bug, not a client error    |
+| `event.slugExhausted`        | 500    | `EVENT_SLUG_SUFFIX=random` could not find a free suffix — likewise |
+| `event.mediaPurgeFailed`     | 500    | A purge that could not remove the bytes; rows are left alone       |
 
 ### `GET /api/events`
 

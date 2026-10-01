@@ -66,7 +66,12 @@ export interface EventRouteDeps extends RouteDeps {
  *   the raw parameter. `req.params` is parsed where something else is read out of it —
  *   a guest id, a user id — and `req.body` and `req.query` always.
  */
-export const eventRoutes = ({ deps, usecases, presenter, creationLimiter }: EventRouteDeps): Router => {
+export const eventRoutes = ({
+  deps,
+  usecases,
+  presenter,
+  creationLimiter,
+}: EventRouteDeps): Router => {
   const router = Router()
 
   /**

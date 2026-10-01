@@ -7,7 +7,12 @@ import type { Logger } from '../../../application/ports/logger'
 import type { UserId } from '../../../domain/shared/ids'
 import { asUserId } from '../../../domain/shared/ids'
 import type { UserPrincipal } from '../types'
-import { eventCreationLimiter, reactionLimiter, streamConnectionLimiter, uploadLimiter } from './rateLimit'
+import {
+  eventCreationLimiter,
+  reactionLimiter,
+  streamConnectionLimiter,
+  uploadLimiter,
+} from './rateLimit'
 
 /** A logger nobody reads: these tests are about keying, never about what gets logged. */
 const noopLogger: Logger = {
@@ -197,7 +202,12 @@ describe('the event segment of an event-keyed limiter', () => {
 describe('the account key', () => {
   /** What `requireUser` leaves on the request ahead of this limiter. */
   const signedInAs = (userId: UserId): RequestHandler => {
-    const user: UserPrincipal = { kind: 'user', userId, email: 'host@example.test', mustChangePassword: false }
+    const user: UserPrincipal = {
+      kind: 'user',
+      userId,
+      email: 'host@example.test',
+      mustChangePassword: false,
+    }
     return (req, _res, next) => {
       req.context = { requestId: 'test', logger: noopLogger, user }
       next()
@@ -214,9 +224,7 @@ describe('the account key', () => {
     })
 
     await request(app).post('/events').set('X-Forwarded-For', SAME_SUBNET[0]).expect(204)
-    const fromElsewhere = await request(app)
-      .post('/events')
-      .set('X-Forwarded-For', OTHER_SUBNET)
+    const fromElsewhere = await request(app).post('/events').set('X-Forwarded-For', OTHER_SUBNET)
 
     expect(fromElsewhere.status).toBe(429)
     expect(fromElsewhere.body).toMatchObject({ error: { code: 'event.creationRateLimited' } })
@@ -234,10 +242,7 @@ describe('the account key', () => {
     })
     app.post('/events/as/:who', limiter, noContent)
 
-    await request(app)
-      .post('/events/as/one')
-      .set('X-Forwarded-For', SAME_SUBNET[0])
-      .expect(204)
+    await request(app).post('/events/as/one').set('X-Forwarded-For', SAME_SUBNET[0]).expect(204)
     const second = await request(app).post('/events/as/one').set('X-Forwarded-For', SAME_SUBNET[0])
     const otherAccount = await request(app)
       .post('/events/as/two')

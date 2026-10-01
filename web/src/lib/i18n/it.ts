@@ -258,8 +258,7 @@ export const it: UiText = {
     'event.quotaExceeded': 'La galleria ha raggiunto la capacità massima. Avvisi l’organizzatore.',
     'event.slugUnavailable': 'Questo indirizzo è già in uso.',
     'event.customSlugNotAllowed': 'Questa istanza non consente di scegliere il proprio indirizzo.',
-    'event.creationRateLimited':
-      'Hai creato troppi eventi di recente. Riprova più tardi.',
+    'event.creationRateLimited': 'Hai creato troppi eventi di recente. Riprova più tardi.',
     'event.quotaAboveCeiling': 'Questa quota supera il limite consentito da questo server.',
     'event.immutable': 'Questo evento è archiviato e non può più essere modificato.',
     'event.illegalTransition': 'Questo cambio di stato non è possibile.',
