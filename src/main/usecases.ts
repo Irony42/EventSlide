@@ -124,6 +124,15 @@ export interface UseCasePolicy {
   /** `uploads.maxEventQuotaBytes`: the box-wide ceiling (G3-02), `null` meaning none. */
   readonly maxEventQuotaBytes: number | null
   readonly maxImagePixels: number
+  /**
+   * P4-09 / D-14 (roadmap G3-05), grouped the way `createEvent` and `rotateJoinCode`
+   * consume them. See `AppConfig['events']` for what each one defaults to and why.
+   */
+  readonly events: {
+    readonly slugSuffix: 'none' | 'random'
+    readonly allowCustomSlugs: boolean
+    readonly joinCodeLength: number
+  }
   readonly reactionBudget: {
     readonly windowMs: number
     readonly maxPerWindow: number
@@ -195,6 +204,9 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     clock: adapters.clock,
     defaultQuotaBytes: policy.defaultEventQuotaBytes,
     maxQuotaBytes: policy.maxEventQuotaBytes,
+    slugSuffix: policy.events.slugSuffix,
+    allowCustomSlugs: policy.events.allowCustomSlugs,
+    joinCodeLength: policy.events.joinCodeLength,
   }),
   getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
   listEventsForHost: makeListEventsForHost({ events: adapters.events }),
@@ -209,6 +221,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     memberships: adapters.memberships,
     ids: adapters.ids,
     bus: adapters.bus,
+    joinCodeLength: policy.events.joinCodeLength,
   }),
   changeEventStatus: makeChangeEventStatus({
     events: adapters.events,
