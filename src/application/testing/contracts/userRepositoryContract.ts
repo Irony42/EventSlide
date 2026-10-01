@@ -133,28 +133,54 @@ export const userRepositoryContract = (
       expect((await repo.findById(asUserId('user-operator')))?.siteRole).toBe('operator')
     })
 
-    // ----------------------------------------------------------- may it act --
+    // -------------------------------------------------------------- authState --
 
     /**
-     * The read the two routes that are not event-scoped make: `POST /api/events` and
-     * `POST /api/auth/password` ask nothing about an event, so no role lookup would ever
-     * notice that the account behind the session has been switched off. The same three
-     * answers collapse as they do for `siteRoleFor` — gone and disabled are both `false`.
+     * `authStateFor` is the one read a request makes for both facts, superseding the
+     * `isActive` read the two routes that are not event-scoped used to make on their
+     * own: `POST /api/events` and `POST /api/auth/password` ask nothing about an event,
+     * so no role lookup would ever notice that the account behind the session has been
+     * switched off. The same collapse holds as it does for `siteRoleFor` — gone and
+     * disabled are both inactive — and `mustChangePassword` is read fresh from storage
+     * rather than trusted from whatever a session cookie says, which is the entire point
+     * of P3-03.
      */
-    it('reports an ordinary account as active', async () => {
+    it('reports an ordinary account as active, with no forced change and no epoch yet', async () => {
       await repo.save(aUser({ id: 'user-host' }))
 
-      expect(await repo.isActive(asUserId('user-host'))).toBe(true)
+      expect(await repo.authStateFor(asUserId('user-host'))).toEqual({
+        active: true,
+        mustChangePassword: false,
+        credentialsChangedAt: null,
+      })
+    })
+
+    it('reports the forced-change flag for an account that carries it', async () => {
+      await repo.save(aUser({ id: 'user-host', mustChangePassword: true }))
+
+      expect(await repo.authStateFor(asUserId('user-host'))).toEqual({
+        active: true,
+        mustChangePassword: true,
+        credentialsChangedAt: null,
+      })
     })
 
     it('reports a disabled account as inactive, so its open tab stops creating events', async () => {
       await repo.save(aUser({ id: 'user-host', disabledAt: atPlus(4_000) }))
 
-      expect(await repo.isActive(asUserId('user-host'))).toBe(false)
+      expect(await repo.authStateFor(asUserId('user-host'))).toEqual({
+        active: false,
+        mustChangePassword: false,
+        credentialsChangedAt: null,
+      })
     })
 
     it('reports an account that does not exist as inactive, so a session outliving it grants nothing', async () => {
-      expect(await repo.isActive(asUserId('nobody'))).toBe(false)
+      expect(await repo.authStateFor(asUserId('nobody'))).toEqual({
+        active: false,
+        mustChangePassword: false,
+        credentialsChangedAt: null,
+      })
     })
 
     it('reports an account as active again once it is enabled', async () => {
@@ -163,7 +189,19 @@ export const userRepositoryContract = (
 
       await repo.save(user.disable(AT).enable())
 
-      expect(await repo.isActive(asUserId('user-host'))).toBe(true)
+      expect((await repo.authStateFor(asUserId('user-host'))).active).toBe(true)
+    })
+
+    it('stays null for credentialsChangedAt on every account, until P3-09 ships the column', async () => {
+      await repo.save(
+        aUser({ id: 'user-host', email: 'hote@example.test', mustChangePassword: true }),
+      )
+      await repo.save(
+        aUser({ id: 'user-other', email: 'autre@example.test', disabledAt: atPlus(1_000) }),
+      )
+
+      expect((await repo.authStateFor(asUserId('user-host'))).credentialsChangedAt).toBeNull()
+      expect((await repo.authStateFor(asUserId('user-other'))).credentialsChangedAt).toBeNull()
     })
 
     it('replaces the stored row when the same account is saved again', async () => {

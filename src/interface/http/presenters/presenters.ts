@@ -443,7 +443,8 @@ export const toSignedInUserDto = (user: AuthenticatedUser): SessionUserDto => ({
 })
 
 /**
- * `GET /api/auth/me`, built from the session principal alone.
+ * `GET /api/auth/me`, built from the session principal plus a storage-read credential
+ * state.
  *
  * `displayName` is `null` here rather than the stored name. The session holds an
  * identity and nothing more (`SessionPayload`), so a name in it would be a copy that
@@ -451,8 +452,17 @@ export const toSignedInUserDto = (user: AuthenticatedUser): SessionUserDto => ({
  * controller touch a repository, which is the one thing a controller may not do. The
  * login response carries the fresh name; this endpoint answers the question it is
  * actually asked, which is whether the caller is signed in.
+ *
+ * `mustChangePassword` is a second, explicit parameter rather than a field on
+ * `principal`, on purpose: it is not a property of *who* is asking (`UserPrincipal`
+ * carries only that), it is a fact about the account's credentials that storage must be
+ * asked for on this very request (`middleware/authz.ts`'s `resolveAuthState`, P3-03).
+ * The caller passes `false` when there is no principal, where the value is never read.
  */
-export const toSessionResponseDto = (principal: UserPrincipal | undefined): SessionResponseDto =>
+export const toSessionResponseDto = (
+  principal: UserPrincipal | undefined,
+  mustChangePassword: boolean,
+): SessionResponseDto =>
   principal === undefined
     ? { authenticated: false }
     : {
@@ -461,7 +471,7 @@ export const toSessionResponseDto = (principal: UserPrincipal | undefined): Sess
           userId: principal.userId,
           email: principal.email,
           displayName: null,
-          mustChangePassword: principal.mustChangePassword,
+          mustChangePassword,
         },
       }
 

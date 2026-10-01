@@ -206,7 +206,6 @@ describe('the account key', () => {
       kind: 'user',
       userId,
       email: 'host@example.test',
-      mustChangePassword: false,
     }
     return (req, _res, next) => {
       req.context = { requestId: 'test', logger: noopLogger, user }

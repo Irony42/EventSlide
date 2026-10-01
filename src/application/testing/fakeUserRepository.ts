@@ -2,7 +2,7 @@ import type { EmailAddress } from '../../domain/users/emailAddress'
 import { DEFAULT_SITE_ROLE, type SiteRole } from '../../domain/users/siteRole'
 import type { User } from '../../domain/users/user'
 import type { UserId } from '../../domain/shared/ids'
-import type { UserRepository } from '../ports/userRepository'
+import { INACTIVE_AUTH_STATE, type AuthState, type UserRepository } from '../ports/userRepository'
 
 /**
  * In-memory `UserRepository`.
@@ -56,11 +56,18 @@ export class FakeUserRepository implements UserRepository {
   /**
    * The same narrowing as the adapter's `WHERE id = ? AND disabled_at IS NULL`: an
    * account that is gone and one that was switched off are one answer, because a session
-   * that outlived its account names nobody either.
+   * that outlived its account names nobody either. `credentialsChangedAt` is always
+   * `null` here, exactly as it is on the adapter, since neither reads a column that does
+   * not exist yet (P3-09).
    */
-  async isActive(id: UserId): Promise<boolean> {
+  async authStateFor(id: UserId): Promise<AuthState> {
     const user = this.rows.get(id)
-    return user !== undefined && !user.isDisabled()
+    if (user === undefined || user.isDisabled()) return INACTIVE_AUTH_STATE
+    return {
+      active: true,
+      mustChangePassword: user.mustChangePassword,
+      credentialsChangedAt: null,
+    }
   }
 
   async save(user: User): Promise<void> {

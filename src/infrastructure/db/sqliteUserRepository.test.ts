@@ -185,6 +185,19 @@ describe('SqliteUserRepository', () => {
     expect(await repo.siteRoleFor(HOST)).toBe('operator')
   })
 
+  it('answers authStateFor with its own narrow statement, not findById', async () => {
+    // The whole reason this method exists as one query rather than two: a request that
+    // needs to know whether the account may act and whether it must change its password
+    // reads one row of one small column, never the hash.
+    await repo.save(aUser({ id: 'user-host', mustChangePassword: true }))
+
+    expect(await repo.authStateFor(HOST)).toEqual({
+      active: true,
+      mustChangePassword: true,
+      credentialsChangedAt: null,
+    })
+  })
+
   it('refuses the authorization read on the same corrupt row it refuses to hydrate', async () => {
     // The case above and `refuses to hydrate…` are two different statements over one
     // column, and only the hydrating one was asserted — so `siteRoleFor`, which is the

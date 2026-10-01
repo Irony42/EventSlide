@@ -3,15 +3,22 @@ import { describe, expect, it } from 'vitest'
 import {
   ABSOLUTE_SESSION_LIFETIME_MS,
   GUEST_COOKIE,
+  PASSWORD_CHANGE_EXEMPT,
+  PASSWORD_CHANGE_REQUIRED_CODE,
   requireGuest,
   requireOperator,
   requireRole,
   requireUser,
   resolvePublicEvent,
 } from './authz'
+import { CSRF_HEADER } from './csrf'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
+import { mountedRoutes, type Route } from '../testing/routeTable'
+import { buildServerHarness, type ServerHarness } from '../testing/serverHarness'
+import { signedInAs, signInByAddress } from '../testing/signIn'
 import { anEvent, aGuest, aUser, AT } from '../../../application/testing/builders'
 import { CallLog } from '../../../application/testing/callLog'
+import { ok } from '../../../domain/shared/result'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import type { HttpDeps, SessionPayload } from '../types'
 
@@ -770,5 +777,225 @@ describe('resolvePublicEvent', () => {
 
   it('answers 404 for an unknown slug', async () => {
     await request(harness().app).get('/events/nope/wall').expect(404)
+  })
+})
+
+/**
+ * `requirePasswordCurrent`, the server-side half of `mustChangePassword` (P3-03).
+ *
+ * Built the way `routes/siteOperatorScope.test.ts` sweeps the operator's own invariant:
+ * the route table is read off the **assembled** server rather than hand-listed, so a
+ * route mounted later is covered the day it lands rather than the day somebody
+ * remembers to add it here. Unlike that sweep, this one needs no placeholder for a
+ * route's `:parameters` at all — `requirePasswordCurrent` is mounted at `/api` and
+ * answers by **path prefix**, ahead of every specific router, so it refuses
+ * `GET /api/events/:eventSlug/moderation` requested with that literal, unresolved
+ * segment exactly as it would refuse the real slug. A route that reached a router before
+ * answering could not be swept this way; one that cannot be reached without the
+ * question being asked first can.
+ *
+ * Only one `SITE_ADMIN` mode: `OPERATOR_ROUTES` in `siteOperatorScope.test.ts` is empty
+ * today, so there is nothing under `/api/site` for this sweep to find in either mode.
+ * Extend it the way that file extends across both modes once P3-13 mounts the first one.
+ */
+describe('requirePasswordCurrent: mustChangePassword enforced server-side (P3-03)', () => {
+  /**
+   * Mounted ahead of the whole session stack (`server.ts`), so there is no principal yet
+   * for either to meet this gate — not an exemption, since there is nothing here for one
+   * to exempt, but listed for the same stale-entry guard the real exemptions get.
+   */
+  const NOT_GATED: Readonly<Record<string, string>> = {
+    'get /api/health': 'a liveness probe carries no session at all',
+    'get /api/ready': 'the same seam as liveness',
+  }
+
+  const FLAGGED = '66666666-6666-4666-8666-666666666666'
+  const FLAGGED_EMAIL = 'invite@example.test'
+
+  type HarnessOverrides = NonNullable<Parameters<typeof buildServerHarness>[0]>
+
+  const buildGateHarness = (overrides: HarnessOverrides = {}): ServerHarness =>
+    buildServerHarness({
+      ...overrides,
+      usecases: {
+        authenticateUser: signInByAddress({ [FLAGGED_EMAIL]: FLAGGED }),
+        // Always succeeds, so the three-exemptions test below proves the route is
+        // genuinely reachable rather than merely "not refused by this gate".
+        changePassword: async () => ok(undefined),
+        // `GET /api/events` is one of the two routes this file's "source of the flag"
+        // cases ask *while the flag is clear*, to prove the gate lets an ordinary
+        // request through rather than refusing everything unconditionally.
+        listEventsForHost: async () => ok([]),
+        ...overrides.usecases,
+      },
+    })
+
+  /** Seeds the flagged account into storage and signs it in with a live CSRF token. */
+  const flaggedCaller = async (subject: ServerHarness) => {
+    subject.users.seed(aUser({ id: FLAGGED, email: FLAGGED_EMAIL, mustChangePassword: true }))
+    return signedInAs(subject.app, FLAGGED_EMAIL)
+  }
+
+  const nameOf = (route: Route): string => `${route.method} ${route.path}`
+
+  it('lists no exemption that is not a mounted route', () => {
+    const mounted = new Set(mountedRoutes(buildGateHarness().app).map(nameOf))
+    const keys = [...Object.keys(PASSWORD_CHANGE_EXEMPT), ...Object.keys(NOT_GATED)]
+
+    expect(keys.filter((key) => !mounted.has(key))).toEqual([])
+  })
+
+  it('exempts a route once, or not at all', () => {
+    const keys = [...Object.keys(PASSWORD_CHANGE_EXEMPT), ...Object.keys(NOT_GATED)]
+
+    expect(keys.filter((key, index) => keys.indexOf(key) !== index)).toEqual([])
+  })
+
+  /** Issues the request a route describes, with a CSRF header for an unsafe method. */
+  const send = (agent: request.Agent, route: Route, csrf: string): request.Test => {
+    switch (route.method) {
+      case 'get':
+        return agent.get(route.path)
+      case 'post':
+        return agent.post(route.path).set(CSRF_HEADER, csrf)
+      case 'patch':
+        return agent.patch(route.path).set(CSRF_HEADER, csrf)
+      case 'put':
+        return agent.put(route.path).set(CSRF_HEADER, csrf)
+      case 'delete':
+        return agent.delete(route.path).set(CSRF_HEADER, csrf)
+      default:
+        throw new Error(`this sweep does not know how to issue a ${route.method} request`)
+    }
+  }
+
+  describe('every mounted /api route but the three exemptions', () => {
+    /**
+     * Read once, at collection, the same way `siteOperatorScope.test.ts`'s own
+     * per-route sweep does: a walk that throws on a shape it refuses to guess at
+     * aborts the whole file with no case named otherwise, and this fails in its own
+     * named case instead.
+     */
+    const table = ((): { readonly routes: readonly Route[]; readonly unreadable: unknown } => {
+      try {
+        const routes = mountedRoutes(buildGateHarness().app).filter((route) => {
+          const name = nameOf(route)
+          return PASSWORD_CHANGE_EXEMPT[name] === undefined && NOT_GATED[name] === undefined
+        })
+        return { routes, unreadable: null }
+      } catch (error) {
+        return { routes: [], unreadable: error }
+      }
+    })()
+
+    it('reads the whole route table before sweeping it', () => {
+      if (table.unreadable !== null) throw table.unreadable
+      expect(table.routes.length).toBeGreaterThan(0)
+    })
+
+    it.each(table.routes.map((route): [string, Route] => [nameOf(route), route]))(
+      'refuses %s with 403 auth.passwordChangeRequired while the flag is set',
+      async (_name, route) => {
+        const subject = buildGateHarness()
+        const { agent, csrf } = await flaggedCaller(subject)
+
+        const response = await send(agent, route, csrf)
+
+        expect(response.status).toBe(403)
+        expect(response.body.error.code).toBe(PASSWORD_CHANGE_REQUIRED_CODE)
+      },
+    )
+  })
+
+  describe('the three exemptions, proven reachable rather than merely not refused', () => {
+    it('still answers GET /api/auth/me, truthfully, while the flag is set', async () => {
+      const subject = buildGateHarness()
+      const { agent } = await flaggedCaller(subject)
+
+      const response = await agent.get('/api/auth/me')
+
+      expect(response.status).toBe(200)
+      expect(response.body).toMatchObject({
+        authenticated: true,
+        user: { mustChangePassword: true },
+      })
+    })
+
+    it('still answers POST /api/auth/password, the only door out', async () => {
+      const subject = buildGateHarness()
+      const { agent, csrf } = await flaggedCaller(subject)
+
+      const response = await agent
+        .post('/api/auth/password')
+        .set(CSRF_HEADER, csrf)
+        .send({ currentPassword: 'peu-importe-ici', newPassword: 'une-autre-phrase-suffisante' })
+
+      expect(response.status).toBe(204)
+    })
+
+    it('still answers POST /api/auth/logout, whatever state the account is in', async () => {
+      const subject = buildGateHarness()
+      const { agent, csrf } = await flaggedCaller(subject)
+
+      const response = await agent.post('/api/auth/logout').set(CSRF_HEADER, csrf).send({})
+
+      expect(response.status).toBe(204)
+    })
+  })
+
+  describe('routes mounted ahead of the whole session stack', () => {
+    it.each(Object.keys(NOT_GATED))(
+      'answers %s normally, since the flag never reaches it',
+      async (name) => {
+        const subject = buildGateHarness()
+        const { agent, csrf } = await flaggedCaller(subject)
+        const route = mountedRoutes(subject.app).find((candidate) => nameOf(candidate) === name)
+        if (route === undefined) throw new Error(`no route named "${name}" is mounted`)
+
+        const response = await send(agent, route, csrf)
+
+        expect(response.status).not.toBe(403)
+      },
+    )
+  })
+
+  describe('the source of the flag', () => {
+    it('blocks a session the moment storage says so, even though it was clean at login', async () => {
+      // The direct test of "read from storage, not the session": the cookie this agent
+      // holds was minted while the account had no flag at all, so a session-cached
+      // answer would still say so. The mutation this guards against is
+      // `requirePasswordCurrent` (or `attachUser`) going back to reading the session.
+      const subject = buildGateHarness()
+      const user = aUser({ id: FLAGGED, email: FLAGGED_EMAIL, mustChangePassword: false })
+      subject.users.seed(user)
+      const { agent, csrf } = await signedInAs(subject.app, FLAGGED_EMAIL)
+      await agent.get('/api/events').expect(200)
+
+      await subject.users.save(user.requirePasswordChange())
+
+      const response = await agent.post('/api/events').set(CSRF_HEADER, csrf).send({})
+
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe(PASSWORD_CHANGE_REQUIRED_CODE)
+    })
+
+    it('lets the same session back in once storage clears the flag, with no fresh login', async () => {
+      const subject = buildGateHarness()
+      const user = aUser({ id: FLAGGED, email: FLAGGED_EMAIL, mustChangePassword: true })
+      subject.users.seed(user)
+      const { agent } = await signedInAs(subject.app, FLAGGED_EMAIL)
+      await agent.get('/api/events').expect(403)
+
+      // Any hash other than the fixture's own default clears the flag (`User.
+      // withPasswordHash`) — standing in here for what `POST /api/auth/password` does
+      // through the use case, without driving a real bcrypt round trip.
+      const rotated = user.withPasswordHash('hash:une-autre-phrase-suffisante')
+      if (!rotated.ok) throw new Error('fixture: expected the rotated hash to differ')
+      await subject.users.save(rotated.value)
+
+      const response = await agent.get('/api/events')
+
+      expect(response.status).toBe(200)
+    })
   })
 })

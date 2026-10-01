@@ -7,7 +7,11 @@ import type { Logger } from '../../application/ports/logger'
 import type { EventBus } from '../../application/ports/eventBus'
 import type { EventRepository } from '../../application/ports/eventRepository'
 import type { GuestRepository } from '../../application/ports/guestRepository'
-import type { MembershipRepository, UserRepository } from '../../application/ports/userRepository'
+import type {
+  AuthState,
+  MembershipRepository,
+  UserRepository,
+} from '../../application/ports/userRepository'
 import type { GuestTokenService } from '../../application/ports/guestTokenService'
 
 /**
@@ -23,7 +27,6 @@ export interface UserPrincipal {
   readonly kind: 'user'
   readonly userId: UserId
   readonly email: string
-  readonly mustChangePassword: boolean
 }
 
 export interface GuestPrincipal {
@@ -40,6 +43,13 @@ export type Principal = UserPrincipal | GuestPrincipal
  * `event` and `role` are populated by `requireRole`/`requireGuest` after they have
  * looked the event up — so a handler never repeats the lookup, and never has to
  * remember to scope a query by an id it read from the path itself.
+ *
+ * `authState` is populated the first time anything asks `resolveAuthState` (in
+ * `middleware/authz.ts`) for the signed-in principal's credential state, and cached here
+ * for the rest of the request. That is what makes "one read per request" true across
+ * `requirePasswordCurrent`, `requireUser` and `GET /api/auth/me`, which would otherwise
+ * each ask `UserRepository.authStateFor` on their own: whichever of them runs first
+ * fills it, and the others reuse the answer rather than asking storage again.
  */
 export interface RequestContext {
   readonly requestId: string
@@ -48,6 +58,7 @@ export interface RequestContext {
   guest?: GuestPrincipal
   event?: Event
   role?: EventRole
+  authState?: AuthState
 }
 
 /** What the HTTP layer is given. Ports and use cases only — never an adapter. */
@@ -59,14 +70,15 @@ export interface HttpDeps {
   readonly guests: GuestRepository
   readonly memberships: MembershipRepository
   /**
-   * Two methods, deliberately: what the caller may do on the box, and whether the
-   * account behind the session may still act at all.
+   * Two methods, deliberately: what the caller may do on the box, and everything else
+   * authorization reads about the account behind the session — whether it may still act
+   * at all, and whether it must change its password before anything else.
    *
    * Neither has any business being able to read an account's hash, rename it or delete
    * it. `SqliteUserRepository` satisfies this structurally, so the composition root
    * passes the whole adapter and the HTTP layer still cannot reach the rest of it.
    */
-  readonly users: Pick<UserRepository, 'siteRoleFor' | 'isActive'>
+  readonly users: Pick<UserRepository, 'siteRoleFor' | 'authStateFor'>
   readonly guestTokens: GuestTokenService
   readonly config: HttpConfig
 }
@@ -159,11 +171,21 @@ declare global {
   }
 }
 
-/** The session payload. Kept minimal: a user id, and nothing worth stealing. */
+/**
+ * The session payload. Kept minimal: a user id, and nothing worth stealing.
+ *
+ * Deliberately **not** where `mustChangePassword` lives, even though the login response
+ * carries one and this is the obvious place to cache it. A value written here at login
+ * and never re-read from storage is exactly the staleness `requirePasswordCurrent`
+ * exists to close: the account that chooses a password from a borrowed laptop would stay
+ * gated everywhere else for as long as its other tab's cookie kept saying so, and an
+ * account somebody re-flagged after login would never be caught by a cookie minted
+ * before that happened. `middleware/authz.ts`'s `resolveAuthState` reads it fresh from
+ * `UserRepository.authStateFor` on every request instead (P3-03).
+ */
 export interface SessionPayload {
   userId?: string
   email?: string
-  mustChangePassword?: boolean
   /**
    * When this session was established, in epoch milliseconds, written once at login and
    * never refreshed.

@@ -94,14 +94,12 @@ const harness = ({
   const built = buildHarness({
     config,
     routes: (app, deps) => {
-      // Two sign-in routes so a test can establish a session without driving a real
-      // login: the routes under test then fail for one reason each. Outside `/api`, so
-      // they stay reachable when the gate below is mounted.
+      // One sign-in route, so a test can establish a session without driving a real
+      // login. Outside `/api`, so it stays reachable when the gate below is mounted.
+      // There used to be a second one that stamped `mustChangePassword` into the
+      // session; P3-03 moved the source of that flag to storage, so a test that needs an
+      // invited account seeds one into `subject.users` instead (`FakeUserRepository`).
       app.post('/test/sign-in', signInAs({ userId: HOST_ID, email: HOST_EMAIL }))
-      app.post(
-        '/test/sign-in/invited',
-        signInAs({ userId: HOST_ID, email: HOST_EMAIL, mustChangePassword: true }),
-      )
 
       if (csrf) {
         app.use(issueCsrfToken({ secureCookie: deps.config.secureCookie }))
@@ -492,14 +490,16 @@ describe('GET /api/auth/me', () => {
 describe('POST /api/auth/password', () => {
   const change = { currentPassword: PASSWORD, newPassword: NEW_PASSWORD }
 
-  it('clears the forced-change flag in the session on success', async () => {
+  it('clears the forced-change flag in storage on success, which the next request reads', async () => {
     // Otherwise the invited moderator's "choose a password" gate stays shut until a
-    // reload, on the one screen they cannot get past.
+    // reload, on the one screen they cannot get past. Nothing about the session carries
+    // the flag any more (P3-03): the account is seeded into storage already flagged, and
+    // what proves the clear worked is the next request re-reading it from there.
     const subject = harness()
     subject.users.seed(
       aUser({ id: HOST_ID, email: HOST_EMAIL, displayName: 'Camille', mustChangePassword: true }),
     )
-    const agent = await signedIn(subject, '/test/sign-in/invited')
+    const agent = await signedIn(subject)
 
     const response = await agent.post('/api/auth/password').send(change)
 
