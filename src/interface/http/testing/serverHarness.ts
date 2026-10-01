@@ -1,6 +1,7 @@
 import session from 'express-session'
 import type { Store } from 'express-session'
 import type { Express } from 'express'
+import type { DiskSpaceStatus } from '../../../domain/shared/diskSpaceGuard'
 import { buildServer } from '../server'
 import { buildTestWorld, type TestWorld } from './middlewareHarness'
 import type { HttpConfig } from '../types'
@@ -119,6 +120,7 @@ export interface MutableHealthChecks {
   mediaWritable: () => Promise<boolean>
   videoTranscoding: () => 'ok' | 'unavailable'
   isShuttingDown: () => boolean
+  diskSpace: () => Promise<DiskSpaceStatus>
 }
 
 export interface ServerHarnessOptions {
@@ -176,6 +178,7 @@ export const buildServerHarness = ({
     // A test flips this directly to drive `/api/ready`, exactly as `main/index.ts`
     // flips the real one from inside its SIGTERM handler.
     isShuttingDown: () => false,
+    diskSpace: async () => ({ sufficient: true, freeBytes: 10_000_000_000 }),
   }
 
   const app = buildServer({

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { clipRoutes, clipUploadTempDir, withGuestClip } from './clipRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
+import type { HttpConfig } from '../types'
 import { AT, aClipJob, aGuest, anEvent } from '../../../application/testing/builders'
 import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
@@ -79,6 +80,7 @@ interface SubjectOptions {
   readonly quotaBytes?: number
   /** Models a deployment with no ffmpeg on it, which the Null Object adapter is. */
   readonly transcoderUnavailable?: boolean
+  readonly config?: Partial<HttpConfig>
 }
 
 let tempRoot: string
@@ -98,6 +100,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
   const tempDir = clipUploadTempDir(tempRoot)
 
   const harness = buildHarness({
+    ...(options.config === undefined ? {} : { config: options.config }),
     routes: (app, deps) => {
       app.use(
         '/api',
@@ -181,6 +184,37 @@ describe('POST /api/events/:eventSlug/clips', () => {
       photoId: 'photo-1',
       failureCode: null,
     })
+  })
+
+  it('answers 413 storage.boxFull when the free-disk-space guard reports insufficient room (G3-06)', async () => {
+    const subject = buildSubject()
+    subject.harness.diskSpaceChecker.set('/media', 0)
+
+    const response = await request(subject.app)
+      .post(`${BASE}/clips`)
+      .set('Cookie', cookie(subject.token))
+      .attach('clip', aClipBody(), 'IMG_4021.MOV')
+
+    expect(response.status).toBe(413)
+    expect(response.body.error.code).toBe('storage.boxFull')
+    expect(subject.clips.all).toHaveLength(0)
+  })
+
+  it('answers 429 upload.busy once the shared upload concurrency cap is reached (G3-06)', async () => {
+    // Sharing the *instance* with the photo route is proven at `server.ts` wiring
+    // level; what is under test here is only that this route is behind the cap at all.
+    const subject = buildSubject({
+      config: { uploads: { maxBytes: 25_000_000, maxFiles: 20, maxConcurrentRequests: 0 } },
+    })
+
+    const response = await request(subject.app)
+      .post(`${BASE}/clips`)
+      .set('Cookie', cookie(subject.token))
+      .attach('clip', aClipBody(), 'IMG_4021.MOV')
+
+    expect(response.status).toBe(429)
+    expect(response.body.error.code).toBe('upload.busy')
+    expect(response.headers['retry-after']).toBe('2')
   })
 
   it('creates no photo row, which is the whole point of the queue', async () => {

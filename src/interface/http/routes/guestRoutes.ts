@@ -7,7 +7,12 @@ import { DomainError } from '../../../domain/shared/errors'
 import { asMissionId, asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { GUEST_COOKIE, requireGuest } from '../middleware/authz'
-import { reactionLimiter, uploadLimiter } from '../middleware/rateLimit'
+import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
+import {
+  reactionLimiter,
+  uploadConcurrencyLimiter,
+  uploadLimiter,
+} from '../middleware/rateLimit'
 import {
   toGuestMissionDto,
   toGuestPhotoDto,
@@ -88,6 +93,22 @@ export interface GuestRouteDeps {
    * Optional only so a test can mount this router alone; production passes it.
    */
   readonly uploadRateLimiter?: RequestHandler
+  /**
+   * The upload concurrency semaphore (G3-06 / P4-10), **shared with the clip route**
+   * for the same reason `uploadRateLimiter` is: a guest sending a photo and a clip at
+   * once is one guest, and a slot held by each independently would double the real
+   * ceiling `MAX_CONCURRENT_UPLOAD_REQUESTS` names.
+   *
+   * Optional only so a test can mount this router alone; production passes it.
+   */
+  readonly uploadConcurrencyLimiter?: RequestHandler
+  /**
+   * The free-disk-space guard (G3-06 / P4-10). Built from `deps` when absent — unlike
+   * the two limiters above, nothing here is mutable shared state, so there is no
+   * correctness reason the clip route must reuse this exact instance, only the same
+   * configuration both already read from `deps`.
+   */
+  readonly diskSpaceGuard?: RequestHandler
 }
 
 /** The multipart field name. Anything else is `LIMIT_UNEXPECTED_FILE` from multer. */
@@ -276,6 +297,14 @@ export const guestRoutes = ({
   usecases,
   maxUploadBytesPerRequest = MAX_UPLOAD_BYTES_PER_REQUEST,
   uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerMinute),
+  uploadConcurrencyLimiter: concurrencyLimiter = uploadConcurrencyLimiter(
+    deps.config.uploads.maxConcurrentRequests,
+  ),
+  diskSpaceGuard = createDiskSpaceGuard({
+    checker: deps.diskSpaceChecker,
+    paths: deps.config.storage.diskSpacePaths,
+    minFreeBytes: deps.config.storage.minFreeDiskBytes,
+  }),
 }: GuestRouteDeps): Router => {
   const router = Router()
 
@@ -319,7 +348,11 @@ export const guestRoutes = ({
    * The upload. The only public write in the product.
    *
    * The rate limiter runs before authorization on purpose: a flood must be dropped
-   * before it costs a token verification and two repository reads.
+   * before it costs a token verification and two repository reads. The concurrency
+   * semaphore and the disk-space guard (G3-06 / P4-10) run next, ahead of `requireGuest`
+   * and the multipart parser, for the same reason and cheapest-first: a box at its
+   * upload concurrency ceiling or nearly out of room refuses before it spends a token
+   * verification, two repository reads, or a single byte of buffering.
    *
    * **201 with a per-file outcome array**, never one opaque error for the batch. A guest
    * who selected five photos and one screenshot of a PDF is told which one was refused
@@ -329,6 +362,8 @@ export const guestRoutes = ({
   router.post(
     '/events/:eventSlug/photos',
     uploadRateLimiter,
+    concurrencyLimiter,
+    diskSpaceGuard,
     requireGuest(deps),
     uploads.array(PHOTOS_FIELD),
     withGuest(async ({ event, guest }, req, res) => {

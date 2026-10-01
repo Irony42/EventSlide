@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser'
 import express, { type Express, type RequestHandler } from 'express'
 import session from 'express-session'
 import { FakeClock } from '../../../application/testing/fakeClock'
+import { FakeDiskSpaceChecker } from '../../../application/testing/fakeDiskSpaceChecker'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../../application/testing/fakeMembershipRepository'
@@ -45,7 +46,12 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   // product a solo install runs. A test about the operator's namespace passes
   // `{ siteAdmin: true }` through `config`, the same way it would any other setting.
   siteAdmin: false,
-  uploads: { maxBytes: 25_000_000, maxFiles: 20 },
+  // Generous and unreachable by an ordinary test, the same posture `testHttpConfig`
+  // already takes for every other limit: a test about the disk guard or the
+  // concurrency semaphore (G3-06 / P4-10) overrides this; one that is not must not
+  // have to think about it.
+  storage: { minFreeDiskBytes: 1_000_000, diskSpacePaths: ['/data', '/media'] },
+  uploads: { maxBytes: 25_000_000, maxFiles: 20, maxConcurrentRequests: 1_000 },
   // A clip carries its own limit and its own temp directory. The photo path's ceiling
   // feeds a per-request heap calculation the deployment's memory limit was reasoned
   // against, so the two deliberately do not share one number.
@@ -91,6 +97,8 @@ export interface TestWorld {
   readonly users: FakeUserRepository
   readonly bus: RecordingEventBus
   readonly clock: FakeClock
+  /** The free-disk-space guard's probe (G3-06 / P4-10), generous until a test says otherwise. */
+  readonly diskSpaceChecker: FakeDiskSpaceChecker
   /** Issues a real, correctly signed guest token for the given event and guest. */
   issueGuestToken(eventId: string, guestId: string): string
 }
@@ -120,6 +128,7 @@ export const buildTestWorld = (
   // real logger actually writes.
   const logger = options.logger ?? silentLogger()
   const guestTokens = createHmacGuestTokenService({ secret: TEST_GUEST_SECRET })
+  const diskSpaceChecker = new FakeDiskSpaceChecker()
 
   const deps: HttpDeps = {
     clock,
@@ -130,6 +139,7 @@ export const buildTestWorld = (
     memberships,
     users,
     guestTokens,
+    diskSpaceChecker,
     config: testHttpConfig(config),
   }
 
@@ -137,6 +147,7 @@ export const buildTestWorld = (
     deps,
     events,
     guests,
+    diskSpaceChecker,
     memberships,
     users,
     bus,

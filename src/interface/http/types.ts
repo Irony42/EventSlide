@@ -14,6 +14,7 @@ import type {
 } from '../../application/ports/userRepository'
 import type { GuestTokenService } from '../../application/ports/guestTokenService'
 import type { AccessLogOptions } from './middleware/accessLog'
+import type { DiskSpaceChecker } from '../../application/ports/diskSpace'
 
 /**
  * The two principals, and nothing in between.
@@ -81,6 +82,12 @@ export interface HttpDeps {
    */
   readonly users: Pick<UserRepository, 'siteRoleFor' | 'authStateFor'>
   readonly guestTokens: GuestTokenService
+  /**
+   * The free-disk-space guard's probe (G3-06 / P4-10). A port, not an adapter, for the
+   * usual reason: `src/interface/http` may not import `node:fs`, and a test must be
+   * able to stand in a nearly full disk without filling a real one.
+   */
+  readonly diskSpaceChecker: DiskSpaceChecker
   readonly config: HttpConfig
 }
 
@@ -104,9 +111,22 @@ export interface HttpConfig {
    * nothing to anybody who is not the operator. It decides how much surface exists.
    */
   readonly siteAdmin: boolean
+  /**
+   * What the free-disk-space guard checks (G3-06 / P4-10) — deliberately not "the
+   * database path" by name, so a route cannot quietly start depending on where the
+   * database lives. `src/main/container.ts` resolves the actual directories; this layer
+   * only sees opaque paths to hand the guard, the same arrangement `clips.uploadTempDir`
+   * already uses for a path this layer needs but should not derive itself.
+   */
+  readonly storage: {
+    readonly minFreeDiskBytes: number
+    readonly diskSpacePaths: readonly string[]
+  }
   readonly uploads: {
     readonly maxBytes: number
     readonly maxFiles: number
+    /** See `AppConfig.uploads.maxConcurrentRequests` in `env.ts` (G3-06 / P4-10). */
+    readonly maxConcurrentRequests: number
   }
   /**
    * The clip half, deliberately separate from `uploads`.
