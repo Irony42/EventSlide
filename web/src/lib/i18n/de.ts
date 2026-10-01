@@ -404,6 +404,10 @@ export const de: UiText = {
     'gallery.tooManyAttempts': 'Zu viele Versuche. Versuchen Sie es in einer Viertelstunde erneut.',
     'gallery.cursorInvalid': 'Die Liste der Fotos hat sich geändert. Laden Sie die Seite neu.',
     'shareLink.lifetimeInvalid': 'Wählen Sie eine Dauer zwischen 1 und 90 Tagen.',
+
+    'upload.busy': 'Es laufen gerade viele Uploads. Versuchen Sie es gleich noch einmal.',
+    'storage.boxFull':
+      'Es ist kein Speicherplatz mehr frei, um diese Datei zu speichern. Sagen Sie dem Veranstalter Bescheid.',
   },
 
   moderation: {

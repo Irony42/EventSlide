@@ -373,6 +373,9 @@ export const en: UiText = {
     'gallery.tooManyAttempts': 'Too many attempts. Try again in a quarter of an hour.',
     'gallery.cursorInvalid': 'The list of photos has changed. Reload the page.',
     'shareLink.lifetimeInvalid': 'Choose a length between 1 and 90 days.',
+
+    'upload.busy': 'A lot of uploads are in progress. Try again in a moment.',
+    'storage.boxFull': 'There is no room left to save this file. Let the organiser know.',
   },
 
   moderation: {

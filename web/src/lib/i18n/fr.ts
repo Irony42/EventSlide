@@ -1275,6 +1275,16 @@ export const fr = {
     'gallery.tooManyAttempts': 'Trop de tentatives. Réessayez dans un quart d’heure.',
     'gallery.cursorInvalid': 'La liste des photos a changé. Rechargez la page.',
     'shareLink.lifetimeInvalid': 'Choisissez une durée entre 1 et 90 jours.',
+
+    /* ---- Added by the upload concurrency cap and the free-disk-space guard
+            (G3-06 / P4-10). `upload.busy` clears in seconds — the client may retry at
+            once — and must not read like `event.quotaExceeded`: the gallery is not
+            full, the box is briefly busy. `storage.boxFull` is not the guest's fault
+            and names no fix a guest could apply, unlike every other upload refusal
+            above. ---- */
+    'upload.busy': 'Beaucoup d’envois sont en cours. Réessayez dans un instant.',
+    'storage.boxFull':
+      'Il n’y a plus assez de place pour enregistrer ce fichier. Prévenez l’organisateur.',
   },
 
   /**

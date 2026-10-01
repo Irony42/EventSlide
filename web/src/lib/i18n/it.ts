@@ -389,6 +389,9 @@ export const it: UiText = {
     'gallery.tooManyAttempts': 'Troppi tentativi. Riprovi tra un quarto d’ora.',
     'gallery.cursorInvalid': 'L’elenco delle foto è cambiato. Ricarichi la pagina.',
     'shareLink.lifetimeInvalid': 'Scelga una durata tra 1 e 90 giorni.',
+
+    'upload.busy': 'Sono in corso molti invii. Riprovi tra un momento.',
+    'storage.boxFull': 'Non c’è più spazio per salvare questo file. Avvisi l’organizzatore.',
   },
 
   moderation: {

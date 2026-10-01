@@ -383,6 +383,10 @@ export const es: UiText = {
       'Demasiados intentos. Vuelva a intentarlo dentro de un cuarto de hora.',
     'gallery.cursorInvalid': 'La lista de fotos ha cambiado. Vuelva a cargar la página.',
     'shareLink.lifetimeInvalid': 'Elija una duración de entre 1 y 90 días.',
+
+    'upload.busy': 'Se están realizando muchos envíos. Inténtelo de nuevo en un momento.',
+    'storage.boxFull':
+      'No queda espacio para guardar este archivo. Avise al organizador.',
   },
 
   moderation: {
