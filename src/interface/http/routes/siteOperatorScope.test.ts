@@ -565,13 +565,15 @@ describe('the stack walk', () => {
   ])(
     'reads a handler that is merely called router as the middleware it is, %s',
     (_where, mount) => {
-      // The guard on `isRouter` asking for a stack as well as the name. A layer is named after
-      // its function, so a plain handler written `const router = …` is called `router` too;
-      // read by its name alone it was walked as a router with nothing in it, and whatever it
-      // answered was passed over in silence.
-      const router: express.RequestHandler = (_req, res) => {
+      // The guard on `isRouter` asking for Express's own `Router` prototype. A layer is named
+      // after its function, so a plain handler written `const router = …` is called `router`
+      // too; read by its name it was walked as a router with nothing in it, and whatever it
+      // answered was passed over in silence. The `stack` it carries is the other shortcut a
+      // walk could take, and anything can carry one.
+      const router: express.RequestHandler & { stack?: unknown[] } = (_req, res) => {
         res.end()
       }
+      router.stack = []
       const app = express()
       mount(app, router)
 
@@ -579,7 +581,7 @@ describe('the stack walk', () => {
     },
   )
 
-  it('lets the gallery’s headers through at their paths, the one middleware named with a reason', () => {
+  it('lets the gallery’s headers through at their paths, the one middleware named inside a router', () => {
     // The guard on the allow-list, and on its being keyed by identity: `galleryRoutes`
     // mounts `galleryHeaders` at two paths, and a walk that refused it would refuse the
     // real server in both modes.
@@ -606,6 +608,24 @@ describe('the stack walk', () => {
 
     expect(mountedRoutes(app)).toEqual([])
   })
+
+  it.each([
+    ['requireCsrfToken', requireCsrfToken],
+    ['apiNotFound', apiNotFound],
+  ])(
+    'refuses %s at a path inside a router, where only the app’s list would excuse it',
+    (name, middleware) => {
+      // The guard on the two lists staying apart. Each says where its entries may stand, and
+      // a walk that read them as one would excuse inside every router what was argued only
+      // for the app.
+      const app = express()
+      const api = express.Router()
+      api.use('/site', middleware)
+      app.use('/api', api)
+
+      expect(() => mountedRoutes(app)).toThrow(`refuses to guess what the middleware "${name}"`)
+    },
+  )
 
   it('refuses a stranger that only shares the name of a middleware it lets through', () => {
     // The guard on the app's list being keyed by identity. A layer carries its function's

@@ -160,10 +160,11 @@ export const buildServer = ({
   // `:parameters` (`/(site)/x`, `/sit?e/x`, `/s{1}ite/x`), a middleware mounted at a path —
   // on this app or inside a router — that is not named with its reason, or a sub-app makes
   // it fail loudly, because each can answer `/api//site/x` or `/api/site/x` without a route
-  // spelling `/site` where a walk could read it.
+  // spelling `/site` where a walk could read it. A middleware at the root of a router is the
+  // one shape it lets through, and a known gap: docs/SECURITY.md says why.
   // (Collapsing `//` app-wide would close the request side as well. It is deliberately not
-  // done: while that walk holds, the double slash reaches no route in this namespace, only
-  // `apiNotFound`.)
+  // done: while that walk holds, the double slash reaches no route in this namespace — only
+  // `apiNotFound`, or a middleware at the root of a router.)
   if (config.siteAdmin) {
     app.use('/api/site', siteRoutes(routeDeps))
   }
@@ -229,9 +230,9 @@ export const buildServer = ({
 }
 
 /**
- * Exported for one reader: the route-table walk in `testing/routeTable.ts`, which refuses a
- * middleware mounted at a path on the app unless it is named, by identity, with the reason
- * it may run there.
+ * Exported for the route-table walk in `testing/routeTable.ts`, which refuses a middleware
+ * mounted at a path on the app unless it is named, by identity, with the reason it may run
+ * there — and for the stack-walk cases in `siteOperatorScope.test.ts` that hold it to that.
  */
 export const apiNotFound: RequestHandler = (_req, res) => {
   res.status(404).json({

@@ -1,4 +1,4 @@
-import type { Express } from 'express'
+import { Router, type Express } from 'express'
 import { requireCsrfToken } from '../middleware/csrf'
 import { galleryHeaders } from '../routes/galleryRoutes'
 import { apiNotFound } from '../server'
@@ -115,9 +115,15 @@ const mountedAtRoot = (layer: Record<string, unknown>): boolean => {
  * for every request under that path, and nothing on its layer says whether it sets a header
  * and calls `next()` or answers the request outright: `router.use('/site/leak', h)` on a
  * router mounted at `/api` answers `GET /api//site/leak` with no route anywhere. So the walk
- * throws on one unless it is named here. A middleware at the **root** of a router —
- * `router.use(fn)`, which is how `siteRoutes` mounts `requireOperator` — is not what this
- * list is about: it has no path of its own to reach a namespace by.
+ * throws on one unless it is named here.
+ *
+ * A middleware at the **root** of a router — `router.use(fn)`, which is how `siteRoutes`
+ * mounts `requireOperator` — is not refused, and that is a known gap rather than a reason: it
+ * runs for everything under the router's mount point, so
+ * `app.use('/api/site/leak', Router().use(h))` answers exactly as the bare handler would. The
+ * walk cannot tell a gate from a leak there, because `requireOperator(deps)` is built per
+ * server and has no identity to name it by, so closing it is a decision of its own rather
+ * than a line in this list.
  */
 const PATH_MOUNTED_MIDDLEWARE: ReadonlyMap<unknown, string> = new Map<unknown, string>([
   [
@@ -136,14 +142,15 @@ const PATH_MOUNTED_MIDDLEWARE: ReadonlyMap<unknown, string> = new Map<unknown, s
  * own stack to `server.ts` on the grounds that everything there was plumbing, so
  * `app.use('/api/site/leak', h)` answered `GET /api/site/leak` with `SITE_ADMIN=off` — no
  * gate, and no route anywhere for a sweep to read — while every sweep built on this walk
- * stayed green. A list of its own rather than more entries in that one, so that each says
- * where its entries stand: an entry here excuses nothing inside a router, and the reverse.
+ * stayed green. A list of its own rather than more entries in that one, so that an entry
+ * here excuses nothing inside a router: `galleryHeaders` is on both because both mount it.
  *
  * Not on it, and not needing to be: a **router** mounted on the app at a path, which the walk
  * goes into, so that everything inside answers to the rules above — `healthRoutes` at
  * `/api`, `siteRoutes` at `/api/site`, every API router at `/api` — and middleware at the
- * app's **root**, for the reason {@link mountedAtRoot} gives: the security headers, the body
- * parser, the session, the error handler.
+ * app's **root** — the security headers, the body parser, the session, the error handler —
+ * which has no mount path to reach a namespace by. One there that reads `req.path` to decide
+ * what to answer is beyond what any walk of the layers can see.
  */
 const APP_PATH_MOUNTED_MIDDLEWARE: ReadonlyMap<unknown, string> = new Map<unknown, string>([
   [
@@ -168,17 +175,19 @@ const APP_PATH_MOUNTED_MIDDLEWARE: ReadonlyMap<unknown, string> = new Map<unknow
 ])
 
 /**
- * Whether a layer is a router this walk can go into: Express's own `router` function,
- * carrying the stack it dispatches to.
+ * Whether a layer is a router this walk can go into: a function whose prototype is Express's
+ * own `Router`, which is what `Router()` returns.
  *
- * Both halves, because the name alone is only a function's name. A plain handler written
- * `const router = (req, res) => …` is called `router` too and carries no stack, and read as
- * a router it was walked as an empty one: passed over in silence, wherever it was mounted
- * and whatever it answered. Without a stack it is the middleware it is, and meets the lists
- * above.
+ * Not its name, which is only a function's name: a plain handler written
+ * `const router = (req, res) => …` is called `router` too, and read as a router by its name
+ * it was walked as an empty one — passed over in silence, wherever it was mounted and
+ * whatever it answered. Nor a `stack` property, which anything can carry. Anything else is
+ * the middleware it is, and meets the lists above.
  */
-const isRouter = (layer: Record<string, unknown>): boolean =>
-  layer['name'] === 'router' && Array.isArray(propertiesOf(layer['handle'])?.['stack'])
+const isRouter = (layer: Record<string, unknown>): boolean => {
+  const handle = layer['handle']
+  return typeof handle === 'function' && Object.getPrototypeOf(handle) === Router
+}
 
 /**
  * Whether a layer is another Express **application** rather than a router.
@@ -265,11 +274,12 @@ export const mountedRoutes = (app: Express): readonly Route[] => {
         continue
       }
 
-      // Anything else is middleware. At the root of the app or of a router it is plumbing or
-      // a gate, with no path of its own to reach a namespace by. Mounted at a path, it is a
-      // handler that can answer every request under that path without any route this walk
-      // would see — on the app's own stack exactly as inside a router. So it is refused
-      // unless the list for where it stands names it.
+      // Anything else is middleware. At the root of the app it is plumbing, with no mount
+      // path to reach a namespace by; at the root of a router it is passed over too, which is
+      // the gap `PATH_MOUNTED_MIDDLEWARE` states. Mounted at a path, it is a handler that can
+      // answer every request under that path without any route this walk would see — on the
+      // app's own stack exactly as inside a router. So it is refused unless the list for
+      // where it stands names it.
       if (mountedAtRoot(properties)) continue
       const onTheApp = mount === undefined
       const named = onTheApp ? APP_PATH_MOUNTED_MIDDLEWARE : PATH_MOUNTED_MIDDLEWARE
@@ -306,7 +316,7 @@ export const routersMeeting = (app: Express, path: string): RegExp[] => {
   const found: RegExp[] = []
   for (const layer of layers.slice(gate + 1)) {
     const regexp = layer['regexp']
-    if (layer['name'] === 'router' && regexp instanceof RegExp && regexp.test(path)) {
+    if (isRouter(layer) && regexp instanceof RegExp && regexp.test(path)) {
       found.push(regexp)
     }
   }
