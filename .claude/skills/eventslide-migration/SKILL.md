@@ -38,8 +38,7 @@ import type { Migration } from '../migrator'
 export const migration002: Migration = {
   id: 2,
   name: 'photo_perceptual_hash',
-  up: (db) => {
-    db.exec(`
+  sql: `
       ALTER TABLE photos ADD COLUMN perceptual_hash TEXT;
 
       -- Partial index: near-duplicate detection only ever queries hashed rows,
@@ -47,14 +46,19 @@ export const migration002: Migration = {
       CREATE INDEX IF NOT EXISTS idx_photos_phash
         ON photos (event_id, perceptual_hash)
         WHERE perceptual_hash IS NOT NULL;
-    `)
-  },
+  `,
 }
 ```
 
-- `id` is the next integer. No gaps, no reuse.
+- `id` is the next integer. No gaps, no reuse — see "Assigning the id" below, because
+  on a branch this is rarely as simple as "the next one".
 - `name` is `snake_case` and describes the change.
-- The migrator wraps `up` in a transaction and applies migrations in `id` order.
+- `sql` is a plain string, not a `(db) => void`. The ledger's checksum is taken over
+  the SQL text itself (`checksumOf` in `migrator.ts`): hashing a function would hash
+  `Function.prototype.toString()`, which differs between the TypeScript source and the
+  JavaScript `tsc` emits even when the SQL inside is identical.
+- The migrator runs each migration's `sql` inside one transaction and applies
+  migrations in `id` order.
 - Every migration is **idempotent-safe** to re-run against a fresh DB
   (`IF NOT EXISTS`), so tests and first boot behave identically.
 - Register it in `migrations/index.ts`. The explicit array is the ordering contract.
@@ -62,6 +66,32 @@ export const migration002: Migration = {
 There is **no `down`**. Rollback of a schema change on a live album is a data-loss
 operation dressed up as a safety feature; a forward fix migration is honest. Restore
 from backup if you truly need to go back.
+
+## Assigning the id
+
+The id is not simply "the next integer in your branch" — several branches routinely
+add "the next migration" at once, each one correct against whatever `main` looked like
+when it was cut. Renumbering after the fact is how that gets resolved without a gap or
+a collision reaching `main`:
+
+- **The number is a placeholder until the final rebase.** Branch your migration under
+  the next id you can see on `main` today. If another pull request takes that number
+  first, rebase onto the new `main` and renumber yours — the file name, the `id` field,
+  and the entry in `migrations/index.ts` — to the new next integer, immediately before
+  merging. **Whichever pull request merges last is the one that renumbers.**
+- **Never renumber a migration that has already merged to `main`.** That is "The one
+  rule" above under a different name: once it is on `main`, it is permanent, and a
+  renumber is indistinguishable from an edit to a database that already applied it.
+- **Order respects foreign-key parentage.** A migration whose SQL `REFERENCES` a table
+  must carry an id greater than or equal to the id of the migration that creates that
+  table (equal when one migration both creates the parent and references it in the same
+  file). `connection.ts` turns `PRAGMA foreign_keys` on per connection, so a parent
+  table that does not exist yet does not fail at `CREATE TABLE` time — it fails the
+  first time a write touches it, which is a worse place to discover a bad rebase.
+- **`scripts/migrationIds.test.ts` is the mechanical check**, run by `npm run verify`:
+  it fails if two migrations share an id, if the ids are not contiguous from 1, or if a
+  migration references a table before the migration that creates it. See
+  `CONTRIBUTING.md` for the contributor-facing version of this section.
 
 ## SQLite specifics that will bite you
 
