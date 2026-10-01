@@ -6,11 +6,11 @@ client consumes; when they disagree, this file is right and one of them is a bug
 Maintained by hand. An undocumented endpoint is an incomplete one — see
 `.claude/skills/eventslide-http-endpoint/SKILL.md`.
 
-> **Status.** Every route below is implemented on branch `deuxpointzero`; nothing is
-> marked **(planned)** any more. Last audited end to end against
-> `src/interface/http/routes/*.ts`, `schemas/requestSchemas.ts` and `presenters/dto.ts`.
-> Where this document and the code still disagree, §9 says so by name rather than
-> leaving the reader to find out from a 400.
+> **Status.** Every route below is implemented, merged to `main` (the `deuxpointzero`
+> branch it shipped on is gone from `origin`); nothing is marked **(planned)** any more.
+> Last audited end to end against `src/interface/http/routes/*.ts`,
+> `schemas/requestSchemas.ts` and `presenters/dto.ts`. Where this document and the code
+> still disagree, §9 says so by name rather than leaving the reader to find out from a 400.
 
 ---
 
