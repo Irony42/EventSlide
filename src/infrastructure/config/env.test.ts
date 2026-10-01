@@ -92,6 +92,7 @@ describe('loadConfig', () => {
           databasePath: './data/eventslide.sqlite',
           mediaRoot: './media',
           backupDir: './backups',
+          minFreeDiskBytes: 1_000_000_000,
         },
         uploads: {
           maxBytes: 25_000_000,
@@ -99,6 +100,7 @@ describe('loadConfig', () => {
           maxPixels: 50_000_000,
           defaultEventQuotaBytes: 5_000_000_000,
           maxEventQuotaBytes: null,
+          maxConcurrentRequests: 4,
         },
         clips: {
           maxBytes: 80_000_000,
@@ -263,6 +265,8 @@ describe('loadConfig', () => {
         MAX_FILES_PER_UPLOAD: '7',
         MAX_IMAGE_PIXELS: '2222',
         DEFAULT_EVENT_QUOTA_BYTES: '3333',
+        MAX_CONCURRENT_UPLOAD_REQUESTS: '8',
+        MIN_FREE_DISK_BYTES: '4444',
         GUEST_SELF_DELETE_GRACE_SECONDS: '61',
         UPLOAD_RATE_LIMIT_PER_MINUTE: '101',
         JOIN_RATE_LIMIT_PER_MINUTE: '102',
@@ -287,7 +291,9 @@ describe('loadConfig', () => {
           maxFiles: 7,
           maxPixels: 2222,
           defaultEventQuotaBytes: 3333,
+          maxConcurrentRequests: 8,
         },
+        storage: { minFreeDiskBytes: 4444 },
         guests: { selfDeleteGraceMs: 61_000 },
         rateLimits: {
           uploadPerMinute: 101,
@@ -622,6 +628,7 @@ describe('loadConfig', () => {
       ['JOIN_RATE_LIMIT_PER_MINUTE', '601'],
       ['LOGIN_RATE_LIMIT_PER_MINUTE', '601'],
       ['REACTION_RATE_LIMIT_PER_MINUTE', '601'],
+      ['MAX_CONCURRENT_UPLOAD_REQUESTS', '1001'],
     ])('refuses %s=%s for exceeding its ceiling', (name, value) => {
       const issues = refusalIssues({ [name]: value })
 
@@ -645,6 +652,8 @@ describe('loadConfig', () => {
       'MAX_IMAGE_PIXELS',
       'DEFAULT_EVENT_QUOTA_BYTES',
       'MAX_FILES_PER_UPLOAD',
+      'MAX_CONCURRENT_UPLOAD_REQUESTS',
+      'MIN_FREE_DISK_BYTES',
     ])('refuses %s=0, because a zero limit would refuse every upload silently', (name) => {
       const issues = refusalIssues({ [name]: '0' })
 
