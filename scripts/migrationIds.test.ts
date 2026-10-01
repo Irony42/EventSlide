@@ -79,9 +79,7 @@ describe('migration id assignment (scripts/migrationIds.test.ts)', () => {
 
     expect(
       collisions,
-      collisions
-        .map(([id, names]) => `id ${id} is shared by ${names.join(', ')}`)
-        .join('; '),
+      collisions.map(([id, names]) => `id ${id} is shared by ${names.join(', ')}`).join('; '),
     ).toEqual([])
   })
 
@@ -89,9 +87,7 @@ describe('migration id assignment (scripts/migrationIds.test.ts)', () => {
     const ids = migrations.map((migration) => migration.id).sort((a, b) => a - b)
     const expected = ids.map((_, index) => index + 1)
 
-    expect(ids, `ids were [${ids.join(', ')}], expected [${expected.join(', ')}]`).toEqual(
-      expected,
-    )
+    expect(ids, `ids were [${ids.join(', ')}], expected [${expected.join(', ')}]`).toEqual(expected)
   })
 
   it('orders every migration no earlier than the tables its SQL references', () => {
