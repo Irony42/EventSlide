@@ -360,6 +360,20 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       PATHEXT: z.string().default(''),
 
       /**
+       * The Windows-only quarter of the whitelist a spawned ffmpeg or ffprobe child is
+       * given (menace T9, `docs/SECURITY.md` §4.1) — read here for the same reason as
+       * `PATH` and `PATHEXT` just above: this is the one module allowed to touch
+       * `process.env`, so the policy of which names survive into the child's own
+       * environment is decided in `minimalChildEnv` (`infrastructure/media/runProcess.ts`)
+       * from values carried as plain configuration, never read there directly. Blank by
+       * default off Windows, where `minimalChildEnv` ignores all four regardless.
+       */
+      SYSTEMROOT: z.string().default(''),
+      WINDIR: z.string().default(''),
+      TEMP: z.string().default(''),
+      TMP: z.string().default(''),
+
+      /**
        * Left optional so the default can depend on NODE_ENV, below: a background sweep
        * firing inside the end-to-end suite would delete a fixture's event mid-journey.
        */
@@ -543,6 +557,19 @@ export interface AppConfig {
       readonly path: string
       readonly extensions: string
     }
+    /**
+     * The raw material for `minimalChildEnv` — `PATH` plus the four Windows-only
+     * variables, as values. `src/main/container.ts` is where the whitelist itself gets
+     * built; see the schema entries for why this module only carries the inputs.
+     */
+    readonly childEnvSource: {
+      readonly path: string
+      readonly pathExt: string
+      readonly systemRoot: string
+      readonly winDir: string
+      readonly temp: string
+      readonly tmp: string
+    }
   }
 
   readonly guests: {
@@ -702,6 +729,14 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       ffmpegPath: raw.FFMPEG_PATH ?? null,
       ffprobePath: raw.FFPROBE_PATH ?? null,
       executableSearch: { path: raw.PATH, extensions: raw.PATHEXT },
+      childEnvSource: {
+        path: raw.PATH,
+        pathExt: raw.PATHEXT,
+        systemRoot: raw.SYSTEMROOT,
+        winDir: raw.WINDIR,
+        temp: raw.TEMP,
+        tmp: raw.TMP,
+      },
     },
 
     guests: {

@@ -14,7 +14,7 @@ import {
   probeSchema,
   type FfmpegVideoTranscoder,
 } from './ffmpegVideoTranscoder'
-import { runProcess } from './runProcess'
+import { minimalChildEnv, runProcess } from './runProcess'
 
 /**
  * Ring 3: the real encoder, real files, real subprocesses.
@@ -39,6 +39,16 @@ const MACHINE_PATHEXT = process.env['PATHEXT'] ?? ''
 
 const SEARCH = { path: MACHINE_PATH, extensions: MACHINE_PATHEXT }
 
+/** What every spawned ffmpeg or ffprobe child is given as its whole environment. */
+const MACHINE_ENV = minimalChildEnv({
+  path: MACHINE_PATH,
+  pathExt: MACHINE_PATHEXT,
+  systemRoot: process.env['SYSTEMROOT'] ?? '',
+  winDir: process.env['WINDIR'] ?? '',
+  temp: process.env['TEMP'] ?? '',
+  tmp: process.env['TMP'] ?? '',
+})
+
 interface Harness {
   readonly paths: FfmpegPaths
   readonly scratch: string
@@ -50,7 +60,7 @@ let harness: Harness
 
 /** Fails loudly rather than skipping: a suite that quietly tests nothing is worse. */
 const requireFfmpeg = async (): Promise<FfmpegPaths> => {
-  const capability = await probeFfmpegCapability({ search: SEARCH })
+  const capability = await probeFfmpegCapability({ search: SEARCH, env: MACHINE_ENV })
   if (!capability.available) {
     throw new Error(
       `this ring-3 suite needs a working ffmpeg: ${capability.reason}. ` +
@@ -71,6 +81,7 @@ const generate = async (
   const result = await runProcess({
     binary: paths.ffmpeg,
     args: ['-nostdin', '-hide_banner', '-loglevel', 'error', '-y', ...args, file],
+    env: MACHINE_ENV,
     timeoutMs: 60_000,
     stallMs: 30_000,
   })
@@ -139,6 +150,7 @@ const streamFacts = async (
       '-show_streams',
       `file:${file}`,
     ],
+    env: MACHINE_ENV,
     timeoutMs: 30_000,
     stallMs: 30_000,
   })
@@ -211,7 +223,7 @@ beforeAll(async () => {
   harness = {
     paths,
     scratch,
-    transcoder: createFfmpegVideoTranscoder({ paths, scratchRoot: join(scratch, 'work') }),
+    transcoder: createFfmpegVideoTranscoder({ paths, scratchRoot: join(scratch, 'work'), env: MACHINE_ENV }),
     fixtures: { ...fixtures, corrupt: truncated },
   }
 }, 180_000)
@@ -297,7 +309,7 @@ describe('ffmpegVideoTranscoder against real ffmpeg', () => {
     // The thing 1.0 leaked. The scratch root is under MEDIA_ROOT rather than os.tmpdir()
     // because the container is read-only with a tmpfs charged to the memory cgroup.
     const scratchRoot = join(harness.scratch, 'leak-check')
-    const transcoder = createFfmpegVideoTranscoder({ paths: harness.paths, scratchRoot })
+    const transcoder = createFfmpegVideoTranscoder({ paths: harness.paths, scratchRoot, env: MACHINE_ENV })
 
     await transcoder.transcode(harness.fixtures.landscape, CONTRACT_SPEC)
     await transcoder.transcode(harness.fixtures.corrupt, CONTRACT_SPEC)
@@ -324,6 +336,7 @@ describe('ffmpegVideoTranscoder against real ffmpeg', () => {
     const transcoder = createFfmpegVideoTranscoder({
       paths: harness.paths,
       scratchRoot: join(occupied, 'work'),
+      env: MACHINE_ENV,
     })
 
     const result = await transcoder.transcode(harness.fixtures.landscape, CONTRACT_SPEC)

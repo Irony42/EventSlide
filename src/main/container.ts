@@ -24,6 +24,7 @@ import {
   createFfmpegVideoTranscoder,
   type FfmpegVideoTranscoder,
 } from '../infrastructure/media/ffmpegVideoTranscoder'
+import { minimalChildEnv } from '../infrastructure/media/runProcess'
 import { nullVideoTranscoder } from '../infrastructure/media/nullVideoTranscoder'
 import { detectVideoContainer } from '../infrastructure/media/magicBytes'
 import { archiverWriter } from '../infrastructure/media/archiverWriter'
@@ -268,10 +269,16 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
    * reports its own version, and one compiled without the non-free encoders reports a
    * perfectly modern one right up until the first transcode fails.
    */
+  // Built once, from configuration rather than from `process.env` directly (menace T9,
+  // `docs/SECURITY.md` §4.1), and handed to every ffmpeg or ffprobe child this process
+  // ever starts — the boot-time capability probe below and every transcode after it.
+  const ffmpegChildEnv = minimalChildEnv(config.clips.childEnvSource)
+
   const capability = await probeFfmpegCapability({
     ffmpegPath: config.clips.ffmpegPath ?? undefined,
     ffprobePath: config.clips.ffprobePath ?? undefined,
     search: config.clips.executableSearch,
+    env: ffmpegChildEnv,
   })
 
   const ffmpeg: FfmpegVideoTranscoder | null = capability.available
@@ -280,6 +287,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
         // Under MEDIA_ROOT, never os.tmpdir(): the container is read-only with a small
         // tmpfs charged to the same memory cgroup as the process.
         scratchRoot: resolve(mediaRoot, '.scratch'),
+        env: ffmpegChildEnv,
       })
     : null
 

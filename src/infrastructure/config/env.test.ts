@@ -113,6 +113,18 @@ describe('loadConfig', () => {
           // bare `ffmpeg` fails where `ffmpeg.exe` is on the path. An empty source object
           // therefore means "search nowhere", which is exactly what it should mean.
           executableSearch: { path: '', extensions: '' },
+          // The raw material for `minimalChildEnv` (menace T9, `docs/SECURITY.md` §4.1):
+          // carried as values for the same reason as `executableSearch` just above, and
+          // an empty source object means "nothing beyond PATH and LANG=C", which is
+          // exactly what an operator who named none of these should get.
+          childEnvSource: {
+            path: '',
+            pathExt: '',
+            systemRoot: '',
+            winDir: '',
+            temp: '',
+            tmp: '',
+          },
         },
         guests: { selfDeleteGraceMs: 900_000 },
         retention: { sweepIntervalMs: 3_600_000 },
@@ -277,6 +289,30 @@ describe('loadConfig', () => {
           galleryUnlockPerLink: 108,
         },
         crypto: { bcryptCost: 14 },
+      })
+    })
+
+    it('carries SYSTEMROOT, WINDIR, TEMP and TMP through as values, for the same reason as PATH and PATHEXT', () => {
+      // Four distinct values, so a field reading the wrong variable — or `minimalChildEnv`
+      // one day being handed this object with two keys swapped — fails loudly rather than
+      // happening to agree, the way four identical placeholders would let it.
+      const config = loadConfig({
+        ...DEV,
+        PATH: '/usr/bin',
+        PATHEXT: '.EXE',
+        SYSTEMROOT: 'C:\\Windows-root',
+        WINDIR: 'C:\\Windows-dir',
+        TEMP: 'C:\\Windows-temp',
+        TMP: 'C:\\Windows-tmp',
+      })
+
+      expect(config.clips.childEnvSource).toEqual({
+        path: '/usr/bin',
+        pathExt: '.EXE',
+        systemRoot: 'C:\\Windows-root',
+        winDir: 'C:\\Windows-dir',
+        temp: 'C:\\Windows-temp',
+        tmp: 'C:\\Windows-tmp',
       })
     })
   })

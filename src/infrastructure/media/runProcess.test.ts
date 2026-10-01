@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { runProcess, startProcess } from './runProcess'
+import { afterEach, describe, expect, it } from 'vitest'
+import { minimalChildEnv, runProcess, startProcess } from './runProcess'
 
 /**
  * The process runner, exercised against `node` itself — which is guaranteed present,
@@ -12,9 +12,25 @@ import { runProcess, startProcess } from './runProcess'
 
 const NODE = process.execPath
 
+/**
+ * The environment every case below hands the child, unless a case is itself about
+ * `env`. A test file is where the ban on reading `process.env` is lifted — production
+ * takes these from `env.ts` as configuration, and what most cases here exercise is the
+ * timing and draining machinery, not the whitelist, so they get a realistic one rather
+ * than an empty object a real OS might refuse to start a process with.
+ */
+const MACHINE_ENV = minimalChildEnv({
+  path: process.env['PATH'] ?? '',
+  pathExt: process.env['PATHEXT'] ?? '',
+  systemRoot: process.env['SYSTEMROOT'] ?? '',
+  winDir: process.env['WINDIR'] ?? '',
+  temp: process.env['TEMP'] ?? '',
+  tmp: process.env['TMP'] ?? '',
+})
+
 /** Runs a snippet in a child `node`, which is the closest thing to a controllable ffmpeg. */
 const node = (script: string, bounds: { timeoutMs: number; stallMs: number }) =>
-  runProcess({ binary: NODE, args: ['-e', script], ...bounds })
+  runProcess({ binary: NODE, args: ['-e', script], env: MACHINE_ENV, ...bounds })
 
 const GENEROUS = { timeoutMs: 20_000, stallMs: 20_000 }
 
@@ -43,6 +59,7 @@ describe('runProcess', () => {
     const result = await runProcess({
       binary: 'definitely-not-a-real-binary-eventslide',
       args: [],
+      env: MACHINE_ENV,
       ...GENEROUS,
     })
 
@@ -73,6 +90,7 @@ describe('runProcess', () => {
     const result = await runProcess({
       binary: NODE,
       args: ['-e', 'const line = "x".repeat(1024); for (let i = 0; i < 512; i += 1) process.stdout.write(line)'],
+      env: MACHINE_ENV,
       stdoutBytes: 64 * 1024,
       ...GENEROUS,
     })
@@ -92,6 +110,7 @@ describe('runProcess', () => {
     const result = await runProcess({
       binary: NODE,
       args: ['-e', 'process.stdout.write("x".repeat(4096))'],
+      env: MACHINE_ENV,
       stdoutBytes: 16,
       ...GENEROUS,
     })
@@ -117,6 +136,7 @@ describe('runProcess', () => {
     const result = await runProcess({
       binary: NODE,
       args: ['-e', 'process.stdout.write("A" + "x".repeat(20000))'],
+      env: MACHINE_ENV,
       stdoutBytes: 512 * 1024,
       ...GENEROUS,
     })
@@ -160,6 +180,7 @@ describe('runProcess', () => {
     const running = startProcess({
       binary: NODE,
       args: ['-e', 'setInterval(() => {}, 1000)'],
+      env: MACHINE_ENV,
       ...GENEROUS,
     })
 
@@ -170,7 +191,7 @@ describe('runProcess', () => {
   }, 20_000)
 
   it('is safe to kill twice, and after the child has already gone', async () => {
-    const running = startProcess({ binary: NODE, args: ['-e', '0'], ...GENEROUS })
+    const running = startProcess({ binary: NODE, args: ['-e', '0'], env: MACHINE_ENV, ...GENEROUS })
     await running.finished
 
     expect(() => {
@@ -185,5 +206,125 @@ describe('runProcess', () => {
     const result = await node('process.stdout.write(process.argv[1] ?? "")', GENEROUS)
 
     expect(result.ok).toBe(true)
+  })
+})
+
+/**
+ * Menace T9 (`docs/SECURITY.md` §1, §4.1): a decoder pointed at a stranger's file must
+ * not be handed this process's own secrets. `env` on `RunProcessOptions` is how that is
+ * enforced — Node's own default for a missing `env` is "inherit mine whole", so these
+ * prove the field is actually read rather than silently dropped the way `stdoutBytes`
+ * once was (see the comment on `run` in `ffmpegVideoTranscoder.ts`).
+ */
+describe('runProcess — the child never inherits this process\u2019s own environment', () => {
+  // Stand-ins for SESSION_SECRET, S3_SECRET_ACCESS_KEY, SMTP_URL and MFA_ENCRYPTION_KEY —
+  // the plan's own list. Set on *this* process so a `spawn` that fell back to Node's
+  // default (no `env` given at all) would leak them straight into the child.
+  const PARENT_SECRETS = {
+    SESSION_SECRET: 'parent-session-secret',
+    S3_SECRET_ACCESS_KEY: 'parent-s3-secret',
+    SMTP_URL: 'smtp://parent:leaked@example.com',
+    MFA_ENCRYPTION_KEY: 'parent-mfa-key',
+  }
+
+  afterEach(() => {
+    for (const key of Object.keys(PARENT_SECRETS)) delete process.env[key]
+  })
+
+  it('does not see a secret set on the parent process, even though the parent carries it', async () => {
+    for (const [key, value] of Object.entries(PARENT_SECRETS)) process.env[key] = value
+
+    const result = await runProcess({
+      binary: NODE,
+      args: ['-e', 'process.stdout.write(JSON.stringify(process.env))'],
+      env: MACHINE_ENV,
+      ...GENEROUS,
+    })
+
+    const seen: Record<string, string | undefined> = JSON.parse(result.stdout)
+    for (const key of Object.keys(PARENT_SECRETS)) {
+      expect(seen[key]).toBeUndefined()
+    }
+  })
+
+  it('does see a value the caller put in its own env, which is how PATH still works', async () => {
+    const result = await runProcess({
+      binary: NODE,
+      args: ['-e', 'process.stdout.write(process.env.EVENTSLIDE_MARKER ?? "ABSENT")'],
+      env: { ...MACHINE_ENV, EVENTSLIDE_MARKER: 'present' },
+      ...GENEROUS,
+    })
+
+    expect(result.stdout).toBe('present')
+  })
+})
+
+describe('minimalChildEnv', () => {
+  const SOURCE = {
+    path: '/usr/bin:/bin',
+    pathExt: '.EXE;.CMD',
+    systemRoot: 'C:\\Windows',
+    winDir: 'C:\\Windows',
+    temp: 'C:\\Temp',
+    tmp: 'C:\\Temp',
+  }
+
+  it('keeps PATH and forces a stable LANG on every platform', () => {
+    expect(minimalChildEnv(SOURCE, 'linux')).toMatchObject({ PATH: SOURCE.path, LANG: 'C' })
+    expect(minimalChildEnv(SOURCE, 'darwin')).toMatchObject({ PATH: SOURCE.path, LANG: 'C' })
+    expect(minimalChildEnv(SOURCE, 'win32')).toMatchObject({ PATH: SOURCE.path, LANG: 'C' })
+  })
+
+  it('carries none of the Windows-only variables off Windows', () => {
+    // The whole point of "minimal": a Linux or macOS ffmpeg child gets PATH and LANG,
+    // full stop — SYSTEMROOT and friends are not merely irrelevant there, they are one
+    // more thing that must not leak if a future edit forgets the platform check.
+    expect(minimalChildEnv(SOURCE, 'linux')).toEqual({ PATH: SOURCE.path, LANG: 'C' })
+  })
+
+  it('adds the Windows-only variables only on win32', () => {
+    expect(minimalChildEnv(SOURCE, 'win32')).toEqual({
+      PATH: SOURCE.path,
+      LANG: 'C',
+      PATHEXT: SOURCE.pathExt,
+      SYSTEMROOT: SOURCE.systemRoot,
+      WINDIR: SOURCE.winDir,
+      TEMP: SOURCE.temp,
+      TMP: SOURCE.tmp,
+    })
+  })
+
+  it('omits a Windows variable the source never had, rather than inventing one', () => {
+    // An empty string is `.env.example`'s rendering of "unset" (CLAUDE.md's own
+    // `envDocs` convention) — treating it as a real value would hand a child
+    // `SYSTEMROOT=""`, which is not the same thing as the variable being absent.
+    const sparse = { path: SOURCE.path, systemRoot: SOURCE.systemRoot }
+
+    const env = minimalChildEnv(sparse, 'win32')
+
+    expect(env['SYSTEMROOT']).toBe(SOURCE.systemRoot)
+    expect(env['PATHEXT']).toBeUndefined()
+    expect(env['WINDIR']).toBeUndefined()
+    expect(env['TEMP']).toBeUndefined()
+    expect(env['TMP']).toBeUndefined()
+  })
+
+  it('treats an empty string the same as a field that was never there at all', () => {
+    // The path above (an absent field) is not the one production ever takes: env.ts's
+    // zod schema defaults every one of these to `''`, never to `undefined` — see
+    // `SYSTEMROOT: z.string().default('')` and `childEnvSource` in env.ts. So the branch
+    // that actually runs on a box missing e.g. WINDIR is the `value !== ''` half of the
+    // guard, not the `value !== undefined` half the test above exercises. Without this
+    // case, deleting `&& value !== ''` from `minimalChildEnv` leaves every test green.
+    const unset = { ...SOURCE, winDir: '' }
+
+    const env = minimalChildEnv(unset, 'win32')
+
+    expect(env['WINDIR']).toBeUndefined()
+    expect(env['SYSTEMROOT']).toBe(SOURCE.systemRoot)
+  })
+
+  it('defaults to this process\u2019s own platform, which is what every production caller relies on', () => {
+    expect(minimalChildEnv({ path: 'anything' })).toEqual(minimalChildEnv({ path: 'anything' }, process.platform))
   })
 })
