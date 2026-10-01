@@ -1244,6 +1244,7 @@ cross-cutting codes in §1:
 | Code                       | Status | Where                                                           |
 | -------------------------- | ------ | --------------------------------------------------------------- |
 | `event.slugTaken`          | 409    | Create, when the slug is in use                                 |
+| `event.quotaAboveCeiling`  | 400    | Create, when `quotaBytes` exceeds `MAX_EVENT_QUOTA_BYTES`       |
 | `event.immutable`          | 409    | Rename, settings or schedule on an `archived` event             |
 | `event.illegalTransition`  | 409    | A status change the lifecycle does not allow                    |
 | `event.scheduleInPast`     | 400    | A scheduled instant whose minute has already gone by            |
@@ -1306,6 +1307,12 @@ slug I got" happens. `startsAt` is an ISO-8601 string or `null`; `quotaBytes` is
 positive integer or `null`, and `null` or absent takes the configured default. **201**
 with the full event including its join code.
 
+An explicit `quotaBytes` is bounded by `MAX_EVENT_QUOTA_BYTES` (roadmap §10.5 / G3-02),
+the box-wide ceiling nobody's request may cross: above it, refused with
+**400 `event.quotaAboveCeiling {maxBytes}`**, never silently reduced to the ceiling. A
+box that never set `MAX_EVENT_QUOTA_BYTES` has none, which is every self-hosted
+install's behaviour before this existed.
+
 `wallLanguage` is optional, one of `"fr" | "de" | "en" | "es" | "it"`, and absent means
 French. The host console sends the language its operator is reading at that moment, which
 is the only signal anybody has about a screen nobody will be holding — and it is a
@@ -1314,6 +1321,7 @@ their own browser has not moved a projector in a room. `PATCH /settings` is wher
 changes deliberately.
 
 **Errors** — `409 event.slugTaken`, `400 eventName.*`, `400 slug.*`,
+`400 event.quotaAboveCeiling {maxBytes}` for a `quotaBytes` above `MAX_EVENT_QUOTA_BYTES`,
 `400 request.invalid` for a language outside the five.
 
 #### `template` — what the settings start from
