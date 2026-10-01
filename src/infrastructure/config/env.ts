@@ -300,6 +300,25 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /** Checked against the header before decoding — the decompression-bomb control. */
       MAX_IMAGE_PIXELS: positiveInt(50_000_000),
       DEFAULT_EVENT_QUOTA_BYTES: positiveInt(5_000_000_000),
+      /**
+       * The box-wide ceiling on a single event's `quotaBytes` (roadmap §10.5 / G3-02).
+       *
+       * **Absent, not a fallback number.** Every other numeric setting in this file has a
+       * default because silence has to mean *something*, and for this one the something a
+       * self-hosted box has always had is no ceiling at all beyond the domain's own "a
+       * positive integer" — so absence is `undefined` here, not a number, and `undefined`
+       * is what makes `createEvent` skip the comparison entirely rather than compare
+       * against a number nobody chose. An instance run for other people sets this
+       * explicitly; a solo box that never heard of it sees no change.
+       *
+       * Blank is absent for the reason written on {@link sweepInterval}: a compose file
+       * with a dangling `MAX_EVENT_QUOTA_BYTES=` must not be read as a ceiling of zero,
+       * which would refuse every event a host tries to create.
+       */
+      MAX_EVENT_QUOTA_BYTES: z.preprocess(
+        blankAsAbsent,
+        z.coerce.number().int().positive().optional(),
+      ),
 
       /**
        * Clips have their own byte limit, deliberately separate from `MAX_UPLOAD_BYTES`.
@@ -438,6 +457,23 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
         })
       }
 
+      // Not production-gated: a ceiling under the default is wrong in every environment,
+      // because every event created with no opinion asks for `DEFAULT_EVENT_QUOTA_BYTES`
+      // (`createEvent.ts`) and would already violate a lower one. Refusing here is what
+      // keeps "the box boots" and "the default event it was about to create is legal"
+      // the same claim, rather than one a host discovers by having their first event
+      // refused.
+      if (
+        raw.MAX_EVENT_QUOTA_BYTES !== undefined &&
+        raw.MAX_EVENT_QUOTA_BYTES < raw.DEFAULT_EVENT_QUOTA_BYTES
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MAX_EVENT_QUOTA_BYTES'],
+          message: `MAX_EVENT_QUOTA_BYTES (${raw.MAX_EVENT_QUOTA_BYTES}) must be at least DEFAULT_EVENT_QUOTA_BYTES (${raw.DEFAULT_EVENT_QUOTA_BYTES}), or every event created with no opinion would already be above the ceiling`,
+        })
+      }
+
       if (raw.NODE_ENV !== 'production') return
 
       if (secretsRequiredInProduction) {
@@ -528,6 +564,11 @@ export interface AppConfig {
     readonly maxFiles: number
     readonly maxPixels: number
     readonly defaultEventQuotaBytes: number
+    /**
+     * The box-wide ceiling from `MAX_EVENT_QUOTA_BYTES`. `null` is "no ceiling", which is
+     * what every self-hosted box that never set the variable gets — see the schema.
+     */
+    readonly maxEventQuotaBytes: number | null
   }
 
   readonly clips: {
@@ -691,6 +732,7 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       maxFiles: raw.MAX_FILES_PER_UPLOAD,
       maxPixels: raw.MAX_IMAGE_PIXELS,
       defaultEventQuotaBytes: raw.DEFAULT_EVENT_QUOTA_BYTES,
+      maxEventQuotaBytes: raw.MAX_EVENT_QUOTA_BYTES ?? null,
     },
 
     clips: {

@@ -98,6 +98,7 @@ describe('loadConfig', () => {
           maxFiles: 20,
           maxPixels: 50_000_000,
           defaultEventQuotaBytes: 5_000_000_000,
+          maxEventQuotaBytes: null,
         },
         clips: {
           maxBytes: 80_000_000,
@@ -600,6 +601,50 @@ describe('loadConfig', () => {
       const issues = refusalIssues({ [name]: '0' })
 
       expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
+    })
+  })
+
+  describe('the box-wide quota ceiling (G3-02)', () => {
+    it('is absent by default, which is the behaviour every self-hosted box has always had', () => {
+      const config = loadConfig({ ...DEV })
+
+      expect(config.uploads.maxEventQuotaBytes).toBeNull()
+    })
+
+    it('is carried as the configured number when set above the default', () => {
+      const config = loadConfig({
+        ...DEV,
+        DEFAULT_EVENT_QUOTA_BYTES: '5000000000',
+        MAX_EVENT_QUOTA_BYTES: '6000000000',
+      })
+
+      expect(config.uploads.maxEventQuotaBytes).toBe(6_000_000_000)
+    })
+
+    it('accepts a ceiling exactly equal to the default', () => {
+      const config = loadConfig({
+        ...DEV,
+        DEFAULT_EVENT_QUOTA_BYTES: '5000000000',
+        MAX_EVENT_QUOTA_BYTES: '5000000000',
+      })
+
+      expect(config.uploads.maxEventQuotaBytes).toBe(5_000_000_000)
+    })
+
+    it('refuses a ceiling below the default, because every event created with no opinion would already violate it', () => {
+      const issues = refusalIssues({
+        ...DEV,
+        DEFAULT_EVENT_QUOTA_BYTES: '5000000000',
+        MAX_EVENT_QUOTA_BYTES: '4999999999',
+      })
+
+      expect(issues.some((issue) => issue.startsWith('MAX_EVENT_QUOTA_BYTES: '))).toBe(true)
+    })
+
+    it('reads a blank MAX_EVENT_QUOTA_BYTES as absent rather than as a ceiling of zero', () => {
+      const config = loadConfig({ ...DEV, MAX_EVENT_QUOTA_BYTES: '' })
+
+      expect(config.uploads.maxEventQuotaBytes).toBeNull()
     })
   })
 
