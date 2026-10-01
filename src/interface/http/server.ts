@@ -231,7 +231,7 @@ export const buildServer = ({
   }
 
   // Last, so everything above can throw into it.
-  app.use(errorHandler(config.isProduction))
+  app.use(errorHandler())
 
   return app
 }

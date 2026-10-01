@@ -209,7 +209,7 @@ export const buildHarness = ({
 
   routes(app, deps)
 
-  app.use(errorHandler(httpConfig.isProduction))
+  app.use(errorHandler())
 
   return { app, ...world }
 }

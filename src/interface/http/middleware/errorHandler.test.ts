@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import type { LogContext, Logger } from '../../../application/ports/logger'
 import { asyncHandler } from './asyncHandler'
-import { loggablePath, requestContext } from './errorHandler'
+import { errorHandler, loggablePath, requestContext } from './errorHandler'
 import express from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
@@ -289,5 +289,41 @@ describe('errorHandler', () => {
 
     expect(response.status).toBe(500)
     expect(JSON.stringify(response.body)).not.toContain('at ')
+  })
+})
+
+describe('the stack trace of an unhandled error, as logged', () => {
+  /** Every call `errorHandler` made on the logger it was handed. */
+  const errorCallsFrom = async (): Promise<LogContext[]> => {
+    const calls: LogContext[] = []
+    const recording: Logger = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+      error: (_message, context) => {
+        calls.push(context ?? {})
+      },
+      child: () => recording,
+    }
+    const app = express()
+    app.use(requestContext(recording))
+    app.use(() => {
+      throw new Error('a bug, not a client mistake')
+    })
+    app.use(errorHandler())
+
+    await request(app).get('/anything')
+    return calls
+  }
+
+  it('is kept in the log, production included, so an operator can tell where the bug is', async () => {
+    // P4-06 / docs/SECURITY.md A-36: a stack trace never reaches the client — the
+    // response is always the opaque 500 above — so a production build that dropped it
+    // from the log as well, as this handler used to, would cost the operator the one
+    // thing that could have told them where the bug actually is.
+    const [call] = await errorCallsFrom()
+
+    expect(call?.['stack']).toContain('a bug, not a client mistake')
+    expect(call?.['stack']).toContain('at ')
   })
 })
