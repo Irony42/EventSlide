@@ -309,6 +309,21 @@ describe('minimalChildEnv', () => {
     expect(env['TMP']).toBeUndefined()
   })
 
+  it('treats an empty string the same as a field that was never there at all', () => {
+    // The path above (an absent field) is not the one production ever takes: env.ts's
+    // zod schema defaults every one of these to `''`, never to `undefined` — see
+    // `SYSTEMROOT: z.string().default('')` and `childEnvSource` in env.ts. So the branch
+    // that actually runs on a box missing e.g. WINDIR is the `value !== ''` half of the
+    // guard, not the `value !== undefined` half the test above exercises. Without this
+    // case, deleting `&& value !== ''` from `minimalChildEnv` leaves every test green.
+    const unset = { ...SOURCE, winDir: '' }
+
+    const env = minimalChildEnv(unset, 'win32')
+
+    expect(env['WINDIR']).toBeUndefined()
+    expect(env['SYSTEMROOT']).toBe(SOURCE.systemRoot)
+  })
+
   it('defaults to this process\u2019s own platform, which is what every production caller relies on', () => {
     expect(minimalChildEnv({ path: 'anything' })).toEqual(minimalChildEnv({ path: 'anything' }, process.platform))
   })
