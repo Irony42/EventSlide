@@ -941,6 +941,29 @@ describe('requirePasswordCurrent: mustChangePassword enforced server-side (P3-03
 
       expect(response.status).toBe(204)
     })
+
+    /**
+     * `strict routing` is off (`server.ts`), so `GET /api/auth/me/` reaches the exact
+     * handler `GET /api/auth/me` does — a flagged account trying either spelling must
+     * meet the same exemption. A lookup that collapsed case and double slashes but not a
+     * trailing one would refuse the second spelling with `auth.passwordChangeRequired`,
+     * trapping a flagged account out of the one screen that lets it stop being flagged.
+     */
+    it.each([
+      ['GET', '/api/auth/me/'],
+      ['POST', '/api/auth/logout/'],
+    ] as const)(
+      'still exempts %s %s, the trailing-slash spelling of the same route',
+      async (method, path) => {
+        const subject = buildGateHarness()
+        const { agent, csrf } = await flaggedCaller(subject)
+
+        const response =
+          method === 'GET' ? await agent.get(path) : await agent.post(path).set(CSRF_HEADER, csrf)
+
+        expect(response.body?.error?.code).not.toBe(PASSWORD_CHANGE_REQUIRED_CODE)
+      },
+    )
   })
 
   describe('routes mounted ahead of the whole session stack', () => {
@@ -996,6 +1019,26 @@ describe('requirePasswordCurrent: mustChangePassword enforced server-side (P3-03
       const response = await agent.get('/api/events')
 
       expect(response.status).toBe(200)
+    })
+  })
+
+  describe('ordered ahead of the CSRF gate', () => {
+    /**
+     * `server.ts` mounts `requirePasswordCurrent` directly ahead of `requireCsrfToken`,
+     * on purpose (its own doc comment and the HTTP seam in the plan this task implements
+     * both say so): a flagged account is told *why* it is refused before it is told its
+     * token is stale. Every other case in this file sends a token fresh from the login
+     * response, which cannot tell this ordering from its reverse — a request carrying a
+     * *valid* token meets the same assertion either way. This is the one case that sends
+     * none at all, which only the documented order answers with this code.
+     */
+    it('answers auth.passwordChangeRequired rather than a CSRF refusal, with no CSRF token at all', async () => {
+      const subject = buildGateHarness()
+      const { agent } = await flaggedCaller(subject)
+
+      const response = await agent.post('/api/events').send({})
+
+      expect(response.body.error.code).toBe(PASSWORD_CHANGE_REQUIRED_CODE)
     })
   })
 })

@@ -229,11 +229,13 @@ export const PASSWORD_CHANGE_REQUIRED_CODE = 'auth.passwordChangeRequired'
  * Written against the path a request actually carries once Express has stripped this
  * middleware's own `/api` mount (`req.path`), reassembled with `req.baseUrl` so the key
  * reads the same way `siteOperatorScope.test.ts`'s own exemption lists do: the full path,
- * lower-cased, with repeated slashes collapsed — the same normalisation that file's
- * `inSiteNamespace` applies, and for the same reason: a request that reached this far
- * already matches whatever a downstream router will match, case and double slashes
- * included, so refusing to normalise here would make the exemption narrower than the
- * route it names.
+ * lower-cased, with slashes collapsed — the same case- and double-slash normalisation
+ * that file's `inSiteNamespace` applies, **and** a trailing slash besides, which that
+ * file does not need to collapse and this one does ({@link normalizedApiPath}'s own
+ * comment says why). A request that reached this far already matches whatever a
+ * downstream router will match — case, double slashes and a trailing one included
+ * (`strict routing` is off) — so refusing to normalise any of them here would make the
+ * exemption narrower than the route it names.
  */
 export const PASSWORD_CHANGE_EXEMPT: Readonly<Record<string, string>> = {
   'get /api/auth/me':
@@ -247,8 +249,23 @@ export const PASSWORD_CHANGE_EXEMPT: Readonly<Record<string, string>> = {
     'narrow what a stuck session can do, not to trap it signed in',
 }
 
-const normalizedApiPath = (req: Request): string =>
-  `${req.baseUrl}${req.path}`.replace(/\/{2,}/g, '/').toLowerCase()
+/**
+ * Collapses repeated slashes and case the way the sibling exemption lists in
+ * `routes/siteOperatorScope.test.ts` do, **and** a trailing slash on top of that —
+ * which those lists do not need to, because they place a route by its mount rather
+ * than by a literal key a request's own path has to match byte for byte.
+ *
+ * `server.ts` sets `strict routing: false` ("two events differing only by a trailing
+ * slash would otherwise be two cache entries"), so `GET /api/auth/me/` reaches the exact
+ * same handler `GET /api/auth/me` does. A lookup that did not collapse the slash would
+ * refuse the trailing-slash spelling of an exempt route with `auth.passwordChangeRequired`
+ * — trapping a flagged account out of the one screen that lets it stop being flagged,
+ * on a request shape the server answers identically otherwise.
+ */
+const normalizedApiPath = (req: Request): string => {
+  const collapsed = `${req.baseUrl}${req.path}`.replace(/\/{2,}/g, '/').toLowerCase()
+  return collapsed.length > 1 ? collapsed.replace(/\/+$/, '') : collapsed
+}
 
 const isExemptFromPasswordGate = (req: Request): boolean =>
   PASSWORD_CHANGE_EXEMPT[`${req.method.toLowerCase()} ${normalizedApiPath(req)}`] !== undefined
