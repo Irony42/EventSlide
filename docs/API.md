@@ -1340,8 +1340,11 @@ it, all backward-compatible by default:
   suffix, `camille-sacha-h7k2qm` — never only on a collision, which would prove the bare
   slug exists.
 - `ALLOW_CUSTOM_SLUGS` (`true` default, `false` on the hosted instance): when `false`, a
-  body that sends `slug` at all is refused with `400 event.customSlugNotAllowed`, rather
-  than the field being silently dropped.
+  body that sends a well-formed `slug` is refused with `400 event.customSlugNotAllowed`,
+  rather than the field being silently dropped. A malformed `slug` — wrong shape or
+  length — never reaches that check: the shared `slug` schema in
+  `requestSchemas.ts` validates it first, regardless of this flag, and answers
+  `400 request.invalid` instead.
 - A slug collision — custom or derived — is always `409 event.slugUnavailable`, with
   **no slug in the response**. This replaces `event.slugTaken`, which echoed the
   computed slug back and so let a caller who only ever sent a free-text `name` learn
