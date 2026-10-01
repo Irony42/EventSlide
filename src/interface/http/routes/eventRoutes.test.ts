@@ -58,6 +58,9 @@ const NO_SUCH_SLUG = 'un-evenement-qui-nexiste-pas'
 /** What the create form leaves to configuration: the host is asked for a name only. */
 const DEFAULT_QUOTA_BYTES = 2_000_000_000
 
+/** The box-wide ceiling (G3-02). Above `DEFAULT_QUOTA_BYTES`, as env.ts requires. */
+const MAX_QUOTA_BYTES = 10_000_000_000
+
 /** What the host types into the invitation form and reads out to the invitee. */
 const TEMPORARY_PASSWORD = 'mot-de-passe-provisoire'
 
@@ -177,6 +180,7 @@ const buildWorld = (): World => {
           ids,
           clock: deps.clock,
           defaultQuotaBytes: DEFAULT_QUOTA_BYTES,
+          maxQuotaBytes: MAX_QUOTA_BYTES,
         }),
         getEventBySlug: makeGetEventBySlug({ events }),
         listEventsForHost: makeListEventsForHost({ events }),
@@ -722,6 +726,29 @@ describe('the host event routes', () => {
       expect(response.body.startsAt).toBeNull()
       // The configured default, not zero and not the absence of a quota.
       expect(response.body.quotaBytes).toBe(DEFAULT_QUOTA_BYTES)
+    })
+
+    it('accepts a quota exactly at the box-wide ceiling', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .post('/api/events')
+        .send({ name: 'Un mariage en juin', quotaBytes: MAX_QUOTA_BYTES })
+
+      expect(response.status).toBe(201)
+      expect(response.body.quotaBytes).toBe(MAX_QUOTA_BYTES)
+    })
+
+    it('answers 400 event.quotaAboveCeiling for a quota over the box-wide ceiling', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .post('/api/events')
+        .send({ name: 'Un mariage en juin', quotaBytes: MAX_QUOTA_BYTES + 1 })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('event.quotaAboveCeiling')
+      expect(response.body.error.details).toEqual({ maxBytes: MAX_QUOTA_BYTES })
     })
 
     it('answers 409 for a slug another event already holds', async () => {

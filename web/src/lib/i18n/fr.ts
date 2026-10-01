@@ -1100,6 +1100,7 @@ export const fr = {
     'event.notAcceptingUploads': 'Cette galerie n’accepte plus de photos.',
     'event.quotaExceeded': 'La galerie a atteint sa capacité. Prévenez l’organisateur.',
     'event.slugTaken': 'Cette adresse est déjà utilisée.',
+    'event.quotaAboveCeiling': 'Ce quota dépasse la limite que ce serveur autorise.',
     'event.immutable': 'Cet évènement est archivé et ne peut plus être modifié.',
     'event.illegalTransition': 'Ce changement d’état n’est pas possible.',
 

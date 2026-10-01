@@ -66,6 +66,17 @@ export interface CreateEventDeps {
    * host — and an application layer that cannot read `process.env` is handed it.
    */
   readonly defaultQuotaBytes: number
+  /**
+   * `uploads.maxEventQuotaBytes` from configuration (roadmap §10.5 / G3-02): the
+   * box-wide ceiling nobody's request may cross, `null` meaning there is none.
+   *
+   * Checked here and not in the request schema, for the same reason `defaultQuotaBytes`
+   * is a dependency rather than a schema literal: the ceiling is a box's own
+   * configuration, not a constant the wire format can know about. `null` is the value
+   * every self-hosted box has always had, and it is what makes the comparison below a
+   * no-op rather than a comparison against a number nobody chose.
+   */
+  readonly maxQuotaBytes: number | null
 }
 
 export type CreateEvent = (input: CreateEventInput) => Promise<Result<Event, DomainError>>
@@ -96,7 +107,14 @@ const allocateJoinCode = async (
 }
 
 export const makeCreateEvent =
-  ({ events, memberships, ids, clock, defaultQuotaBytes }: CreateEventDeps): CreateEvent =>
+  ({
+    events,
+    memberships,
+    ids,
+    clock,
+    defaultQuotaBytes,
+    maxQuotaBytes,
+  }: CreateEventDeps): CreateEvent =>
   async (input) => {
     const name = EventName.create(input.name)
     if (!name.ok) return name
@@ -128,6 +146,20 @@ export const makeCreateEvent =
         ? ok(preset)
         : preset.with({ wallLanguage: input.wallLanguage })
     if (!settings.ok) return settings
+
+    // The box-wide ceiling (roadmap §10.5 / G3-02). Checked only when the host asked
+    // for a specific quota: an absent `quotaBytes` falls back to `defaultQuotaBytes`,
+    // which `env.ts` already refuses to configure below the ceiling, so there is
+    // nothing here for a default to violate. Refused outright rather than clamped to
+    // the ceiling — a silent reduction would tell a host they got the quota they asked
+    // for when they did not.
+    if (
+      input.quotaBytes !== undefined &&
+      maxQuotaBytes !== null &&
+      input.quotaBytes > maxQuotaBytes
+    ) {
+      return err(DomainError.invalid('event.quotaAboveCeiling', { maxBytes: maxQuotaBytes }))
+    }
 
     const now = clock.now()
     const created = Event.create(

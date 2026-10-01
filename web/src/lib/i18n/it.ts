@@ -257,6 +257,7 @@ export const it: UiText = {
     'event.notAcceptingUploads': 'Questa galleria non accetta più foto.',
     'event.quotaExceeded': 'La galleria ha raggiunto la capacità massima. Avvisi l’organizzatore.',
     'event.slugTaken': 'Questo indirizzo è già in uso.',
+    'event.quotaAboveCeiling': 'Questa quota supera il limite consentito da questo server.',
     'event.immutable': 'Questo evento è archiviato e non può più essere modificato.',
     'event.illegalTransition': 'Questo cambio di stato non è possibile.',
 

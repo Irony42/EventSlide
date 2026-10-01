@@ -245,6 +245,7 @@ export const en: UiText = {
     'event.notAcceptingUploads': 'This gallery is no longer accepting photos.',
     'event.quotaExceeded': 'The gallery is full. Let the organiser know.',
     'event.slugTaken': 'This address is already in use.',
+    'event.quotaAboveCeiling': 'This quota exceeds the limit this server allows.',
     'event.immutable': 'This event is archived and can no longer be changed.',
     'event.illegalTransition': 'This change of state is not possible.',
 
