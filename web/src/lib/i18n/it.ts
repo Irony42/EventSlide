@@ -256,7 +256,10 @@ export const it: UiText = {
     'event.notFound': 'Questo codice non corrisponde a nessuna galleria aperta.',
     'event.notAcceptingUploads': 'Questa galleria non accetta più foto.',
     'event.quotaExceeded': 'La galleria ha raggiunto la capacità massima. Avvisi l’organizzatore.',
-    'event.slugTaken': 'Questo indirizzo è già in uso.',
+    'event.slugUnavailable': 'Questo indirizzo è già in uso.',
+    'event.customSlugNotAllowed': 'Questa istanza non consente di scegliere il proprio indirizzo.',
+    'event.creationRateLimited':
+      'Hai creato troppi eventi di recente. Riprova più tardi.',
     'event.quotaAboveCeiling': 'Questa quota supera il limite consentito da questo server.',
     'event.immutable': 'Questo evento è archiviato e non può più essere modificato.',
     'event.illegalTransition': 'Questo cambio di stato non è possibile.',
@@ -309,7 +312,7 @@ export const it: UiText = {
     'membership.alreadyExists': 'Questa persona modera già questo evento.',
 
     'displayName.tooLong': 'Nome troppo lungo.',
-    'joinCode.wrongLength': 'Il codice è composto da sei caratteri.',
+    'joinCode.wrongLength': 'Questo codice non ha il numero corretto di caratteri.',
     'joinCode.malformed': 'Questo codice contiene un carattere non previsto.',
 
     'reaction.rateLimited': 'Con calma — attenda un istante prima di reagire di nuovo.',

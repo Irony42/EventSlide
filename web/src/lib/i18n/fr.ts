@@ -1099,7 +1099,9 @@ export const fr = {
     'event.notFound': 'Ce code ne correspond à aucune galerie ouverte.',
     'event.notAcceptingUploads': 'Cette galerie n’accepte plus de photos.',
     'event.quotaExceeded': 'La galerie a atteint sa capacité. Prévenez l’organisateur.',
-    'event.slugTaken': 'Cette adresse est déjà utilisée.',
+    'event.slugUnavailable': 'Cette adresse est déjà utilisée.',
+    'event.customSlugNotAllowed': 'Cette instance ne permet pas de choisir sa propre adresse.',
+    'event.creationRateLimited': 'Vous avez créé trop d’évènements récemment. Réessayez plus tard.',
     'event.quotaAboveCeiling': 'Ce quota dépasse la limite que ce serveur autorise.',
     'event.immutable': 'Cet évènement est archivé et ne peut plus être modifié.',
     'event.illegalTransition': 'Ce changement d’état n’est pas possible.',
@@ -1156,7 +1158,9 @@ export const fr = {
     'membership.alreadyExists': 'Cette personne modère déjà cet évènement.',
 
     'displayName.tooLong': 'Prénom trop long.',
-    'joinCode.wrongLength': 'Le code comporte six caractères.',
+    // Not "six caractères": JOIN_CODE_LENGTH is configurable (6 à 10), so the one thing
+    // true on every deployment is that this code does not have the right length.
+    'joinCode.wrongLength': 'Ce code n’a pas le bon nombre de caractères.',
     'joinCode.malformed': 'Ce code contient un caractère inattendu.',
 
     'reaction.rateLimited': 'Doucement — attendez un instant avant de réagir à nouveau.',

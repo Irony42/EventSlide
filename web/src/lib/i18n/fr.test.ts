@@ -103,7 +103,14 @@ const DOCUMENTED_CODES: readonly string[] = [
   'event.notFound',
   'event.notAcceptingUploads',
   'event.quotaExceeded',
-  'event.slugTaken',
+  // Replaces event.slugTaken: a slug collision is neutral everywhere now (P4-09,
+  // "collision neutre"), with no slug echoed back in either the code or its details.
+  'event.slugUnavailable',
+  // ALLOW_CUSTOM_SLUGS=false (the hosted instance): a caller supplying their own slug
+  // is refused outright rather than silently overridden.
+  'event.customSlugNotAllowed',
+  // The per-account, per-hour creation limit (P4-09).
+  'event.creationRateLimited',
   'event.quotaAboveCeiling',
   'event.immutable',
   'event.illegalTransition',

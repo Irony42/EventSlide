@@ -257,7 +257,10 @@ export const de: UiText = {
     'event.notFound': 'Zu diesem Code gehört keine offene Galerie.',
     'event.notAcceptingUploads': 'Diese Galerie nimmt keine Fotos mehr an.',
     'event.quotaExceeded': 'Die Galerie ist voll. Sagen Sie dem Veranstalter Bescheid.',
-    'event.slugTaken': 'Diese Adresse ist bereits vergeben.',
+    'event.slugUnavailable': 'Diese Adresse ist bereits vergeben.',
+    'event.customSlugNotAllowed': 'Diese Instanz erlaubt keine eigene Adresswahl.',
+    'event.creationRateLimited':
+      'Sie haben zuletzt zu viele Veranstaltungen erstellt. Versuchen Sie es später erneut.',
     'event.quotaAboveCeiling':
       'Dieses Kontingent überschreitet das von diesem Server erlaubte Limit.',
     'event.immutable': 'Diese Veranstaltung ist archiviert und kann nicht mehr geändert werden.',
@@ -314,7 +317,7 @@ export const de: UiText = {
     'membership.alreadyExists': 'Diese Person moderiert diese Veranstaltung bereits.',
 
     'displayName.tooLong': 'Vorname zu lang.',
-    'joinCode.wrongLength': 'Der Code hat sechs Zeichen.',
+    'joinCode.wrongLength': 'Dieser Code hat nicht die richtige Anzahl an Zeichen.',
     'joinCode.malformed': 'Dieser Code enthält ein unerwartetes Zeichen.',
 
     'reaction.rateLimited':
