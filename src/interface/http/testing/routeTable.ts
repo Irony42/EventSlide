@@ -1,6 +1,7 @@
 import type { Express } from 'express'
 import { requireCsrfToken } from '../middleware/csrf'
 import { galleryHeaders } from '../routes/galleryRoutes'
+import { apiNotFound } from '../server'
 
 /**
  * The route table of an assembled app, read off Express's own layer stack.
@@ -97,7 +98,10 @@ const mountPathOf = (layer: Record<string, unknown>): string => {
  */
 const LITERAL_ROUTE = /^(?:\/(?:[A-Za-z0-9._~-]*|:[A-Za-z][A-Za-z0-9]*))+$/
 
-/** Whether a layer is mounted at the root of its router: `router.use(fn)`, with no path. */
+/**
+ * Whether a layer is mounted at the root of its router — `router.use(fn)`, or `app.use(fn)`
+ * on the app's own stack — with no path.
+ */
 const mountedAtRoot = (layer: Record<string, unknown>): boolean => {
   const expression = layer['regexp']
   return expression instanceof RegExp && LITERAL_MOUNT.exec(expression.source)?.[1] === ''
@@ -125,6 +129,58 @@ const PATH_MOUNTED_MIDDLEWARE: ReadonlyMap<unknown, string> = new Map<unknown, s
 ])
 
 /**
+ * The middleware that may be mounted **at a path on the app itself**, by identity, each with
+ * the reason it may run there.
+ *
+ * The refusal above, one level up. It used to stop at the routers: the walk left the app's
+ * own stack to `server.ts` on the grounds that everything there was plumbing, so
+ * `app.use('/api/site/leak', h)` answered `GET /api/site/leak` with `SITE_ADMIN=off` — no
+ * gate, and no route anywhere for a sweep to read — while every sweep built on this walk
+ * stayed green. A list of its own rather than more entries in that one, so that each says
+ * where its entries stand: an entry here excuses nothing inside a router, and the reverse.
+ *
+ * Not on it, and not needing to be: a **router** mounted on the app at a path, which the walk
+ * goes into, so that everything inside answers to the rules above — `healthRoutes` at
+ * `/api`, `siteRoutes` at `/api/site`, every API router at `/api` — and middleware at the
+ * app's **root**, for the reason {@link mountedAtRoot} gives: the security headers, the body
+ * parser, the session, the error handler.
+ */
+const APP_PATH_MOUNTED_MIDDLEWARE: ReadonlyMap<unknown, string> = new Map<unknown, string>([
+  [
+    galleryHeaders,
+    '`server.ts` mounts it at `/api/gallery` and `/api/gallery-media`, ahead of the body ' +
+      'parser, the session and the CSRF gate, so that a request one of those refuses still ' +
+      'carries the shared gallery’s no-referrer, noindex and no-store headers; it answers ' +
+      'nothing and always calls `next()`',
+  ],
+  [
+    requireCsrfToken,
+    'the CSRF gate on `/api`, ahead of every router behind it: it calls `next()` for a safe ' +
+      'method and for an unsafe one that echoes the cookie, and otherwise answers only its ' +
+      'own 403 — it can take a request away from the routes, never serve one in their place',
+  ],
+  [
+    apiNotFound,
+    'the API’s own 404 on `/api`, after every router: it answers `route.notFound` to ' +
+      'whatever no route claimed, which is what a path nobody wrote answers — and what ' +
+      '`SITE_ADMIN=off` promises every `/api/site` path answers',
+  ],
+])
+
+/**
+ * Whether a layer is a router this walk can go into: Express's own `router` function,
+ * carrying the stack it dispatches to.
+ *
+ * Both halves, because the name alone is only a function's name. A plain handler written
+ * `const router = (req, res) => …` is called `router` too and carries no stack, and read as
+ * a router it was walked as an empty one: passed over in silence, wherever it was mounted
+ * and whatever it answered. Without a stack it is the middleware it is, and meets the lists
+ * above.
+ */
+const isRouter = (layer: Record<string, unknown>): boolean =>
+  layer['name'] === 'router' && Array.isArray(propertiesOf(layer['handle'])?.['stack'])
+
+/**
  * Whether a layer is another Express **application** rather than a router.
  *
  * `app.use(path, subApp)` wraps the sub-app in a function Express names `mounted_app`, whose
@@ -148,8 +204,9 @@ const sourceOf = (layer: Record<string, unknown>): string => {
  *
  * **It refuses to guess.** A shape it cannot place as written throws instead of being
  * skipped or read as text: a route path that is a regular expression, an array or a string
- * carrying a pattern character; a middleware mounted at a path inside a router, unless
- * {@link PATH_MOUNTED_MIDDLEWARE} names it; and a sub-app, wherever it is mounted. Every
+ * carrying a pattern character; a middleware mounted at a path — inside a router unless
+ * {@link PATH_MOUNTED_MIDDLEWARE} names it, on the app itself unless
+ * {@link APP_PATH_MOUNTED_MIDDLEWARE} does; and a sub-app, wherever it is mounted. Every
  * sweep built on this walk would otherwise lose what that shape serves — or worse, file it
  * under a namespace it does not answer — without a word.
  */
@@ -202,27 +259,28 @@ export const mountedRoutes = (app: Express): readonly Route[] => {
         )
       }
 
-      const handle = propertiesOf(properties['handle'])
-      if (properties['name'] === 'router' && handle !== null) {
+      if (isRouter(properties)) {
         const at = `${prefix}${mountPathOf(properties)}`
-        walk(handle['stack'], at, mount ?? at)
+        walk(propertiesOf(properties['handle'])?.['stack'], at, mount ?? at)
         continue
       }
 
-      // Anything else is middleware. On the app's own stack it is the server's plumbing —
-      // the body parser, the CSRF gate, `apiNotFound` — and it is `server.ts`'s to answer
-      // for. Inside a router and mounted at a path, it is a handler that can answer a request
-      // without any route this walk would see.
-      if (
-        mount !== undefined &&
-        !mountedAtRoot(properties) &&
-        !PATH_MOUNTED_MIDDLEWARE.has(properties['handle'])
-      ) {
+      // Anything else is middleware. At the root of the app or of a router it is plumbing or
+      // a gate, with no path of its own to reach a namespace by. Mounted at a path, it is a
+      // handler that can answer every request under that path without any route this walk
+      // would see — on the app's own stack exactly as inside a router. So it is refused
+      // unless the list for where it stands names it.
+      if (mountedAtRoot(properties)) continue
+      const onTheApp = mount === undefined
+      const named = onTheApp ? APP_PATH_MOUNTED_MIDDLEWARE : PATH_MOUNTED_MIDDLEWARE
+      if (!named.has(properties['handle'])) {
         throw new Error(
           `this sweep refuses to guess what the middleware "${String(properties['name'])}" ` +
-            `mounted at ${sourceOf(properties)} inside the router at "${prefix}" answers: ` +
-            'declare a route instead, or name it in PATH_MOUNTED_MIDDLEWARE with the reason ' +
-            'it answers nothing',
+            `mounted at ${sourceOf(properties)} ` +
+            (onTheApp ? 'on the app' : `inside the router at "${prefix}"`) +
+            ' answers: declare a route instead, or name it in ' +
+            (onTheApp ? 'APP_PATH_MOUNTED_MIDDLEWARE' : 'PATH_MOUNTED_MIDDLEWARE') +
+            ' with the reason it may run there',
         )
       }
     }
