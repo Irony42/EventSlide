@@ -876,7 +876,18 @@ pino uses an explicit `redact` list covering `req.headers.cookie`,
 recorded only at `debug` and only when the operator sets `LOG_IP_FULL=true`
 **(planned)**: someone chasing abuse may need it, and it should be a deliberate act.
 Responses never carry a stack trace, SQL fragment, or path; the error middleware logs
-those against a `requestId` and returns the code only.
+those against a `requestId` and returns the code only — in production too: the response
+is always the same opaque 500, so dropping the stack from the log as well, as this
+middleware used to, only costs the operator the one thing that could tell them where the
+bug is.
+
+**The access log (`src/interface/http/middleware/accessLog.ts`, `pino-http`).** One line
+per finished request: the route **pattern**, never the real path (`/api/events/:eventSlug`,
+not `/api/events/our-wedding-2026`), the status, the duration, the request id, and
+`service`/`version`/`instance`. Both the request and the response are logged through
+serializers that replace `pino-http`'s own — the defaults carry the raw URL with its
+query string and every header, `set-cookie` included, which is exactly how a fresh
+session id would otherwise leave the process in a log line nobody meant to write.
 
 ### Data-subject flows a host can actually perform
 

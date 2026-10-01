@@ -9,6 +9,7 @@ import type { EventRepository } from '../../application/ports/eventRepository'
 import type { GuestRepository } from '../../application/ports/guestRepository'
 import type { MembershipRepository, UserRepository } from '../../application/ports/userRepository'
 import type { GuestTokenService } from '../../application/ports/guestTokenService'
+import type { AccessLogOptions } from './middleware/accessLog'
 
 /**
  * The two principals, and nothing in between.
@@ -142,6 +143,8 @@ export interface HttpConfig {
     /** Per **account**, per hour — `eventCreationLimiter` keys on who is signed in, not on an address (P4-09 / D-14). */
     readonly eventCreationPerHour: number
   }
+  /** `middleware/accessLog.ts` (docs/SECURITY.md, P4-06): route pattern, status, duration. */
+  readonly accessLog: AccessLogOptions
 }
 
 declare global {

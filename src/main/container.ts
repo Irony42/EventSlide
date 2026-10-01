@@ -508,6 +508,12 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secureCookie: config.session.secureCookie,
     e2eHooks: config.e2eHooks,
     siteAdmin: config.siteAdmin,
+    accessLog: {
+      enabled: true,
+      level: config.logLevel,
+      pretty: !config.isProduction,
+      ...instanceBindings,
+    },
     uploads: { maxBytes: config.uploads.maxBytes, maxFiles: config.uploads.maxFiles },
     clips: {
       maxBytes: config.clips.maxBytes,

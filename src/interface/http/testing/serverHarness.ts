@@ -5,6 +5,7 @@ import { buildServer } from '../server'
 import { buildTestWorld, type TestWorld } from './middlewareHarness'
 import type { HttpConfig } from '../types'
 import type { HttpUseCases } from '../useCases'
+import type { Logger } from '../../../application/ports/logger'
 
 /**
  * The real `buildServer()`, driven with fakes.
@@ -131,6 +132,12 @@ export interface ServerHarnessOptions {
    * liveness answer that still arrives when the store is unusable.
    */
   readonly sessionStore?: Store
+  /**
+   * The app logger `buildServer` is handed. Defaults to the silent logger, like every
+   * other HTTP test. `logCanary.test.ts` passes a real one: it is the one test asking
+   * what a real logger actually writes.
+   */
+  readonly logger?: Logger
 }
 
 /**
@@ -153,8 +160,9 @@ export const buildServerHarness = ({
   usecases = {},
   clientDir,
   sessionStore = new session.MemoryStore(),
+  logger,
 }: ServerHarnessOptions = {}): ServerHarness => {
-  const world = buildTestWorld(config)
+  const world = buildTestWorld(config, { ...(logger === undefined ? {} : { logger }) })
   const { deps } = world
 
   const health: MutableHealthChecks = {
