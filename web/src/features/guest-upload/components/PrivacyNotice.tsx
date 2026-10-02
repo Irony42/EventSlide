@@ -1,4 +1,6 @@
 import { forwardRef, useId } from 'react'
+import { NewTabLink } from '../../../app/NewTabLink'
+import { useAbout } from '../../../app/useAbout'
 import { Button } from '../../../design-system/components/Button'
 import { Dialog } from '../../../design-system/components/Dialog'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -22,23 +24,39 @@ import styles from './PrivacyNotice.module.css'
  * screen reader announces it as such: "Qui les voit", then the sentences under it. Each
  * sentence is its own `<dd>`, so a clause the server did not send is absent rather than
  * an empty line.
+ *
+ * **Under it, the operator's privacy policy** when the operator set `LEGAL_PRIVACY_URL`
+ * (roadmap G2-17 / P3-18): the notice says what happens to a photo, and the policy is where
+ * the rest of the guest's data is accounted for. It opens in a tab of its own, since this
+ * card sits on the upload screen and an unmount there aborts every send in flight. A box that
+ * set no policy shows nothing here.
  */
 export function PrivacyNoticeContent({ notice }: { readonly notice: PrivacyNoticeDto }) {
   const t = useTranslations()
+  const { links } = useAbout()
 
   return (
-    <dl className={styles['sections']}>
-      {noticeSections(notice, t).map((section) => (
-        <div key={section.term} className={styles['section']}>
-          <dt className={styles['term']}>{section.term}</dt>
-          {section.sentences.map((sentence) => (
-            <dd key={sentence} className={styles['sentence']}>
-              {sentence}
-            </dd>
-          ))}
-        </div>
-      ))}
-    </dl>
+    <>
+      <dl className={styles['sections']}>
+        {noticeSections(notice, t).map((section) => (
+          <div key={section.term} className={styles['section']}>
+            <dt className={styles['term']}>{section.term}</dt>
+            {section.sentences.map((sentence) => (
+              <dd key={sentence} className={styles['sentence']}>
+                {sentence}
+              </dd>
+            ))}
+          </div>
+        ))}
+      </dl>
+      {links.privacy === undefined ? null : (
+        <p className={styles['policy']}>
+          <NewTabLink href={links.privacy} className={styles['policyLink']}>
+            {t.about.privacyLink}
+          </NewTabLink>
+        </p>
+      )}
+    </>
   )
 }
 

@@ -41,6 +41,12 @@ export const selfRemovalSentence = (seconds: number, text: UiText): string => {
  * The four answers, in the order the roadmap asks them: what happens to a photo, who sees
  * it, how long it is kept, and how to have it removed.
  *
+ * **A fifth line, only when the server sent an operator** (roadmap G2-17 / P3-18): "Hébergé
+ * par", then the name the operator configured. It is last because it answers none of the four
+ * questions — it says who holds the photograph — and it is the operator's own word for
+ * themselves, so it is printed as written and never translated. A notice with no operator is
+ * the four sections it always was.
+ *
  * "Ask the organiser" is always the last sentence, because it is always true — a
  * moderator can delete any photo of their event — and there is no self-service "delete
  * everything I sent" to point at instead: that is roadmap §5.2, and it is not built.
@@ -76,5 +82,8 @@ export const noticeSections = (
       ],
     },
     { term: copy.noticeRemoval, sentences: removal },
+    ...(notice.operator === undefined
+      ? []
+      : [{ term: text.about.operatorHostedBy, sentences: [notice.operator] }]),
   ]
 }

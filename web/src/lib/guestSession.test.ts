@@ -348,3 +348,42 @@ describe('guestSession', () => {
     expect(readGuestSession('camille-et-sacha')).toBeNull()
   })
 })
+
+describe('guestSession, the operator named in the notice (roadmap G2-17)', () => {
+  const stored = (notice: unknown) => {
+    sessionStorage.setItem(
+      'eventslide.guest.gala',
+      JSON.stringify({
+        event: aPublicEvent({ slug: 'gala' }),
+        displayName: null,
+        privacyNotice: { notice, acknowledgement: 'none' },
+      }),
+    )
+    return readGuestSession('gala')?.privacyNotice
+  }
+
+  it('keeps the operator a stored notice names, so a reload still says who hosts the photo', () => {
+    const notice = stored({ ...aPrivacyNotice(), operator: 'Association Les Photographes' })?.notice
+
+    expect(notice?.operator).toBe('Association Les Photographes')
+  })
+
+  it('reads a notice without one exactly as before, with no operator key', () => {
+    const notice = stored(aPrivacyNotice())?.notice
+
+    expect(notice).toBeDefined()
+    expect(Object.keys(notice ?? {})).not.toContain('operator')
+  })
+
+  it.each([
+    ['a number', 7],
+    ['a blank string', '   '],
+    ['an object', { name: 'Les Photographes' }],
+    ['null', null],
+  ])(
+    'reads a notice whose operator is %s as no notice, so it is fetched rather than misworded',
+    (_why, operator) => {
+      expect(stored({ ...aPrivacyNotice(), operator })).toBeNull()
+    },
+  )
+})

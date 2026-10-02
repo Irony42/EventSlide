@@ -57,3 +57,15 @@
   line-height: var(--leading-normal);
   color: var(--text-secondary);
 }
+
+/* The operator's privacy policy, under the four answers: a link, not a fifth question. */
+.policy {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.policyLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+}
