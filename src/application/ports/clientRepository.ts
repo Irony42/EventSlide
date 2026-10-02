@@ -30,6 +30,23 @@ export interface ClientEventContext {
 }
 
 /**
+ * A client's byte ceiling over **all its events**, as an admission carries it into the
+ * transaction that writes (`PhotoAdmissionLimits.clientBytes`, `ClipAdmissionLimits.clientBytes`).
+ *
+ * The ceiling travels with the batch for the reason the per-event quota does: it belongs to
+ * another aggregate and a repository does not interpret one. What the repository adds is
+ * the sum **of the client's events**, taken inside the same `.immediate()` transaction as
+ * the insert, where nothing can interleave — which is what makes `max_total_bytes` hold
+ * when two guests at two events of one client upload at the same moment. `null` in its
+ * place means "no ceiling to enforce", and the sum is not even read.
+ */
+export interface ClientByteLimit {
+  readonly clientId: ClientId
+  /** `clients.max_total_bytes`. The client's events together may not pass it. */
+  readonly maxBytes: number
+}
+
+/**
  * Clients as records, not a convention (roadmap §10.2): the account that owns zero or
  * more events, with a lifecycle and a set of ceilings of its own.
  *

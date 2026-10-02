@@ -6,6 +6,7 @@ import type {
 import { ClipJob, type ClipJobProps } from '../../domain/clips/clipJob'
 import { isClipJobStatus, type ClipJobStatus } from '../../domain/clips/clipJobStatus'
 import { admitsAnotherClip } from '../../domain/clips/clipQueue'
+import { fitsInQuota, remainingQuota } from '../../domain/events/quota'
 import { Caption } from '../../domain/photos/caption'
 import { ContentHash } from '../../domain/photos/contentHash'
 import type { PhotoAuthor } from '../../domain/photos/photo'
@@ -21,7 +22,12 @@ import {
   type PhotoId,
 } from '../../domain/shared/ids'
 import type { Result } from '../../domain/shared/result'
-import { BLOCKING_REUPLOAD_SQL, HOLDING_BYTES_SQL, eventHoldingBytesSum } from './clipJobStatusSql'
+import {
+  BLOCKING_REUPLOAD_SQL,
+  HOLDING_BYTES_SQL,
+  clientHoldingBytesSum,
+  eventHoldingBytesSum,
+} from './clipJobStatusSql'
 import type { Db } from './connection'
 import { fromIsoText, toIsoText } from './rowMapping'
 
@@ -205,6 +211,13 @@ interface CountRow {
  */
 const SUM_EVENT_BYTES = `SELECT ${eventHoldingBytesSum(':eventId')} AS value`
 
+/**
+ * What every event of one client holds together, for `max_total_bytes`: the per-event sum
+ * above summed over the client's events, so it is one rule with one home and
+ * `eventBytesSum.test.ts` holds the two to each other.
+ */
+const SUM_CLIENT_BYTES = `SELECT ${clientHoldingBytesSum(':clientId')} AS value`
+
 const COUNT_ACTIVE_CLIPS = `
   SELECT COUNT(*) AS value FROM clip_jobs WHERE status IN (${HOLDING_BYTES_SQL})
 `
@@ -328,6 +341,13 @@ export class SqliteClipJobRepository implements ClipJobRepository {
     const active = this.db.prepare<[], CountRow>(COUNT_ACTIVE_CLIPS)
     const used = this.db.prepare<{ readonly eventId: string }, CountRow>(SUM_EVENT_BYTES)
     const insert = this.db.prepare<ClipJobBindings>(INSERT_CLIP_JOB)
+    // Absent for an event with no client or a client with no `max_total_bytes`: then the
+    // second sum is not even prepared and this is the transaction it always was.
+    const clientBytes = limits.clientBytes ?? null
+    const clientUsed =
+      clientBytes === null
+        ? null
+        : this.db.prepare<{ readonly clientId: string }, CountRow>(SUM_CLIENT_BYTES)
 
     return this.db
       .transaction((): ClipAdmission => {
@@ -357,6 +377,20 @@ export class SqliteClipJobRepository implements ClipJobRepository {
               reason: 'quotaExceeded',
               remaining: Math.max(0, limits.quotaBytes - usedBytes),
             },
+          }
+        }
+
+        // After the event's own quota, as in `saveManyWithinLimits`: an event is refused by
+        // whichever ceiling it reaches first, and its own is the one a host can act on.
+        if (clientBytes !== null && clientUsed !== null) {
+          const clientUsedBytes = clientUsed.get({ clientId: clientBytes.clientId })?.value ?? 0
+          if (!fitsInQuota(clientBytes.maxBytes, clientUsedBytes, job.sourceByteSize)) {
+            return {
+              refusal: {
+                reason: 'clientStorageFull',
+                remaining: remainingQuota(clientBytes.maxBytes, clientUsedBytes),
+              },
+            }
           }
         }
 

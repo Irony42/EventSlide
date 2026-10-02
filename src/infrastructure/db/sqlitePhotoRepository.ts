@@ -27,12 +27,13 @@ import {
   asMissionId,
   asPhotoId,
   asUserId,
+  type ClientId,
   type EventId,
   type GuestId,
   type PhotoId,
 } from '../../domain/shared/ids'
 import type { Result } from '../../domain/shared/result'
-import { eventHoldingBytesSum } from './clipJobStatusSql'
+import { clientHoldingBytesSum, eventHoldingBytesSum } from './clipJobStatusSql'
 import type { Db } from './connection'
 import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
 
@@ -113,6 +114,19 @@ const SUM_EVENT_BYTES = `SELECT ${eventHoldingBytesSum(':eventId')} AS value`
  */
 const SUM_EVENT_BYTES_CREDITING_CLIP = `SELECT ${eventHoldingBytesSum(
   ':eventId',
+  ':excludeClipJobId',
+)} AS value`
+
+/**
+ * What every event of one client holds together, for `max_total_bytes`: the per-event sum
+ * above summed over the client's events (`clientHoldingBytesSum`), so a status the event sum
+ * learns about reaches the client's total in the same edit.
+ */
+const SUM_CLIENT_BYTES = `SELECT ${clientHoldingBytesSum(':clientId')} AS value`
+
+/** The same, minus one job's staged source — the transcode worker's credit, as above. */
+const SUM_CLIENT_BYTES_CREDITING_CLIP = `SELECT ${clientHoldingBytesSum(
+  ':clientId',
   ':excludeClipJobId',
 )} AS value`
 
@@ -564,6 +578,14 @@ export class SqlitePhotoRepository implements PhotoRepository {
     )
   }
 
+  async clientTotalBytes(clientId: ClientId): Promise<number> {
+    return aggregate(
+      this.db
+        .prepare<{ readonly clientId: string }, AggregateRow>(SUM_CLIENT_BYTES)
+        .get({ clientId }),
+    )
+  }
+
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
     return aggregate(
       this.db.prepare<[string, string], AggregateRow>(COUNT_BY_AUTHOR).get(eventId, guestId),
@@ -629,10 +651,27 @@ export class SqlitePhotoRepository implements PhotoRepository {
     const countAuthored = this.db.prepare<[string, string], AggregateRow>(COUNT_BY_AUTHOR)
     // Absent for every caller but the transcode worker; see `replacesStagedClip`.
     const excludeClipJobId = limits.replacesStagedClip ?? null
+    // Absent for an event with no client, or a client with no `max_total_bytes`: then the
+    // second sum is not even prepared, and the loop below is the one it always was.
+    const clientBytes = limits.clientBytes ?? null
+    const sumClientBytes =
+      clientBytes === null
+        ? null
+        : this.db.prepare<
+            { readonly clientId: string; readonly excludeClipJobId: string | null },
+            AggregateRow
+          >(SUM_CLIENT_BYTES_CREDITING_CLIP)
 
     return this.db
       .transaction((): readonly PhotoAdmission[] => {
         let usedBytes = aggregate(sumBytes.get({ eventId, excludeClipJobId }))
+        // The client's whole, read in the same transaction as the event's own: every event of
+        // the client counted under the same write lock, which is what makes the ceiling hold
+        // when two events of one client are being uploaded to at once.
+        let clientUsedBytes =
+          clientBytes === null || sumClientBytes === null
+            ? 0
+            : aggregate(sumClientBytes.get({ clientId: clientBytes.clientId, excludeClipJobId }))
         /** One `COUNT` per author, then kept in step with what this batch inserts. */
         const authored = new Map<string, number>()
         const alreadyBy = (guestId: GuestId): number => {
@@ -671,8 +710,22 @@ export class SqlitePhotoRepository implements PhotoRepository {
             continue
           }
 
+          // The client's ceiling after the event's own: an event is refused by whichever it
+          // reaches first, and the event's is the one a host can act on.
+          if (clientBytes !== null && !fitsInQuota(clientBytes.maxBytes, clientUsedBytes, photo.byteSize)) {
+            verdicts.push({
+              photoId: photo.id,
+              refusal: {
+                reason: 'clientStorageFull',
+                remaining: remainingQuota(clientBytes.maxBytes, clientUsedBytes),
+              },
+            })
+            continue
+          }
+
           insert.run(toBindings(photo))
           usedBytes += photo.byteSize
+          clientUsedBytes += photo.byteSize
           if (guestId !== null) authored.set(guestId, alreadyBy(guestId) + 1)
           verdicts.push({ photoId: photo.id, refusal: null })
         }

@@ -1,7 +1,8 @@
 import type { Photo, PhotoReview } from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import type { ContentHash } from '../../domain/photos/contentHash'
-import type { ClipJobId, EventId, GuestId, PhotoId } from '../../domain/shared/ids'
+import type { ClientId, ClipJobId, EventId, GuestId, PhotoId } from '../../domain/shared/ids'
+import type { ClientByteLimit } from './clientRepository'
 
 /**
  * Every method takes `eventId` first.
@@ -62,6 +63,18 @@ export interface PhotoAdmissionLimits {
    * nothing, and crediting it twice would let the quota drift.
    */
   readonly replacesStagedClip?: ClipJobId
+  /**
+   * The ceiling the event's **client** puts on every one of its events together, or `null`
+   * (the default) for an event with no client or a client with no `max_total_bytes`.
+   *
+   * Decided in the same transaction, over the same two tables, as the event's own quota —
+   * the sum is `clientHoldingBytesSum`, photographs of every status plus the staged sources
+   * of every clip still holding one, across **every event of that client**. An event is
+   * refused by whichever ceiling it reaches first, and the event's own is named first when
+   * both are reached. `replacesStagedClip` is credited here as well: a clip's output
+   * replaces its source in the client's total exactly as it does in the event's.
+   */
+  readonly clientBytes?: ClientByteLimit | null
 }
 
 /**
@@ -72,6 +85,11 @@ export interface PhotoAdmissionLimits {
 export type PhotoRefusal =
   /** `remaining` is what the event's quota still had room for, in bytes. */
   | { readonly reason: 'quotaExceeded'; readonly remaining: number }
+  /**
+   * The client's `max_total_bytes` over all its events is reached; `remaining` is what it
+   * still had room for at the moment of the decision.
+   */
+  | { readonly reason: 'clientStorageFull'; readonly remaining: number }
   /** `already` is how many photos the author held when the cap refused this one. */
   | { readonly reason: 'photoLimitReached'; readonly already: number }
 
@@ -141,6 +159,18 @@ export interface PhotoRepository {
 
   /** Drives the event byte quota. */
   totalBytes(eventId: EventId): Promise<number>
+
+  /**
+   * What **every event of this client together** holds, photographs and staged clip sources:
+   * the sum `PhotoAdmissionLimits.clientBytes` is judged against.
+   *
+   * It drives the cheap check an upload makes before it writes three variants to the disk,
+   * exactly as {@link PhotoRepository.totalBytes} does for one event. It is **not** the
+   * enforcing read: that is the sum `saveManyWithinLimits` takes inside its own transaction.
+   * Scoped by client the way every other method here is scoped by event — an event with no
+   * client is nobody's, and a client's number never includes another's.
+   */
+  clientTotalBytes(clientId: ClientId): Promise<number>
 
   countByAuthor(eventId: EventId, guestId: GuestId): Promise<number>
 

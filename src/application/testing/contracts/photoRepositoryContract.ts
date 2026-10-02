@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  asClientId,
   asEventId,
   asGuestId,
   asPhotoId,
   asUserId,
+  type ClientId,
   type ClipJobId,
   type EventId,
 } from '../../../domain/shared/ids'
@@ -45,7 +47,8 @@ const hashOf = (seed: string): ContentHash => {
  * handing the repository over; the fake needs nothing.
  */
 export const PHOTO_CONTRACT_FIXTURES = {
-  eventIds: ['evt-wedding', 'evt-gala'],
+  /** The brunch is only ever a *different client's* event, in the byte-ceiling cases. */
+  eventIds: ['evt-wedding', 'evt-gala', 'evt-brunch'],
   /** `guest-lea` and `guest-nils` belong to the wedding, `guest-sam` to the gala. */
   guestIds: ['guest-lea', 'guest-nils', 'guest-sam'],
   /** A host, as an author and as the reviewer on a host decision. */
@@ -92,6 +95,13 @@ export interface PhotoRepositorySubject {
    * replacing rather than adding to.
    */
   stageClipBytes: (eventId: EventId, byteSize: number) => Promise<ClipJobId>
+  /**
+   * Make these the events of one client, by whatever route the implementation has: a
+   * `clients` row and `events.client_id` in SQLite, the link the clients fake keeps. A
+   * client's byte ceiling is judged over **its events**, so a case about it has to be able
+   * to say which those are.
+   */
+  placeEventsInClient: (clientId: ClientId, eventIds: readonly EventId[]) => Promise<void>
   readonly dispose?: () => Promise<void>
 }
 
@@ -102,12 +112,14 @@ export const photoRepositoryContract = (
   describe(`PhotoRepository contract: ${name}`, () => {
     let repo: PhotoRepository
     let stageClipBytes: (eventId: EventId, byteSize: number) => Promise<ClipJobId>
+    let placeEventsInClient: (clientId: ClientId, eventIds: readonly EventId[]) => Promise<void>
     let dispose: (() => Promise<void>) | undefined
 
     beforeEach(async () => {
       const subject = await makeSubject()
       repo = subject.repo
       stageClipBytes = subject.stageClipBytes
+      placeEventsInClient = subject.placeEventsInClient
       dispose = subject.dispose
     })
 
@@ -804,6 +816,210 @@ export const photoRepositoryContract = (
       })
 
       expect(reasons(admissions)).toEqual([null])
+    })
+
+    // ------------------------------------------------ a client's byte ceiling --
+
+    /**
+     * `clients.max_total_bytes` (roadmap §10.5): **every event of one client together** may
+     * not hold more, decided in the same transaction as the event's own quota.
+     *
+     * The wedding and the gala are two events of one client; the brunch is another client's
+     * and holds a great deal, so a number that leaks across the boundary shows up as a
+     * refusal that should not be there.
+     */
+    describe('a client’s byte ceiling', () => {
+      const CLIENT = asClientId('client-1')
+      const OTHER_CLIENT = asClientId('client-2')
+      const BRUNCH = asEventId('evt-brunch')
+
+      beforeEach(async () => {
+        await placeEventsInClient(CLIENT, [WEDDING, GALA])
+        await placeEventsInClient(OTHER_CLIENT, [BRUNCH])
+      })
+
+      const limits = (maxBytes: number | null, extra: Partial<PhotoAdmissionLimits> = {}) => ({
+        quotaBytes: Number.MAX_SAFE_INTEGER,
+        maxPhotosPerGuest: null,
+        clientBytes: maxBytes === null ? null : { clientId: CLIENT, maxBytes },
+        ...extra,
+      })
+
+      /** Both events already hold something: 600 in the wedding, 300 in the gala. */
+      const seedSixHundredAndThreeHundred = async (): Promise<void> => {
+        await repo.save(aPhoto({ id: 'w', eventId: WEDDING, byteSize: 600 }))
+        await repo.save(
+          aPhoto({ id: 'g', eventId: GALA, byteSize: 300, author: { kind: 'guest', id: SAM } }),
+        )
+      }
+
+      it('admits a photo that exactly reaches the ceiling across the client’s two events', async () => {
+        await seedSixHundredAndThreeHundred()
+
+        const admissions = await admit(
+          [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 100 })],
+          limits(1_000),
+        )
+
+        expect(reasons(admissions)).toEqual([null])
+      })
+
+      it('refuses a photo one byte past it, naming what was left', async () => {
+        await seedSixHundredAndThreeHundred()
+
+        const admissions = await admit(
+          [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 101 })],
+          limits(1_000),
+        )
+
+        expect(admissions.map((admission) => admission.refusal)).toEqual([
+          { reason: 'clientStorageFull', remaining: 100 },
+        ])
+        expect((await repo.findById(WEDDING, asPhotoId('p1')))?.id).toBeUndefined()
+      })
+
+      it('counts the bytes of the client’s other event, so one event cannot spend what two share', async () => {
+        await repo.save(
+          aPhoto({ id: 'g', eventId: GALA, byteSize: 950, author: { kind: 'guest', id: SAM } }),
+        )
+
+        const admissions = await admit(
+          [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 100 })],
+          limits(1_000),
+        )
+
+        expect(reasons(admissions)).toEqual(['clientStorageFull'])
+      })
+
+      it('counts a clip still waiting to be transcoded in the client’s other event', async () => {
+        await stageClipBytes(GALA, 950)
+
+        const admissions = await admit(
+          [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 100 })],
+          limits(1_000),
+        )
+
+        expect(reasons(admissions)).toEqual(['clientStorageFull'])
+      })
+
+      it('does not charge another client’s bytes to this one', async () => {
+        await repo.save(aPhoto({ id: 'b', eventId: BRUNCH, byteSize: 9_000_000 }))
+
+        const admissions = await admit(
+          [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 900 })],
+          limits(1_000),
+        )
+
+        expect(reasons(admissions)).toEqual([null])
+      })
+
+      it('applies no client ceiling when there is none to apply, which is what an event with no client or a client with no max_total_bytes sends', async () => {
+        await seedSixHundredAndThreeHundred()
+
+        expect(
+          reasons(
+            await admit([aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 5_000 })], limits(null)),
+          ),
+        ).toEqual([null])
+        expect(
+          reasons(
+            await admit([aPhoto({ id: 'p2', eventId: WEDDING, byteSize: 5_000 })], NO_LIMITS),
+          ),
+        ).toEqual([null])
+      })
+
+      it('counts the photos of this batch against each other, and keeps considering the ones after a refusal', async () => {
+        await seedSixHundredAndThreeHundred()
+
+        const admissions = await admit(
+          [
+            aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 60 }),
+            aPhoto({ id: 'p2', eventId: WEDDING, byteSize: 60 }),
+            aPhoto({ id: 'p3', eventId: WEDDING, byteSize: 40 }),
+          ],
+          limits(1_000),
+        )
+
+        expect(reasons(admissions)).toEqual([null, 'clientStorageFull', null])
+      })
+
+      it('names the event’s own quota first when both ceilings are reached', async () => {
+        await seedSixHundredAndThreeHundred()
+
+        const admissions = await admit(
+          [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 500 })],
+          limits(1_000, { quotaBytes: 700 }),
+        )
+
+        expect(reasons(admissions)).toEqual(['quotaExceeded'])
+      })
+
+      it('credits the clip a batch is replacing in the client’s total as it does in the event’s', async () => {
+        // 500 staged in the wedding and 400 of photographs in the gala: 900 held. The clip's
+        // 600-byte output replaces its 500-byte source, so the client holds 400 + 600 = 1 000.
+        const jobId = await stageClipBytes(WEDDING, 500)
+        await repo.save(
+          aPhoto({ id: 'g', eventId: GALA, byteSize: 400, author: { kind: 'guest', id: SAM } }),
+        )
+
+        const uncredited = await admit(
+          [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 600 })],
+          limits(1_000),
+        )
+        const credited = await admit(
+          [aPhoto({ id: 'p2', eventId: WEDDING, byteSize: 600 })],
+          limits(1_000, { replacesStagedClip: jobId }),
+        )
+
+        expect(uncredited.map((admission) => admission.refusal)).toEqual([
+          { reason: 'clientStorageFull', remaining: 100 },
+        ])
+        expect(reasons(credited)).toEqual([null])
+      })
+
+      it('credits only the named job in the client’s total, never the rest of the queue', async () => {
+        const jobId = await stageClipBytes(WEDDING, 500)
+        await stageClipBytes(GALA, 500)
+
+        const admissions = await admit(
+          [aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 600 })],
+          limits(1_000, { replacesStagedClip: jobId }),
+        )
+
+        expect(admissions.map((admission) => admission.refusal)).toEqual([
+          { reason: 'clientStorageFull', remaining: 500 },
+        ])
+      })
+
+      describe('clientTotalBytes', () => {
+        it('sums the photographs and the staged clips of every event of the client', async () => {
+          await seedSixHundredAndThreeHundred()
+          await stageClipBytes(WEDDING, 50)
+
+          expect(await repo.clientTotalBytes(CLIENT)).toBe(950)
+        })
+
+        it('is zero for a client with no event holding anything', async () => {
+          expect(await repo.clientTotalBytes(CLIENT)).toBe(0)
+        })
+
+        it('never includes another client’s events', async () => {
+          await repo.save(aPhoto({ id: 'b', eventId: BRUNCH, byteSize: 9_000_000 }))
+          await seedSixHundredAndThreeHundred()
+
+          expect(await repo.clientTotalBytes(CLIENT)).toBe(900)
+          expect(await repo.clientTotalBytes(OTHER_CLIENT)).toBe(9_000_000)
+        })
+
+        it('is the sum of what each event reports for itself', async () => {
+          await seedSixHundredAndThreeHundred()
+          await stageClipBytes(GALA, 70)
+
+          expect(await repo.clientTotalBytes(CLIENT)).toBe(
+            (await repo.totalBytes(WEDDING)) + (await repo.totalBytes(GALA)),
+          )
+        })
+      })
     })
 
     // -------------------------------------------------------- the guest cap --

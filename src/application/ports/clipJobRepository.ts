@@ -1,6 +1,7 @@
 import type { ClipJob } from '../../domain/clips/clipJob'
 import type { ContentHash } from '../../domain/photos/contentHash'
 import type { ClipJobId, EventId, PhotoId } from '../../domain/shared/ids'
+import type { ClientByteLimit } from './clientRepository'
 
 /**
  * The transcode queue.
@@ -82,6 +83,12 @@ export interface ClipAdmissionLimits {
    * so a box running one event at a time reaches both together and nothing changes.
    */
   readonly maxQueuedClipsPerEvent: number
+  /**
+   * The ceiling the event's client puts on all its events together, or `null` (the default)
+   * for no client or no `max_total_bytes`. Checked in this same transaction, after the
+   * event's own quota, over `clientHoldingBytesSum`: see {@link PhotoAdmissionLimits.clientBytes}.
+   */
+  readonly clientBytes?: ClientByteLimit | null
 }
 
 /**
@@ -96,6 +103,8 @@ export interface ClipAdmissionLimits {
  */
 export type ClipRefusal =
   | { readonly reason: 'quotaExceeded'; readonly remaining: number }
+  /** The client's `max_total_bytes` over all its events is reached. See `PhotoRefusal`. */
+  | { readonly reason: 'clientStorageFull'; readonly remaining: number }
   | { readonly reason: 'queueFull'; readonly depth: number; readonly maxDepth: number }
 
 export interface ClipAdmission {

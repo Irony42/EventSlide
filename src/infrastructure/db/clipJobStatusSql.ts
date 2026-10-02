@@ -63,3 +63,34 @@ export const eventHoldingBytesSum = (eventIdExpr: string, creditedClipJobExpr?: 
             FROM clip_jobs
            WHERE event_id = ${eventIdExpr} AND status IN (${HOLDING_BYTES_SQL})${credited}))`
 }
+
+/**
+ * **The client byte sum, written once**: what every event of one client together has
+ * spent, as an SQL expression (roadmap §10.5; `CLIENT_HOLDING_BYTES_SUM` in the paid plan).
+ *
+ * It is {@link eventHoldingBytesSum} summed over the client's events, **not a second
+ * spelling of it**: the rule for what an event is charged (photographs of every status
+ * plus the staged source of every clip still holding one) has one home, and a status added
+ * to it reaches the client's total in the same edit. That is the whole reason this is a
+ * `SUM` over a correlated call instead of two `JOIN`s that would restate the two tables.
+ * `eventBytesSum.test.ts` holds it to the per-event number.
+ *
+ * `max_total_bytes` is enforced against this inside the same `.immediate()` transaction as
+ * the event's own quota — `saveManyWithinLimits` for a photograph batch, `stage` for a clip
+ * — and the dashboard and the operator's overview will read it too.
+ *
+ * @param clientIdExpr What the client id is spelled as at the call site: a named parameter
+ *   (`:clientId`) for an admission, the outer row's column for a listing.
+ * @param creditedClipJobExpr The transcode worker's credit, passed straight to the per-event
+ *   sum — see {@link eventHoldingBytesSum}. A job belongs to exactly one event, so crediting
+ *   it inside every event's sum credits it once, in the one event that holds it.
+ *
+ * Returns a parenthesised expression, not a statement: it goes inside a `SELECT` list.
+ */
+export const clientHoldingBytesSum = (
+  clientIdExpr: string,
+  creditedClipJobExpr?: string,
+): string =>
+  `(SELECT COALESCE(SUM(${eventHoldingBytesSum('ce.id', creditedClipJobExpr)}), 0)
+      FROM events ce
+     WHERE ce.client_id = ${clientIdExpr})`

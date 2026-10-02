@@ -331,6 +331,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   // ----------------------------------------------------------------- photos --
   uploadPhotos: makeUploadPhotos({
     events: adapters.events,
+    clients: adapters.clients,
     photos: adapters.photos,
     missions: adapters.missions,
     media: adapters.media,
@@ -370,6 +371,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   // ------------------------------------------------------------------ clips --
   uploadClip: makeUploadClip({
     events: adapters.events,
+    clients: adapters.clients,
     clips: adapters.clips,
     photos: adapters.photos,
     media: adapters.media,
@@ -394,6 +396,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
    */
   transcodeNextClip: makeTranscodeNextClip({
     events: adapters.events,
+    clients: adapters.clients,
     clips: adapters.clips,
     photos: adapters.photos,
     media: adapters.media,

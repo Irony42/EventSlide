@@ -5,6 +5,7 @@ import type { LogContext, Logger } from '../../ports/logger'
 import { AT, aClip, aClipJob, anEvent, aPhoto, atPlus } from '../../testing/builders'
 import type { ContentHasher } from '../../ports/contentHasher'
 import { CallLog } from '../../testing/callLog'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeVideoTranscoder } from '../../testing/fakeVideoTranscoder'
@@ -625,6 +626,7 @@ describe('what one pass costs', () => {
 
       const transcode = makeTranscodeNextClip({
         events,
+        clients: new FakeClientRepository(),
         clips,
         photos,
         media,

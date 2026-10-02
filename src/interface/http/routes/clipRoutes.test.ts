@@ -9,6 +9,7 @@ import { GUEST_COOKIE } from '../middleware/authz'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
 import { AT, aClipJob, aGuest, anEvent } from '../../../application/testing/builders'
+import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
 import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import {
@@ -113,6 +114,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
           usecases: {
             uploadClip: makeUploadClip({
               events: deps.events,
+              clients: new FakeClientRepository(),
               clips,
               photos,
               media,

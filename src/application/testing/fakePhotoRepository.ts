@@ -2,8 +2,16 @@ import { allowsAnotherPhoto, fitsInQuota, remainingQuota } from '../../domain/ev
 import { Photo, type PhotoReview } from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import type { ContentHash } from '../../domain/photos/contentHash'
-import type { ClipJobId, EventId, GuestId, MissionId, PhotoId } from '../../domain/shared/ids'
+import type {
+  ClientId,
+  ClipJobId,
+  EventId,
+  GuestId,
+  MissionId,
+  PhotoId,
+} from '../../domain/shared/ids'
 import type { StagedByteSource } from '../ports/clipJobRepository'
+import type { ClientEventSource } from './fakeClientRepository'
 import type {
   PhotoAdmission,
   PhotoAdmissionLimits,
@@ -252,6 +260,41 @@ export class FakePhotoRepository implements PhotoRepository {
   }
 
   /**
+   * Which events belong to a client — the link `events.client_id` is in SQLite, and which
+   * this fake cannot see on its own, any more than it can see `clip_jobs`. A test about a
+   * client's byte ceiling hands it the clients fake; a test about photographs alone leaves
+   * it alone, and a ceiling asked of it then **throws** rather than pass against a client
+   * with no events.
+   */
+  private clientEvents: ClientEventSource | null = null
+
+  chargeClientBytesFrom(source: ClientEventSource): this {
+    this.clientEvents = source
+    return this
+  }
+
+  private eventsOfClient(clientId: ClientId): readonly EventId[] {
+    if (this.clientEvents === null) {
+      throw new Error(
+        'FakePhotoRepository: a client byte ceiling needs chargeClientBytesFrom(clients), or it would be judged against a client with no events',
+      )
+    }
+    return this.clientEvents.eventsOf(clientId)
+  }
+
+  /**
+   * The staged half of a client's total: every event's queue, with the replaced job credited
+   * in the one event that holds it. Read with the `await`s up front, so the synchronous
+   * snapshot that follows has no suspension point in it.
+   */
+  private async stagedBytesOfClient(clientId: ClientId, crediting?: ClipJobId): Promise<number> {
+    const perEvent = await Promise.all(
+      this.eventsOfClient(clientId).map((eventId) => this.stagedBytes(eventId, crediting)),
+    )
+    return perEvent.reduce((total, bytes) => total + bytes, 0)
+  }
+
+  /**
    * The photographs' half of the total, on its own.
    *
    * What `FakeClipJobRepository.stage` asks for, and the reason it is separate: staging
@@ -264,6 +307,14 @@ export class FakePhotoRepository implements PhotoRepository {
 
   async totalBytes(eventId: EventId): Promise<number> {
     return (await this.photoBytes(eventId)) + (await this.stagedBytes(eventId))
+  }
+
+  async clientTotalBytes(clientId: ClientId): Promise<number> {
+    const events = new Set<EventId>(this.eventsOfClient(clientId))
+    const photoBytes = [...this.rows.values()]
+      .filter((photo) => events.has(photo.eventId))
+      .reduce((total, photo) => total + photo.byteSize, 0)
+    return photoBytes + (await this.stagedBytesOfClient(clientId))
   }
 
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
@@ -294,7 +345,8 @@ export class FakePhotoRepository implements PhotoRepository {
     photos: readonly Photo[],
     limits: PhotoAdmissionLimits,
   ): Promise<readonly PhotoAdmission[]> {
-    // **The only `await` in this method, and it is deliberately the first statement.**
+    // **The only `await`s in this method — the queue's half of the event's total, and of the
+    // client's — and they are deliberately the first statements.**
     // better-sqlite3 is synchronous, so the adapter's transaction cannot interleave; the
     // fake earns the same property by having no suspension point between the snapshot
     // below and the last write. Reading the queue after the snapshot instead would hand
@@ -305,6 +357,16 @@ export class FakePhotoRepository implements PhotoRepository {
     // same reason: the worker's own job is still `running` while its output is inserted,
     // and the source it became must not be charged twice.
     const stagedClipBytes = await this.stagedBytes(eventId, limits.replacesStagedClip)
+    const clientBytes = limits.clientBytes ?? null
+    // The client's queue, likewise read up front: two leading awaits, and nothing between the
+    // last of them and the final write.
+    const clientStagedBytes =
+      clientBytes === null
+        ? 0
+        : await this.stagedBytesOfClient(clientBytes.clientId, limits.replacesStagedClip)
+    const clientEvents = new Set<EventId>(
+      clientBytes === null ? [] : this.eventsOfClient(clientBytes.clientId),
+    )
 
     const staged = new Map(this.rows)
     const forEventIn = (rows: ReadonlyMap<string, Photo>): Photo[] =>
@@ -312,6 +374,10 @@ export class FakePhotoRepository implements PhotoRepository {
 
     let usedBytes =
       forEventIn(staged).reduce((total, photo) => total + photo.byteSize, 0) + stagedClipBytes
+    let clientUsedBytes =
+      [...staged.values()]
+        .filter((photo) => clientEvents.has(photo.eventId))
+        .reduce((total, photo) => total + photo.byteSize, 0) + clientStagedBytes
     const authored = new Map<string, number>()
     const alreadyBy = (guestId: GuestId): number => {
       const known = authored.get(guestId)
@@ -348,6 +414,22 @@ export class FakePhotoRepository implements PhotoRepository {
         continue
       }
 
+      // After the event's own quota, as in the adapter: the client's ceiling is the one a
+      // host can do less about, so the event's is named first when both are reached.
+      if (
+        clientBytes !== null &&
+        !fitsInQuota(clientBytes.maxBytes, clientUsedBytes, photo.byteSize)
+      ) {
+        verdicts.push({
+          photoId: photo.id,
+          refusal: {
+            reason: 'clientStorageFull',
+            remaining: remainingQuota(clientBytes.maxBytes, clientUsedBytes),
+          },
+        })
+        continue
+      }
+
       // Insert only, as the adapter's statement is: ingest mints a fresh id per file, so
       // an id already stored is a bug rather than an update, and the mapper's
       // `INSERT OR REPLACE` twin would take the photo's reactions down with it.
@@ -356,6 +438,7 @@ export class FakePhotoRepository implements PhotoRepository {
       }
       insertInto(staged, photo)
       usedBytes += photo.byteSize
+      clientUsedBytes += photo.byteSize
       if (guestId !== null) authored.set(guestId, alreadyBy(guestId) + 1)
       verdicts.push({ photoId: photo.id, refusal: null })
     }

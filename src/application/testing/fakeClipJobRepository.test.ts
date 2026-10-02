@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { asClipJobId, asEventId, type EventId } from '../../domain/shared/ids'
 import { aClipJob, aPhoto } from './builders'
 import { clipJobRepositoryContract } from './contracts/clipJobRepositoryContract'
+import { FakeClientRepository } from './fakeClientRepository'
 import { FakeClipJobRepository } from './fakeClipJobRepository'
 import { FakePhotoRepository } from './fakePhotoRepository'
 
@@ -10,8 +11,13 @@ clipJobRepositoryContract('fake', async () => {
   // wired by having one database: staging is judged against the album, and the album's
   // total counts the queue. Leaving either half out is the drift this suite exists for.
   const repo = new FakeClipJobRepository()
-  const photos = new FakePhotoRepository().chargeStagedBytesFrom(repo)
-  repo.chargePhotoBytesFrom(photos)
+  // And handed the clients fake in both, because `events.client_id` is a third thing neither
+  // can see on its own.
+  const clients = new FakeClientRepository()
+  const photos = new FakePhotoRepository()
+    .chargeStagedBytesFrom(repo)
+    .chargeClientBytesFrom(clients)
+  repo.chargePhotoBytesFrom(photos).chargeClientEventsFrom(clients)
   let saved = 0
 
   return {
@@ -23,6 +29,9 @@ clipJobRepositoryContract('fake', async () => {
     savePhotoBytes: async (eventId: EventId, byteSize: number): Promise<void> => {
       saved += 1
       await photos.save(aPhoto({ id: `photo-${saved}`, eventId, byteSize }))
+    },
+    placeEventsInClient: async (clientId, eventIds): Promise<void> => {
+      for (const eventId of eventIds) clients.linkEvent(eventId, clientId)
     },
   }
 })

@@ -5,6 +5,7 @@ import { Photo } from '../../../domain/photos/photo'
 import type { DomainError } from '../../../domain/shared/errors'
 import type { ClipJobId, EventId, PhotoId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
+import type { ClientRepository } from '../../ports/clientRepository'
 import type { ClipJobRepository } from '../../ports/clipJobRepository'
 import type { Clock } from '../../ports/clock'
 import type { ContentHasher } from '../../ports/contentHasher'
@@ -12,8 +13,9 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { Logger } from '../../ports/logger'
 import { STAGED_SOURCE, type MediaStore } from '../../ports/mediaStore'
-import type { PhotoRepository } from '../../ports/photoRepository'
+import type { PhotoRefusal, PhotoRepository } from '../../ports/photoRepository'
 import type { TranscodeSpec, VideoTranscoder } from '../../ports/videoTranscoder'
+import { clientBytesOf, clientContextOf } from '../clients/clientContextOf'
 
 /**
  * One pass of the transcode queue: claim a clip, encode it, and give it a `photos` row.
@@ -67,6 +69,13 @@ export interface TranscodeClipPolicy {
 
 export interface TranscodeNextClipDeps {
   readonly events: EventRepository
+  /**
+   * For the ceilings of the event's client (roadmap §10.5, risk R-06 "transcodage"): the
+   * worker inserts a `photos` row for a client's event, so it is judged by the same
+   * `max_total_bytes`, `max_event_quota_bytes` and `clips_allowed` as every other writer.
+   * Read only for an event that has a client — see `clientContextOf`.
+   */
+  readonly clients: ClientRepository
   readonly clips: ClipJobRepository
   readonly photos: PhotoRepository
   readonly media: MediaStore
@@ -99,8 +108,21 @@ export type TranscodeNextClipOutcome =
 
 export type TranscodeNextClip = () => Promise<Result<TranscodeNextClipOutcome, DomainError>>
 
+/** The code a transcode that the write transaction turned away is recorded under. */
+const refusalCode = (refusal: PhotoRefusal): string => {
+  switch (refusal.reason) {
+    case 'quotaExceeded':
+      return 'event.quotaExceeded'
+    case 'clientStorageFull':
+      return 'client.storageFull'
+    case 'photoLimitReached':
+      return 'event.photoLimitReached'
+  }
+}
+
 export const makeTranscodeNextClip = ({
   events,
+  clients,
   clips,
   photos,
   media,
@@ -279,6 +301,21 @@ export const makeTranscodeNextClip = ({
       return finish(job, now, true)
     }
 
+    // The client's ceilings, for an event that has one. Read **after** the crash-recovery
+    // check above on purpose: a clip whose photograph is already written is finished
+    // whatever the client's plan says now, because refusing it would destroy work that
+    // exists and that a guest is waiting for.
+    const context = await clientContextOf(clients, event)
+    const ceilings = context?.ceilings ?? null
+
+    // A clip queued **before** a downgrade to a plan without video. Given up on here —
+    // permanently, and before a core is spent encoding it — rather than finished: this is
+    // the path that would otherwise write a video into an event whose client no longer has
+    // them, and `uploadClip` only ever sees the requests that arrive after the change.
+    if (ceilings !== null && !ceilings.clipsAllowed) {
+      return giveUpOn(job, 'client.clipsNotAllowed', now)
+    }
+
     const source = await media.read(job.eventId, job.sourceHash, STAGED_SOURCE)
     if (source === null) return giveUpOn(job, 'clip.sourceMissing', now)
 
@@ -378,8 +415,12 @@ export const makeTranscodeNextClip = ({
     let admissions
     try {
       admissions = await photos.saveManyWithinLimits(job.eventId, [photo.value], {
-        quotaBytes: event.quotaBytes,
+        quotaBytes: event.effectiveQuotaBytes(ceilings),
         maxPhotosPerGuest: event.settings.maxPhotosPerGuest,
+        // The client's ceiling over all its events, judged in the same transaction and with
+        // the same credit: the output replaces the source in the client's total exactly as
+        // it does in the event's, so a clip is never charged twice at either level.
+        clientBytes: clientBytesOf(context),
         // **The source this output replaces, credited inside the same transaction.**
         // The job is still `running` here, deliberately — marking it `done` first would
         // open a window where a crash loses the accounting entirely — so without this
@@ -403,11 +444,7 @@ export const makeTranscodeNextClip = ({
     const refusal = admissions[0]?.refusal ?? null
     if (refusal !== null) {
       await unwind()
-      return giveUpOn(
-        job,
-        refusal.reason === 'quotaExceeded' ? 'event.quotaExceeded' : 'event.photoLimitReached',
-        now,
-      )
+      return giveUpOn(job, refusalCode(refusal), now)
     }
 
     // An auto-publish event records an `automatic` reviewer immediately, exactly as

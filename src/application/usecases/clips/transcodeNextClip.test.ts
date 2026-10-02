@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { Dimensions } from '../../../domain/photos/dimensions'
 import { asEventId, asPhotoId } from '../../../domain/shared/ids'
@@ -6,6 +7,7 @@ import type { ContentHasher } from '../../ports/contentHasher'
 import type { LogContext, Logger } from '../../ports/logger'
 import {
   AT,
+  aClient,
   aClip,
   aClipJob,
   anEvent,
@@ -14,6 +16,7 @@ import {
   type EventInput,
 } from '../../testing/builders'
 import { CallLog } from '../../testing/callLog'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -89,8 +92,21 @@ const sourceBytes = (
   overrides: Parameters<typeof fakeClipBytes>[0] = { width: 1920, height: 1080, durationMs: 9_000 },
 ) => fakeClipBytes(overrides)
 
+/** Counts the reads, so "an event with no client never asks" is a number. */
+class CountingClientRepository extends FakeClientRepository {
+  contextReads = 0
+
+  override async contextForEvent(
+    ...args: Parameters<FakeClientRepository['contextForEvent']>
+  ): ReturnType<FakeClientRepository['contextForEvent']> {
+    this.contextReads += 1
+    return super.contextForEvent(...args)
+  }
+}
+
 describe('transcodeNextClip', () => {
   let events: FakeEventRepository
+  let clients: CountingClientRepository
   let clips: FakeClipJobRepository
   let photos: FakePhotoRepository
   let media: InMemoryMediaStore
@@ -103,6 +119,7 @@ describe('transcodeNextClip', () => {
   const build = (): void => {
     transcodeNextClip = makeTranscodeNextClip({
       events,
+      clients,
       clips,
       photos,
       media,
@@ -116,6 +133,7 @@ describe('transcodeNextClip', () => {
   }
 
   beforeEach(() => {
+    clients = new CountingClientRepository()
     events = new FakeEventRepository()
     clips = new FakeClipJobRepository()
     photos = new FakePhotoRepository().chargeStagedBytesFrom(clips)
@@ -760,6 +778,7 @@ describe('transcodeNextClip', () => {
       await stage()
       transcodeNextClip = makeTranscodeNextClip({
         events,
+        clients,
         clips,
         photos,
         media,
@@ -784,6 +803,7 @@ describe('transcodeNextClip', () => {
       let call = 0
       transcodeNextClip = makeTranscodeNextClip({
         events,
+        clients,
         clips,
         photos,
         media,
@@ -850,6 +870,7 @@ describe('transcodeNextClip', () => {
       await stage()
       transcodeNextClip = makeTranscodeNextClip({
         events,
+        clients,
         clips,
         photos,
         media,
@@ -919,6 +940,7 @@ describe('transcodeNextClip', () => {
       }
       transcodeNextClip = makeTranscodeNextClip({
         events,
+        clients,
         clips,
         photos,
         media,
@@ -936,6 +958,161 @@ describe('transcodeNextClip', () => {
       expect(await photos.findById(EVENT, asPhotoId('clip-job-1-photo'))).toBeNull()
       // Only the staged source is left — the transcoded files this pass wrote are gone.
       expect(media.objectCount).toBe(1)
+    })
+  })
+
+  // ------------------------------------------------------ a client’s ceilings --
+
+  /**
+   * The transcode worker is a write path too (roadmap §10.5, risk R-06 "transcodage"): it
+   * inserts a `photos` row for a client's event, so it is judged by the client's
+   * `max_total_bytes`, `max_event_quota_bytes` and `clips_allowed` like every other writer.
+   * `client-1` owns `event-1` and `event-2`; `client-2` owns `event-3`.
+   */
+  describe('a client’s ceilings', () => {
+    const MB = 1_000_000
+
+    const seedClient = (id: string, ceilings: Partial<ClientCeilingsProps>): void => {
+      clients.seed(aClient({ id, ceilings }))
+    }
+
+    beforeEach(() => {
+      clients = new CountingClientRepository()
+      events = new FakeEventRepository({ clients })
+      photos = new FakePhotoRepository().chargeStagedBytesFrom(clips).chargeClientBytesFrom(clients)
+      clips.chargeClientEventsFrom(clients)
+      build()
+
+      seedClient('client-1', {})
+      seedClient('client-2', {})
+      events.seed(
+        anEvent({ id: 'event-1', slug: 'mariage', joinCode: 'AAAAAA', clientId: 'client-1' }),
+        anEvent({ id: 'event-2', slug: 'brunch', joinCode: 'BBBBBB', clientId: 'client-1' }),
+        anEvent({ id: 'event-3', slug: 'gala', joinCode: 'CCCCCC', clientId: 'client-2' }),
+        anEvent({ id: 'event-4', slug: 'solo', joinCode: 'DDDDDD' }),
+      )
+    })
+
+    const failedWith = (result: Awaited<ReturnType<TranscodeNextClip>>): string | null =>
+      result.ok && result.value.kind === 'failed' ? result.value.code : null
+
+    describe('max_total_bytes', () => {
+      it('credits the clip’s own staged source in the client’s total, as it does in the event’s', async () => {
+        // 8 MB of source and a ceiling of 8.1 MB: without the credit the client is charged
+        // for the source *and* the result it became.
+        seedClient('client-1', { maxTotalBytes: 8_100_000 })
+        await stage(sourceBytes(), { sourceByteSize: 8_000_000 })
+
+        const result = await transcodeNextClip()
+
+        expect(result.ok && result.value.kind).toBe('transcoded')
+      })
+
+      it('turns a clip away with client.storageFull when its output would pass the ceiling, and does not retry it', async () => {
+        seedClient('client-1', { maxTotalBytes: 6_500 })
+        await stage()
+
+        const result = await transcodeNextClip()
+
+        expect(failedWith(result)).toBe('client.storageFull')
+        expect(result.ok && result.value.kind === 'failed' && result.value.willRetry).toBe(false)
+        expect(media.objectCount).toBe(0)
+      })
+
+      it('counts the client’s other event, so the room is shared', async () => {
+        seedClient('client-1', { maxTotalBytes: 5 * MB })
+        photos.seed(aPhoto({ id: 'held', eventId: 'event-2', byteSize: 5 * MB }))
+        await stage()
+
+        const result = await transcodeNextClip()
+
+        expect(failedWith(result)).toBe('client.storageFull')
+      })
+
+      it('does not charge another client’s bytes', async () => {
+        seedClient('client-1', { maxTotalBytes: 5 * MB })
+        photos.seed(aPhoto({ id: 'held', eventId: 'event-3', byteSize: 50 * MB }))
+        await stage()
+
+        const result = await transcodeNextClip()
+
+        expect(result.ok && result.value.kind).toBe('transcoded')
+      })
+
+      it('credits only its own source, never another queued clip of the client', async () => {
+        seedClient('client-1', { maxTotalBytes: 8_100_000 })
+        await stage(sourceBytes(), { sourceByteSize: 8_000_000 })
+        clips.seed(aClipJob({ id: 'clip-job-2', eventId: 'event-2', sourceByteSize: 8_000_000 }))
+
+        const result = await transcodeNextClip()
+
+        expect(failedWith(result)).toBe('client.storageFull')
+      })
+    })
+
+    describe('max_event_quota_bytes', () => {
+      it('judges the output against the client’s ceiling when the event was created with more', async () => {
+        seedClient('client-1', { maxEventQuotaBytes: 6_500 })
+        await stage()
+
+        const result = await transcodeNextClip()
+
+        expect(failedWith(result)).toBe('event.quotaExceeded')
+      })
+    })
+
+    describe('clips_allowed = 0', () => {
+      beforeEach(() => seedClient('client-1', { clipsAllowed: false }))
+
+      it('gives up on a clip queued before the downgrade, permanently and without encoding it', async () => {
+        await stage()
+
+        const result = await transcodeNextClip()
+
+        expect(failedWith(result)).toBe('client.clipsNotAllowed')
+        expect(result.ok && result.value.kind === 'failed' && result.value.willRetry).toBe(false)
+        expect(transcoder.calls).toEqual([])
+      })
+
+      it('removes the staged source it will never use', async () => {
+        await stage()
+
+        await transcodeNextClip()
+
+        expect(media.objectCount).toBe(0)
+      })
+
+      it('still finishes the bookkeeping of a clip whose photo row was already written before it', async () => {
+        // The crash-recovery path: the work is done and the guest is waiting for it. A plan
+        // change in between does not un-make a photograph that exists.
+        await stage()
+        photos.seed(aPhoto({ id: 'clip-job-1-photo', eventId: 'event-1', clip: {} }))
+
+        const result = await transcodeNextClip()
+
+        expect(result.ok && result.value.kind).toBe('transcoded')
+      })
+
+      it('still transcodes a clip of another client', async () => {
+        await stage(sourceBytes(), { eventId: 'event-3' })
+
+        const result = await transcodeNextClip()
+
+        expect(result.ok && result.value.kind).toBe('transcoded')
+      })
+    })
+
+    describe('an event with no client', () => {
+      it('never reads the clients, and is not limited by what any client holds', async () => {
+        seedClient('client-1', { maxTotalBytes: 1, clipsAllowed: false })
+        photos.seed(aPhoto({ id: 'held', eventId: 'event-1', byteSize: 50 * MB }))
+        await stage(sourceBytes(), { eventId: 'event-4' })
+
+        const result = await transcodeNextClip()
+
+        expect(result.ok && result.value.kind).toBe('transcoded')
+        expect(clients.contextReads).toBe(0)
+      })
     })
   })
 })

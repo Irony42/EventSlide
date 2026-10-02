@@ -87,6 +87,17 @@ clipJobRepositoryContract('sqlite', async () => {
               VALUES (?, ?, 'user-host', 'published', ?, 1200, 800, ?, ?)`,
       ).run(`photo-${saved}`, eventId, String(saved).padStart(64, 'd'), byteSize, ISO_AT)
     },
+    /**
+     * A `clients` row and `events.client_id`, in raw SQL for the reason the photograph
+     * fixture above is: the clip contract must not depend on other repositories.
+     */
+    placeEventsInClient: async (clientId, eventIds): Promise<void> => {
+      db.prepare<[string, string, string]>(
+        `INSERT OR IGNORE INTO clients (id, name, created_at) VALUES (?, ?, ?)`,
+      ).run(clientId, clientId, ISO_AT)
+      const attach = db.prepare<[string, string]>(`UPDATE events SET client_id = ? WHERE id = ?`)
+      for (const eventId of eventIds) attach.run(clientId, eventId)
+    },
     dispose: async () => closeDatabase(db),
   }
 })
