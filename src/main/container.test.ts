@@ -764,7 +764,7 @@ describe('createContainer: the operator reaches /api/about and the guest notice'
    * operator, through the real use cases over the real SQLite file: the owner is a row, the
    * event is created by `createEvent`, and the join is `joinEvent` with the code it minted.
    */
-  const noticeOperatorOn = async (booted: Container): Promise<string | null> => {
+  const joinFreshEvent = async (booted: Container) => {
     booted.db
       .prepare(
         `INSERT INTO users (id, email, password_hash, created_at, site_role)
@@ -790,8 +790,11 @@ describe('createContainer: the operator reaches /api/about and the guest notice'
 
     const joined = await booted.usecases.joinEvent({ joinCode: row.join_code })
     if (!joined.ok) throw new Error(`fixture rejected: ${joined.error.code}`)
-    return joined.value.privacyNotice.notice.operator
+    return { eventId: created.value.id, ...joined.value }
   }
+
+  const noticeOperatorOn = async (booted: Container): Promise<string | null> =>
+    (await joinFreshEvent(booted)).privacyNotice.notice.operator
 
   it('publishes no operator and no legal link on a box that configures nothing', async () => {
     const { app } = await boot({})
@@ -866,6 +869,26 @@ describe('createContainer: the operator reaches /api/about and the guest notice'
     const booted = await boot({ OPERATOR_NAME: 'Association Les Photographes' })
 
     expect(await noticeOperatorOn(booted)).toBe('Association Les Photographes')
+  })
+
+  it('lets that guest acknowledge the notice and read it back as current, which needs all three use cases to name the same operator', async () => {
+    // `joinEvent`, `getPrivacyNotice` and `acknowledgePrivacyNotice` each derive the notice.
+    // Handed the name in one place and not another, a guest would be shown a revision that
+    // the acknowledgement refuses as outdated, and asked again for ever.
+    const booted = await boot({ OPERATOR_NAME: 'Association Les Photographes' })
+    const joined = await joinFreshEvent(booted)
+    const { eventId, guestId, privacyNotice } = joined
+
+    const acknowledged = await booted.usecases.acknowledgePrivacyNotice({
+      eventId,
+      guestId,
+      revision: privacyNotice.notice.revision,
+    })
+    const read = await booted.usecases.getPrivacyNotice({ eventId, guestId })
+
+    expect(acknowledged.ok && acknowledged.value.acknowledgement).toBe('current')
+    expect(read.ok && read.value.acknowledgement).toBe('current')
+    expect(read.ok && read.value.notice.revision).toBe(privacyNotice.notice.revision)
   })
 
   it('names nobody in that notice on a box whose operator said nothing', async () => {
