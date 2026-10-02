@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { closeDatabase, type Db } from './connection'
 import { migratedDb } from './testing/sqliteSiteWorld'
-import { SITE_OVERVIEW_QUERIES, type DeclaredQuery } from './sqliteSiteOverview'
+import { asClientId, asUserId } from '../../domain/shared/ids'
+import { SITE_OVERVIEW_QUERIES, SqliteSiteOverview, type DeclaredQuery } from './sqliteSiteOverview'
 
 /**
  * Ring 3. **A query list per statement, compared with the statement's own text** (paid
@@ -119,6 +120,10 @@ interface References {
   readonly qualified: ReadonlySet<string>
   readonly bare: ReadonlySet<string>
   readonly unresolved: readonly string[]
+  /** Every table named after `FROM` or `JOIN`, whether or not the list ever mentions it. */
+  readonly fromTables: ReadonlySet<string>
+  /** `SELECT *` or `e.*`: every column of a table, which no list can name. */
+  readonly selectsEverything: boolean
 }
 
 /** What a statement names: `table.column` pairs, bare column names, and qualifiers it could not place. */
@@ -129,18 +134,27 @@ const referencesIn = (sql: string, tables: ReadonlySet<string>): References => {
     .toLowerCase()
 
   const aliasToTable = new Map<string, string>()
+  const fromTables = new Set<string>()
   for (const match of cleaned.matchAll(
     /\b(?:from|join)\s+([a-z_]\w*)(?:\s+(?:as\s+)?([a-z_]\w*))?/g,
   )) {
     const table = match[1]
     const alias = match[2]
+    // `json_each(…)` is a table-valued function, not a table: it is in SQL_WORDS.
+    if (table !== undefined && !SQL_WORDS.has(table)) fromTables.add(table)
     if (table !== undefined && alias !== undefined && !SQL_WORDS.has(alias)) {
       aliasToTable.set(alias, table)
     }
   }
+  // An output alias may not borrow the name of a content column: `… AS caption` would
+  // otherwise make every bare `caption` in the statement look like a reference to itself.
   const outputAliases = new Set(
-    [...cleaned.matchAll(/\bas\s+([a-z_]\w*)/g)].map((match) => match[1] ?? ''),
+    [...cleaned.matchAll(/\bas\s+([a-z_]\w*)/g)]
+      .map((match) => match[1] ?? '')
+      .filter((alias) => !SENSITIVE_BARE_NAMES.has(alias)),
   )
+  // `COUNT(*)` is the one star that names no column.
+  const selectsEverything = /\*/.test(cleaned.replace(/count\s*\(\s*\*\s*\)/g, ''))
 
   const qualified = new Set<string>()
   const bare = new Set<string>()
@@ -157,7 +171,7 @@ const referencesIn = (sql: string, tables: ReadonlySet<string>): References => {
     if (outputAliases.has(head)) continue
     bare.add(head)
   }
-  return { qualified, bare, unresolved }
+  return { qualified, bare, unresolved, fromTables, selectsEverything }
 }
 
 /** Every way a declared query can be wrong; empty when its list and its text agree. */
@@ -166,11 +180,18 @@ const problemsWith = (
   tables: ReadonlySet<string>,
   columnsOf: (table: string) => ReadonlySet<string>,
 ): readonly string[] => {
-  const { qualified, bare, unresolved } = referencesIn(query.sql, tables)
+  const { qualified, bare, unresolved, fromTables, selectsEverything } = referencesIn(
+    query.sql,
+    tables,
+  )
   const reads = new Set<string>(query.reads)
   const readNames = new Set([...reads].map((read) => read.split('.')[1] ?? ''))
   const problems: string[] = []
 
+  if (selectsEverything) problems.push('selects *, which reads every column of a table')
+  for (const table of fromTables) {
+    if (!READABLE_TABLES.has(table)) problems.push(`reads from ${table}, a table it may not read`)
+  }
   for (const token of unresolved) problems.push(`names ${token}, which resolves to no table`)
   for (const read of qualified) {
     if (!reads.has(read)) problems.push(`reads ${read}, which it does not declare`)
@@ -228,6 +249,38 @@ describe('the operator overview reads only the columns it declares', () => {
     },
   )
 
+  it('prepares no statement that is not in the declared list, constructing or calling', async () => {
+    // "Every statement is listed" is otherwise a sentence: a `db.prepare` added to the
+    // constructor, or inside a method, with no entry in the list is read by nothing above.
+    const prepared: string[] = []
+    const watched = new Proxy(db, {
+      get(target, property) {
+        if (property === 'prepare') {
+          return (sql: string) => {
+            prepared.push(sql)
+            return target.prepare(sql)
+          }
+        }
+        const value: unknown = Reflect.get(target, property, target)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+
+    const overview = new SqliteSiteOverview(watched)
+    const afterConstruction = prepared.length
+    await overview.listClients({ limit: 1 })
+    await overview.listClients({ limit: 1, after: asClientId('client-nobody') })
+    await overview.clientEvents(asClientId('client-nobody'), { limit: 1 })
+    await overview.listAccounts({ limit: 1 })
+    await overview.listAccounts({ limit: 1, after: asUserId('user-nobody') })
+
+    const declared = Object.values(SITE_OVERVIEW_QUERIES).map((query) => query.sql)
+    expect([...prepared].sort()).toEqual([...declared].sort())
+    expect(prepared.length, 'a statement was prepared by a method, not the constructor').toBe(
+      afterConstruction,
+    )
+  })
+
   // ---------------------------------------------------- the check itself bites --
   //
   // A list-versus-text comparison that cannot fail is the failure this file exists to
@@ -273,6 +326,54 @@ describe('the operator overview reads only the columns it declares', () => {
     ])
   })
 
+  it('refuses a star, which reads every column of a table however the list reads', () => {
+    expect(check('SELECT e.*, e.id FROM events e', ['events.id'])).toEqual([
+      'selects *, which reads every column of a table',
+    ])
+    expect(check('SELECT * FROM users', ['users.id'])).toEqual([
+      'selects *, which reads every column of a table',
+      'declares users.id, which its SQL no longer touches',
+    ])
+  })
+
+  it('accepts COUNT(*), the one star that names no column', () => {
+    expect(
+      check('SELECT (SELECT COUNT(*) FROM events ev WHERE ev.client_id = c.id) FROM clients c', [
+        'events.client_id',
+        'clients.id',
+      ]),
+    ).toEqual([])
+  })
+
+  it('refuses a content column hidden behind an alias of the same name', () => {
+    expect(
+      check(
+        'SELECT e.id, (SELECT MAX(caption) FROM photos WHERE event_id = e.id) AS caption FROM events e',
+        ['events.id', 'photos.event_id'],
+      ),
+    ).toEqual(['names caption without a table, and that name is content somewhere'])
+  })
+
+  it('refuses a table it may not read even when no list mentions it', () => {
+    expect(
+      check('SELECT e.id FROM events e JOIN guests g ON g.event_id = e.id', [
+        'events.id',
+        'guests.event_id',
+      ]),
+    ).toEqual(
+      expect.arrayContaining([
+        'reads from guests, a table it may not read',
+        'declares guests.event_id, on a table it may not read',
+      ]),
+    )
+    expect(
+      check(
+        'SELECT e.id, (SELECT COUNT(*) FROM event_missions m WHERE m.event_id = e.id) FROM events e',
+        ['events.id'],
+      ),
+    ).toContain('reads from event_missions, a table it may not read')
+  })
+
   it('refuses a stale declaration: a column the list names and the SQL no longer touches', () => {
     expect(check('SELECT c.id FROM clients c', ['clients.id', 'clients.suspended_at'])).toEqual([
       'declares clients.suspended_at, which its SQL no longer touches',
@@ -281,6 +382,7 @@ describe('the operator overview reads only the columns it declares', () => {
 
   it('refuses a table the overview may not read at all', () => {
     expect(check('SELECT g.id FROM guests g', ['guests.id'])).toEqual([
+      'reads from guests, a table it may not read',
       'declares guests.id, on a table it may not read',
     ])
   })
