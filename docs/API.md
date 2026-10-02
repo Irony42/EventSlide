@@ -194,6 +194,13 @@ The web client does not probe this namespace to learn the mode. It will read
 `features.siteAdmin` from a public instance-information endpoint, which does not exist yet
 and is therefore not documented here.
 
+**No client route exists yet.** Clients (roadmap §10.2) have a domain, a port, a SQLite
+adapter and five use cases (`createClient`, `renameClient`, `setClientCeilings`,
+`listClients`, `deleteEmptyClient`), and nothing in this document is a route for them: the
+operator API that calls them is a later item (G2-14) and will be mounted under `/api/site`,
+behind `SITE_ADMIN` and `requireOperator`, like everything else in that namespace. Until it
+lands the use cases are built and unreachable from the wire.
+
 ### CSRF
 
 Every state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) must echo the readable

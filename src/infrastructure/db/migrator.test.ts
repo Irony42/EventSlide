@@ -164,6 +164,8 @@ describe('the real schema', () => {
     migrate(db, migrations)
 
     expect(tableNames(db)).toEqual([
+      'client_members',
+      'clients',
       'clip_jobs',
       'event_memberships',
       'event_missions',
@@ -185,8 +187,10 @@ describe('the real schema', () => {
 
     expect(indexNames(db)).toEqual(
       expect.arrayContaining([
+        'idx_client_members_user',
         'idx_event_missions_event',
         'idx_event_missions_event_prompt',
+        'idx_events_client',
         'idx_events_join_code',
         'idx_events_slug',
         'idx_guests_event_seen',
@@ -1164,6 +1168,367 @@ describe('migration 007, shared gallery links', () => {
       byte_size: 90000,
     })
     expect(db.prepare(`SELECT COUNT(*) AS n FROM share_links`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+})
+
+describe('migration 008, clients', () => {
+  const AT = '2026-06-20T21:00:00.000Z'
+
+  const columnNames = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
+
+  /** An album as 007 alone could hold it: one host, one event, no client in sight. */
+  const seedBeforeClients = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'hote@example.test', 'hash:x', '${AT}')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'live',
+                    '{"moderation":"manual"}', 1000, '${AT}')`,
+    ).run()
+  }
+
+  const insertClient = (
+    db: Db,
+    id: string,
+    overrides: Partial<{
+      name: string
+      maxEvents: number | null
+      maxRetentionDays: number | null
+      maxLiveDays: number | null
+      clipsAllowed: number
+      liveAllowed: number
+      locale: string
+    }> = {},
+  ): void => {
+    db.prepare<
+      [string, string, number | null, number | null, number | null, number, number, string]
+    >(
+      `INSERT INTO clients (id, name, created_at, max_events, max_retention_days, max_live_days,
+                            clips_allowed, live_allowed, locale)
+            VALUES (?, ?, '${AT}', ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id,
+      overrides.name ?? 'Atelier Photo Camille',
+      overrides.maxEvents ?? null,
+      overrides.maxRetentionDays ?? null,
+      overrides.maxLiveDays ?? null,
+      overrides.clipsAllowed ?? 1,
+      overrides.liveAllowed ?? 1,
+      overrides.locale ?? 'fr',
+    )
+  }
+
+  it('creates the clients table with the full D-05 catalogue', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'clients')).toEqual([
+      'id',
+      'name',
+      'contact_email',
+      'created_at',
+      'suspended_at',
+      'purge_after',
+      'max_events',
+      'max_total_bytes',
+      'max_event_quota_bytes',
+      'max_retention_days',
+      'retention_cap_since',
+      'clips_allowed',
+      'live_allowed',
+      'max_live_days',
+      'max_events_per_period',
+      'period_started_at',
+      'events_created_in_period',
+      'locale',
+    ])
+    closeDatabase(db)
+  })
+
+  it('creates the client_members roster', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'client_members')).toEqual([
+      'client_id',
+      'user_id',
+      'role',
+      'granted_at',
+    ])
+    closeDatabase(db)
+  })
+
+  it('gives events a nullable client and the instant it first opened', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'events')).toEqual(expect.arrayContaining(['client_id', 'opened_at']))
+    closeDatabase(db)
+  })
+
+  it('defaults clips_allowed and live_allowed to true, and locale to fr', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    db.prepare(
+      `INSERT INTO clients (id, name, created_at) VALUES ('c1', 'Studio Jean', '${AT}')`,
+    ).run()
+
+    expect(
+      db.prepare(`SELECT clips_allowed, live_allowed, locale FROM clients WHERE id = 'c1'`).get(),
+    ).toEqual({ clips_allowed: 1, live_allowed: 1, locale: 'fr' })
+    closeDatabase(db)
+  })
+
+  it('refuses a name one character past the catalogue CHECK', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(() => insertClient(db, 'c1', { name: 'x'.repeat(201) })).toThrow(
+      /CHECK constraint failed/,
+    )
+    closeDatabase(db)
+  })
+
+  it('refuses an empty name', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(() => insertClient(db, 'c1', { name: '' })).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('accepts a name at either edge of the catalogue CHECK', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(() => insertClient(db, 'c1', { name: 'x' })).not.toThrow()
+    expect(() => insertClient(db, 'c2', { name: 'x'.repeat(200) })).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it.each([
+    { column: 'max_events', value: 0 },
+    { column: 'max_total_bytes', value: 0 },
+    { column: 'max_event_quota_bytes', value: 0 },
+    { column: 'max_events_per_period', value: 0 },
+  ])('refuses a zero $column, matching ClientCeilings’ own bound', ({ column, value }) => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO clients (id, name, created_at, ${column}) VALUES ('c1', 'x', '${AT}', ?)`,
+        )
+        .run(value),
+    ).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it.each([
+    { column: 'max_retention_days', value: 0 },
+    { column: 'max_retention_days', value: 3651 },
+    { column: 'max_live_days', value: 0 },
+    { column: 'max_live_days', value: 366 },
+  ])('refuses a $column of $value, one past ClientCeilings’ own bound', ({ column, value }) => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO clients (id, name, created_at, ${column}) VALUES ('c1', 'x', '${AT}', ?)`,
+        )
+        .run(value),
+    ).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it.each([
+    { column: 'clips_allowed', value: 2 },
+    { column: 'clips_allowed', value: -1 },
+    { column: 'live_allowed', value: 2 },
+    { column: 'live_allowed', value: -1 },
+    // The only database guard behind "the counter never decreases": it cannot go negative.
+    { column: 'events_created_in_period', value: -1 },
+  ])('refuses a $column of $value', ({ column, value }) => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO clients (id, name, created_at, ${column}) VALUES ('c1', 'x', '${AT}', ?)`,
+        )
+        .run(value),
+    ).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('accepts max_retention_days and max_live_days at either edge of ClientCeilings’ own bound', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(() => insertClient(db, 'c1', { maxRetentionDays: 1, maxLiveDays: 1 })).not.toThrow()
+    expect(() => insertClient(db, 'c2', { maxRetentionDays: 3650, maxLiveDays: 365 })).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('refuses a locale the catalogue does not have, in the database rather than only in code', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(() => insertClient(db, 'c1', { locale: 'pt' })).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('refuses a client_members role the domain does not have', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedBeforeClients(db)
+    insertClient(db, 'c1')
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO client_members (client_id, user_id, role, granted_at)
+                VALUES ('c1', 'u1', 'admin', '${AT}')`,
+        )
+        .run(),
+    ).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('refuses an event naming a client that does not exist', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedBeforeClients(db)
+
+    expect(() => db.prepare(`UPDATE events SET client_id = 'ghost' WHERE id = 'e1'`).run()).toThrow(
+      /FOREIGN KEY constraint failed/,
+    )
+    closeDatabase(db)
+  })
+
+  it('refuses deleting a client that still owns an event (RESTRICT)', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedBeforeClients(db)
+    insertClient(db, 'c1')
+    db.prepare(`UPDATE events SET client_id = 'c1' WHERE id = 'e1'`).run()
+
+    expect(() => db.prepare(`DELETE FROM clients WHERE id = 'c1'`).run()).toThrow(
+      /FOREIGN KEY constraint failed/,
+    )
+    closeDatabase(db)
+  })
+
+  it('deletes a client with no event straight away', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    insertClient(db, 'c1')
+
+    expect(() => db.prepare(`DELETE FROM clients WHERE id = 'c1'`).run()).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('takes the client_members roster with the client when the client is deleted', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedBeforeClients(db)
+    insertClient(db, 'c1')
+    db.prepare(
+      `INSERT INTO client_members (client_id, user_id, role, granted_at)
+            VALUES ('c1', 'u1', 'owner', '${AT}')`,
+    ).run()
+
+    db.prepare(`DELETE FROM clients WHERE id = 'c1'`).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM client_members`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('takes a membership with the account when the account is deleted, leaving the client itself', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedBeforeClients(db)
+    insertClient(db, 'c1')
+    // Not e1's owner: events.owner_id is its own ON DELETE RESTRICT, and this test is
+    // about client_members' cascade, not that pre-existing one.
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u2', 'moderatrice@example.test', 'hash:y', '${AT}')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO client_members (client_id, user_id, role, granted_at)
+            VALUES ('c1', 'u2', 'owner', '${AT}')`,
+    ).run()
+
+    db.prepare(`DELETE FROM users WHERE id = 'u2'`).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM client_members`).get()).toEqual({ n: 0 })
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM clients`).get()).toEqual({ n: 1 })
+    closeDatabase(db)
+  })
+
+  it('answers "which clients is this user part of" from its own index', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    const plan = (
+      db.prepare(`EXPLAIN QUERY PLAN SELECT * FROM client_members WHERE user_id = 'u1'`).all() as {
+        detail: string
+      }[]
+    )
+      .map((row) => row.detail)
+      .join('; ')
+
+    expect(plan).toContain('idx_client_members_user')
+    closeDatabase(db)
+  })
+
+  it('answers "which events belong to this client" from its own index', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    const plan = (
+      db.prepare(`EXPLAIN QUERY PLAN SELECT * FROM events WHERE client_id = 'c1'`).all() as {
+        detail: string
+      }[]
+    )
+      .map((row) => row.detail)
+      .join('; ')
+
+    expect(plan).toContain('idx_events_client')
+    closeDatabase(db)
+  })
+
+  it('keeps an event that existed before clients did, and gives it none', () => {
+    // The upgrade path, on somebody's wedding album: two new tables and two new nullable
+    // columns on events, and the existing row touched by neither.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 8),
+    )
+    seedBeforeClients(db)
+
+    migrate(db, migrations)
+
+    expect(
+      db.prepare(`SELECT name, status, client_id, opened_at FROM events WHERE id = 'e1'`).get(),
+    ).toEqual({
+      name: 'Camille & Sacha',
+      status: 'live',
+      client_id: null,
+      opened_at: null,
+    })
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM clients`).get()).toEqual({ n: 0 })
     closeDatabase(db)
   })
 })

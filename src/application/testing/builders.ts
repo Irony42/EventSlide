@@ -1,3 +1,5 @@
+import { Client, type ClientProps } from '../../domain/clients/client'
+import { ClientCeilings, type ClientCeilingsProps } from '../../domain/clients/clientCeilings'
 import { ClipJob } from '../../domain/clips/clipJob'
 import { ClipDuration } from '../../domain/clips/clipDuration'
 import type { ClipJobStatus } from '../../domain/clips/clipJobStatus'
@@ -25,6 +27,7 @@ import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import { Reaction } from '../../domain/reactions/reaction'
 import type { DomainError } from '../../domain/shared/errors'
 import {
+  asClientId,
   asClipJobId,
   asEventId,
   asGuestId,
@@ -562,3 +565,56 @@ export const aReaction = (input: ReactionInput = {}): Reaction =>
     ),
     'aReaction',
   )
+
+// --------------------------------------------------------------------- client --
+
+/** Every ceiling unlimited by default, which is what a solo install's one client has. */
+export const aClientCeilings = (overrides: Partial<ClientCeilingsProps> = {}): ClientCeilings =>
+  must(ClientCeilings.create(overrides), 'aClientCeilings')
+
+export interface ClientInput {
+  readonly id?: string
+  readonly name?: string
+  readonly contactEmail?: string | null
+  readonly createdAt?: Date
+  readonly suspendedAt?: Date | null
+  readonly purgeAfter?: Date | null
+  readonly retentionCapSince?: Date | null
+  readonly ceilings?: ClientCeilings | Partial<ClientCeilingsProps>
+  readonly eventsCreatedInPeriod?: number
+  readonly locale?: ClientProps['locale']
+}
+
+const toCeilings = (input: ClientCeilings | Partial<ClientCeilingsProps>): ClientCeilings =>
+  input instanceof ClientCeilings ? input : aClientCeilings(input)
+
+/**
+ * A client of the box (roadmap §10.2), active by default — nobody in the fixture world
+ * has been suspended unless a test says so.
+ */
+export const aClient = (input: ClientInput = {}): Client => {
+  const createdAt = pick(input.createdAt, AT)
+  const created = must(
+    Client.create(
+      {
+        name: pick(input.name, 'Atelier Photo Camille'),
+        contactEmail: pick(input.contactEmail, null),
+        // `exactOptionalPropertyTypes`: absent means "unlimited", an explicit `undefined`
+        // would be a different thing to say.
+        ...(input.ceilings === undefined ? {} : { ceilings: toCeilings(input.ceilings) }),
+        locale: pick(input.locale, 'fr'),
+      },
+      asClientId(pick(input.id, 'client-1')),
+      createdAt,
+    ),
+    'aClient',
+  )
+
+  return Client.restore({
+    ...created.toProps(),
+    suspendedAt: pick(input.suspendedAt, null),
+    purgeAfter: pick(input.purgeAfter, null),
+    retentionCapSince: pick(input.retentionCapSince, null),
+    eventsCreatedInPeriod: pick(input.eventsCreatedInPeriod, 0),
+  })
+}

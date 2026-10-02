@@ -897,6 +897,7 @@ skipped the screen on purpose.
 | `users.email` + bcrypt hash                                    | host/moderator accounts                                | until account delete                                                                                                                                                      |
 | Session rows                                                   | login                                                  | ≤ 12 h                                                                                                                                                                    |
 | `share_links`: token **digest**, password hash, creator, times | the host's shared gallery (§15)                        | with the event; a revoked link's row is kept, and opens nothing                                                                                                           |
+| `clients.name`, `clients.contact_email` (operator-typed)       | who an operator runs the box for (§10.2)               | until the client is deleted, which is refused while it has a member or an event; empty on a box that never created one                                                    |
 
 **Deliberately not stored:** EXIF of any kind (GPS, device serial, capture time), the
 original filename as a path, the uploader's IP alongside the photo row, and any

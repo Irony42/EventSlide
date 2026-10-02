@@ -113,6 +113,7 @@ src/
     moderation/    Queue ordering and decisions (pure)
     slideshow/     Playlist building, layouts, transitions (pure)
     reactions/     Reaction rules
+    clients/       Client entity, ceilings, roles (roadmap §10.2; no route yet)
   application/
     ports/         Interfaces. One file per port. No implementations.
     usecases/      One file, one exported factory, one responsibility.

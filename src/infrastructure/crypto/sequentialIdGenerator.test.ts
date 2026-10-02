@@ -39,6 +39,25 @@ describe('createSequentialIdGenerator', () => {
     expect(String(ids.photoId())).not.toBe(String(ids.guestId()))
   })
 
+  it('gives every kind of id a prefix of its own, so no two kinds can ever collide', () => {
+    const ids = createSequentialIdGenerator()
+
+    const oneOfEach = [
+      ids.eventId(),
+      ids.photoId(),
+      ids.guestId(),
+      ids.userId(),
+      ids.reactionId(),
+      ids.clipJobId(),
+      ids.missionId(),
+      ids.shareLinkId(),
+      ids.clientId(),
+    ].map(String)
+
+    // Every counter is at one, so the ids can only differ by their prefix.
+    expect(new Set(oneOfEach).size).toBe(oneOfEach.length)
+  })
+
   it('keeps the canonical UUID shape the routes validate', () => {
     // The HTTP layer parses ids with zod `.uuid()`, which turns a malformed id into a
     // 400 before it reaches a query. A test generator that produced something else
@@ -53,6 +72,7 @@ describe('createSequentialIdGenerator', () => {
       ids.guestId(),
       ids.userId(),
       ids.reactionId(),
+      ids.clientId(),
     ]) {
       expect(String(id)).toMatch(uuid)
     }

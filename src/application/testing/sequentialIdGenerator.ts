@@ -1,4 +1,5 @@
 import {
+  asClientId,
   asClipJobId,
   asEventId,
   asGuestId,
@@ -7,6 +8,7 @@ import {
   asReactionId,
   asShareLinkId,
   asUserId,
+  type ClientId,
   type ClipJobId,
   type EventId,
   type GuestId,
@@ -41,6 +43,8 @@ export class SequentialIdGenerator implements IdGenerator {
   private missions = 0
 
   private shareLinks = 0
+
+  private clients = 0
 
   /**
    * How far the byte sequence has run. It advances across calls so two events created
@@ -89,6 +93,11 @@ export class SequentialIdGenerator implements IdGenerator {
     return asShareLinkId(`share-link-${this.shareLinks}`)
   }
 
+  clientId(): ClientId {
+    this.clients += 1
+    return asClientId(`client-${this.clients}`)
+  }
+
   /**
    * `0, 1, 2, …` continuing where the previous call stopped, wrapped at a byte.
    *
@@ -119,6 +128,7 @@ export class SequentialIdGenerator implements IdGenerator {
     this.clipJobs = 0
     this.missions = 0
     this.shareLinks = 0
+    this.clients = 0
     this.byteOffset = 0
     return this
   }
