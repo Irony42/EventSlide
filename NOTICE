@@ -14,6 +14,9 @@ licences. Notably:
   - ffmpeg (GPL; Debian's build enables libx264), for short video clips. It is
     installed with apt in the runtime stage of the Dockerfile and run as a
     separate process, never linked into EventSlide.
+  - the JavaScript libraries the web application bundles (React and others, under MIT
+    and ISC licences). Their notices are written by the build to
+    third-party-licenses.txt and sent by the server at /third-party-licenses.txt.
 
 This list is not exhaustive: every other dependency is declared in
 package-lock.json together with its own licence.

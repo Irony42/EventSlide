@@ -487,6 +487,13 @@ setting that hides it.
 
 An instance that asks for support can set `DONATION_URL` and `BUDGET_URL`, empty by default, and a donation unlocks nothing: same service for everyone.
 
+Dependencies are held to the same standard. `scripts/licenseAudit.test.ts` reads
+`package-lock.json` and fails the build on any licence outside a short permissive
+allow-list (MIT, ISC, BSD, Apache-2.0, 0BSD, MIT-0, BlueOak-1.0.0) unless a named,
+argued exception covers that package: today sharp's LGPL libvips in production, and a few
+development tools that never reach the image. The web build writes the notices the
+bundled libraries ask for to `/third-party-licenses.txt`, which `/about` links.
+
 **Everything published before this change remains under GPL-3.0, permanently** — a
 licence grant cannot be revoked after the fact. [.github/gpl-boundary](.github/gpl-boundary)
 names the last commit that carries the GPL text, and the `licenseHistory` CI job
