@@ -5,7 +5,7 @@ import {
   type BrowserContext,
   type Page,
 } from '@playwright/test'
-import { startTestApp, type TestApp } from './startTestApp'
+import { startTestApp, type EventCreation, type TestApp } from './startTestApp'
 import { SUITE_LOCALE } from './suiteLocale'
 import { SUPPORTED_LOCALES } from '../../../web/src/lib/i18n/locale'
 import { TRANSLATIONS, type UiText } from '../../../web/src/lib/i18n/translations'
@@ -18,16 +18,24 @@ import { TRANSLATIONS, type UiText } from '../../../web/src/lib/i18n/translation
  * themselves by seeding their own event instead, which is cheap and closer to reality
  * — a real deployment serves several events from one process.
  */
-export const test = base.extend<{ surfaces: Surfaces }, { app: TestApp }>({
+export const test = base.extend<
+  { surfaces: Surfaces },
+  { app: TestApp; eventCreation: EventCreation }
+>({
+  /**
+   * Who may create an event on this worker's server (`EVENT_CREATION`).
+   *
+   * An **option**, so a project can set it in `playwright.config.ts` the way it sets a
+   * viewport: `chromium-client-members` re-runs the security specs under `clientMembers`,
+   * which is the half of "tenant isolation holds under both policies" the default projects
+   * cannot reach. Worker-scoped because the server is — a worker is booted once with one
+   * policy, and Playwright starts a fresh worker for a project that asks for another.
+   */
+  eventCreation: ['anyAccount', { option: true, scope: 'worker' }],
+
   app: [
-    // Playwright parses this parameter list to work out which fixtures the function
-    // depends on, so the first argument must be written as a destructuring pattern even
-    // when nothing is taken from it — a plain `_fixtures` is rejected at collection time
-    // with "First argument must use the object destructuring pattern", before any test
-    // runs.
-    // eslint-disable-next-line no-empty-pattern -- Playwright's API requires it, see above.
-    async ({}, use, workerInfo) => {
-      const app = await startTestApp({ worker: workerInfo.workerIndex })
+    async ({ eventCreation }, use, workerInfo) => {
+      const app = await startTestApp({ worker: workerInfo.workerIndex, eventCreation })
       await use(app)
       await app.dispose()
     },

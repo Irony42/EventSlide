@@ -1,4 +1,5 @@
 import { SUITE_LOCALE } from './tests/e2e/fixtures/suiteLocale'
+import type { EventCreation } from './tests/e2e/fixtures/startTestApp'
 import { defineConfig, devices } from '@playwright/test'
 
 /**
@@ -18,7 +19,13 @@ import { defineConfig, devices } from '@playwright/test'
  */
 const OFFLINE_JOURNEYS = '**/offline/**'
 
-export default defineConfig({
+/**
+ * The one worker option this suite declares: who may create an event on the server a
+ * worker boots (`eventCreation`, see `tests/e2e/fixtures/app.ts`). Typed here so a project's
+ * `use` can set it and a misspelt policy is a compile error rather than a server that boots
+ * under the default and quietly tests nothing.
+ */
+export default defineConfig<object, { eventCreation: EventCreation }>({
   testDir: './tests/e2e',
   outputDir: './test-results',
   snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{testFilePath}/{arg}{ext}',
@@ -90,6 +97,27 @@ export default defineConfig({
       name: 'chromium-desktop',
       testIgnore: OFFLINE_JOURNEYS,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      /**
+       * The security specs again, on a server started with `EVENT_CREATION=clientMembers`
+       * (and `SITE_ADMIN=on`, which boot requires of it) — roadmap §10.9: "`tenant-isolation`
+       * runs under both policies".
+       *
+       * Its own project, with a `testMatch`, because the policy is a property of the server a
+       * worker boots and the cheapest way to run one spec under it is a project that selects
+       * that spec alone. The default projects run the same file under `anyAccount`; between
+       * them the file runs under both, and the specs that only make sense under one say so
+       * and skip under the other.
+       */
+      name: 'chromium-client-members',
+      testMatch: '**/security/tenant-isolation.spec.ts',
+      testIgnore: OFFLINE_JOURNEYS,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        eventCreation: 'clientMembers',
+      },
     },
     {
       // The guest surface. Most guests at an event are on a phone, so this project

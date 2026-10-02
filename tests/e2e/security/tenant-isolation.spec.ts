@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3'
 import type { APIRequestContext, Browser } from '@playwright/test'
 import { csrfHeaders, expect, test } from '../fixtures/app'
@@ -445,6 +446,86 @@ test.describe('an account that has been disabled', () => {
   })
 })
 
+/**
+ * Who may create an event (`EVENT_CREATION`, roadmap §10.9 / P3-05), against the real server.
+ *
+ * Both halves of the policy, in the one file that runs under both: the default projects
+ * start the server under `anyAccount` and `chromium-client-members` starts it under
+ * `clientMembers`, so each case below says which it is about and skips under the other
+ * instead of asserting something that only holds for one.
+ */
+test.describe('who may create an event', () => {
+  test('an invited moderator who belongs to no client is refused under clientMembers', async ({
+    app,
+    browser,
+  }) => {
+    test.skip(
+      app.eventCreation !== 'clientMembers',
+      'the restriction only exists under EVENT_CREATION=clientMembers',
+    )
+    const account = await anInvitedAccount(app, browser)
+
+    try {
+      const refused = await account.request.post(app.url('/api/events'), {
+        headers: await csrfHeaders(account.request, app),
+        data: { name: 'Un évènement qui ne verra pas le jour' },
+      })
+
+      // 403, not 404: this is the caller's own authority to create, not the existence of
+      // anything of anybody else's, so there is nothing for the answer to leak.
+      expect(refused.status()).toBe(403)
+      expect((await refused.json()).error.code).toBe('event.creationNotAllowed')
+    } finally {
+      await account.dispose()
+    }
+  })
+
+  test('the same account creates an event under anyAccount, with no client, as every box always allowed', async ({
+    app,
+    browser,
+  }) => {
+    test.skip(
+      app.eventCreation !== 'anyAccount',
+      'the default policy is what this asserts, and the other one refuses it',
+    )
+    const account = await anInvitedAccount(app, browser)
+
+    try {
+      const created = await account.request.post(app.url('/api/events'), {
+        headers: await csrfHeaders(account.request, app),
+        data: { name: `Un évènement de plus ${Date.now()}` },
+      })
+
+      expect(created.status()).toBe(201)
+      const { slug } = (await created.json()) as { slug: string }
+      expect(clientIdOfEvent(app, slug)).toBeNull()
+    } finally {
+      await account.dispose()
+    }
+  })
+
+  test('a client member’s event carries their client, and the operator’s carries none', async ({
+    app,
+    browser,
+  }) => {
+    test.skip(
+      app.eventCreation !== 'clientMembers',
+      'clients only exist for a box that has chosen to have them',
+    )
+    const client = await aClientWithTheirOwnEvent(app, browser)
+
+    try {
+      expect(client.clientId).not.toBeNull()
+      expect(clientIdOfEvent(app, client.slug)).toBe(client.clientId)
+
+      const operatorsOwn = await app.seedEvent({ name: 'Le soir de l’opérateur' })
+      expect(clientIdOfEvent(app, operatorsOwn.slug)).toBeNull()
+    } finally {
+      await client.dispose()
+    }
+  })
+})
+
 // ------------------------------------------------------------------- helpers --
 
 /** A minimal valid JPEG, for the requests whose payload is not the point. */
@@ -509,25 +590,34 @@ interface ClientContext {
   readonly joinCode: string
   /** Named, because disabling an account is done by address against the real database. */
   readonly email: string
+  /**
+   * The client record this account belongs to: made for it under `EVENT_CREATION=clientMembers`,
+   * where a client's event cannot exist without one, and `null` under `anyAccount`, where it
+   * never had one.
+   */
+  readonly clientId: string | null
+  readonly request: APIRequestContext
+  dispose(): Promise<void>
+}
+
+interface InvitedAccount {
+  readonly email: string
   readonly request: APIRequestContext
   dispose(): Promise<void>
 }
 
 /**
- * A client of the operator: their own account, their own event, and no operator anywhere
- * near it.
+ * An account with no event of its own and no client: the operator invites it to an event
+ * of theirs, it signs in with the temporary password and chooses its own.
  *
- * The account arrives the only way the product can make one today — the operator invites
- * it to an event of their own — and then leaves that event behind by creating one of its
- * own, which is where §10.3's invitation will eventually land a client directly. What
- * matters here is the end state: an event whose only member is somebody who does not run
- * the box.
+ * It is the only way the product can make an account today, and it is what an invited
+ * moderator *is* — which is the account `EVENT_CREATION=clientMembers` exists to turn away.
  */
-const aClientWithTheirOwnEvent = async (app: TestApp, browser: Browser): Promise<ClientContext> => {
+const anInvitedAccount = async (app: TestApp, browser: Browser): Promise<InvitedAccount> => {
   // Scoped to the worker: the server outlives one test, and an address that already has
   // an account takes the `created: false` branch and keeps its own password.
   const port = app.baseUrl.split(':').at(-1) ?? '0'
-  const email = `cliente-${port}-${Date.now()}@eventslide.test`
+  const email = `cliente-${port}-${Date.now()}-${randomUUID().slice(0, 8)}@eventslide.test`
   const temporary = 'mot-de-passe-provisoire-du-soir'
   const chosen = 'phrase-que-seule-la-cliente-connait'
 
@@ -558,9 +648,34 @@ const aClientWithTheirOwnEvent = async (app: TestApp, browser: Browser): Promise
   })
   if (!rotated.ok()) throw new Error(`the client's password rotation failed: ${rotated.status()}`)
 
+  return { email, request: api, dispose: () => context.close() }
+}
+
+/**
+ * A client of the operator: their own account, their own event, and no operator anywhere
+ * near it.
+ *
+ * The account arrives the only way the product can make one today — the operator invites
+ * it to an event of their own — and then leaves that event behind by creating one of its
+ * own, which is where §10.3's invitation will eventually land a client directly. What
+ * matters here is the end state: an event whose only member is somebody who does not run
+ * the box.
+ *
+ * **Under `EVENT_CREATION=clientMembers` that account is also made a member of a client
+ * first**, because the box would otherwise refuse it the event this helper exists to
+ * produce. That is the one thing here that is written to the database rather than done
+ * through the API, and it is the same exception `setAccountDisabled` below makes, for the
+ * same reason: no route creates a client yet (that is G2-14, behind `SITE_ADMIN`), so a
+ * statement against the SQLite file is the only operational path there is.
+ */
+const aClientWithTheirOwnEvent = async (app: TestApp, browser: Browser): Promise<ClientContext> => {
+  const account = await anInvitedAccount(app, browser)
+  const api = account.request
+  const clientId = app.eventCreation === 'clientMembers' ? enrolInAClient(app, account.email) : null
+
   const created = await api.post(app.url('/api/events'), {
     headers: await csrfHeaders(api, app),
-    data: { name: `Mariage de la cliente ${port}-${Date.now()}` },
+    data: { name: `Mariage de la cliente ${Date.now()}-${randomUUID().slice(0, 8)}` },
   })
   if (!created.ok()) throw new Error(`the client could not create their event: ${created.status()}`)
   const event = (await created.json()) as { slug: string; joinCode: string }
@@ -574,9 +689,57 @@ const aClientWithTheirOwnEvent = async (app: TestApp, browser: Browser): Promise
   return {
     slug: event.slug,
     joinCode: event.joinCode,
-    email,
+    email: account.email,
+    clientId,
     request: api,
-    dispose: () => context.close(),
+    dispose: account.dispose,
+  }
+}
+
+/**
+ * Makes an existing account the owner of a brand-new client, in the running server's own
+ * database, and returns the client's id.
+ *
+ * See `aClientWithTheirOwnEvent` for why this is a statement and not a request. One client
+ * per account, so a count of events per client is a count of that account's events.
+ */
+const enrolInAClient = (app: TestApp, email: string): string => {
+  const db = new Database(app.databasePath, { fileMustExist: true })
+  try {
+    const user = db
+      .prepare<[string], { readonly id: string }>('SELECT id FROM users WHERE email = ?')
+      .get(email)
+    if (user === undefined) throw new Error(`no account to enrol for ${email}`)
+
+    const clientId = randomUUID()
+    const at = new Date().toISOString()
+    db.prepare('INSERT INTO clients (id, name, created_at) VALUES (?, ?, ?)').run(
+      clientId,
+      'Atelier de la cliente',
+      at,
+    )
+    db.prepare(
+      "INSERT INTO client_members (client_id, user_id, role, granted_at) VALUES (?, ?, 'owner', ?)",
+    ).run(clientId, user.id, at)
+    return clientId
+  } finally {
+    db.close()
+  }
+}
+
+/** The `client_id` stored on an event, or `null` for one that belongs to no client. */
+const clientIdOfEvent = (app: TestApp, slug: string): string | null => {
+  const db = new Database(app.databasePath, { readonly: true, fileMustExist: true })
+  try {
+    const row = db
+      .prepare<[string], { readonly client_id: string | null }>(
+        'SELECT client_id FROM events WHERE slug = ?',
+      )
+      .get(slug)
+    if (row === undefined) throw new Error(`no event with the slug ${slug}`)
+    return row.client_id
+  } finally {
+    db.close()
   }
 }
 
