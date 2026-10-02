@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { buildDefines } from './buildInfo'
+import { thirdPartyNotices } from './thirdPartyNotices'
 
 const here = (relative: string) => fileURLToPath(new URL(relative, import.meta.url))
 
@@ -19,7 +20,9 @@ if (typeof version !== 'string') throw new Error('package.json has no version')
 
 export default defineConfig({
   root: here('.'),
-  plugins: [react()],
+  // `thirdPartyNotices` writes `third-party-licenses.txt` beside the bundle: MIT and ISC ask
+  // that their notice travel with the code, and minification drops it. See that file.
+  plugins: [react(), thirdPartyNotices()],
 
   // The source offer's build-time default, so the footer's link is there on the first
   // paint instead of after a request. See `buildInfo.ts`, and `SOURCE_REF` in the Dockerfile.

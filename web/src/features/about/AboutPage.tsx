@@ -5,6 +5,14 @@ import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './AboutPage.module.css'
 
 /**
+ * Where the build puts the notices (`NOTICES_FILE` in `web/thirdPartyNotices.ts`, which
+ * the browser bundle may not import: it reads the disk). `scripts/thirdPartyNotices.test.ts`
+ * holds the two spellings together, and `tests/e2e/agpl-source-offer.spec.ts` follows the
+ * link on a real server.
+ */
+const THIRD_PARTY_NOTICES_URL = '/third-party-licenses.txt'
+
+/**
  * `/about`: which build this is, under which licence, and where its source is (roadmap
  * G1-04 / P1-05) — the page behind the footer's "À propos", and the long form of the
  * AGPL section 13 offer the footer makes in one line.
@@ -14,8 +22,11 @@ import styles from './AboutPage.module.css'
  * build's own version and source address at once and swaps in the server's when they
  * arrive (`useAbout`), so there is no loading state to show and no error to explain.
  *
- * Third-party notices will join it as the item that carries them lands (roadmap G1-07),
- * and adds a row here and nothing else.
+ * **The third-party licences row** (roadmap G1-07 / P1-09) links the notices of the libraries
+ * the JavaScript contains, which the build writes beside the bundle
+ * (`web/thirdPartyNotices.ts`) and the server sends as a plain static file. It is a row of
+ * this page rather than a third link in the footer: the footer is one line under the upload
+ * composer, and this is where a reader who wants the licences goes after "À propos".
  *
  * **The operator section** (roadmap G2-17 / P3-18) is drawn only when the operator named
  * themselves or set one of the pages they owe a visitor, so a self-hosted box reads the page
@@ -59,6 +70,15 @@ export function AboutPage() {
               {about.sourceUrl}
             </NewTabLink>
             <span className={styles['note']}>{text.about.sourceNote}</span>
+          </dd>
+        </div>
+        <div className={styles['fact']}>
+          <dt>{text.about.noticesLabel}</dt>
+          <dd>
+            <NewTabLink href={THIRD_PARTY_NOTICES_URL} className={styles['source']}>
+              {text.about.noticesLink}
+            </NewTabLink>
+            <span className={styles['note']}>{text.about.noticesNote}</span>
           </dd>
         </div>
       </dl>

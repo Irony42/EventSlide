@@ -864,6 +864,9 @@ export const it: UiText = {
     licenseLabel: 'Licenza',
     sourceLabel: 'Codice sorgente',
     sourceNote: 'Questo link porta al codice sorgente della versione indicata sopra.',
+    noticesLabel: 'Licenze di terze parti',
+    noticesLink: 'Avvisi delle librerie incluse',
+    noticesNote: 'I testi delle licenze delle librerie libere contenute in questa applicazione.',
 
     supportLink: 'Sostieni il progetto',
     supportTitle: 'Il progetto vive di donazioni',

@@ -858,6 +858,9 @@ export const en: UiText = {
     licenseLabel: 'Licence',
     sourceLabel: 'Source code',
     sourceNote: 'This link leads to the source code of the version shown above.',
+    noticesLabel: 'Third-party licences',
+    noticesLink: 'Notices of the bundled libraries',
+    noticesNote: 'The licence texts of the free libraries this application contains.',
 
     supportLink: 'Support the project',
     supportTitle: 'The project runs on donations',

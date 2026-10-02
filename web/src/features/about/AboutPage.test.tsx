@@ -88,6 +88,22 @@ describe('AboutPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Über EventSlide' })).toBeVisible()
   })
+
+  it('links the licence notices of the bundled libraries, from the first paint (roadmap G1-07)', () => {
+    // The file is written by the build and served as a static file, so the link needs no
+    // server answer and is there from the first paint.
+    renderWithProviders(<AboutPage />, { api: silentServer() })
+
+    expect(screen.getByText(fr.about.noticesLabel)).toBeVisible()
+    const link = screen.getByRole('link', { name: new RegExp(fr.about.noticesLink) })
+
+    expect(link).toHaveAttribute('href', '/third-party-licenses.txt')
+    // In a tab of its own, as every link out of a guest-reachable page is.
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link.getAttribute('rel')?.split(/\s+/)).toEqual(
+      expect.arrayContaining(['noopener', 'noreferrer']),
+    )
+  })
 })
 
 /**

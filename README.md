@@ -489,6 +489,13 @@ An instance that asks for support can set `DONATION_URL` and `BUDGET_URL`, empty
 
 An instance run for other people can name its operator and link its legal pages with `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SUPPORT_URL` and `REPORT_URL`, all empty by default: a self-hosted box that sets none of them looks and behaves exactly as before.
 
+Dependencies are held to the same standard. `scripts/licenseAudit.test.ts` reads
+`package-lock.json` and fails the build on any licence outside a short permissive
+allow-list (MIT, ISC, BSD, Apache-2.0, 0BSD, MIT-0, BlueOak-1.0.0) unless a named,
+argued exception covers that package: today sharp's LGPL libvips in production, and a few
+development tools that never reach the image. The web build writes the notices the
+bundled libraries ask for to `/third-party-licenses.txt`, which `/about` links.
+
 **Everything published before this change remains under GPL-3.0, permanently** — a
 licence grant cannot be revoked after the fact. [.github/gpl-boundary](.github/gpl-boundary)
 names the last commit that carries the GPL text, and the `licenseHistory` CI job
