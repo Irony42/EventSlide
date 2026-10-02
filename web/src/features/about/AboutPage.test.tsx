@@ -304,6 +304,40 @@ describe('AboutPage, the operator section', () => {
     expect(heading()).toBeNull()
   })
 
+  it('shows nothing for a name longer than any operator could have configured', async () => {
+    const api = serving({ operator: { name: 'N'.repeat(201) } })
+    renderWithProviders(<AboutPage />, { api })
+
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+
+    expect(heading()).toBeNull()
+  })
+
+  it('lists pages that share one address as separate rows, with no duplicate-key error', async () => {
+    // React reports a repeated key with `console.error`, which does not fail a test by
+    // itself: three rows keyed by one address render correctly once and misbehave on the
+    // first update, so the report is what is asserted.
+    const reported = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    renderWithProviders(<AboutPage />, {
+      api: serving({ links: { terms: '/legal', privacy: '/legal', legalNotice: '/legal' } }),
+    })
+
+    await screen.findByRole('heading', { name: fr.about.operatorTitle })
+    expect(reported).not.toHaveBeenCalled()
+    reported.mockRestore()
+
+    expect(screen.getByRole('link', { name: new RegExp(fr.about.termsLink) })).toBeVisible()
+    expect(screen.getByRole('link', { name: new RegExp(fr.about.privacyLink) })).toBeVisible()
+    expect(screen.getByRole('link', { name: new RegExp(fr.about.legalNoticeLink) })).toBeVisible()
+  })
+
+  it('draws no empty list for an operator who is named and set no page', async () => {
+    renderWithProviders(<AboutPage />, { api: serving({ operator: { name: NAME } }) })
+
+    expect(await screen.findByText(NAME)).toBeVisible()
+    expect(screen.queryByRole('list')).toBeNull()
+  })
+
   it.each([
     ['a blank name', { name: '   ' }],
     ['a name with a line break in it', { name: `${NAME}\n${NAME}` }],

@@ -85,15 +85,19 @@ export function AboutPage() {
               )}
             </dl>
           )}
-          <ul className={styles['supportLinks']}>
-            {operatorLinks.map(({ href, label }) => (
-              <li key={href}>
-                <NewTabLink href={href} className={styles['supportLink']}>
-                  {label}
-                </NewTabLink>
-              </li>
-            ))}
-          </ul>
+          {operatorLinks.length === 0 ? null : (
+            <ul className={styles['supportLinks']}>
+              {operatorLinks.map(({ href, label }) => (
+                // Keyed by the label, not the address: one page may serve the terms, the
+                // policy and the notice, and three rows with one key is a React error.
+                <li key={label}>
+                  <NewTabLink href={href} className={styles['supportLink']}>
+                    {label}
+                  </NewTabLink>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
       {donate === undefined && budget === undefined ? null : (

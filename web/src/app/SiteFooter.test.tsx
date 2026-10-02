@@ -495,6 +495,17 @@ describe('SiteFooter, the operator’s links', () => {
 
       expect(link(label)).toHaveAttribute('href', '/legal/page?lang=fr#form')
     })
+
+    it('hands the browser a path in its canonical form, never as the response wrote it', async () => {
+      // The server publishes canonical paths already; a response rewritten on the way is
+      // the case this is for, and what is armed is what was parsed.
+      const about = vi.fn(async () => anAbout({ links: { [key]: '/a/./b/../c' } }))
+      renderWithProviders(<SiteFooter reportLink helpLink />, { api: fakeApi({ about }) })
+
+      await waitFor(() => expect(link(label)).not.toBeNull())
+
+      expect(link(label)).toHaveAttribute('href', '/a/c')
+    })
   })
 
   it.each(SUPPORTED_LOCALES)(

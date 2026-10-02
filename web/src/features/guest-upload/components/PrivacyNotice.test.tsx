@@ -90,6 +90,18 @@ describe('the privacy notice, linking the operator’s policy', () => {
     )
   })
 
+  it('stands after the acknowledge button, so its late arrival never moves the button under a thumb', async () => {
+    // The address comes from /api/about a moment after the card is on screen. A line above
+    // "J'ai compris" would push it down by a touch target at the moment it is pressed.
+    renderWithProviders(card(OPERATOR), { api: serving({ privacy: POLICY }) })
+
+    await waitFor(() => expect(policyLink()).not.toBeNull())
+
+    const button = screen.getByRole('button', { name: fr.upload.noticeAcknowledge })
+    const position = button.compareDocumentPosition(policyLink() as Node)
+    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('links a policy served from this site as the path it is', async () => {
     renderWithProviders(card(OPERATOR), { api: serving({ privacy: '/legal/confidentialite' }) })
 
