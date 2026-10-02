@@ -45,7 +45,7 @@ const httpsOnly = (value: string): string | null => {
   }
 }
 
-/** Nothing is ever fetched from here; only the comparison of origins matters. */
+/** The base a path is parsed against to canonicalise it. Nothing is ever fetched from here. */
 const SAME_ORIGIN_PROBE = 'https://same-origin.invalid'
 
 /**
@@ -54,17 +54,15 @@ const SAME_ORIGIN_PROBE = 'https://same-origin.invalid'
  * again where the string becomes an `href`.
  *
  * A path is accepted because the hosted instance serves its legal pages from its own origin.
- * It is a path only if it starts with one `/`, holds no backslash or whitespace, stays on
- * the origin it was parsed against, and — the subtle case — does not *canonicalise* to
- * `//host`: `/.//host` parses to a pathname that starts with two slashes, which a browser
- * reads as another site.
+ * It is a path only if it starts with one `/`, holds no backslash or whitespace, and — the
+ * subtle case — does not *canonicalise* to `//host`: `/.//host` parses to a pathname that
+ * starts with two slashes, which a browser reads as another site.
  */
 const siteLinkOnly = (value: string): string | null => {
   if (!value.startsWith('/')) return httpsOnly(value)
   if (/[\s\p{Cc}]/u.test(value) || value.startsWith('//') || value.includes('\\')) return null
   try {
     const url = new URL(value, SAME_ORIGIN_PROBE)
-    if (url.origin !== SAME_ORIGIN_PROBE) return null
     const path = `${url.pathname}${url.search}${url.hash}`
     return path.startsWith('//') ? null : path
   } catch {

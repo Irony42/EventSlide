@@ -274,9 +274,9 @@ const donationUrl = optionalHttpsLink('DONATION_URL', 'hosts and on the public /
 const budgetUrl = optionalHttpsLink('BUDGET_URL', 'hosts and on the public /about page')
 
 /**
- * The origin a path is parsed against to prove it stays on this site. Nothing is ever sent
- * there: the `.invalid` top-level domain is reserved and resolves nowhere, and only the
- * comparison of origins before and after parsing matters.
+ * The origin a path is parsed against, to canonicalise it (dot segments, percent-encoding).
+ * Nothing is ever sent there: the `.invalid` top-level domain is reserved and resolves
+ * nowhere.
  */
 const SAME_ORIGIN_PROBE = 'https://same-origin.invalid'
 
@@ -291,8 +291,8 @@ const LINK_MAX_LENGTH = 2_048
  * `/\host/x` is read by every browser as `//host/x`, because for an http(s) address a
  * backslash is a slash. And `/.//host/x` is the subtle one: the parser removes the dot
  * segment and leaves a path that *starts* with `//`, so the canonical text would be
- * protocol-relative even though the input was not. The origin is therefore compared after
- * parsing, and the canonical result is checked for a leading `//` as well.
+ * protocol-relative even though the input was not. The first two are refused on the text as
+ * typed, the third on the canonical result.
  *
  * Whitespace and control characters are refused before parsing, for the reason
  * {@link parseHttpsUrl} gives.
@@ -306,7 +306,6 @@ const parseSameOriginPath = (value: string): string | null => {
   } catch {
     return null
   }
-  if (url.origin !== SAME_ORIGIN_PROBE) return null
   const path = `${url.pathname}${url.search}${url.hash}`
   return path.startsWith('//') ? null : path
 }
