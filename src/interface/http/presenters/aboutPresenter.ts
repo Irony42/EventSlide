@@ -1,14 +1,20 @@
-import type { AboutDto, AboutFeaturesDto } from './dto'
+import type { AboutDto, AboutFeaturesDto, AboutLinksDto } from './dto'
 
 /**
  * What the composition root knows about the running build, handed to the HTTP layer.
  *
  * `version` is `src/main/version.ts`'s answer and `sourceUrl` is `resolveSourceUrl`'s —
  * both resolved once at boot, because the interface layer may not import either module.
+ * `links` is what the operator configured (`DONATION_URL`, `BUDGET_URL`), `null` where they
+ * set nothing.
  */
 export interface AboutFacts {
   readonly version: string
   readonly sourceUrl: string
+  readonly links: {
+    readonly donate: string | null
+    readonly budget: string | null
+  }
 }
 
 /** The product's name as a client prints it. The one place it is written for the wire. */
@@ -22,6 +28,16 @@ const PRODUCT_NAME = 'EventSlide'
 const LICENSE = 'AGPL-3.0-only'
 
 /**
+ * A link is on the wire only when the operator set it: an unset one is **absent**, never
+ * `null` and never an empty string, so a client's `if (links.donate)` and a self-hoster's
+ * empty `links: {}` are the same statement.
+ */
+const presentLinks = (links: AboutFacts['links']): AboutLinksDto => ({
+  ...(links.donate === null ? {} : { donate: links.donate }),
+  ...(links.budget === null ? {} : { budget: links.budget }),
+})
+
+/**
  * Pure: the whole body is a function of two small records, so it can be tested without a
  * request. Nothing in it comes from the request — an instance-information answer that
  * varied by caller would have to be cached per caller, and this one is cached by everyone.
@@ -31,6 +47,6 @@ export const toAboutDto = (facts: AboutFacts, features: AboutFeaturesDto): About
   version: facts.version,
   license: LICENSE,
   sourceUrl: facts.sourceUrl,
-  links: {},
+  links: presentLinks(facts.links),
   features,
 })

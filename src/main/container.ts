@@ -653,7 +653,13 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // Resolved here, once, because the HTTP layer may not import the config module or the
     // manifest reader — and from the same `appVersion()` as `health` above, so the two
     // endpoints cannot name different builds.
-    about: { version: appVersion(), sourceUrl: resolveSourceUrl(appVersion(), config.source) },
+    about: {
+      version: appVersion(),
+      sourceUrl: resolveSourceUrl(appVersion(), config.source),
+      // Both `null` on a box that set nothing, which `/api/about` then leaves out
+      // altogether: a self-hosted instance says nothing about money (roadmap G4-02).
+      links: { donate: config.support.donationUrl, budget: config.support.budgetUrl },
+    },
     ...(hasClient ? { clientDir } : {}),
   })
 

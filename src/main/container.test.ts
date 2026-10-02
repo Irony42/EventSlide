@@ -391,3 +391,50 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
     expect(db.prepare(`SELECT open FROM audit_prune_gate`).get()).toEqual({ open: 0 })
   })
 })
+
+/**
+ * The same gap, for the support links (roadmap G4-02): `env.test.ts` proves the two
+ * variables parse and `aboutRoutes.test.ts` proves the route leaves an unset link out, but
+ * only this boot shows the composition root handing the parsed value to the route — and,
+ * above all, that a box which sets nothing says nothing about money.
+ */
+describe('createContainer: the support links reach /api/about', () => {
+  it('publishes no link on a box that configures nothing', async () => {
+    const { app } = await boot({})
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.links).toEqual({})
+  })
+
+  it('publishes none when compose renders the unset variables as empty strings', async () => {
+    // `DONATION_URL: ${DONATION_URL:-}` is what `docker compose up` sends by default.
+    const { app } = await boot({ DONATION_URL: '', BUDGET_URL: '' })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.links).toEqual({})
+  })
+
+  it('publishes DONATION_URL as links.donate and BUDGET_URL as links.budget', async () => {
+    const { app } = await boot({
+      DONATION_URL: 'https://opencollective.com/eventslide',
+      BUDGET_URL: 'https://opencollective.com/eventslide/budget',
+    })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.links).toEqual({
+      donate: 'https://opencollective.com/eventslide',
+      budget: 'https://opencollective.com/eventslide/budget',
+    })
+  })
+
+  it('does not tie one link to the other', async () => {
+    const { app } = await boot({ BUDGET_URL: 'https://ledger.example.org/' })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.links).toEqual({ budget: 'https://ledger.example.org/' })
+  })
+})
