@@ -27,7 +27,10 @@ import { makeRegisterModerator } from '../application/usecases/auth/registerMode
 
 import { makeApplyEventSchedules } from '../application/usecases/events/applyEventSchedules'
 import { makeChangeEventStatus } from '../application/usecases/events/changeEventStatus'
-import { makeCreateEvent } from '../application/usecases/events/createEvent'
+import {
+  makeCreateEvent,
+  type EventCreationPolicy,
+} from '../application/usecases/events/createEvent'
 import { makeGetEventBySlug } from '../application/usecases/events/getEventBySlug'
 import { makeListEventsForHost } from '../application/usecases/events/listEventsForHost'
 import { makePurgeEvent } from '../application/usecases/events/purgeEvent'
@@ -141,6 +144,8 @@ export interface UseCasePolicy {
     readonly slugSuffix: 'none' | 'random'
     readonly allowCustomSlugs: boolean
     readonly joinCodeLength: number
+    /** `EVENT_CREATION`: who may create an event (P3-05 / G2-04). */
+    readonly creation: EventCreationPolicy
   }
   readonly reactionBudget: {
     readonly windowMs: number
@@ -210,7 +215,9 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   // ----------------------------------------------------------------- events --
   createEvent: makeCreateEvent({
     events: adapters.events,
-    memberships: adapters.memberships,
+    clients: adapters.clients,
+    users: adapters.users,
+    eventCreation: policy.events.creation,
     ids: adapters.ids,
     clock: adapters.clock,
     defaultQuotaBytes: policy.defaultEventQuotaBytes,

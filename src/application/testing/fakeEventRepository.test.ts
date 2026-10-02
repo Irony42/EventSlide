@@ -101,6 +101,7 @@ describe('FakeEventRepository dashboard summary', () => {
       .chargeStagedBytesFrom({
         stagedBytes: async () => 40_000,
         stagedBytesOf: async () => 0,
+        listStagedSources: async () => new Set<string>(),
       })
     const events = new FakeEventRepository({ photos }).seed(anEvent({ id: WEDDING, ownerId: HOST }))
 

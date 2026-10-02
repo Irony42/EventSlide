@@ -1,17 +1,20 @@
+import { ClientCeilings } from '../../../domain/clients/clientCeilings'
 import { Event } from '../../../domain/events/event'
 import { EventName } from '../../../domain/events/eventName'
 import { EventSettings } from '../../../domain/events/eventSettings'
 import type { EventLanguage } from '../../../domain/events/eventLanguage'
 import { eventTemplateSettings, type EventTemplateKey } from '../../../domain/events/eventTemplate'
 import { DomainError } from '../../../domain/shared/errors'
-import type { UserId } from '../../../domain/shared/ids'
+import type { ClientId, UserId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import { Slug, type SlugSuffixMode } from '../../../domain/shared/slug'
+import { canOperateSite } from '../../../domain/users/siteRole'
+import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
-import type { MembershipRepository } from '../../ports/userRepository'
+import type { UserRepository } from '../../ports/userRepository'
 
 /**
  * Five, because 32^6 is at least a billion codes (more, if `JOIN_CODE_LENGTH` is
@@ -26,8 +29,26 @@ const MAX_JOIN_CODE_ATTEMPTS = 5
 /** See {@link MAX_JOIN_CODE_ATTEMPTS}. Its own constant, so either bound can move without the other. */
 const MAX_SLUG_ATTEMPTS = 5
 
+/**
+ * Who may create an event on this box (`EVENT_CREATION`, P3-05 / D-07).
+ *
+ * - `anyAccount`: every signed-in account, as it has always been.
+ * - `clientMembers`: only an account that belongs to a client, or the box's operator.
+ *   `env.ts` refuses this policy unless `SITE_ADMIN=on`, so it only ever runs on a box
+ *   that can create clients.
+ */
+export type EventCreationPolicy = 'anyAccount' | 'clientMembers'
+
 export interface CreateEventInput {
   readonly ownerId: UserId
+  /**
+   * The client the new event is for, when the caller names one. Only ever needed by an
+   * account that belongs to **several** clients and so has to say which; a member of one
+   * is attached to it, and the operator and a client-less account to none. Naming a client
+   * the account does not belong to is `404 client.notFound`, the same answer as naming one
+   * that does not exist.
+   */
+  readonly clientId?: ClientId
   readonly name: string
   /** Absent means "derive it from the name", which is what the host-facing form does. */
   readonly slug?: string
@@ -63,7 +84,12 @@ export interface CreateEventInput {
 
 export interface CreateEventDeps {
   readonly events: EventRepository
-  readonly memberships: MembershipRepository
+  /** Whose clients the creator belongs to, and which of them a creation may name. */
+  readonly clients: ClientRepository
+  /** For the creator's site role: the operator is the one account no client is needed for. */
+  readonly users: UserRepository
+  /** `EVENT_CREATION`. See {@link EventCreationPolicy}. */
+  readonly eventCreation: EventCreationPolicy
   readonly ids: IdGenerator
   readonly clock: Clock
   /**
@@ -192,10 +218,78 @@ const resolveSlug = async (
   return derived
 }
 
+/** The client a new event belongs to, and the ceilings that client's creations answer to. */
+interface ResolvedClient {
+  readonly clientId: ClientId | null
+  readonly ceilings: ClientCeilings
+}
+
+const NO_CLIENT: ResolvedClient = { clientId: null, ceilings: ClientCeilings.unlimited() }
+
+/**
+ * Which client, if any, this creation is for — and whether this account may create at all.
+ *
+ * **Runs first, before the name is parsed or a slug is probed.** A refusal that depends on
+ * who is asking has to come before anything that depends on what they asked for: a
+ * non-member told "that address is taken" has learned something about another tenant's
+ * events from an account that was never allowed to create one.
+ *
+ * The rules, in order:
+ *
+ * 1. A client the caller **names** must be one of theirs. Anything else — one that does not
+ *    exist, one they merely know the id of — is `404 client.notFound`: a 403 would confirm
+ *    the client exists, and this surface is not a way to enumerate them. This holds for the
+ *    operator too, and under either policy: naming a client is attaching to its ceilings.
+ * 2. Otherwise **the operator gets no client.** They run the box; their own events are not
+ *    anyone's, and are never counted against anyone's ceilings.
+ * 3. Otherwise a member of **one** client is attached to it, with no need to say so.
+ * 4. A member of **several** must say which (rule 1); not saying is `404 client.notFound`.
+ * 5. An account that belongs to **none** gets no client under `anyAccount` — today's
+ *    behaviour, exactly — and `403 event.creationNotAllowed` under `clientMembers`.
+ */
+const resolveClient = async (
+  clients: ClientRepository,
+  users: UserRepository,
+  policy: EventCreationPolicy,
+  ownerId: UserId,
+  named: ClientId | undefined,
+): Promise<Result<ResolvedClient, DomainError>> => {
+  const memberships = await clients.membershipsForUser(ownerId)
+
+  const attach = async (clientId: ClientId): Promise<Result<ResolvedClient, DomainError>> => {
+    const client = await clients.findById(clientId)
+    // A membership row cannot outlive its client (`ON DELETE CASCADE`), so this is a race
+    // with a deletion and not a state. Not found is the honest answer, and skipping the
+    // ceilings of a client that just went away would be the dishonest one.
+    if (client === null) return err(DomainError.notFound('client.notFound'))
+    return ok({ clientId, ceilings: client.ceilings })
+  }
+
+  if (named !== undefined) {
+    const belongs = memberships.some((membership) => membership.clientId === named)
+    return belongs ? attach(named) : err(DomainError.notFound('client.notFound'))
+  }
+
+  if (canOperateSite(await users.siteRoleFor(ownerId))) return ok(NO_CLIENT)
+
+  const [only, ...others] = memberships
+  if (only !== undefined) {
+    return others.length === 0
+      ? attach(only.clientId)
+      : err(DomainError.notFound('client.notFound'))
+  }
+
+  return policy === 'clientMembers'
+    ? err(DomainError.forbidden('event.creationNotAllowed'))
+    : ok(NO_CLIENT)
+}
+
 export const makeCreateEvent =
   ({
     events,
-    memberships,
+    clients,
+    users,
+    eventCreation,
     ids,
     clock,
     defaultQuotaBytes,
@@ -205,6 +299,17 @@ export const makeCreateEvent =
     joinCodeLength,
   }: CreateEventDeps): CreateEvent =>
   async (input) => {
+    // First, for the reason written on `resolveClient`: who may ask comes before what they
+    // asked for.
+    const resolved = await resolveClient(
+      clients,
+      users,
+      eventCreation,
+      input.ownerId,
+      input.clientId,
+    )
+    if (!resolved.ok) return resolved
+
     const name = EventName.create(input.name)
     if (!name.ok) return name
 
@@ -262,23 +367,25 @@ export const makeCreateEvent =
         settings: settings.value,
         quotaBytes: input.quotaBytes ?? defaultQuotaBytes,
         startsAt: input.startsAt ?? null,
-        clientId: null,
+        clientId: resolved.value.clientId,
       },
       ids.eventId(),
       now,
     )
     if (!created.ok) return created
 
-    await events.save(created.value)
-    // The owner role is a membership row, not the `owner_id` column alone: every
-    // authorization decision in this product reads `roleFor(eventId, userId)`, so a
-    // creator without this row could not open the event they just created.
-    await memberships.grant({
-      eventId: created.value.id,
-      userId: input.ownerId,
-      role: 'owner',
-      grantedAt: now,
-    })
+    // One step, not two. The owner role is a membership row, not the `owner_id` column
+    // alone: every authorization decision in this product reads `roleFor(eventId, userId)`,
+    // so a creator without this row could not open the event they just created. This used
+    // to be a `save` and then a `grant`, and a failure between them left exactly that event
+    // behind. The repository writes both — and the client's creation counter, and checks the
+    // client's ceilings against the rows it then changes — in one transaction.
+    const stored = await events.createWithOwner(
+      created.value,
+      { userId: input.ownerId, grantedAt: now },
+      resolved.value.ceilings,
+    )
+    if (!stored.ok) return stored
 
     // Nothing is announced. The bus is subscribed per event by phones and projectors
     // that cannot yet be watching an event which did not exist a moment ago.
