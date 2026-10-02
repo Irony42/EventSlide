@@ -50,6 +50,12 @@ const KIND_BY_CODE = new Map<string, ClipFailureKind>([
   // rather than an accident.
   ['event.quotaExceeded', 'permanent'],
   ['event.photoLimitReached', 'permanent'],
+  // The client's ceilings (roadmap §10.5), decided by the same transaction and for the same
+  // reason: `client.storageFull` is the client's `max_total_bytes`, and
+  // `client.clipsNotAllowed` a plan that stopped including video after the clip was queued.
+  // Neither is something the same bytes answer differently a second time.
+  ['client.storageFull', 'permanent'],
+  ['client.clipsNotAllowed', 'permanent'],
   // The event was purged while the clip was in the queue. There is nothing left to
   // attach the result to, and no number of retries will bring the album back.
   ['event.notFound', 'permanent'],

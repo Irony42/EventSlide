@@ -1101,3 +1101,50 @@ describe('Event live window', () => {
     })
   })
 })
+
+describe('Event quota under a client ceiling', () => {
+  const LOWERED = unwrap(ClientCeilings.create({ maxEventQuotaBytes: 600 }))
+
+  it('has room for what fits the lowered quota and none for a byte more', () => {
+    const event = anEvent({ quotaBytes: 1_000 })
+
+    expect(event.hasQuotaFor(100, 500, LOWERED)).toBe(true)
+    expect(event.hasQuotaFor(101, 500, LOWERED)).toBe(false)
+  })
+
+  it('judges by the stored quota when no ceilings are passed, as it always did', () => {
+    expect(anEvent({ quotaBytes: 1_000 }).hasQuotaFor(500, 500)).toBe(true)
+  })
+
+  it('reports what is left of the lowered quota, never negative', () => {
+    const event = anEvent({ quotaBytes: 1_000 })
+
+    expect(event.remainingQuota(500, LOWERED)).toBe(100)
+    expect(event.remainingQuota(900, LOWERED)).toBe(0)
+    expect(event.remainingQuota(500)).toBe(500)
+  })
+})
+
+describe('Event.effectiveQuotaBytes', () => {
+  it('is the event’s own quota for an event with no client', () => {
+    expect(anEvent({ quotaBytes: 5_000 }).effectiveQuotaBytes(null)).toBe(5_000)
+  })
+
+  it('is the event’s own quota under a client with no max_event_quota_bytes', () => {
+    expect(anEvent({ quotaBytes: 5_000 }).effectiveQuotaBytes(ClientCeilings.unlimited())).toBe(
+      5_000,
+    )
+  })
+
+  it('is lowered to the client’s max_event_quota_bytes, which an operator may have lowered since', () => {
+    const ceilings = unwrap(ClientCeilings.create({ maxEventQuotaBytes: 2_000 }))
+
+    expect(anEvent({ quotaBytes: 5_000 }).effectiveQuotaBytes(ceilings)).toBe(2_000)
+  })
+
+  it('is never raised to the ceiling', () => {
+    const ceilings = unwrap(ClientCeilings.create({ maxEventQuotaBytes: 9_000 }))
+
+    expect(anEvent({ quotaBytes: 5_000 }).effectiveQuotaBytes(ceilings)).toBe(5_000)
+  })
+})

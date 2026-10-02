@@ -572,14 +572,37 @@ export class Event {
    * the one the repository takes inside the write transaction. Both call the same
    * arithmetic in `./quota` so the answer a guest is given and the answer the database
    * acts on cannot differ.
+   *
+   * `ceilings` is the event's client's, when it has one: the quota is then the
+   * {@link Event.effectiveQuotaBytes}, not the stored number. Left out, it is the stored number.
    */
-  hasQuotaFor(additionalBytes: number, usedBytes: number): boolean {
-    return fitsInQuota(this.props.quotaBytes, usedBytes, additionalBytes)
+  hasQuotaFor(
+    additionalBytes: number,
+    usedBytes: number,
+    ceilings: ClientCeilings | null = null,
+  ): boolean {
+    return fitsInQuota(this.effectiveQuotaBytes(ceilings), usedBytes, additionalBytes)
   }
 
-  /** What is left of the quota, never negative. See `./quota`. */
-  remainingQuota(usedBytes: number): number {
-    return remainingQuota(this.props.quotaBytes, usedBytes)
+  /**
+   * The quota an upload is judged against: the event's own, **lowered** to its client's
+   * `max_event_quota_bytes` when that is smaller, and never raised.
+   *
+   * `createEvent` refuses a quota above the ceiling, so for an event created under it this
+   * is the event's own number. It is not redundant: an operator can lower the ceiling later,
+   * and an event created before that keeps the larger number it was given. The downgrade rule
+   * is that **new writes** are refused past the ceiling, so every write path asks this
+   * instead of reading `quotaBytes`, and nothing already stored is touched.
+   *
+   * `null` is no client, and no client is no ceiling: the answer is `quotaBytes` itself.
+   */
+  effectiveQuotaBytes(ceilings: ClientCeilings | null): number {
+    return ceilings === null ? this.props.quotaBytes : ceilings.clampQuota(this.props.quotaBytes)
+  }
+
+  /** What is left of the quota, never negative. See `./quota`, and `hasQuotaFor` for `ceilings`. */
+  remainingQuota(usedBytes: number, ceilings: ClientCeilings | null = null): number {
+    return remainingQuota(this.effectiveQuotaBytes(ceilings), usedBytes)
   }
 
   // ------------------------------------------------------------------ retention --
