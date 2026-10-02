@@ -8,6 +8,8 @@ import {
   STUFFING_HOLD_MS,
   STUFFING_WINDOW_MS,
   SignInThrottle,
+  deviceSource,
+  networkSource,
   waitSecondsAfter,
   type Admission,
 } from './signInThrottle'
@@ -426,5 +428,93 @@ describe('SignInThrottle, how much it remembers', () => {
     fail(throttle, T0 + 1, 'b', HOME)
 
     expect(throttle.tracked).toEqual({ pairs: 1, accounts: 1 })
+  })
+})
+
+describe('SignInThrottle, a trusted device has a bucket of its own (G3-04b)', () => {
+  const DEVICE = deviceSource('device-of-the-owner')
+  const LAN = networkSource('venue-wifi')
+
+  it('does not take a device for a network, nor a network for a device, whatever the id contains', () => {
+    const hostile = ['venue-wifi', 'x:y', '', '8:network:venue-wifi', 'network:venue-wifi']
+
+    for (const id of hostile) {
+      expect(deviceSource(id)).not.toBe(networkSource(id))
+      for (const other of hostile) expect(deviceSource(id)).not.toBe(networkSource(other))
+    }
+  })
+
+  it("does not delay the owner's device for the failures a stranger made on the shared network", () => {
+    const throttle = new SignInThrottle()
+    const last = pile(throttle, 30, T0, OWNER, LAN)
+    expect(throttle.begin(OWNER, LAN, last + 1).kind).toBe('wait')
+
+    expect(throttle.begin(OWNER, DEVICE, last + 1)).toEqual({
+      kind: 'admit',
+      holdMs: 0,
+      credentialStuffing: false,
+    })
+  })
+
+  it("does not delay the network for the owner's typos on their device", () => {
+    const throttle = new SignInThrottle()
+    const last = pile(throttle, 30, T0, OWNER, DEVICE)
+    expect(throttle.begin(OWNER, DEVICE, last + 1).kind).toBe('wait')
+
+    expect(throttle.begin(OWNER, LAN, last + 1).kind).toBe('admit')
+  })
+
+  it('still throttles the device: five free failures, then a wait that doubles up to fifteen minutes', () => {
+    const throttle = new SignInThrottle()
+    for (let i = 0; i < FREE_FAILURES; i += 1) fail(throttle, T0 + i, OWNER, DEVICE)
+
+    expect(throttle.begin(OWNER, DEVICE, T0 + 10)).toEqual({ kind: 'wait', retryAfterSeconds: 1 })
+
+    const last = pile(throttle, 40, T0 + 10, OWNER, DEVICE)
+    expect(throttle.begin(OWNER, DEVICE, last + 1)).toEqual({
+      kind: 'wait',
+      retryAfterSeconds: MAX_WAIT_SECONDS,
+    })
+  })
+
+  it('gives each device its own bucket, and each account its own on the same device id', () => {
+    const throttle = new SignInThrottle()
+    const last = pile(throttle, 30, T0, OWNER, DEVICE)
+
+    expect(throttle.begin(OWNER, deviceSource('another-device'), last + 1).kind).toBe('admit')
+    expect(throttle.begin('account-other', DEVICE, last + 1).kind).toBe('admit')
+  })
+
+  it("counts a device's failures in the account-wide hold, with the networks' (B2 is shared by every source)", () => {
+    const throttle = new SignInThrottle()
+    for (let i = 0; i < 50; i += 1) fail(throttle, T0 + i, OWNER, networkSource(`botnet-${i}`))
+    for (let i = 0; i < 50; i += 1) fail(throttle, T0 + 100 + i, OWNER, deviceSource(`stolen-${i}`))
+
+    expect(fail(throttle, T0 + 1_000, OWNER, DEVICE).holdMs).toBe(STUFFING_HOLD_MS)
+    expect(fail(throttle, T0 + 1_001, OWNER, LAN).holdMs).toBe(STUFFING_HOLD_MS)
+  })
+
+  it("clears the device's wait on a success there, and leaves the network's wait where it was", () => {
+    const throttle = new SignInThrottle()
+    const lastOnLan = pile(throttle, 30, T0, OWNER, LAN)
+    const lastOnDevice = pile(throttle, 30, T0, OWNER, DEVICE)
+    const now = Math.max(lastOnLan, lastOnDevice) + 1
+
+    throttle.succeeded(OWNER, DEVICE)
+
+    expect(throttle.begin(OWNER, DEVICE, now).kind).toBe('admit')
+    expect(throttle.begin(OWNER, LAN, now).kind).toBe('wait')
+  })
+
+  it("clears the network's wait on a success there, and leaves the device's wait where it was", () => {
+    const throttle = new SignInThrottle()
+    const lastOnLan = pile(throttle, 30, T0, OWNER, LAN)
+    const lastOnDevice = pile(throttle, 30, T0, OWNER, DEVICE)
+    const now = Math.max(lastOnLan, lastOnDevice) + 1
+
+    throttle.succeeded(OWNER, LAN)
+
+    expect(throttle.begin(OWNER, LAN, now).kind).toBe('admit')
+    expect(throttle.begin(OWNER, DEVICE, now).kind).toBe('wait')
   })
 })
