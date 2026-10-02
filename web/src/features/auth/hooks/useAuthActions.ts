@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react'
 import { useApi } from '../../../app/useApi'
+import type { SecondFactorProof } from '../../../lib/api/dto'
+import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { errorMessage } from '../errorMessage'
 
 /**
- * The two write actions of the auth surface, as view-state.
+ * The write actions of the auth surface, as view-state.
  *
  * They exist so the pages never touch the transport: the hook calls `useApi()`, which
  * is what lets a test hand the page a fake instead of a server.
@@ -26,25 +28,84 @@ export interface AuthActionState<T> {
   readonly error: string | null
 }
 
-export const useLogin = (): AuthActionState<Credentials> => {
+/**
+ * What a sign-in came to: in, refused, or — for an account with an authenticator — the
+ * password was right and the server wants a code before it starts a session.
+ */
+export type LoginOutcome = 'signedIn' | 'secondFactor' | 'refused'
+
+export interface LoginState {
+  readonly submit: (input: Credentials) => Promise<LoginOutcome>
+  readonly submitting: boolean
+  readonly error: string | null
+}
+
+export const useLogin = (): LoginState => {
   const api = useApi()
   const t = useTranslations()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const submit = useCallback(
-    async ({ email, password }: Credentials) => {
+    async ({ email, password }: Credentials): Promise<LoginOutcome> => {
       setSubmitting(true)
       setError(null)
       try {
-        await api.login(email, password)
-        return true
+        const answer = await api.login(email, password)
+        return 'secondFactorRequired' in answer ? 'secondFactor' : 'signedIn'
       } catch (cause) {
         // One message for every failure, because the server sends one code for an
         // unknown address and for a wrong password. Telling the two apart in the UI
         // would turn the form into an account-enumeration oracle.
         setError(errorMessage(cause, t))
-        return false
+        return 'refused'
+      } finally {
+        setSubmitting(false)
+      }
+    },
+    [api, t],
+  )
+
+  return { submit, submitting, error }
+}
+
+/**
+ * The second step of a sign-in. `expired` is the server saying this half-finished sign-in is
+ * over — five minutes passed, five wrong codes, the account changed under it — and the page
+ * goes back to the password with the sentence the server's code picks.
+ */
+export type SecondFactorOutcome =
+  | { readonly kind: 'signedIn' }
+  | { readonly kind: 'refused' }
+  | { readonly kind: 'expired'; readonly reason: string }
+
+export interface SecondFactorLoginState {
+  readonly submit: (proof: SecondFactorProof) => Promise<SecondFactorOutcome>
+  readonly submitting: boolean
+  readonly error: string | null
+}
+
+const OVER_FOR_GOOD = new Set(['auth.secondFactorExpired', 'auth.tooManySecondFactorAttempts'])
+
+export const useSecondFactorLogin = (): SecondFactorLoginState => {
+  const api = useApi()
+  const t = useTranslations()
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = useCallback(
+    async (proof: SecondFactorProof): Promise<SecondFactorOutcome> => {
+      setSubmitting(true)
+      setError(null)
+      try {
+        await api.loginSecondFactor(proof)
+        return { kind: 'signedIn' }
+      } catch (cause) {
+        const reason = errorMessage(cause, t)
+        setError(reason)
+        return cause instanceof ApiError && OVER_FOR_GOOD.has(cause.code)
+          ? { kind: 'expired', reason }
+          : { kind: 'refused' }
       } finally {
         setSubmitting(false)
       }

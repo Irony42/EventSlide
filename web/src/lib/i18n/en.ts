@@ -242,6 +242,18 @@ export const en: UiText = {
     'auth.forbidden': 'You do not have the rights for this action.',
     'auth.passwordChangeRequired': 'Choose a new password before you continue.',
     'auth.invalidToken': 'This link is no longer valid. Ask for a new one.',
+    'auth.invalidSecondFactor':
+      'That code is not valid. Wait for the next one in your app, or use a recovery code.',
+    'auth.secondFactorExpired': 'This sign-in has expired. Start again with your password.',
+    'auth.tooManySecondFactorAttempts': 'Too many wrong codes. Try again in a quarter of an hour.',
+    'auth.secondFactorRequired': 'This account must first pass two-step verification.',
+    'auth.stepUpRequired': 'Confirm who you are to continue.',
+    'auth.secondFactorAlreadyEnrolled': 'Two-step verification is already on for this account.',
+    'auth.noEnrolmentInProgress': 'No set-up is in progress. Start again.',
+    'auth.secondFactorUnavailable':
+      'This server cannot check the app’s code right now. Use a recovery code.',
+    'auth.totpCodeInvalid': 'Enter the six digits the app is showing.',
+    'auth.secondFactorNotEnrolled': 'Two-step verification is not on for this account.',
     'feature.unavailable': 'This feature is not available on this server.',
 
     'event.notFound': 'This code does not match any open gallery.',
@@ -812,6 +824,42 @@ export const en: UiText = {
 
     changePasswordIntro: 'Choose a password you do not use anywhere else.',
     passwordSaved: 'Password saved.',
+
+    /* ---- Added by G2-13: the second factor. ---- */
+    secondFactorTitle: 'Two-step verification',
+    secondFactorIntro: 'Enter the six-digit code your authenticator app is showing.',
+    secondFactorCode: 'Six-digit code',
+    secondFactorSubmit: 'Verify',
+    secondFactorRecoveryToggle: 'Use a recovery code',
+    secondFactorAppToggle: 'Use the code from the app',
+    secondFactorRecoveryIntro:
+      'Enter one of the recovery codes you were given when you switched this on. Each works once.',
+    recoveryCode: 'Recovery code',
+    secondFactorRestart: 'Start again with your password',
+    securityTitle: 'Account security',
+    securityUnavailable:
+      'This server has no encryption key for two-step verification. Ask its administrator to set one.',
+    setupIntro:
+      'An authenticator app (Aegis, 1Password, Google Authenticator…) makes a six-digit code that is added to your password.',
+    setupStart: 'Switch on verification',
+    setupScan: 'Scan this QR code with your app. With no camera, type the key in by hand.',
+    setupQrLabel: 'Setup QR code',
+    setupKeyLabel: 'Setup key',
+    setupConfirm: 'Confirm',
+    recoveryCodesTitle: 'Recovery codes',
+    recoveryCodesIntro:
+      'If you lose your phone, each of these ten codes lets you in once. Write them down now: they will not be shown again.',
+    recoveryCodesCopy: 'Copy the codes',
+    recoveryCodesCopied: 'Codes copied.',
+    recoveryCodesSaved: 'I have written them down',
+    securityEnabled: 'Two-step verification is on for this account.',
+    securityManageIntro:
+      'To renew your recovery codes or switch verification off, confirm who you are first.',
+    stepUpSubmit: 'Confirm it is me',
+    stepUpDone: 'Identity confirmed for five minutes.',
+    recoveryCodesRegenerate: 'Make new recovery codes',
+    secondFactorDisable: 'Switch verification off',
+    secondFactorDisabled: 'Two-step verification switched off.',
   },
 
   mobileModeration: {

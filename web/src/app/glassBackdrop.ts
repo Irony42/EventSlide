@@ -44,7 +44,7 @@ interface RouteBackdrop {
 /**
  * Every address this application answers, and what it can paint under a pane.
  *
- * The four `photo` entries are the whole of the interesting half:
+ * The five `photo` entries are the whole of the interesting half:
  *
  * - `/e/:slug/upload` — the guest's own uploads scroll under the composer.
  * - `/e/:slug/display` — the wall is nothing but guest photographs. It takes the opaque
@@ -57,6 +57,8 @@ interface RouteBackdrop {
  *   apart from a white dress in full sun, so the screen is held to the same floor. It is
  *   the entry that says why the guard checks brightness and not provenance — "no guest
  *   photo here" was the obvious rule and it would have been wrong on this address.
+ * - `/admin/security` — the same plate, for the same reason: the authenticator's QR code is
+ *   drawn dark on a near-white field, and the screen is held to the floor that field needs.
  */
 export const ROUTE_BACKDROPS: readonly RouteBackdrop[] = [
   { path: '/join', backdrop: 'ground', page: 'features/join/JoinPage.tsx' },
@@ -89,6 +91,7 @@ export const ROUTE_BACKDROPS: readonly RouteBackdrop[] = [
     page: 'features/admin/EventSettingsPage.tsx',
   },
   { path: '/admin/password', backdrop: 'ground', page: 'features/auth/ChangePasswordPage.tsx' },
+  { path: '/admin/security', backdrop: 'photo', page: 'features/auth/SecurityPage.tsx' },
   { path: '*', backdrop: 'ground', page: 'app/NotFoundView.tsx' },
 ]
 

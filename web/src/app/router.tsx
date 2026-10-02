@@ -102,6 +102,9 @@ const ChangePasswordPage = lazy(async () => ({
  * A moderator invited by a host arrives with a password somebody else chose for them;
  * until they replace it, every admin address leads to the change-password screen.
  */
+const SecurityPage = lazy(async () => ({
+  default: (await import('../features/auth/SecurityPage')).SecurityPage,
+}))
 const MustChangePasswordGate = lazy(async () => ({
   default: (await import('../features/auth/MustChangePasswordGate')).MustChangePasswordGate,
 }))
@@ -319,6 +322,9 @@ export function AppRoutes() {
               />
               <Route path="/admin/events/:slug/settings" element={<EventSettingsPage />} />
               <Route path="/admin/password" element={<ChangePasswordPage />} />
+              {/* The operator's second factor (G2-13). Not linked from a menu yet: the console
+                  that will link it (G2-15) does not exist, and the address is the entry. */}
+              <Route path="/admin/security" element={<SecurityPage />} />
             </Route>
           </Route>
 

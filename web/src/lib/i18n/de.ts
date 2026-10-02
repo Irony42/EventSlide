@@ -255,6 +255,23 @@ export const de: UiText = {
     'auth.forbidden': 'Sie haben nicht die Rechte für diese Aktion.',
     'auth.passwordChangeRequired': 'Wählen Sie ein neues Passwort, bevor Sie fortfahren.',
     'auth.invalidToken': 'Dieser Link ist nicht mehr gültig. Fordern Sie einen neuen an.',
+    'auth.invalidSecondFactor':
+      'Dieser Code ist ungültig. Warten Sie auf den nächsten in Ihrer App oder nutzen Sie einen Wiederherstellungscode.',
+    'auth.secondFactorExpired':
+      'Diese Anmeldung ist abgelaufen. Beginnen Sie mit dem Passwort neu.',
+    'auth.tooManySecondFactorAttempts':
+      'Zu viele falsche Codes. Versuchen Sie es in einer Viertelstunde erneut.',
+    'auth.secondFactorRequired':
+      'Dieses Konto muss zuerst die Bestätigung in zwei Schritten bestehen.',
+    'auth.stepUpRequired': 'Bestätigen Sie Ihre Identität, um fortzufahren.',
+    'auth.secondFactorAlreadyEnrolled':
+      'Die Bestätigung in zwei Schritten ist für dieses Konto bereits aktiv.',
+    'auth.noEnrolmentInProgress': 'Es läuft keine Einrichtung. Beginnen Sie neu.',
+    'auth.secondFactorUnavailable':
+      'Dieser Server kann den Code der App im Moment nicht prüfen. Nutzen Sie einen Wiederherstellungscode.',
+    'auth.totpCodeInvalid': 'Geben Sie die sechs Ziffern ein, die die App anzeigt.',
+    'auth.secondFactorNotEnrolled':
+      'Die Bestätigung in zwei Schritten ist für dieses Konto nicht aktiv.',
     'feature.unavailable': 'Diese Funktion ist auf diesem Server nicht verfügbar.',
 
     'event.notFound': 'Zu diesem Code gehört keine offene Galerie.',
@@ -849,6 +866,43 @@ export const de: UiText = {
 
     changePasswordIntro: 'Wählen Sie ein Passwort, das Sie nirgendwo sonst verwenden.',
     passwordSaved: 'Passwort gespeichert.',
+
+    /* ---- Added by G2-13: the second factor. ---- */
+    secondFactorTitle: 'Bestätigung in zwei Schritten',
+    secondFactorIntro: 'Geben Sie den sechsstelligen Code ein, den Ihre Authenticator-App anzeigt.',
+    secondFactorCode: 'Sechsstelliger Code',
+    secondFactorSubmit: 'Prüfen',
+    secondFactorRecoveryToggle: 'Wiederherstellungscode verwenden',
+    secondFactorAppToggle: 'Code aus der App verwenden',
+    secondFactorRecoveryIntro:
+      'Geben Sie einen der Wiederherstellungscodes ein, die Sie bei der Aktivierung erhalten haben. Jeder gilt nur einmal.',
+    recoveryCode: 'Wiederherstellungscode',
+    secondFactorRestart: 'Mit dem Passwort neu beginnen',
+    securityTitle: 'Kontosicherheit',
+    securityUnavailable:
+      'Auf diesem Server ist kein Schlüssel für die Bestätigung in zwei Schritten eingerichtet. Bitten Sie die Administration, ihn zu hinterlegen.',
+    setupIntro:
+      'Eine Authenticator-App (Aegis, 1Password, Google Authenticator …) erzeugt einen sechsstelligen Code, der zu Ihrem Passwort hinzukommt.',
+    setupStart: 'Bestätigung aktivieren',
+    setupScan:
+      'Scannen Sie diesen QR-Code mit Ihrer App. Ohne Kamera geben Sie den Schlüssel von Hand ein.',
+    setupQrLabel: 'QR-Code zur Einrichtung',
+    setupKeyLabel: 'Einrichtungsschlüssel',
+    setupConfirm: 'Bestätigen',
+    recoveryCodesTitle: 'Wiederherstellungscodes',
+    recoveryCodesIntro:
+      'Wenn Sie Ihr Telefon verlieren, öffnet Ihnen jeder dieser zehn Codes einmal die Tür. Notieren Sie sie jetzt: Sie werden nicht noch einmal angezeigt.',
+    recoveryCodesCopy: 'Codes kopieren',
+    recoveryCodesCopied: 'Codes kopiert.',
+    recoveryCodesSaved: 'Ich habe sie notiert',
+    securityEnabled: 'Die Bestätigung in zwei Schritten ist für dieses Konto aktiv.',
+    securityManageIntro:
+      'Um Ihre Wiederherstellungscodes zu erneuern oder die Bestätigung auszuschalten, bestätigen Sie zuerst Ihre Identität.',
+    stepUpSubmit: 'Meine Identität bestätigen',
+    stepUpDone: 'Identität für fünf Minuten bestätigt.',
+    recoveryCodesRegenerate: 'Neue Wiederherstellungscodes erzeugen',
+    secondFactorDisable: 'Bestätigung ausschalten',
+    secondFactorDisabled: 'Bestätigung in zwei Schritten ausgeschaltet.',
   },
 
   mobileModeration: {

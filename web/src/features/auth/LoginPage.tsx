@@ -4,6 +4,7 @@ import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AuthForm } from './components/AuthForm'
+import { SecondFactorPage } from './SecondFactorPage'
 import { useLogin } from './hooks/useAuthActions'
 
 const ADMIN_HOME = '/admin'
@@ -40,19 +41,43 @@ export function LoginPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  // The password was right for an account with an authenticator: the server has started no
+  // session, and the page asks for the second step in place of the form.
+  const [awaitingCode, setAwaitingCode] = useState(false)
+  // Why the password step is back, when the second step ended it.
+  const [restartReason, setRestartReason] = useState<string | null>(null)
+
+  const goHome = () => navigate(redirectTarget(location.state), { replace: true })
 
   const handleSubmit = () => {
-    void submit({ email, password }).then((accepted) => {
+    setRestartReason(null)
+    void submit({ email, password }).then((outcome) => {
       // Nothing is cleared on refusal. A host who mistyped one character should fix
       // that character, not retype an address and a password from their manager.
-      if (accepted) navigate(redirectTarget(location.state), { replace: true })
+      if (outcome === 'signedIn') goHome()
+      if (outcome === 'secondFactor') setAwaitingCode(true)
     })
+  }
+
+  if (awaitingCode) {
+    return (
+      <SecondFactorPage
+        onSignedIn={goHome}
+        onRestart={(reason) => {
+          // The password is typed again: a half-finished sign-in holds nothing worth keeping,
+          // and an address the server just said is over should not be silently resubmitted.
+          setPassword('')
+          setRestartReason(reason)
+          setAwaitingCode(false)
+        }}
+      />
+    )
   }
 
   return (
     <AuthForm
       title={t.auth.title}
-      error={error}
+      error={error ?? restartReason}
       submitting={submitting}
       submitLabel={t.auth.submit}
       onSubmit={handleSubmit}
