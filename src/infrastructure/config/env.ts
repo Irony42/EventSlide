@@ -1,5 +1,10 @@
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
+import {
+  AUDIT_RETENTION_DEFAULT_DAYS,
+  AUDIT_RETENTION_MAX_DAYS,
+  AUDIT_RETENTION_MIN_DAYS,
+} from '../../domain/audit/auditRetention'
 import { JoinCode } from '../../domain/shared/joinCode'
 import { Password } from '../../domain/users/password'
 
@@ -339,6 +344,37 @@ const joinCodeLength = z.coerce
   .min(JoinCode.minLength, `JOIN_CODE_LENGTH must be at least ${JoinCode.minLength}`)
   .max(JoinCode.maxLength, `JOIN_CODE_LENGTH must be at most ${JoinCode.maxLength}`)
   .default(JoinCode.minLength)
+
+/**
+ * How many days the audit log keeps a row (roadmap §10.8; paid plan P3-07 / free plan G2-06).
+ *
+ * **Bounded at both ends, and the floor is the point.** The log exists so that "who changed
+ * that ceiling, and when" has an answer; a retention an operator could set to a week would
+ * let the instance forget an action inside the window in which a client may still dispute
+ * it. The numbers belong to `domain/audit/auditRetention.ts` and are quoted from there, not
+ * restated, so the pruner and the boot refusal cannot disagree about what is allowed. The
+ * hosted instance sets the floor itself, 365.
+ *
+ * Blank is absent, for the reason written on {@link blankAsAbsent}. Unlike a sweep interval
+ * this is a *safe* direction to default in: a dangling `AUDIT_RETENTION_DAYS=` keeps the log
+ * three years rather than deleting anything sooner, and `0` is a refusal that names the
+ * variable, not a way to turn pruning off.
+ */
+const auditRetentionDays = z.preprocess(
+  blankAsAbsent,
+  z.coerce
+    .number()
+    .int()
+    .min(
+      AUDIT_RETENTION_MIN_DAYS,
+      `AUDIT_RETENTION_DAYS must be at least ${AUDIT_RETENTION_MIN_DAYS}: a shorter log forgets an action while a client may still dispute it`,
+    )
+    .max(
+      AUDIT_RETENTION_MAX_DAYS,
+      `AUDIT_RETENTION_DAYS must be at most ${AUDIT_RETENTION_MAX_DAYS}`,
+    )
+    .default(AUDIT_RETENTION_DEFAULT_DAYS),
+)
 
 /**
  * The domain's password policy, applied at boot so the failure is a named ConfigError.
@@ -723,6 +759,9 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       ALLOW_CUSTOM_SLUGS: allowCustomSlugs,
       /** See {@link joinCodeLength}. Six unless the box says otherwise. */
       JOIN_CODE_LENGTH: joinCodeLength,
+
+      /** See {@link auditRetentionDays}. Three years unless the box says otherwise. */
+      AUDIT_RETENTION_DAYS: auditRetentionDays,
     })
     .superRefine((raw, ctx) => {
       // The first owner is a pair, and half of one creates nothing. Before `""` meant
@@ -1020,6 +1059,14 @@ export interface AppConfig {
    * belongs in a major version with its own CHANGELOG entry, not a silent tightening.
    */
   readonly warnings: readonly string[]
+
+  readonly audit: {
+    /**
+     * `AUDIT_RETENTION_DAYS`: how long a row of the audit log is kept, 365 at least. Read by
+     * `pruneAuditLog` through the retention sweep; see {@link auditRetentionDays}.
+     */
+    readonly retentionDays: number
+  }
 }
 
 /**
@@ -1267,6 +1314,10 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       secureCookie: raw.SESSION_COOKIE_SECURE ?? isProduction,
       trustProxyHops: raw.TRUST_PROXY_HOPS,
     }),
+
+    audit: {
+      retentionDays: raw.AUDIT_RETENTION_DAYS,
+    },
   }
 }
 
