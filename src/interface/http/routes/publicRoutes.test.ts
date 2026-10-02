@@ -22,6 +22,7 @@ import {
   anEventSettings,
   atPlus,
 } from '../../../application/testing/builders'
+import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
 import type { Photo } from '../../../domain/photos/photo'
 import { asEventId } from '../../../domain/shared/ids'
 import { CROSSFADE_MS } from '../../../domain/slideshow/kenBurns'
@@ -87,6 +88,7 @@ const world = (
           usecases: {
             joinEvent: makeJoinEvent({
               events: deps.events,
+              clients: new FakeClientRepository(),
               guests: deps.guests,
               tokens: deps.guestTokens,
               ids,

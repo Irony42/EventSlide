@@ -1,6 +1,7 @@
 import request from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { AT, aGuest, anEvent, anEventSettings } from '../../../application/testing/builders'
+import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
 import { makeAcknowledgePrivacyNotice } from '../../../application/usecases/guests/acknowledgePrivacyNotice'
 import { makeGetPrivacyNotice } from '../../../application/usecases/guests/getPrivacyNotice'
 import { privacyNoticeFor } from '../../../domain/privacy/privacyNotice'
@@ -42,9 +43,14 @@ beforeEach(() => {
         privacyNoticeRoutes({
           deps,
           usecases: {
-            getPrivacyNotice: makeGetPrivacyNotice({ events: deps.events, guests: deps.guests }),
+            getPrivacyNotice: makeGetPrivacyNotice({
+              events: deps.events,
+              clients: new FakeClientRepository(),
+              guests: deps.guests,
+            }),
             acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
               events: deps.events,
+              clients: new FakeClientRepository(),
               guests: deps.guests,
               clock: deps.clock,
             }),

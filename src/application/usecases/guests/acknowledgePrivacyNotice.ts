@@ -1,10 +1,12 @@
-import { privacyNoticeFor, type NoticeForGuest } from '../../../domain/privacy/privacyNotice'
+import type { NoticeForGuest } from '../../../domain/privacy/privacyNotice'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
+import type { ClientRepository } from '../../ports/clientRepository'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
+import { privacyNoticeOf } from './privacyNoticeOf'
 
 /**
  * A guest pressing "J'ai compris" under the privacy notice (roadmap §5.1).
@@ -33,6 +35,8 @@ export interface AcknowledgePrivacyNoticeInput {
 
 export interface AcknowledgePrivacyNoticeDeps {
   readonly events: EventRepository
+  /** For the retention a client's ceiling makes of the notice. See `privacyNoticeOf`. */
+  readonly clients: ClientRepository
   readonly guests: GuestRepository
   readonly clock: Clock
 }
@@ -42,7 +46,7 @@ export type AcknowledgePrivacyNotice = (
 ) => Promise<Result<NoticeForGuest, DomainError>>
 
 export const makeAcknowledgePrivacyNotice =
-  ({ events, guests, clock }: AcknowledgePrivacyNoticeDeps): AcknowledgePrivacyNotice =>
+  ({ events, clients, guests, clock }: AcknowledgePrivacyNoticeDeps): AcknowledgePrivacyNotice =>
   async ({ eventId, guestId, revision }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -50,7 +54,9 @@ export const makeAcknowledgePrivacyNotice =
     const guest = await guests.findById(eventId, guestId)
     if (guest === null) return err(DomainError.notFound('guest.notFound'))
 
-    const notice = privacyNoticeFor(event.settings)
+    // The notice with the retention the box applies, so the revision a guest acknowledges is the
+    // one the join and the read hand them — see `privacyNoticeOf`.
+    const notice = await privacyNoticeOf(clients, event)
     const acknowledged = guest.acknowledgeNotice(notice, revision, clock.now())
     if (!acknowledged.ok) return acknowledged
 

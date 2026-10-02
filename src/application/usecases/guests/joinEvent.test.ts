@@ -6,8 +6,9 @@ import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, type EventId, type GuestId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { GuestTokenClaims, GuestTokenService } from '../../ports/guestTokenService'
-import { AT, aGuest, anEvent, anEventSettings, atPlus } from '../../testing/builders'
+import { AT, aClient, aGuest, anEvent, anEventSettings, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
@@ -74,7 +75,15 @@ describe('joinEvent', () => {
 
   /** Built per call, so a test may replace a seeded event before it acts. */
   const join = (input: JoinEventInput) =>
-    makeJoinEvent({ events, guests, tokens: new FakeGuestTokenService(), ids, clock, bus })(input)
+    makeJoinEvent({
+      events,
+      clients: new FakeClientRepository(),
+      guests,
+      tokens: new FakeGuestTokenService(),
+      ids,
+      clock,
+      bus,
+    })(input)
 
   beforeEach(() => {
     events = new FakeEventRepository().seed(aWedding(), aGala())
@@ -568,6 +577,48 @@ describe('joinEvent', () => {
       const again = await join({ joinCode: WEDDING_CODE, deviceToken: first.value.token })
 
       expect(again.ok && again.value.guestId).toBe(asGuestId('guest-1'))
+    })
+  })
+
+  // ------------------------------------------ an event of a client with a ceiling --
+
+  describe('the notice an event of a client with a retention ceiling hands out', () => {
+    const CLIENT_EVENT_CODE = 'K8M3NP'
+
+    const joinClientEvent = (retentionDays: number | null) => {
+      const clients = new FakeClientRepository().seed(
+        aClient({ id: 'client-1', ceilings: { maxRetentionDays: 30 } }),
+      )
+      const clientEvents = new FakeEventRepository({ clients }).seed(
+        anEvent({
+          id: 'event-client',
+          slug: 'soiree-cliente',
+          joinCode: CLIENT_EVENT_CODE,
+          clientId: 'client-1',
+          settings: { retentionDays },
+        }),
+      )
+      return makeJoinEvent({
+        events: clientEvents,
+        clients,
+        guests,
+        tokens: new FakeGuestTokenService(),
+        ids,
+        clock,
+        bus,
+      })({ joinCode: CLIENT_EVENT_CODE })
+    }
+
+    it('says thirty days for an album kept for ever, which is what the box does with it', async () => {
+      const result = await joinClientEvent(null)
+
+      expect(result.ok && result.value.privacyNotice.notice.retentionDays).toBe(30)
+    })
+
+    it('says the host’s own number when it is the shorter', async () => {
+      const result = await joinClientEvent(7)
+
+      expect(result.ok && result.value.privacyNotice.notice.retentionDays).toBe(7)
     })
   })
 })

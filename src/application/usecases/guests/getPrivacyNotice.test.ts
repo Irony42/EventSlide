@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { privacyNoticeFor } from '../../../domain/privacy/privacyNotice'
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
-import { aGuest, anEvent, anEventSettings, atPlus } from '../../testing/builders'
+import { aClient, aGuest, anEvent, anEventSettings, atPlus } from '../../testing/builders'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { makeGetPrivacyNotice, type GetPrivacyNotice } from './getPrivacyNotice'
@@ -30,7 +31,7 @@ describe('getPrivacyNotice', () => {
       anEvent({ id: GALA, slug: 'gala', joinCode: 'Z3N9PT', settings: { retentionDays: null } }),
     )
     guests = new FakeGuestRepository()
-    getPrivacyNotice = makeGetPrivacyNotice({ events, guests })
+    getPrivacyNotice = makeGetPrivacyNotice({ events, clients: new FakeClientRepository(), guests })
   })
 
   it('answers the notice the event is configured to give', async () => {
@@ -96,5 +97,42 @@ describe('getPrivacyNotice', () => {
     const result = await getPrivacyNotice({ eventId: asEventId('nope'), guestId: LEA })
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
+  // ------------------------------------------ an event of a client with a ceiling --
+
+  describe('for an event of a client with a retention ceiling', () => {
+    const CLIENT_EVENT = asEventId('event-client')
+
+    const build = (retentionDays: number | null): GetPrivacyNotice => {
+      const clients = new FakeClientRepository().seed(
+        aClient({ id: 'client-1', ceilings: { maxRetentionDays: 30 } }),
+      )
+      const clientEvents = new FakeEventRepository({ clients }).seed(
+        anEvent({
+          id: CLIENT_EVENT,
+          slug: 'soiree-cliente',
+          joinCode: 'K8M3NP',
+          clientId: 'client-1',
+          settings: { retentionDays },
+        }),
+      )
+      guests.seed(aGuest({ id: LEA, eventId: CLIENT_EVENT }))
+      return makeGetPrivacyNotice({ events: clientEvents, clients, guests })
+    }
+
+    it('tells the guest thirty days for an album kept for ever, which is what the box does with it', async () => {
+      const result = await build(null)({ eventId: CLIENT_EVENT, guestId: LEA })
+
+      expect(result.ok && result.value.notice.retentionDays).toBe(30)
+    })
+
+    it('tells the ceiling when the host’s own retention is longer, and the host’s when it is shorter', async () => {
+      const longer = await build(90)({ eventId: CLIENT_EVENT, guestId: LEA })
+      const shorter = await build(7)({ eventId: CLIENT_EVENT, guestId: LEA })
+
+      expect(longer.ok && longer.value.notice.retentionDays).toBe(30)
+      expect(shorter.ok && shorter.value.notice.retentionDays).toBe(7)
+    })
   })
 })

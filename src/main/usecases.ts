@@ -301,6 +301,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   // ----------------------------------------------------------------- guests --
   joinEvent: makeJoinEvent({
     events: adapters.events,
+    clients: adapters.clients,
     guests: adapters.guests,
     tokens: adapters.guestTokens,
     ids: adapters.ids,
@@ -324,9 +325,14 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     memberships: adapters.memberships,
     clock: adapters.clock,
   }),
-  getPrivacyNotice: makeGetPrivacyNotice({ events: adapters.events, guests: adapters.guests }),
+  getPrivacyNotice: makeGetPrivacyNotice({
+    events: adapters.events,
+    clients: adapters.clients,
+    guests: adapters.guests,
+  }),
   acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
     events: adapters.events,
+    clients: adapters.clients,
     guests: adapters.guests,
     clock: adapters.clock,
   }),
