@@ -11,12 +11,15 @@ import { FakeUserRepository } from '../../../application/testing/fakeUserReposit
 import type { PasswordHasher } from '../../../application/ports/passwordHasher'
 import { makeAuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
 import { makeChangePassword } from '../../../application/usecases/auth/changePassword'
+import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
 import type { Password } from '../../../domain/users/password'
 import type { PasswordHash } from '../../../domain/users/user'
 
 const HOST_ID = 'host-id'
 const HOST_EMAIL = 'camille@example.test'
 const FORMER_EMAIL = 'ancienne@example.test'
+const OTHER_ID = 'other-id'
+const OTHER_EMAIL = 'sacha@example.test'
 
 /** The plaintext behind `builders.aUser`'s default hash. */
 const PASSWORD = 'un-mot-de-passe-solide'
@@ -93,6 +96,7 @@ const harness = ({
 
   const built = buildHarness({
     config,
+    users,
     routes: (app, deps) => {
       // One sign-in route, so a test can establish a session without driving a real
       // login. Outside `/api`, so it stays reachable when the gate below is mounted.
@@ -100,6 +104,7 @@ const harness = ({
       // session; P3-03 moved the source of that flag to storage, so a test that needs an
       // invited account seeds one into `subject.users` instead (`FakeUserRepository`).
       app.post('/test/sign-in', signInAs({ userId: HOST_ID, email: HOST_EMAIL }))
+      app.post('/test/sign-in/other', signInAs({ userId: OTHER_ID, email: OTHER_EMAIL }))
 
       if (csrf) {
         app.use(issueCsrfToken({ secureCookie: deps.config.secureCookie }))
@@ -119,7 +124,8 @@ const harness = ({
           // cases itself.
           usecases: {
             authenticateUser: makeAuthenticateUser({ users, hasher, clock: deps.clock }),
-            changePassword: makeChangePassword({ users, hasher }),
+            changePassword: makeChangePassword({ users, hasher, clock: deps.clock }),
+            revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
           },
         }),
       )
@@ -738,6 +744,210 @@ describe('POST /api/auth/password', () => {
  * request still goes through. A rotation that locked the client out would be worse than
  * no rotation, because it would fail on the screen the host just reached.
  */
+/**
+ * "Sign out everywhere" and the password change both work through the credentials epoch
+ * (G2-08 / P3-09): the account says when its credentials last changed and every session
+ * issued before that instant is refused. Two agents stand for two devices, and what they
+ * observe is the contract — the answer of `GET /api/auth/me`, which is what the admin
+ * shell routes on.
+ */
+describe('the account’s other sessions', () => {
+  /** Two devices of one host, signed in a minute apart from the moment anything changes. */
+  const twoDevices = async (subject: AuthHarness) => {
+    const phone = await signedIn(subject)
+    const laptop = await signedIn(subject)
+    subject.clock.advance(60_000)
+    return { phone, laptop }
+  }
+
+  const isSignedIn = async (agent: ReturnType<typeof request.agent>): Promise<boolean> =>
+    (await agent.get('/api/auth/me')).body.authenticated === true
+
+  describe('after POST /api/auth/password', () => {
+    const change = { currentPassword: PASSWORD, newPassword: NEW_PASSWORD }
+
+    it('signs the account out of every other device', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { phone, laptop } = await twoDevices(subject)
+
+      await laptop.post('/api/auth/password').send(change).expect(204)
+
+      expect(await isSignedIn(phone)).toBe(false)
+    })
+
+    it('keeps the device that chose the password signed in', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { laptop } = await twoDevices(subject)
+
+      await laptop.post('/api/auth/password').send(change).expect(204)
+
+      expect(await isSignedIn(laptop)).toBe(true)
+    })
+
+    it('gives that device a new session id, so a cookie copied before the change is a different one', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { laptop } = await twoDevices(subject)
+      const before = cookieValue((await laptop.get('/api/auth/me')).headers, HARNESS_SESSION_COOKIE)
+
+      const response = await laptop.post('/api/auth/password').send(change).expect(204)
+
+      const after = cookieValue(response.headers, HARNESS_SESSION_COOKIE)
+      expect(after).toBeTruthy()
+      expect(after).not.toBe(before)
+    })
+
+    it('leaves every other device signed in when the change is refused', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { phone, laptop } = await twoDevices(subject)
+
+      await laptop
+        .post('/api/auth/password')
+        .send({ currentPassword: 'pas-le-bon', newPassword: NEW_PASSWORD })
+        .expect(401)
+
+      expect(await isSignedIn(phone)).toBe(true)
+    })
+
+    it('does not sign anybody else out', async () => {
+      const subject = harness()
+      seedHost(subject)
+      subject.users.seed(aUser({ id: OTHER_ID, email: OTHER_EMAIL }))
+      const other = request.agent(subject.app)
+      await other.post('/test/sign-in/other').expect(204)
+      const { laptop } = await twoDevices(subject)
+
+      await laptop.post('/api/auth/password').send(change).expect(204)
+
+      expect(await isSignedIn(other)).toBe(true)
+    })
+
+    it('replaces the CSRF token with the session, so the device keeps writing under the new pair', async () => {
+      const subject = harness({ csrf: true })
+      seedHost(subject)
+      const agent = request.agent(subject.app)
+      const token = cookieValue((await agent.get('/api/auth/me')).headers, CSRF_COOKIE)
+      if (token === undefined) throw new Error('the server issued no CSRF cookie')
+      await agent.post('/test/sign-in').expect(204)
+
+      const changed = await agent
+        .post('/api/auth/password')
+        .set(CSRF_HEADER, token)
+        .send(change)
+        .expect(204)
+
+      const rotated = cookieValue(changed.headers, CSRF_COOKIE)
+      expect(rotated).toBeTruthy()
+      expect(rotated).not.toBe(token)
+      await agent
+        .post('/api/auth/sessions/revoke-others')
+        .set(CSRF_HEADER, rotated ?? '')
+        .expect(204)
+    })
+  })
+
+  describe('POST /api/auth/sessions/revoke-others', () => {
+    it('answers 204 and signs the account out of every other device', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { phone, laptop } = await twoDevices(subject)
+
+      const response = await laptop.post('/api/auth/sessions/revoke-others')
+
+      expect(response.status).toBe(204)
+      expect(await isSignedIn(phone)).toBe(false)
+    })
+
+    it('keeps the device that asked signed in, with a session of its own', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { laptop } = await twoDevices(subject)
+      const before = cookieValue((await laptop.get('/api/auth/me')).headers, HARNESS_SESSION_COOKIE)
+
+      const response = await laptop.post('/api/auth/sessions/revoke-others').expect(204)
+
+      expect(await isSignedIn(laptop)).toBe(true)
+      const after = cookieValue(response.headers, HARNESS_SESSION_COOKIE)
+      expect(after).toBeTruthy()
+      expect(after).not.toBe(before)
+    })
+
+    it('does not touch the password', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { laptop } = await twoDevices(subject)
+      await laptop.post('/api/auth/sessions/revoke-others').expect(204)
+
+      const response = await request(subject.app)
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: PASSWORD })
+
+      expect(response.status).toBe(200)
+    })
+
+    it('signs out the caller’s own account and nobody else’s', async () => {
+      const subject = harness()
+      seedHost(subject)
+      subject.users.seed(aUser({ id: OTHER_ID, email: OTHER_EMAIL }))
+      const other = request.agent(subject.app)
+      await other.post('/test/sign-in/other').expect(204)
+      const { laptop } = await twoDevices(subject)
+
+      await laptop.post('/api/auth/sessions/revoke-others').expect(204)
+
+      expect(await isSignedIn(other)).toBe(true)
+    })
+
+    it('lets the device sign in again on the other side of it, the way a person who got back to their desk would', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { phone, laptop } = await twoDevices(subject)
+      await laptop.post('/api/auth/sessions/revoke-others').expect(204)
+      subject.clock.advance(1_000)
+
+      await phone
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: PASSWORD })
+        .expect(200)
+
+      expect(await isSignedIn(phone)).toBe(true)
+    })
+
+    it('answers 401 without a session', async () => {
+      const subject = harness()
+
+      const response = await request(subject.app).post('/api/auth/sessions/revoke-others')
+
+      expect(response.status).toBe(401)
+      expect(response.body.error.code).toBe('auth.required')
+    })
+
+    it('answers 401 to an account that has been switched off', async () => {
+      const subject = harness()
+      subject.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL, disabledAt: AT }))
+      const agent = await signedIn(subject)
+
+      const response = await agent.post('/api/auth/sessions/revoke-others')
+
+      expect(response.status).toBe(401)
+    })
+
+    it('refuses a state-changing call without the CSRF token like every other write', async () => {
+      const subject = harness({ csrf: true })
+      seedHost(subject)
+      const agent = await signedIn(subject)
+
+      const response = await agent.post('/api/auth/sessions/revoke-others')
+
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe('request.csrfMissing')
+    })
+  })
+})
+
 describe('the CSRF token across a change of identity', () => {
   const csrfToken = (headers: Record<string, unknown>): string | undefined =>
     cookieValue(headers, CSRF_COOKIE)

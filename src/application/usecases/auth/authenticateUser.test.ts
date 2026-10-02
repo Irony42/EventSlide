@@ -155,6 +155,18 @@ describe('authenticateUser', () => {
     expect(stored?.passwordHash).toBe(current(PASSWORD))
   })
 
+  it('does not sign the owner out of their other devices when it upgrades the hash', async () => {
+    // The upgrade replaces the hash with the same password at a higher cost. Treating it as
+    // a password change would raise the credentials epoch, and every sign-in on a box with
+    // old hashes would end the account's other sessions.
+    users.seed(aUser({ id: 'user-1', passwordHash: legacy(PASSWORD) }))
+
+    await authenticate({ email: 'hote@example.test', password: PASSWORD })
+
+    const state = await users.authStateFor(asUserId('user-1'))
+    expect(state.credentialsChangedAt).toBeNull()
+  })
+
   it('keeps a forced password change pending across a silent hash upgrade', async () => {
     users.seed(aUser({ id: 'user-1', passwordHash: legacy(PASSWORD), mustChangePassword: true }))
 

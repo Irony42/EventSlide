@@ -1,5 +1,5 @@
 import request from 'supertest'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   ABSOLUTE_SESSION_LIFETIME_MS,
   GUEST_COOKIE,
@@ -288,6 +288,106 @@ describe('enforceSessionAge', () => {
     const response = await request(subject.app).get('/events/mariage/wall')
 
     expect(response.status).toBe(200)
+  })
+})
+
+describe('enforceSessionAge: the credentials epoch (G2-08 / P3-09)', () => {
+  /**
+   * The `sessions` table has no `user_id`, so a password change cannot end the account's
+   * other sessions by deleting rows. The account carries `credentialsChangedAt` instead and
+   * a session issued before it is refused — which is what these cases hold, one rule each.
+   */
+  const epochAt = (subject: Harness, offsetMs: number): void => {
+    subject.users.seed(
+      aUser({
+        id: HOST,
+        email: 'host@example.com',
+        credentialsChangedAt: new Date(AT.getTime() + offsetMs),
+      }),
+    )
+  }
+
+  it('ends a session that was issued before the account changed its credentials', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+    subject.clock.advance(5_000)
+
+    epochAt(subject, 1_000)
+
+    const response = await agent.get('/me')
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+
+  it('keeps a session issued at the very instant the credentials changed', async () => {
+    // The session a password change replaces itself with is stamped with the change's own
+    // instant. Refusing it (`<=`) would sign the person who just chose a password out.
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+
+    epochAt(subject, 0)
+
+    expect((await agent.get('/me')).status).toBe(200)
+  })
+
+  it('keeps a session issued after the credentials changed', async () => {
+    const subject = harness()
+    epochAt(subject, -60_000)
+    const agent = await signedIn(subject, 'host')
+
+    expect((await agent.get('/me')).status).toBe(200)
+  })
+
+  it('leaves another account untouched when this one changed its credentials', async () => {
+    const subject = harness()
+    const other = await signedIn(subject, 'other')
+    epochAt(subject, 1_000)
+    subject.clock.advance(5_000)
+
+    expect((await other.get('/me')).status).toBe(200)
+  })
+
+  it('ends the session for the request that found it stale, not only for the next one', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+    subject.clock.advance(5_000)
+    epochAt(subject, 1_000)
+
+    const response = await agent.post('/session/touch')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ hasSession: true, userId: null })
+  })
+
+  it('reads the account once for a request that passes, so the gates behind it do not ask again', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+    const reads = vi.spyOn(subject.users, 'authStateFor')
+
+    await agent.get('/me').expect(200)
+
+    expect(reads).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not read the account for an anonymous request', async () => {
+    const subject = harness()
+    seedWedding(subject)
+    const reads = vi.spyOn(subject.users, 'authStateFor')
+
+    await request(subject.app).get('/events/mariage/wall').expect(200)
+
+    expect(reads).not.toHaveBeenCalled()
+  })
+
+  it('does not look at the epoch of a session the cap already ended', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+    subject.clock.advance(ABSOLUTE_SESSION_LIFETIME_MS)
+    const reads = vi.spyOn(subject.users, 'authStateFor')
+
+    await agent.get('/me').expect(401)
+
+    expect(reads).not.toHaveBeenCalled()
   })
 })
 

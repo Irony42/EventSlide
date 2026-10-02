@@ -220,6 +220,7 @@ const buildWorld = ({
   const hasher = new FakePasswordHasher()
 
   const harness = buildHarness({
+    users,
     routes: (app, harnessDeps) => {
       // The harness builds unlinked repositories of its own; the router gets the linked
       // ones instead, and shares everything else — the same clock, the same recording
@@ -231,6 +232,7 @@ const buildWorld = ({
       const usecases: HttpUseCases = {
         authenticateUser: absent('authenticateUser'),
         changePassword: absent('changePassword'),
+        revokeOtherSessions: absent('revokeOtherSessions'),
         registerModerator: makeRegisterModerator({
           events,
           users,

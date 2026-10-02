@@ -53,12 +53,26 @@ import type { GuestPrincipal, HttpDeps, SessionPayload, UserPrincipal } from '..
 export const ABSOLUTE_SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
- * Ends a session that has been alive too long, whatever it has been doing.
+ * Ends a session that has been alive too long, or that was issued before the account's
+ * credentials last changed — whatever it has been doing.
  *
- * This is what `docs/SECURITY.md` §2 and §6 described and the code did not have.
- * `rolling: true` plus a 12 h cookie is an *idle* timeout, and `sqliteSessionStore.touch`
- * pushes `expires_at` forward on every single request, so a session that keeps being used
- * never expired at all. The window was not twelve hours; it had no end.
+ * **The cap.** This is what `docs/SECURITY.md` §2 and §6 described and the code did not
+ * have. `rolling: true` plus a 12 h cookie is an *idle* timeout, and
+ * `sqliteSessionStore.touch` pushes `expires_at` forward on every single request, so a
+ * session that keeps being used never expired at all. The window was not twelve hours; it
+ * had no end.
+ *
+ * **The epoch** (G2-08 / P3-09). The `sessions` table has no `user_id`, so "every session of
+ * this account" is not something the store can end. The account says instead *when* its
+ * credentials last changed (`users.credentials_changed_at`: a new password, a reset,
+ * "sign out everywhere", a switch-off) and a session issued **before** that instant is
+ * refused here, exactly as one past the cap is. `<` and not `<=`: the session a password
+ * change replaces itself with is stamped with the very instant of the change, and must
+ * survive it.
+ *
+ * The epoch costs the one account read every authenticated request already makes
+ * (`authStateFor`): the answer is parked on `req.context.authState`, where
+ * `resolveAuthState` finds it, so the gates behind this one do not ask again.
  *
  * A session with **no** `issuedAt` is treated as expired rather than as fresh. Sessions
  * written before this middleware existed have none, so the first request each of them
@@ -73,57 +87,87 @@ export const ABSOLUTE_SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
 export const enforceSessionAge =
   (deps: HttpDeps): RequestHandler =>
   (req, _res, next) => {
-    const session = (req.session ?? {}) as SessionPayload
-    if (typeof session.userId !== 'string') {
+    void (async () => {
+      const session = (req.session ?? {}) as SessionPayload
+      if (typeof session.userId !== 'string') {
+        next()
+        return
+      }
+
+      const issuedAt = session.issuedAt
+      const now = deps.clock.now().getTime()
+      // A stamp in the future is expired, not fresh — the same rule the guest token takes
+      // on a negative age, and for a stronger reason here: the server wrote this value, so
+      // a session claiming to start later than now is a box whose clock moved (an appliance
+      // with no RTC, corrected by NTP after boot), and the skew would be added to the cap.
+      const withinCap =
+        typeof issuedAt === 'number' &&
+        Number.isFinite(issuedAt) &&
+        issuedAt <= now &&
+        now - issuedAt < ABSOLUTE_SESSION_LIFETIME_MS
+
+      if (
+        withinCap &&
+        !(await issuedBeforeCredentialsChanged(deps, req, session.userId, issuedAt))
+      ) {
+        next()
+        return
+      }
+
+      await discardSession(req)
       next()
-      return
-    }
+    })().catch(next)
+  }
 
-    const issuedAt = session.issuedAt
-    const now = deps.clock.now().getTime()
-    // A stamp in the future is expired, not fresh — the same rule the guest token takes
-    // on a negative age, and for a stronger reason here: the server wrote this value, so
-    // a session claiming to start later than now is a box whose clock moved (an appliance
-    // with no RTC, corrected by NTP after boot), and the skew would be added to the cap.
-    const withinCap =
-      typeof issuedAt === 'number' &&
-      Number.isFinite(issuedAt) &&
-      issuedAt <= now &&
-      now - issuedAt < ABSOLUTE_SESSION_LIFETIME_MS
+/**
+ * Whether the account changed its credentials after this session was issued. When it did
+ * not, the account's state is parked on the request for the gates behind.
+ */
+const issuedBeforeCredentialsChanged = async (
+  deps: Pick<HttpDeps, 'users'>,
+  req: Request,
+  userId: string,
+  issuedAt: number,
+): Promise<boolean> => {
+  const state = await deps.users.authStateFor(asUserId(userId))
+  const epoch = state.credentialsChangedAt
+  const revoked = epoch !== null && issuedAt < epoch.getTime()
+  if (!revoked) req.context.authState = state
+  return revoked
+}
 
-    if (withinCap) {
-      next()
-      return
-    }
-
-    // The row goes, not just the principal: leaving it would let the same cookie keep
-    // being touched forward by the store for as long as anything used it, which is the
-    // behaviour this middleware exists to end.
-    //
-    // `regenerate` rather than `destroy`, and the difference is load-bearing.
-    // `Session.destroy` does `delete req.session` before it calls the store, so every
-    // handler downstream would meet `req.session === undefined` — which `attachUser`
-    // survives and `authRoutes` does not: `regenerateSession(req.session)` on the login
-    // and `destroySession(req.session)` on the logout both dereference it, so the request
-    // that tripped the cap answered **500** on exactly the two routes a host reaches when
-    // their session has just ended. `regenerate` destroys the same row and leaves a fresh
-    // empty session in its place, so there is no hole to step in: the old row is gone,
-    // `saveUninitialized: false` means the empty one is never written, and the login that
-    // follows regenerates again and writes its own.
-    //
-    // A store that cannot delete is logged and not thrown. The session on this request is
-    // empty either way, so every gate below refuses it — answering 500 instead would turn
-    // a read-only disk into an outage for a refusal that has already happened, and the
-    // next request tries again anyway.
+/**
+ * The row goes, not just the principal: leaving it would let the same cookie keep being
+ * touched forward by the store for as long as anything used it, which is the behaviour
+ * this middleware exists to end.
+ *
+ * `regenerate` rather than `destroy`, and the difference is load-bearing.
+ * `Session.destroy` does `delete req.session` before it calls the store, so every handler
+ * downstream would meet `req.session === undefined` — which `attachUser` survives and
+ * `authRoutes` does not: `regenerateSession(req.session)` on the login and
+ * `destroySession(req.session)` on the logout both dereference it, so the request that
+ * tripped the cap answered **500** on exactly the two routes a host reaches when their
+ * session has just ended. `regenerate` destroys the same row and leaves a fresh empty
+ * session in its place, so there is no hole to step in: the old row is gone,
+ * `saveUninitialized: false` means the empty one is never written, and the login that
+ * follows regenerates again and writes its own.
+ *
+ * A store that cannot delete is logged and not thrown. The session on this request is
+ * empty either way, so every gate below refuses it — answering 500 instead would turn a
+ * read-only disk into an outage for a refusal that has already happened, and the next
+ * request tries again anyway.
+ */
+const discardSession = (req: Request): Promise<void> =>
+  new Promise((resolve) => {
     req.session.regenerate((error: unknown) => {
       if (error) {
         req.context.logger.warn('an expired session could not be discarded', {
           error: error instanceof Error ? error.message : String(error),
         })
       }
-      next()
+      resolve()
     })
-  }
+  })
 
 /**
  * Reads the session cookie into a principal. Establishes identity, not permission —

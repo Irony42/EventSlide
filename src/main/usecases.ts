@@ -24,7 +24,9 @@ import type { GallerySigner } from '../application/ports/gallerySigner'
 import { makeAuthenticateUser } from '../application/usecases/auth/authenticateUser'
 import { makeBootstrapOwner } from '../application/usecases/auth/bootstrapOwner'
 import { makeChangePassword } from '../application/usecases/auth/changePassword'
+import { makeDisableAccount } from '../application/usecases/auth/disableAccount'
 import { makeRegisterModerator } from '../application/usecases/auth/registerModerator'
+import { makeRevokeOtherSessions } from '../application/usecases/auth/revokeOtherSessions'
 
 import { makeApplyEventSchedules } from '../application/usecases/events/applyEventSchedules'
 import { makeChangeEventStatus } from '../application/usecases/events/changeEventStatus'
@@ -210,6 +212,21 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   changePassword: makeChangePassword({
     users: adapters.users,
     hasher: adapters.passwordHasher,
+    clock: adapters.clock,
+  }),
+  revokeOtherSessions: makeRevokeOtherSessions({
+    users: adapters.users,
+    clock: adapters.clock,
+  }),
+  /**
+   * Built, and called by nothing yet: the operator API that puts its authorization in front
+   * of it is its own item. Constructed here rather than there so the dependencies it needs —
+   * the audit log among them — are wired once, with the rest of the auth use cases.
+   */
+  disableAccount: makeDisableAccount({
+    users: adapters.users,
+    audit: adapters.audit,
+    clock: adapters.clock,
   }),
   registerModerator: makeRegisterModerator({
     events: adapters.events,

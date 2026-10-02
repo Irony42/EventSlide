@@ -3,6 +3,7 @@ import type { UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EmailAddress } from '../../../domain/users/emailAddress'
 import { Password, type PasswordContext } from '../../../domain/users/password'
+import type { Clock } from '../../ports/clock'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import type { UserRepository } from '../../ports/userRepository'
 
@@ -16,6 +17,8 @@ export interface ChangePasswordInput {
 export interface ChangePasswordDeps {
   readonly users: UserRepository
   readonly hasher: PasswordHasher
+  /** The instant of the credentials epoch this change raises. */
+  readonly clock: Clock
 }
 
 export type ChangePassword = (input: ChangePasswordInput) => Promise<Result<void, DomainError>>
@@ -29,11 +32,16 @@ const passwordContext = (email: EmailAddress, displayName: string | null): Passw
  *
  * Also the exit from an invitation: `mustChangePassword` is cleared by the entity when
  * a new hash is set, so an invited moderator leaves behind the password their host said
- * out loud. There is no `Clock` here on purpose — nothing about this decision is timed,
- * and a dependency a use case does not use is a dependency its test has to invent.
+ * out loud.
+ *
+ * **Every session issued before this moment stops being valid** (G2-08 / P3-09). The change
+ * raises the account's credentials epoch in the same save as the new hash, so there is no
+ * state in which the password has changed and a cookie minted under the old one still works.
+ * The *current* session is the caller's to renew: the route regenerates it with a fresh
+ * `issuedAt`, which is why this use case needs to say nothing about it.
  */
 export const makeChangePassword =
-  ({ users, hasher }: ChangePasswordDeps): ChangePassword =>
+  ({ users, hasher, clock }: ChangePasswordDeps): ChangePassword =>
   async ({ userId, currentPassword, newPassword }) => {
     const user = await users.findById(userId)
     // The id came from a session, so a miss means the account was deleted underneath it.
@@ -56,7 +64,7 @@ export const makeChangePassword =
       return err(DomainError.invalid('password.unchanged'))
     }
 
-    const rotated = user.withPasswordHash(await hasher.hash(parsed.value))
+    const rotated = user.changePassword(await hasher.hash(parsed.value), clock.now())
     // Refused only when the hasher returned the hash already on file, which a salted
     // algorithm never does. Saving it anyway would report success for a change that
     // did not happen.

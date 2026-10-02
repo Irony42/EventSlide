@@ -68,6 +68,12 @@ export const AUDIT_ACTIONS = {
     subject: 'client',
     details: { before: PERIOD_SNAPSHOT, after: PERIOD_SNAPSHOT },
   },
+  /**
+   * An operator switched an account off (`disableAccount`, G2-08 / P3-09). The subject is
+   * the account's opaque id, which is all the entry needs: who it was is in `users`, and
+   * the log never holds an address.
+   */
+  'account.disabled': { subject: 'account', details: {} },
 } as const satisfies Record<string, AuditActionSpec>
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS

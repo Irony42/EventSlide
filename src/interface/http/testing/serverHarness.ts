@@ -43,6 +43,7 @@ const notWired = (name: string) => async (): Promise<never> => {
 export const notWiredUseCases = (): HttpUseCases => ({
   authenticateUser: notWired('authenticateUser'),
   changePassword: notWired('changePassword'),
+  revokeOtherSessions: notWired('revokeOtherSessions'),
   registerModerator: notWired('registerModerator'),
 
   createEvent: notWired('createEvent'),

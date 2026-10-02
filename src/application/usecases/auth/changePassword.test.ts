@@ -3,7 +3,8 @@ import { asUserId } from '../../../domain/shared/ids'
 import type { Password } from '../../../domain/users/password'
 import type { PasswordHash } from '../../../domain/users/user'
 import type { PasswordHasher } from '../../ports/passwordHasher'
-import { aUser } from '../../testing/builders'
+import { AT, aUser } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { makeChangePassword, type ChangePasswordInput } from './changePassword'
 
@@ -43,9 +44,10 @@ class ScriptedPasswordHasher implements PasswordHasher {
 describe('changePassword', () => {
   let users: FakeUserRepository
   let hasher: ScriptedPasswordHasher
+  let clock: FakeClock
 
   const change = (overrides: Partial<ChangePasswordInput> = {}) =>
-    makeChangePassword({ users, hasher })({
+    makeChangePassword({ users, hasher, clock })({
       userId: asUserId('user-1'),
       currentPassword: CURRENT,
       newPassword: NEW,
@@ -57,6 +59,7 @@ describe('changePassword', () => {
   beforeEach(() => {
     users = new FakeUserRepository()
     hasher = new ScriptedPasswordHasher()
+    clock = new FakeClock(AT)
     users.seed(aUser({ id: 'user-1' }))
   })
 
@@ -65,6 +68,23 @@ describe('changePassword', () => {
 
     expect(result.ok).toBe(true)
     expect((await stored())?.passwordHash).toBe(hashOf(NEW))
+  })
+
+  it('ends every session issued before the change, by raising the credentials epoch', async () => {
+    clock.advance(60_000)
+
+    await change()
+
+    const state = await users.authStateFor(asUserId('user-1'))
+    expect(state.credentialsChangedAt?.toISOString()).toBe(clock.now().toISOString())
+  })
+
+  it('leaves the epoch alone when the change is refused, so a wrong guess signs nobody out', async () => {
+    await change({ currentPassword: 'pas-le-bon-mot-de-passe' })
+    await change({ newPassword: 'court' })
+    await change({ newPassword: CURRENT })
+
+    expect((await users.authStateFor(asUserId('user-1'))).credentialsChangedAt).toBeNull()
   })
 
   it('clears the forced change once the invitee has chosen their own password', async () => {
