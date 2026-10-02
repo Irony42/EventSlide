@@ -49,6 +49,13 @@ export type MissionId = Branded<string, 'MissionId'>
  * names the link without handing out the key to it.
  */
 export type ShareLinkId = Branded<string, 'ShareLinkId'>
+/**
+ * A client of the box: the record roadmap §10.2 introduces for "one person owning
+ * several events", which until now was a pattern nothing enforced and nothing could
+ * query. Opaque like every other id, even though it never reaches a guest-facing URL
+ * today — the operator console of §10.4 is the first surface that will put it in one.
+ */
+export type ClientId = Branded<string, 'ClientId'>
 
 /**
  * The only casts in the codebase. Use them at a boundary — a database row becoming an
@@ -62,3 +69,4 @@ export const asReactionId = (value: string): ReactionId => value as ReactionId
 export const asClipJobId = (value: string): ClipJobId => value as ClipJobId
 export const asMissionId = (value: string): MissionId => value as MissionId
 export const asShareLinkId = (value: string): ShareLinkId => value as ShareLinkId
+export const asClientId = (value: string): ClientId => value as ClientId
