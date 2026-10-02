@@ -4,14 +4,17 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'vite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { auditLockfile, describeRefusals, installedManifests } from './licenseAudit'
 import {
   NOTICES_FILE,
+  SUPPLEMENTED_PACKAGES,
+  assertNoThirdPartyCode,
   bundledPackages,
   collectNotices,
   packageOfModule,
   readNotice,
-  type PackageNotice,
   renderNotices,
+  type PackageNotice,
 } from '../web/thirdPartyNotices'
 
 /**
@@ -29,7 +32,10 @@ import {
  * in memory, with the real config. That one is the guard on the failure the others cannot
  * see: a bundler upgrade that renames what the plugin reads, which would leave every unit
  * test green and ship an empty file. (The plugin also throws in that case, and a test
- * below says so.)
+ * below says so.) It is also where the two halves of the item meet: every package that
+ * reaches the browser is run through the licence audit **as a shipped package**, because
+ * `dev: true` in the lockfile means "pruned from the image", not "never in the bundle" -
+ * Vite and rolldown are both, and a development tool imported by mistake would be too.
  */
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -67,6 +73,18 @@ describe('which package a bundled module belongs to', () => {
       `${NUL}/app/node_modules/react/index.js?commonjs-module`,
       'react',
       '/app/node_modules/react',
+    ],
+    [
+      'a checkout whose directory name holds a # (a C# folder), which is not a fragment',
+      'C:/Users/x/C#/EventSlide/node_modules/react/index.js',
+      'react',
+      'C:/Users/x/C#/EventSlide/node_modules/react',
+    ],
+    [
+      'a checkout whose directory name holds a ?, which is not a query',
+      '/home/x/what?/EventSlide/node_modules/react/index.js?v=1',
+      'react',
+      '/home/x/what?/EventSlide/node_modules/react',
     ],
   ])('is found for %s', (_name, id, name, dir) => {
     expect(packageOfModule(id)).toEqual({ name, dir })
@@ -112,7 +130,7 @@ describe('the notices of a throwaway node_modules', () => {
       { 'LICENSE.md': 'BETA TEXT' },
     )
 
-    const { text } = collectNotices([idOf('alpha'), idOf('@scope/beta')], root)
+    const text = collectNotices([idOf('alpha'), idOf('@scope/beta')], root)
 
     expect(text).toContain('alpha 1.2.3\nLicence: MIT\n\nALPHA TEXT')
     expect(text).toContain('@scope/beta 4.5.6\nLicence: ISC\nhttps://beta.example\n\nBETA TEXT')
@@ -122,7 +140,7 @@ describe('the notices of a throwaway node_modules', () => {
     install('alpha', { name: 'alpha', version: '1.0.0', license: 'MIT' }, { LICENSE: 'A' })
     install('unused', { name: 'unused', version: '1.0.0', license: 'MIT' }, { LICENSE: 'U' })
 
-    const { text } = collectNotices(
+    const text = collectNotices(
       [idOf('alpha'), join(root, 'node_modules', 'alpha', 'other.js'), '/app/web/src/main.tsx'],
       root,
     )
@@ -135,8 +153,8 @@ describe('the notices of a throwaway node_modules', () => {
     install('alpha', { name: 'alpha', version: '1.0.0', license: 'MIT' }, { LICENSE: 'A' })
     install('beta', { name: 'beta', version: '1.0.0', license: 'MIT' }, { LICENSE: 'B' })
 
-    const forwards = collectNotices([idOf('alpha'), idOf('beta')], root).text
-    const backwards = collectNotices([idOf('beta'), idOf('alpha')], root).text
+    const forwards = collectNotices([idOf('alpha'), idOf('beta')], root)
+    const backwards = collectNotices([idOf('beta'), idOf('alpha')], root)
 
     expect(backwards).toBe(forwards)
     expect(forwards.indexOf('alpha 1.0.0')).toBeLessThan(forwards.indexOf('beta 1.0.0'))
@@ -155,11 +173,45 @@ describe('the notices of a throwaway node_modules', () => {
       },
     )
 
-    const { text } = collectNotices([idOf('alpha')], root)
+    const text = collectNotices([idOf('alpha')], root)
 
     expect(text).toContain('ATTRIBUTION')
     expect(text).toContain('APACHE TEXT')
     expect(text).not.toContain('not a licence')
+  })
+
+  it.each([
+    ['LICENCE, the British spelling', 'LICENCE'],
+    ['COPYING', 'COPYING'],
+    ['LICENSE-MIT', 'LICENSE-MIT'],
+    ['licence.txt, in lower case', 'licence.txt'],
+    ['the THIRD-PARTY-LICENSE a package keeps for code it derives from', 'THIRD-PARTY-LICENSE'],
+  ])('finds a licence in %s', (_name, file) => {
+    install(
+      'alpha',
+      { name: 'alpha', version: '1.0.0', license: 'MIT' },
+      { [file]: 'THE NOTICE', 'README.md': 'not a licence' },
+    )
+
+    const text = collectNotices([idOf('alpha')], root)
+
+    expect(text).toContain('THE NOTICE')
+    expect(text).not.toContain('not a licence')
+  })
+
+  it('writes a package’s several files in name order, not in the order the disk lists them', () => {
+    // `readdir` order differs between Windows and Linux; a file that printed differently on
+    // the two would make the same release produce two different notice files.
+    install(
+      'alpha',
+      { name: 'alpha', version: '1.0.0', license: '(MIT OR Apache-2.0)' },
+      { 'LICENSE-MIT': 'MIT SIDE', 'LICENSE-APACHE': 'APACHE SIDE', NOTICE: 'ATTRIBUTION' },
+    )
+
+    const text = collectNotices([idOf('alpha')], root)
+
+    expect(text.indexOf('APACHE SIDE')).toBeLessThan(text.indexOf('MIT SIDE'))
+    expect(text.indexOf('MIT SIDE')).toBeLessThan(text.indexOf('ATTRIBUTION'))
   })
 
   it('normalises line endings, so a Windows checkout and a Linux one print the same file', () => {
@@ -169,7 +221,7 @@ describe('the notices of a throwaway node_modules', () => {
       { LICENSE: 'line one\r\nline two\r\n' },
     )
 
-    expect(collectNotices([idOf('alpha')], root).text).toContain('line one\nline two\n')
+    expect(collectNotices([idOf('alpha')], root)).toContain('line one\nline two\n')
   })
 
   it('reads a legacy licence declaration for the heading', () => {
@@ -179,22 +231,33 @@ describe('the notices of a throwaway node_modules', () => {
       { LICENSE: 'A' },
     )
 
-    expect(collectNotices([idOf('alpha')], root).text).toContain('Licence: MIT')
+    expect(collectNotices([idOf('alpha')], root)).toContain('Licence: MIT')
   })
 
-  it('names the licence and warns when a package declares one but ships no file', () => {
+  it('fails the build for a bundled package that ships no licence file, whatever it declares', () => {
+    // "Declares MIT" does not reproduce MIT's permission text, which is what the licence
+    // asks for. The remedy is written into the message.
     install('alpha', { name: 'alpha', version: '1.0.0', license: 'MIT' })
 
-    const { text, warnings } = collectNotices([idOf('alpha')], root)
-
-    expect(text).toContain('This package ships no licence file; it declares MIT.')
-    expect(warnings).toEqual(['alpha@1.0.0 ships no licence file'])
+    expect(() => collectNotices([idOf('alpha')], root)).toThrow(
+      /alpha is in the bundle and ships no licence file \(it declares MIT\).*SUPPLEMENTS/s,
+    )
   })
 
-  it('fails the build for a package with nothing to reproduce: no file and no declared licence', () => {
-    install('alpha', { name: 'alpha', version: '1.0.0' })
+  it('takes a supplement for a package whose own files do not carry the whole notice', () => {
+    // `qrcode.react` is the real case: its LICENSE says it bundles another library, and the
+    // other library's copyright and permission text are nowhere in the package.
+    install('qrcode.react', { name: 'qrcode.react', version: '4.2.0', license: 'ISC' })
+    install('plain', { name: 'plain', version: '1.0.0', license: 'MIT' }, { LICENSE: 'PLAIN' })
 
-    expect(() => collectNotices([idOf('alpha')], root)).toThrow(/alpha.*no notice to reproduce/s)
+    const text = collectNotices([idOf('qrcode.react'), idOf('plain')], root)
+
+    const plain = text.indexOf('plain 1.0.0')
+    const qr = text.indexOf('qrcode.react 4.2.0')
+    // Under the package it names, with the permission text, and under no other.
+    expect(text.indexOf('Copyright (c) Project Nayuki. (MIT License)')).toBeGreaterThan(qr)
+    expect(text.indexOf('Permission is hereby granted')).toBeGreaterThan(qr)
+    expect(text.slice(plain, qr)).not.toContain('Nayuki')
   })
 
   it('fails the build for a bundled package it cannot read', () => {
@@ -228,6 +291,18 @@ describe('the notices of a throwaway node_modules', () => {
     expect(found.map((location) => location.name)).toEqual(['rolldown', 'vite'])
   })
 
+  it('fails the build when code inlined from a package names one that cannot be found', () => {
+    // A lockfile that nests rolldown under vite, or a build started from elsewhere, would
+    // otherwise drop that notice without a word.
+    install('vite', { name: 'vite', version: '8.0.0', license: 'MIT' }, { 'LICENSE.md': 'VITE' })
+    const below = join(root, 'web')
+    mkdirSync(below)
+
+    expect(() =>
+      bundledPackages([`${NUL}vite/preload-helper.js`, `${NUL}rolldown/runtime.js`], below),
+    ).toThrow(/inlines code from rolldown/)
+  })
+
   it('reproduces only the package’s own licence for code that was inlined, not the list of what it bundles', () => {
     // Vite's licence file goes on for 110 kB of other people's licences, for code in Vite's
     // own distribution. What reached the bundle is a few lines of its preload helper.
@@ -248,11 +323,25 @@ describe('the notices of a throwaway node_modules', () => {
     const web = join(root, 'web')
     mkdirSync(web)
 
-    const { text } = collectNotices([`${NUL}vite/preload-helper.js`, idOf('gamma')], web)
+    const text = collectNotices([`${NUL}vite/preload-helper.js`, idOf('gamma')], web)
 
     expect(text).toContain('MIT TEXT')
     expect(text).not.toContain('SOMEONE ELSE')
     expect(text).toContain('KEPT, IT IS BUNDLED IN FULL')
+  })
+
+  it('keeps a package’s whole licence file when it is also bundled for real, not only inlined', () => {
+    install(
+      'vite',
+      { name: 'vite', version: '8.0.0', license: 'MIT' },
+      { 'LICENSE.md': 'CORE\n\n# Licenses of bundled dependencies\nFULL LIST' },
+    )
+    const web = join(root, 'web')
+    mkdirSync(web)
+
+    const text = collectNotices([`${NUL}vite/preload-helper.js`, idOf('vite')], web)
+
+    expect(text).toContain('FULL LIST')
   })
 
   it('orders notices by name, then version, whatever order it is handed them in', () => {
@@ -277,6 +366,22 @@ describe('the notices of a throwaway node_modules', () => {
     expect(order.every((at) => at > 0)).toBe(true)
   })
 
+  it('orders by code unit, so a machine’s locale cannot reorder the file', () => {
+    // `localeCompare` puts "alpha" before "Zebra" in nearly every locale, and "ch" after "h"
+    // in Czech. Code units are the same everywhere.
+    const notice = (name: string): PackageNotice => ({
+      name,
+      version: '1.0.0',
+      license: 'MIT',
+      homepage: undefined,
+      texts: [name],
+    })
+
+    const text = renderNotices([notice('alpha'), notice('Zebra')])
+
+    expect(text.indexOf('Zebra 1.0.0')).toBeLessThan(text.indexOf('alpha 1.0.0'))
+  })
+
   it('renders nothing but the header and a rule for no packages, never throwing', () => {
     expect(renderNotices([])).toMatch(/^EventSlide - licence notices[\s\S]*\n-+\n$/)
   })
@@ -294,6 +399,48 @@ describe('the notices of a throwaway node_modules', () => {
       license: 'MIT',
       homepage: undefined,
       texts: ['A'],
+    })
+  })
+
+  describe('a bundle that promises to hold no third-party code', () => {
+    it('passes when every module is the application’s own', () => {
+      expect(() =>
+        assertNoThirdPartyCode(
+          ['/app/web/sw/serviceWorker.ts', '/app/web/src/lib/x.ts'],
+          root,
+          'sw.js',
+        ),
+      ).not.toThrow()
+    })
+
+    it('fails the build, naming the package, when one is not', () => {
+      install('zod', { name: 'zod', version: '3.0.0', license: 'MIT' }, { LICENSE: 'Z' })
+
+      expect(() =>
+        assertNoThirdPartyCode(['/app/web/sw/serviceWorker.ts', idOf('zod')], root, 'sw.js'),
+      ).toThrow(/sw\.js bundles third-party code \(zod\)/)
+    })
+
+    it('counts what the bundler inlines by name as third-party code', () => {
+      install('vite', { name: 'vite', version: '8.0.0', license: 'MIT' }, { 'LICENSE.md': 'V' })
+      const below = join(root, 'web')
+      mkdirSync(below)
+
+      expect(() =>
+        assertNoThirdPartyCode([`${NUL}vite/preload-helper.js`], below, 'sw.js'),
+      ).toThrow(/sw\.js bundles third-party code \(vite\)/)
+    })
+
+    it('is attached to the service worker’s build, which is the bundle that makes the promise', async () => {
+      // Importing the config runs no build and reads no file: the manifest it needs is read
+      // inside a hook. What matters is that the guard is among the plugins of that build.
+      const { default: config } = await import('../web/vite.sw.config')
+      const plugins: readonly unknown[] = [config.plugins ?? []].flat(5)
+      const names = plugins.map((plugin) =>
+        typeof plugin === 'object' && plugin !== null ? Reflect.get(plugin, 'name') : undefined,
+      )
+
+      expect(names).toContain('eventslide:no-third-party-code')
     })
   })
 })
@@ -342,5 +489,34 @@ describe('the real client build', () => {
     expect(text).toContain('Permission is hereby granted')
     // Nothing from the server side leaked in through a shared import.
     expect(text).not.toMatch(/^(?:express|sharp|better-sqlite3|nodemailer) \d/m)
+    // A supplement is for a package that is in the bundle; once it is not, it is stale.
+    for (const name of SUPPLEMENTED_PACKAGES) {
+      expect(text, `${name} has a supplement but is no longer bundled`).toContain(`\n${name} `)
+    }
+    expect(text).toContain('Project Nayuki')
+
+    // The audit's `dev: true` means "pruned from the image", and Vite and rolldown are
+    // that and in the bundle too. So every package of the real bundle is audited as one
+    // that ships: a development exception (MPL, GPL...) does not cover it, and a
+    // development tool imported into the client by mistake turns this red.
+    const moduleIds = outputs.flatMap((output) => (output.type === 'chunk' ? output.moduleIds : []))
+    const bundled = new Set(bundledPackages(moduleIds, join(ROOT, 'web')).map((p) => p.name))
+    const lockfile = JSON.parse(readFileSync(join(ROOT, 'package-lock.json'), 'utf8')) as {
+      packages: Record<string, Record<string, unknown>>
+    }
+    for (const [key, entry] of Object.entries(lockfile.packages)) {
+      if (bundled.has(key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length))) {
+        delete entry['dev']
+      }
+    }
+    const verdicts = auditLockfile(lockfile, installedManifests(ROOT)).filter((verdict) =>
+      bundled.has(verdict.package.name),
+    )
+
+    expect(verdicts.length, 'every bundled package is in the lockfile').toBeGreaterThanOrEqual(
+      bundled.size,
+    )
+    expect(describeRefusals(verdicts)).toEqual([])
+    expect(verdicts.filter((verdict) => verdict.status === 'excepted')).toEqual([])
   }, 60_000)
 })

@@ -21,12 +21,17 @@ import type { Plugin } from 'vite'
  * the ones that are bundled include transitive packages nobody listed. The bundler knows
  * which modules it put in which chunk, so the list is theirs.
  *
- * **Fail closed where it is cheap.** A bundle in which no third-party module can be
- * found means this plugin stopped understanding its input (a bundler upgrade renaming
- * `moduleIds` would do it), and shipping an empty notice file without a word is worse
- * than a failed build. A package whose licence text cannot be found at all fails too;
- * one that declares a licence but ships no file gets a notice naming the licence and a
- * build warning, since there is nothing else to reproduce.
+ * **Fails closed.** A notice file that is quietly incomplete is worse than a failed
+ * build, so the build stops when
+ * - no third-party module can be found in the bundle at all (this plugin stopped
+ *   understanding its input: a bundler upgrade renaming `moduleIds` would do it);
+ * - a helper the bundler inlined (`\0vite/...`) names a package that cannot be found;
+ * - a bundled package ships no licence file. Add its text to {@link SUPPLEMENTS}, with the
+ *   reason, rather than ship the package without the notice its licence asks for.
+ *
+ * The same walk guards the service worker (`noThirdPartyCode`): `sw.js` is the second
+ * script every phone downloads, it bundles nothing from `node_modules` today, and the day
+ * it does, the build says so instead of shipping it without a notice.
  *
  * No Node imports besides `fs` and `path`, and no dependence on the rest of `web/`, so a
  * test in `scripts/` can import it, as `scripts/aboutBuildInfo.test.ts` does `buildInfo.ts`.
@@ -40,7 +45,8 @@ const VIRTUAL = String.fromCharCode(0)
 /**
  * Modules the bundler writes into a chunk itself, named by a virtual id. The preload
  * helper and the runtime are code from these two packages, inlined, so their licence
- * is among the ones that travel.
+ * is among the ones that travel. Any other virtual id is some plugin's own module and is
+ * left alone: it carries no package.
  */
 const VIRTUAL_PACKAGES: readonly (readonly [prefix: string, name: string])[] = [
   [`${VIRTUAL}vite/`, 'vite'],
@@ -48,6 +54,9 @@ const VIRTUAL_PACKAGES: readonly (readonly [prefix: string, name: string])[] = [
 ]
 
 const NODE_MODULES = '/node_modules/'
+
+/** Strings are compared by code unit: the same bytes on every machine, whatever its locale. */
+const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 /** Where one package lives, and what it is called. */
 export interface PackageLocation {
@@ -74,12 +83,14 @@ const ownLicence = (text: string): string => {
 /**
  * The package a bundled module id belongs to, or `undefined` for the application's own
  * code. Reads the **last** `node_modules` segment, so a package nested inside another is
- * itself and not its parent, and tolerates Windows separators and a `?query` suffix.
+ * itself and not its parent, and tolerates Windows separators and a `?query` suffix. Only a
+ * query on the last segment is dropped: `#` and `?` can appear in a directory name, and a
+ * checkout under `C:\Users\x\C#\EventSlide` must not make every package vanish.
  */
 export const packageOfModule = (moduleId: string): PackageLocation | undefined => {
   const path = (moduleId.startsWith(VIRTUAL) ? moduleId.slice(1) : moduleId)
-    .replace(/[?#].*$/, '')
     .replaceAll('\\', '/')
+    .replace(/\?[^/]*$/, '')
   const at = path.lastIndexOf(NODE_MODULES)
   if (at === -1) return undefined
 
@@ -107,7 +118,11 @@ const installedPackage = (start: string, name: string): string | undefined => {
   }
 }
 
-/** Every package whose code is in the given modules, once each, in a stable order. */
+/**
+ * Every package whose code is in the given modules, once each, in a stable order.
+ * Throws for an inlined helper whose package cannot be found from `root`, because its
+ * notice would otherwise be dropped without a word.
+ */
 export const bundledPackages = (
   moduleIds: Iterable<string>,
   root: string,
@@ -117,15 +132,58 @@ export const bundledPackages = (
     let location = packageOfModule(id)
     if (location === undefined) {
       const virtual = VIRTUAL_PACKAGES.find(([prefix]) => id.startsWith(prefix))
-      const dir = virtual === undefined ? undefined : installedPackage(root, virtual[1])
-      if (virtual !== undefined && dir !== undefined) {
+      if (virtual !== undefined) {
+        const dir = installedPackage(root, virtual[1])
+        if (dir === undefined) {
+          throw new Error(
+            `third-party notices: the bundle inlines code from ${virtual[1]} (${JSON.stringify(id)}) ` +
+              `but no node_modules/${virtual[1]} is reachable from ${root}`,
+          )
+        }
         location = { name: virtual[1], dir, inlined: true }
       }
     }
-    if (location !== undefined) found.set(location.dir, location)
+    if (location === undefined) continue
+    // A package seen both ways is bundled in earnest: its whole licence file applies.
+    const seen = found.get(location.dir)
+    if (seen === undefined || (seen.inlined === true && location.inlined !== true)) {
+      found.set(location.dir, location)
+    }
   }
-  return [...found.values()].sort((a, b) => a.dir.localeCompare(b.dir))
+  return [...found.values()].sort((a, b) => byCodeUnit(a.dir, b.dir))
 }
+
+const MIT_PERMISSION = [
+  'Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:',
+  'The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.',
+  'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.',
+].join('\n\n')
+
+/**
+ * Notices a package's own licence file does not reproduce, by package name, appended to
+ * what it ships. Each entry says why it is here. An entry whose package is no longer in
+ * the bundle is a failure (`scripts/thirdPartyNotices.test.ts`), so the table cannot rot.
+ *
+ * - `qrcode.react` is ISC and its LICENSE says it "bundles QR Code Generator ... under a
+ *   MIT license", but the npm package carries neither that library's copyright line nor
+ *   its permission text, only a source comment (`@license ... Copyright (c) Project
+ *   Nayuki. SPDX-License-Identifier: MIT`) that minification drops. The text below is the
+ *   standard MIT permission text for the holder that comment names.
+ */
+const SUPPLEMENTS: ReadonlyMap<string, string> = new Map([
+  [
+    'qrcode.react',
+    [
+      'Also bundled in qrcode.react: QR Code generator library (TypeScript)',
+      'Copyright (c) Project Nayuki. (MIT License)',
+      'https://www.nayuki.io/page/qr-code-generator-library',
+      MIT_PERMISSION,
+    ].join('\n\n'),
+  ],
+])
+
+/** The packages {@link SUPPLEMENTS} speaks for. */
+export const SUPPLEMENTED_PACKAGES: readonly string[] = [...SUPPLEMENTS.keys()]
 
 export interface PackageNotice {
   readonly name: string
@@ -133,12 +191,15 @@ export interface PackageNotice {
   /** The SPDX string the package declares, if it declares one. */
   readonly license: string | undefined
   readonly homepage: string | undefined
-  /** The package's own licence and notice files, verbatim. Empty if it ships none. */
+  /** The package's own licence and notice files, then any supplement, verbatim. */
   readonly texts: readonly string[]
 }
 
-/** `LICENSE`, `LICENSE.md`, `LICENSE-MIT`, `COPYING`, `NOTICE`: not `license.d.ts`. */
-const LICENSE_FILE = /^(?:licen[cs]e|copying|notice)(?:[-._][\w.-]*)?$/i
+/**
+ * `LICENSE`, `LICENCE`, `LICENSE.md`, `LICENSE-MIT`, `COPYING`, `NOTICE`, and the
+ * `THIRD-PARTY-LICENSE` a package keeps for the code it derives from: not `license.d.ts`.
+ */
+const LICENSE_FILE = /^(?:third[-_]?party[-_])?(?:licen[cs]es?|copying|notice)(?:[-._][\w.-]*)?$/i
 const NOT_TEXT = /\.(?:[cm]?[jt]s|json|map)$/i
 
 const asText = (value: unknown): string | undefined =>
@@ -170,7 +231,7 @@ const licenseOf = (manifest: Record<string, unknown>): string | undefined => {
     : undefined
 }
 
-/** The notice of one installed package. Throws if there is nothing to reproduce at all. */
+/** The notice of one installed package. Throws if there is nothing to reproduce. */
 export const readNotice = (location: PackageLocation): PackageNotice => {
   let manifest: Record<string, unknown>
   try {
@@ -185,27 +246,31 @@ export const readNotice = (location: PackageLocation): PackageNotice => {
     )
   }
 
-  const texts = readdirSync(location.dir, { withFileTypes: true })
-    .filter(
-      (entry) => entry.isFile() && LICENSE_FILE.test(entry.name) && !NOT_TEXT.test(entry.name),
-    )
-    .map((entry) => entry.name)
-    .sort()
-    .map((name) => readFileSync(join(location.dir, name), 'utf8').replaceAll('\r\n', '\n').trim())
-    .map((text) => (location.inlined === true ? ownLicence(text) : text))
-    .filter((text) => text !== '')
+  const supplement = SUPPLEMENTS.get(location.name)
+  const texts = [
+    ...readdirSync(location.dir, { withFileTypes: true })
+      .filter(
+        (entry) => entry.isFile() && LICENSE_FILE.test(entry.name) && !NOT_TEXT.test(entry.name),
+      )
+      .map((entry) => entry.name)
+      .sort(byCodeUnit)
+      .map((name) => readFileSync(join(location.dir, name), 'utf8').replaceAll('\r\n', '\n').trim())
+      .map((text) => (location.inlined === true ? ownLicence(text) : text))
+      .filter((text) => text !== ''),
+    ...(supplement === undefined ? [] : [supplement]),
+  ]
 
-  const license = licenseOf(manifest)
-  if (texts.length === 0 && license === undefined) {
+  if (texts.length === 0) {
     throw new Error(
-      `third-party notices: ${location.name} is in the bundle and ships no licence file and ` +
-        `declares no licence; there is no notice to reproduce`,
+      `third-party notices: ${location.name} is in the bundle and ships no licence file ` +
+        `(it declares ${licenseOf(manifest) ?? 'no licence'}); add its notice to SUPPLEMENTS ` +
+        `in web/thirdPartyNotices.ts, or stop bundling it`,
     )
   }
   return {
     name: asText(manifest['name']) ?? location.name,
     version: asText(manifest['version']) ?? 'unknown',
-    license,
+    license: licenseOf(manifest),
     homepage: urlOf(manifest),
     texts,
   }
@@ -228,7 +293,7 @@ const HEADER = [
 /** The file's text. The same notices give the same bytes: no date, no path, no host. */
 export const renderNotices = (notices: readonly PackageNotice[]): string => {
   const ordered = [...notices].sort(
-    (a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version),
+    (a, b) => byCodeUnit(a.name, b.name) || byCodeUnit(a.version, b.version),
   )
   const blocks = ordered.map((notice) =>
     [
@@ -237,24 +302,17 @@ export const renderNotices = (notices: readonly PackageNotice[]): string => {
       ...(notice.license === undefined ? [] : [`Licence: ${notice.license}`]),
       ...(notice.homepage === undefined ? [] : [notice.homepage]),
       '',
-      notice.texts.length > 0
-        ? notice.texts.join('\n\n')
-        : `This package ships no licence file; it declares ${notice.license ?? 'no licence'}.`,
+      notice.texts.join('\n\n'),
     ].join('\n'),
   )
   return `${[HEADER, ...blocks].join('\n\n')}\n\n${RULE}\n`
-}
-
-export interface CollectedNotices {
-  readonly text: string
-  readonly warnings: readonly string[]
 }
 
 /**
  * The notices for the modules a build produced. Throws when none of them is a third-party
  * package, because a plugin that finds nothing has stopped working, not found nothing.
  */
-export const collectNotices = (moduleIds: Iterable<string>, root: string): CollectedNotices => {
+export const collectNotices = (moduleIds: Iterable<string>, root: string): string => {
   const packages = bundledPackages(moduleIds, root)
   if (packages.length === 0) {
     throw new Error(
@@ -262,12 +320,14 @@ export const collectNotices = (moduleIds: Iterable<string>, root: string): Colle
         'the bundler output no longer looks the way this plugin reads it',
     )
   }
-  const notices = packages.map(readNotice)
-  const warnings = notices
-    .filter((notice) => notice.texts.length === 0)
-    .map((notice) => `${notice.name}@${notice.version} ships no licence file`)
-  return { text: renderNotices(notices), warnings }
+  return renderNotices(packages.map(readNotice))
 }
+
+/** Every module id of every chunk of a build. */
+const moduleIdsOf = (bundle: Record<string, { type: string; moduleIds?: string[] }>): string[] =>
+  Object.values(bundle).flatMap((output) =>
+    output.type === 'chunk' ? (output.moduleIds ?? []) : [],
+  )
 
 /** Emits `third-party-licenses.txt` next to the bundle. See the top of this file. */
 export const thirdPartyNotices = (): Plugin => {
@@ -279,13 +339,45 @@ export const thirdPartyNotices = (): Plugin => {
       root = config.root
     },
     generateBundle(_options, bundle) {
-      const ids = new Set<string>()
-      for (const output of Object.values(bundle)) {
-        if (output.type === 'chunk') for (const id of output.moduleIds) ids.add(id)
-      }
-      const { text, warnings } = collectNotices(ids, root)
-      for (const warning of warnings) this.warn(warning)
-      this.emitFile({ type: 'asset', fileName: NOTICES_FILE, source: text })
+      this.emitFile({
+        type: 'asset',
+        fileName: NOTICES_FILE,
+        source: collectNotices(moduleIdsOf(bundle), root),
+      })
+    },
+  }
+}
+
+/**
+ * Throws when the modules of a build include any third-party code, for a bundle that
+ * promises to contain none and so ships no notices.
+ */
+export const assertNoThirdPartyCode = (
+  moduleIds: Iterable<string>,
+  root: string,
+  bundleName: string,
+): void => {
+  const found = bundledPackages(moduleIds, root)
+  if (found.length > 0) {
+    throw new Error(
+      `${bundleName} bundles third-party code (${found.map((location) => location.name).join(', ')}) ` +
+        `and ships no licence notices for it; attach thirdPartyNotices() to its build ` +
+        `under another file name, or take the import out`,
+    )
+  }
+}
+
+/** The check for a bundle that has no notices because it should have no third-party code. */
+export const noThirdPartyCode = (bundleName: string): Plugin => {
+  let root = process.cwd()
+  return {
+    name: 'eventslide:no-third-party-code',
+    apply: 'build',
+    configResolved(config) {
+      root = config.root
+    },
+    generateBundle(_options, bundle) {
+      assertNoThirdPartyCode(moduleIdsOf(bundle), root, bundleName)
     },
   }
 }

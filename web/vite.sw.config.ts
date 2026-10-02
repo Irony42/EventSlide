@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
+import { noThirdPartyCode } from './thirdPartyNotices'
 
 const here = (relative: string) => fileURLToPath(new URL(relative, import.meta.url))
 
@@ -85,7 +86,9 @@ const injectPrecache = (): Plugin => ({
  */
 export default defineConfig({
   root: here('.'),
-  plugins: [injectPrecache()],
+  // `sw.js` bundles no third-party code, so it has no notices to ship. The check turns the
+  // day that stops being true into a failed build instead of an unlicensed download.
+  plugins: [injectPrecache(), noThirdPartyCode('sw.js')],
 
   build: {
     outDir: CLIENT_DIR,
