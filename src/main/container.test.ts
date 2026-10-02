@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import request from 'supertest'
 import { afterEach, describe, expect, it } from 'vitest'
+import { asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
 import { migrations } from '../infrastructure/db/migrations'
 import { status } from '../infrastructure/db/migrator'
@@ -238,5 +239,107 @@ describe('createContainer: the source offer reaches /api/about', () => {
     const response = await request(app).get('/api/about')
 
     expect(response.body.features).toEqual({ siteAdmin: flag })
+  })
+})
+
+/**
+ * `EVENT_CREATION` reaching `createEvent`, and the use case running over the real adapters
+ * the container wires (P3-05 / G2-04).
+ *
+ * `env.test.ts` proves the variable parses and `createEvent.test.ts` proves what the use
+ * case does with a policy, over fakes. What neither reaches is the line in `usecases.ts`
+ * that hands one to the other, and the SQLite adapters standing behind the ports: a policy
+ * wired as a constant, or a `users` or `clients` handed the wrong repository, passes both.
+ * So the accounts here are rows, the client is a row, and the answers come from the real
+ * `SqliteEventRepository.createWithOwner`.
+ */
+describe('createContainer: EVENT_CREATION reaches createEvent', () => {
+  const insertUser = (container: Container, id: string, siteRole: 'none' | 'operator'): void => {
+    container.db
+      .prepare(
+        `INSERT INTO users (id, email, password_hash, created_at, site_role)
+         VALUES (?, ?, 'hash:x', ?, ?)`,
+      )
+      .run(id, `${id}@example.test`, new Date().toISOString(), siteRole)
+  }
+
+  const insertClientMember = (container: Container, userId: string): void => {
+    const at = new Date().toISOString()
+    container.db
+      .prepare('INSERT INTO clients (id, name, created_at) VALUES (?, ?, ?)')
+      .run('client-1', 'Atelier Camille', at)
+    container.db
+      .prepare(
+        `INSERT INTO client_members (client_id, user_id, role, granted_at)
+         VALUES ('client-1', ?, 'member', ?)`,
+      )
+      .run(userId, at)
+  }
+
+  const eventRow = (container: Container, slug: string) =>
+    container.db
+      .prepare<[string], { readonly client_id: string | null }>(
+        'SELECT client_id FROM events WHERE slug = ?',
+      )
+      .get(slug)
+
+  it('lets an account with no client create an event on a box that never set it', async () => {
+    const container = await boot({})
+    insertUser(container, 'user-invitee', 'none')
+
+    const result = await container.usecases.createEvent({
+      ownerId: asUserId('user-invitee'),
+      name: 'Camille & Sacha',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(eventRow(container, 'camille-sacha')?.client_id).toBeNull()
+  })
+
+  it('refuses that same account once EVENT_CREATION=clientMembers is set', async () => {
+    const container = await boot({ SITE_ADMIN: 'on', EVENT_CREATION: 'clientMembers' })
+    insertUser(container, 'user-invitee', 'none')
+
+    const result = await container.usecases.createEvent({
+      ownerId: asUserId('user-invitee'),
+      name: 'Camille & Sacha',
+    })
+
+    expect(!result.ok && result.error.code).toBe('event.creationNotAllowed')
+    expect(eventRow(container, 'camille-sacha')).toBeUndefined()
+  })
+
+  it('still lets the operator create one, with no client', async () => {
+    const container = await boot({ SITE_ADMIN: 'on', EVENT_CREATION: 'clientMembers' })
+    insertUser(container, 'user-operator', 'operator')
+
+    const result = await container.usecases.createEvent({
+      ownerId: asUserId('user-operator'),
+      name: 'Camille & Sacha',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(eventRow(container, 'camille-sacha')?.client_id).toBeNull()
+  })
+
+  it('stores the member’s client on the event and counts it, in the real database', async () => {
+    const container = await boot({ SITE_ADMIN: 'on', EVENT_CREATION: 'clientMembers' })
+    insertUser(container, 'user-member', 'none')
+    insertClientMember(container, 'user-member')
+
+    const result = await container.usecases.createEvent({
+      ownerId: asUserId('user-member'),
+      name: 'Camille & Sacha',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(eventRow(container, 'camille-sacha')?.client_id).toBe('client-1')
+    expect(
+      container.db
+        .prepare<[], { readonly n: number }>(
+          "SELECT events_created_in_period AS n FROM clients WHERE id = 'client-1'",
+        )
+        .get()?.n,
+    ).toBe(1)
   })
 })
