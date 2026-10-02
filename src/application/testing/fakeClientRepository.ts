@@ -1,4 +1,4 @@
-import type { Client } from '../../domain/clients/client'
+import { Client } from '../../domain/clients/client'
 import type { ClientRole } from '../../domain/clients/clientRole'
 import type { ClientId, EventId, UserId } from '../../domain/shared/ids'
 import type {
@@ -11,11 +11,13 @@ import type {
 /**
  * In-memory `ClientRepository`.
  *
- * `events.client_id` belongs to `Event`, wired starting at G2-04/P3-05, so this fake —
- * like the SQLite adapter's `JOIN` — needs a way to answer "which client owns this
- * event" without owning the events table itself. {@link FakeClientRepository.linkEvent}
- * is that link, seeded directly by a test the same way the adapter's own contract test
- * seeds a real `events` row with `client_id` set.
+ * `events.client_id` belongs to `Event`, so this fake — like the SQLite adapter's `JOIN` —
+ * needs a way to answer "which client owns this event" without owning the events table
+ * itself. {@link FakeClientRepository.linkEvent} is that link. `FakeEventRepository` makes
+ * it for every event it stores that has a client, and drops it when the event is deleted,
+ * so a world built from the two fakes answers `contextForEvent` and `deleteIfEmpty` the
+ * way one database does; a test that wants a link without an event repository makes it by
+ * hand, the way the adapter's own contract test writes a real `events` row.
  */
 
 /** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
@@ -38,9 +40,35 @@ export class FakeClientRepository implements ClientRepository {
     return this
   }
 
-  /** See the class doc: the stand-in for `events.client_id` until G2-04 wires it. */
+  /** See the class doc: the stand-in for `events.client_id`. */
   linkEvent(eventId: EventId, clientId: ClientId): this {
     this.eventClientLinks.set(eventId, clientId)
+    return this
+  }
+
+  /** The other half of {@link FakeClientRepository.linkEvent}: the event row is gone. */
+  unlinkEvent(eventId: EventId): this {
+    this.eventClientLinks.delete(eventId)
+    return this
+  }
+
+  /**
+   * `clients.events_created_in_period + 1`, which the adapter does in SQL inside
+   * `createWithOwner`'s transaction. Not on the port: nothing outside that one call may
+   * move the counter, which is the rule that lets it never decrease.
+   */
+  recordEventCreated(clientId: ClientId): this {
+    const client = this.clients.get(clientId)
+    if (client === undefined) {
+      throw new Error(`FOREIGN KEY constraint failed: events.client_id (${clientId})`)
+    }
+    this.clients.set(
+      clientId,
+      Client.restore({
+        ...client.toProps(),
+        eventsCreatedInPeriod: client.eventsCreatedInPeriod + 1,
+      }),
+    )
     return this
   }
 

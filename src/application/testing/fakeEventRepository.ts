@@ -1,11 +1,15 @@
-import type { Event } from '../../domain/events/event'
+import type { ClientCeilings } from '../../domain/clients/clientCeilings'
+import { Event } from '../../domain/events/event'
+import { DomainError } from '../../domain/shared/errors'
 import type { EventId, UserId } from '../../domain/shared/ids'
 import type { JoinCode } from '../../domain/shared/joinCode'
+import { err, ok, type Result } from '../../domain/shared/result'
 import type { Slug } from '../../domain/shared/slug'
-import type { EventRepository, EventSummary } from '../ports/eventRepository'
+import type { EventOwnerGrant, EventRepository, EventSummary } from '../ports/eventRepository'
 import type { GuestRepository } from '../ports/guestRepository'
 import type { PhotoRepository } from '../ports/photoRepository'
 import type { MembershipRepository } from '../ports/userRepository'
+import type { FakeClientRepository } from './fakeClientRepository'
 
 /**
  * In-memory `EventRepository`.
@@ -32,9 +36,20 @@ const newestFirst = (left: Event, right: Event): number =>
  * ownership constructs the fake with no arguments and reads zeros.
  */
 export interface FakeEventRepositoryLinks {
+  /**
+   * Where `createWithOwner` writes the creator's owner membership. Required for that
+   * method, which throws without it rather than create an event nobody can open — the very
+   * defect the method exists to remove.
+   */
   readonly memberships?: MembershipRepository
   readonly photos?: PhotoRepository
   readonly guests?: GuestRepository
+  /**
+   * The clients an event may belong to: read for the creation counter, linked to each
+   * event that has one, and unlinked when it is deleted. Required to create or store an
+   * event **with** a client, which throws without it rather than skip a ceiling.
+   */
+  readonly clients?: FakeClientRepository
 }
 
 export class FakeEventRepository implements EventRepository {
@@ -48,7 +63,8 @@ export class FakeEventRepository implements EventRepository {
     return this
   }
 
-  private insert(event: Event): void {
+  /** Throws what the unique indexes would, and writes nothing. */
+  private assertFree(event: Event): void {
     for (const row of this.rows.values()) {
       if (row.id === event.id) continue
       // The messages mirror better-sqlite3's, so a rejection reads the same way
@@ -60,7 +76,30 @@ export class FakeEventRepository implements EventRepository {
         throw new Error(`UNIQUE constraint failed: events.join_code (${event.joinCode.value})`)
       }
     }
-    this.rows.set(event.id, event)
+  }
+
+  /**
+   * `save` and `seed`: an upsert that, like the adapter's, never changes the client an
+   * event already has — which client an event answers to is fixed when it is created.
+   */
+  private insert(event: Event): void {
+    this.assertFree(event)
+    const existing = this.rows.get(event.id)
+    const stored =
+      existing === undefined
+        ? event
+        : Event.restore({ ...event.toProps(), clientId: existing.clientId })
+    this.rows.set(stored.id, stored)
+    if (stored.clientId !== null) this.requireClients().linkEvent(stored.id, stored.clientId)
+  }
+
+  private requireClients(): FakeClientRepository {
+    if (this.links.clients === undefined) {
+      throw new Error(
+        'FakeEventRepository: an event with a client needs the clients fake linked, or its ceilings and counter would be silently skipped',
+      )
+    }
+    return this.links.clients
   }
 
   async findById(id: EventId): Promise<Event | null> {
@@ -120,12 +159,70 @@ export class FakeEventRepository implements EventRepository {
     this.insert(event)
   }
 
+  /**
+   * The adapter's transaction, kept honest by ordering: everything that can refuse or
+   * throw is decided **before** anything is written, so a refusal or a failing neighbour
+   * leaves no event, no owner and no count — the same end state a rollback gives.
+   */
+  async createWithOwner(
+    event: Event,
+    owner: EventOwnerGrant,
+    ceilings: ClientCeilings,
+  ): Promise<Result<void, DomainError>> {
+    const memberships = this.links.memberships
+    if (memberships === undefined) {
+      throw new Error(
+        'FakeEventRepository.createWithOwner needs the memberships fake linked: the owner is part of the creation',
+      )
+    }
+    if (this.rows.has(event.id)) {
+      throw new Error(`UNIQUE constraint failed: events.id (${event.id})`)
+    }
+    this.assertFree(event)
+
+    const clientId = event.clientId
+    if (clientId !== null) {
+      const clients = this.requireClients()
+      const client = await clients.findById(clientId)
+      if (client === null) {
+        throw new Error(`FOREIGN KEY constraint failed: events.client_id (${clientId})`)
+      }
+
+      const total = [...this.rows.values()].filter((row) => row.clientId === clientId).length
+      const refusal = ceilings.creationRefusal(total, client.eventsCreatedInPeriod)
+      if (refusal !== null) {
+        return err(
+          DomainError.conflict('client.ceilingReached', {
+            ceiling: refusal.ceiling,
+            used: refusal.used,
+            max: refusal.max,
+          }),
+        )
+      }
+    }
+
+    await memberships.grant({
+      eventId: event.id,
+      userId: owner.userId,
+      role: 'owner',
+      grantedAt: owner.grantedAt,
+    })
+    this.rows.set(event.id, event)
+    if (clientId !== null) {
+      this.requireClients().linkEvent(event.id, clientId).recordEventCreated(clientId)
+    }
+    return ok(undefined)
+  }
+
   /** Idempotent. The cascade to photos, guests, reactions and memberships is the
    *  database's job, and each fake owns its own rows — a purge use case deletes from
    *  each repository explicitly, which is what the adapter's `ON DELETE CASCADE` test
-   *  covers. */
+   *  covers. The one thing it does that cascade is not: it drops the client link, because
+   *  that link *is* `events.client_id` and goes with the row. It never touches the
+   *  creation counter, exactly as the adapter does not. */
   async delete(id: EventId): Promise<void> {
     this.rows.delete(id)
+    this.links.clients?.unlinkEvent(id)
   }
 
   async slugTaken(slug: Slug): Promise<boolean> {

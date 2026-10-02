@@ -1,6 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
-import type { EventId, UserId } from '../shared/ids'
+import type { ClientId, EventId, UserId } from '../shared/ids'
 import type { JoinCode } from '../shared/joinCode'
 import type { Slug } from '../shared/slug'
 import type { EventName } from './eventName'
@@ -31,6 +31,17 @@ export interface EventProps {
   readonly createdAt: Date
   /** When the party starts, for the host's own dashboard. `null` when unscheduled. */
   readonly startsAt: Date | null
+  /**
+   * The client this event belongs to (roadmap §10.2), or `null` for an event with none —
+   * every event on a box that has no clients, and the operator's own.
+   *
+   * **Fixed at creation, and nothing here changes it.** Which ceilings an event answers to
+   * is read from this one column (`ClientRepository.contextForEvent`), so moving an event
+   * between clients is a handover (roadmap §10.7) with its own use case and its own audit
+   * entry, not a setter. `null` is a permanent, legitimate state and not a value awaiting a
+   * backfill: ceilings are enforced from the data, never from the `SITE_ADMIN` switch.
+   */
+  readonly clientId: ClientId | null
   /** When the event stopped running. Starts the retention clock; `null` while it runs. */
   readonly closedAt: Date | null
   /**
@@ -120,6 +131,8 @@ export interface NewEvent {
   readonly settings: EventSettings
   readonly quotaBytes: number
   readonly startsAt: Date | null
+  /** See {@link EventProps.clientId}. Always stated: "no client" is a decision, not a default. */
+  readonly clientId: ClientId | null
 }
 
 /**
@@ -155,6 +168,7 @@ export class Event {
         quotaBytes: input.quotaBytes,
         createdAt: now,
         startsAt: input.startsAt,
+        clientId: input.clientId,
         closedAt: null,
         // Not part of `NewEvent`: a schedule is a decision the host makes on the event
         // they are looking at, not one more field on a form that asks for a name.
@@ -180,6 +194,11 @@ export class Event {
 
   get ownerId(): UserId {
     return this.props.ownerId
+  }
+
+  /** See {@link EventProps.clientId}. */
+  get clientId(): ClientId | null {
+    return this.props.clientId
   }
 
   get name(): EventName {

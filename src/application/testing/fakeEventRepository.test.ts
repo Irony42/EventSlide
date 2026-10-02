@@ -1,13 +1,19 @@
-import { describe, expect, it } from 'vitest'
-import { asEventId, asUserId } from '../../domain/shared/ids'
+import { describe, expect, it, vi } from 'vitest'
+import { ClientCeilings } from '../../domain/clients/clientCeilings'
+import { asClientId, asEventId, asUserId } from '../../domain/shared/ids'
 import { eventRepositoryContract } from './contracts/eventRepositoryContract'
-import { AT, aGuest, aPhoto, anEvent } from './builders'
+import { AT, aClient, aGuest, aPhoto, anEvent } from './builders'
+import { FakeClientRepository } from './fakeClientRepository'
 import { FakeEventRepository } from './fakeEventRepository'
 import { FakeGuestRepository } from './fakeGuestRepository'
 import { FakeMembershipRepository } from './fakeMembershipRepository'
 import { FakePhotoRepository } from './fakePhotoRepository'
 
-eventRepositoryContract('fake', async () => ({ repo: new FakeEventRepository() }))
+eventRepositoryContract('fake', async () => {
+  const memberships = new FakeMembershipRepository()
+  const clients = new FakeClientRepository()
+  return { repo: new FakeEventRepository({ memberships, clients }), memberships, clients }
+})
 
 const WEDDING = asEventId('evt-wedding')
 const HOST = asUserId('user-host')
@@ -106,5 +112,67 @@ describe('FakeEventRepository dashboard summary', () => {
     const summaries = await events.listForUser(HOST)
 
     expect(summaries.map((summary) => summary.photoCount)).toEqual([0])
+  })
+})
+
+/**
+ * What the fake refuses to do on its own, so a test cannot pass by quietly skipping a
+ * ceiling or an owner — the same silence the contract suite exists to keep out.
+ */
+describe('FakeEventRepository createWithOwner and its links', () => {
+  const owner = { userId: HOST, grantedAt: AT }
+  const unlimited = ClientCeilings.unlimited()
+
+  it('refuses to create an event when no memberships fake is linked, rather than create one nobody can open', async () => {
+    const events = new FakeEventRepository()
+
+    await expect(
+      events.createWithOwner(anEvent({ id: WEDDING }), owner, unlimited),
+    ).rejects.toThrow(/needs the memberships fake/)
+    expect(await events.findById(WEDDING)).toBeNull()
+  })
+
+  it('refuses to store an event that has a client when no clients fake is linked, rather than skip its ceilings', async () => {
+    const memberships = new FakeMembershipRepository()
+    const events = new FakeEventRepository({ memberships })
+
+    await expect(
+      events.createWithOwner(anEvent({ id: WEDDING, clientId: 'client-1' }), owner, unlimited),
+    ).rejects.toThrow(/needs the clients fake linked/)
+    expect(() => events.seed(anEvent({ id: WEDDING, clientId: 'client-1' }))).toThrow(
+      /needs the clients fake linked/,
+    )
+  })
+
+  it('leaves no event and no count behind when writing the owner fails', async () => {
+    const clients = new FakeClientRepository().seed(aClient({ id: 'client-1' }))
+    const memberships = new FakeMembershipRepository()
+    vi.spyOn(memberships, 'grant').mockRejectedValue(new Error('the membership write failed'))
+    const events = new FakeEventRepository({ memberships, clients })
+
+    await expect(
+      events.createWithOwner(anEvent({ id: WEDDING, clientId: 'client-1' }), owner, unlimited),
+    ).rejects.toThrow(/the membership write failed/)
+
+    expect(await events.findById(WEDDING)).toBeNull()
+    expect((await clients.findById(asClientId('client-1')))?.eventsCreatedInPeriod).toBe(0)
+  })
+
+  it('drops the client link when the event is deleted, so an emptied client can be deleted', async () => {
+    const clients = new FakeClientRepository().seed(aClient({ id: 'client-1' }))
+    const events = new FakeEventRepository({ memberships: new FakeMembershipRepository(), clients })
+    await events.createWithOwner(anEvent({ id: WEDDING, clientId: 'client-1' }), owner, unlimited)
+    expect(await clients.deleteIfEmpty(asClientId('client-1'))).toBe(false)
+
+    await events.delete(WEDDING)
+
+    expect(await clients.deleteIfEmpty(asClientId('client-1'))).toBe(true)
+  })
+
+  it('links a seeded event to its client, so the client’s context can be read back', async () => {
+    const clients = new FakeClientRepository().seed(aClient({ id: 'client-1' }))
+    new FakeEventRepository({ clients }).seed(anEvent({ id: WEDDING, clientId: 'client-1' }))
+
+    expect((await clients.contextForEvent(WEDDING))?.clientId).toBe('client-1')
   })
 })

@@ -127,6 +127,8 @@ export interface EventInput {
   readonly quotaBytes?: number
   readonly createdAt?: Date
   readonly startsAt?: Date | null
+  /** No client by default: the event of a box that has none, and the operator's own. */
+  readonly clientId?: string | null
   readonly closedAt?: Date | null
   readonly scheduledOpenAt?: Date | null
   readonly scheduledCloseAt?: Date | null
@@ -160,6 +162,10 @@ export const anEvent = (input: EventInput = {}): Event => {
         settings: toSettings(pick(input.settings, {})),
         quotaBytes: pick(input.quotaBytes, 1_000_000_000),
         startsAt: pick(input.startsAt, null),
+        clientId:
+          input.clientId === undefined || input.clientId === null
+            ? null
+            : asClientId(input.clientId),
       },
       asEventId(pick(input.id, 'event-1')),
       createdAt,

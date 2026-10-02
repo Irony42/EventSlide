@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DomainError } from '../shared/errors'
-import { asEventId, asUserId } from '../shared/ids'
+import { asClientId, asEventId, asUserId } from '../shared/ids'
 import { JoinCode } from '../shared/joinCode'
 import type { Result } from '../shared/result'
 import { Slug } from '../shared/slug'
@@ -43,6 +43,7 @@ const newEvent = (overrides: Partial<NewEvent> = {}): NewEvent => ({
   settings: EventSettings.default(),
   quotaBytes: QUOTA_BYTES,
   startsAt: null,
+  clientId: null,
   ...overrides,
 })
 
@@ -58,6 +59,7 @@ const anEvent = (overrides: Partial<EventProps> = {}): Event =>
     quotaBytes: QUOTA_BYTES,
     createdAt: CREATED_AT,
     startsAt: null,
+    clientId: null,
     closedAt: null,
     scheduledOpenAt: null,
     scheduledCloseAt: null,
@@ -96,6 +98,30 @@ describe('Event.create', () => {
 
     expect(event.quotaBytes).toBe(QUOTA_BYTES)
     expect(event.settings).toBe(RETAINED_30_DAYS)
+  })
+
+  it('carries the client it was created for, which is how its ceilings are found later', () => {
+    const event = unwrap(
+      Event.create(newEvent({ clientId: asClientId('client-1') }), EVENT_ID, CREATED_AT),
+    )
+
+    expect(event.clientId).toBe('client-1')
+  })
+
+  it('belongs to no client when it was created for none, as on a box that has no clients', () => {
+    const event = unwrap(Event.create(newEvent({ clientId: null }), EVENT_ID, CREATED_AT))
+
+    expect(event.clientId).toBeNull()
+  })
+
+  it('keeps its client through a lifecycle change, because a transition is not a handover', () => {
+    const event = unwrap(
+      Event.create(newEvent({ clientId: asClientId('client-1') }), EVENT_ID, CREATED_AT),
+    )
+
+    const live = unwrap(event.goLive(WENT_LIVE_AT))
+
+    expect(live.clientId).toBe('client-1')
   })
 
   it('keeps a start date the host scheduled ahead of the party', () => {
@@ -404,6 +430,7 @@ describe('Event identity', () => {
       quotaBytes: QUOTA_BYTES,
       createdAt: CREATED_AT,
       startsAt: null,
+      clientId: null,
       closedAt: ENDED_AT,
       scheduledOpenAt: null,
       scheduledCloseAt: null,

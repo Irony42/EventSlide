@@ -1,5 +1,10 @@
 import type Database from 'better-sqlite3'
-import type { EventRepository, EventSummary } from '../../application/ports/eventRepository'
+import type {
+  EventOwnerGrant,
+  EventRepository,
+  EventSummary,
+} from '../../application/ports/eventRepository'
+import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { Event } from '../../domain/events/event'
 import { EventName } from '../../domain/events/eventName'
 import {
@@ -21,10 +26,16 @@ import {
   type ThemeMaterial,
 } from '../../domain/events/eventTheme'
 import { isEventStatus, type EventStatus } from '../../domain/events/eventStatus'
-import type { DomainError } from '../../domain/shared/errors'
-import { asEventId, asUserId, type EventId, type UserId } from '../../domain/shared/ids'
+import { DomainError } from '../../domain/shared/errors'
+import {
+  asClientId,
+  asEventId,
+  asUserId,
+  type EventId,
+  type UserId,
+} from '../../domain/shared/ids'
 import { JoinCode } from '../../domain/shared/joinCode'
-import type { Result } from '../../domain/shared/result'
+import { err, ok, type Result } from '../../domain/shared/result'
 import { Slug } from '../../domain/shared/slug'
 import type { Db } from './connection'
 import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
@@ -50,13 +61,14 @@ interface EventRow {
   readonly quota_bytes: number
   readonly created_at: string
   readonly starts_at: string | null
+  readonly client_id: string | null
   readonly closed_at: string | null
   readonly scheduled_open_at: string | null
   readonly scheduled_close_at: string | null
   readonly schedule_discarded_at: string | null
 }
 
-/** Named rather than positional: fourteen columns in the right order by luck is no plan. */
+/** Named rather than positional: fifteen columns in the right order by luck is no plan. */
 interface EventParams {
   readonly id: string
   readonly ownerId: string
@@ -68,6 +80,7 @@ interface EventParams {
   readonly quotaBytes: number
   readonly createdAt: string
   readonly startsAt: string | null
+  readonly clientId: string | null
   readonly closedAt: string | null
   readonly scheduledOpenAt: string | null
   readonly scheduledCloseAt: string | null
@@ -90,9 +103,13 @@ interface PresenceRow {
   readonly present: number
 }
 
+interface CountRow {
+  readonly value: number
+}
+
 const EVENT_COLUMNS = `id, owner_id, name, slug, join_code, status, settings, quota_bytes,
-                       created_at, starts_at, closed_at, scheduled_open_at, scheduled_close_at,
-                       schedule_discarded_at`
+                       created_at, starts_at, client_id, closed_at, scheduled_open_at,
+                       scheduled_close_at, schedule_discarded_at`
 
 const corrupt = (column: string, detail: string): Error =>
   new Error(`Corrupt events.${column} in the database: ${detail}`)
@@ -331,6 +348,7 @@ const toEvent = (row: EventRow): Event =>
     quotaBytes: row.quota_bytes,
     createdAt: fromIsoText(row.created_at),
     startsAt: fromNullableIsoText(row.starts_at),
+    clientId: row.client_id === null ? null : asClientId(row.client_id),
     closedAt: fromNullableIsoText(row.closed_at),
     scheduledOpenAt: fromNullableIsoText(row.scheduled_open_at),
     scheduledCloseAt: fromNullableIsoText(row.scheduled_close_at),
@@ -362,6 +380,7 @@ const toParams = (event: Event): EventParams => {
     quotaBytes: props.quotaBytes,
     createdAt: toIsoText(props.createdAt),
     startsAt: props.startsAt === null ? null : toIsoText(props.startsAt),
+    clientId: props.clientId,
     closedAt: props.closedAt === null ? null : toIsoText(props.closedAt),
     scheduledOpenAt: props.scheduledOpenAt === null ? null : toIsoText(props.scheduledOpenAt),
     scheduledCloseAt: props.scheduledCloseAt === null ? null : toIsoText(props.scheduledCloseAt),
@@ -379,7 +398,12 @@ export class SqliteEventRepository implements EventRepository {
   private readonly selectDueForSchedule: Database.Statement<[string, string], EventRow>
   private readonly selectSlug: Database.Statement<[string], PresenceRow>
   private readonly selectJoinCode: Database.Statement<[string], PresenceRow>
+  private readonly insertEvent: Database.Statement<EventParams>
   private readonly upsert: Database.Statement<EventParams>
+  private readonly insertOwner: Database.Statement<[string, string, string]>
+  private readonly countClientEvents: Database.Statement<[string], CountRow>
+  private readonly selectPeriodCounter: Database.Statement<[string], CountRow>
+  private readonly bumpPeriodCounter: Database.Statement<[string]>
   private readonly deleteById: Database.Statement<[string]>
 
   /**
@@ -387,7 +411,7 @@ export class SqliteEventRepository implements EventRepository {
    * the compiled plan on the statement object, and the wall re-reads an event on every
    * slide: re-preparing there is a parse per frame for no reason.
    */
-  constructor(db: Db) {
+  constructor(private readonly db: Db) {
     this.selectById = db.prepare<[string], EventRow>(
       `SELECT ${EVENT_COLUMNS} FROM events WHERE id = ?`,
     )
@@ -462,13 +486,23 @@ export class SqliteEventRepository implements EventRepository {
       `SELECT 1 AS present FROM events WHERE join_code = ? LIMIT 1`,
     )
 
-    this.upsert = db.prepare<EventParams>(
-      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
-                           quota_bytes, created_at, starts_at, closed_at,
+    // The column list exists once. `createWithOwner` inserts with it and `save` appends an
+    // `ON CONFLICT` to it, so a column added to one cannot be forgotten by the other.
+    const insertSql = `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at, starts_at, client_id, closed_at,
                            scheduled_open_at, scheduled_close_at, schedule_discarded_at)
             VALUES (@id, @ownerId, @name, @slug, @joinCode, @status, @settings,
-                    @quotaBytes, @createdAt, @startsAt, @closedAt,
-                    @scheduledOpenAt, @scheduledCloseAt, @scheduleDiscardedAt)
+                    @quotaBytes, @createdAt, @startsAt, @clientId, @closedAt,
+                    @scheduledOpenAt, @scheduledCloseAt, @scheduleDiscardedAt)`
+
+    this.insertEvent = db.prepare<EventParams>(insertSql)
+
+    // `client_id` is deliberately absent from the update list. It is written when the row
+    // is created and by nothing else: which client an event answers to decides which
+    // ceilings bind it, so moving it is a handover (roadmap §10.7) with its own use case,
+    // and a `save` of a copy read before that handover must not be able to undo it.
+    this.upsert = db.prepare<EventParams>(
+      `${insertSql}
        ON CONFLICT (id) DO UPDATE SET owner_id    = excluded.owner_id,
                                       name        = excluded.name,
                                       slug        = excluded.slug,
@@ -482,6 +516,29 @@ export class SqliteEventRepository implements EventRepository {
                                       scheduled_open_at  = excluded.scheduled_open_at,
                                       scheduled_close_at = excluded.scheduled_close_at,
                                       schedule_discarded_at = excluded.schedule_discarded_at`,
+    )
+
+    this.insertOwner = db.prepare<[string, string, string]>(
+      `INSERT INTO event_memberships (event_id, user_id, role, granted_at)
+            VALUES (?, ?, 'owner', ?)`,
+    )
+
+    // Every status, on purpose: a closed or archived event still holds its photographs, and
+    // "events this client has" is the rows, not the live ones.
+    this.countClientEvents = db.prepare<[string], CountRow>(
+      `SELECT COUNT(*) AS value FROM events WHERE client_id = ?`,
+    )
+
+    this.selectPeriodCounter = db.prepare<[string], CountRow>(
+      `SELECT events_created_in_period AS value FROM clients WHERE id = ?`,
+    )
+
+    // Increments in SQL rather than writing back a value read earlier: the read and the
+    // write are one transaction here, but the statement being relative is what keeps it
+    // right if a second writer ever touches the same row from elsewhere.
+    this.bumpPeriodCounter = db.prepare<[string]>(
+      `UPDATE clients SET events_created_in_period = events_created_in_period + 1
+        WHERE id = ?`,
     )
 
     this.deleteById = db.prepare<[string]>(`DELETE FROM events WHERE id = ?`)
@@ -517,6 +574,56 @@ export class SqliteEventRepository implements EventRepository {
   }
 
   /**
+   * The event, its owner and its client's counter in one `.immediate()` transaction.
+   *
+   * `.immediate()` takes the write lock before the first read, which is what makes the
+   * ceiling check honest: the count it compares and the rows it then inserts are the same
+   * snapshot, so two creations for one client cannot both pass a ceiling of one. A plain
+   * `transaction()` is deferred and would read first and lock later — the interleaving the
+   * upload paths in this directory already document.
+   *
+   * Order inside it follows the rows' dependencies: the event, then the membership that
+   * references it, then the counter. A throw anywhere rolls the lot back, which is the
+   * defect this method exists to remove: `createEvent` used to save the event and grant
+   * the owner as two calls, and a failure between them left an event nobody could open.
+   */
+  async createWithOwner(
+    event: Event,
+    owner: EventOwnerGrant,
+    ceilings: ClientCeilings,
+  ): Promise<Result<void, DomainError>> {
+    const params = toParams(event)
+    const clientId = event.clientId
+
+    return this.db
+      .transaction((): Result<void, DomainError> => {
+        if (clientId !== null) {
+          const total = this.countClientEvents.get(clientId)?.value ?? 0
+          const createdInPeriod = this.selectPeriodCounter.get(clientId)?.value ?? 0
+
+          // The rule is the domain's (`ClientCeilings.creationRefusal`); this only supplies
+          // the two numbers it needs, read inside the transaction that then writes.
+          const refusal = ceilings.creationRefusal(total, createdInPeriod)
+          if (refusal !== null) {
+            return err(
+              DomainError.conflict('client.ceilingReached', {
+                ceiling: refusal.ceiling,
+                used: refusal.used,
+                max: refusal.max,
+              }),
+            )
+          }
+        }
+
+        this.insertEvent.run(params)
+        this.insertOwner.run(event.id, owner.userId, toIsoText(owner.grantedAt))
+        if (clientId !== null) this.bumpPeriodCounter.run(clientId)
+        return ok(undefined)
+      })
+      .immediate()
+  }
+
+  /**
    * One statement. Photos, guests, reactions and memberships all carry
    * `ON DELETE CASCADE`, so this removes the whole album atomically — provided
    * `foreign_keys = ON`, which `connection.ts` sets per connection and without which
@@ -525,6 +632,9 @@ export class SqliteEventRepository implements EventRepository {
    * Media files are removed afterwards by the use case: the filesystem is not part of
    * this transaction, and a row pointing at a deleted file is worse than bytes nobody
    * references.
+   *
+   * **It does not touch `clients.events_created_in_period`**, and that omission is the rule:
+   * the counter is what makes create, delete, recreate cost a slot each time.
    */
   async delete(id: EventId): Promise<void> {
     this.deleteById.run(id)

@@ -262,6 +262,7 @@ export const makeCreateEvent =
         settings: settings.value,
         quotaBytes: input.quotaBytes ?? defaultQuotaBytes,
         startsAt: input.startsAt ?? null,
+        clientId: null,
       },
       ids.eventId(),
       now,

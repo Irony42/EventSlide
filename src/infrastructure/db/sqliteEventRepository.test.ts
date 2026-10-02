@@ -1,16 +1,27 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EventSummary } from '../../application/ports/eventRepository'
-import { AT, anEvent, anEventSettings } from '../../application/testing/builders'
+import {
+  AT,
+  aClient,
+  aClientCeilings,
+  anEvent,
+  anEventSettings,
+} from '../../application/testing/builders'
 import {
   EVENT_CONTRACT_FIXTURES,
   eventRepositoryContract,
 } from '../../application/testing/contracts/eventRepositoryContract'
 import { DEFAULT_EVENT_THEME } from '../../domain/events/eventTheme'
-import { asEventId, asUserId } from '../../domain/shared/ids'
+import { asClientId, asEventId, asUserId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrations } from './migrations'
 import { migrate } from './migrator'
+import { SqliteClientRepository } from './sqliteClientRepository'
 import { SqliteEventRepository } from './sqliteEventRepository'
+import { SqliteMembershipRepository } from './sqliteMembershipRepository'
 
 /**
  * The shared contract, plus what only the adapter can be asked: the cascade, the unique
@@ -140,6 +151,8 @@ eventRepositoryContract('sqlite', async () => {
 
   return {
     repo: new SqliteEventRepository(db),
+    memberships: new SqliteMembershipRepository(db),
+    clients: new SqliteClientRepository(db),
     dispose: async () => closeDatabase(db),
   }
 })
@@ -181,6 +194,128 @@ describe('SqliteEventRepository', () => {
     const thrown = await rejectionOf(() => repo.save(anEvent({ id: 'evt-1', ownerId: 'ghost' })))
 
     expect(sqliteCodeOf(thrown)).toBe('SQLITE_CONSTRAINT_FOREIGNKEY')
+  })
+
+  // ------------------------------------------------------- createWithOwner --
+
+  /**
+   * The contract proves what `createWithOwner` leaves behind when it refuses. These prove
+   * what only this adapter can be asked: that the three writes are **one transaction**, by
+   * breaking the middle one and reading the rows left behind. A `save` followed by a
+   * `grant` — what `createEvent` did — passes every case in the contract and fails here.
+   */
+  describe('createWithOwner as one transaction', () => {
+    const CLIENT = asClientId('client-1')
+
+    const rowsOf = (table: string): number =>
+      db.prepare<[], { n: number }>(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n ?? -1
+
+    it('leaves no event and no count behind when the owner’s membership cannot be written', async () => {
+      await new SqliteClientRepository(db).save(aClient({ id: CLIENT }))
+      const ceilings = aClientCeilings()
+
+      // The event insert succeeds — HOST exists — and the membership insert after it
+      // fails its foreign key: the creator named for the membership is not an account.
+      const thrown = await rejectionOf(() =>
+        repo.createWithOwner(
+          anEvent({ id: 'evt-1', ownerId: HOST, clientId: CLIENT }),
+          { userId: asUserId('ghost'), grantedAt: AT },
+          ceilings,
+        ),
+      )
+
+      expect(sqliteCodeOf(thrown)).toBe('SQLITE_CONSTRAINT_FOREIGNKEY')
+      expect(rowsOf('events')).toBe(0)
+      expect(rowsOf('event_memberships')).toBe(0)
+      expect((await new SqliteClientRepository(db).findById(CLIENT))?.eventsCreatedInPeriod).toBe(0)
+    })
+
+    it('leaves no event and no owner behind when the client’s counter cannot be written', async () => {
+      await new SqliteClientRepository(db).save(aClient({ id: CLIENT }))
+      // A counter that cannot move: the schema's own CHECK is `>= 0`, so a trigger that
+      // refuses the update stands in for any failure of the last statement.
+      db.exec(
+        `CREATE TRIGGER no_counter BEFORE UPDATE OF events_created_in_period ON clients
+         BEGIN SELECT RAISE(ABORT, 'counter is read-only'); END`,
+      )
+
+      const thrown = await rejectionOf(() =>
+        repo.createWithOwner(
+          anEvent({ id: 'evt-1', ownerId: HOST, clientId: CLIENT }),
+          { userId: HOST, grantedAt: AT },
+          aClientCeilings(),
+        ),
+      )
+
+      expect(thrown).toBeInstanceOf(Error)
+      expect(rowsOf('events')).toBe(0)
+      expect(rowsOf('event_memberships')).toBe(0)
+    })
+
+    it('holds the write lock from the first read, so a second writer cannot slip between check and insert', async () => {
+      // The ceiling is a count compared against rows, and two creations that both read a
+      // count under it would both write. That interleaving needs two connections, so this
+      // one runs on a file: the second connection tries to create an event for the same
+      // client at the instant between the first one's read and its write, which is exactly
+      // where the rule is called from. A deferred transaction holds no write lock yet, lets
+      // the intruder in, and then fails its own write against a stale snapshot instead.
+      const directory = mkdtempSync(join(tmpdir(), 'eventslide-create-'))
+      const path = join(directory, 'eventslide.sqlite')
+      const first = openDatabase({ path })
+      const second = openDatabase({ path })
+
+      try {
+        migrate(first, migrations)
+        seedUsers(first, FIXTURE_USER_IDS)
+        // No waiting: the intruder must be refused on the spot, not queued behind the lock.
+        second.pragma('busy_timeout = 0')
+        const ceilings = aClientCeilings({ maxEvents: 1 })
+        await new SqliteClientRepository(first).save(aClient({ id: CLIENT, ceilings }))
+
+        const intruder = new SqliteEventRepository(second)
+        let intrusion: Promise<unknown> | null = null
+        const original = ceilings.creationRefusal.bind(ceilings)
+        vi.spyOn(ceilings, 'creationRefusal').mockImplementation((total, createdInPeriod) => {
+          intrusion = intruder.createWithOwner(
+            anEvent({
+              id: 'evt-2',
+              slug: 'evt-2',
+              joinCode: 'BBBBBB',
+              ownerId: HOST,
+              clientId: CLIENT,
+            }),
+            { userId: HOST, grantedAt: AT },
+            ceilings,
+          )
+          return original(total, createdInPeriod)
+        })
+
+        const created = await new SqliteEventRepository(first).createWithOwner(
+          anEvent({
+            id: 'evt-1',
+            slug: 'evt-1',
+            joinCode: 'AAAAAA',
+            ownerId: HOST,
+            clientId: CLIENT,
+          }),
+          { userId: HOST, grantedAt: AT },
+          ceilings,
+        )
+
+        expect(created.ok).toBe(true)
+        expect(sqliteCodeOf(await rejectionOf(() => intrusion ?? Promise.resolve()))).toBe(
+          'SQLITE_BUSY',
+        )
+        expect(first.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM events').get()?.n).toBe(
+          1,
+        )
+      } finally {
+        vi.restoreAllMocks()
+        closeDatabase(first)
+        closeDatabase(second)
+        rmSync(directory, { recursive: true, force: true })
+      }
+    })
   })
 
   // -------------------------------------------------------------- dashboard --
