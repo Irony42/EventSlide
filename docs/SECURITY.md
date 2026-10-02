@@ -194,19 +194,32 @@ are rewritten on every request. The epoch answers it from the other side.
 
 - **The account says when its credentials last changed**: `users.credentials_changed_at`
   (migration 010), `NULL` until something first changed them.
-- **The session says when it was issued**: `SessionPayload.issuedAt`, written at login and
-  nowhere else (the same field the absolute cap reads).
-- **`enforceSessionAge` refuses a session issued before the epoch** — `issuedAt < epoch`,
-  strictly, so the session a password change replaces itself with (stamped with the very
-  instant of the change) survives it. The row is regenerated rather than destroyed, for the
-  reason the absolute cap already documents: a handler behind it dereferences `req.session`.
+- **The session says when it was signed in and when its id was minted**: two stamps, because
+  they are two questions. `SessionPayload.issuedAt` is the sign-in; it is written by a login
+  and **carried over, unchanged, by every renewal**, and it is what the absolute cap reads.
+  `SessionPayload.renewedAt` is the instant this session _id_ was minted — the login, or the
+  last time a credentials change replaced the id and kept the person signed in — and it is
+  what the epoch is compared with. (A session written before the epoch existed has only
+  `issuedAt`, and the epoch falls back to it: for that session the two were the same instant.)
+- **`enforceSessionAge` refuses a session whose id was minted before the epoch** —
+  `renewedAt < epoch`, strictly, so the session a password change replaces itself with
+  (stamped with the very instant of the change) survives it. The row is regenerated rather
+  than destroyed, for the reason the absolute cap already documents: a handler behind it
+  dereferences `req.session`.
 
-| What raises the epoch                                           | Where                                               | What happens to the caller's own session                             |
-| --------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------- |
-| `POST /api/auth/password`                                       | `changePassword` → `User.changePassword`            | regenerated: new id, new CSRF token, `issuedAt` now. Stays signed in |
-| `POST /api/auth/sessions/revoke-others` ("sign out everywhere") | `revokeOtherSessions` → `User.revokeSessionsBefore` | regenerated, likewise                                                |
-| `POST /api/auth/password-reset/confirm`                         | `resetPassword` → `User.changePassword`             | none to renew: nobody is signed in by a reset                        |
-| switching the account off                                       | `disableAccount` → `User.disable`                   | not applicable                                                       |
+**Why the two stamps.** With one, a renewal restarted the cap: a stolen cookie could call
+`POST /api/auth/sessions/revoke-others` — no password needed, and CSRF is a double-submit
+cookie the thief can read — once every six days and never reach the seven-day ceiling, which
+would have turned "a week" into "until the victim changes their password". A review found it
+(measured: still signed in after 24 days); `authRoutes.test.ts` now repeats the attack and
+requires the session to end a week after the sign-in.
+
+| What raises the epoch                                           | Where                                               | What happens to the caller's own session                              |
+| --------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------- |
+| `POST /api/auth/password`                                       | `changePassword` → `User.changePassword`            | regenerated: new id, new CSRF token, `renewedAt` now. Stays signed in |
+| `POST /api/auth/sessions/revoke-others` ("sign out everywhere") | `revokeOtherSessions` → `User.revokeSessionsBefore` | regenerated, likewise                                                 |
+| `POST /api/auth/password-reset/confirm`                         | `resetPassword` → `User.changePassword`             | none to renew: nobody is signed in by a reset                         |
+| switching the account off                                       | `disableAccount` → `User.disable`                   | not applicable                                                        |
 
 **What does not raise it, on purpose.** The login's opportunistic re-hash (`authenticateUser`
 upgrading a bcrypt hash to the current cost) goes through `User.withPasswordHash`, not
@@ -219,8 +232,21 @@ earlier instant, `FakeUserRepository` stores the later of the two, and the `UPSE
 `SqliteUserRepository` writes `MAX(stored, incoming)`. The third is the one that matters: a
 sign-in reads the account, spends ~200 ms in bcrypt and saves it back, and a reset can finish
 in that window — a plain overwrite would put the old epoch back and bring the revoked
-sessions back with it. (The password hash itself still has that race, which predates this
-and is not fixed here.)
+sessions back with it.
+
+**A sign-in cannot undo any of this** (`UserRepository.recordSignIn`). The same window — a
+bcrypt comparison of ~200 ms — let a sign-in with the _old_ password, begun before a reset
+finished, save the account it had read back over the reset: the old password restored, a
+switched-off account switched on again, and a session issued after the reset's epoch to
+the holder of a password that had just been rotated out. A review measured it. The sign-in
+is now one conditional statement, `UPDATE … WHERE password_hash = <the hash it compared>
+AND disabled_at IS NULL`, that names only the last-sign-in time and (for the cost upgrade)
+the hash; if it matches nothing, the sign-in is refused as a wrong password is. Held at
+ring 2 with a hasher that stays inside `verify` while the account is changed underneath it,
+and at the port contract on both implementations. **Not closed**: the other whole-row
+savers — `changePassword`, `disableAccount` — have the same window against a _concurrent
+change by someone else_, but each needs an authenticated actor and cannot be provoked by an
+unauthenticated attacker at the sign-in rate; they are listed under "Residuals" below.
 
 **Costs and limits, stated.**
 
@@ -232,6 +258,13 @@ and is not fixed here.)
   one millisecond; the tests advance the clock instead.
 - **An SSE stream already open is not a request** — the residual of "Disabling an account"
   applies unchanged: it reads, it decides nothing, and it ends at the next reconnect.
+- **A clock that steps backwards across a credentials change.** The epoch only moves forward,
+  so if the box's clock was ahead when a password changed and is then corrected, the epoch
+  sits in the future: every session issued until the clock catches up is older than it, a
+  sign-in answers 200 and the next request 401, and a second change cannot lower it. The cap
+  has the same shape (a stamp in the future is expired). Waiting fixes it; so does editing
+  `users.credentials_changed_at`. A box without a real-time clock should not accept requests
+  before NTP has run.
 - **No session list.** There is no "these are your 3 devices" screen and no way to revoke
   one: the epoch is all-or-nothing, which is what "sign out everywhere" means.
 
@@ -280,12 +313,20 @@ yet. The rules, each with the test that holds it:
 feature.unavailable`, `features.forgotPassword = false` on `/api/about`. The link is **never**
   shown to the person who typed the address — that would let anyone take over any account. This
   is the difference from an invitation, where the person holding the screen is the host who
-  created it. An operator asked for help resets the password by hand. (The "copy the link"
-  fallback of `NullMailer` is for invitations, and for an operator's reset of _another_ account
-  behind its own guard rules; neither exists yet.)
+  created it. **There is no supported way to recover a password on such a box yet**: the
+  operator's reset of another account (roadmap G2-12 / P3-14, with its own guard rules and
+  a break-glass command) is the answer, and until it lands the only way is to replace
+  `users.password_hash` by hand with a bcrypt hash the operator generated. (The "copy the
+  link" fallback of `NullMailer` is for invitations, and for that operator reset; neither
+  exists yet.)
 - **The link carries the token in the path** (`/password/reset/<token>`), not the query string:
-  the access log writes route patterns, the edge filter rewrites `/password/*`, and helmet sends
-  `Referrer-Policy: no-referrer`. The responses are `Cache-Control: no-store`.
+  the access log writes route patterns, the request logger writes the path with the token
+  replaced by `:token` (`loggablePath` — a review found the reset page was not in its list, so
+  any error logged while serving it carried the token; `errorHandler.test.ts` now holds it), and
+  helmet sends `Referrer-Policy: no-referrer`. The responses are `Cache-Control: no-store`. **A
+  reverse proxy in front of the box is the operator's own**: this repository configures none, so
+  its access log must be told not to record `/password/reset/*` (the hosted instance's edge
+  rule, roadmap P7-02, does).
 - **Nothing secret is logged.** The address, the token, the link and the new password appear in
   no log line on any channel: `passwordResetLogCanary.test.ts` runs the whole journey against a
   real logger and a real, enabled access log, and reads every byte written.
@@ -296,7 +337,11 @@ feature.unavailable`, `features.forgotPassword = false` on `/api/about`. The lin
 everywhere") are roadmap G2-10 / P3-11 and are not in the same change: until they land the
 routes have no browser client, and `features.forgotPassword` is published but unread. A
 successful reset does not set `email_verified_at` and does not mail the account holder that
-their password changed; both are possible later without a schema change. Expired token rows
+their password changed; both are possible later without a schema change. `changePassword`
+and `disableAccount` still save a whole account they read earlier, so a concurrent change by
+a second actor (the owner changing a password while the operator switches the account off)
+can be undone by the slower of the two; the sign-in, which an unauthenticated attacker can
+provoke at will, is the one that was closed. Expired token rows
 are deleted opportunistically by the next reset request, a day after they expire — there is no
 dedicated sweep, because a reset token cascades with its account and holds no address the
 `users` table does not.
@@ -1125,20 +1170,22 @@ screen, and `src/interface/http/routes/privacyNoticeRoutes.ts` says why a refusa
 upload routes would put the offline queue's photos at risk to stop only a client that
 skipped the screen on purpose.
 
-| Data                                                           | Why                                                    | Retention                                                                                                                                                                 |
-| -------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Re-encoded photo bytes                                         | the product                                            | until photo delete, event purge, or `settings.retentionDays`                                                                                                              |
-| Transcoded clip bytes and its poster frame                     | the product                                            | as above                                                                                                                                                                  |
-| A clip still waiting for the transcoder                        | it is the guest upload, on its way                     | minutes — deleted when the transcode succeeds or the clip itself is refused; kept until the event is purged when the box abandoned the job, and **never servable** (§4.1) |
-| `guests.display_name` (a first name, guest-typed)              | attribution on the wall                                | with the event                                                                                                                                                            |
-| `guests.notice_revision` + `notice_acknowledged_at`            | which privacy notice this device read, and when (§5.1) | with the event; replaced when the guest reads a newer notice, so only the latest is kept                                                                                  |
-| Guest device token (cookie only, `gid` in `guests`)            | re-identify a device without an account                | token TTL                                                                                                                                                                 |
-| `photos.caption`                                               | the guest's words                                      | with the photo                                                                                                                                                            |
-| `users.email` + bcrypt hash                                    | host/moderator accounts                                | until account delete                                                                                                                                                      |
-| Session rows                                                   | login                                                  | ≤ 12 h                                                                                                                                                                    |
-| `share_links`: token **digest**, password hash, creator, times | the host's shared gallery (§15)                        | with the event; a revoked link's row is kept, and opens nothing                                                                                                           |
-| `clients.name`, `clients.contact_email` (operator-typed)       | who an operator runs the box for (§10.2)               | until the client is deleted, which is refused while it has a member or an event; empty on a box that never created one                                                    |
-| `audit_log`: an actor id, an action, ids, numbers              | who changed what on the box (§17)                      | `AUDIT_RETENTION_DAYS`, 1095 by default and never below 365; the actor id becomes `NULL` with its account                                                                 |
+| Data                                                                                   | Why                                                                                                                | Retention                                                                                                                                                                 |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Re-encoded photo bytes                                                                 | the product                                                                                                        | until photo delete, event purge, or `settings.retentionDays`                                                                                                              |
+| Transcoded clip bytes and its poster frame                                             | the product                                                                                                        | as above                                                                                                                                                                  |
+| A clip still waiting for the transcoder                                                | it is the guest upload, on its way                                                                                 | minutes — deleted when the transcode succeeds or the clip itself is refused; kept until the event is purged when the box abandoned the job, and **never servable** (§4.1) |
+| `guests.display_name` (a first name, guest-typed)                                      | attribution on the wall                                                                                            | with the event                                                                                                                                                            |
+| `guests.notice_revision` + `notice_acknowledged_at`                                    | which privacy notice this device read, and when (§5.1)                                                             | with the event; replaced when the guest reads a newer notice, so only the latest is kept                                                                                  |
+| Guest device token (cookie only, `gid` in `guests`)                                    | re-identify a device without an account                                                                            | token TTL                                                                                                                                                                 |
+| `photos.caption`                                                                       | the guest's words                                                                                                  | with the photo                                                                                                                                                            |
+| `account_tokens`: a token **digest**, the address it was sent to, an account id, times | the links that prove control of a mailbox: a password reset, later an invitation (§2)                              | an hour (a reset) from issue, then deleted by the next reset request once it has been expired for a day; deleted with the account                                         |
+| `users.credentials_changed_at`                                                         | the credentials epoch: when this account last changed its password, signed out everywhere or was switched off (§2) | with the account; it only moves forward                                                                                                                                   |
+| `users.email` + bcrypt hash                                                            | host/moderator accounts                                                                                            | until account delete                                                                                                                                                      |
+| Session rows                                                                           | login                                                                                                              | ≤ 12 h                                                                                                                                                                    |
+| `share_links`: token **digest**, password hash, creator, times                         | the host's shared gallery (§15)                                                                                    | with the event; a revoked link's row is kept, and opens nothing                                                                                                           |
+| `clients.name`, `clients.contact_email` (operator-typed)                               | who an operator runs the box for (§10.2)                                                                           | until the client is deleted, which is refused while it has a member or an event; empty on a box that never created one                                                    |
+| `audit_log`: an actor id, an action, ids, numbers                                      | who changed what on the box (§17)                                                                                  | `AUDIT_RETENTION_DAYS`, 1095 by default and never below 365; the actor id becomes `NULL` with its account                                                                 |
 
 **Deliberately not stored:** EXIF of any kind (GPS, device serial, capture time), the
 original filename as a path, the uploader's IP alongside the photo row, and any
