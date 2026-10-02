@@ -596,6 +596,17 @@ and an install that never wanted any of this must behave exactly as it does toda
 
 ### 10.2 Clients as a record, not a convention (P1, effort M, risk: low)
 
+> **Partly shipped**: the record itself, and no way to reach it yet. The `clients` and
+> `client_members` tables (migration 008, with `events.client_id` and `events.opened_at`),
+> the `Client` entity and its `ClientCeilings`, the `ClientRepository` port with its SQLite
+> and in-memory adapters under one contract suite, and the use cases `createClient`,
+> `renameClient`, `setClientCeilings`, `listClients` and `deleteEmptyClient` are built.
+> **No HTTP route calls them**: the operator API is its own item, behind `SITE_ADMIN` and
+> `requireOperator` (§10.9), and so are attaching an event to a client at creation, enforcing
+> any ceiling on a write path, and the audit entry `setClientCeilings` will write once §10.8
+> exists. The schema carries every ceiling the product will ever charge for, used or not,
+> because a migration cannot be edited once it is on `main`.
+
 An event has an `ownerId`; a client is currently the pattern of one person owning several
 events, which nothing enforces and nothing can query. Make it a thing: a client has a name,
 a contact, zero or more events, and a lifecycle of its own.
