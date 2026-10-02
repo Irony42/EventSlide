@@ -16,10 +16,16 @@ import styles from './AboutPage.module.css'
  *
  * Third-party notices and the operator's identity will join it as the items that carry
  * them land (roadmap G1-07, G2-17); each adds a row here and nothing else.
+ *
+ * **The support section** (roadmap G4-02) is the one part that depends on the operator: it
+ * is drawn only when the instance set `DONATION_URL` or `BUDGET_URL`, so a self-hosted box
+ * reads the page as it always did. It says plainly that a donation unlocks nothing — the
+ * same service for everyone — and it is a section of this page, never a banner over it.
  */
 export function AboutPage() {
   const text = useTranslations()
   const about = useAbout()
+  const { donate, budget } = about.links
 
   return (
     <Card as="h1" title={text.about.title}>
@@ -43,6 +49,33 @@ export function AboutPage() {
           </dd>
         </div>
       </dl>
+      {donate === undefined && budget === undefined ? null : (
+        <section className={styles['support']} aria-labelledby="about-support-title">
+          <h2 className={styles['supportTitle']} id="about-support-title">
+            {text.about.supportTitle}
+          </h2>
+          <p className={styles['intro']}>{text.about.supportIntro}</p>
+          {donate === undefined ? null : (
+            <p className={styles['intro']}>{text.about.supportNoCounterpart}</p>
+          )}
+          <ul className={styles['supportLinks']}>
+            {donate === undefined ? null : (
+              <li>
+                <NewTabLink href={donate} className={styles['supportLink']}>
+                  {text.about.supportLink}
+                </NewTabLink>
+              </li>
+            )}
+            {budget === undefined ? null : (
+              <li>
+                <NewTabLink href={budget} className={styles['supportLink']}>
+                  {text.about.budgetLink}
+                </NewTabLink>
+              </li>
+            )}
+          </ul>
+        </section>
+      )}
     </Card>
   )
 }

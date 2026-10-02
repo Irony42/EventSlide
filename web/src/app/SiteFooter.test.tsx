@@ -83,7 +83,9 @@ describe('SiteFooter', () => {
     ['a box with site administration off', anAbout({ features: { siteAdmin: false } })],
     [
       'a box that publishes operator links',
-      anAbout({ links: { terms: 'https://example.org/terms' } }),
+      anAbout({
+        links: { donate: 'https://example.org/donate', budget: 'https://example.org/budget' },
+      }),
     ],
   ])(
     'is offered on %s, because nothing the server reports can switch it off',
@@ -181,5 +183,116 @@ describe('SiteFooter', () => {
 
     expect(screen.getByRole('link', { name: literal(text.sourceCode) })).toBeVisible()
     expect(screen.getByRole('link', { name: literal(text.aboutLink) })).toBeVisible()
+  })
+})
+
+/**
+ * The optional "Soutenir le projet" link (roadmap G4-02).
+ *
+ * Three promises: it is **off unless the layout asks** (the guest's footer, which sits under
+ * the upload composer, never carries it), it is **absent unless the operator set
+ * `DONATION_URL`** (a self-hoster sees nothing about money), and it is **an addition** that
+ * never touches the source offer beside it.
+ */
+describe('SiteFooter, the support link', () => {
+  const DONATE_URL = 'https://opencollective.com/eventslide'
+  const supportLink = () => screen.queryByRole('link', { name: literal(fr.about.supportLink) })
+  const donating = (links: { donate?: string; budget?: string } = { donate: DONATE_URL }) =>
+    fakeApi({ about: vi.fn(async () => anAbout({ links })) })
+
+  it('is not offered by a footer that was not asked for it, even when the operator set the address', async () => {
+    // The guest layout's footer. Without the prop it must stay silent whatever the server
+    // says, because the safe default for a surface nobody thought about is no ask.
+    const api = donating()
+    renderWithProviders(<SiteFooter />, { api })
+
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+
+    expect(supportLink()).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(2)
+  })
+
+  it('is offered once the layout asks and the operator has set DONATION_URL', async () => {
+    renderWithProviders(<SiteFooter supportLink />, { api: donating() })
+
+    await waitFor(() => expect(supportLink()).toHaveAttribute('href', DONATE_URL))
+  })
+
+  it('is absent on a box that set no address, so a self-hoster sees nothing about money', async () => {
+    const api = fakeApi({ about: vi.fn(async () => anAbout({ links: {} })) })
+    renderWithProviders(<SiteFooter supportLink />, { api })
+
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+
+    expect(supportLink()).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(2)
+  })
+
+  it('is absent until the server has answered, because the build knows no donation address', () => {
+    renderWithProviders(<SiteFooter supportLink />, { api: silentServer() })
+
+    expect(supportLink()).toBeNull()
+  })
+
+  it('opens in a tab of its own, with rel="noopener noreferrer"', async () => {
+    renderWithProviders(<SiteFooter supportLink />, { api: donating() })
+
+    const link = await waitFor(() => {
+      const found = supportLink()
+      if (found === null) throw new Error('the support link has not appeared yet')
+      return found
+    })
+
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link.getAttribute('rel')?.split(/\s+/)).toEqual(
+      expect.arrayContaining(['noopener', 'noreferrer']),
+    )
+    expect(link).toHaveAccessibleName(`${fr.about.supportLink} (${fr.about.opensInNewTab})`)
+  })
+
+  it('leaves the budget link to the pages that have room for it', async () => {
+    const api = donating({
+      donate: DONATE_URL,
+      budget: 'https://opencollective.com/eventslide/budget',
+    })
+    renderWithProviders(<SiteFooter supportLink />, { api })
+
+    await waitFor(() => expect(supportLink()).not.toBeNull())
+
+    expect(screen.queryByRole('link', { name: literal(fr.about.budgetLink) })).toBeNull()
+  })
+
+  it('is an addition: the source offer is still there, first', async () => {
+    renderWithProviders(<SiteFooter supportLink />, { api: donating() })
+
+    await waitFor(() => expect(supportLink()).not.toBeNull())
+
+    const links = within(screen.getByRole('contentinfo')).getAllByRole('link')
+    expect(links).toHaveLength(3)
+    expect(links[0]).toHaveAccessibleName(literal(fr.about.sourceCode))
+  })
+
+  it.each([
+    ['a javascript: URI', 'javascript:alert(document.cookie)'],
+    ['plain http', 'http://opencollective.com/eventslide'],
+    ['something that is not a URL', 'send a coffee'],
+    ['an empty string', ''],
+  ])('never puts %s behind it, whatever the response says', async (_name, hostile) => {
+    // The server refuses these at boot; this is the same rule at the one place a string
+    // becomes an href, so a proxy that rewrote the response cannot arm the link.
+    const api = donating({ donate: hostile })
+    renderWithProviders(<SiteFooter supportLink />, { api })
+
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+
+    expect(supportLink()).toBeNull()
+  })
+
+  it.each(SUPPORTED_LOCALES)('is worded in %s, the reader’s own language', async (locale) => {
+    renderWithProviders(<SiteFooter supportLink />, { api: donating(), locale })
+
+    const label = TRANSLATIONS[locale].about.supportLink
+
+    expect(await screen.findByRole('link', { name: literal(label) })).toBeVisible()
   })
 })

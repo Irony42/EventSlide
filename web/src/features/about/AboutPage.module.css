@@ -38,3 +38,32 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+/* The operator's support section, drawn only when they set a link. */
+.support {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: var(--space-5);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.supportTitle {
+  font-size: var(--text-lg);
+}
+
+.supportLinks {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.supportLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+}

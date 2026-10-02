@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BUILD_SOURCE_URL, BUILD_VERSION } from '../lib/about/buildInfo'
-import type { About } from '../lib/api/dto'
+import type { About, AboutLinks } from '../lib/api/dto'
 import { useApi } from './useApi'
 
 /**
@@ -45,6 +45,27 @@ const httpsOnly = (value: string): string | null => {
 }
 
 /**
+ * The operator's links worth trusting: a known key whose value is an https address, in its
+ * parsed form, and nothing else.
+ *
+ * Applied to the response and not to the build, because the build knows none: a donation
+ * address is the operator's, read by the server at boot. Anything unrecognised is dropped
+ * rather than rendered — a response rewritten by a proxy must not be able to put a
+ * `javascript:` URI, or an address the operator never configured, behind a link.
+ */
+const trustedLinks = (links: unknown): AboutLinks => {
+  if (typeof links !== 'object' || links === null) return {}
+  const donate: unknown = Reflect.get(links, 'donate')
+  const budget: unknown = Reflect.get(links, 'budget')
+  const donateUrl = typeof donate === 'string' ? httpsOnly(donate) : null
+  const budgetUrl = typeof budget === 'string' ? httpsOnly(budget) : null
+  return {
+    ...(donateUrl === null ? {} : { donate: donateUrl }),
+    ...(budgetUrl === null ? {} : { budget: budgetUrl }),
+  }
+}
+
+/**
  * The part of a response worth trusting, laid over the build's own answer.
  *
  * A footer must survive whatever the network hands it: a `200 null` from a proxy's error
@@ -58,6 +79,7 @@ const laidOver = (answer: unknown): About => {
   const version: unknown = Reflect.get(answer, 'version')
   const sourceUrl: unknown = Reflect.get(answer, 'sourceUrl')
   const features: unknown = Reflect.get(answer, 'features')
+  const links: unknown = Reflect.get(answer, 'links')
   const siteAdmin: unknown =
     typeof features === 'object' && features !== null ? Reflect.get(features, 'siteAdmin') : null
 
@@ -67,6 +89,7 @@ const laidOver = (answer: unknown): About => {
     ...(typeof sourceUrl === 'string'
       ? { sourceUrl: httpsOnly(sourceUrl) ?? BUILD_ABOUT.sourceUrl }
       : {}),
+    links: trustedLinks(links),
     features: { siteAdmin: siteAdmin === true },
   }
 }

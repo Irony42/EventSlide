@@ -3,6 +3,17 @@ import { NewTabLink } from './NewTabLink'
 import { useAbout } from './useAbout'
 import styles from './SiteFooter.module.css'
 
+export interface SiteFooterProps {
+  /**
+   * Offer the "Soutenir le projet" link when the operator set `DONATION_URL` (roadmap
+   * G4-02). **Off unless a layout turns it on**, and only `HostLayout` does: the guest's
+   * screens, the upload screen above all, never carry it, because a guest with a phone in
+   * one hand is not who is being asked and a link there is one brush away from losing a
+   * send in progress. `router.test.tsx` guards each layout.
+   */
+  readonly supportLink?: boolean
+}
+
 /**
  * The footer of the guest and host screens, and the **AGPL section 13 source offer**
  * (roadmap G1-04 / P1-05): a user of a network service is entitled to the source of what
@@ -20,10 +31,14 @@ import styles from './SiteFooter.module.css'
  *
  * Compact on purpose: it is on the upload screen too, under a composer that has to stay
  * where a thumb expects it.
+ *
+ * **The support link is the opposite case**: optional, host surfaces only, and absent
+ * unless the operator configured it. It is an addition to the footer and never a
+ * substitute for the source link, which has no switch.
  */
-export function SiteFooter() {
+export function SiteFooter({ supportLink = false }: SiteFooterProps) {
   const text = useTranslations()
-  const { sourceUrl } = useAbout()
+  const { sourceUrl, links } = useAbout()
 
   return (
     <footer className={styles['footer']}>
@@ -33,6 +48,11 @@ export function SiteFooter() {
       <NewTabLink href="/about" className={styles['link']}>
         {text.about.aboutLink}
       </NewTabLink>
+      {supportLink && links.donate !== undefined ? (
+        <NewTabLink href={links.donate} className={styles['link']}>
+          {text.about.supportLink}
+        </NewTabLink>
+      ) : null}
     </footer>
   )
 }

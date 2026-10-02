@@ -205,7 +205,9 @@ const HostLayout = () => {
           surface="host"
           backdrop={backdrop}
           header={<LanguagePicker />}
-          footer={<SiteFooter />}
+          // The one footer that may carry "Soutenir le projet" (roadmap G4-02): it is the
+          // host's own screen, and nobody on it is mid-upload or in front of the room.
+          footer={<SiteFooter supportLink />}
         >
           <Suspense fallback={<RouteFallback />}>
             <Outlet />
