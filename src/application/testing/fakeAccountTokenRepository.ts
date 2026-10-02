@@ -4,8 +4,8 @@ import {
   type AccountToken,
 } from '../../domain/users/accountToken'
 import type { EmailAddress } from '../../domain/users/emailAddress'
-import type { AccountTokenId, EventId, UserId } from '../../domain/shared/ids'
-import type { AccountTokenPurpose } from '../../domain/users/accountToken'
+import type { AccountTokenId, ClientId, EventId, UserId } from '../../domain/shared/ids'
+import type { AccountTokenPurpose, InvitationTarget } from '../../domain/users/accountToken'
 import type { AccountTokenRepository } from '../ports/accountTokenRepository'
 
 /**
@@ -30,6 +30,7 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
   private readonly rows = new Map<AccountTokenId, AccountToken>()
   private readonly accounts = new Set<UserId>()
   private readonly events = new Set<EventId>()
+  private readonly clients = new Set<ClientId>()
 
   /** The accounts that exist, for the foreign keys on `user_id`, `created_by`, `approved_by`. */
   withAccounts(...ids: readonly UserId[]): this {
@@ -40,6 +41,12 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
   /** The events that exist, for the foreign key on `event_id`. */
   withEvents(...ids: readonly EventId[]): this {
     for (const id of ids) this.events.add(id)
+    return this
+  }
+
+  /** The clients that exist, for the foreign key on `client_id`. */
+  withClients(...ids: readonly ClientId[]): this {
+    for (const id of ids) this.clients.add(id)
     return this
   }
 
@@ -62,6 +69,9 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
     this.mustExist(token.approvedBy)
     if (token.eventId !== null && !this.events.has(token.eventId)) {
       throw new Error('FOREIGN KEY constraint failed: account_tokens.event_id')
+    }
+    if (token.clientId !== null && !this.clients.has(token.clientId)) {
+      throw new Error('FOREIGN KEY constraint failed: account_tokens.client_id')
     }
     // The table's `CHECK`: a digest is a SHA-256 in lower-case hex, and a token written
     // in its place is the likeliest mistake there is.
@@ -130,6 +140,30 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
       const outstanding =
         row.email.equals(email) &&
         row.purpose === purpose &&
+        row.consumedAt === null &&
+        row.revokedAt === null &&
+        row.expiresAt.getTime() > now.getTime()
+      if (outstanding) {
+        this.rows.set(id, { ...row, revokedAt: now })
+        revoked += 1
+      }
+    }
+    return revoked
+  }
+
+  async revokeOutstandingInvitations(
+    email: EmailAddress,
+    target: InvitationTarget,
+    now: Date,
+  ): Promise<number> {
+    let revoked = 0
+    for (const [id, row] of this.rows) {
+      const samePlace =
+        target.kind === 'event' ? row.eventId === target.eventId : row.clientId === target.clientId
+      const outstanding =
+        row.purpose === 'invitation' &&
+        samePlace &&
+        row.email.equals(email) &&
         row.consumedAt === null &&
         row.revokedAt === null &&
         row.expiresAt.getTime() > now.getTime()

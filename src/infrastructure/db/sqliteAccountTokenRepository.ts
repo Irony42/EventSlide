@@ -1,6 +1,8 @@
 import type { AccountTokenRepository } from '../../application/ports/accountTokenRepository'
+import { isClientRole, type ClientRole } from '../../domain/clients/clientRole'
 import {
   asAccountTokenId,
+  asClientId,
   asEventId,
   asUserId,
   type AccountTokenId,
@@ -12,6 +14,7 @@ import {
   type AccountTokenDelivery,
   type AccountTokenEventRole,
   type AccountTokenPurpose,
+  type InvitationTarget,
 } from '../../domain/users/accountToken'
 import { EmailAddress } from '../../domain/users/emailAddress'
 import type { Db } from './connection'
@@ -24,7 +27,7 @@ import {
 } from './rowMapping'
 
 /**
- * `account_tokens` (migration 010).
+ * `account_tokens` (migrations 010 and 012).
  *
  * **Every transition is one conditional statement**, and `better-sqlite3` is synchronous:
  * a statement runs to completion before any other on the connection starts, so two requests
@@ -36,9 +39,9 @@ import {
  * secret itself never reaches this file.
  */
 
-const COLUMNS = `id, purpose, token_digest, email, user_id, event_id, event_role, delivery,
-                 requires_approval, approved_by, approved_at, created_by, created_at,
-                 expires_at, consumed_at, revoked_at`
+const COLUMNS = `id, purpose, token_digest, email, user_id, event_id, event_role, client_id,
+                 client_role, delivery, requires_approval, approved_by, approved_at, created_by,
+                 created_at, expires_at, consumed_at, revoked_at`
 
 interface AccountTokenRow {
   readonly id: string
@@ -48,6 +51,8 @@ interface AccountTokenRow {
   readonly user_id: string | null
   readonly event_id: string | null
   readonly event_role: string | null
+  readonly client_id: string | null
+  readonly client_role: string | null
   readonly delivery: string
   readonly requires_approval: number
   readonly approved_by: string | null
@@ -90,6 +95,14 @@ const eventRoleOf = (raw: string | null): AccountTokenEventRole | null => {
   return raw
 }
 
+const clientRoleOf = (raw: string | null): ClientRole | null => {
+  if (raw === null) return null
+  if (!isClientRole(raw)) {
+    throw new Error(`account_tokens.client_role holds a value the domain rejects (${raw})`)
+  }
+  return raw
+}
+
 const purposeOf = (raw: string): AccountTokenPurpose => {
   if (!isAccountTokenPurpose(raw)) {
     throw new Error(`account_tokens.purpose holds a value the domain rejects (${raw})`)
@@ -115,6 +128,8 @@ const toToken = (row: AccountTokenRow): AccountToken => ({
   userId: optionalUser(row.user_id),
   eventId: row.event_id === null ? null : asEventId(row.event_id),
   eventRole: eventRoleOf(row.event_role),
+  clientId: row.client_id === null ? null : asClientId(row.client_id),
+  clientRole: clientRoleOf(row.client_role),
   delivery: deliveryOf(row.delivery),
   requiresApproval: fromSqliteBoolean(row.requires_approval),
   approvedBy: optionalUser(row.approved_by),
@@ -137,7 +152,7 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
     this.db
       .prepare(
         `INSERT INTO account_tokens (${COLUMNS})
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         token.id,
@@ -147,6 +162,8 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
         token.userId,
         token.eventId,
         token.eventRole,
+        token.clientId,
+        token.clientRole,
         token.delivery,
         toSqliteBoolean(token.requiresApproval),
         token.approvedBy,
@@ -220,6 +237,29 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
             AND expires_at > ?`,
       )
       .run(at, email.value, purpose, at)
+
+    return result.changes
+  }
+
+  async revokeOutstandingInvitations(
+    email: EmailAddress,
+    target: InvitationTarget,
+    now: Date,
+  ): Promise<number> {
+    const at = toIsoText(now)
+    // The same "outstanding" as above, narrowed to one place. Two statements rather than one
+    // with an `OR` so each is served by its own column, and neither can match the other kind.
+    const place = target.kind === 'event' ? 'event_id' : 'client_id'
+    const placeId = target.kind === 'event' ? target.eventId : target.clientId
+    const result = this.db
+      .prepare<[string, string, string, string]>(
+        `UPDATE account_tokens SET revoked_at = ?
+          WHERE email = ? AND purpose = 'invitation' AND ${place} = ?
+            AND consumed_at IS NULL
+            AND revoked_at IS NULL
+            AND expires_at > ?`,
+      )
+      .run(at, email.value, placeId, at)
 
     return result.changes
   }
