@@ -1034,8 +1034,10 @@ const computeWarnings = ({
   const warnings: string[] = []
 
   // Parsed, `raw.PUBLIC_URL` already carries its default and cannot say whether an
-  // operator set it — only the unparsed source can. `blankAsAbsent`'s own reasoning
-  // applies here too: a dangling `PUBLIC_URL=` is the same silence as an absent one.
+  // operator set it — only the unparsed source can. `PUBLIC_URL` has no `blankAsAbsent`
+  // preprocessing, so a dangling `PUBLIC_URL=` never gets here: it fails `.url()` and the
+  // boot is refused before this runs. Only an absent variable reaches this check; the
+  // blank branch is a belt-and-braces guard, not a state a boot can observe today.
   const rawPublicUrl = source['PUBLIC_URL']
   const publicUrlConfigured = rawPublicUrl !== undefined && rawPublicUrl.trim() !== ''
   if (!publicUrlConfigured) {
