@@ -89,7 +89,7 @@ describe('AboutPage', () => {
 
   it('links the licence notices of the bundled libraries, from the first paint (roadmap G1-07)', () => {
     // The file is written by the build and served as a static file, so the link needs no
-    // server answer: it is on the page of an installed app opened offline, too.
+    // server answer and is there from the first paint.
     renderWithProviders(<AboutPage />, { api: silentServer() })
 
     expect(screen.getByText(fr.about.noticesLabel)).toBeVisible()

@@ -410,6 +410,15 @@ else
   fail "the web bundle does not contain the default source link for $image_version"
 fi
 
+# MIT and ISC ask that their text travel with the code the bundle contains, and the build
+# writes it beside the bundle. A file that is missing here is a licence notice the published
+# image does not carry, and nothing else would notice.
+if in_image "grep -qF 'Permission is hereby granted' dist/client/third-party-licenses.txt"; then
+  pass "the image carries the third-party licence notices of the web bundle"
+else
+  fail "dist/client/third-party-licenses.txt is missing from the image, or holds no licence text"
+fi
+
 # The HEALTHCHECK in the Dockerfile is what an operator's `docker ps` reads. Checking
 # the route by hand above does not prove the directive itself is wired correctly.
 health_state=""
