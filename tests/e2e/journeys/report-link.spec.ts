@@ -70,6 +70,20 @@ const footer = (page: Page) => page.getByRole('contentinfo')
 const reportLink = (page: Page) =>
   footer(page).getByRole('link', { name: new RegExp(fr.about.reportLink) })
 
+/**
+ * Two animation frames: enough for a response that has already arrived to reach the screen,
+ * and not a wait on a clock. An absence asserted before this would be an absence of a page
+ * that had not yet heard the answer — the build-time default has no operator link either, so
+ * "nothing is shown" is true of a page that is merely early (see `donation-links.spec.ts`).
+ */
+const flushed = (page: Page): Promise<void> =>
+  page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      }),
+  )
+
 /** Joins as a guest and lands on the upload screen, which is where the notice stands. */
 const joinAndUpload = async (page: Page, app: TestApp, joinCode: string): Promise<void> => {
   await page.goto(app.url(`/join/${joinCode}`))
@@ -185,6 +199,17 @@ operating.describe('an instance whose operator named themselves', () => {
       await expect(
         notice.getByRole('link', { name: new RegExp(fr.about.privacyLink) }),
       ).toHaveAttribute('href', PRIVACY)
+
+      // And the notice that names the operator is one a guest can actually acknowledge: the
+      // join, the read and the acknowledgement must all name the same operator, or the
+      // acknowledgement answers 409 and the guest is asked again for ever.
+      const recorded = surfaces.guest.waitForResponse((response) =>
+        response.url().endsWith('/privacy-notice/acknowledgement'),
+      )
+      await notice.getByRole('button', { name: fr.upload.noticeAcknowledge }).click()
+      expect((await recorded).status()).toBe(200)
+      await expect(surfaces.guest.getByTestId('photo-input')).toBeAttached()
+      await expect(surfaces.guest.getByTestId('privacy-notice')).toHaveCount(0)
     },
   )
 
@@ -224,6 +249,7 @@ stock.describe('a stock server, whose operator set nothing', () => {
       await page.goto(app.url('/join'))
       await answered
       await expect(footer(page)).toBeVisible()
+      await flushed(page)
 
       await expect(footer(page).getByRole('link')).toHaveCount(2)
       await expect(reportLink(page)).toHaveCount(0)
@@ -239,6 +265,10 @@ stock.describe('a stock server, whose operator set nothing', () => {
 
       const notice = surfaces.guest.getByRole('region', { name: fr.upload.noticeTitle })
       await expect(notice).toBeVisible()
+      // The footer and the notice each ask `/api/about` for themselves; both have been given
+      // the chance to answer before an absence is asserted of either.
+      await expect(footer(surfaces.guest)).toBeVisible()
+      await flushed(surfaces.guest)
       await expect(notice.getByText(fr.about.operatorHostedBy)).toHaveCount(0)
       await expect(notice.getByRole('link')).toHaveCount(0)
     },
