@@ -1,10 +1,11 @@
+import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import request from 'supertest'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
 import { migrations } from '../infrastructure/db/migrations'
@@ -13,6 +14,9 @@ import { anAuditEntry, anEventSettings } from '../application/testing/builders'
 import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
 import { createContainer, type Container } from './container'
 import { appVersion } from './version'
+import type { OutgoingMail } from '../application/ports/mailer'
+import { EmailAddress } from '../domain/users/emailAddress'
+import { parseMessage, startSmtpSink, type SmtpSink } from '../infrastructure/mail/testing/smtpSink'
 
 /**
  * The one line of `SITE_ADMIN` that no other test reaches: the composition root handing
@@ -436,5 +440,136 @@ describe('createContainer: the support links reach /api/about', () => {
     const response = await request(app).get('/api/about')
 
     expect(response.body.links).toEqual({ budget: 'https://ledger.example.org/' })
+  })
+})
+
+/**
+ * Outgoing mail (G2-07 / P3-08): the composition root choosing the mailer.
+ *
+ * `env.test.ts` proves `SMTP_URL` parses and `smtpMailer.test.ts` proves the adapter speaks
+ * SMTP, but neither can show **which one the box gets**, and a wrong answer in either
+ * direction is quiet: `NullMailer` wired where a relay is configured means invitations are
+ * never e-mailed and nothing says so; the SMTP adapter wired where none is configured means
+ * every send is a connection attempt to nowhere. Both go through one conditional in
+ * `container.ts`, and this is the only test that boots through it.
+ */
+describe('createContainer: outgoing mail', () => {
+  const recipientOf = (address: string): EmailAddress => {
+    const parsed = EmailAddress.create(address)
+    if (!parsed.ok) throw new Error(`invalid fixture: ${parsed.error.code}`)
+    return parsed.value
+  }
+  const aMail = (): OutgoingMail => ({
+    to: recipientOf('camille@example.org'),
+    subject: 'Your invitation',
+    text: 'Open the link to choose a password.',
+  })
+
+  const relays: SmtpSink[] = []
+  afterEach(async () => {
+    await Promise.all(relays.splice(0).map((relay) => relay.close()))
+  })
+
+  it('wires the NullMailer on a box that never set SMTP_URL, which is the self-hoster default', async () => {
+    const { mailer } = await boot({})
+
+    expect(mailer.canDeliver).toBe(false)
+    const result = await mailer.send(aMail())
+    expect(!result.ok && result.error.code).toBe('mail.notConfigured')
+  })
+
+  it('wires the NullMailer when both variables are blank, which is what compose sends with neither set', async () => {
+    const { mailer } = await boot({ SMTP_URL: '', MAIL_FROM: '' })
+
+    expect(mailer.canDeliver).toBe(false)
+  })
+
+  it('wires the SMTP adapter when SMTP_URL is set, and a message really reaches the relay', async () => {
+    const relay = await startSmtpSink({ auth: { user: 'camille', pass: 'p@ss' } })
+    relays.push(relay)
+    const { mailer } = await boot({
+      SMTP_URL: `smtp://camille:p%40ss@127.0.0.1:${relay.port}`,
+      MAIL_FROM: 'EventSlide <no-reply@photos.example.org>',
+    })
+
+    expect(mailer.canDeliver).toBe(true)
+    const result = await mailer.send(aMail())
+
+    expect(result.ok).toBe(true)
+    expect(relay.messages).toHaveLength(1)
+    // The configured sender and login both came through the container, not a default.
+    expect(relay.messages[0]?.envelopeFrom).toBe('no-reply@photos.example.org')
+    expect(relay.messages[0]?.envelopeTo).toEqual(['camille@example.org'])
+    expect(parseMessage(relay.messages[0]?.raw ?? '').subject).toBe('Your invitation')
+    expect(relay.logins).toEqual([{ user: 'camille', pass: 'p@ss' }])
+  })
+
+  it('boots when the relay is down, because a photo wall must serve a room whatever the mail server is doing', async () => {
+    const relay = await startSmtpSink()
+    const { port } = relay
+    await relay.close()
+
+    const { mailer } = await boot({
+      SMTP_URL: `smtp://127.0.0.1:${port}`,
+      MAIL_FROM: 'no-reply@photos.example.org',
+    })
+
+    // Chosen at boot, discovered on the first send — as a failure, never as a throw.
+    expect(mailer.canDeliver).toBe(true)
+    const result = await mailer.send(aMail())
+    expect(!result.ok && result.error.code).toBe('mail.transient')
+  })
+
+  /**
+   * What the container logs when it wires a relay: where it will connect, never how it
+   * authenticates. Captured below the logger, where pino's output leaves the process, so it
+   * is the bytes an operator's log shipper would collect and not the arguments of a call.
+   */
+  it('logs the relay by host and port at boot, and never its URL or its password', async () => {
+    const PASSWORD = 'PASSWORD-CANARY-9e41'
+    const written: string[] = []
+    const record = (...args: unknown[]): number => {
+      const text = Buffer.isBuffer(args[1]) ? args[1].toString('utf8') : String(args[1])
+      if (args[0] === 1) written.push(text)
+      return Buffer.byteLength(text)
+    }
+    const asyncWrite = vi.spyOn(fs, 'write').mockImplementation(((...args: unknown[]) => {
+      const size = record(...args)
+      const callback = args[args.length - 1]
+      if (typeof callback === 'function') {
+        ;(callback as (error: Error | null, written: number) => void)(null, size)
+      }
+    }) as unknown as typeof fs.write)
+    const syncWrite = vi
+      .spyOn(fs, 'writeSync')
+      .mockImplementation(((...args: unknown[]) =>
+        record(...args)) as unknown as typeof fs.writeSync)
+
+    try {
+      // Production, because that is the posture that writes JSON to fd 1; development
+      // would hand the line to `pino-pretty` in a worker thread, below this capture.
+      await boot({
+        NODE_ENV: 'production',
+        LOG_LEVEL: 'info',
+        PUBLIC_URL: 'https://photos.example.com',
+        SESSION_SECRET: 'f3b1c9d7e5a2408c9b6d1e4f7a0c3b5d8e2f6a19c4d7b0e3',
+        GUEST_TOKEN_SECRET: '9a7c5e3b1d8f6042ae1c3b5d7f9014682a4c6e8b0d2f4a6c',
+        TRUST_PROXY_HOPS: '1',
+        SMTP_URL: `smtps://camille:${PASSWORD}@mail.example.com:2465`,
+        MAIL_FROM: 'no-reply@photos.example.org',
+      })
+      // sonic-boom batches the current tick and flushes on the next one.
+      await new Promise((resolve) => setImmediate(resolve))
+    } finally {
+      asyncWrite.mockRestore()
+      syncWrite.mockRestore()
+    }
+
+    const output = written.join('')
+    expect(output).toContain('outgoing mail goes through an SMTP relay')
+    expect(output).toContain('mail.example.com')
+    expect(output).toContain('2465')
+    expect(output).not.toContain(PASSWORD)
+    expect(output).not.toContain('camille')
   })
 })
