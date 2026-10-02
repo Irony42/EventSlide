@@ -116,6 +116,7 @@ export const eventRepositoryContract = (
           quotaBytes: 12_345,
           createdAt: atPlus(1_000),
           startsAt: atPlus(2_000),
+          openedAt: atPlus(2_500),
           closedAt: atPlus(3_000),
         }),
       )
@@ -131,6 +132,7 @@ export const eventRepositoryContract = (
       expect(stored?.createdAt.toISOString()).toBe(atPlus(1_000).toISOString())
       expect(stored?.startsAt?.toISOString()).toBe(atPlus(2_000).toISOString())
       expect(stored?.closedAt?.toISOString()).toBe(atPlus(3_000).toISOString())
+      expect(stored?.openedAt?.toISOString()).toBe(atPlus(2_500).toISOString())
     })
 
     it('round-trips every setting, so a host policy survives a restart', async () => {
@@ -183,6 +185,26 @@ export const eventRepositoryContract = (
 
       expect(stored?.startsAt).toBeNull()
       expect(stored?.closedAt).toBeNull()
+      expect(stored?.openedAt).toBeNull()
+    })
+
+    it('stores opened_at when a saved event goes live and keeps it through a close and a reopening', async () => {
+      await repo.save(anEvent({ id: 'evt-1', status: 'draft' }))
+      const draft = await repo.findById(asEventId('evt-1'))
+      if (draft === null) throw new Error('the event was just saved')
+
+      const live = draft.goLive(atPlus(DAY))
+      if (!live.ok) throw new Error(live.error.code)
+      await repo.save(live.value)
+      const closed = live.value.close(atPlus(2 * DAY))
+      if (!closed.ok) throw new Error(closed.error.code)
+      await repo.save(closed.value)
+      const reopened = closed.value.goLive(atPlus(3 * DAY))
+      if (!reopened.ok) throw new Error(reopened.error.code)
+      await repo.save(reopened.value)
+
+      const stored = await repo.findById(asEventId('evt-1'))
+      expect(stored?.openedAt?.toISOString()).toBe(atPlus(DAY).toISOString())
     })
 
     it('replaces the stored row when the same event is saved again', async () => {

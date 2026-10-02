@@ -58,12 +58,13 @@ interface EventRow {
   readonly starts_at: string | null
   readonly client_id: string | null
   readonly closed_at: string | null
+  readonly opened_at: string | null
   readonly scheduled_open_at: string | null
   readonly scheduled_close_at: string | null
   readonly schedule_discarded_at: string | null
 }
 
-/** Named rather than positional: fifteen columns in the right order by luck is no plan. */
+/** Named rather than positional: sixteen columns in the right order by luck is no plan. */
 interface EventParams {
   readonly id: string
   readonly ownerId: string
@@ -77,6 +78,7 @@ interface EventParams {
   readonly startsAt: string | null
   readonly clientId: string | null
   readonly closedAt: string | null
+  readonly openedAt: string | null
   readonly scheduledOpenAt: string | null
   readonly scheduledCloseAt: string | null
   readonly scheduleDiscardedAt: string | null
@@ -103,8 +105,8 @@ interface CountRow {
 }
 
 const EVENT_COLUMNS = `id, owner_id, name, slug, join_code, status, settings, quota_bytes,
-                       created_at, starts_at, client_id, closed_at, scheduled_open_at,
-                       scheduled_close_at, schedule_discarded_at`
+                       created_at, starts_at, client_id, closed_at, opened_at,
+                       scheduled_open_at, scheduled_close_at, schedule_discarded_at`
 
 const corrupt = (column: string, detail: string): Error =>
   new Error(`Corrupt events.${column} in the database: ${detail}`)
@@ -345,6 +347,7 @@ const toEvent = (row: EventRow): Event =>
     startsAt: fromNullableIsoText(row.starts_at),
     clientId: row.client_id === null ? null : asClientId(row.client_id),
     closedAt: fromNullableIsoText(row.closed_at),
+    openedAt: fromNullableIsoText(row.opened_at),
     scheduledOpenAt: fromNullableIsoText(row.scheduled_open_at),
     scheduledCloseAt: fromNullableIsoText(row.scheduled_close_at),
     scheduleDiscardedAt: fromNullableIsoText(row.schedule_discarded_at),
@@ -377,6 +380,7 @@ const toParams = (event: Event): EventParams => {
     startsAt: props.startsAt === null ? null : toIsoText(props.startsAt),
     clientId: props.clientId,
     closedAt: props.closedAt === null ? null : toIsoText(props.closedAt),
+    openedAt: props.openedAt === null ? null : toIsoText(props.openedAt),
     scheduledOpenAt: props.scheduledOpenAt === null ? null : toIsoText(props.scheduledOpenAt),
     scheduledCloseAt: props.scheduledCloseAt === null ? null : toIsoText(props.scheduledCloseAt),
     scheduleDiscardedAt:
@@ -487,10 +491,10 @@ export class SqliteEventRepository implements EventRepository {
     // The column list exists once. `createWithOwner` inserts with it and `save` appends an
     // `ON CONFLICT` to it, so a column added to one cannot be forgotten by the other.
     const insertSql = `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
-                           quota_bytes, created_at, starts_at, client_id, closed_at,
+                           quota_bytes, created_at, starts_at, client_id, closed_at, opened_at,
                            scheduled_open_at, scheduled_close_at, schedule_discarded_at)
             VALUES (@id, @ownerId, @name, @slug, @joinCode, @status, @settings,
-                    @quotaBytes, @createdAt, @startsAt, @clientId, @closedAt,
+                    @quotaBytes, @createdAt, @startsAt, @clientId, @closedAt, @openedAt,
                     @scheduledOpenAt, @scheduledCloseAt, @scheduleDiscardedAt)`
 
     this.insertEvent = db.prepare<EventParams>(insertSql)
@@ -511,6 +515,7 @@ export class SqliteEventRepository implements EventRepository {
                                       created_at  = excluded.created_at,
                                       starts_at   = excluded.starts_at,
                                       closed_at   = excluded.closed_at,
+                                      opened_at   = excluded.opened_at,
                                       scheduled_open_at  = excluded.scheduled_open_at,
                                       scheduled_close_at = excluded.scheduled_close_at,
                                       schedule_discarded_at = excluded.schedule_discarded_at`,

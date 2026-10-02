@@ -134,6 +134,12 @@ export interface EventInput {
   /** No client by default: the event of a box that has none, and the operator's own. */
   readonly clientId?: string | null
   readonly closedAt?: Date | null
+  /**
+   * When the event first went live. Derived like `closedAt` below when a fixture does not
+   * say: the creation instant for an event that is live or has been, `null` for a draft
+   * and for one archived without ever opening.
+   */
+  readonly openedAt?: Date | null
   readonly scheduledOpenAt?: Date | null
   readonly scheduledCloseAt?: Date | null
   readonly scheduleDiscardedAt?: Date | null
@@ -181,6 +187,10 @@ export const anEvent = (input: EventInput = {}): Event => {
     ...created.toProps(),
     status,
     closedAt: pick(input.closedAt, retentionApplies(status) ? createdAt : null),
+    // `live` and `closed` are statuses an event only reaches by going live, so a fixture in
+    // one of them has an `opened_at`; a draft has none, and an archived fixture is taken to
+    // have been archived straight from draft unless a test says it opened.
+    openedAt: pick(input.openedAt, status === 'live' || status === 'closed' ? createdAt : null),
     // Both empty by default: an event that opens or closes on its own is the exception,
     // and a fixture that armed one would move events out from under tests about
     // something else.
