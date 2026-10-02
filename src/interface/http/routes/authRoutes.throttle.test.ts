@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto'
+import { createServer, type Server } from 'node:http'
 import request from 'supertest'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { authRoutes } from './authRoutes'
 import {
   TEST_SESSION_SECRET,
@@ -82,7 +83,23 @@ interface Warning {
   readonly context: LogContext | undefined
 }
 
+/**
+ * Every subject listens on one port of its own for the whole test, instead of `supertest`
+ * opening and closing a server per request: this file makes a couple of thousand requests, and
+ * a port per request exhausts a Windows machine's ephemeral range (every closed socket sits in
+ * TIME_WAIT for minutes), which then fails unrelated tests in the same run.
+ */
+const servers: Server[] = []
+
+afterAll(() => {
+  for (const server of servers) {
+    server.closeAllConnections()
+    server.close()
+  }
+})
+
 interface Subject extends Harness {
+  readonly server: Server
   readonly hasher: CountingHasher
   readonly mailer: FakeMailer
   readonly tokens: FakeAccountTokenRepository
@@ -169,7 +186,11 @@ const subjectOf = ({
     },
   })
 
-  return { ...built, hasher, mailer, tokens, holds, warnings }
+  const server = createServer(built.app)
+  server.listen(0)
+  servers.push(server)
+
+  return { ...built, server, hasher, mailer, tokens, holds, warnings }
 }
 
 /** Addresses that are different networks: IPv4 is its own key, and these never share a /56. */
@@ -183,13 +204,13 @@ interface Attempt {
 }
 
 const signIn = (subject: Subject, { from = HOME, email = OWNER, password = WRONG }: Attempt = {}) =>
-  request(subject.app)
+  request(subject.server)
     .post('/api/auth/login')
     .set('X-Forwarded-For', from)
     .send({ email, password })
 
 const askForReset = (subject: Subject, email: string, from = HOME) =>
-  request(subject.app)
+  request(subject.server)
     .post('/api/auth/password-reset/request')
     .set('X-Forwarded-For', from)
     .send({ email })
@@ -429,7 +450,7 @@ describe('the sign-in throttle, per account', () => {
 
     for (const body of malformed) {
       for (let again = 0; again < 4; again += 1) {
-        const response = await request(subject.app)
+        const response = await request(subject.server)
           .post('/api/auth/login')
           .set('X-Forwarded-For', HOME)
           .send(body)
@@ -446,7 +467,7 @@ describe('the sign-in throttle, per account', () => {
     await failFrom(subject, 5)
     expect((await signIn(subject)).status).toBe(429)
 
-    const response = await request(subject.app)
+    const response = await request(subject.server)
       .post('/api/auth/login')
       .set('X-Forwarded-For', HOME)
       .send({ email: OWNER })
