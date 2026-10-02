@@ -337,11 +337,12 @@ const toAccountClient = (row: MembershipSqlRow): SiteAccountClient => {
 }
 
 /**
- * `LIMIT -1` is "no limit" in SQLite and `LIMIT 0` is an empty page; neither is what a
- * caller meant, and the fake would otherwise answer differently. Refused rather than guessed.
+ * `LIMIT -1` is "no limit" in SQLite, `LIMIT 0` is an empty page, and a number past 2^63
+ * is a `datatype mismatch` where the fake would return every row; none is what a caller
+ * meant, so none is guessed at.
  */
 const assertLimit = (limit: number): void => {
-  if (!Number.isInteger(limit) || limit < 1) {
+  if (!Number.isSafeInteger(limit) || limit < 1) {
     throw new RangeError(`SiteOverview requires a positive integer limit, got ${limit}`)
   }
 }

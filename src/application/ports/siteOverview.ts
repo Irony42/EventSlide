@@ -49,7 +49,7 @@ export interface SitePageRequest<Cursor> {
  *   of the last row of the previous page; an id that names no row (or, for
  *   {@link SiteOverview.clientEvents}, a row of another client) yields an **empty page**
  *   rather than silently restarting from the top.
- * - **A positive integer `limit`, or a `RangeError`.** `LIMIT -1` is "no limit" in SQLite
+ * - **A positive safe integer `limit`, or a `RangeError`.** `LIMIT -1` is "no limit" in SQLite
  *   and `LIMIT 0` is an empty page; neither is what a caller meant, and the adapters would
  *   otherwise disagree. The route (G2-14) is what turns a bad query string into a 400.
  * - **`usedBytes` is the admission figure**, the one number the upload path enforces the

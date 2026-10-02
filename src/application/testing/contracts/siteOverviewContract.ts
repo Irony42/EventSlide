@@ -55,6 +55,12 @@ import type { SiteWorld } from '../fakeSiteOverview'
 export interface SiteOverviewSubject {
   readonly overview: SiteOverview
   readonly world: SiteWorld
+  /**
+   * Everything the subject's storage holds, as one string: every row of every table, or
+   * everything the fake kept. Not something the overview can read — that is the point. It
+   * lets the content tests prove the plants are really *in* the world they sweep.
+   */
+  readonly reveal: () => Promise<string>
   readonly dispose?: () => Promise<void>
 }
 
@@ -521,12 +527,14 @@ export const siteOverviewContract = (
     let overview: SiteOverview
     let world: SiteWorld
     let dispose: (() => Promise<void>) | undefined
+    let reveal: () => Promise<string>
 
     beforeEach(async () => {
       const subject = await makeSubject()
       overview = subject.overview
       world = subject.world
       dispose = subject.dispose
+      reveal = subject.reveal
       await plantSiteWorld(world)
     })
 
@@ -601,7 +609,7 @@ export const siteOverviewContract = (
         expect(page).toEqual({ items: [], next: null })
       })
 
-      it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+      it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 1e20, 2 ** 53])(
         'refuses a limit of %s rather than guessing what it meant',
         async (limit) => {
           await expect(overview.listClients({ limit })).rejects.toThrow(RangeError)
@@ -805,7 +813,7 @@ export const siteOverviewContract = (
         expect(page).toEqual({ items: [], next: null })
       })
 
-      it.each([0, -1, 1.5, Number.NaN])(
+      it.each([0, -1, 1.5, Number.NaN, 1e20, 2 ** 53])(
         'refuses a limit of %s, whether or not the client exists',
         async (limit) => {
           await expect(overview.clientEvents(SITE_CLIENTS.atelier, { limit })).rejects.toThrow(
@@ -872,7 +880,7 @@ export const siteOverviewContract = (
         })
       })
 
-      it.each([0, -1, 1.5, Number.NaN])('refuses a limit of %s', async (limit) => {
+      it.each([0, -1, 1.5, Number.NaN, 1e20, 2 ** 53])('refuses a limit of %s', async (limit) => {
         await expect(overview.listAccounts({ limit })).rejects.toThrow(RangeError)
       })
 
@@ -917,6 +925,26 @@ export const siteOverviewContract = (
         expect(ownerB?.clients).toEqual([{ clientId: SITE_CLIENTS.bleu, role: 'owner' }])
       })
 
+      it('breaks a tie between two grants of the same instant by client id, ascending', async () => {
+        // Declared in the statement and in the fake; without a case, flipping one of them
+        // changes the order a console shows for any account added to two clients at once.
+        await world.addClientMember({
+          clientId: SITE_CLIENTS.vert,
+          userId: SITE_ACCOUNTS.ownerA,
+          role: 'member',
+          grantedAt: atPlus(2_200),
+        })
+
+        const page = await overview.listAccounts({ limit: 10 })
+        const ownerA = page.items.find((row) => row.id === SITE_ACCOUNTS.ownerA)
+
+        expect(ownerA?.clients.map((client) => client.clientId)).toEqual([
+          SITE_CLIENTS.bleu,
+          SITE_CLIENTS.vert,
+          SITE_CLIENTS.atelier,
+        ])
+      })
+
       it('lists the clients of every account on a page, not only the first', async () => {
         const page = await overview.listAccounts({ limit: 10 })
 
@@ -927,9 +955,10 @@ export const siteOverviewContract = (
     // --------------------------------------------------------------- content --
 
     describe('content: nothing a client or a guest wrote comes out', () => {
-      it('plants every kind of content it claims to look for', () => {
-        // Guards the sweep against going vacuous: a plant list that lost a kind would make
-        // "none of them came back" true of an adapter that leaks that kind.
+      it('plants every kind of content it claims to look for, and the storage really holds it', async () => {
+        // Guards the sweep against going vacuous: a plant list that lost a kind, or a
+        // repository that stopped persisting a field, would make "none of them came back"
+        // true of an adapter that leaks that kind.
         expect(Object.keys(SITE_PLANTS).sort()).toEqual(
           [
             'captions',
@@ -948,6 +977,9 @@ export const siteOverviewContract = (
           ].sort(),
         )
         expect(ALL_PLANTS.every((plant) => plant.length >= 6)).toBe(true)
+
+        const stored = await reveal()
+        expect(ALL_PLANTS.filter((plant) => !stored.includes(plant))).toEqual([])
       })
 
       it('hands out rows that are exactly the declared shape, at every depth', async () => {

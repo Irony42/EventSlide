@@ -18,6 +18,24 @@ export const migratedDb = (): Db => {
 }
 
 /**
+ * Every row of every table, as one string. Not through any repository: it is how a test
+ * proves that what it planted was really written, whatever the overview reads.
+ */
+export const revealDatabase = (db: Db): string => {
+  const tables = db
+    .prepare<[], { name: string }>(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`,
+    )
+    .all()
+  return JSON.stringify(
+    tables.map((table) => ({
+      table: table.name,
+      rows: db.prepare(`SELECT * FROM "${table.name}"`).all(),
+    })),
+  )
+}
+
+/**
  * A world over `db`, written through the repositories the product itself uses.
  *
  * Not hand-written `INSERT`s: the operator's overview must read what the product actually

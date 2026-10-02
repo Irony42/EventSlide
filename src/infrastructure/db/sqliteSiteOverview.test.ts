@@ -1,7 +1,7 @@
 import { siteOverviewContract } from '../../application/testing/contracts/siteOverviewContract'
 import { closeDatabase } from './connection'
 import { SqliteSiteOverview } from './sqliteSiteOverview'
-import { migratedDb, sqliteWorld } from './testing/sqliteSiteWorld'
+import { migratedDb, revealDatabase, sqliteWorld } from './testing/sqliteSiteWorld'
 
 /**
  * The shared contract over a real, migrated database, its world written through the real
@@ -13,6 +13,7 @@ siteOverviewContract('sqlite', async () => {
   return {
     overview: new SqliteSiteOverview(db),
     world: sqliteWorld(db),
+    reveal: async () => revealDatabase(db),
     dispose: async () => {
       closeDatabase(db)
     },

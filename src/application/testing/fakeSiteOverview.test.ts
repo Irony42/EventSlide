@@ -6,5 +6,5 @@ import { FakeSiteOverview } from './fakeSiteOverview'
 // shared contract, which the SQLite adapter runs too.
 siteOverviewContract('fake', async () => {
   const fake = new FakeSiteOverview()
-  return { overview: fake, world: fake }
+  return { overview: fake, world: fake, reveal: async () => fake.stored() }
 })

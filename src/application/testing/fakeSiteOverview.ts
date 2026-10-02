@@ -56,7 +56,7 @@ const newestFirst = (
 const assertLimit = (limit: number): void => {
   // The same refusal as the adapter's: `LIMIT -1` reads everything in SQLite and `LIMIT 0`
   // reads nothing, and a fake that guessed would hide a caller that relied on either.
-  if (!Number.isInteger(limit) || limit < 1) {
+  if (!Number.isSafeInteger(limit) || limit < 1) {
     throw new RangeError(`SiteOverview requires a positive integer limit, got ${limit}`)
   }
 }
@@ -135,6 +135,25 @@ export class FakeSiteOverview implements SiteOverview, SiteWorld {
 
   async addClipJob(job: ClipJob): Promise<void> {
     this.clipJobs.push(job)
+  }
+
+  /**
+   * Everything the world holds, content included, as one string — what a subject of the
+   * contract reveals so the plants can be proven to be in the storage the sweep reads.
+   * Class instances serialise through their own fields, which is the point: a caption is
+   * a `Caption` and a slug is a `Slug`, and both keep their text in `value`.
+   */
+  stored(): string {
+    return JSON.stringify({
+      accounts: [...this.accounts.values()],
+      clients: [...this.clients.values()],
+      members: this.members,
+      events: [...this.events.values()],
+      guests: this.guests,
+      missions: this.missions,
+      photos: this.photos,
+      clipJobs: this.clipJobs,
+    })
   }
 
   // ------------------------------------------------------------------ sizing --
