@@ -206,7 +206,9 @@ describe('createSmtpMailer: the sender and the login', () => {
 
     const [message] = relay.messages
     expect(message?.envelopeFrom).toBe('no-reply@photos.example.org')
-    expect(message?.raw).toMatch(/^From: .*<no-reply@photos\.example\.org>\r?$/m)
+    expect(parseMessage(message?.raw ?? '').from).toBe(
+      'Studio Éclair <no-reply@photos.example.org>',
+    )
   })
 
   it('sends to exactly one recipient, in the envelope and in the header', async () => {

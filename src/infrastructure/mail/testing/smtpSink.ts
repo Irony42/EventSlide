@@ -223,6 +223,8 @@ export const startSmtpSink = async (options: SmtpSinkOptions = {}): Promise<Smtp
  * -------------------------------------------------------------------------- */
 
 export interface ParsedMessage {
+  /** The `From:` header, decoded: a display name and an address in angle brackets, or a bare address. */
+  readonly from: string
   readonly subject: string
   readonly text: string | null
   readonly html: string | null
@@ -285,6 +287,7 @@ const decodeBody = (body: string, encoding: string | undefined): string => {
 export const parseMessage = (raw: string): ParsedMessage => {
   const { headers, body } = splitHead(raw)
   const subject = decodeEncodedWords(headers.get('subject') ?? '')
+  const from = decodeEncodedWords(headers.get('from') ?? '')
   const type = headers.get('content-type') ?? 'text/plain'
 
   const parts: { type: string; text: string }[] = []
@@ -311,6 +314,7 @@ export const parseMessage = (raw: string): ParsedMessage => {
   }
 
   return {
+    from,
     subject,
     text: parts.find((part) => part.type === 'text/plain')?.text ?? null,
     html: parts.find((part) => part.type === 'text/html')?.text ?? null,
