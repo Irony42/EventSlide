@@ -12,6 +12,7 @@ import {
 } from '../../application/testing/builders'
 import {
   EVENT_CONTRACT_FIXTURES,
+  PURGE_POLICY,
   eventRepositoryContract,
 } from '../../application/testing/contracts/eventRepositoryContract'
 import { DEFAULT_EVENT_THEME } from '../../domain/events/eventTheme'
@@ -453,7 +454,7 @@ describe('SqliteEventRepository', () => {
         }),
       )
 
-      const due = await repo.listDueForPurge(new Date('2026-06-21T21:00:00.500Z'))
+      const due = await repo.listDueForPurge(new Date('2026-06-21T21:00:00.500Z'), PURGE_POLICY)
 
       expect(due.map((event) => event.id)).toEqual(['evt-1'])
     })
@@ -469,7 +470,7 @@ describe('SqliteEventRepository', () => {
         }),
       )
 
-      const due = await repo.listDueForPurge(new Date('2026-06-21T21:00:00.499Z'))
+      const due = await repo.listDueForPurge(new Date('2026-06-21T21:00:00.499Z'), PURGE_POLICY)
 
       expect(due).toEqual([])
     })
@@ -488,7 +489,7 @@ describe('SqliteEventRepository', () => {
         }),
       )
 
-      const due = await repo.listDueForPurge(new Date(AT.getTime() + DAY * 3))
+      const due = await repo.listDueForPurge(new Date(AT.getTime() + DAY * 3), PURGE_POLICY)
 
       expect(due.map((event) => event.id)).toEqual(['evt-1'])
     })

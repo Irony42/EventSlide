@@ -137,7 +137,7 @@ describe('loadConfig', () => {
           maxSubscribersPerEvent: 200,
         },
         guests: { selfDeleteGraceMs: 900_000 },
-        retention: { sweepIntervalMs: 3_600_000 },
+        retention: { sweepIntervalMs: 3_600_000, capNoticeDays: 30 },
         schedule: { sweepIntervalMs: 300_000 },
         rateLimits: {
           uploadPerMinute: 12,
@@ -903,6 +903,33 @@ describe('loadConfig', () => {
       expect(issue).toContain('1 to 1440')
       expect(issue).toContain("'off'")
     })
+  })
+
+  describe('the retention ceiling notice', () => {
+    const NAME = 'RETENTION_CAP_NOTICE_DAYS'
+
+    it('is thirty days with nothing configured, in every environment', () => {
+      expect(loadConfig({ ...DEV }).retention.capNoticeDays).toBe(30)
+      expect(loadConfig(aProductionEnv()).retention.capNoticeDays).toBe(30)
+    })
+
+    it('takes the configured number of days', () => {
+      expect(loadConfig({ ...DEV, [NAME]: '45' }).retention.capNoticeDays).toBe(45)
+    })
+
+    it('accepts both boundaries, a day and a year', () => {
+      expect(loadConfig({ ...DEV, [NAME]: '1' }).retention.capNoticeDays).toBe(1)
+      expect(loadConfig({ ...DEV, [NAME]: '365' }).retention.capNoticeDays).toBe(365)
+    })
+
+    it.each(['0', '-1', '1.5', 'never', '366'])(
+      'refuses %p rather than purging with a notice nobody chose',
+      (value) => {
+        const issues = refusalIssues({ [NAME]: value })
+
+        expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+      },
+    )
   })
 
   describe('the scheduling sweep interval', () => {

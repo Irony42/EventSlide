@@ -5,7 +5,13 @@ import type { ClientId, EventId, UserId } from '../../domain/shared/ids'
 import type { JoinCode } from '../../domain/shared/joinCode'
 import { err, ok, type Result } from '../../domain/shared/result'
 import type { Slug } from '../../domain/shared/slug'
-import type { EventOwnerGrant, EventRepository, EventSummary } from '../ports/eventRepository'
+import { purgeDeadline } from '../../domain/clients/purgeDeadline'
+import type {
+  EventOwnerGrant,
+  EventRepository,
+  EventSummary,
+  PurgePolicy,
+} from '../ports/eventRepository'
 import type { GuestRepository } from '../ports/guestRepository'
 import type { PhotoRepository } from '../ports/photoRepository'
 import type { MembershipRepository, UserRepository } from '../ports/userRepository'
@@ -277,13 +283,19 @@ export class FakeEventRepository implements EventRepository {
   }
 
   /**
-   * The retention deadline depends on `settings.retentionDays`, which lives in a JSON
-   * column, so neither implementation can express this as a pure SQL predicate: the
-   * adapter narrows on `(status, closed_at)` and then asks the entity, exactly as this
-   * does. Ordered like every other listing here.
+   * The deadline is `purgeDeadline`, which the adapter spells again in SQL; the contract
+   * suite is what holds the two to one answer. An event with a client is judged against that
+   * client's current row, read synchronously from the linked clients fake. Ordered like every
+   * other listing here.
    */
-  async listDueForPurge(now: Date): Promise<readonly Event[]> {
-    return [...this.rows.values()].filter((event) => event.isDueForPurge(now)).sort(newestFirst)
+  async listDueForPurge(now: Date, policy: PurgePolicy): Promise<readonly Event[]> {
+    const due = [...this.rows.values()].filter((event) => {
+      const client =
+        event.clientId === null ? null : (this.requireClients().peek(event.clientId) ?? null)
+      const deadline = purgeDeadline(event, client, policy.capNoticeDays)
+      return deadline !== null && now.getTime() >= deadline.getTime()
+    })
+    return due.sort(newestFirst)
   }
 
   /**

@@ -151,6 +151,8 @@ export interface UseCasePolicy {
     /** `EVENT_CREATION`: who may create an event (P3-05 / G2-04). */
     readonly creation: EventCreationPolicy
   }
+  /** `RETENTION_CAP_NOTICE_DAYS`, read by the purge. */
+  readonly retention: { readonly capNoticeDays: number }
   readonly reactionBudget: {
     readonly windowMs: number
     readonly maxPerWindow: number
@@ -262,6 +264,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     events: adapters.events,
     media: adapters.media,
     clock: adapters.clock,
+    capNoticeDays: policy.retention.capNoticeDays,
   }),
   /**
    * The collector the clip upload, the losing staging attempt and `recoverClipJobs` all

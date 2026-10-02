@@ -133,12 +133,14 @@ const main = async (): Promise<number> => {
     // The same listing the use case sweeps. Read here as well so a dry run can name the
     // events, and so a real run can report a slug for an id that no longer resolves to
     // anything once it has been deleted.
-    const due = await events.listDueForPurge(now)
+    const due = await events.listDueForPurge(now, {
+      capNoticeDays: config.retention.capNoticeDays,
+    })
 
     if (due.length === 0) {
       console.log('Nothing is due for purge.')
       console.log(
-        'Only closed or archived events with a retention period reach this list; an event still running is never due.',
+        'Only closed or archived events with a retention period (their own, or their client’s ceiling) reach this list; an event still running is never due.',
       )
       if (!dryRun) await reconcile()
       return 0
@@ -152,7 +154,7 @@ const main = async (): Promise<number> => {
       const closedAt = event.closedAt === null ? 'never closed' : event.closedAt.toISOString()
       const retentionDays = event.settings.retentionDays
       console.log(
-        `  ${event.id}  ${event.slug.value.padEnd(24)}  closed ${closedAt}  retention ${retentionDays === null ? 'none' : `${retentionDays}d`}`,
+        `  ${event.id}  ${event.slug.value.padEnd(24)}  closed ${closedAt}  retention ${retentionDays === null ? 'none (its client’s ceiling)' : `${retentionDays}d`}`,
       )
     }
     console.log('')
@@ -166,6 +168,7 @@ const main = async (): Promise<number> => {
       events,
       media,
       clock: systemClock,
+      capNoticeDays: config.retention.capNoticeDays,
     })
 
     const report = await purge()

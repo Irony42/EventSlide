@@ -667,6 +667,22 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       RETENTION_SWEEP_INTERVAL_MINUTES: retentionSweepInterval.optional(),
 
       /**
+       * The warning a client is owed when an operator lowers its retention ceiling, in days
+       * (roadmap §10.5 / P3-06; `RETENTION_CAP_NOTICE_DAYS` in the paid plan).
+       *
+       * Lowering `max_retention_days` stamps `clients.retention_cap_since`, and the purge of
+       * an event under that ceiling may not happen before `retention_cap_since` plus this
+       * many days — whatever the new ceiling says. Without it, an operator who tightens a
+       * client from 90 days to 14 deletes the albums closed 60 days ago the same night, with
+       * no window to export them in. Thirty days by default, a month being what a host
+       * reasonably needs to notice an e-mail and download a ZIP. Capped at a year, past which
+       * a "notice" is a different promise.
+       *
+       * Inert on a box with no clients: only an event that belongs to one has a ceiling.
+       */
+      RETENTION_CAP_NOTICE_DAYS: positiveInt(30, 365),
+
+      /**
        * Optional for the same reason as the line above: under `NODE_ENV=test` the default
        * has to be off. A sweep firing mid-journey would open — or close — the event a
        * Playwright spec is asserting on, on a timer nothing in the test can see.
@@ -1001,6 +1017,12 @@ export interface AppConfig {
      * the schedule.
      */
     readonly sweepIntervalMs: number | null
+    /**
+     * Days an event closed long ago is spared after its client's retention ceiling is
+     * lowered (`RETENTION_CAP_NOTICE_DAYS`). Read by the purge, and by nothing on a box with
+     * no clients.
+     */
+    readonly capNoticeDays: number
   }
 
   readonly schedule: {
@@ -1310,6 +1332,7 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
 
     retention: {
       sweepIntervalMs: sweepMinutes === null ? null : sweepMinutes * 60_000,
+      capNoticeDays: raw.RETENTION_CAP_NOTICE_DAYS,
     },
 
     schedule: {
