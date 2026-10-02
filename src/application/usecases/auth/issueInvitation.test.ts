@@ -390,6 +390,30 @@ describe('issueInvitation', () => {
     )
   })
 
+  describe('a secret source that returns something the table would refuse', () => {
+    it('sends nothing and writes nothing, since a mail must not carry a link to a record that cannot exist', async () => {
+      const broken = {
+        mint: () => ({ token: 'secret-1', digest: 'not a sha-256' }),
+        digestOf: (token: string) => token,
+        verify: () => true,
+      }
+
+      const result = await makeIssueInvitation({
+        tokens,
+        secrets: broken,
+        mailer,
+        ids,
+        clock,
+        logger,
+        publicUrl: PUBLIC_URL,
+      })({ email: NEWCOMER, locale: 'fr', place: EVENT_PLACE, createdBy: null })
+
+      expect(!result.ok && result.error.code).toBe('accountToken.digestInvalid')
+      expect(mailer.sent).toHaveLength(0)
+      expect(tokens.all).toHaveLength(0)
+    })
+  })
+
   // ------------------------------------------------------------ housekeeping --
 
   it('deletes the rows that expired more than a day ago, since they hold an address', async () => {

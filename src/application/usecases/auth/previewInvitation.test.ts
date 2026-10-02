@@ -176,6 +176,24 @@ describe('previewInvitation', () => {
       expect(await loose({ token })).toMatchObject(NOT_FOUND)
     })
 
+    it('is not found when a row names no complete target, which is not a grant', async () => {
+      const { token } = await world.invite()
+      const stored = world.tokens.all[0]!
+      const hollow = makePreviewInvitation({
+        tokens: {
+          ...world.tokens,
+          findUsable: async () => ({ ...stored, eventId: null, eventRole: null }),
+        } as never,
+        secrets: world.secrets,
+        events: world.events,
+        clients: world.clients,
+        memberships: world.memberships,
+        clock: world.clock,
+      })
+
+      expect(await hollow({ token })).toMatchObject(NOT_FOUND)
+    })
+
     it('is not found when the client it was to is gone', async () => {
       const { token } = await world.invite({ to: 'client-owner' })
       const gone = makePreviewInvitation({

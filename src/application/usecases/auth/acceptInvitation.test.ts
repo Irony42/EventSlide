@@ -276,6 +276,34 @@ describe('acceptInvitation', () => {
       expect(!result.ok && result.error.code).toBe('invitation.notFound')
     })
 
+    it('is refused a hash that comes back empty, which is a hasher bug and creates no account', async () => {
+      const { token } = await world.invite()
+      const broken: PasswordHasher = {
+        hash: async () => '',
+        verify: async () => false,
+        needsRehash: () => false,
+        dummyHash: 'hash:x',
+      }
+      const refusing = makeAcceptInvitation({
+        tokens: world.tokens,
+        secrets: world.secrets,
+        events: world.events,
+        clients: world.clients,
+        memberships: world.memberships,
+        users: world.users,
+        hasher: broken,
+        acceptance: world.acceptance,
+        ids: world.ids,
+        clock: world.clock,
+      })
+
+      const result = await refusing({ token, credentials })
+
+      expect(!result.ok && result.error.code).toBe('user.passwordHashEmpty')
+      expect(await accountAt(NEWCOMER)).toBeNull()
+      expect(world.tokens.all[0]?.consumedAt).toBeNull()
+    })
+
     it('is told to sign in when it became taken after the link was judged, with the link still alive', async () => {
       const { token } = await world.invite()
       const raced: InvitationAcceptance = { accept: async () => 'emailTaken' }
@@ -313,6 +341,15 @@ describe('acceptInvitation', () => {
       const again = await accept({ token, signedInUserId: asUserId(EXISTING_ID) })
 
       expect(!again.ok && again.error.code).toBe('invitation.notFound')
+    })
+
+    it('is answered like a dead link when the link was spent between judging it and spending it', async () => {
+      const { token } = await world.invite({ email: EXISTING_EMAIL })
+      const raced: InvitationAcceptance = { accept: async () => 'spent' }
+
+      const result = await build(raced)({ token, signedInUserId: asUserId(EXISTING_ID) })
+
+      expect(!result.ok && result.error.code).toBe('invitation.notFound')
     })
 
     it('is refused for another account: a link is for one mailbox, and nothing is spent', async () => {

@@ -139,6 +139,26 @@ export const makeIssueInvitation =
     const minted = secrets.mint()
     const link = invitationLink(publicUrl, minted.token)
 
+    // Built, and so validated, before anything is sent: a mail must never carry a link to a
+    // record the rules would have refused. How it travelled is settled below, from the mail's
+    // outcome, and written onto this record rather than into a second one.
+    const draft = issueAccountToken(
+      {
+        purpose: 'invitation',
+        tokenDigest: minted.digest,
+        email: address.value,
+        userId: null,
+        ...(place.kind === 'event'
+          ? { eventId: place.eventId, eventRole: place.role }
+          : { clientId: place.clientId, clientRole: place.role }),
+        delivery: 'link',
+        createdBy,
+      },
+      ids.accountTokenId(),
+      now,
+    )
+    if (!draft.ok) return draft
+
     let delivery: AccountTokenDelivery = 'link'
     if (mailer.canDeliver) {
       const sent = await mailer.send(
@@ -160,28 +180,13 @@ export const makeIssueInvitation =
       }
     }
 
-    const issued = issueAccountToken(
-      {
-        purpose: 'invitation',
-        tokenDigest: minted.digest,
-        email: address.value,
-        userId: null,
-        ...(place.kind === 'event'
-          ? { eventId: place.eventId, eventRole: place.role }
-          : { clientId: place.clientId, clientRole: place.role }),
-        delivery,
-        createdBy,
-      },
-      ids.accountTokenId(),
-      now,
-    )
-    if (!issued.ok) return issued
+    const record = { ...draft.value, delivery }
 
     // Revoke before saving, never after: the new link must not be one of the outstanding
     // ones it replaces.
     await tokens.revokeOutstandingInvitations(address.value, place, now)
-    await tokens.save(issued.value)
+    await tokens.save(record)
 
-    const base = { invitationId: issued.value.id, expiresAt: issued.value.expiresAt }
+    const base = { invitationId: record.id, expiresAt: record.expiresAt }
     return ok(delivery === 'mail' ? { ...base, delivery } : { ...base, delivery, link })
   }
