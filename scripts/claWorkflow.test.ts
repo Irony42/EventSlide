@@ -514,6 +514,22 @@ const RULES: readonly Rule[] = [
         "github.event.comment.body == 'I agree'",
       ),
   },
+  {
+    name: 'does not lock closed pull requests: the signature is the commit, not the comment',
+    check: (workflow) => {
+      const lock = actionInputs(workflow)['lock-pullrequest-aftermerge']
+      return lock === 'false' ? [] : [`lock-pullrequest-aftermerge is ${String(lock)}`]
+    },
+    mutation:
+      'locking switched back on, which locks every pull request the maintainer closes unmerged',
+    // Anchored to the input's own line: the header comment quotes the same text.
+    mutate: (workflow) =>
+      swap(
+        workflow,
+        /^ {10}lock-pullrequest-aftermerge: 'false'$/m,
+        "          lock-pullrequest-aftermerge: 'true'",
+      ),
+  },
 ]
 
 describe('.github/workflows/cla.yml', () => {
