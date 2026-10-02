@@ -1,14 +1,29 @@
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { buildDefines } from './buildInfo'
 
 const here = (relative: string) => fileURLToPath(new URL(relative, import.meta.url))
 
 const API_TARGET = process.env['VITE_API_TARGET'] ?? 'http://localhost:4300'
 
+/**
+ * The product's version, from the one place it is written: `package.json`
+ * (`src/main/version.ts` is the server's reader of the same file).
+ */
+const manifest: unknown = JSON.parse(readFileSync(here('../package.json'), 'utf8'))
+const version =
+  typeof manifest === 'object' && manifest !== null ? Reflect.get(manifest, 'version') : null
+if (typeof version !== 'string') throw new Error('package.json has no version')
+
 export default defineConfig({
   root: here('.'),
   plugins: [react()],
+
+  // The source offer's build-time default, so the footer's link is there on the first
+  // paint instead of after a request. See `buildInfo.ts`, and `SOURCE_REF` in the Dockerfile.
+  define: buildDefines(version, process.env['SOURCE_REF']),
 
   resolve: {
     alias: {

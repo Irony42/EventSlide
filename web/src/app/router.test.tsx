@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../lib/http'
 import { AppRoutes } from './router'
@@ -7,6 +7,7 @@ import { de } from '../lib/i18n/de'
 import { fr } from '../lib/i18n/fr'
 import { it as italian } from '../lib/i18n/it'
 import {
+  anAbout,
   aPublicEvent,
   aSessionUser,
   aWallResponse,
@@ -406,5 +407,84 @@ describe('an address that no longer exists', () => {
     renderWithProviders(<AppRoutes />, { route: '/admin/evenements', locale: 'de' })
 
     expect(await screen.findByRole('heading', { name: de.shell.notFoundTitle })).toBeVisible()
+  })
+})
+
+/**
+ * AGPL section 13, on screen (roadmap G1-04 / P1-05): the link to the source is on the
+ * guest and host surfaces and **not** on the projected wall. The footer is mounted by the
+ * layouts, so these are about which layout does and does not carry it — the one place
+ * somebody removing it, or adding it to the wall, would be making an edit nobody reads.
+ */
+describe('the source offer', () => {
+  const SOURCE_LINK = new RegExp(fr.about.sourceCode.replace(/[()]/g, '\\$&'), 'i')
+  const sourceLink = () => screen.findByRole('link', { name: SOURCE_LINK })
+
+  it.each([
+    ['the join screen', '/join'],
+    ['a resolved join code', '/join/H7K2QM'],
+    ['a dead end under /join, which is still the guest’s surface', '/join/a/b'],
+    ['a dead end under an event', '/e/camille-et-sacha/nothing/here'],
+    ['the shared gallery', '/g/a-token'],
+    ['the login screen', '/login'],
+    ['an address that does not exist', '/nowhere'],
+  ])('is offered on %s', async (_name, route) => {
+    at(route)
+
+    expect(await sourceLink()).toBeVisible()
+  })
+
+  it('is offered on the guest upload screen, under the composer', async () => {
+    rememberGuestSession({ event: aPublicEvent(), displayName: null, privacyNotice: null })
+
+    at('/e/camille-et-sacha/upload')
+
+    expect(await screen.findByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+    expect(await sourceLink()).toBeVisible()
+  })
+
+  it.each(['/admin', '/admin/events/mariage/moderation', '/admin/password'])(
+    'is offered on the host console at %s',
+    async (route) => {
+      asHost(route)
+
+      expect(await sourceLink()).toBeVisible()
+    },
+  )
+
+  it('is not on the projected wall, which is for the room and has nobody to read it', async () => {
+    at('/e/camille-et-sacha/display')
+
+    // The wall has rendered once its empty state is on screen; asserting absence before
+    // that would be asserting it of a blank page.
+    expect(await screen.findByText(fr.wall.empty)).toBeVisible()
+    expect(screen.queryByRole('link', { name: SOURCE_LINK })).toBeNull()
+    expect(screen.queryByRole('contentinfo')).toBeNull()
+  })
+
+  it('points at the address the server offered, wherever it is shown', async () => {
+    const api = fakeApi({
+      about: vi.fn(async () => anAbout({ sourceUrl: 'https://git.example.org/our/fork' })),
+    })
+    renderWithProviders(<AppRoutes />, { api, route: '/join' })
+
+    await waitFor(async () =>
+      expect(await sourceLink()).toHaveAttribute('href', 'https://git.example.org/our/fork'),
+    )
+  })
+
+  it('serves /about with the version, the licence and the source, with no session', async () => {
+    at('/about')
+
+    expect(await screen.findByRole('heading', { level: 1, name: fr.about.title })).toBeVisible()
+    expect(screen.getByText('AGPL-3.0-only')).toBeVisible()
+  })
+
+  it('carries the footer on /about as well, which lives under the guest layout', async () => {
+    at('/about')
+
+    await screen.findByRole('heading', { level: 1, name: fr.about.title })
+
+    expect(screen.getByRole('contentinfo')).toBeVisible()
   })
 })

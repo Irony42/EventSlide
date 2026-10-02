@@ -178,6 +178,91 @@ const publicUrl = z
 const blankAsAbsent = (value: unknown): unknown => (value === '' ? undefined : value)
 
 /**
+ * Where the AGPL section 13 source link points when the box says nothing: the upstream
+ * repository, at the tag of the running version (roadmap G1-04 / P1-05, P1-06).
+ *
+ * The tag is the claim. `/tree/v${version}` is the source of exactly the build that is
+ * running, which is what section 13 owes a user of a network service — so the default is
+ * right for the published image, unmodified, and wrong for anything else. A deployment
+ * built from a commit that no tag names must set `SOURCE_CODE_URL` to that commit, or
+ * build with `SOURCE_REF` (the Dockerfile's build argument); docs/API.md says so.
+ */
+const UPSTREAM_REPOSITORY = 'https://github.com/Irony42/EventSlide'
+
+/**
+ * An https URL a browser may be sent to, in its canonical form, or `null`.
+ *
+ * https and nothing else, with no exception for localhost: the value is rendered as a link
+ * on every guest and host screen and printed by a public endpoint, so `javascript:`,
+ * `data:` and plain `http:` are refused alike. `PUBLIC_URL` above has to admit http for a
+ * venue box on a LAN; this link has no such excuse. Credentials in the URL are refused
+ * too, because they would be shown to every visitor.
+ *
+ * The raw text is checked for whitespace and control characters **before** it is parsed,
+ * because the WHATWG parser silently deletes tabs and newlines from the middle of a URL:
+ * an address with a newline in it would otherwise be accepted as something the operator
+ * never typed. The canonical `href` is what is returned, never the input.
+ */
+const parseHttpsUrl = (value: string): string | null => {
+  if (/[\s\p{Cc}]/u.test(value)) return null
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') return null
+  return url.href
+}
+
+/**
+ * `SOURCE_CODE_URL`: the complete source of this build, as the operator publishes it. It
+ * wins over `SOURCE_REF` and over the default. Blank is absent, for the reason on
+ * {@link blankAsAbsent}.
+ */
+const sourceCodeUrl = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .trim()
+    .transform((value, ctx) => {
+      const parsed = parseHttpsUrl(value)
+      if (parsed === null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'SOURCE_CODE_URL must be an https URL with no credentials in it: a javascript:, data: or http: address is refused, because this link is shown to every visitor',
+        })
+        return z.NEVER
+      }
+      return parsed
+    })
+    .optional(),
+)
+
+/**
+ * `SOURCE_REF`: the tag or commit the image was built from, injected by the Dockerfile's
+ * `SOURCE_REF` build argument. It replaces `/tree/v${version}` in the default link.
+ *
+ * A git ref in a URL path, so narrow: segments of letters, digits, dots, underscores and
+ * hyphens joined by `/`, with no `..`. A tag (`v2.1.0`), a release branch (`release/2.1`)
+ * and a 40-character commit all fit; a query string, a fragment, a space or a traversal
+ * do not.
+ */
+const sourceRef = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .trim()
+    .regex(
+      /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/,
+      'SOURCE_REF must be a git tag, branch or commit: letters, digits, dots, underscores and hyphens, joined by /',
+    )
+    .refine((value) => !value.includes('..'), { message: 'SOURCE_REF must not contain ..' })
+    .optional(),
+)
+
+/**
  * Whether this box is run for other people (docs/ROADMAP.md §10.9): `off` or `on`, and
  * nothing else.
  *
@@ -549,6 +634,11 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /** See {@link siteAdmin}. `off` unless the box says otherwise. */
       SITE_ADMIN: siteAdmin,
 
+      /** See {@link sourceCodeUrl}. Absent means the tag of the running version upstream. */
+      SOURCE_CODE_URL: sourceCodeUrl,
+      /** See {@link sourceRef}. Set by the Dockerfile's build argument, never by hand. */
+      SOURCE_REF: sourceRef,
+
       /** See {@link eventSlugSuffix}. `none` unless the box says otherwise. */
       EVENT_SLUG_SUFFIX: eventSlugSuffix,
       /** See {@link allowCustomSlugs}. `true` unless the box says otherwise. */
@@ -779,6 +869,18 @@ export interface AppConfig {
   readonly siteAdmin: boolean
 
   /**
+   * The inputs of the AGPL section 13 source link (roadmap G1-04 / P1-05), both optional.
+   * What the link finally is depends on the running version too, which this module does
+   * not read, so {@link resolveSourceUrl} composes the three.
+   */
+  readonly source: {
+    /** `SOURCE_CODE_URL`, canonical https, or `null` when the operator set none. */
+    readonly url: string | null
+    /** `SOURCE_REF`, a git tag, branch or commit, or `null` when the image has none baked in. */
+    readonly ref: string | null
+  }
+
+  /**
    * P4-09 / D-14, grouped the way `createEvent` and `rotateJoinCode` consume them. A
    * self-hosted box that sets none of the three keeps 2.0's only behaviour exactly; the
    * hosted instance sets `slugSuffix: 'random'` and `allowCustomSlugs: false` from its
@@ -792,6 +894,23 @@ export interface AppConfig {
     /** `JOIN_CODE_LENGTH`. See {@link joinCodeLength}. */
     readonly joinCodeLength: number
   }
+}
+
+/**
+ * The address of the source of the build that is running — what AGPL section 13 obliges
+ * a network service to offer to the people using it.
+ *
+ * In order: the operator's own `SOURCE_CODE_URL`; the ref the image was built from
+ * (`SOURCE_REF`); and otherwise the upstream tag named after the running `version`. There
+ * is no way to switch the offer off, deliberately, and no input that can make it empty.
+ *
+ * `version` is a parameter because this module does not read the manifest — it lives in
+ * `src/main/version.ts` and an adapter may not import the composition root.
+ */
+export const resolveSourceUrl = (version: string, source: AppConfig['source']): string => {
+  if (source.url !== null) return source.url
+  if (source.ref !== null) return `${UPSTREAM_REPOSITORY}/tree/${source.ref}`
+  return `${UPSTREAM_REPOSITORY}/tree/v${version}`
 }
 
 export class ConfigError extends Error {
@@ -941,6 +1060,11 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
     e2eHooks: raw.E2E_HOOKS ?? false,
 
     siteAdmin: raw.SITE_ADMIN === 'on',
+
+    source: {
+      url: raw.SOURCE_CODE_URL ?? null,
+      ref: raw.SOURCE_REF ?? null,
+    },
 
     events: {
       slugSuffix: raw.EVENT_SLUG_SUFFIX,

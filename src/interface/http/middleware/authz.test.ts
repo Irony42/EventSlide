@@ -807,6 +807,9 @@ describe('requirePasswordCurrent: mustChangePassword enforced server-side (P3-03
   const NOT_GATED: Readonly<Record<string, string>> = {
     'get /api/health': 'a liveness probe carries no session at all',
     'get /api/ready': 'the same seam as liveness',
+    'get /api/about':
+      'the AGPL source offer is public and mounted beside liveness, ahead of the session — ' +
+      'a flagged account on the change-password screen is still owed the link in its footer',
   }
 
   const FLAGGED = '66666666-6666-4666-8666-666666666666'

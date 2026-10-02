@@ -12,6 +12,7 @@ import { glassBackdropFor } from './glassBackdrop'
 import { LanguagePicker } from './LanguagePicker'
 import { NotFoundView } from './NotFoundView'
 import { RequireAuth } from './RequireAuth'
+import { SiteFooter } from './SiteFooter'
 import styles from './router.module.css'
 
 /**
@@ -83,6 +84,14 @@ const GalleryPage = lazy(async () => ({
   default: (await import('../features/gallery/GalleryPage')).GalleryPage,
 }))
 
+/**
+ * `/about`: the version, the licence and the source (roadmap G1-04). Lazy because nobody
+ * needs it while photographing a party; it is the long form of the footer's one-line offer.
+ */
+const AboutPage = lazy(async () => ({
+  default: (await import('../features/about/AboutPage')).AboutPage,
+}))
+
 const ChangePasswordPage = lazy(async () => ({
   default: (await import('../features/auth/ChangePasswordPage')).ChangePasswordPage,
 }))
@@ -145,7 +154,12 @@ const GuestLayout = () => {
   const backdrop = useGlassBackdrop()
   return (
     <ToastProvider>
-      <AppShell surface="guest" backdrop={backdrop} header={<LanguagePicker />}>
+      <AppShell
+        surface="guest"
+        backdrop={backdrop}
+        header={<LanguagePicker />}
+        footer={<SiteFooter />}
+      >
         <Outlet />
       </AppShell>
     </ToastProvider>
@@ -187,7 +201,12 @@ const HostLayout = () => {
   return (
     <ErrorBoundary>
       <ToastProvider>
-        <AppShell surface="host" backdrop={backdrop} header={<LanguagePicker />}>
+        <AppShell
+          surface="host"
+          backdrop={backdrop}
+          header={<LanguagePicker />}
+          footer={<SiteFooter />}
+        >
           <Suspense fallback={<RouteFallback />}>
             <Outlet />
           </Suspense>
@@ -250,6 +269,7 @@ export function AppRoutes() {
               is the whole credential: nothing here signs anybody in. */}
           <Route element={<LazyGuestPage />}>
             <Route path="/g/:token" element={<GalleryPage />} />
+            <Route path="/about" element={<AboutPage />} />
           </Route>
           <Route path="/g/*" element={<NotFoundView />} />
         </Route>

@@ -1,0 +1,24 @@
+/* One quiet line under the page, centred. It is on the guest's upload screen, so it takes
+   as little height as a 44 px target allows and never competes with the composer above. */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: var(--space-4);
+  /* The links are already 44 px tall, so the row needs no padding of its own above or
+     below them; the home indicator is a real obstacle at the bottom edge of a phone. */
+  padding-block: 0 env(safe-area-inset-bottom);
+  padding-inline: var(--space-4);
+  border-block-start: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* A touch target of the floor size, whatever the text height is. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  color: inherit;
+}

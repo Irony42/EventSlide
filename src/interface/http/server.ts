@@ -12,6 +12,7 @@ import {
   uploadLimiter,
 } from './middleware/rateLimit'
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
+import { aboutRoutes } from './routes/aboutRoutes'
 import { authRoutes } from './routes/authRoutes'
 import { clipRoutes } from './routes/clipRoutes'
 import { eventRoutes } from './routes/eventRoutes'
@@ -26,6 +27,7 @@ import { publicRoutes } from './routes/publicRoutes'
 import { shareLinkRoutes } from './routes/shareLinkRoutes'
 import { siteRoutes } from './routes/siteRoutes'
 import { streamRoutes } from './routes/streamRoutes'
+import type { AboutFacts } from './presenters/aboutPresenter'
 import type { HttpDeps } from './types'
 import type { PresenterContext } from './presenters/presenters'
 import type { HttpUseCases } from './useCases'
@@ -46,6 +48,8 @@ export interface ServerOptions {
   readonly usecases: HttpUseCases
   readonly sessionStore: Store
   readonly health: HealthChecks
+  /** The running build's version and where its source is: `GET /api/about`. */
+  readonly about: AboutFacts
   readonly presenter: PresenterContext
   /** Where the built web app lives, when there is one. Absent in tests. */
   readonly clientDir?: string
@@ -56,6 +60,7 @@ export const buildServer = ({
   usecases,
   sessionStore,
   health,
+  about,
   presenter,
   clientDir,
 }: ServerOptions): Express => {
@@ -93,6 +98,16 @@ export const buildServer = ({
   // from liveness is a container restart — mid-event, that drops every in-flight
   // upload. Being ahead of the CSRF gate follows from the same position.
   app.use('/api', healthRoutes(health))
+
+  // What this box is and where its source is — the machine-readable half of the AGPL
+  // section 13 offer — in the same position and for the same reasons: ahead of the body
+  // parser, the cookie parser, the session and the CSRF gate. A first visit is a phone
+  // with no cookie jar, one that does carry a stale `es_session` must not be answered by
+  // way of the store, and neither costs the box a session row. `aboutRoutes.test.ts` observes both.
+  //
+  // `siteAdmin` is read from the same `config` that decides whether `/api/site` is mounted
+  // below, so the flag the SPA reads cannot disagree with the mount it stands for.
+  app.use('/api', aboutRoutes(about, { siteAdmin: config.siteAdmin }))
 
   // The shared gallery's headers, ahead of everything that can refuse a request before
   // its router is reached — the body parser, the session, the CSRF gate. The token is in

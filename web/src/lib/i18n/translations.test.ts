@@ -72,6 +72,7 @@ describe('the scope', () => {
     // exempt half means deleting this test, which a reviewer can see.
     expect([...SECTIONS].sort()).toEqual(
       [
+        'about',
         'admin',
         'app',
         'auth',

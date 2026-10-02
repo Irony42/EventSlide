@@ -76,6 +76,14 @@ services:
       # like any path that does not exist. Exactly `off` or `on`; anything else stops the
       # boot and names this variable. See .env.example.
       SITE_ADMIN: ${SITE_ADMIN:-off}
+      # Where the source of **this build** is published — the link AGPL section 13 obliges a
+      # network service to offer, shown on every guest and host screen and in
+      # `GET /api/about`. Leave it empty when you run an unmodified copy of a tagged
+      # release: the link is then the upstream tag of the running version. Set it (an https
+      # URL, nothing else) when you run a modified build, a fork, or a build of a commit no
+      # tag names. It changes where the link
+      # points; nothing hides it. See .env.example.
+      SOURCE_CODE_URL: ${SOURCE_CODE_URL:-}
     volumes:
       # The database, every photo, and under /data/backups the archives the backup
       # command writes (BACKUP_DIR, set in the Dockerfile). Everything is here, but do not

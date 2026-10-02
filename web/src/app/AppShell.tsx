@@ -22,6 +22,13 @@ export interface AppShellProps {
   readonly backdrop?: GlassBackdrop
   /** A toolbar or a header bar. The wall passes none: there is nobody to click it. */
   readonly header?: ReactNode
+  /**
+   * The line under the page: the AGPL source offer (`SiteFooter`). The guest and host
+   * layouts pass it and **the wall does not**, which is how the projected screen stays a
+   * photograph and a QR code: a footer there would be the one thing in the frame that is
+   * not the party, and nobody in that room is the person the offer is made to.
+   */
+  readonly footer?: ReactNode
   readonly children: ReactNode
   readonly className?: string
 }
@@ -46,7 +53,14 @@ export interface AppShellProps {
  * decides which voice a screen reader pronounces the page with, and `index.html` ships
  * `lang="fr"` so the first paint is right before React has mounted anything.
  */
-export function AppShell({ surface, backdrop, header, children, className }: AppShellProps) {
+export function AppShell({
+  surface,
+  backdrop,
+  header,
+  footer,
+  children,
+  className,
+}: AppShellProps) {
   const { locale, text } = useLocale()
   const classes = [styles['main'], styles[surface], className].filter(Boolean).join(' ')
 
@@ -83,6 +97,7 @@ export function AppShell({ surface, backdrop, header, children, className }: App
       <main id={MAIN_CONTENT_ID} className={classes}>
         {children}
       </main>
+      {footer}
     </div>
   )
 }

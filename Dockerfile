@@ -34,6 +34,22 @@ RUN npm ci --include=dev
 # ---------------------------------------------------------------------- build --
 FROM deps AS build
 WORKDIR /app
+
+# The tag or commit this image's source is published at, for the AGPL section 13 link
+# (roadmap G1-04). Left empty, the link is the upstream tag of package.json's version —
+# right for an unmodified copy of a tagged release, wrong for anything else. For an
+# unmodified upstream commit no tag names, `docker build --build-arg SOURCE_REF=<commit> .`;
+# for a modified build or a fork, SOURCE_REF cannot help (it points into the upstream
+# repository) and the operator sets SOURCE_CODE_URL at run time instead.
+#
+# Declared here so `vite build` sees it as the default the footer shows from its first
+# paint (web/buildInfo.ts), and again on the runtime stage so the server answers
+# `GET /api/about` with the same one (`SOURCE_REF` in src/infrastructure/config/env.ts).
+# An ARG does not persist into a later stage, so one declaration would not reach both.
+# Placed before `COPY . .`: a different value is a different bundle, and the layers that
+# follow must not come from the cache.
+ARG SOURCE_REF=""
+
 COPY . .
 RUN npm run build
 
@@ -101,6 +117,14 @@ COPY package.json ./
 # at this path into a fresh named volume, so this is what a default install gets. A bind
 # mount keeps the host directory's own permissions instead — set them yourself there.
 RUN mkdir -p /data/media && chown -R node:node /data && chmod 700 /data /data/media
+
+# See the build stage: what the running server offers as its source when the operator has
+# not set SOURCE_CODE_URL. Empty is "not set", which is the upstream tag of this version.
+# Below the layers that install ffmpeg and copy the build, so a different ref rebuilds
+# nothing but this line's metadata.
+ARG SOURCE_REF=""
+ENV SOURCE_REF=$SOURCE_REF
+
 VOLUME ["/data"]
 
 USER node

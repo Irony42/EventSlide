@@ -125,6 +125,9 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
 const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
   'get /api/health': 'liveness: the process is up, and it is the same answer for everyone',
   'get /api/ready': 'readiness: the database and the media root, which belong to no event',
+  'get /api/about':
+    'what this box is, its licence and where its source is (AGPL section 13): the same ' +
+    'public answer for everyone, mounted ahead of the session beside `/api/health`',
   'post /api/auth/login': 'establishing a session is what one has instead of an event',
   'post /api/auth/logout': 'ending that session',
   'get /api/auth/me': 'who the caller is — the answer names no event',

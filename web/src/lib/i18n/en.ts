@@ -837,4 +837,17 @@ export const en: UiText = {
     viewerTitle: (position: number, total: number) =>
       `Photo ${t.number(position)} of ${t.number(total)}`,
   },
+  about: {
+    sourceCode: 'Source code (AGPL-3.0)',
+    opensInNewTab: 'opens a new tab',
+    aboutLink: 'About',
+
+    title: 'About EventSlide',
+    intro:
+      'EventSlide is free software: you can read, modify and redistribute its source code under the terms of its licence.',
+    versionLabel: 'Version',
+    licenseLabel: 'Licence',
+    sourceLabel: 'Source code',
+    sourceNote: 'This link leads to the source code of the version shown above.',
+  },
 }

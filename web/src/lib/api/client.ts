@@ -1,5 +1,6 @@
 import { http, type Transport, type UploadProgress } from '../http'
 import type {
+  About,
   BulkModerationResponse,
   ClipJobDto,
   EventDto,
@@ -171,6 +172,13 @@ export interface ModeratorInviteResponse {
 
 export const createApi = (transport: Transport) => ({
   // ------------------------------------------------------------------ public --
+
+  /**
+   * What this box is, its licence and where its source is. Public, and answered with no
+   * session: the footer on every guest and host screen reads it, and it must never be the
+   * thing a screen waits for.
+   */
+  about: (signal?: AbortSignal): Promise<About> => transport.get('/api/about', undefined, signal),
 
   join: (joinCode: string, displayName: string | null): Promise<JoinResponse> =>
     transport.post('/api/join', { joinCode, displayName }),
