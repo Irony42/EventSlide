@@ -12,6 +12,20 @@ export interface SiteFooterProps {
    * send in progress. `router.test.tsx` guards each layout.
    */
   readonly supportLink?: boolean
+  /**
+   * Offer the host's help page when the operator set `SUPPORT_URL` (roadmap G2-17). Off
+   * unless a layout turns it on, and only `HostLayout` does, on the same screens as
+   * {@link supportLink}. Not the donation link: that one asks for money, this one answers a
+   * host's question.
+   */
+  readonly helpLink?: boolean
+  /**
+   * Offer "Signaler un contenu" when the operator set `REPORT_URL` (roadmap G2-17 / P3-18,
+   * DSA art. 16). Off unless a layout turns it on, and only `GuestLayout` does: the screens
+   * where a stranger meets other people's photographs — joining, uploading, the shared
+   * gallery. The host's console is not one of them, since a host moderates their own event.
+   */
+  readonly reportLink?: boolean
 }
 
 /**
@@ -35,10 +49,21 @@ export interface SiteFooterProps {
  * **The support link is the opposite case**: optional, host surfaces only, and absent
  * unless the operator configured it. It is an addition to the footer and never a
  * substitute for the source link, which has no switch.
+ *
+ * **So are the operator's own links** (roadmap G2-17): the terms, the privacy policy and the
+ * legal notice on every footer, the help page on the host's and "Signaler un contenu" on the
+ * guests', each only where the operator set an address. A box that set none of them has the
+ * two links it always had. They are hidden on paper, like the support link, because the host's
+ * footer prints under the QR card for the tables.
  */
-export function SiteFooter({ supportLink = false }: SiteFooterProps) {
+export function SiteFooter({
+  supportLink = false,
+  helpLink = false,
+  reportLink = false,
+}: SiteFooterProps) {
   const text = useTranslations()
   const { sourceUrl, links } = useAbout()
+  const operatorLink = `${styles['link']} ${styles['operatorLink']}`
 
   return (
     <footer className={styles['footer']}>
@@ -48,6 +73,31 @@ export function SiteFooter({ supportLink = false }: SiteFooterProps) {
       <NewTabLink href="/about" className={styles['link']}>
         {text.about.aboutLink}
       </NewTabLink>
+      {links.terms === undefined ? null : (
+        <NewTabLink href={links.terms} className={operatorLink}>
+          {text.about.termsLink}
+        </NewTabLink>
+      )}
+      {links.privacy === undefined ? null : (
+        <NewTabLink href={links.privacy} className={operatorLink}>
+          {text.about.privacyLink}
+        </NewTabLink>
+      )}
+      {links.legalNotice === undefined ? null : (
+        <NewTabLink href={links.legalNotice} className={operatorLink}>
+          {text.about.legalNoticeLink}
+        </NewTabLink>
+      )}
+      {helpLink && links.support !== undefined ? (
+        <NewTabLink href={links.support} className={operatorLink}>
+          {text.about.helpLink}
+        </NewTabLink>
+      ) : null}
+      {reportLink && links.report !== undefined ? (
+        <NewTabLink href={links.report} className={operatorLink}>
+          {text.about.reportLink}
+        </NewTabLink>
+      ) : null}
       {supportLink && links.donate !== undefined ? (
         <NewTabLink href={links.donate} className={`${styles['link']} ${styles['support']}`}>
           {text.about.supportLink}

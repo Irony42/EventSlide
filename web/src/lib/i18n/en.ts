@@ -865,5 +865,15 @@ export const en: UiText = {
     supportNoCounterpart: 'A donation unlocks nothing: same service for everyone.',
     budgetLink: 'See the public budget',
     supportDismiss: 'Hide this message',
+
+    termsLink: 'Terms of use',
+    privacyLink: 'Privacy policy',
+    legalNoticeLink: 'Legal notice',
+    helpLink: 'Help',
+    reportLink: 'Report content',
+    operatorTitle: 'Who runs this instance',
+    operatorNameLabel: 'Operator',
+    operatorContactLabel: 'Contact',
+    operatorHostedBy: 'Hosted by',
   },
 }

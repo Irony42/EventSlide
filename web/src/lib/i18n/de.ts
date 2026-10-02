@@ -902,5 +902,15 @@ export const de: UiText = {
     supportNoCounterpart: 'Eine Spende schaltet nichts frei: Der Dienst ist für alle derselbe.',
     budgetLink: 'Das öffentliche Budget ansehen',
     supportDismiss: 'Diesen Hinweis ausblenden',
+
+    termsLink: 'Nutzungsbedingungen',
+    privacyLink: 'Datenschutzerklärung',
+    legalNoticeLink: 'Impressum',
+    helpLink: 'Hilfe',
+    reportLink: 'Inhalt melden',
+    operatorTitle: 'Wer diese Instanz betreibt',
+    operatorNameLabel: 'Betreiber',
+    operatorContactLabel: 'Kontakt',
+    operatorHostedBy: 'Gehostet von',
   },
 }

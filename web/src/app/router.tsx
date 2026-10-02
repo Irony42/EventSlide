@@ -138,8 +138,9 @@ const RouteFallback = () => {
 const useGlassBackdrop = () => glassBackdropFor(useLocation().pathname)
 
 /**
- * Whether the host footer may offer "Soutenir le projet" at this address (roadmap G4-02):
- * `/login` and `/admin/**`, the host's own screens, and nothing else.
+ * Whether the host footer may offer "Soutenir le projet" (roadmap G4-02) and the operator's
+ * help page (G2-17) at this address: `/login` and `/admin/**`, the host's own screens, and
+ * nothing else.
  *
  * Read from the address rather than assumed from the layout, because `HostLayout` also
  * answers the router's catch-all. A guest holding a card printed against an older address
@@ -147,7 +148,7 @@ const useGlassBackdrop = () => glassBackdropFor(useLocation().pathname)
  * not-found screen under the host's footer, and a guest is not who is being asked. The
  * source offer is not subject to this: it belongs on every screen that has a footer.
  */
-const useHostSupportLink = (): boolean => {
+const useHostScreen = (): boolean => {
   const { pathname } = useLocation()
   return pathname === '/login' || pathname === '/admin' || pathname.startsWith('/admin/')
 }
@@ -173,7 +174,9 @@ const GuestLayout = () => {
         surface="guest"
         backdrop={backdrop}
         header={<LanguagePicker />}
-        footer={<SiteFooter />}
+        // The one footer that may carry "Signaler un contenu" (roadmap G2-17 / P3-18, DSA art.
+        // 16): these are the screens where a stranger meets other people's photographs.
+        footer={<SiteFooter reportLink />}
       >
         <Outlet />
       </AppShell>
@@ -213,7 +216,7 @@ const LazyGuestPage = () => (
  */
 const HostLayout = () => {
   const backdrop = useGlassBackdrop()
-  const supportLink = useHostSupportLink()
+  const hostScreen = useHostScreen()
   return (
     <ErrorBoundary>
       <ToastProvider>
@@ -221,9 +224,10 @@ const HostLayout = () => {
           surface="host"
           backdrop={backdrop}
           header={<LanguagePicker />}
-          // The one footer that may carry "Soutenir le projet" (roadmap G4-02), and only on
-          // the host's own screens: nobody on them is mid-upload or in front of the room.
-          footer={<SiteFooter supportLink={supportLink} />}
+          // The one footer that may carry "Soutenir le projet" (roadmap G4-02) and the
+          // operator's help page (G2-17), and only on the host's own screens: nobody on them
+          // is mid-upload or in front of the room.
+          footer={<SiteFooter supportLink={hostScreen} helpLink={hostScreen} />}
         >
           <Suspense fallback={<RouteFallback />}>
             <Outlet />

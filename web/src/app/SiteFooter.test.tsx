@@ -298,3 +298,219 @@ describe('SiteFooter, the support link', () => {
     expect(await screen.findByRole('link', { name: literal(label) })).toBeVisible()
   })
 })
+
+/**
+ * The operator's legal links, the help link and "Signaler un contenu" (roadmap G2-17).
+ *
+ * Four promises. **A box that set none of them has the footer it always had**: two links,
+ * whatever the layout asks for. **The legal three are on every footer** that has one, because
+ * a terms or privacy page is owed to whoever is reading, host or guest. **The help link and
+ * the report link are asked for by the layout**: help belongs to a host, and the report link to
+ * the guest screens, where the content a stranger might report is. And **an address becomes
+ * an `href` only if it is https or a path on this site**, checked again here because this is
+ * the one place a string from the network is armed.
+ */
+describe('SiteFooter, the operator’s links', () => {
+  const LEGAL = {
+    terms: 'https://hosted.example.org/legal/cgu',
+    privacy: 'https://hosted.example.org/legal/confidentialite',
+    legalNotice: '/legal/mentions',
+  } as const
+  const SUPPORT = '/legal/avant-evenement'
+  const REPORT = '/legal/signaler'
+
+  const serving = (links: Record<string, string>) =>
+    fakeApi({ about: vi.fn(async () => anAbout({ links })) })
+  const link = (label: string) => screen.queryByRole('link', { name: literal(label) })
+  const footerLinks = () => within(screen.getByRole('contentinfo')).getAllByRole('link')
+
+  it('shows exactly the two links it always did on a box that set none, whatever the layout asks', async () => {
+    const api = serving({})
+    renderWithProviders(<SiteFooter reportLink helpLink supportLink />, { api })
+
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+
+    expect(footerLinks()).toHaveLength(2)
+  })
+
+  it('offers the terms, the privacy policy and the legal notice, from the address the operator set', async () => {
+    renderWithProviders(<SiteFooter />, { api: serving(LEGAL) })
+
+    await waitFor(() => expect(link(fr.about.termsLink)).not.toBeNull())
+
+    expect(link(fr.about.termsLink)).toHaveAttribute('href', LEGAL.terms)
+    expect(link(fr.about.privacyLink)).toHaveAttribute('href', LEGAL.privacy)
+    expect(link(fr.about.legalNoticeLink)).toHaveAttribute('href', '/legal/mentions')
+  })
+
+  it('keeps them after the source offer, which has no switch and stays first', async () => {
+    renderWithProviders(<SiteFooter />, { api: serving(LEGAL) })
+
+    await waitFor(() => expect(link(fr.about.termsLink)).not.toBeNull())
+
+    const links = footerLinks()
+    expect(links).toHaveLength(5)
+    expect(links[0]).toHaveAccessibleName(literal(fr.about.sourceCode))
+    expect(links[1]).toHaveAccessibleName(literal(fr.about.aboutLink))
+  })
+
+  it('shows only the ones that are set', async () => {
+    renderWithProviders(<SiteFooter />, { api: serving({ privacy: LEGAL.privacy }) })
+
+    await waitFor(() => expect(link(fr.about.privacyLink)).not.toBeNull())
+
+    expect(link(fr.about.termsLink)).toBeNull()
+    expect(link(fr.about.legalNoticeLink)).toBeNull()
+    expect(footerLinks()).toHaveLength(3)
+  })
+
+  it('is absent until the server has answered, because the build knows none of these addresses', () => {
+    renderWithProviders(<SiteFooter reportLink helpLink />, { api: silentServer() })
+
+    expect(footerLinks()).toHaveLength(2)
+  })
+
+  it('opens every one of them in a tab of its own, so a send in progress survives it', async () => {
+    renderWithProviders(<SiteFooter reportLink helpLink />, {
+      api: serving({ ...LEGAL, support: SUPPORT, report: REPORT }),
+    })
+
+    await waitFor(() => expect(link(fr.about.reportLink)).not.toBeNull())
+
+    for (const label of [
+      fr.about.termsLink,
+      fr.about.privacyLink,
+      fr.about.legalNoticeLink,
+      fr.about.helpLink,
+      fr.about.reportLink,
+    ]) {
+      const anchor = link(label)
+      expect(anchor, label).toHaveAttribute('target', '_blank')
+      expect(anchor?.getAttribute('rel')?.split(/\s+/), label).toEqual(
+        expect.arrayContaining(['noopener', 'noreferrer']),
+      )
+    }
+  })
+
+  describe('"Signaler un contenu", REPORT_URL', () => {
+    it('is offered when the layout asks and the operator set the address', async () => {
+      renderWithProviders(<SiteFooter reportLink />, { api: serving({ report: REPORT }) })
+
+      await waitFor(() => expect(link(fr.about.reportLink)).not.toBeNull())
+
+      expect(link(fr.about.reportLink)).toHaveAttribute('href', REPORT)
+    })
+
+    it('is not offered by a footer that was not asked for it, even when the operator set the address', async () => {
+      // The host layout's footer. A host moderates their own event; the report link is for
+      // the guest and shared-gallery screens, and the safe default is not to add one.
+      const api = serving({ report: REPORT })
+      renderWithProviders(<SiteFooter />, { api })
+
+      await waitFor(() => expect(api.about).toHaveBeenCalled())
+
+      expect(link(fr.about.reportLink)).toBeNull()
+    })
+
+    it('is absent on a box that set no address', async () => {
+      const api = serving({})
+      renderWithProviders(<SiteFooter reportLink />, { api })
+
+      await waitFor(() => expect(api.about).toHaveBeenCalled())
+
+      expect(link(fr.about.reportLink)).toBeNull()
+    })
+  })
+
+  describe('the help link, SUPPORT_URL', () => {
+    it('is offered when the layout asks and the operator set the address', async () => {
+      renderWithProviders(<SiteFooter helpLink />, { api: serving({ support: SUPPORT }) })
+
+      await waitFor(() => expect(link(fr.about.helpLink)).not.toBeNull())
+
+      expect(link(fr.about.helpLink)).toHaveAttribute('href', SUPPORT)
+    })
+
+    it('is not offered by a footer that was not asked for it, which is every guest footer', async () => {
+      const api = serving({ support: SUPPORT })
+      renderWithProviders(<SiteFooter />, { api })
+
+      await waitFor(() => expect(api.about).toHaveBeenCalled())
+
+      expect(link(fr.about.helpLink)).toBeNull()
+    })
+
+    it('is not mistaken for the donation link, which is a different address and a different prop', async () => {
+      renderWithProviders(<SiteFooter supportLink />, {
+        api: serving({ support: SUPPORT, donate: 'https://opencollective.com/eventslide' }),
+      })
+
+      await waitFor(() => expect(link(fr.about.supportLink)).not.toBeNull())
+
+      expect(link(fr.about.helpLink)).toBeNull()
+      expect(link(fr.about.supportLink)).toHaveAttribute(
+        'href',
+        'https://opencollective.com/eventslide',
+      )
+    })
+  })
+
+  describe.each([
+    ['terms', fr.about.termsLink],
+    ['privacy', fr.about.privacyLink],
+    ['legalNotice', fr.about.legalNoticeLink],
+    ['support', fr.about.helpLink],
+    ['report', fr.about.reportLink],
+  ])('links.%s, whatever the response says', (key, label) => {
+    it.each([
+      ['a javascript: URI', 'javascript:alert(document.cookie)'],
+      ['a data: URI', 'data:text/html,<script>alert(1)</script>'],
+      ['plain http', 'http://hosted.example.org/legal'],
+      ['credentials in the address', 'https://user:secret@hosted.example.org/legal'],
+      ['a protocol-relative address', '//evil.example/legal'],
+      ['a backslash that browsers read as a slash', '/\\evil.example/legal'],
+      ['a path whose dot segments end up protocol-relative', '/.//evil.example/legal'],
+      ['a path with no leading slash', 'legal/signaler'],
+      ['something that is not an address', 'ask the organiser'],
+      ['whitespace inside a path', '/legal/ page'],
+      ['an empty string', ''],
+      ['a number', 42],
+    ])('never puts %s behind a link', async (_why, hostile) => {
+      // The server refuses these at boot; this is the same rule at the one place a string
+      // becomes an href, so a proxy that rewrote the response cannot arm the link.
+      const about = vi.fn(async () => anAbout({ links: { [key]: hostile } as never }))
+      renderWithProviders(<SiteFooter reportLink helpLink />, { api: fakeApi({ about }) })
+
+      await waitFor(() => expect(about).toHaveBeenCalled())
+
+      expect(link(label)).toBeNull()
+      expect(footerLinks()).toHaveLength(2)
+    })
+
+    it('hands the browser a path as the path it is, and an address as the parsed address', async () => {
+      const about = vi.fn(async () => anAbout({ links: { [key]: '/legal/page?lang=fr#form' } }))
+      renderWithProviders(<SiteFooter reportLink helpLink />, { api: fakeApi({ about }) })
+
+      await waitFor(() => expect(link(label)).not.toBeNull())
+
+      expect(link(label)).toHaveAttribute('href', '/legal/page?lang=fr#form')
+    })
+  })
+
+  it.each(SUPPORTED_LOCALES)(
+    'names every one of them in %s, the reader’s own language',
+    async (locale) => {
+      renderWithProviders(<SiteFooter reportLink helpLink />, {
+        api: serving({ ...LEGAL, support: SUPPORT, report: REPORT }),
+        locale,
+      })
+
+      const text = TRANSLATIONS[locale].about
+
+      expect(await screen.findByRole('link', { name: literal(text.reportLink) })).toBeVisible()
+      for (const label of [text.termsLink, text.privacyLink, text.legalNoticeLink, text.helpLink]) {
+        expect(screen.getByRole('link', { name: literal(label) })).toBeVisible()
+      }
+    },
+  )
+})
