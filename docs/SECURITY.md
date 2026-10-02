@@ -576,8 +576,10 @@ Ring 6 holds the same line end to end, in
 operator's box, and the operator — signed in, on the server they run — is answered 404 for
 its settings, 404 for its queue, and 404 for a photograph the client has not published,
 which the client themselves reads at the same URL. That the account is an operator is
-**checked** there rather than assumed: no response carries a site role, so the spec reads
-it from the server's own SQLite file, and the fixture refuses to hand back a session whose
+**checked** there rather than assumed: the role was on no response when the spec was written
+(`GET /api/auth/me` reports a `canOperateSite` verdict since G2-11), and a premise should not
+be established by the surface the spec is judging, so the spec reads it from the server's own
+SQLite file, and the fixture refuses to hand back a session whose
 account is not one. Without that, every 404 it asserts is a stranger's 404 and the block
 would have stayed green with `bootstrapOwner` writing `none`.
 
@@ -2300,11 +2302,11 @@ does not take.
 
 **Three guards, because each watches something the others cannot.**
 
-| Guard                                                                                                    | What it holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The **shape** (`overviewShape.ts`, `siteOverviewRows.ts`; `siteOverviewRows.test.ts`)                    | A field is one of `id`, `instant`, `count`, `flag`, `oneOf` or `label`, and **`label` is the only kind that can carry text a person typed.** The labels are an explicit list in a test (`client.name`, `account.email`), so a third is a decision in a diff and not a column that rode along. Each row type is bound to its shape by `satisfies`, so `tsc` refuses either one gaining a member the other lacks, and a compile-time assertion refuses a content-named key (`slug`, `caption`, `joinCode`, `displayName`, `hash`…) in the types themselves. |
-| The **query list** (`sqliteSiteOverview.ts`, `sqliteSiteOverview.queries.test.ts`)                       | Every statement is declared with the `table.column` pairs it reads, and a test compares the SQL text with the list in both directions: an undeclared read fails, a stale declaration fails, a content column (`events.name`, `events.slug`, `events.join_code`, `events.settings`, `photos.caption`, `photos.id`, `guests`, `event_missions`, `users.display_name`, any hash, digest or token) fails whichever list it is found in, and a bare `name` or `caption` is refused because which table's it is cannot be seen.                                 |
-| The **contract sweep** (`siteOverviewContract.ts`, run by the SQLite adapter **and** the in-memory fake) | A world is planted with a distinctive string in every place content could be read from, written through the real repositories, and everything the three listings return is swept at every depth: every row has exactly its declared keys of the declared kinds; no planted string appears anywhere; and every string in the output is a seeded id, a seeded label or a member of a closed set. A slug used as an `id`, or as a key, fails it.                                                                                                             |
+| Guard                                                                                                    | What it holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The **shape** (`overviewShape.ts`, `siteOverviewRows.ts`; `siteOverviewRows.test.ts`)                    | A field is one of `id`, `instant`, `count`, `flag`, `oneOf` or `label`, and **`label` is the only kind that can carry text a person typed.** The labels are an explicit list in a test (`client.name`, `account.email`), so a third is a decision in a diff and not a column that rode along. Each row type is bound to its shape by `satisfies`, so `tsc` refuses either one gaining a member the other lacks, and a compile-time assertion refuses a content-named key (`slug`, `caption`, `joinCode`, `displayName`, `hash`…) in the types themselves.                                                                                                                                                                                                                                                                  |
+| The **query list** (`sqliteSiteOverview.ts`, `sqliteSiteOverview.queries.test.ts`)                       | Every statement is declared with the `table.column` pairs it reads, and a test compares the SQL text with the list in both directions: an undeclared read fails, a stale declaration fails, a content column (`events.name`, `events.slug`, `events.join_code`, `events.settings`, `photos.caption`, `photos.id`, `users.display_name`, any hash, digest or token) fails whichever list it is found in, a table outside `clients`, `client_members`, `events`, `photos`, `clip_jobs` and `users` (`guests` and `event_missions` among them) fails whether or not a list mentions it, a `*` that is not `COUNT(*)` fails, a bare `name` or `caption` is refused because which table's it is cannot be seen (an output alias of the same name does not excuse it), and a statement prepared with no entry in the list fails. |
+| The **contract sweep** (`siteOverviewContract.ts`, run by the SQLite adapter **and** the in-memory fake) | A world is planted with a distinctive string in every place content could be read from, written through the real repositories, and everything the three listings return is swept at every depth: every row has exactly its declared keys of the declared kinds; no planted string appears anywhere; and every string in the output is a seeded id, a seeded label or a member of a closed set. A slug used as an `id`, or as a key, fails it.                                                                                                                                                                                                                                                                                                                                                                              |
 
 The query list is a text comparison, not a parse of what SQLite plans, and the sweep sees only what
 the fixture world contains: a content column added by a **future migration** is on no list until
@@ -2328,13 +2330,22 @@ adapters, because `LIMIT -1` is "no limit" in SQLite.
 **`canOperateSite` on `GET /api/auth/me`** is the account's authority over the box, from the same
 column and the same predicate `requireOperator` uses, read from storage on that request. It
 grants nothing, is not part of the login response, is not reported for a disabled account, and
-does not change with `SITE_ADMIN` (the console is offered when it and `features.siteAdmin` are
-both true). It is named tests in `authRoutes.test.ts`.
+does not change with `SITE_ADMIN` (the console entry the SPA will offer needs it and
+`features.siteAdmin` both true). It is named tests in `authRoutes.test.ts`.
 
 **What this does not defend against.** It is a property of this port, not a firewall: a route
 written in G2-14 that reads `EventRepository` instead of `SiteOverview` is not caught here, and is
-what that item's response sweep (`assertResponsesContentFree`) is for. Support access to a
+what that item's response sweep (`siteRoutes.contentFree.test.ts` in the paid plan, P3-13) is for. Support access to a
 client's evening is §10.6 — time-boxed, announced to the client, audited — and a different item.
-Left out on purpose: an event's **expiry date**, which `PURGE_DEADLINE_SQL` computes from
-`events.settings` (a JSON column that carries host-written text) and so cannot be read without
-declaring that column; it arrives with a numeric source for the host's retention.
+Left out on purpose: an event's **expiry date**, which `PURGE_DEADLINE_SQL` computes with
+`json_extract` over `events.settings`. That column is the host's whole configuration blob and is
+on the content list, because a field added to it later could carry text; reading it would mean
+taking it off the list for one number. The expiry arrives with a numeric source for the host's
+retention.
+
+**A cursor outlives nothing.** A page's `next` is the id of its last row, as in
+`ClientRepository.list`, and an id that names no row is an empty page. So if the operator deletes
+an account (or the retention purge deletes an event) that was the last row of the page they are
+looking at, the "next page" of that listing is empty and the rest of it is not shown until the
+listing is reloaded. A cursor that carries `(createdAt, id)` would survive; the wire cursor is
+G2-14's to design.

@@ -269,7 +269,9 @@ test.describe('upload hardening', () => {
 test.describe('site operator scope', () => {
   test('the account these specs sign in as is really the box’s operator', async ({ app }) => {
     // The premise every refusal below rests on, and it was an unchecked one: nothing on
-    // the HTTP surface carries an account's site role — `/api/auth/me` does not — so this
+    // the HTTP surface carried an account's site role when this was written (`/api/auth/me`
+    // reports a `canOperateSite` verdict since G2-11, which is the surface under test and so
+    // not where a premise should come from) — so this
     // spec could not tell the operator from any signed-in stranger. Every 404 it asserts
     // is what a non-member gets, so `bootstrapOwner` writing `siteRole: 'none'` would
     // have left the whole describe green while the elevation it exists to catch was never
@@ -540,7 +542,7 @@ interface OperatorContext {
  * The site role stored for an account, read from the running server's own database.
  *
  * `readonly`, and the only read in this suite that does not go through HTTP — because the
- * fact exists nowhere else: no response carries a site role. Opened and closed per call
+ * fact is not to be read from the surface under test: no other response carries a site role. Opened and closed per call
  * rather than held, so nothing here keeps a handle on a file a worker is about to delete.
  */
 const siteRoleOf = (app: TestApp, email: string): string | null => {

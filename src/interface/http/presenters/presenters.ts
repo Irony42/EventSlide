@@ -35,6 +35,7 @@ import type {
   GalleryPage,
 } from '../../../application/usecases/gallery/listGalleryPhotos'
 import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
+import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
 /**
  * Entity to wire format.
@@ -427,7 +428,6 @@ export const toTopPhotoDto = ({ photo, slug, counts, total }: TopPhotoDtoInput):
 import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
 import type { UserPrincipal } from '../types'
 import type { CurrentUserDto, SessionResponseDto } from './dto'
-import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
 /**
  * What a successful login answers with.
@@ -464,9 +464,9 @@ export const toSignedInUserDto = (user: AuthenticatedUser): SessionUserDto => ({
  *
  * `siteRole` is the third thing storage must be asked on this request, for the same reason
  * (`siteRoleFor`, the very read `requireOperator` makes), and it is turned into
- * `canOperateSite` by the **domain's own predicate**, the one the gate uses — so the menu
- * and the gate cannot come to disagree about who an operator is. Only the verdict leaves
- * here: the role itself is not part of the response.
+ * `canOperateSite` by the **domain's own predicate**, the one the gate uses — so a menu
+ * built on it and the gate cannot come to disagree about who an operator is. Only the
+ * verdict leaves here: the role itself is not part of the response.
  */
 export const toSessionResponseDto = (
   principal: UserPrincipal | undefined,

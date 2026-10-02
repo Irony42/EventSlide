@@ -48,7 +48,10 @@ export interface SitePageRequest<Cursor> {
  * - **Newest first**, by creation instant and then by id, descending. The cursor is the id
  *   of the last row of the previous page; an id that names no row (or, for
  *   {@link SiteOverview.clientEvents}, a row of another client) yields an **empty page**
- *   rather than silently restarting from the top.
+ *   rather than silently restarting from the top. (So a cursor whose row has been deleted
+ *   since the page was drawn ends the listing: the same convention as `ClientRepository.list`,
+ *   and a composite `(createdAt, id)` cursor is what would survive it — the wire cursor is
+ *   G2-14's to design.)
  * - **A positive safe integer `limit`, or a `RangeError`.** `LIMIT -1` is "no limit" in SQLite
  *   and `LIMIT 0` is an empty page; neither is what a caller meant, and the adapters would
  *   otherwise disagree. The route (G2-14) is what turns a bad query string into a 400.

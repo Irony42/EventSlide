@@ -521,8 +521,9 @@ describe('GET /api/auth/me', () => {
   })
 
   describe('canOperateSite', () => {
-    // The account menu offers the operator's console on this flag alone (RC3.4), so it is
-    // the one place a plain host could be handed a link to a surface that refuses them.
+    // The account menu will offer the operator's console on this flag together with
+    // `features.siteAdmin` (RC3.4), so it is the one place a plain host could be handed a
+    // link to a surface that refuses them.
     // It reports the account's authority over the box, read from storage on this request,
     // and it grants nothing: `requireOperator` is what gates `/api/site`, and asks the
     // same question (`canOperateSite(siteRole)`) of the same column.

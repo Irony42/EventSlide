@@ -32,8 +32,10 @@ import { fromIsoText, fromNullableIsoText, fromSqliteBoolean } from './rowMappin
  * its list in both directions: a column the SQL touches that the list does not name fails,
  * a column the list names that the SQL no longer touches fails, and a short list of
  * content-bearing columns — `events.name`, `events.slug`, `events.join_code`,
- * `events.settings`, `photos.caption`, `guests.display_name`, `event_missions.prompt`, every
- * digest and hash, `users.display_name` — fails whichever list it is found in. The columns
+ * `events.settings`, `photos.caption`, `users.display_name`, every digest and hash — fails
+ * whichever list it is found in, and any table outside `clients`, `client_members`, `events`,
+ * `photos`, `clip_jobs` and `users` (`guests` and `event_missions` among them) fails whether
+ * or not a list mentions it, as does a `*` that is not `COUNT(*)`. The columns
  * that carry free text *and are allowed* are exactly two: `clients.name` and `users.email`
  * (the labels declared in `domain/site/siteOverviewRows.ts`).
  *

@@ -243,9 +243,9 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
       // The authority over the box, from storage on this request like everything else this
       // handler reports — and asked only for an account that may act at all: a disabled
       // operator is told it is not signed in and learns nothing else, and an anonymous
-      // caller costs no query. A second narrow read on purpose; folding the role into
-      // `AuthState` would make this one read and is left to the item that already
-      // changes that query (the credential epoch, P3-09).
+      // caller costs no query. A second narrow read on purpose: folding the role into
+      // `AuthState` would make it one, but that is the type every authorization gate
+      // shares, and changing it is a change of its own rather than a side effect of this one.
       const siteRole =
         principal === undefined ? DEFAULT_SITE_ROLE : await deps.users.siteRoleFor(principal.userId)
 

@@ -356,7 +356,7 @@ describe('the event byte sum', () => {
       )
     })
 
-    it('is the number the operator’s overview reports for the client, event by event and in total', async () => {
+    it('is the number the operator’s overview reports for the client, equal to clientTotalBytes', async () => {
       expect(await overviewClientBytes(ATELIER)).toBe(WEDDING_USED + GALA_USED)
       expect(await overviewClientBytes(ATELIER)).toBe(await photos.clientTotalBytes(ATELIER))
       expect(await overviewClientBytes(OTHER_ATELIER)).toBe(

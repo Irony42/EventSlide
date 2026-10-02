@@ -659,9 +659,9 @@ an account that does not exist yet.
 > property of the type rather than of the screen. It is held by a closed field vocabulary, a
 > per-query list of the columns each statement reads, and a contract that plants content in every
 > place it could come from and sweeps what comes out (SECURITY.md §18). `GET /api/auth/me` now
-> reports `canOperateSite`, the account menu's one input. **Not built**: the operator API that
-> serves it (`/api/site`, G2-14), the console (G2-15), and an event's expiry date, which needs a
-> numeric source for the host's retention before the overview can read it.
+> reports `canOperateSite`, the one input the account menu will need. **Not built**: the operator API that
+> serves it (`/api/site`, G2-14), the console (G2-15), and an event's expiry date, which would have the overview read
+> `events.settings`, the host's whole configuration blob, to get at the retention it holds.
 
 One screen the operator actually lives in: every client, their events, what state each is
 in, disk used against its ceiling, when it expires. Today the answer to "how much of this
