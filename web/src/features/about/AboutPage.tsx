@@ -14,8 +14,14 @@ import styles from './AboutPage.module.css'
  * build's own version and source address at once and swaps in the server's when they
  * arrive (`useAbout`), so there is no loading state to show and no error to explain.
  *
- * Third-party notices and the operator's identity will join it as the items that carry
- * them land (roadmap G1-07, G2-17); each adds a row here and nothing else.
+ * Third-party notices will join it as the item that carries them lands (roadmap G1-07),
+ * and adds a row here and nothing else.
+ *
+ * **The operator section** (roadmap G2-17 / P3-18) is drawn only when the operator named
+ * themselves or set one of the pages they owe a visitor, so a self-hosted box reads the page
+ * as it always did. It lists who runs the instance, how to reach them, and their terms,
+ * privacy policy, legal notice and help page. The report link is not repeated here: the
+ * footer under this page already carries it.
  *
  * **The support section** (roadmap G4-02) is the one part that depends on the operator: it
  * is drawn only when the instance set `DONATION_URL` or `BUDGET_URL`, so a self-hosted box
@@ -25,7 +31,14 @@ import styles from './AboutPage.module.css'
 export function AboutPage() {
   const text = useTranslations()
   const about = useAbout()
-  const { donate, budget } = about.links
+  const { donate, budget, terms, privacy, legalNotice, support } = about.links
+  const { operator } = about
+  const operatorLinks = [
+    { href: terms, label: text.about.termsLink },
+    { href: privacy, label: text.about.privacyLink },
+    { href: legalNotice, label: text.about.legalNoticeLink },
+    { href: support, label: text.about.helpLink },
+  ].flatMap(({ href, label }) => (href === undefined ? [] : [{ href, label }]))
 
   return (
     <Card as="h1" title={text.about.title}>
@@ -49,6 +62,40 @@ export function AboutPage() {
           </dd>
         </div>
       </dl>
+      {operator === undefined && operatorLinks.length === 0 ? null : (
+        <section className={styles['operator']} aria-labelledby="about-operator-title">
+          <h2 className={styles['sectionTitle']} id="about-operator-title">
+            {text.about.operatorTitle}
+          </h2>
+          {operator === undefined ? null : (
+            <dl className={styles['facts']}>
+              <div className={styles['fact']}>
+                <dt>{text.about.operatorNameLabel}</dt>
+                <dd>{operator.name}</dd>
+              </div>
+              {operator.contactEmail === undefined ? null : (
+                <div className={styles['fact']}>
+                  <dt>{text.about.operatorContactLabel}</dt>
+                  <dd>
+                    <a href={`mailto:${operator.contactEmail}`} className={styles['source']}>
+                      {operator.contactEmail}
+                    </a>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          )}
+          <ul className={styles['supportLinks']}>
+            {operatorLinks.map(({ href, label }) => (
+              <li key={href}>
+                <NewTabLink href={href} className={styles['supportLink']}>
+                  {label}
+                </NewTabLink>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {donate === undefined && budget === undefined ? null : (
         <section className={styles['support']} aria-labelledby="about-support-title">
           <h2 className={styles['supportTitle']} id="about-support-title">
