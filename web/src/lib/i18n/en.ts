@@ -241,6 +241,8 @@ export const en: UiText = {
     'auth.required': 'Sign in to continue.',
     'auth.forbidden': 'You do not have the rights for this action.',
     'auth.passwordChangeRequired': 'Choose a new password before you continue.',
+    'auth.invalidToken': 'This link is no longer valid. Ask for a new one.',
+    'feature.unavailable': 'This feature is not available on this server.',
 
     'event.notFound': 'This code does not match any open gallery.',
     'event.notAcceptingUploads': 'This gallery is no longer accepting photos.',

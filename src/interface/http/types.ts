@@ -13,6 +13,7 @@ import type {
   UserRepository,
 } from '../../application/ports/userRepository'
 import type { GuestTokenService } from '../../application/ports/guestTokenService'
+import type { Mailer } from '../../application/ports/mailer'
 import type { AccessLogOptions } from './middleware/accessLog'
 import type { DiskSpaceChecker } from '../../application/ports/diskSpace'
 
@@ -82,6 +83,13 @@ export interface HttpDeps {
    */
   readonly users: Pick<UserRepository, 'siteRoleFor' | 'authStateFor'>
   readonly guestTokens: GuestTokenService
+  /**
+   * One fact about the mailer: whether it can deliver. It is what `/api/about` publishes as
+   * `features.forgotPassword`, and it is the same fact `requestPasswordReset` answers
+   * `404 feature.unavailable` from, so the flag the sign-in page reads cannot disagree with
+   * the route it would call. Nothing in the HTTP layer sends a message.
+   */
+  readonly mailer: Pick<Mailer, 'canDeliver'>
   /**
    * The free-disk-space guard's probe (G3-06 / P4-10). A port, not an adapter, for the
    * usual reason: `src/interface/http` may not import `node:fs`, and a test must be

@@ -633,6 +633,14 @@ export interface AboutFeaturesDto {
    * mode and 404 in the other.
    */
   readonly siteAdmin: boolean
+  /**
+   * The box can mail a password-reset link (`SMTP_URL` is set). The sign-in page offers
+   * "forgot your password?" only when this is `true`; with no relay the route answers
+   * `404 feature.unavailable`, because a reset link shown on the screen of whoever typed an
+   * address would be an account takeover. Always present, so a client reads `false` rather
+   * than guessing from absence.
+   */
+  readonly forgotPassword: boolean
 }
 
 /**

@@ -17,6 +17,7 @@ import { appVersion } from './version'
 import type { OutgoingMail } from '../application/ports/mailer'
 import { EmailAddress } from '../domain/users/emailAddress'
 import { parseMessage, startSmtpSink, type SmtpSink } from '../infrastructure/mail/testing/smtpSink'
+import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
 
 /**
  * The one line of `SITE_ADMIN` that no other test reaches: the composition root handing
@@ -243,7 +244,8 @@ describe('createContainer: the source offer reaches /api/about', () => {
 
     const response = await request(app).get('/api/about')
 
-    expect(response.body.features).toEqual({ siteAdmin: flag })
+    // No relay on this box, so no self-service reset: the flag the sign-in page reads is off.
+    expect(response.body.features).toEqual({ siteAdmin: flag, forgotPassword: false })
   })
 })
 
@@ -895,5 +897,321 @@ describe('createContainer: the operator reaches /api/about and the guest notice'
     const booted = await boot({})
 
     expect(await noticeOperatorOn(booted)).toBeNull()
+  })
+})
+
+/**
+ * A forgotten password, end to end through the real composition root (roadmap §10.3; free
+ * plan G2-08, paid plan P3-09): the SMTP adapter against a relay in this process, the SQLite
+ * adapters for accounts and tokens, the real hasher and the real session store.
+ *
+ * Every ring below this one proves a piece against a fake. What only this can show is that
+ * the pieces are the ones the box wires: that `features.forgotPassword` is the mailer's own
+ * `canDeliver`, that the link in a mail the relay actually received opens exactly one reset,
+ * that the reset ends a session opened before it, and that no table of the database holds
+ * the token it was sent.
+ */
+describe('createContainer: a forgotten password', () => {
+  const OWNER = 'hote@example.org'
+  const OLD_PASSWORD = 'un-mot-de-passe-solide'
+  const NEW_PASSWORD = 'une-phrase-de-passe-neuve'
+
+  const relays: SmtpSink[] = []
+  afterEach(async () => {
+    await Promise.all(relays.splice(0).map((relay) => relay.close()))
+  })
+
+  const bootWithRelay = async (): Promise<{
+    app: Container['app']
+    relay: SmtpSink
+    db: Container['db']
+  }> => {
+    const relay = await startSmtpSink()
+    relays.push(relay)
+    const booted = await boot({
+      SMTP_URL: `smtp://127.0.0.1:${relay.port}`,
+      MAIL_FROM: 'no-reply@photos.example.org',
+      PUBLIC_URL: 'https://photos.example.org',
+      BOOTSTRAP_OWNER_EMAIL: OWNER,
+      BOOTSTRAP_OWNER_PASSWORD: OLD_PASSWORD,
+    })
+    return { app: booted.app, relay, db: booted.db }
+  }
+
+  /** A browser that has loaded a page: it holds the CSRF cookie and echoes it. */
+  const browser = async (app: Container['app']) => {
+    const agent = request.agent(app)
+    const first = await agent.get('/api/auth/me')
+    const cookie = (first.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+      c.startsWith(`${CSRF_COOKIE}=`),
+    )
+    const token = cookie?.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? ''
+    return { agent, csrf: token }
+  }
+
+  const login = async (app: Container['app'], password: string) => {
+    const { agent, csrf } = await browser(app)
+    const response = await agent
+      .post('/api/auth/login')
+      .set(CSRF_HEADER, csrf)
+      .send({ email: OWNER, password })
+    return { agent, response }
+  }
+
+  const tokenIn = (relay: SmtpSink): string => {
+    const text = parseMessage(relay.messages.at(-1)?.raw ?? '').text ?? ''
+    const token = /\/password\/reset\/([A-Za-z0-9_-]+)/.exec(text)?.[1]
+    if (token === undefined) throw new Error('the relay received no reset link')
+    return token
+  }
+
+  it('states forgotPassword=true exactly when the box has a relay', async () => {
+    const withRelay = await bootWithRelay()
+    const answered = await request(withRelay.app).get('/api/about')
+    expect(answered.body.features.forgotPassword).toBe(true)
+  })
+
+  it('answers 404 feature.unavailable, and issues nothing, on a box with no relay', async () => {
+    const booted = await boot({
+      BOOTSTRAP_OWNER_EMAIL: OWNER,
+      BOOTSTRAP_OWNER_PASSWORD: OLD_PASSWORD,
+    })
+    const { agent, csrf } = await browser(booted.app)
+
+    const response = await agent
+      .post('/api/auth/password-reset/request')
+      .set(CSRF_HEADER, csrf)
+      .send({ email: OWNER })
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('feature.unavailable')
+    const rows = booted.db.prepare('SELECT COUNT(*) AS n FROM account_tokens').get() as {
+      n: number
+    }
+    expect(rows.n).toBe(0)
+  })
+
+  it('mails a link the relay receives, and that link resets the password exactly once', async () => {
+    const { app, relay } = await bootWithRelay()
+    const { agent, csrf } = await browser(app)
+
+    const asked = await agent
+      .post('/api/auth/password-reset/request')
+      .set(CSRF_HEADER, csrf)
+      .send({ email: OWNER, locale: 'en' })
+    expect(asked.status).toBe(202)
+    await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+    const mail = parseMessage(relay.messages[0]?.raw ?? '')
+    expect(mail.subject).toBe('Reset your EventSlide password')
+    expect(relay.messages[0]?.envelopeTo).toEqual([OWNER])
+    const token = tokenIn(relay)
+
+    const spent = await agent
+      .post('/api/auth/password-reset/confirm')
+      .set(CSRF_HEADER, csrf)
+      .send({ token, password: NEW_PASSWORD })
+    const again = await agent
+      .post('/api/auth/password-reset/confirm')
+      .set(CSRF_HEADER, csrf)
+      .send({ token, password: 'une-autre-phrase-de-passe' })
+
+    expect(spent.status).toBe(204)
+    expect(again.status).toBe(400)
+    expect(again.body.error.code).toBe('auth.invalidToken')
+    expect((await login(app, NEW_PASSWORD)).response.status).toBe(200)
+    expect((await login(app, OLD_PASSWORD)).response.status).toBe(401)
+  })
+
+  it('ends a session that was open before the reset, on the real session store', async () => {
+    const { app, relay } = await bootWithRelay()
+    const elsewhere = await login(app, OLD_PASSWORD)
+    expect(elsewhere.response.status).toBe(200)
+    expect((await elsewhere.agent.get('/api/auth/me')).body.authenticated).toBe(true)
+    const { agent, csrf } = await browser(app)
+    await agent
+      .post('/api/auth/password-reset/request')
+      .set(CSRF_HEADER, csrf)
+      .send({ email: OWNER })
+    await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+    // The credentials epoch has the resolution of a millisecond; a person does not sign in
+    // and reset a password in the same one.
+    await new Promise((resolve) => setTimeout(resolve, 5))
+
+    await agent
+      .post('/api/auth/password-reset/confirm')
+      .set(CSRF_HEADER, csrf)
+      .send({ token: tokenIn(relay), password: NEW_PASSWORD })
+      .expect(204)
+
+    expect((await elsewhere.agent.get('/api/auth/me')).body.authenticated).toBe(false)
+  })
+
+  it('keeps a session opened after the reset', async () => {
+    const { app, relay } = await bootWithRelay()
+    const { agent, csrf } = await browser(app)
+    await agent
+      .post('/api/auth/password-reset/request')
+      .set(CSRF_HEADER, csrf)
+      .send({ email: OWNER })
+    await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+    await agent
+      .post('/api/auth/password-reset/confirm')
+      .set(CSRF_HEADER, csrf)
+      .send({ token: tokenIn(relay), password: NEW_PASSWORD })
+      .expect(204)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+
+    const fresh = await login(app, NEW_PASSWORD)
+
+    expect((await fresh.agent.get('/api/auth/me')).body.authenticated).toBe(true)
+  })
+
+  it('writes the token nowhere in the database: only its digest is stored', async () => {
+    const { app, relay, db } = await bootWithRelay()
+    const { agent, csrf } = await browser(app)
+    await agent
+      .post('/api/auth/password-reset/request')
+      .set(CSRF_HEADER, csrf)
+      .send({ email: OWNER })
+    await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+    const token = tokenIn(relay)
+    await agent
+      .post('/api/auth/password-reset/confirm')
+      .set(CSRF_HEADER, csrf)
+      .send({ token, password: NEW_PASSWORD })
+      .expect(204)
+
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as {
+      name: string
+    }[]
+    for (const { name } of tables) {
+      const dump = JSON.stringify(db.prepare(`SELECT * FROM "${name}"`).all())
+      expect(dump, `table ${name}`).not.toContain(token)
+      expect(dump, `table ${name}`).not.toContain(NEW_PASSWORD)
+    }
+  })
+})
+
+/**
+ * The credentials epoch through the real stack (roadmap §10.3; free plan G2-08, paid plan
+ * P3-09): the SQLite session store, the SQLite user repository and the real hasher.
+ *
+ * `sessions` has no `user_id`, so "sign out everywhere" is only true if three things the
+ * fakes can each pretend are really so together: the account row carries the epoch, the
+ * session carries the instant it was issued, and the store really replaces a session when
+ * the route regenerates it. This is the one test that boots all of it.
+ */
+describe('createContainer: sign out everywhere', () => {
+  const OWNER = 'hote@example.org'
+  const PASSWORD = 'un-mot-de-passe-solide'
+  const NEW_PASSWORD = 'une-phrase-de-passe-neuve'
+
+  const bootOwner = async () => {
+    const booted = await boot({
+      BOOTSTRAP_OWNER_EMAIL: OWNER,
+      BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+    })
+    // The first owner is created with a password they must change before anything else
+    // (P3-03), and every route but three refuses them until they do. Which of those rules
+    // holds is not this describe's subject, so the flag is cleared where a person would have
+    // cleared it.
+    booted.db.prepare('UPDATE users SET must_change_password = 0').run()
+    return booted
+  }
+
+  /** A browser: it holds the CSRF cookie and the session cookie, and echoes the former. */
+  const device = async (app: Container['app']) => {
+    const agent = request.agent(app)
+    const first = await agent.get('/api/auth/me')
+    const cookie = (first.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+      c.startsWith(`${CSRF_COOKIE}=`),
+    )
+    const csrf = cookie?.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? ''
+    const login = await agent
+      .post('/api/auth/login')
+      .set(CSRF_HEADER, csrf)
+      .send({ email: OWNER, password: PASSWORD })
+    expect(login.status).toBe(200)
+    const rotated = (login.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+      c.startsWith(`${CSRF_COOKIE}=`),
+    )
+    return { agent, csrf: rotated?.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? csrf }
+  }
+
+  const isSignedIn = async (agent: ReturnType<typeof request.agent>): Promise<boolean> =>
+    (await agent.get('/api/auth/me')).body.authenticated === true
+
+  /** The epoch has the resolution of a millisecond; a person does not do two things in one. */
+  const aMomentLater = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 5))
+
+  it('signs the other device out and keeps this one', async () => {
+    const { app } = await bootOwner()
+    const phone = await device(app)
+    const laptop = await device(app)
+    await aMomentLater()
+
+    await laptop.agent
+      .post('/api/auth/sessions/revoke-others')
+      .set(CSRF_HEADER, laptop.csrf)
+      .expect(204)
+
+    expect(await isSignedIn(phone.agent)).toBe(false)
+    expect(await isSignedIn(laptop.agent)).toBe(true)
+  })
+
+  it('signs the other device out when a password is changed, and keeps the one that changed it', async () => {
+    const { app } = await bootOwner()
+    const phone = await device(app)
+    const laptop = await device(app)
+    await aMomentLater()
+
+    await laptop.agent
+      .post('/api/auth/password')
+      .set(CSRF_HEADER, laptop.csrf)
+      .send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD })
+      .expect(204)
+
+    expect(await isSignedIn(phone.agent)).toBe(false)
+    expect(await isSignedIn(laptop.agent)).toBe(true)
+  })
+
+  it('lets the same device sign in again after being signed out', async () => {
+    const { app } = await bootOwner()
+    const phone = await device(app)
+    const laptop = await device(app)
+    await aMomentLater()
+    await laptop.agent
+      .post('/api/auth/sessions/revoke-others')
+      .set(CSRF_HEADER, laptop.csrf)
+      .expect(204)
+    await aMomentLater()
+
+    const again = await phone.agent
+      .post('/api/auth/login')
+      .set(CSRF_HEADER, phone.csrf)
+      .send({ email: OWNER, password: PASSWORD })
+
+    expect(again.status).toBe(200)
+    expect(await isSignedIn(phone.agent)).toBe(true)
+  })
+
+  it('stores the epoch on the account row, once, and no session row carries a user id', async () => {
+    const booted = await bootOwner()
+    const laptop = await device(booted.app)
+    await aMomentLater()
+    await laptop.agent
+      .post('/api/auth/sessions/revoke-others')
+      .set(CSRF_HEADER, laptop.csrf)
+      .expect(204)
+
+    const account = booted.db
+      .prepare('SELECT credentials_changed_at FROM users WHERE email = ?')
+      .get(OWNER) as { credentials_changed_at: string | null }
+    const sessionColumns = (
+      booted.db.prepare('PRAGMA table_info(sessions)').all() as { name: string }[]
+    ).map((column) => column.name)
+
+    expect(account.credentials_changed_at).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/)
+    expect(sessionColumns).not.toContain('user_id')
   })
 })

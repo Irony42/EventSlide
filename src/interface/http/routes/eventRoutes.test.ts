@@ -233,6 +233,8 @@ const buildWorld = ({
         authenticateUser: absent('authenticateUser'),
         changePassword: absent('changePassword'),
         revokeOtherSessions: absent('revokeOtherSessions'),
+        requestPasswordReset: absent('requestPasswordReset'),
+        resetPassword: absent('resetPassword'),
         registerModerator: makeRegisterModerator({
           events,
           users,

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { CLIENT_LOCALES, DEFAULT_CLIENT_LOCALE } from '../../../domain/clients/clientLocale'
 import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
 import { MISSION_SCOPES } from '../../../domain/missions/missionScope'
@@ -165,6 +166,34 @@ export const changePasswordBody = z
   .object({
     currentPassword: z.string().min(1).max(1_000),
     newPassword: z.string().min(1).max(1_000),
+  })
+  .strict()
+
+/**
+ * "I forgot my password". The address is bounded and nothing else: whether it is plausible,
+ * whether it is an account, whether the box can mail it are all answered by the same 202, so
+ * a stricter shape here would only be a second way to answer differently.
+ *
+ * `locale` is the language of the page the person asked from, and the language the mail is
+ * written in. Optional because a client that does not send one is not wrong; French is the
+ * product's source language.
+ */
+export const passwordResetRequestBody = z
+  .object({
+    email: z.string().min(1).max(254),
+    locale: z.enum(CLIENT_LOCALES).default(DEFAULT_CLIENT_LOCALE),
+  })
+  .strict()
+
+/**
+ * The link's token and the password chosen with it. The token is bounded far above the 43
+ * characters a real one has and far below anything that makes hashing it costly; the password
+ * is bounded like every other and judged by the policy, which is the use case's business.
+ */
+export const passwordResetConfirmBody = z
+  .object({
+    token: z.string().min(1).max(256),
+    password: z.string().min(1).max(1_000),
   })
   .strict()
 

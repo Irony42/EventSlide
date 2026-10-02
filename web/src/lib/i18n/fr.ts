@@ -1096,6 +1096,8 @@ export const fr = {
     'auth.required': 'Connectez-vous pour continuer.',
     'auth.forbidden': 'Vous n’avez pas les droits pour cette action.',
     'auth.passwordChangeRequired': 'Choisissez un nouveau mot de passe avant de continuer.',
+    'auth.invalidToken': 'Ce lien n’est plus valable. Demandez-en un nouveau.',
+    'feature.unavailable': 'Cette fonction n’est pas disponible sur ce serveur.',
 
     'event.notFound': 'Ce code ne correspond à aucune galerie ouverte.',
     'event.notAcceptingUploads': 'Cette galerie n’accepte plus de photos.',

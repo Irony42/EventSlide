@@ -18,6 +18,7 @@ import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepos
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
 import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
 import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
+import { SqliteAccountTokenRepository } from '../infrastructure/db/sqliteAccountTokenRepository'
 import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
@@ -32,6 +33,7 @@ import { detectVideoContainer } from '../infrastructure/media/magicBytes'
 import { archiverWriter } from '../infrastructure/media/archiverWriter'
 import { createBcryptPasswordHasher } from '../infrastructure/crypto/bcryptPasswordHasher'
 import { createHmacGuestTokenService } from '../infrastructure/crypto/hmacGuestTokenService'
+import { sha256SecretTokens } from '../infrastructure/crypto/sha256SecretTokens'
 import { createHmacGallerySigner } from '../infrastructure/crypto/hmacGallerySigner'
 import { randomIdGenerator } from '../infrastructure/crypto/randomIdGenerator'
 import { createSequentialIdGenerator } from '../infrastructure/crypto/sequentialIdGenerator'
@@ -402,12 +404,16 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     shareLinks: new SqliteShareLinkRepository(db),
     clients: new SqliteClientRepository(db),
     audit: new SqliteAuditLog(db),
+    accountTokens: new SqliteAccountTokenRepository(db),
+    secretTokens: sha256SecretTokens,
+    mailer,
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.
     gallerySigner: createHmacGallerySigner({ rootSecret: config.secrets.session }),
   }
 
   const usecases = buildUseCases(adapters, {
+    publicUrl: config.publicUrl,
     defaultEventQuotaBytes: config.uploads.defaultEventQuotaBytes,
     maxEventQuotaBytes: config.uploads.maxEventQuotaBytes,
     maxImagePixels: config.uploads.maxPixels,
@@ -625,6 +631,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // rename or a delete.
     users: adapters.users,
     guestTokens: adapters.guestTokens,
+    // Narrowed by `HttpDeps` to the one fact the HTTP layer publishes.
+    mailer,
     diskSpaceChecker: statfsDiskSpaceChecker,
     config: httpConfig,
   }

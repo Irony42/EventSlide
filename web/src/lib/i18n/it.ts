@@ -253,6 +253,8 @@ export const it: UiText = {
     'auth.required': 'Acceda per continuare.',
     'auth.forbidden': 'Non ha i permessi per questa azione.',
     'auth.passwordChangeRequired': 'Scelga una nuova password prima di continuare.',
+    'auth.invalidToken': 'Questo link non è più valido. Ne richieda uno nuovo.',
+    'feature.unavailable': 'Questa funzione non è disponibile su questo server.',
 
     'event.notFound': 'Questo codice non corrisponde a nessuna galleria aperta.',
     'event.notAcceptingUploads': 'Questa galleria non accetta più foto.',

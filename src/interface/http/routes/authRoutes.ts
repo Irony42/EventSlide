@@ -4,10 +4,15 @@ import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireUser, resolveAuthState } from '../middleware/authz'
 import { rotateCsrfToken } from '../middleware/csrf'
-import { loginLimiter } from '../middleware/rateLimit'
+import { loginLimiter, passwordResetLimiter } from '../middleware/rateLimit'
 import { toSessionResponseDto, toSignedInUserDto } from '../presenters/presenters'
-import { sendError, sendJson, sendNoContent } from '../presenters/send'
-import { changePasswordBody, loginBody } from '../schemas/requestSchemas'
+import { sendError, sendJson, sendNoContent, sendResultNoContent } from '../presenters/send'
+import {
+  changePasswordBody,
+  loginBody,
+  passwordResetConfirmBody,
+  passwordResetRequestBody,
+} from '../schemas/requestSchemas'
 import type { HttpDeps, SessionPayload } from '../types'
 import type { HttpUseCases } from '../useCases'
 
@@ -118,7 +123,11 @@ export interface AuthRouteDeps {
   readonly deps: HttpDeps
   readonly usecases: Pick<
     HttpUseCases,
-    'authenticateUser' | 'changePassword' | 'revokeOtherSessions'
+    | 'authenticateUser'
+    | 'changePassword'
+    | 'revokeOtherSessions'
+    | 'requestPasswordReset'
+    | 'resetPassword'
   >
 }
 
@@ -259,6 +268,62 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
       // in storage and `resolveAuthState` reads it from there on the next request.
       await startSession(req, res, deps, user)
       sendNoContent(res)
+    }),
+  )
+
+  router.post(
+    '/auth/password-reset/request',
+    // Genuinely public: the person asking has, by definition, no credential. The limiter is
+    // the per-client half of the defence; the per-address half (at most three mails an hour
+    // to any one inbox) is inside the use case, because it has to count what was issued.
+    passwordResetLimiter(deps.config.rateLimits.loginPerMinute),
+    asyncHandler(async (req, res) => {
+      const body = passwordResetRequestBody.parse(req.body)
+
+      const result = await usecases.requestPasswordReset({
+        email: body.email,
+        locale: body.locale,
+      })
+
+      // Whatever the answer, it is a function of this request and nobody else's.
+      res.setHeader('Cache-Control', 'no-store')
+
+      if (!result.ok) {
+        // The one refusal, and it depends on the box rather than on the address: with no
+        // mail relay there is no self-service reset (`404 feature.unavailable`).
+        sendError(res, result.error)
+        return
+      }
+
+      // Accepted, and nothing more is said: not whether the address is an account, not
+      // whether it was mailed, not whether it was over its cap. The work is already running
+      // behind `result.value.completion`, and this response deliberately does not wait for
+      // it — how long a mail relay takes to say yes is a way of telling an address that
+      // exists from one that does not, and the body would be the same either way.
+      res.status(202).json({})
+    }),
+  )
+
+  router.post(
+    '/auth/password-reset/confirm',
+    // Genuinely public, for the same reason: the link is the credential, and it is spent by
+    // whoever holds it. The token is 256 random bits, so the limiter is about cost — hashing
+    // and a lookup per attempt — and not about guessing.
+    passwordResetLimiter(deps.config.rateLimits.loginPerMinute),
+    asyncHandler(async (req, res) => {
+      const body = passwordResetConfirmBody.parse(req.body)
+
+      const result = await usecases.resetPassword({
+        token: body.token,
+        newPassword: body.password,
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+
+      // No session is started: the person has proved a mailbox, not signed in. The use case
+      // raised the credentials epoch, so a session that was open anywhere — here included —
+      // is refused on its next request.
+      sendResultNoContent(res, result)
     }),
   )
 

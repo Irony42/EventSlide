@@ -121,7 +121,12 @@ export interface Harness extends TestWorld {
 /** The fakes and ports, with no Express app around them. */
 export const buildTestWorld = (
   config: Partial<HttpConfig> = {},
-  options: { readonly logger?: Logger; readonly users?: FakeUserRepository } = {},
+  options: {
+    readonly logger?: Logger
+    readonly users?: FakeUserRepository
+    /** Defaults to a box with no relay, like one that never set SMTP_URL. */
+    readonly mailer?: HttpDeps['mailer']
+  } = {},
 ): TestWorld => {
   const clock = new FakeClock(AT)
   // Linked: an event seeded with a `clientId` names a client that has to exist, exactly as the
@@ -156,6 +161,7 @@ export const buildTestWorld = (
     memberships,
     users,
     guestTokens,
+    mailer: options.mailer ?? { canDeliver: false },
     diskSpaceChecker,
     config: testHttpConfig(config),
   }
@@ -206,6 +212,8 @@ export interface HarnessOptions {
    * epoch from the account, and the routes behind it looking at the same people.
    */
   readonly users?: FakeUserRepository
+  /** Whether the box can mail. Defaults to no relay, like a box that never set SMTP_URL. */
+  readonly mailer?: HttpDeps['mailer']
 }
 
 /**
@@ -229,8 +237,12 @@ export const buildHarness = ({
   routes,
   withSession = true,
   users,
+  mailer,
 }: HarnessOptions): Harness => {
-  const world = buildTestWorld(config, { ...(users === undefined ? {} : { users }) })
+  const world = buildTestWorld(config, {
+    ...(users === undefined ? {} : { users }),
+    ...(mailer === undefined ? {} : { mailer }),
+  })
   const { deps } = world
   const httpConfig = deps.config
   const logger = deps.logger

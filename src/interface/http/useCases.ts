@@ -3,6 +3,8 @@ import type { PresenterContext } from './presenters/presenters'
 import type { AuthenticateUser } from '../../application/usecases/auth/authenticateUser'
 import type { ChangePassword } from '../../application/usecases/auth/changePassword'
 import type { RegisterModerator } from '../../application/usecases/auth/registerModerator'
+import type { RequestPasswordReset } from '../../application/usecases/auth/requestPasswordReset'
+import type { ResetPassword } from '../../application/usecases/auth/resetPassword'
 import type { RevokeOtherSessions } from '../../application/usecases/auth/revokeOtherSessions'
 
 import type { ChangeEventStatus } from '../../application/usecases/events/changeEventStatus'
@@ -86,6 +88,8 @@ export interface HttpUseCases {
   readonly authenticateUser: AuthenticateUser
   readonly changePassword: ChangePassword
   readonly revokeOtherSessions: RevokeOtherSessions
+  readonly requestPasswordReset: RequestPasswordReset
+  readonly resetPassword: ResetPassword
   readonly registerModerator: RegisterModerator
 
   // events
