@@ -147,6 +147,73 @@ export const clientRepositoryContract = (
       expect((await repo.findById(asClientId('client-1')))?.name.value).toBe('Studio Jean')
     })
 
+    it('updates every mutable field on a second save, so a column the upsert forgot cannot hide', async () => {
+      await repo.save(aClient({ id: 'client-1' }))
+
+      await repo.save(
+        aClient({
+          id: 'client-1',
+          name: 'Studio Jean',
+          contactEmail: 'jean@example.test',
+          ceilings: aClientCeilings({
+            maxEvents: 2,
+            maxTotalBytes: 3,
+            maxEventQuotaBytes: 4,
+            maxRetentionDays: 5,
+            clipsAllowed: false,
+            liveAllowed: false,
+            maxLiveDays: 6,
+            maxEventsPerPeriod: 7,
+            periodStartedAt: atPlus(8_000),
+          }),
+          suspendedAt: atPlus(9_000),
+          purgeAfter: atPlus(10_000),
+          retentionCapSince: atPlus(11_000),
+          eventsCreatedInPeriod: 12,
+          locale: 'it',
+        }),
+      )
+
+      const found = await repo.findById(asClientId('client-1'))
+      expect(found?.name.value).toBe('Studio Jean')
+      expect(found?.contactEmail?.value).toBe('jean@example.test')
+      expect(found?.ceilings.toProps()).toEqual({
+        maxEvents: 2,
+        maxTotalBytes: 3,
+        maxEventQuotaBytes: 4,
+        maxRetentionDays: 5,
+        clipsAllowed: false,
+        liveAllowed: false,
+        maxLiveDays: 6,
+        maxEventsPerPeriod: 7,
+        periodStartedAt: atPlus(8_000),
+      })
+      expect(found?.suspendedAt).toEqual(atPlus(9_000))
+      expect(found?.purgeAfter).toEqual(atPlus(10_000))
+      expect(found?.retentionCapSince).toEqual(atPlus(11_000))
+      expect(found?.eventsCreatedInPeriod).toBe(12)
+      expect(found?.locale).toBe('it')
+    })
+
+    it('clears a nullable field on a second save, rather than keeping the old value', async () => {
+      await repo.save(
+        aClient({
+          id: 'client-1',
+          contactEmail: 'jean@example.test',
+          ceilings: aClientCeilings({ maxEvents: 2, periodStartedAt: AT }),
+          suspendedAt: AT,
+        }),
+      )
+
+      await repo.save(aClient({ id: 'client-1' }))
+
+      const found = await repo.findById(asClientId('client-1'))
+      expect(found?.contactEmail).toBeNull()
+      expect(found?.ceilings.maxEvents).toBeNull()
+      expect(found?.ceilings.periodStartedAt).toBeNull()
+      expect(found?.suspendedAt).toBeNull()
+    })
+
     // ------------------------------------------------------------------- list --
 
     it('lists clients newest first', async () => {
