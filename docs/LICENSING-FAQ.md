@@ -17,7 +17,8 @@ the licence only.
 ## What changed, and what did not
 
 EventSlide is now licensed under the GNU Affero General Public License, version 3 only
-(**AGPL-3.0-only**), and `v2.1.0` is the first release under it. Before, it was GPL-3.0.
+(**AGPL-3.0-only**), and `v3.0.0` is the first release under the AGPL. Before, it was GPL-3.0.
+`v2.1.0` is the last release under the GPL-3.0, and the tag `gpl-final` marks the last GPL-3.0 commit.
 "Only" means there is no "or any later version": a later version of the AGPL does not apply to
 EventSlide unless the project adopts it on purpose.
 
@@ -95,15 +96,16 @@ You may. A fork is a modified version, so everything above applies, and in addit
 
 ## Which versions are under which licence
 
-| Code                                                                  | Licence           |
-| --------------------------------------------------------------------- | ----------------- |
-| Up to and including commit `5c2607380ebb18045a14cae979bb54e6fa2def76` | **GPL-3.0**       |
-| After it on the main line, `v2.1.0` and everything beyond             | **AGPL-3.0-only** |
+| Code                                                                            | Licence           |
+| ------------------------------------------------------------------------------- | ----------------- |
+| Up to and including commit `5c2607380ebb18045a14cae979bb54e6fa2def76`           | **GPL-3.0**       |
+| After it on the main line (`v3.0.0` is the first release) and everything beyond | **AGPL-3.0-only** |
 
 That commit is the one [`.github/gpl-boundary`](../.github/gpl-boundary) names, and the tag
-`gpl-final` is cut on it. The tag is deliberately not a version number, so that nothing mistakes
-it for a release. A CI job (`licenseHistory`) checks that every commit after the boundary on the
-first-parent line of `main` carries the AGPL text in `LICENSE`.
+`gpl-final` is cut on it, and so is the last GPL-3.0 release, `v2.1.0`. The tag is deliberately
+not a version number, so that nothing mistakes it for a release. A CI job (`licenseHistory`)
+checks that every commit after the boundary on the first-parent line of `main` carries the AGPL
+text in `LICENSE`.
 
 **Nothing published before the boundary is relicensed.** It stays available under GPL-3.0. The
 GPL makes its grant irrevocable (GPL-3.0 section 2) for as long as its terms are followed:
@@ -114,7 +116,8 @@ older code carries none.
 To know which licence a given build is under, read the `LICENSE` file at its commit: the GPL
 text means GPL-3.0, the AGPL text means AGPL-3.0-only. A commit merged later from a branch that
 was cut before the relicence can still carry the GPL text in its own tree, which is why this is
-the reliable test. Every release from `v2.1.0` is AGPL-3.0-only.
+the reliable test. Every release from `v3.0.0` is AGPL-3.0-only; `v2.0.0` and `v2.1.0` are
+GPL-3.0.
 
 ## Other questions
 

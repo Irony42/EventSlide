@@ -86,7 +86,7 @@ describe('the product version', () => {
   it('is the tag of the image compose.yaml builds', () => {
     // `image: eventslide:<version>` is a name a human reads in `docker images`. It cannot
     // be derived from package.json, so it is held to it instead: bumping one and not the
-    // other fails here rather than shipping a 2.1.0 build labelled 2.0.0.
+    // other fails here rather than shipping a 3.0.0 build labelled 2.1.0.
     const tag = /^\s*image:\s*eventslide:(\S+)\s*$/m.exec(read('compose.yaml'))?.[1]
 
     expect(tag, 'the eventslide image tag in compose.yaml').toBeDefined()

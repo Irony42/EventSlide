@@ -511,7 +511,9 @@ development tools that never reach the image. The web build writes the notices t
 bundled libraries ask for to `/third-party-licenses.txt`, which `/about` links.
 
 **Everything published before this change remains under GPL-3.0, permanently** — a
-licence grant cannot be revoked after the fact. [.github/gpl-boundary](.github/gpl-boundary)
+licence grant cannot be revoked after the fact. `v3.0.0` is the first release under the AGPL;
+`v2.1.0` is the last release under the GPL-3.0, and the tag `gpl-final` is on the last GPL-3.0
+commit. [.github/gpl-boundary](.github/gpl-boundary)
 names the last commit that carries the GPL text, and the `licenseHistory` CI job
 checks that every commit after it on the first-parent line of `main` carries the AGPL one.
 [docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md) answers what this asks of someone who runs,

@@ -33,6 +33,15 @@ const PAGE = join('docs', 'UPGRADING.md')
 const page = read(PAGE)
 const prose = flat(page)
 
+/** The `## Upgrading to 3.0` section of the page, to its end. */
+const section = page.slice(page.indexOf('\n## Upgrading to 3.0\n'))
+
+/** The 3.0.0 entry of the CHANGELOG, heading included. */
+const entry =
+  read('CHANGELOG.md')
+    .split(/^## /m)
+    .find((part) => part.startsWith('[3.0.0]')) ?? ''
+
 /** The names of the npm scripts in package.json. */
 const scriptNames = (): readonly string[] => {
   const parsed: unknown = JSON.parse(read('package.json'))
@@ -164,13 +173,83 @@ describe('the messages docs/UPGRADING.md says to expect', () => {
     expect(source(...where), where.join('/')).toContain(code)
   })
 
-  it('cites the two boot warnings 2.1.0 added, which are warnings and not refusals', () => {
+  it('cites the three boot warnings 3.0.0 added, which are warnings and not refusals', () => {
     const env = source('src', 'infrastructure', 'config', 'env.ts')
 
     expect(prose).toContain('`PUBLIC_URL`')
     expect(prose).toContain('`TRUST_PROXY_HOPS=0`')
+    expect(prose).toContain('`MAIL_FROM` set without `SMTP_URL`')
     expect(env).toContain('PUBLIC_URL is not set')
     expect(env).toContain('TRUST_PROXY_HOPS is 0')
+    expect(env).toContain('MAIL_FROM is set but SMTP_URL is not')
+  })
+})
+
+describe('the upgrade to 3.0 against the code it describes', () => {
+  it('names the migrations 3.0.0 adds to a 2.1.0 database, in the page and in the entry', () => {
+    // 2.1.0 ends at migration 007. Whoever adds the next one has to say so in both places, or
+    // a host is told that three migrations will run when four will.
+    const LAST_MIGRATION_OF_2_1_0 = 7
+    const ids = [
+      ...new Set(
+        [
+          ...read('src', 'infrastructure', 'db', 'migrations', 'index.ts').matchAll(
+            /migration(\d{3})\b/g,
+          ),
+        ].map((match) => Number(match[1])),
+      ),
+    ].filter((id) => id > LAST_MIGRATION_OF_2_1_0)
+
+    expect(ids.length, 'migrations after 007').toBeGreaterThan(0)
+    for (const id of ids) {
+      const padded = String(id).padStart(3, '0')
+      expect(section, `${padded} in the 3.0 section`).toContain(padded)
+      expect(entry, `${padded} in the 3.0.0 entry`).toContain(padded)
+    }
+  })
+
+  it('names the Docker Compose version that the long form of env_file in compose.yaml needs', () => {
+    expect(read('compose.yaml')).toMatch(/env_file:\s+- path: \.env\s+required: false/)
+    expect(flat(section)).toContain('Docker Compose 2.24 or later')
+  })
+})
+
+describe('the error codes that docs/UPGRADING.md and the 3.0.0 entry of the CHANGELOG name', () => {
+  // `403 auth.passwordChangeRequired`: a status and a code. They are what a client written
+  // against 2.1.0 matches on, so a code that does not exist (or has another status in
+  // docs/API.md, the contract) sends it to look for something that will never arrive.
+  const named = [...(section + entry).matchAll(/\b([1-5]\d\d) ([a-z]+\.[a-zA-Z]+)\b/g)].map(
+    (match) => ({ status: match[1] ?? '', code: match[2] ?? '' }),
+  )
+
+  /** Every dotted `'code.name'` string literal of the production source. */
+  const literals = new Set(
+    readdirSync(join(ROOT, 'src'), { recursive: true, withFileTypes: true })
+      .filter((file) => file.isFile() && /\.ts$/.test(file.name) && !/\.test\.ts$/.test(file.name))
+      .flatMap((file) =>
+        [
+          ...readFileSync(join(file.parentPath, file.name), 'utf8').matchAll(
+            /'([a-z]+\.[a-zA-Z]+)'/g,
+          ),
+        ].map((match) => match[1] ?? ''),
+      ),
+  )
+
+  const api = flat(read('docs', 'API.md'))
+  const documented = (status: string, code: string): boolean =>
+    new RegExp(`\\b${status}\\b[^|]{0,8}${code}|${code}[^|]{0,6}\\| ${status}\\b`).test(api)
+
+  it('are read from the page and the entry, or this test checks nothing', () => {
+    expect(new Set(named.map(({ code }) => code)).size, 'distinct codes named').toBeGreaterThan(5)
+  })
+
+  it('exist in the code', () => {
+    for (const { code } of named) expect(literals.has(code), code).toBe(true)
+  })
+
+  it('are given the status docs/API.md gives them', () => {
+    for (const { status, code } of named)
+      expect(documented(status, code), `${status} ${code}`).toBe(true)
   })
 })
 
@@ -192,19 +271,42 @@ describe('the settings and routes docs/UPGRADING.md names', () => {
   })
 })
 
+/** GitHub's anchor for a heading: lower case, no punctuation, hyphens for spaces. */
+const anchorOf = (heading: string): string =>
+  heading
+    .replace(/`/g, '')
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+
+const anchorsIn = (file: string): readonly string[] =>
+  [...read(file).matchAll(/^#{1,6} (.+)$/gm)].map((match) => anchorOf(match[1] ?? ''))
+
+describe('the links of CHANGELOG.md', () => {
+  // The 3.0.0 entry sends the reader to `docs/UPGRADING.md#upgrading-to-30`, and that anchor is
+  // the one thing in the CHANGELOG that goes dead when the heading is renamed.
+  const links = [...read('CHANGELOG.md').matchAll(/\]\((?!https?:|mailto:)([^)\s]+)\)/g)].map(
+    (match) => match[1] ?? '',
+  )
+
+  it('go to files that exist, and to headings that exist in them', () => {
+    expect(links, 'the link to the upgrade section of the major').toContain(
+      'docs/UPGRADING.md#upgrading-to-30',
+    )
+    for (const link of links) {
+      const [path = '', anchor] = link.split('#')
+      const target = path === '' ? 'CHANGELOG.md' : path
+
+      expect(existsSync(resolve(ROOT, target)), link).toBe(true)
+      if (anchor !== undefined) {
+        expect(anchorsIn(target), `${link}: a heading of ${target}`).toContain(anchor)
+      }
+    }
+  })
+})
+
 describe('the links of docs/UPGRADING.md', () => {
-  /** GitHub's anchor for a heading: lower case, no punctuation, hyphens for spaces. */
-  const anchorOf = (heading: string): string =>
-    heading
-      .replace(/`/g, '')
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .trim()
-      .replace(/\s+/g, '-')
-
-  const anchorsIn = (file: string): readonly string[] =>
-    [...read(file).matchAll(/^#{1,6} (.+)$/gm)].map((match) => anchorOf(match[1] ?? ''))
-
   const links = [...page.matchAll(/\]\((?!https?:|mailto:)([^)\s]+)\)/g)].map(
     (match) => match[1] ?? '',
   )
