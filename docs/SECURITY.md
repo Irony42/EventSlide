@@ -875,9 +875,9 @@ host's "for ever".
 
 **Not covered here, and said plainly.** A suspended client (`clients.suspended_at`) is not refused
 anywhere yet — suspension and its single "same 404 as an unknown event" answer belong to the operator API
-(roadmap §10.4, G2-14). The audit entry `event.autoClosed` and the e-mail to the host when a window
-closes an event wait for the audit log and the mailer (G2-06, G2-07); the sweep already reports them as
-`autoClosed` and logs the ids. An event already live when its client's `live_allowed` becomes 0 is not
+(roadmap §10.4, G2-14). The audit log exists (G2-06) but its catalogue has no `event.autoClosed` entry and
+the sweep does not write one, and the e-mail to the host when a window closes an event waits for the mailer
+(G2-07); the sweep already reports the closed ids as `autoClosed` and logs them, which is the seam both will use. An event already live when its client's `live_allowed` becomes 0 is not
 force-closed: `max_live_days` bounds it, and quarantine is about opening.
 
 ## 6. Session security

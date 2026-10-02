@@ -623,8 +623,8 @@ and an install that never wanted any of this must behave exactly as it does toda
 > the first opening and bounds `closed → live` by `max_live_days`, with the schedule sweep closing an
 > event whose window has run out; and the purge is the earliest of four deadlines with no `NULL`
 > able to switch the others off, honouring a notice when a ceiling is lowered
-> (`RETENTION_CAP_NOTICE_DAYS`). **Still to come**: suspension (§10.7 / G2-14), and the audit entry and
-> the mail when a window closes an event (§10.8, G2-06, G2-07).
+> (`RETENTION_CAP_NOTICE_DAYS`). **Still to come**: suspension (§10.7 / G2-14), and the audit entry
+> (`event.autoClosed`, not yet in the catalogue) and the mail when a window closes an event (§10.8, G2-07).
 
 An event has an `ownerId`; a client is currently the pattern of one person owning several
 events, which nothing enforces and nothing can query. Make it a thing: a client has a name,
