@@ -539,6 +539,8 @@ export interface UserInput {
   readonly disabledAt?: Date | null
   /** Omitted means the account's credentials never changed: no epoch, nothing revoked. */
   readonly credentialsChangedAt?: Date | null
+  /** Omitted means the mailbox was never proved: an account is unverified until told. */
+  readonly emailVerifiedAt?: Date | null
   /** Omitted means an ordinary account: authority on the box is never a default. */
   readonly siteRole?: SiteRole
 }
@@ -568,6 +570,7 @@ export const aUser = (input: UserInput = {}): User => {
     lastLoginAt: pick(input.lastLoginAt, null),
     disabledAt: pick(input.disabledAt, null),
     credentialsChangedAt: pick(input.credentialsChangedAt, null),
+    emailVerifiedAt: pick(input.emailVerifiedAt, null),
   })
 }
 

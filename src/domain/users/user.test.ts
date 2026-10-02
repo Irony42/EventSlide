@@ -67,6 +67,7 @@ const snapshot = (user: User): Record<string, unknown> => ({
   disabledAt: user.disabledAt,
   siteRole: user.siteRole,
   credentialsChangedAt: user.credentialsChangedAt,
+  emailVerifiedAt: user.emailVerifiedAt,
 })
 
 describe('User.create', () => {
@@ -138,6 +139,7 @@ describe('User.restore', () => {
       disabledAt: DISABLED_AT,
       siteRole: 'operator',
       credentialsChangedAt: A_DAY_LATER,
+      emailVerifiedAt: SIGNED_IN_AT,
     }
 
     const user = User.restore(stored)
@@ -450,5 +452,49 @@ describe('User identity', () => {
     const stored = aUser().disable(DISABLED_AT)
 
     expect(User.restore(stored.toProps()).equals(stored)).toBe(true)
+  })
+})
+
+describe('User email verification', () => {
+  it('is unverified on a new account, because nothing has proved the mailbox yet', () => {
+    expect(aUser().emailVerifiedAt).toBeNull()
+  })
+
+  it('can be created already verified, as an account made by accepting a mailed link is', () => {
+    const user = unwrap(
+      User.create(
+        {
+          email: CLAIRE_EMAIL,
+          displayName: null,
+          passwordHash: STORED_HASH,
+          mustChangePassword: false,
+          siteRole: 'none',
+          emailVerifiedAt: SIGNED_IN_AT,
+        },
+        CLAIRE,
+        CREATED_AT,
+      ),
+    )
+
+    expect(user.emailVerifiedAt).toEqual(SIGNED_IN_AT)
+  })
+
+  it('records the moment the mailbox was proved', () => {
+    expect(aUser().verifyEmail(SIGNED_IN_AT).emailVerifiedAt).toEqual(SIGNED_IN_AT)
+  })
+
+  it('keeps the first proof when it is proved again, so the date is not rewritten', () => {
+    const once = aUser().verifyEmail(SIGNED_IN_AT)
+
+    expect(once.verifyEmail(A_DAY_LATER).emailVerifiedAt).toEqual(SIGNED_IN_AT)
+  })
+
+  it('survives a password change, a disable and a re-enable', () => {
+    const verified = aUser().verifyEmail(SIGNED_IN_AT)
+
+    const changed = unwrap(verified.changePassword(ROTATED_HASH, A_DAY_LATER))
+
+    expect(changed.emailVerifiedAt).toEqual(SIGNED_IN_AT)
+    expect(changed.disable(DISABLED_AT).enable().emailVerifiedAt).toEqual(SIGNED_IN_AT)
   })
 })

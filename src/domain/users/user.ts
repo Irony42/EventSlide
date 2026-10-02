@@ -48,6 +48,15 @@ export interface UserProps {
    * forward, see {@link User.revokeSessionsBefore}.
    */
   readonly credentialsChangedAt: Date | null
+  /**
+   * When the account first proved it controls its mailbox (roadmap §10.3, G2-09 / P3-10), or
+   * `null` if it never has. Set by accepting an invitation **that was delivered by mail** and
+   * by nothing else: a link the inviter was handed to pass on proves nothing about the
+   * mailbox, because the person who accepted it may be the person who wrote it. `null` is
+   * "unverified", never "verified long ago" — every account that predates this column is
+   * `null`, and nothing is lost by that: nothing reads it as a requirement yet.
+   */
+  readonly emailVerifiedAt: Date | null
 }
 
 export interface NewUser {
@@ -62,6 +71,11 @@ export interface NewUser {
    * forgetting a line; the compiler asking the question is the guard.
    */
   readonly siteRole: SiteRole
+  /**
+   * Optional, unlike `siteRole`, because the safe answer is the default: an account is
+   * unverified until something proves otherwise. Only accepting a mailed invitation says so.
+   */
+  readonly emailVerifiedAt?: Date | null
 }
 
 export class User {
@@ -83,6 +97,7 @@ export class User {
         disabledAt: null,
         siteRole: input.siteRole,
         credentialsChangedAt: null,
+        emailVerifiedAt: input.emailVerifiedAt ?? null,
       }),
     )
   }
@@ -129,6 +144,10 @@ export class User {
 
   get credentialsChangedAt(): Date | null {
     return this.props.credentialsChangedAt
+  }
+
+  get emailVerifiedAt(): Date | null {
+    return this.props.emailVerifiedAt
   }
 
   isDisabled(): boolean {
@@ -203,6 +222,16 @@ export class User {
     return current !== null && current.getTime() >= at.getTime()
       ? this
       : this.with({ credentialsChangedAt: at })
+  }
+
+  /**
+   * Records that the account proved control of its mailbox at `at`. **Idempotent, and the
+   * first proof stands**: a second acceptance of a mailed link does not move the date, for the
+   * reason `disable` keeps its first timestamp. It is never undone by anything here — an
+   * address that changes hands is a new account's business, not a reason to forget.
+   */
+  verifyEmail(at: Date): User {
+    return this.props.emailVerifiedAt === null ? this.with({ emailVerifiedAt: at }) : this
   }
 
   requirePasswordChange(): User {
