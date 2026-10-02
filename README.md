@@ -485,6 +485,8 @@ fork, a commit no tag names — set `SOURCE_CODE_URL` to where your source is pu
 ([`.env.example`](.env.example) says how). You can change where the link points; there is no
 setting that hides it.
 
+An instance that asks for support can set `DONATION_URL` and `BUDGET_URL`, empty by default, and a donation unlocks nothing: same service for everyone.
+
 **Everything published before this change remains under GPL-3.0, permanently** — a
 licence grant cannot be revoked after the fact. [.github/gpl-boundary](.github/gpl-boundary)
 names the last commit that carries the GPL text, and the `licenseHistory` CI job
