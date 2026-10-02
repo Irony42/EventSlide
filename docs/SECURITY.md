@@ -995,13 +995,22 @@ because anyone who knows an owner's address can type wrong passwords into it.
   bucket, and the owner on another network has a bucket of their own: after ten failures
   from ten prefixes the owner signs in from their usual one with no wait at all. The
   account-wide bucket can only _slow_ an attempt, by a fixed two seconds, so it can neither
-  refuse the right password nor grow. The worst a network can do to the owner **on that same
-  network** is fifteen minutes after its last failure, and the wait is a function of the
-  failures it caused itself, never of the attempts it was refused. Sessions that are already
-  open are not consulted at all.
+  refuse the right password nor grow. Sessions that are already open are not consulted at all.
+  **What it does not promise:** a stranger on the owner's **own** network (the venue's guest
+  Wi-Fi, the same carrier-grade NAT) who knows the address shares the owner's bucket. One
+  wrong guess each time a wait ends re-arms it, so one request every fifteen minutes keeps the
+  owner off that network indefinitely, whatever the owner tries. The wait is a function of the
+  failures that network caused itself, never of the attempts it was refused, so it stops
+  within fifteen minutes of the stranger's last guess; and the owner's other networks (a
+  phone's mobile data) are untouched. A bucket that followed the owner across networks would
+  be a lockout. A trusted-device bucket keyed by a signed cookie set at the last sign-in is
+  the possible next step, and is not in this change.
 - **The right password is refused while a wait runs, and accepted when it is over.** A wait
   that checked the password first would not slow a guess. After the wait the next attempt is
-  an ordinary one, and a success clears the wait of the network it came from.
+  an ordinary one, and a success clears the wait of the network it came from. Two attempts
+  sent at the same instant when a wait ends are one attempt too many: the second is refused
+  with a fresh wait (reserving at the start is what makes parallel guesses count), so a form
+  must not submit twice.
 - **Failures only.** An attempt is reserved when it starts and given back unless it ends
   `401`: a success, a `500` after the right password and a body the handler refuses as
   malformed (which never reaches a comparison, and has no address to count against) spend
@@ -1011,12 +1020,15 @@ because anyone who knows an owner's address can type wrong passwords into it.
 - **The answer does not depend on the account.** The throttle never sees the outcome of the
   lookup: an address that is an account, one that is not, a switched-off account and a
   malformed address spend the same budget and get the same `429 rate.limited` after the same
-  number of tries, with the same `Retry-After`. The code is the per-client limit's, so the
-  response does not say which bucket spoke. A ring-4 test compares the whole sequence.
+  number of tries, with the same `Retry-After`. The code is the per-client limit's. The
+  throttle's body also carries `details.retryAfterSeconds` and its `Retry-After` is the wait,
+  so a caller can tell which bucket spoke; that is harmless, because neither depends on
+  whether the account exists. A ring-4 test compares the whole sequence.
 - **The address is keyed, not stored.** The key is an HMAC under `SESSION_SECRET` of the
   address as the lookup normalises it (trimmed, lower-cased), so `Camille@Example.test` and
-  `camille@example.test` are one budget and not two, and a heap dump holds digests. The
-  stuffing alert logs the first twelve characters of the digest and never the address.
+  `camille@example.test` are one budget and not two, and the tables are keyed by digests,
+  not addresses. The stuffing alert logs the first twelve characters of the digest and never
+  the address.
 - **Asking for a reset link is throttled by the same mechanism, with a budget of its own**
   (a failed sign-in does not spend it, nor the other way round), counting every request,
   because the answer is the same `202` for everyone and there is no failure to count. It
@@ -1024,8 +1036,8 @@ because anyone who knows an owner's address can type wrong passwords into it.
   throttled request is never mailed and never counts toward the three, and a request the
   throttle admits is answered by the cap exactly as before. `password-reset/confirm` is
   keyed by a token, not an address, and keeps the per-client limit alone.
-- **In memory, and bounded.** Two tables, at most 20 000 entries each (stale entries first,
-  then the oldest), because the number of distinct addresses a stranger may type is theirs
+- **In memory, and bounded.** Two tables per route (sign-in and reset request each have their
+  own), at most 20 000 entries each (stale entries first, then the oldest), because the number of distinct addresses a stranger may type is theirs
   to choose; a pair is forgotten an hour after its last failure. A restart forgets
   everything, like the per-client limiter. Forgetting only ever hands an attacker a few free
   tries; it can not refuse anybody.
@@ -1824,7 +1836,7 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 | A leaked display URL exposes published photos **and the join code**      | the wall doubles as the invitation — the empty state exists to tell the room how to join, and someone arriving at 23:00 has only the screen to read. Withholding the code there would break the product to protect what the QR code on every table already gives away                                       | only `published` photos are ever served; the host can rotate the join code, which invalidates it immediately; display access can require the join code for private events **(planned)** |
 | Guest identity is a device cookie, not a person                          | anonymity is a feature; a cleared cookie means a new guest, and a shared phone means a shared identity. This is also the ceiling on revocation (§11): it refuses the revoked **device**, so clearing cookies or borrowing a phone is a new guest with the same code                                         | grace-window deletion is deliberately short, so a mis-attributed identity has a narrow blast radius; revocation stops the re-scan, and a join-code rotation is what stops the evader    |
 | Captions and display names are guest-supplied text on a 3 m screen       | pre-moderating text as well as photos would slow the wall to uselessness                                                                                                                                                                                                                                    | length-bounded, control characters stripped in the domain, rendered as text (React escapes; no `dangerouslySetInnerHTML` anywhere), and the host can hide any photo instantly           |
-| A stranger on the owner's own network can slow the owner's sign-in       | keyed by account **and** network, so the owner's other networks are untouched and the wait is capped at fifteen minutes after the stranger's last failure; a bucket shared across networks would be a lockout, which is worse (§5). Sessions already open are never touched                                 |
+| A stranger on the owner's own network can keep the owner off it          | the stranger's failures spend only their network's bucket; a bucket that followed the owner across networks would be a lockout, which is worse (§5). It takes one wrong guess every fifteen minutes, from a network the stranger shares with the owner                                                      | the owner's other networks and open sessions are untouched, and the wait ends fifteen minutes after the last guess; a trusted-device bucket is the next step                            |
 | Rate-limit state is in-process in the first cut                          | a restart resets buckets                                                                                                                                                                                                                                                                                    | quota is transactional and survives restarts; SQLite-backed limiter store is **(planned)**                                                                                              |
 | An event's byte quota can be held by clips that never become photographs | the staged source is charged from the moment it lands, because it is on the disk the quota protects, and released only when the job reaches `done` or `failed`. Both the depth and the byte total are decided inside `ClipJobRepository.stage`'s own transaction, so two uploads in flight cannot both pass | bounded by the event's own queue at `MAX_QUEUED_CLIPS x MAX_CLIP_BYTES`, and released as each clip finishes or fails (§4.1)                                                             |
 | One event can fill the clip queue for every event on the box             | backpressure is process-wide because the worker is: one encoder at concurrency 1 serves the whole machine, and the wait a guest experiences is the global one. A per-event cap would admit a clip and then make it queue behind another event's backlog anyway — the same wait, reported as a success       | the deployment target is one venue with one live event; per-event fairness is carried by the byte quota and by the upload limiter, which is keyed by event                              |

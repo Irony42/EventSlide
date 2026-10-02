@@ -257,7 +257,7 @@ hour on one address from everywhere together, an attempt is **held two seconds**
 answered normally: it is never refused. The answer is the same for an address that is an
 account, one that is not, a switched-off account and a malformed one, at every step.
 `password-reset/request` counts every request the same way, in a bucket of its own, and is
-answered `202` (or `429`) identically for every address; it sits ahead of the cap of three
+answered `202` (or `429`, or `404` on a box with no relay) identically for every address; it sits ahead of the cap of three
 mails an hour per address and does not replace it. See docs/SECURITY.md §5.
 
 The gallery unlock is the one row counted per **quarter hour** and per **failure**: a
@@ -1526,7 +1526,7 @@ address. There is no self-service reset on such a box and `features.forgotPasswo
 `GET /api/about` is `false`. The link is never returned in a response. **Errors** — `400
 request.invalid`, `429 rate.limited` (the sign-in budget, its own bucket, and the per-address
 throttle of §1 "Rate limits", whose `Retry-After` is the wait; both answer every address alike),
-and the CSRF codes like every write. Responses are `Cache-Control: no-store`.
+and the CSRF codes like every write. Responses are `Cache-Control: no-store`, the rate-limit refusals aside.
 
 ### `POST /api/auth/password-reset/confirm`
 
