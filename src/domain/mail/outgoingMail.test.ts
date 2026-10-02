@@ -48,6 +48,8 @@ describe('isSingleMailbox', () => {
     ['two addresses joined by a semicolon', 'a@example.org;b@example.com'],
     ['a comma in the local part, which a parser reads as a list', 'a,b@example.org'],
     ['a semicolon in the local part', 'a;b@example.org'],
+    ['a comma in the domain, which a parser reads as a second recipient', 'a@example.org,b'],
+    ['a semicolon in the domain', 'a@example.org;b'],
     ['a display name in angle brackets', 'Camille <camille@example.org>'],
     ['an angle bracket', 'camille@example.org>'],
     ['a quote', '"camille"@example.org'],
