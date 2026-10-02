@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ConfigError, loadConfig, loadMaintenanceConfig } from './env'
+import { ConfigError, loadConfig, loadMaintenanceConfig, resolveSourceUrl } from './env'
 import { Password } from '../../domain/users/password'
 
 /**
@@ -145,6 +145,7 @@ describe('loadConfig', () => {
         bootstrap: { ownerEmail: null, ownerPassword: null },
         e2eHooks: false,
         siteAdmin: false,
+        source: { url: null, ref: null },
         events: {
           slugSuffix: 'none',
           allowCustomSlugs: true,
@@ -947,6 +948,145 @@ describe('loadConfig', () => {
       expect(issue).toContain("'off'")
       expect(issue).toContain("'on'")
       expect(issues.some((candidate) => candidate.startsWith('LOG_LEVEL: '))).toBe(true)
+    })
+  })
+
+  /**
+   * G1-04 / P1-05, P1-06: the link AGPL section 13 obliges a network service to offer.
+   *
+   * It is rendered as an `<a href>` on every guest and host screen and printed by a public
+   * endpoint, so the scheme is the security control: a `javascript:` value here is a
+   * script URI behind a link every visitor is invited to press. The default is the half
+   * that carries the licence, because a box that sets nothing must still offer the source
+   * of the build it is running.
+   */
+  describe('the source offer (SOURCE_CODE_URL and SOURCE_REF)', () => {
+    const VERSION = '7.8.9'
+    const UPSTREAM = 'https://github.com/Irony42/EventSlide'
+
+    const offeredBy = (source: Source): string =>
+      resolveSourceUrl(VERSION, loadConfig({ ...DEV, ...source }).source)
+
+    it('points at the tag of the running version upstream when the box says nothing', () => {
+      expect(offeredBy({})).toBe(`${UPSTREAM}/tree/v7.8.9`)
+    })
+
+    it('does the same on a production box, since production is where the licence bites', () => {
+      expect(resolveSourceUrl(VERSION, loadConfig(aProductionEnv()).source)).toBe(
+        `${UPSTREAM}/tree/v7.8.9`,
+      )
+    })
+
+    it('offers SOURCE_CODE_URL instead when the operator has set it', () => {
+      expect(offeredBy({ SOURCE_CODE_URL: 'https://git.example.org/me/eventslide' })).toBe(
+        'https://git.example.org/me/eventslide',
+      )
+    })
+
+    it('canonicalises the address it accepts, so what is rendered is what was parsed', () => {
+      expect(offeredBy({ SOURCE_CODE_URL: 'HTTPS://Git.Example.ORG' })).toBe(
+        'https://git.example.org/',
+      )
+    })
+
+    it('trims the whitespace a quoted compose value brings along', () => {
+      expect(offeredBy({ SOURCE_CODE_URL: '  https://git.example.org/me/eventslide  ' })).toBe(
+        'https://git.example.org/me/eventslide',
+      )
+    })
+
+    it('reads a blank SOURCE_CODE_URL as absent, so a dangling compose variable keeps the default', () => {
+      // `SOURCE_CODE_URL: ${SOURCE_CODE_URL:-}` renders an empty string when unset. Read as
+      // a value it would be refused as not-a-URL and stop every default deployment.
+      expect(offeredBy({ SOURCE_CODE_URL: '' })).toBe(`${UPSTREAM}/tree/v7.8.9`)
+    })
+
+    it.each([
+      ['a javascript: URI', 'javascript:alert(document.cookie)'],
+      ['a data: URI', 'data:text/html,<script>alert(1)</script>'],
+      ['plain http', 'http://git.example.org/me/eventslide'],
+      ['plain http on localhost', 'http://localhost:3000/eventslide'],
+      ['an uppercase HTTP scheme', 'HTTP://git.example.org/me/eventslide'],
+      ['a file: URI', 'file:///etc/passwd'],
+      ['an ftp: address', 'ftp://git.example.org/eventslide'],
+      ['a protocol-relative address', '//git.example.org/me/eventslide'],
+      ['a path with no origin', '/me/eventslide'],
+      ['something that is not a URL at all', 'the source is on my laptop'],
+      ['credentials in the address', 'https://user:secret@git.example.org/me/eventslide'],
+      ['a username with no password', 'https://token@git.example.org/me/eventslide'],
+      [
+        'a newline inside the address, which the URL parser would silently delete',
+        'https://git.example.org/me/\nevent',
+      ],
+      ['a tab inside the address', 'https://git.example.org/me/\tevent'],
+      ['a space inside the address', 'https://git.example.org/me/ event'],
+    ])('refuses %s', (_name, value) => {
+      const issues = refusalIssues({ ...DEV, SOURCE_CODE_URL: value })
+
+      expect(issues.some((issue) => issue.startsWith('SOURCE_CODE_URL: '))).toBe(true)
+    })
+
+    it('names the variable and the rule when it refuses, beside every other problem at once', () => {
+      const issues = refusalIssues({
+        ...DEV,
+        SOURCE_CODE_URL: 'http://git.example.org/me/eventslide',
+        LOG_LEVEL: 'verbose',
+      })
+      const issue = issues.find((candidate) => candidate.startsWith('SOURCE_CODE_URL: ')) ?? ''
+
+      expect(issue).toContain('https')
+      expect(issues.some((candidate) => candidate.startsWith('LOG_LEVEL: '))).toBe(true)
+    })
+
+    describe('SOURCE_REF, the build argument', () => {
+      it('replaces /tree/v<version> with the tag it names', () => {
+        // The Dockerfile's `ARG SOURCE_REF` becomes this variable, so an image built from a
+        // tag, a release branch or a commit offers *that* source and not a guess at one.
+        expect(offeredBy({ SOURCE_REF: 'v2.1.0' })).toBe(`${UPSTREAM}/tree/v2.1.0`)
+      })
+
+      it('accepts a full commit sha, for a deployment on a commit no tag names', () => {
+        const sha = 'a'.repeat(40)
+
+        expect(offeredBy({ SOURCE_REF: sha })).toBe(`${UPSTREAM}/tree/${sha}`)
+      })
+
+      it('accepts a branch with a slash in it', () => {
+        expect(offeredBy({ SOURCE_REF: 'release/2.1' })).toBe(`${UPSTREAM}/tree/release/2.1`)
+      })
+
+      it('does not use the version once a ref is given', () => {
+        expect(offeredBy({ SOURCE_REF: 'abc1234' })).not.toContain(VERSION)
+      })
+
+      it('loses to SOURCE_CODE_URL, which names the source outright', () => {
+        expect(
+          offeredBy({ SOURCE_REF: 'v2.1.0', SOURCE_CODE_URL: 'https://git.example.org/x' }),
+        ).toBe('https://git.example.org/x')
+      })
+
+      it('reads a blank SOURCE_REF as absent, which is what an unset build argument becomes', () => {
+        // `ARG SOURCE_REF=""` then `ENV SOURCE_REF=$SOURCE_REF` leaves an empty variable in
+        // every image built without the argument.
+        expect(offeredBy({ SOURCE_REF: '' })).toBe(`${UPSTREAM}/tree/v7.8.9`)
+      })
+
+      it.each([
+        ['a query string', 'v2.1.0?x=1'],
+        ['a fragment', 'v2.1.0#top'],
+        ['a path traversal', '../../other/repo'],
+        ['a traversal inside a segment', 'a..b'],
+        ['a leading slash', '/v2.1.0'],
+        ['a trailing slash', 'v2.1.0/'],
+        ['an empty segment', 'release//2.1'],
+        ['a space', 'v2.1.0 beta'],
+        ['a leading dot', '.hidden'],
+        ['an absolute URL', 'https://evil.example/x'],
+      ])('refuses %s', (_name, value) => {
+        const issues = refusalIssues({ ...DEV, SOURCE_REF: value })
+
+        expect(issues.some((issue) => issue.startsWith('SOURCE_REF: '))).toBe(true)
+      })
     })
   })
 
