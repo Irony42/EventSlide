@@ -19,7 +19,8 @@ import type { About } from '../../web/src/lib/api/dto'
  * anybody sees: the instance answers the same to everyone, and that absence is the point.
  *
  * Making `GuestLayout` or `WallLayout` render the link turns the guest and projector tests
- * red; accepting `http:` in `DONATION_URL` stops the boot below from being refused.
+ * red. Refusing a bad address at boot is ring 3's (`env.test.ts`), where a refusal is cheap to
+ * observe and a booted server is not.
  */
 
 const DONATION_URL = 'https://donate.eventslide.test/fund'
@@ -105,6 +106,35 @@ test.describe('the donation and budget links', () => {
     ).toHaveAttribute('href', DONATION_URL)
   })
 
+  test('the host footer does not print it, so the QR card for the tables carries no ask', async ({
+    donating,
+    surfaces,
+  }) => {
+    const link = surfaces.host.getByRole('link', { name: new RegExp(fr.about.supportLink) })
+    await surfaces.host.goto(donating.url('/admin'))
+    await expect(link).toBeVisible()
+
+    await surfaces.host.emulateMedia({ media: 'print' })
+
+    await expect(link).toBeHidden()
+  })
+
+  test('a guest who lands on a stale address is under the host footer, which does not carry it', async ({
+    donating,
+    page,
+  }) => {
+    const answered = page.waitForResponse((response) => response.url().endsWith('/api/about'))
+
+    // 1.0 printed `/upload?partyname=…`: outside every guest prefix, so the router's not-found
+    // screen answers it, under the host layout.
+    await page.goto(donating.url('/upload?partyname=mariage'))
+    await answered
+    await expect(page.getByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
+    await flushed(page)
+
+    await expect(supportLinks(page)).toHaveCount(0)
+  })
+
   test('the guest join screen does not, even though the server offers the address', async ({
     donating,
     page,
@@ -136,7 +166,10 @@ test.describe('the donation and budget links', () => {
   })
 
   test('the shared gallery does not', async ({ donating, page }) => {
+    const answered = page.waitForResponse((response) => response.url().endsWith('/api/about'))
+
     await page.goto(donating.url('/g/not-a-real-token'))
+    await answered
     await expect(page.getByRole('contentinfo')).toBeVisible()
     await flushed(page)
 
@@ -186,6 +219,9 @@ test.describe('the donation and budget links', () => {
     // The event is still closed after the reload, so the card is absent because it was
     // closed and not because the page is in another state.
     await expect(host.getByRole('button', { name: fr.admin.reopenEvent })).toBeVisible()
+    // And `GET /api/about` has been answered: the footer's own support link is built from the
+    // same response, so once it is up the card's absence is about the answer, not the wait.
+    await expect(host.getByRole('link', { name: new RegExp(fr.about.supportLink) })).toBeVisible()
     await flushed(host)
     await expect(card).toHaveCount(0)
   })

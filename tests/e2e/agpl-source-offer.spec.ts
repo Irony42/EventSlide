@@ -48,9 +48,11 @@ test.describe('the AGPL source offer', () => {
     expect(about).toMatchObject({
       name: 'EventSlide',
       license: 'AGPL-3.0-only',
-      links: {},
       features: { siteAdmin: false },
     })
+    // Exactly empty, not "an object": `toMatchObject({ links: {} })` matches any object, so it
+    // could not see a box that set nothing and still published a donation page (G4-02).
+    expect(about.links).toEqual({})
     expect(about.sourceUrl).toMatch(/^https:\/\//)
     expect(about.version).toMatch(/^\d+\.\d+\.\d+/)
     // A visit to the offer costs the box no session and plants no cookie in a phone that
