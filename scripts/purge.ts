@@ -60,6 +60,9 @@ const main = async (): Promise<number> => {
   // Resolved exactly as the container resolves it, so the CLI and the server address the
   // same directory when MEDIA_ROOT is relative.
   const mediaRoot = resolve(config.storage.mediaRoot)
+  // One number for the listing and for the sweep: a dry run that listed under one notice and a
+  // purge that swept under another would be a dry run that lies.
+  const capNoticeDays = config.retention.capNoticeDays
 
   console.log('EventSlide retention purge')
   console.log(`  database:   ${databasePath}`)
@@ -133,9 +136,7 @@ const main = async (): Promise<number> => {
     // The same listing the use case sweeps. Read here as well so a dry run can name the
     // events, and so a real run can report a slug for an id that no longer resolves to
     // anything once it has been deleted.
-    const due = await events.listDueForPurge(now, {
-      capNoticeDays: config.retention.capNoticeDays,
-    })
+    const due = await events.listDueForPurge(now, { capNoticeDays })
 
     if (due.length === 0) {
       console.log('Nothing is due for purge.')
@@ -154,7 +155,7 @@ const main = async (): Promise<number> => {
       const closedAt = event.closedAt === null ? 'never closed' : event.closedAt.toISOString()
       const retentionDays = event.settings.retentionDays
       console.log(
-        `  ${event.id}  ${event.slug.value.padEnd(24)}  closed ${closedAt}  retention ${retentionDays === null ? 'none (its client’s ceiling)' : `${retentionDays}d`}`,
+        `  ${event.id}  ${event.slug.value.padEnd(24)}  closed ${closedAt}  retention ${retentionDays === null ? 'none of its own (its client’s terms apply)' : `${retentionDays}d`}`,
       )
     }
     console.log('')
@@ -168,7 +169,7 @@ const main = async (): Promise<number> => {
       events,
       media,
       clock: systemClock,
-      capNoticeDays: config.retention.capNoticeDays,
+      capNoticeDays,
     })
 
     const report = await purge()
