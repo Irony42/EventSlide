@@ -87,6 +87,16 @@ describe('createAesGcmMfaVault', () => {
     expect(v2.open(sealed, 2)).toBeNull()
   })
 
+  it('refuses a version it holds no key for even when the bytes would open under the same key', () => {
+    // A vault that has moved on to version 2 with the same key material could decrypt a
+    // version-1 row, and must not: the row names a key this vault does not claim to hold, and
+    // a rotation relies on that refusal to find the rows it still has to re-seal.
+    const v2 = createAesGcmMfaVault({ keyMaterial: KEY, keyVersion: 2 })
+    const { sealed } = vault.seal(SECRET)
+
+    expect(v2.open(sealed, 1)).toBeNull()
+  })
+
   it.each([
     '',
     'abc',

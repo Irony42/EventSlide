@@ -218,6 +218,34 @@ describe('verifySecondFactor: a recovery code', () => {
     expect(await world.factors.unusedRecoveryDigests(USER)).toHaveLength(10)
   })
 
+  it('compares the code with every unspent digest, whether or not the first one matched', async () => {
+    const { world, recoveryCodes } = await signedIn()
+    let comparisons = 0
+    const verify = makeVerifySecondFactor({
+      users: world.users,
+      factors: world.factors,
+      vault: world.vault,
+      engine: world.engine,
+      secrets: {
+        mint: () => world.secrets.mint(),
+        digestOf: (token) => world.secrets.digestOf(token),
+        verify: (token, digest) => {
+          comparisons += 1
+          return world.secrets.verify(token, digest)
+        },
+      },
+      audit: world.audit,
+      clock: world.clock,
+      logger: world.logger,
+    })
+
+    await verify({ userId: USER, proof: { recoveryCode: recoveryCodes[0] ?? '' } })
+
+    // Ten digests, and the first one was the match: a comparison that stopped there would
+    // answer faster for the code a thief tries first.
+    expect(comparisons).toBe(10)
+  })
+
   it('records the use in the audit log with the number left, and not the code', async () => {
     const { world, recoveryCodes } = await signedIn()
     const recoveryCode = recoveryCodes[0] ?? ''
