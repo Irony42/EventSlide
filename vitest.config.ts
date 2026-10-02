@@ -32,6 +32,13 @@ export default defineConfig({
       },
       {
         plugins: [react()],
+        // What `web/vite.config.ts` injects at build time, fixed. A component test is about
+        // the component: it must not change when `package.json` is bumped for a release,
+        // and it must be able to tell these values from what `GET /api/about` answers.
+        define: {
+          __APP_VERSION__: JSON.stringify('0.0.0-build'),
+          __SOURCE_URL__: JSON.stringify('https://source.test/eventslide/tree/v0.0.0-build'),
+        },
         test: {
           name: 'web',
           environment: 'jsdom',

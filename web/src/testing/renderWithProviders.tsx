@@ -10,6 +10,7 @@ import { installDialogStub } from './dialogStub'
 import type { Api, ModeratorInviteResponse } from '../lib/api/client'
 import type { Locale } from '../lib/i18n/locale'
 import type {
+  About,
   ClipJobDto,
   EventDto,
   EventSettingsDto,
@@ -61,6 +62,21 @@ export const aPublicEvent = (overrides: Partial<PublicEventDto> = {}): PublicEve
   // The default theme, so a component test asserts the product's own look unless it
   // says otherwise — the same starting point an event that chose nothing has.
   theme: DEFAULT_EVENT_THEME,
+  ...overrides,
+})
+
+/**
+ * What `GET /api/about` answers. A recognisable build with its own source address, **not**
+ * the build-time defaults the test run injects (`vitest.config.ts`), so a test can tell
+ * "the footer is showing what the server said" from "the footer never heard back".
+ */
+export const anAbout = (overrides: Partial<About> = {}): About => ({
+  name: 'EventSlide',
+  version: '9.9.9-server',
+  license: 'AGPL-3.0-only',
+  sourceUrl: 'https://git.example.org/me/eventslide/tree/v9.9.9-server',
+  links: {},
+  features: { siteAdmin: false },
   ...overrides,
 })
 
@@ -372,6 +388,7 @@ export const aSessionUser = (overrides: Partial<SessionUserDto> = {}): SessionUs
  * states people actually hit at an event.
  */
 export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
+  about: vi.fn(async () => anAbout()),
   join: vi.fn(async () => aJoinResponse()),
   wall: vi.fn(async () => aWallResponse()),
 

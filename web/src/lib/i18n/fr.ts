@@ -1394,6 +1394,35 @@ export const fr = {
     viewerTitle: (position: number, total: number) =>
       `Photo ${t.number(position)} sur ${t.number(total)}`,
   },
+  /* ======================================================================== */
+  /* ==== Added by the AGPL source offer (G1-04 / P1-05): the footer on   ==== */
+  /* ==== the guest and host screens, and the /about page. Its own block, ==== */
+  /* ==== at the end of the file, so a branch appending to a section      ==== */
+  /* ==== above merges without meeting it. A reader's own language on     ==== */
+  /* ==== both: the wall carries no footer, so none of this is projected. ==== */
+  /* ======================================================================== */
+  about: {
+    /**
+     * The link every guest and host screen carries, and **the licence obligation** — AGPL
+     * section 13 entitles a user of a network service to the source of what they are using.
+     * It names the licence beside the words "code source" so a reader who knows what that
+     * means recognises it at a glance. There is no setting that hides it.
+     */
+    sourceCode: 'Code source (AGPL-3.0)',
+    /** Said to a screen reader, once, because the link opens a new tab and so loses the page. */
+    opensInNewTab: 'ouvre un nouvel onglet',
+    /** The footer's other link: the page below. */
+    aboutLink: 'À propos',
+
+    title: 'À propos d’EventSlide',
+    intro:
+      'EventSlide est un logiciel libre : vous pouvez en lire, en modifier et en redistribuer le code source selon les termes de sa licence.',
+    versionLabel: 'Version',
+    licenseLabel: 'Licence',
+    sourceLabel: 'Code source',
+    /** Under the link, because the version above it is the version the link points at. */
+    sourceNote: 'Ce lien mène au code source de la version indiquée ci-dessus.',
+  },
 } as const
 
 /**

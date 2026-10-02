@@ -570,3 +570,30 @@ export interface GalleryPage {
   readonly items: readonly GalleryPhotoDto[]
   readonly nextCursor: string | null
 }
+
+/**
+ * What a box can and cannot do, read without probing. Additive: a client that does not
+ * know a flag ignores it. Mirrors `AboutFeaturesDto` on the server.
+ */
+export interface AboutFeatures {
+  /**
+   * `SITE_ADMIN=on`: the operator's namespace is mounted on this box. What the SPA reads
+   * to decide whether to offer `/admin/site` — never a request that answers 401 in one
+   * mode and 404 in the other.
+   */
+  readonly siteAdmin: boolean
+}
+
+/**
+ * `GET /api/about`: what this box is, its licence and **where its source is** (roadmap
+ * G1-04 / P1-05) — the AGPL section 13 offer. Mirrors `AboutDto` on the server.
+ */
+export interface About {
+  readonly name: string
+  readonly version: string
+  readonly license: 'AGPL-3.0-only'
+  readonly sourceUrl: string
+  /** Operator links (terms, privacy, support…). Empty until the box has any to offer. */
+  readonly links: Readonly<Record<string, string>>
+  readonly features: AboutFeatures
+}

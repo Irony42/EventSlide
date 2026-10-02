@@ -114,6 +114,12 @@ const GALLERY_TOKEN = 'Q'.repeat(43)
 const ENDPOINTS: readonly EndpointCase[] = [
   // public
   {
+    name: 'about',
+    verb: 'get',
+    path: '/api/about',
+    invoke: (client) => client.about(),
+  },
+  {
     name: 'join',
     verb: 'post',
     path: '/api/join',
