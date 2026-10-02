@@ -56,6 +56,12 @@ export type ShareLinkId = Branded<string, 'ShareLinkId'>
  * today — the operator console of §10.4 is the first surface that will put it in one.
  */
 export type ClientId = Branded<string, 'ClientId'>
+/**
+ * The row of an account token (docs/ROADMAP.md §10.3). Distinct from the token itself, which
+ * is the secret in the link and is never stored: this id is the row's name, what a spend or
+ * an approval is addressed to once the digest has found it.
+ */
+export type AccountTokenId = Branded<string, 'AccountTokenId'>
 
 /**
  * The only casts in the codebase. Use them at a boundary — a database row becoming an
@@ -70,3 +76,4 @@ export const asClipJobId = (value: string): ClipJobId => value as ClipJobId
 export const asMissionId = (value: string): MissionId => value as MissionId
 export const asShareLinkId = (value: string): ShareLinkId => value as ShareLinkId
 export const asClientId = (value: string): ClientId => value as ClientId
+export const asAccountTokenId = (value: string): AccountTokenId => value as AccountTokenId
