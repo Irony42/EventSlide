@@ -714,6 +714,32 @@ describe('links the app builds rather than requests', () => {
   )
 })
 
+describe('the session answer', () => {
+  it('is typed with the operator verdict that GET /api/auth/me sends', async () => {
+    reply = {
+      authenticated: true,
+      user: {
+        userId: 'user-1',
+        email: 'ops@example.test',
+        displayName: null,
+        mustChangePassword: false,
+        canOperateSite: true,
+      },
+    }
+
+    const session = await createApi(recorder).session()
+
+    // The assignment compiles only while the web type carries the field the server sends:
+    // nothing reads it yet, so without this the type could lose it and no build would say so
+    // until the account menu is written. `dtoContract.test.ts` holds the two declarations
+    // of the user to each other; this holds the one `session()` answers with to the user.
+    const canOperate: boolean | undefined = session.authenticated
+      ? session.user.canOperateSite
+      : undefined
+    expect(canOperate).toBe(true)
+  })
+})
+
 describe('the instance the app uses', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
