@@ -41,7 +41,10 @@ const routePathOf = (req: Request): string | readonly string[] | undefined => {
   if (typeof route !== 'object' || route === null) return undefined
   const path: unknown = (route as Record<string, unknown>)['path']
   if (typeof path === 'string') return path
-  if (Array.isArray(path) && path.every((segment): segment is string => typeof segment === 'string')) {
+  if (
+    Array.isArray(path) &&
+    path.every((segment): segment is string => typeof segment === 'string')
+  ) {
     return path
   }
   return undefined

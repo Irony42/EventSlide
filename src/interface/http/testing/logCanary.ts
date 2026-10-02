@@ -78,7 +78,10 @@ export const fireLogCanarySweep = async (app: Express): Promise<LogCanarySweepRe
       throw new Error(`the log canary sweep does not know the HTTP method "${route.method}"`)
     }
     const path = concretePath(route.path)
-    const call = request(app)[route.method](`${path}?${QUERY}`)
+    // Two statements: prettier would put `[route.method]` at the start of a line in one
+    // chain, which `no-unexpected-multiline` rejects.
+    const started = request(app)[route.method](`${path}?${QUERY}`)
+    const call = started
       .set('Cookie', `es_session=${CANARY.cookie}`)
       .set('X-Canary-Email', CANARY.email)
       .set('X-Canary-Password', CANARY.password)

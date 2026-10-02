@@ -32,7 +32,8 @@ const linesWhile = async (emit: () => Promise<void>): Promise<string[]> => {
   const asyncWrite = vi.spyOn(fs, 'write').mockImplementation(((...args: unknown[]) => {
     const size = record(...args)
     const callback = args[args.length - 1]
-    if (typeof callback === 'function') (callback as (e: Error | null, n: number) => void)(null, size)
+    if (typeof callback === 'function')
+      (callback as (e: Error | null, n: number) => void)(null, size)
   }) as unknown as typeof fs.write)
   const syncWrite = vi
     .spyOn(fs, 'writeSync')
@@ -111,7 +112,11 @@ describe('accessLog', () => {
     })
 
     const [line] = parsedLines(lines)
-    expect(line).toMatchObject({ service: 'eventslide', version: '2.0.0-test', instance: 'test-instance' })
+    expect(line).toMatchObject({
+      service: 'eventslide',
+      version: '2.0.0-test',
+      instance: 'test-instance',
+    })
   })
 
   it('logs an unmatched request without echoing the path it refused', async () => {
@@ -173,17 +178,21 @@ describe('accessLog', () => {
 })
 
 describe('routePatternFor', () => {
-  const aRequest = (overrides: Partial<{ baseUrl: string; route: unknown }>): Parameters<typeof routePatternFor>[0] =>
+  const aRequest = (
+    overrides: Partial<{ baseUrl: string; route: unknown }>,
+  ): Parameters<typeof routePatternFor>[0] =>
     ({ baseUrl: '', route: undefined, ...overrides }) as Parameters<typeof routePatternFor>[0]
 
   it('joins the mount and the matched path', () => {
-    expect(routePatternFor(aRequest({ baseUrl: '/api', route: { path: '/events/:eventSlug' } }))).toBe(
-      '/api/events/:eventSlug',
-    )
+    expect(
+      routePatternFor(aRequest({ baseUrl: '/api', route: { path: '/events/:eventSlug' } })),
+    ).toBe('/api/events/:eventSlug')
   })
 
   it('reports an array of paths joined, for a route declared with more than one', () => {
-    expect(routePatternFor(aRequest({ baseUrl: '', route: { path: ['/g', '/g/*'] } }))).toBe('/g|/g/*')
+    expect(routePatternFor(aRequest({ baseUrl: '', route: { path: ['/g', '/g/*'] } }))).toBe(
+      '/g|/g/*',
+    )
   })
 
   it('reports (unmatched) rather than a path, when nothing matched', () => {

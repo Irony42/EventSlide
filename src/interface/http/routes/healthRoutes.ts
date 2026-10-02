@@ -67,7 +67,11 @@ export const healthRoutes = (checks: HealthChecks): Router => {
           error: {
             code: 'service.notReady',
             message: 'The server is shutting down',
-            details: { database: 'unavailable', media: 'unavailable', video: checks.videoTranscoding() },
+            details: {
+              database: 'unavailable',
+              media: 'unavailable',
+              video: checks.videoTranscoding(),
+            },
           },
         })
         return

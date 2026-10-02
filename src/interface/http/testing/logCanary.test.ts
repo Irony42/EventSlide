@@ -21,18 +21,17 @@ const captureAllOutputWhile = async (run: () => Promise<void>): Promise<string> 
     if (args[0] === 1) record(args[1])
     const callback = args[args.length - 1]
     const size = Buffer.isBuffer(args[1]) ? args[1].length : Buffer.byteLength(String(args[1]))
-    if (typeof callback === 'function') (callback as (e: Error | null, n: number) => void)(null, size)
+    if (typeof callback === 'function')
+      (callback as (e: Error | null, n: number) => void)(null, size)
   }) as unknown as typeof fs.write)
   const syncWrite = vi.spyOn(fs, 'writeSync').mockImplementation(((...args: unknown[]) => {
     if (args[0] === 1) record(args[1])
     return Buffer.isBuffer(args[1]) ? args[1].length : Buffer.byteLength(String(args[1]))
   }) as unknown as typeof fs.writeSync)
-  const stdoutWrite = vi
-    .spyOn(process.stdout, 'write')
-    .mockImplementation(((chunk: unknown) => {
-      record(chunk)
-      return true
-    }) as unknown as typeof process.stdout.write)
+  const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: unknown) => {
+    record(chunk)
+    return true
+  }) as unknown as typeof process.stdout.write)
   const consoleSpies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) =>
     vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
       written.push(args.map((argument) => inspect(argument)).join(' '))
@@ -52,7 +51,11 @@ const captureAllOutputWhile = async (run: () => Promise<void>): Promise<string> 
   return written.join('')
 }
 
-const INSTANCE_BINDINGS = { service: 'eventslide', version: 'sweep-test', instance: 'sweep-instance' }
+const INSTANCE_BINDINGS = {
+  service: 'eventslide',
+  version: 'sweep-test',
+  instance: 'sweep-instance',
+}
 
 describe('the log canary sweep', () => {
   it('finds none of the canaries anywhere in the log, across every mounted route', async () => {

@@ -74,7 +74,8 @@ const build = (grace = 15_000): Rig => {
     readiness,
     dispose: (): Promise<void> =>
       new Promise<void>((resolve, reject) => {
-        settle = (outcome): void => (outcome === 'resolve' ? resolve() : reject(new Error('dispose failed')))
+        settle = (outcome): void =>
+          outcome === 'resolve' ? resolve() : reject(new Error('dispose failed'))
       }),
   }
   const container = calls.watch('container', containerBase) as unknown as FakeContainer
@@ -110,9 +111,11 @@ describe('createShutdownHandler: ordering (P4-06)', () => {
 
     handler('SIGTERM')
 
-    expect(
-      calls.sequenceOf('readiness.markShuttingDown', 'drain.run', 'server.close'),
-    ).toEqual(['readiness.markShuttingDown', 'drain.run', 'server.close'])
+    expect(calls.sequenceOf('readiness.markShuttingDown', 'drain.run', 'server.close')).toEqual([
+      'readiness.markShuttingDown',
+      'drain.run',
+      'server.close',
+    ])
   })
 
   it('disposes the container and exits 0 once the server finishes closing', async () => {

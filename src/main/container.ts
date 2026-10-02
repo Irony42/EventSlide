@@ -513,7 +513,11 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // once in a process (every HTTP test that builds a harness does), and a module-level
   // flag would leak a shutdown from one container into another's readiness.
   const shutdownState = { shuttingDown: false }
-  const readiness = { markShuttingDown: (): void => { shutdownState.shuttingDown = true } }
+  const readiness = {
+    markShuttingDown: (): void => {
+      shutdownState.shuttingDown = true
+    },
+  }
 
   const httpConfig: HttpConfig = {
     isProduction: config.isProduction,
