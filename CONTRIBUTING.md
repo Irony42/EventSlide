@@ -14,29 +14,34 @@ welcome, and every one comes in under that licence.
 **The CLA must be signed before a pull request can be merged.** The
 [Contributor Licence Agreement](docs/CLA.md) is a licence grant, not a copyright
 assignment: you keep your copyright, and you let the maintainer use your contribution and
-relicense it on any terms, proprietary ones included, so that the project is never stuck
-for want of one contributor's signature. A `Signed-off-by` line is welcome but does not
-replace it, because it grants nothing beyond the AGPL. Read the CLA itself before you
-sign; this paragraph is a summary, not the agreement.
+relicense it on any terms, proprietary ones included, so that the project can be
+relicensed later without asking every contributor again. A `Signed-off-by` line is
+welcome but does not replace it, because it grants nothing beyond the AGPL. Read the CLA
+itself before you sign; this paragraph is a summary, not the agreement.
 
 How it works:
 
 1. Open your pull request. The CLA bot, a GitHub Actions workflow
    ([`.github/workflows/cla.yml`](.github/workflows/cla.yml)), comments on it and the
    `CLA signed` check stays red.
-2. Reply on the pull request with the sentence the bot gives you. It is also at the end of
-   [docs/CLA.md](docs/CLA.md). The check goes green and your signature is recorded.
+2. Reply on the pull request with the sentence the bot gives you, exactly. It is also in
+   section 9 of [docs/CLA.md](docs/CLA.md). The check goes green and your signature is
+   recorded. If it stays red, comment `recheck` and, failing that, push a commit.
 3. That is all, once: later pull requests from you pass without another signature, until
    the CLA text changes.
 
 The maintainer and Dependabot do not sign. If you are contributing as part of your job, or
 with help from an AI tool, read sections 5.3 and 5.4 of the CLA first.
 
+`CLA signed` is not yet a required check on `main`: that is a branch-protection setting the
+maintainer has not switched on. The rule stands anyway, and the maintainer reads the check
+before every merge.
+
 ## On hold: external pull requests
 
-External pull requests are paused until the CLA workflow is live. The pause lifts as soon
-as the CLA workflow is live on `main`, and this section goes in the same change. Issues
-and discussions are welcome in the meantime.
+External pull requests are paused until the CLA workflow is live. The pause lifts once the
+CLA workflow is live on `main` and has been seen to check a real pull request, and this
+section is removed in that change. Issues and discussions are welcome in the meantime.
 
 ## Code of conduct
 

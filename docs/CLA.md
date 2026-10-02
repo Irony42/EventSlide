@@ -9,12 +9,13 @@ Version 1.0, 2 October 2026. Individual contributors.
 
 ## In plain words
 
-You keep the copyright in what you write. By signing, you give Pierre Tijou a broad
-licence to your contributions, so that the project can be released under the AGPL today and
-relicensed later, in the open or not, without chasing every contributor for permission.
+You keep the copyright in what you write. By signing, you give Pierre Tijou, and the
+successors and entities that section 1 describes, a broad licence to your contributions, so
+that the project can be released under the AGPL today and relicensed later, in the open or
+not, without chasing every contributor for permission.
 
 Nothing is transferred, and you do not lose the right to use your own work however you
-like. The public edition keeps carrying your work under an open-source licence (section 6).
+like. The open-source edition keeps carrying your work (section 6).
 
 This is a licence grant, not an assignment of copyright, and it is not a
 Developer Certificate of Origin: a sign-off line only says you have the right to submit
@@ -30,10 +31,11 @@ relicense it, which is what this agreement is for.
   successors and assigns, and any person or legal entity that he controls, directly or
   indirectly, or that carries on the Project in his place. "Controls" means holding a
   majority of the votes, or the power to direct how the entity is run.
+- **The Public Edition** is the version of the Project that the Maintainer publishes for
+  anyone to use, copy and change under an open-source licence.
 - **A Contribution** is any work you submit to the Project on purpose: source code, tests,
   documentation, translations, designs, images, data, or a change to any of them, sent as
   a pull request, a patch, an issue attachment or in any other way the Project accepts.
-  Work you mark clearly as "not a Contribution" is not one.
 
 ## 2. You keep your copyright
 
@@ -65,16 +67,16 @@ licence.
 
 ## 4. Patent licence
 
-You grant the Maintainer, and everyone who receives the Project from the Maintainer or
-from anyone else entitled to pass it on, a perpetual, worldwide, non-exclusive,
-royalty-free and irrevocable patent licence to make, have made, use, offer to sell, sell,
-import and otherwise transfer your Contribution, alone or combined with the Project. It
-covers the patent claims you own or control that your Contribution infringes, alone or in
-that combination, and no others.
+Except as this section says, you grant the Maintainer, and everyone who receives the
+Project from the Maintainer or from anyone else entitled to pass it on, a perpetual,
+worldwide, non-exclusive, royalty-free and irrevocable patent licence to make, have made,
+use, offer to sell, sell, import and otherwise transfer your Contribution, alone or
+combined with the Project. It covers the patent claims you own or control that your
+Contribution infringes, alone or in that combination, and no others.
 
-If someone starts a patent lawsuit, including a counterclaim, saying that the Project or a
-Contribution infringes a patent, the patent licence this section gives that person ends on
-the day the claim is filed.
+If someone sues any person or entity over a patent, including by counterclaim, saying that
+the Project or a Contribution infringes it, the patent licence this section gives that
+someone ends on the day the claim is filed.
 
 ## 5. What you promise
 
@@ -84,8 +86,11 @@ By signing, you confirm that:
    to anyone else that conflict with them.
 2. Each Contribution is your own original work, or is third-party material you have the
    right to submit under this agreement. If you include anything written by somebody
-   else, you will say so in the pull request, with its source and its licence, and you
-   will not submit anything under a licence that cannot sit with AGPL-3.0-only.
+   else, you will say so in the pull request, with its source and its licence. Such
+   material must come under a licence that lets the Maintainer sublicense it on any
+   terms, such as MIT, BSD, ISC or Apache-2.0, or the Maintainer must have agreed to it in
+   writing first. Code under the GPL family or another licence that requires the whole
+   work to stay under it is not acceptable, even though it can sit alongside the AGPL.
 3. If your employer, your school or a client has or may have rights in your work, which
    for software written as part of a job is the usual rule in many countries, you have
    written permission or a waiver from them, or they have signed for you. A company
@@ -97,14 +102,14 @@ By signing, you confirm that:
 
 ## 6. What the Maintainer promises
 
-- The Maintainer will keep the Project available to the public, with your Contribution in
-  it, under an open-source licence approved by the Open Source Initiative. Releases already
-  published under AGPL-3.0-only stay under it, because a published licence cannot be
-  withdrawn. This promise is about what comes next: the public edition keeps being open
-  source.
-- This promise is about the public edition of the Project. It does not stop the Maintainer
-  from also licensing the Contribution on other terms, in other editions or products, as
-  section 3 allows.
+- The Maintainer will keep making the Public Edition available to everyone under a licence
+  approved by the Open Source Initiative, and your Contribution stays in it, unless he
+  removes it for a good reason: a defect, a legal claim, a licence problem or a change of
+  design. Releases already published under AGPL-3.0-only stay under it, because a
+  published licence cannot be withdrawn. This promise is about what comes next.
+- The promise is about the Public Edition only. It does not stop the Maintainer from also
+  licensing the Contribution on other terms, in other editions or products, as section 3
+  allows.
 - The Maintainer may reject, change or remove any Contribution, and does not have to use
   one because you sent it. You are not asked to support what you contribute.
 
@@ -119,7 +124,8 @@ that they infringe nothing, beyond what section 5 says.
 - This agreement covers every Contribution you submit to the Project, before you sign as
   well as after.
 - You can stop contributing at any time. The licences already granted for Contributions you
-  have submitted cannot be withdrawn.
+  have submitted cannot be withdrawn, apart from the patent licence ending as section 4
+  says.
 - The Maintainer may publish a new version of this text. A new version applies to
   Contributions you submit after you accept it. Your signature is stored against the
   version you signed (`signatures/v1/` for this one), and a new version is asked for again.
@@ -133,11 +139,16 @@ I have read the CLA Document and I hereby sign the CLA
 ```
 
 One signature covers all your future pull requests, until a new version of this text is
-published. The bot records your GitHub username, your numeric GitHub account id, the time of
-the comment and the pull request number, in a public JSON file on the `cla-signatures`
-branch of the repository. That record is the evidence that you signed, and it is kept for as long as the Maintainer
-may need to show it. If you want to know more, or want to raise something about
-it, use the contact in [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md).
+published. A Contribution sent some other way than a pull request is accepted only once its
+sender has signed on a pull request that carries it, or by another written means that the
+Maintainer agrees to.
+
+The bot records your GitHub username, your numeric GitHub account id, the id of your
+comment and of the repository, the time of the comment and the pull request number, in a
+public JSON file on the `cla-signatures` branch of the repository. That record is the
+evidence that you signed, and it is kept for as long as the Maintainer may need to show
+it. If you want to know more, or want to raise something about it, use the contact in
+[CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md).
 
 Commits by the maintainer himself, and by Dependabot, are exempt: the first because he is
 the beneficiary of this agreement, the second because a bot cannot give a licence and the

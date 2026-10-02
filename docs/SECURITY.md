@@ -1818,42 +1818,63 @@ all. It also means that any step that checks out, builds or executes the pull re
 code runs a stranger's code with a token that can write to this repository. The workflow
 is written so that nothing of the pull request is ever executed:
 
-| Rule                                                    | How the workflow keeps it                                                                                                                                                         | What fails if it is broken                                                                           |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| It never checks out the pull request                    | There is no `actions/checkout`. The action reads the commit authors through the GraphQL API, not through a clone                                                                  | `claWorkflow.test.ts`: `actions/checkout`, `pull_request.head` and `github.head_ref` are all refused |
-| No pull-request text reaches a shell                    | The one `run:` step takes its inputs from `env:`, so a title or a branch name cannot become a command                                                                             | `claWorkflow.test.ts`: any `${{ }}` inside that script is refused                                    |
-| The token is as small as the action allows              | `permissions:` is written out: `contents`, `pull-requests` and `actions`, all `write`, read off the action's source. The repository default is read-only, so nothing is inherited | `claWorkflow.test.ts`: a missing block, or any other scope, is refused                               |
-| The third-party action cannot change under the workflow | `contributor-assistant/github-action` is pinned by the full commit SHA of `v2.6.1`, not by its tag                                                                                | `claWorkflow.test.ts`: any `uses:` that is not a 40-hex SHA is refused                               |
-| No personal access token exists to leak                 | Signatures go to a branch of this same repository, `cla-signatures`, with the workflow token. The action only asks for a personal token when signatures go to another repository  | `claWorkflow.test.ts`: `PERSONAL_ACCESS_TOKEN` and `remote-*` inputs are refused                     |
+| Rule                                                    | How the workflow keeps it                                                                                                                                                                          | What fails if it is broken                                                                        |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| It never checks out the pull request                    | It has exactly two steps, its own bootstrap script and the action, and neither clones anything. The action reads the commit authors through the GraphQL API                                        | `claWorkflow.test.ts`: a third step, an `actions/checkout`, a `git clone` or a `gh pr checkout`   |
+| No pull-request text reaches a shell                    | The one `run:` step takes its inputs from `env:`, and the only expression the file interpolates is the workflow token, so a title or a branch name cannot become a command                         | `claWorkflow.test.ts`: any other expression in `${{ }}` anywhere in the file                      |
+| The token is as small as the action allows              | `permissions:` is written out once, at the top: `contents`, `pull-requests` and `actions`, all `write`, read off the action's source. The repository default is read-only, so nothing is inherited | `claWorkflow.test.ts`: a missing block, another scope, or a second `permissions:` in the job      |
+| The third-party action cannot change under the workflow | `contributor-assistant/github-action` is pinned by the full commit SHA of `v2.6.1`, and the test pins the same SHA, so moving it means reading its source again                                    | `claWorkflow.test.ts`: any `uses:` that is not a 40-hex SHA, or a SHA that is not the audited one |
+| No personal access token exists to leak                 | Signatures go to a branch of this same repository, `cla-signatures`, with the workflow token. The action only asks for a personal token when signatures go to another repository                   | `claWorkflow.test.ts`: `PERSONAL_ACCESS_TOKEN` and `remote-*` inputs are refused                  |
+| A fork does not run it                                  | The job is skipped unless `github.repository` is `Irony42/EventSlide`, so a fork that enables Actions does not ask its own contributors to grant rights to this maintainer                         | `claWorkflow.test.ts`: the job gate is compared whole                                             |
 
 **The signatures branch.** `cla-signatures` holds one JSON file, `signatures/v1/cla.json`:
-for each signer a GitHub login, the numeric account id, the time of the comment and the
-pull request number. It is public, like the rest of the repository. It must **not** be
-protected, because the action pushes to it with the workflow token. The workflow's first
-step creates the branch, with no shared history, when it does not exist, because the
-action's own "file not found" branch never runs (its check compares a status code with a
-string).
+for each signer a GitHub login, the numeric account id, the id of the signing comment and
+of the repository, the time of the comment and the pull request number. It is public, like
+the rest of the repository. It must **not** be protected, because the action pushes to it
+with the workflow token. The workflow's first step creates the branch, with no shared
+history and an empty signatures file on it, when it does not exist, and adds the file to a
+branch that exists without it, because the action's own "file not found" branch never runs
+(its check compares a status code with a string). Each signature is a commit on that
+branch, authored by the workflow, and that commit history is the evidence; the comment on
+the pull request is the way in. Closed pull requests are therefore not locked.
 
 **What the check does not prove.** It is a gate for contributors acting in good faith. It
 is not a defence against a forger, and it should not be read as one.
 
 - The allowlist (`Irony42`, `dependabot[bot]`) is matched against the commit author's
-  GitHub login. When a commit's email address is not tied to a GitHub account, the action
-  falls back to the git author **name**, which the committer chooses. A commit made with
-  `git config user.name Irony42` and an unlinked address is treated as the maintainer's.
-  What stops a forged commit from landing is that the maintainer merges every pull request
-  and sees whose commits it carries, not this check.
+  GitHub login. The action takes the author's linked account, else the committer's, else
+  the git author **name**, else the committer's name, and the last two are text the
+  committer chose. A commit made with `git config user.name Irony42` and an address
+  linked to no GitHub account is therefore treated as the maintainer's. What stops a
+  forged commit from landing is that the maintainer merges every pull request and sees
+  whose commits it carries, not this check.
+- The action reads the first 100 commits of a pull request and the first 30 comments on
+  it, with no paging. A sign comment past the thirtieth is not seen, and a commit past the
+  hundredth is not checked. Neither is a realistic pull request here, and neither is a
+  reason to merge one that is.
 - A signature is a comment posted by a GitHub account. It is as strong as that account's
   hold on its owner, and no stronger.
-- The action locks a pull request when it is closed, so that a signature comment cannot be
-  edited or deleted afterwards. Nothing else protects the comment while the pull request
-  is open.
 - Making the `CLA signed` check required is a branch-protection setting, and it is the
   maintainer's call. Until it is set, a red check does not by itself stop a merge.
-- The action is third-party code that runs with a write token. It is pinned, and it is read
-  by hand when the pin moves, because Dependabot is not configured for `github-actions`.
-  The pin is at `v2.6.1`, its last release, from September 2024.
+- The workflow has no `concurrency:` group, so two people signing in the same second can
+  leave the second run red on a stale file revision, and the action re-runs the failed
+  check by branch **name**, not pull request number, so two fork pull requests from
+  branches both called `main` can re-run each other's. `recheck`, or a new commit, clears
+  either.
+
+**The action is archived.** `contributor-assistant/github-action` was archived read-only
+by its owners on 2026-03-23, with a notice that it is no longer maintained, and `v2.6.1`
+(September 2024) is its last release. The pin will therefore never move on its own,
+Dependabot is not configured for `github-actions` and could not help, and no security fix
+will arrive for code that runs with a write token on every pull request. What bounds that
+risk is the shape the test enforces: a per-run token limited to this repository, three
+scopes, two steps and nothing of the pull request executed. The exits, if it ever
+matters, are to fork the action under the maintainer's account at the pinned SHA and
+point `uses:` there, or to replace it with an in-repository script, which is small: it
+reads commit authors and comments, and writes one JSON file. Its runtime is Node 20,
+declared in its `action.yml`, which GitHub's runners are moving to Node 24; a change there
+would show as a failing check.
 
 As of this writing the workflow has not yet run on GitHub: it can only be exercised from
-`main`. `scripts/claWorkflow.test.ts` runs its bootstrap script against a stand-in `gh` and
-pins its shape, which is not the same as watching a first pull request go through it.
+`main`. `scripts/claWorkflow.test.ts` runs its bootstrap script against a stand-in `gh`
+and pins its shape, which is not the same as watching a first pull request go through it.
