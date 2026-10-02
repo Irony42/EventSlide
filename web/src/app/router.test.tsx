@@ -706,3 +706,169 @@ describe('the support link', () => {
     })
   })
 })
+
+/**
+ * The operator's links (roadmap G2-17 / P3-18): the report link on the guests' screens, the
+ * help page on the host's, the three legal pages on both, and none of them on the wall.
+ *
+ * Which layout carries which is the whole claim, so every case here reads the footer the
+ * layout built, **after** `GET /api/about` has been answered with all five addresses — an
+ * absence asserted while the request is in flight would pass on a layout about to render it.
+ */
+describe('the operator’s links', () => {
+  const ADDRESSES = {
+    terms: 'https://hosted.example.org/legal/cgu',
+    privacy: 'https://hosted.example.org/legal/confidentialite',
+    legalNotice: '/legal/mentions',
+    support: '/legal/avant-evenement',
+    report: '/legal/signaler',
+  } as const
+
+  const operating = (overrides: Partial<Api> = {}) =>
+    fakeApi({ about: vi.fn(async () => anAbout({ links: ADDRESSES })), ...overrides })
+
+  const signedIn = {
+    session: vi.fn(async (): Promise<SessionResponse> => ({
+      authenticated: true,
+      user: aSessionUser(),
+    })),
+  }
+
+  const named = (label: string) => new RegExp(label.replace(/[()]/g, '\\$&'), 'i')
+  const inFooter = () => within(screen.getByRole('contentinfo'))
+  const settle = () =>
+    act(async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    })
+
+  /** The footer has heard the answer: the legal three are the first thing it adds. */
+  const answered = () => screen.findAllByRole('link', { name: named(fr.about.termsLink) })
+
+  describe('the report link, "Signaler un contenu"', () => {
+    it.each([
+      ['the join screen', '/join'],
+      ['a resolved join code', '/join/H7K2QM'],
+      ['a dead end under /join', '/join/a/b'],
+      ['the shared gallery', '/g/a-token'],
+      ['/about, which lives under the guest layout', '/about'],
+    ])('is in the footer on %s', async (_name, route) => {
+      renderWithProviders(<AppRoutes />, { api: operating(), route })
+
+      await answered()
+
+      expect(inFooter().getByRole('link', { name: named(fr.about.reportLink) })).toHaveAttribute(
+        'href',
+        ADDRESSES.report,
+      )
+    })
+
+    it('is in the footer of the guest upload screen', async () => {
+      rememberGuestSession({ event: aPublicEvent(), displayName: null, privacyNotice: null })
+      renderWithProviders(<AppRoutes />, { api: operating(), route: '/e/camille-et-sacha/upload' })
+
+      expect(await screen.findByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+      await answered()
+
+      expect(inFooter().getByRole('link', { name: named(fr.about.reportLink) })).toHaveAttribute(
+        'href',
+        ADDRESSES.report,
+      )
+    })
+
+    it.each([
+      ['the login screen', '/login'],
+      ['the host console', '/admin'],
+      ['a stale address that lands under the host footer', '/nowhere'],
+    ])('is not in the host’s footer: %s', async (_name, route) => {
+      renderWithProviders(<AppRoutes />, { api: operating(signedIn), route })
+
+      await answered()
+      await settle()
+
+      expect(inFooter().queryByRole('link', { name: named(fr.about.reportLink) })).toBeNull()
+    })
+
+    it('is not on the projected wall, which has no footer and nobody to press it', async () => {
+      renderWithProviders(<AppRoutes />, {
+        api: operating(),
+        route: '/e/camille-et-sacha/display',
+      })
+
+      expect(await screen.findByText(fr.wall.empty)).toBeVisible()
+      await settle()
+
+      expect(screen.queryByRole('contentinfo')).toBeNull()
+      expect(screen.queryByRole('link', { name: named(fr.about.reportLink) })).toBeNull()
+    })
+  })
+
+  describe('the help page, SUPPORT_URL', () => {
+    it.each([
+      ['the login screen', '/login'],
+      ['the host console', '/admin'],
+    ])('is in the footer on %s', async (_name, route) => {
+      renderWithProviders(<AppRoutes />, { api: operating(signedIn), route })
+
+      await answered()
+
+      expect(inFooter().getByRole('link', { name: named(fr.about.helpLink) })).toHaveAttribute(
+        'href',
+        ADDRESSES.support,
+      )
+    })
+
+    it.each([
+      ['the join screen', '/join'],
+      ['the shared gallery', '/g/a-token'],
+      ['a stale address that lands under the host footer', '/nowhere'],
+    ])('is not in the footer on %s', async (_name, route) => {
+      renderWithProviders(<AppRoutes />, { api: operating(signedIn), route })
+
+      await answered()
+      await settle()
+
+      expect(inFooter().queryByRole('link', { name: named(fr.about.helpLink) })).toBeNull()
+    })
+  })
+
+  describe('the terms, the privacy policy and the legal notice', () => {
+    it.each([
+      ['the join screen', '/join'],
+      ['the shared gallery', '/g/a-token'],
+      ['the login screen', '/login'],
+      ['the host console', '/admin'],
+      ['a stale address under the host footer', '/nowhere'],
+    ])('are in the footer on %s', async (_name, route) => {
+      renderWithProviders(<AppRoutes />, { api: operating(signedIn), route })
+
+      await answered()
+
+      expect(inFooter().getByRole('link', { name: named(fr.about.privacyLink) })).toHaveAttribute(
+        'href',
+        ADDRESSES.privacy,
+      )
+      expect(
+        inFooter().getByRole('link', { name: named(fr.about.legalNoticeLink) }),
+      ).toHaveAttribute('href', ADDRESSES.legalNotice)
+    })
+  })
+
+  describe('on an instance whose operator set nothing', () => {
+    it.each([
+      ['the join screen', '/join'],
+      ['the shared gallery', '/g/a-token'],
+      ['/about', '/about'],
+      ['the login screen', '/login'],
+      ['the host console', '/admin'],
+    ])('the footer on %s has the two links it always had', async (_name, route) => {
+      const api = fakeApi({ about: vi.fn(async () => anAbout({ links: {} })), ...signedIn })
+      renderWithProviders(<AppRoutes />, { api, route })
+
+      await screen.findByRole('contentinfo')
+      await waitFor(() => expect(api.about).toHaveBeenCalled())
+      await settle()
+
+      expect(inFooter().getAllByRole('link')).toHaveLength(2)
+    })
+  })
+})

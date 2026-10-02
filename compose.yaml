@@ -126,6 +126,17 @@ services:
       # logged. See .env.example.
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # The operator's identity and the pages they owe a visitor, **empty unless you set them**:
+      # an instance that sets none of the seven changes nothing for anyone. Links are https URLs
+      # or paths on your own site; the name is also said in the guests' privacy notice. See
+      # .env.example.
+      OPERATOR_NAME: ${OPERATOR_NAME:-}
+      OPERATOR_CONTACT_EMAIL: ${OPERATOR_CONTACT_EMAIL:-}
+      LEGAL_TERMS_URL: ${LEGAL_TERMS_URL:-}
+      LEGAL_PRIVACY_URL: ${LEGAL_PRIVACY_URL:-}
+      LEGAL_NOTICE_URL: ${LEGAL_NOTICE_URL:-}
+      SUPPORT_URL: ${SUPPORT_URL:-}
+      REPORT_URL: ${REPORT_URL:-}
     volumes:
       # The database, every photo, and under /data/backups the archives the backup
       # command writes (BACKUP_DIR, set in the Dockerfile). Everything is here, but do not

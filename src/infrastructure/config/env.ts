@@ -5,6 +5,7 @@ import {
   AUDIT_RETENTION_MAX_DAYS,
   AUDIT_RETENTION_MIN_DAYS,
 } from '../../domain/audit/auditRetention'
+import { OPERATOR_NAME_MAX_LENGTH } from '../../domain/privacy/privacyNotice'
 import { JoinCode } from '../../domain/shared/joinCode'
 import { Password } from '../../domain/users/password'
 import { parseMailbox, parseSmtpUrl, type SmtpSettings } from '../mail/smtpEndpoint'
@@ -271,6 +272,140 @@ const donationUrl = optionalHttpsLink('DONATION_URL', 'hosts and on the public /
  * one (roadmap G4-02). Empty by default, for the same reason as {@link donationUrl}.
  */
 const budgetUrl = optionalHttpsLink('BUDGET_URL', 'hosts and on the public /about page')
+
+/**
+ * The origin a path is parsed against, to canonicalise it (dot segments, percent-encoding).
+ * Nothing is ever sent there: the `.invalid` top-level domain is reserved and resolves
+ * nowhere.
+ */
+const SAME_ORIGIN_PROBE = 'https://same-origin.invalid'
+
+/** Long enough for any real address, short enough that a pasted blob is not one. */
+const LINK_MAX_LENGTH = 2_048
+
+/**
+ * A path on this site in its canonical form, or `null`: one leading `/`, then anything the
+ * URL parser keeps on the same origin.
+ *
+ * **Three ways a "path" leaves the site, each refused.** `//host/x` is protocol-relative.
+ * `/\host/x` is read by every browser as `//host/x`, because for an http(s) address a
+ * backslash is a slash. And `/.//host/x` is the subtle one: the parser removes the dot
+ * segment and leaves a path that *starts* with `//`, so the canonical text would be
+ * protocol-relative even though the input was not. The first two are refused on the text as
+ * typed, the third on the canonical result.
+ *
+ * Whitespace and control characters are refused before parsing, for the reason
+ * {@link parseHttpsUrl} gives.
+ */
+const parseSameOriginPath = (value: string): string | null => {
+  if (/[\s\p{Cc}]/u.test(value)) return null
+  if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return null
+  let url: URL
+  try {
+    url = new URL(value, SAME_ORIGIN_PROBE)
+  } catch {
+    return null
+  }
+  const path = `${url.pathname}${url.search}${url.hash}`
+  return path.startsWith('//') ? null : path
+}
+
+/**
+ * An optional link the operator owes a visitor (roadmap G2-17 / P3-18): their terms, privacy
+ * policy, legal notice, help page or report page. **An https address, or a path on this
+ * site**, and nothing else. A path is allowed because the hosted instance serves its legal
+ * pages itself, from the same origin and ahead of this application (`/legal/signaler`), and
+ * an absolute address would have to repeat the instance's own domain in its own
+ * configuration.
+ *
+ * Blank is absent, for the reason on {@link blankAsAbsent}. What is returned is the
+ * canonical form, never the text as typed.
+ */
+const optionalSiteLink = (variable: string, shownTo: string) =>
+  z.preprocess(
+    blankAsAbsent,
+    z
+      .string()
+      .trim()
+      .transform((value, ctx) => {
+        const parsed =
+          value.length > LINK_MAX_LENGTH
+            ? null
+            : value.startsWith('/')
+              ? parseSameOriginPath(value)
+              : parseHttpsUrl(value)
+        if (parsed === null) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${variable} must be an https URL with no credentials in it, or a path on this site starting with a single / (as in /legal/terms), of at most ${LINK_MAX_LENGTH} characters: a javascript:, data: or http: address, or one that leaves the site, is refused, because this link is shown to ${shownTo}`,
+          })
+          return z.NEVER
+        }
+        return parsed
+      })
+      .optional(),
+  )
+
+/**
+ * `OPERATOR_NAME`: who runs this box, as they wish to be named (roadmap G2-17 / P3-18).
+ * **Empty by default**: a self-hoster has no one to name, and the guest notice then says
+ * nothing about a host beyond the organiser.
+ *
+ * Plain text, shown on `/about` and in the guest's privacy notice, and part of the notice's
+ * revision. No control character, line break or bidirectional override: the first two would
+ * break a sentence apart, and the last can make a name read as another. At least one letter
+ * or digit, so a name of zero-width characters (which `trim()` leaves alone) cannot print a
+ * blank "Hébergé par" line. React escapes the rest.
+ */
+const operatorName = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .trim()
+    .min(1, 'OPERATOR_NAME must not be blank')
+    .max(
+      OPERATOR_NAME_MAX_LENGTH,
+      `OPERATOR_NAME must be at most ${OPERATOR_NAME_MAX_LENGTH} characters`,
+    )
+    .refine((value) => !/[\p{Cc}\p{Zl}\p{Zp}\p{Bidi_Control}]/u.test(value), {
+      message:
+        'OPERATOR_NAME must not contain a control character, a line break or a bidirectional override',
+    })
+    .refine((value) => /[\p{L}\p{N}]/u.test(value), {
+      message:
+        'OPERATOR_NAME must contain at least one letter or digit: a name made only of invisible characters or punctuation would print as a blank line and still ask every guest to read the notice again',
+    })
+    .optional(),
+)
+
+/**
+ * `OPERATOR_CONTACT_EMAIL`: where a visitor can reach the operator (roadmap G2-17). Required
+ * to sit beside `OPERATOR_NAME`: an address with no one behind it is not an identity.
+ *
+ * One plain address, which is what zod's `email()` accepts and nothing wider: no display
+ * name, no list, and no `?` or `&`, so the `mailto:` link built from it cannot carry a
+ * header the operator did not mean to publish.
+ */
+const operatorContactEmail = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .trim()
+    .max(254)
+    .email('OPERATOR_CONTACT_EMAIL must be one e-mail address, such as contact@example.org')
+    .optional(),
+)
+
+/** Terms of use. See {@link optionalSiteLink}. */
+const legalTermsUrl = optionalSiteLink('LEGAL_TERMS_URL', 'every visitor')
+/** Privacy policy; also linked from the guest's privacy notice. */
+const legalPrivacyUrl = optionalSiteLink('LEGAL_PRIVACY_URL', 'every visitor')
+/** Legal notice (the editor's and the host's identity, under the LCEN). */
+const legalNoticeUrl = optionalSiteLink('LEGAL_NOTICE_URL', 'every visitor')
+/** Where a host gets help. Shown to hosts and on `/about`. */
+const supportUrl = optionalSiteLink('SUPPORT_URL', 'hosts and on the public /about page')
+/** Where to report a piece of content (DSA art. 16). Shown to guests. */
+const reportUrl = optionalSiteLink('REPORT_URL', 'every guest')
 
 /**
  * `SOURCE_REF`: the tag or commit the image was built from, injected by the Dockerfile's
@@ -857,6 +992,21 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /** See {@link budgetUrl}. Absent means no public-budget link anywhere. */
       BUDGET_URL: budgetUrl,
 
+      /** See {@link operatorName}. Absent means the box names no operator. */
+      OPERATOR_NAME: operatorName,
+      /** See {@link operatorContactEmail}. Needs OPERATOR_NAME beside it. */
+      OPERATOR_CONTACT_EMAIL: operatorContactEmail,
+      /** See {@link legalTermsUrl}. Absent means no terms link anywhere. */
+      LEGAL_TERMS_URL: legalTermsUrl,
+      /** See {@link legalPrivacyUrl}. Absent means no privacy-policy link anywhere. */
+      LEGAL_PRIVACY_URL: legalPrivacyUrl,
+      /** See {@link legalNoticeUrl}. Absent means no legal-notice link anywhere. */
+      LEGAL_NOTICE_URL: legalNoticeUrl,
+      /** See {@link supportUrl}. Absent means no help link anywhere. */
+      SUPPORT_URL: supportUrl,
+      /** See {@link reportUrl}. Absent means no "report content" link anywhere. */
+      REPORT_URL: reportUrl,
+
       /** See {@link eventSlugSuffix}. `none` unless the box says otherwise. */
       EVENT_SLUG_SUFFIX: eventSlugSuffix,
       /** See {@link allowCustomSlugs}. `true` unless the box says otherwise. */
@@ -930,6 +1080,17 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
           path: ['EVENT_CREATION'],
           message:
             'EVENT_CREATION=clientMembers requires SITE_ADMIN=on: restricting event creation to client members only means something on a box that has an operator and clients, and with SITE_ADMIN=off there is no way to create either (docs/ROADMAP.md §10.9)',
+        })
+      }
+
+      // An address with no name behind it is not an identity, and `/api/about`'s `operator`
+      // has no shape for one: accepting it would publish nothing and look configured.
+      if (raw.OPERATOR_CONTACT_EMAIL !== undefined && raw.OPERATOR_NAME === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['OPERATOR_CONTACT_EMAIL'],
+          message:
+            'OPERATOR_CONTACT_EMAIL requires OPERATOR_NAME: a contact address is published beside the name of the operator it belongs to, and with no name it would be published nowhere',
         })
       }
 
@@ -1170,6 +1331,29 @@ export interface AppConfig {
     readonly donationUrl: string | null
     /** `BUDGET_URL`. See {@link budgetUrl}. */
     readonly budgetUrl: string | null
+  }
+
+  /**
+   * Who runs this box and the links they owe a visitor (roadmap G2-17 / P3-18), every field
+   * `null` unless the operator set it — so a self-hosted box names nobody, links to nothing,
+   * and its guests are shown exactly the notice they always were. Links are canonical https
+   * addresses or paths on this site; see {@link optionalSiteLink}.
+   */
+  readonly operator: {
+    /** `OPERATOR_NAME`. See {@link operatorName}. */
+    readonly name: string | null
+    /** `OPERATOR_CONTACT_EMAIL`. Never set without a `name`. */
+    readonly contactEmail: string | null
+    /** `LEGAL_TERMS_URL`. */
+    readonly termsUrl: string | null
+    /** `LEGAL_PRIVACY_URL`. */
+    readonly privacyUrl: string | null
+    /** `LEGAL_NOTICE_URL`. */
+    readonly legalNoticeUrl: string | null
+    /** `SUPPORT_URL`: help for a host. Not the donation link, which is {@link support}. */
+    readonly supportUrl: string | null
+    /** `REPORT_URL`: where a piece of content is reported (DSA art. 16). */
+    readonly reportUrl: string | null
   }
 
   /**
@@ -1474,6 +1658,16 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
     support: {
       donationUrl: raw.DONATION_URL ?? null,
       budgetUrl: raw.BUDGET_URL ?? null,
+    },
+
+    operator: {
+      name: raw.OPERATOR_NAME ?? null,
+      contactEmail: raw.OPERATOR_CONTACT_EMAIL ?? null,
+      termsUrl: raw.LEGAL_TERMS_URL ?? null,
+      privacyUrl: raw.LEGAL_PRIVACY_URL ?? null,
+      legalNoticeUrl: raw.LEGAL_NOTICE_URL ?? null,
+      supportUrl: raw.SUPPORT_URL ?? null,
+      reportUrl: raw.REPORT_URL ?? null,
     },
 
     events: {

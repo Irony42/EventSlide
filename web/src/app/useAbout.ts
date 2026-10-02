@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BUILD_SOURCE_URL, BUILD_VERSION } from '../lib/about/buildInfo'
-import type { About, AboutLinks } from '../lib/api/dto'
+import type { About, AboutLinks, AboutOperator } from '../lib/api/dto'
 import { useApi } from './useApi'
 
 /**
@@ -45,25 +45,101 @@ const httpsOnly = (value: string): string | null => {
   }
 }
 
+/** The base a path is parsed against to canonicalise it. Nothing is ever fetched from here. */
+const SAME_ORIGIN_PROBE = 'https://same-origin.invalid'
+
 /**
- * The operator's links worth trusting: a known key whose value is an https address, in its
- * parsed form, and nothing else.
+ * An https address, or a path on this site, in its canonical form, or `null` (roadmap
+ * G2-17): the rule `env.ts` applies to `LEGAL_*_URL`, `SUPPORT_URL` and `REPORT_URL`, applied
+ * again where the string becomes an `href`.
  *
- * Applied to the response and not to the build, because the build knows none: a donation
- * address is the operator's, read by the server at boot. Anything unrecognised is dropped
- * rather than rendered. What this guards is the *kind* of address (`httpsOnly`), not whose
- * it is: a client cannot tell the operator's https page from another one, and the transport
- * is the same one that carries `sourceUrl`.
+ * A path is accepted because the hosted instance serves its legal pages from its own origin.
+ * It is a path only if it starts with one `/`, holds no backslash or whitespace, and — the
+ * subtle case — does not *canonicalise* to `//host`: `/.//host` parses to a pathname that
+ * starts with two slashes, which a browser reads as another site.
+ */
+const siteLinkOnly = (value: string): string | null => {
+  if (!value.startsWith('/')) return httpsOnly(value)
+  if (/[\s\p{Cc}]/u.test(value) || value.startsWith('//') || value.includes('\\')) return null
+  try {
+    const url = new URL(value, SAME_ORIGIN_PROBE)
+    const path = `${url.pathname}${url.search}${url.hash}`
+    return path.startsWith('//') ? null : path
+  } catch {
+    return null
+  }
+}
+
+/** The value under `key`, run through `accept`, or `null` when it is absent or not text. */
+const trustedLink = (
+  links: object,
+  key: string,
+  accept: (value: string) => string | null,
+): string | null => {
+  const value: unknown = Reflect.get(links, key)
+  return typeof value === 'string' ? accept(value) : null
+}
+
+/**
+ * The operator's links worth trusting: a known key whose value is an acceptable address, in
+ * its parsed form, and nothing else. The donation and budget pages are https only; the five
+ * the operator owes a visitor (terms, privacy, legal notice, help, report) may also be paths
+ * on this site.
+ *
+ * Applied to the response and not to the build, because the build knows none: these
+ * addresses are the operator's, read by the server at boot. Anything unrecognised is dropped
+ * rather than rendered. What this guards is the *kind* of address, not whose it is: a client
+ * cannot tell the operator's https page from another one, and the transport is the same one
+ * that carries `sourceUrl`.
  */
 const trustedLinks = (links: unknown): AboutLinks => {
   if (typeof links !== 'object' || links === null) return {}
-  const donate: unknown = Reflect.get(links, 'donate')
-  const budget: unknown = Reflect.get(links, 'budget')
-  const donateUrl = typeof donate === 'string' ? httpsOnly(donate) : null
-  const budgetUrl = typeof budget === 'string' ? httpsOnly(budget) : null
+  const donate = trustedLink(links, 'donate', httpsOnly)
+  const budget = trustedLink(links, 'budget', httpsOnly)
+  const terms = trustedLink(links, 'terms', siteLinkOnly)
+  const privacy = trustedLink(links, 'privacy', siteLinkOnly)
+  const legalNotice = trustedLink(links, 'legalNotice', siteLinkOnly)
+  const support = trustedLink(links, 'support', siteLinkOnly)
+  const report = trustedLink(links, 'report', siteLinkOnly)
   return {
-    ...(donateUrl === null ? {} : { donate: donateUrl }),
-    ...(budgetUrl === null ? {} : { budget: budgetUrl }),
+    ...(terms === null ? {} : { terms }),
+    ...(privacy === null ? {} : { privacy }),
+    ...(legalNotice === null ? {} : { legalNotice }),
+    ...(support === null ? {} : { support }),
+    ...(report === null ? {} : { report }),
+    ...(donate === null ? {} : { donate }),
+    ...(budget === null ? {} : { budget }),
+  }
+}
+
+/**
+ * One plain address, the kind `mailto:` can carry without a header riding along: no
+ * whitespace, no `?`, no `&`, no second `@`. Narrower than the server's check on purpose; an
+ * address this refuses is simply not offered as a link.
+ */
+const PLAIN_ADDRESS = /^[A-Za-z0-9._'+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/
+
+/** The longest name worth printing; the server's own cap is lower. */
+const OPERATOR_NAME_CEILING = 200
+
+/**
+ * The operator, when the response names one: a non-blank name of sensible length with no
+ * control character, and a contact address only if it is one plain address. Text only — it
+ * is rendered as text, and the address is the one thing built into a link.
+ */
+const trustedOperator = (operator: unknown): AboutOperator | undefined => {
+  if (typeof operator !== 'object' || operator === null) return undefined
+  const name: unknown = Reflect.get(operator, 'name')
+  if (typeof name !== 'string' || name.trim() === '' || name.length > OPERATOR_NAME_CEILING) {
+    return undefined
+  }
+  if (/\p{Cc}/u.test(name)) return undefined
+  const contactEmail: unknown = Reflect.get(operator, 'contactEmail')
+  return {
+    name,
+    ...(typeof contactEmail === 'string' && PLAIN_ADDRESS.test(contactEmail)
+      ? { contactEmail }
+      : {}),
   }
 }
 
@@ -82,6 +158,7 @@ const laidOver = (answer: unknown): About => {
   const sourceUrl: unknown = Reflect.get(answer, 'sourceUrl')
   const features: unknown = Reflect.get(answer, 'features')
   const links: unknown = Reflect.get(answer, 'links')
+  const operator = trustedOperator(Reflect.get(answer, 'operator'))
   const siteAdmin: unknown =
     typeof features === 'object' && features !== null ? Reflect.get(features, 'siteAdmin') : null
 
@@ -91,6 +168,7 @@ const laidOver = (answer: unknown): About => {
     ...(typeof sourceUrl === 'string'
       ? { sourceUrl: httpsOnly(sourceUrl) ?? BUILD_ABOUT.sourceUrl }
       : {}),
+    ...(operator === undefined ? {} : { operator }),
     links: trustedLinks(links),
     features: { siteAdmin: siteAdmin === true },
   }

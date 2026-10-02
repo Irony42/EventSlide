@@ -111,6 +111,13 @@ export interface JoinEventDeps {
   readonly ids: IdGenerator
   readonly clock: Clock
   readonly bus: EventBus
+  /**
+   * `OPERATOR_NAME`, or `null` on a box whose operator said nothing (roadmap G2-17). Part of
+   * the notice, and so of its revision: the same value must reach every use case that
+   * derives the notice, or a guest's acknowledgement would be compared with a text the
+   * guest never saw.
+   */
+  readonly operatorName: string | null
 }
 
 export type JoinEvent = (input: JoinEventInput) => Promise<Result<JoinEventOutput, DomainError>>
@@ -135,6 +142,7 @@ type PresentedDevice =
 export const makeJoinEvent = ({
   events,
   clients,
+  operatorName,
   guests,
   tokens,
   ids,
@@ -231,7 +239,7 @@ export const makeJoinEvent = ({
     // guest list right now.
     bus.publish({ type: 'guest.joined', eventId: event.id, guestId: guest.id })
 
-    const notice = await privacyNoticeOf(clients, event)
+    const notice = await privacyNoticeOf(clients, event, operatorName)
     return ok({
       token,
       guestId: guest.id,

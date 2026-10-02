@@ -24,6 +24,17 @@
 }
 
 /*
+ * The operator's own links (terms, privacy policy, legal notice, help, report) stay off
+ * paper for the same reason: they are for someone at a screen, and the sheet a host prints
+ * is the QR card.
+ */
+@media print {
+  .operatorLink {
+    display: none;
+  }
+}
+
+/*
  * The support link stays off paper: the host's event page prints a QR card for the tables
  * and this footer prints with it, so the ask for money would end the sheet the guests read.
  */

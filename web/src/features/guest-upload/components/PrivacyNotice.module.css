@@ -53,7 +53,21 @@
 
 /* Secondary rather than muted: this is the text the guest is being asked to read. */
 .sentence {
+  /* The operator's name is theirs to choose and may be one long word; it wraps, not scrolls. */
+  overflow-wrap: anywhere;
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
   color: var(--text-secondary);
+}
+
+/* The operator's privacy policy, after the button: a link, not a question. */
+.policy {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.policyLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
 }

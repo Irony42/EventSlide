@@ -487,6 +487,8 @@ setting that hides it.
 
 An instance that asks for support can set `DONATION_URL` and `BUDGET_URL`, empty by default, and a donation unlocks nothing: same service for everyone.
 
+An instance run for other people can name its operator and link its legal pages with `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SUPPORT_URL` and `REPORT_URL`, all empty by default: a self-hosted box that sets none of them looks and behaves exactly as before.
+
 Dependencies are held to the same standard. `scripts/licenseAudit.test.ts` reads
 `package-lock.json` and fails the build on any licence outside a short permissive
 allow-list (MIT, ISC, BSD, Apache-2.0, 0BSD, MIT-0, BlueOak-1.0.0) unless a named,

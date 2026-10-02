@@ -31,7 +31,12 @@ describe('getPrivacyNotice', () => {
       anEvent({ id: GALA, slug: 'gala', joinCode: 'Z3N9PT', settings: { retentionDays: null } }),
     )
     guests = new FakeGuestRepository()
-    getPrivacyNotice = makeGetPrivacyNotice({ events, clients: new FakeClientRepository(), guests })
+    getPrivacyNotice = makeGetPrivacyNotice({
+      events,
+      clients: new FakeClientRepository(),
+      guests,
+      operatorName: null,
+    })
   })
 
   it('answers the notice the event is configured to give', async () => {
@@ -118,7 +123,7 @@ describe('getPrivacyNotice', () => {
         }),
       )
       guests.seed(aGuest({ id: LEA, eventId: CLIENT_EVENT }))
-      return makeGetPrivacyNotice({ events: clientEvents, clients, guests })
+      return makeGetPrivacyNotice({ events: clientEvents, clients, guests, operatorName: null })
     }
 
     it('tells the guest thirty days for an album kept for ever, which is what the box does with it', async () => {
@@ -134,5 +139,81 @@ describe('getPrivacyNotice', () => {
       expect(longer.ok && longer.value.notice.retentionDays).toBe(30)
       expect(shorter.ok && shorter.value.notice.retentionDays).toBe(7)
     })
+  })
+})
+
+describe('getPrivacyNotice on a box whose operator named themselves (roadmap G2-17)', () => {
+  const OPERATOR = 'Association Les Photographes'
+
+  let events: FakeEventRepository
+  let guests: FakeGuestRepository
+
+  const named = () =>
+    makeGetPrivacyNotice({
+      events,
+      clients: new FakeClientRepository(),
+      guests,
+      operatorName: OPERATOR,
+    })
+  const bare = () =>
+    makeGetPrivacyNotice({
+      events,
+      clients: new FakeClientRepository(),
+      guests,
+      operatorName: null,
+    })
+
+  beforeEach(() => {
+    events = new FakeEventRepository().seed(
+      anEvent({
+        id: WEDDING,
+        slug: 'mariage',
+        joinCode: 'H7K2QM',
+        settings: { retentionDays: 30 },
+      }),
+    )
+    guests = new FakeGuestRepository()
+  })
+
+  it('names the operator in the notice it answers', async () => {
+    guests.seed(aGuest({ id: LEA, eventId: WEDDING }))
+
+    const result = await named()({ eventId: WEDDING, guestId: LEA })
+
+    expect(result.ok && result.value.notice).toEqual(
+      privacyNoticeFor(anEventSettings({ retentionDays: 30 }), OPERATOR),
+    )
+    expect(result.ok && result.value.notice.operator).toBe(OPERATOR)
+  })
+
+  it('asks a guest who read the unnamed notice to read this one, since it reads differently', async () => {
+    guests.seed(
+      aGuest({
+        id: LEA,
+        eventId: WEDDING,
+        noticeAcknowledgement: { revision: noticeOf(30).revision, at: atPlus(1_000) },
+      }),
+    )
+
+    const result = await named()({ eventId: WEDDING, guestId: LEA })
+
+    expect(result.ok && result.value.acknowledgement).toBe('outdated')
+  })
+
+  it('leaves a guest who read the unnamed notice alone on a box that names nobody', async () => {
+    // The self-hosted promise: the same acknowledgement, the same box, no operator
+    // configured, and nothing asked again.
+    guests.seed(
+      aGuest({
+        id: LEA,
+        eventId: WEDDING,
+        noticeAcknowledgement: { revision: noticeOf(30).revision, at: atPlus(1_000) },
+      }),
+    )
+
+    const result = await bare()({ eventId: WEDDING, guestId: LEA })
+
+    expect(result.ok && result.value.acknowledgement).toBe('current')
+    expect(result.ok && result.value.notice.operator).toBeNull()
   })
 })

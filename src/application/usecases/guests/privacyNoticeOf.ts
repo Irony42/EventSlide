@@ -24,19 +24,28 @@ import { clientContextOf } from '../clients/clientContextOf'
  * to read the notice again, for ever.
  *
  * An event with no client is the notice of its own settings, exactly as before.
+ *
+ * **`operatorName` is required, not defaulted** (roadmap G2-17): it is the box's
+ * `OPERATOR_NAME`, the same for every event, and the third thing the revision is computed
+ * from. A caller that forgot it would compile and produce a revision that disagrees with the
+ * other two, which is the loop above made permanent — so there is no default to forget.
  */
 export const privacyNoticeOf = async (
   clients: ClientRepository,
   event: Event,
+  operatorName: string | null,
 ): Promise<PrivacyNotice> => {
   const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
-  if (ceilings === null) return privacyNoticeFor(event.settings)
+  if (ceilings === null) return privacyNoticeFor(event.settings, operatorName)
 
   const { settings } = event
-  return privacyNoticeFor({
-    moderation: settings.moderation,
-    retentionDays: ceilings.clampRetention(settings.retentionDays),
-    allowGuestSelfDelete: settings.allowGuestSelfDelete,
-    guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
-  })
+  return privacyNoticeFor(
+    {
+      moderation: settings.moderation,
+      retentionDays: ceilings.clampRetention(settings.retentionDays),
+      allowGuestSelfDelete: settings.allowGuestSelfDelete,
+      guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
+    },
+    operatorName,
+  )
 }

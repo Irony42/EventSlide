@@ -1471,6 +1471,30 @@ export const fr = {
     budgetLink: 'Voir le budget public',
     /** The close control on the card; the choice is remembered for that event on this device. */
     supportDismiss: 'Masquer ce message',
+
+    /**
+     * The operator's own pages and the way to report a piece of content (roadmap G2-17 /
+     * P3-18), each shown only where the operator configured an address — a self-hosted box
+     * shows none of them. The footer carries the legal three on every screen, the help link on
+     * the host's screens and the report link on the guests', and `/about` lists them all but
+     * the report link, which the footer already has.
+     */
+    termsLink: 'Conditions d’utilisation',
+    privacyLink: 'Politique de confidentialité',
+    legalNoticeLink: 'Mentions légales',
+    /** `SUPPORT_URL`: help for the host, not the donation link above. */
+    helpLink: 'Aide',
+    /** `REPORT_URL`: where anyone can report a content they think is illegal (DSA art. 16). */
+    reportLink: 'Signaler un contenu',
+    /** The /about section naming whoever runs this instance, drawn only once it has a name. */
+    operatorTitle: 'Qui exploite cette instance',
+    operatorNameLabel: 'Opérateur',
+    operatorContactLabel: 'Contact',
+    /**
+     * The line of the guest's privacy notice that names the operator. Its answer is the
+     * operator's own name, which is content and is never translated.
+     */
+    operatorHostedBy: 'Hébergé par',
   },
 } as const
 

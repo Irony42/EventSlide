@@ -27,7 +27,12 @@ const THIRD_PARTY_NOTICES_URL = '/third-party-licenses.txt'
  * (`web/thirdPartyNotices.ts`) and the server sends as a plain static file. It is a row of
  * this page rather than a third link in the footer: the footer is one line under the upload
  * composer, and this is where a reader who wants the licences goes after "À propos".
- * The operator's identity will join it when G2-17 lands, as a row here and nothing else.
+ *
+ * **The operator section** (roadmap G2-17 / P3-18) is drawn only when the operator named
+ * themselves or set one of the pages they owe a visitor, so a self-hosted box reads the page
+ * as it always did. It lists who runs the instance, how to reach them, and their terms,
+ * privacy policy, legal notice and help page. The report link is not repeated here: the
+ * footer under this page already carries it.
  *
  * **The support section** (roadmap G4-02) is the one part that depends on the operator: it
  * is drawn only when the instance set `DONATION_URL` or `BUDGET_URL`, so a self-hosted box
@@ -37,7 +42,14 @@ const THIRD_PARTY_NOTICES_URL = '/third-party-licenses.txt'
 export function AboutPage() {
   const text = useTranslations()
   const about = useAbout()
-  const { donate, budget } = about.links
+  const { donate, budget, terms, privacy, legalNotice, support } = about.links
+  const { operator } = about
+  const operatorLinks = [
+    { href: terms, label: text.about.termsLink },
+    { href: privacy, label: text.about.privacyLink },
+    { href: legalNotice, label: text.about.legalNoticeLink },
+    { href: support, label: text.about.helpLink },
+  ].flatMap(({ href, label }) => (href === undefined ? [] : [{ href, label }]))
 
   return (
     <Card as="h1" title={text.about.title}>
@@ -70,6 +82,44 @@ export function AboutPage() {
           </dd>
         </div>
       </dl>
+      {operator === undefined && operatorLinks.length === 0 ? null : (
+        <section className={styles['operator']} aria-labelledby="about-operator-title">
+          <h2 className={styles['sectionTitle']} id="about-operator-title">
+            {text.about.operatorTitle}
+          </h2>
+          {operator === undefined ? null : (
+            <dl className={styles['facts']}>
+              <div className={styles['fact']}>
+                <dt>{text.about.operatorNameLabel}</dt>
+                <dd>{operator.name}</dd>
+              </div>
+              {operator.contactEmail === undefined ? null : (
+                <div className={styles['fact']}>
+                  <dt>{text.about.operatorContactLabel}</dt>
+                  <dd>
+                    <a href={`mailto:${operator.contactEmail}`} className={styles['source']}>
+                      {operator.contactEmail}
+                    </a>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          )}
+          {operatorLinks.length === 0 ? null : (
+            <ul className={styles['supportLinks']}>
+              {operatorLinks.map(({ href, label }) => (
+                // Keyed by the label, not the address: one page may serve the terms, the
+                // policy and the notice, and three rows with one key is a React error.
+                <li key={label}>
+                  <NewTabLink href={href} className={styles['supportLink']}>
+                    {label}
+                  </NewTabLink>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
       {donate === undefined && budget === undefined ? null : (
         <section className={styles['support']} aria-labelledby="about-support-title">
           <h2 className={styles['supportTitle']} id="about-support-title">

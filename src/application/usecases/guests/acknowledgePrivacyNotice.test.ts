@@ -41,6 +41,7 @@ describe('acknowledgePrivacyNotice', () => {
       clients: new FakeClientRepository(),
       guests,
       clock,
+      operatorName: null,
     })
   })
 
@@ -142,7 +143,13 @@ describe('acknowledgePrivacyNotice', () => {
         }),
       )
       guests.seed(aGuest({ id: asGuestId('guest-2'), eventId: CLIENT_EVENT }))
-      return makeAcknowledgePrivacyNotice({ events: clientEvents, clients, guests, clock })
+      return makeAcknowledgePrivacyNotice({
+        events: clientEvents,
+        clients,
+        guests,
+        clock,
+        operatorName: null,
+      })
     }
 
     it('accepts the revision the join handed out, which carries the ceiling and not the host’s “for ever”', async () => {
@@ -164,5 +171,62 @@ describe('acknowledgePrivacyNotice', () => {
 
       expect(result.ok).toBe(false)
     })
+  })
+})
+
+describe('acknowledgePrivacyNotice on a box whose operator named themselves (roadmap G2-17)', () => {
+  const OPERATOR = 'Association Les Photographes'
+  const NAMED = privacyNoticeFor(anEventSettings({ retentionDays: 30 }), OPERATOR)
+
+  let events: FakeEventRepository
+  let guests: FakeGuestRepository
+
+  const on = (operatorName: string | null) =>
+    makeAcknowledgePrivacyNotice({
+      events,
+      clients: new FakeClientRepository(),
+      guests,
+      clock: new FakeClock(atPlus(5_000)),
+      operatorName,
+    })
+
+  beforeEach(() => {
+    events = new FakeEventRepository().seed(
+      anEvent({
+        id: WEDDING,
+        slug: 'mariage',
+        joinCode: 'H7K2QM',
+        settings: { retentionDays: 30 },
+      }),
+    )
+    guests = new FakeGuestRepository().seed(aGuest({ id: LEA, eventId: WEDDING }))
+  })
+
+  it('records the revision that names the operator, and answers the notice that does', async () => {
+    const result = await on(OPERATOR)({ eventId: WEDDING, guestId: LEA, revision: NAMED.revision })
+
+    expect(result.ok && result.value).toEqual({ notice: NAMED, acknowledgement: 'current' })
+    expect((await guests.findById(WEDDING, LEA))?.noticeAcknowledgement?.revision).toBe(
+      NAMED.revision,
+    )
+  })
+
+  it('refuses the revision of the notice that did not name the operator, and records nothing', async () => {
+    // A phone that loaded the unnamed notice before the operator was configured: its tap
+    // must not be stored as agreement to a text that no longer says who hosts it.
+    const result = await on(OPERATOR)({
+      eventId: WEDDING,
+      guestId: LEA,
+      revision: THIRTY_DAYS.revision,
+    })
+
+    expect(!result.ok && result.error.code).toBe('privacyNotice.outdated')
+    expect((await guests.findById(WEDDING, LEA))?.noticeAcknowledgement).toBeNull()
+  })
+
+  it('refuses the revision of the named notice on a box that names nobody', async () => {
+    const result = await on(null)({ eventId: WEDDING, guestId: LEA, revision: NAMED.revision })
+
+    expect(!result.ok && result.error.code).toBe('privacyNotice.outdated')
   })
 })

@@ -31,6 +31,13 @@ export interface GetPrivacyNoticeDeps {
   /** For the retention a client's ceiling makes of the notice. See `privacyNoticeOf`. */
   readonly clients: ClientRepository
   readonly guests: GuestRepository
+  /**
+   * `OPERATOR_NAME`, or `null` on a box whose operator said nothing (roadmap G2-17). Part of
+   * the notice, and so of its revision: the same value must reach every use case that
+   * derives the notice, or a guest's acknowledgement would be compared with a text the
+   * guest never saw.
+   */
+  readonly operatorName: string | null
 }
 
 export type GetPrivacyNotice = (
@@ -38,7 +45,7 @@ export type GetPrivacyNotice = (
 ) => Promise<Result<NoticeForGuest, DomainError>>
 
 export const makeGetPrivacyNotice =
-  ({ events, clients, guests }: GetPrivacyNoticeDeps): GetPrivacyNotice =>
+  ({ events, clients, guests, operatorName }: GetPrivacyNoticeDeps): GetPrivacyNotice =>
   async ({ eventId, guestId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -48,6 +55,6 @@ export const makeGetPrivacyNotice =
     const guest = await guests.findById(eventId, guestId)
     if (guest === null) return err(DomainError.notFound('guest.notFound'))
 
-    const notice = await privacyNoticeOf(clients, event)
+    const notice = await privacyNoticeOf(clients, event, operatorName)
     return ok({ notice, acknowledgement: guest.noticeAcknowledgementFor(notice) })
   }
