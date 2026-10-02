@@ -112,7 +112,7 @@ const DOMAIN_FORBIDDEN = [
   { group: ['**/application/**', '**/infrastructure/**', '**/interface/**', '**/main/**', '**/web/**'],
     message: 'src/domain is pure and may not depend on an outer layer. Model the need as a port.' },
   { group: ['express*', 'better-sqlite3', 'sharp', 'multer', 'archiver', 'helmet', 'bcrypt',
-            'pino*', 'zod', 'react', 'react-*', 'fs', 'path', 'crypto', 'node:*'],
+            'nodemailer*', 'pino*', 'zod', 'react', 'react-*', 'fs', 'path', 'crypto', 'node:*'],
     message: 'src/domain must have no I/O and no framework dependency.' },
 ]
 { files: ['src/domain/**/*.ts'], rules: { 'no-restricted-imports': ['error', { patterns: DOMAIN_FORBIDDEN }] } },
@@ -363,6 +363,7 @@ Adding a port method means adding a contract case.
 | `Logger`             | Structured logging with `requestId`                                                                                              | `logging/pinoLogger.ts`                                                                          | `CapturingLogger` (assert a warning was emitted, never a message string)                      |
 | `ArchiveWriter`      | Stream an event's album as a zip                                                                                                 | `media/archiverWriter.ts`                                                                        | `FakeArchiveWriter` (records the entries requested)                                           |
 | `AuditLog`           | Append-only audit log: `record`, `list` scoped by client, `pruneOlderThan` (only `pruneAuditLog` calls it)                       | `db/sqliteAuditLog.ts`                                                                           |
+| `Mailer`             | Send one message to one mailbox; `canDeliver` says whether a relay exists. Never throws, bounded, logs only the domain           | `mail/smtpMailer.ts` when `SMTP_URL` is set, else `mail/nullMailer.ts` (shows a link to copy)    | `FakeMailer` (records sends; `failNextWith(reason)`; the real adapter's message checks)       |
 
 Port design rules: **no storage vocabulary** — no `WHERE`, no row types, no `Statement`;
 an interface that mentions SQLite is not a port. **`eventId` comes first** on every

@@ -935,7 +935,7 @@ skipped the screen on purpose.
 
 **Deliberately not stored:** EXIF of any kind (GPS, device serial, capture time), the
 original filename as a path, the uploader's IP alongside the photo row, and any
-third-party analytics. There is no telemetry and no outbound network call at runtime.
+third-party analytics. There is no telemetry. The one outbound network connection the server can make is to the SMTP relay an operator configures with `SMTP_URL` (§10, "Outgoing mail"), and with that variable unset — the default — it makes none.
 
 ### Logging (`src/infrastructure/logging/`)
 
@@ -946,6 +946,7 @@ third-party analytics. There is no telemetry and no outbound network call at run
 | domain error `code`                                      | guest tokens, CSRF tokens, `Cookie` / `Authorization` headers |
 | stack traces (server-side only, with `requestId`)        | passwords or hashes, even truncated                           |
 | truncated client IP (`/24`, `/64`) at `info`             | full IP at the default level                                  |
+| recipient domain, failure reason, SMTP reply code        | address, subject, body, links, `SMTP_URL`, reply text         |
 
 pino uses an explicit `redact` list covering `req.headers.cookie`,
 `req.headers.authorization`, `*.password`, `*.token`, `*.csrf`. A full client IP is
@@ -1022,6 +1023,8 @@ once with zod at startup, exported as a frozen typed object.
 | `EVENT_CREATION`                   | no                                        | `anyAccount`                          | `clientMembers`: members of a client and the operator only; needs `SITE_ADMIN=on`                                            |
 | `AUDIT_RETENTION_DAYS`             | no                                        | `1095`                                | how long the audit log keeps a row, 365 to 3650 (§17)                                                                        |
 | `DONATION_URL` / `BUDGET_URL`      | no                                        | empty                                 | optional support links: https only, no credentials, off guest screens and the wall (API.md §2)                               |
+| `SMTP_URL`                         | no                                        | none: no mail is sent                 | the SMTP relay; **holds the password**, never logged — see "Outgoing mail" below                                             |
+| `MAIL_FROM`                        | **yes when `SMTP_URL` is set**            | none                                  | the sender of every message: one address, or `Name <address>`                                                                |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,
@@ -1077,6 +1080,56 @@ default, not the override.
 
 `scripts/verify-image.sh` drives the whole thing end to end: it runs the built image with
 `NODE_ENV=` blanked and no secrets and requires exit 78 naming both.
+
+**Outgoing mail (roadmap §10.3, G2-07 / P3-08).** `Mailer` is a port
+(`src/application/ports/mailer.ts`) with three implementations, all held to one contract
+suite (`mailerContract.ts`): `NullMailer`, the in-memory fake, and the SMTP adapter on
+`nodemailer`. **With `SMTP_URL` unset — the default, and the right answer for most
+self-hosted boxes — the container wires `NullMailer`: nothing is sent, nothing connects out,
+nothing is logged, and a caller is told `mail.notConfigured` and shows the link to copy.** No
+use case sends mail yet; invitations and password reset are the first.
+
+- **`SMTP_URL` is a secret** and is handled as one. It is parsed once, in `env.ts`, into a
+  host, a port and a pair of credentials: the adapter is never handed the URL, so a query
+  string cannot reach `nodemailer`'s option parser (`?tls.rejectUnauthorized=false` would
+  switch certificate checking off), and one parsed field has one reader. A URL that is
+  refused at boot is refused with a fixed sentence that never repeats it. Credentials are
+  accepted in the URL, percent-encoded, and are never logged. Keep it in `.env` or a secrets
+  manager, not in anything committed; `docker compose config` prints it, as it prints the two
+  signing secrets. The ffmpeg children never see it: they are started with a whitelisted
+  environment built from configuration values, not from `process.env` (§4.1).
+- **Encryption is required wherever the connection leaves the machine.** `smtps://` is TLS
+  from the first byte. `smtp://` must **upgrade** with STARTTLS (`requireTLS`) to every host
+  except `localhost`, `127.0.0.0/8` and `::1` — whatever `NODE_ENV` says — so a login is
+  never sent in the clear and an attacker cannot strip the advertisement to make it so.
+  Certificate verification is `nodemailer`'s default, which is on, and nothing exposes a way
+  to turn it off. A relay on another machine without STARTTLS is therefore unusable, by
+  design; a developer's MailHog on `localhost:1025` is the one plaintext case.
+- **Time is bounded.** 10 s to connect and to resolve the name, 10 s for the greeting, 30 s
+  of silence, and a hard 60 s deadline on the whole send — against `nodemailer`'s own
+  defaults of two minutes, thirty seconds and ten minutes. An unreachable relay is
+  `mail.transient` within seconds, and `send` never throws into a use case: every failure is
+  an `Err`.
+- **A log carries the recipient's domain and nothing else of the message.** A success logs
+  the domain; a failure logs the reason (`rejected` is permanent, `transient` may succeed on
+  a retry), the domain, the library's error code, the relay's numeric reply (`550`) and the
+  SMTP command in flight. Never the local part, the subject, the body, a link (a reset link
+  is a credential), the credentials, or the relay's reply text — which `nodemailer` appends
+  to every error it throws and which, on a refused recipient, names the mailbox. Not even
+  `nodemailer`'s own `logger` or `debug` is turned on: with `debug` it prints the message and
+  the base64 of the login. `smtpMailer.test.ts` plants a canary in every one of those places,
+  drives every way a send can end against a real socket, and asserts none of them appears in
+  anything logged or returned.
+- **One message, one mailbox, one line of subject.** `checkOutgoingMail` is run first by
+  every implementation, the fake included. `EmailAddress` is deliberately shallow and accepts
+  `a@example.org,b@example.com`; an SMTP client reads that as two recipients, so a stricter
+  single-mailbox check stands between a use case and the envelope. A line break in a subject
+  — how a caller-supplied string becomes a `Bcc:` header — is refused rather than flattened.
+- **The dependency.** `nodemailer` is MIT-0 (the `LICENSE` in the package is MIT with the
+  attribution condition removed), which is permissive and compatible with this project's
+  AGPL-3.0-only, and it has no dependencies of its own. It ships its own type declarations.
+  Domain and application may not import it (lint), so it is reachable only from
+  `src/infrastructure/mail/`.
 
 **There is no default account in 2.0.** 1.0 recreated `admin` / `password` on every
 boot, in `initDatabase`, in production, forever. Instead: there is no HTTP endpoint and
