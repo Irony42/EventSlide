@@ -8,11 +8,7 @@ import { asMissionId, asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { GUEST_COOKIE, requireGuest } from '../middleware/authz'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
-import {
-  reactionLimiter,
-  uploadConcurrencyLimiter,
-  uploadLimiter,
-} from '../middleware/rateLimit'
+import { reactionLimiter, uploadConcurrencyLimiter, uploadLimiter } from '../middleware/rateLimit'
 import {
   toGuestMissionDto,
   toGuestPhotoDto,

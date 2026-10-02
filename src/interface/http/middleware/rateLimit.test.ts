@@ -564,10 +564,7 @@ describe('uploadConcurrencyLimiter', () => {
     }
   }
 
-  const callLimiter = (
-    limiter: RequestHandler,
-    res: FakeUploadResponse,
-  ): { admitted: boolean } => {
+  const callLimiter = (limiter: RequestHandler, res: FakeUploadResponse): { admitted: boolean } => {
     const result = { admitted: false }
     const next: NextFunction = () => {
       result.admitted = true

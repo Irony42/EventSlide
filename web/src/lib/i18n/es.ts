@@ -385,8 +385,7 @@ export const es: UiText = {
     'shareLink.lifetimeInvalid': 'Elija una duración de entre 1 y 90 días.',
 
     'upload.busy': 'Se están realizando muchos envíos. Inténtelo de nuevo en un momento.',
-    'storage.boxFull':
-      'No queda espacio para guardar este archivo. Avise al organizador.',
+    'storage.boxFull': 'No queda espacio para guardar este archivo. Avise al organizador.',
   },
 
   moderation: {
