@@ -3,7 +3,9 @@ import {
   bulkModerationBody,
   captionBody,
   changePasswordBody,
+  confirmSecondFactorBody,
   createEventBody,
+  enrollSecondFactorBody,
   eventScheduleBody,
   eventSlugParams,
   eventStatusBody,
@@ -16,6 +18,9 @@ import {
   photoParams,
   photoVariantParams,
   reactionBody,
+  secondFactorLoginBody,
+  secondFactorProofOf,
+  stepUpBody,
   updateSettingsBody,
   wallQuery,
 } from './requestSchemas'
@@ -465,5 +470,47 @@ describe('wallQuery', () => {
 
   it('rejects an unknown query parameter', () => {
     expect(wallQuery.safeParse({ autoplay: 'true' }).success).toBe(false)
+  })
+})
+
+describe('the second-factor bodies', () => {
+  it('reads a body naming one proof as that proof', () => {
+    expect(secondFactorProofOf({ code: '123456' })).toEqual({ code: '123456' })
+    expect(secondFactorProofOf({ recoveryCode: 'AAAA-AAAA-AAAA-AAAA' })).toEqual({
+      recoveryCode: 'AAAA-AAAA-AAAA-AAAA',
+    })
+  })
+
+  it('reads a body naming none as none, and one naming both as ambiguous', () => {
+    expect(secondFactorProofOf({})).toBeNull()
+    expect(secondFactorProofOf({ code: '123456', recoveryCode: 'AAAA' })).toBe('both')
+  })
+
+  it('refuses a field of another name on every one of them: they are strict', () => {
+    for (const schema of [
+      secondFactorLoginBody,
+      enrollSecondFactorBody,
+      confirmSecondFactorBody,
+      stepUpBody,
+    ]) {
+      expect(schema.safeParse({ password: 'x', code: '1', userId: 'someone-else' }).success).toBe(
+        false,
+      )
+    }
+  })
+
+  it('takes the account from the session and never from the body of a step-up', () => {
+    expect(stepUpBody.safeParse({ password: 'x', userId: 'someone-else' }).success).toBe(false)
+  })
+
+  it('bounds what it reads, so a megabyte of "code" costs nothing', () => {
+    expect(secondFactorLoginBody.safeParse({ code: '1'.repeat(33) }).success).toBe(false)
+    expect(secondFactorLoginBody.safeParse({ recoveryCode: 'A'.repeat(65) }).success).toBe(false)
+    expect(stepUpBody.safeParse({ password: 'p'.repeat(1_001) }).success).toBe(false)
+  })
+
+  it('wants the password to enrol and to step up', () => {
+    expect(enrollSecondFactorBody.safeParse({}).success).toBe(false)
+    expect(stepUpBody.safeParse({ code: '123456' }).success).toBe(false)
   })
 })

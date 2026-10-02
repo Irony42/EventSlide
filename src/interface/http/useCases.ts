@@ -2,10 +2,16 @@ import type { HttpDeps } from './types'
 import type { PresenterContext } from './presenters/presenters'
 import type { AuthenticateUser } from '../../application/usecases/auth/authenticateUser'
 import type { ChangePassword } from '../../application/usecases/auth/changePassword'
+import type { ConfirmTotpEnrollment } from '../../application/usecases/auth/confirmTotpEnrollment'
+import type { DisableSecondFactor } from '../../application/usecases/auth/disableSecondFactor'
+import type { EnrollTotp } from '../../application/usecases/auth/enrollTotp'
+import type { RegenerateRecoveryCodes } from '../../application/usecases/auth/regenerateRecoveryCodes'
 import type { RegisterModerator } from '../../application/usecases/auth/registerModerator'
 import type { RequestPasswordReset } from '../../application/usecases/auth/requestPasswordReset'
 import type { ResetPassword } from '../../application/usecases/auth/resetPassword'
 import type { RevokeOtherSessions } from '../../application/usecases/auth/revokeOtherSessions'
+import type { StepUp } from '../../application/usecases/auth/stepUp'
+import type { VerifySecondFactor } from '../../application/usecases/auth/verifySecondFactor'
 
 import type { ChangeEventStatus } from '../../application/usecases/events/changeEventStatus'
 import type { CreateEvent } from '../../application/usecases/events/createEvent'
@@ -90,6 +96,12 @@ export interface HttpUseCases {
   readonly revokeOtherSessions: RevokeOtherSessions
   readonly requestPasswordReset: RequestPasswordReset
   readonly resetPassword: ResetPassword
+  readonly verifySecondFactor: VerifySecondFactor
+  readonly enrollTotp: EnrollTotp
+  readonly confirmTotpEnrollment: ConfirmTotpEnrollment
+  readonly stepUp: StepUp
+  readonly regenerateRecoveryCodes: RegenerateRecoveryCodes
+  readonly disableSecondFactor: DisableSecondFactor
   readonly registerModerator: RegisterModerator
 
   // events

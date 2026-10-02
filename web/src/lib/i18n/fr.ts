@@ -1078,6 +1078,44 @@ export const fr = {
     /* ---- Added by features/auth. ---- */
     changePasswordIntro: 'Choisissez un mot de passe que vous n’utilisez pas ailleurs.',
     passwordSaved: 'Mot de passe enregistré.',
+
+    /* ---- Added by G2-13: the second factor. ---- */
+    secondFactorTitle: 'Vérification en deux étapes',
+    secondFactorIntro:
+      'Saisissez le code à six chiffres affiché par votre application d’authentification.',
+    secondFactorCode: 'Code à six chiffres',
+    secondFactorSubmit: 'Vérifier',
+    secondFactorRecoveryToggle: 'Utiliser un code de secours',
+    secondFactorAppToggle: 'Utiliser le code de l’application',
+    secondFactorRecoveryIntro:
+      'Saisissez l’un des codes de secours remis lors de l’activation. Chacun ne sert qu’une fois.',
+    recoveryCode: 'Code de secours',
+    secondFactorRestart: 'Recommencer avec le mot de passe',
+    securityTitle: 'Sécurité du compte',
+    securityUnavailable:
+      'Ce serveur n’a pas de clé de chiffrement pour la vérification en deux étapes. Demandez à son administrateur de la configurer.',
+    setupIntro:
+      'Une application d’authentification (Aegis, 1Password, Google Authenticator…) génère un code à six chiffres qui s’ajoute à votre mot de passe.',
+    setupStart: 'Activer la vérification',
+    setupScan:
+      'Scannez ce QR code avec votre application. Sans caméra, saisissez la clé à la main.',
+    setupQrLabel: 'QR code de configuration',
+    setupKeyLabel: 'Clé de configuration',
+    setupConfirm: 'Confirmer',
+    recoveryCodesTitle: 'Codes de secours',
+    recoveryCodesIntro:
+      'Si vous perdez votre téléphone, chacun de ces dix codes vous ouvre la porte une fois. Notez-les maintenant : ils ne seront plus affichés.',
+    recoveryCodesCopy: 'Copier les codes',
+    recoveryCodesCopied: 'Codes copiés.',
+    recoveryCodesSaved: 'J’ai noté mes codes',
+    securityEnabled: 'La vérification en deux étapes est active sur ce compte.',
+    securityManageIntro:
+      'Pour renouveler vos codes de secours ou désactiver la vérification, confirmez d’abord votre identité.',
+    stepUpSubmit: 'Confirmer mon identité',
+    stepUpDone: 'Identité confirmée pour cinq minutes.',
+    recoveryCodesRegenerate: 'Générer de nouveaux codes de secours',
+    secondFactorDisable: 'Désactiver la vérification',
+    secondFactorDisabled: 'Vérification en deux étapes désactivée.',
   },
 
   /**
@@ -1097,6 +1135,20 @@ export const fr = {
     'auth.forbidden': 'Vous n’avez pas les droits pour cette action.',
     'auth.passwordChangeRequired': 'Choisissez un nouveau mot de passe avant de continuer.',
     'auth.invalidToken': 'Ce lien n’est plus valable. Demandez-en un nouveau.',
+    'auth.invalidSecondFactor':
+      'Ce code n’est pas valable. Attendez le suivant dans votre application, ou utilisez un code de secours.',
+    'auth.secondFactorExpired': 'Cette connexion a expiré. Recommencez avec votre mot de passe.',
+    'auth.tooManySecondFactorAttempts': 'Trop de codes erronés. Réessayez dans un quart d’heure.',
+    'auth.secondFactorRequired': 'Ce compte doit d’abord passer la vérification en deux étapes.',
+    'auth.stepUpRequired': 'Confirmez votre identité pour continuer.',
+    'auth.secondFactorAlreadyEnrolled':
+      'La vérification en deux étapes est déjà active sur ce compte.',
+    'auth.noEnrolmentInProgress': 'Aucune activation n’est en cours. Recommencez.',
+    'auth.secondFactorUnavailable':
+      'Ce serveur ne peut pas vérifier le code de l’application pour le moment. Utilisez un code de secours.',
+    'auth.totpCodeInvalid': 'Saisissez les six chiffres affichés par l’application.',
+    'auth.secondFactorNotEnrolled':
+      'La vérification en deux étapes n’est pas active sur ce compte.',
     'feature.unavailable': 'Cette fonction n’est pas disponible sur ce serveur.',
 
     'event.notFound': 'Ce code ne correspond à aucune galerie ouverte.',

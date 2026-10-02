@@ -1,0 +1,55 @@
+/**
+ * The security page shares the sign-in screens' single column (`AuthForm.module.css`): a
+ * QR code, a key and ten recovery codes are read at arm's length, and a line the width of a
+ * laptop screen is not.
+ */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-inline-size: var(--container-guest);
+  margin-inline: auto;
+  padding-block: var(--space-6);
+}
+
+.heading {
+  font-size: var(--text-xl);
+}
+
+.pending {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--space-6);
+}
+
+/* The same frame as the join card's (`EventQrCard`): a light plate behind the code whatever
+   the theme, because a QR reader needs the contrast and a dark page would not give it. */
+.qr {
+  align-self: center;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--text-primary);
+  line-height: 0;
+}
+
+/* `<code>` is monospaced by the user agent, which is the right face for a key typed by hand. */
+.key {
+  font-size: var(--text-lg);
+  word-break: break-all;
+}
+
+.codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-lg);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}

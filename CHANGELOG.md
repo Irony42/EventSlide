@@ -76,7 +76,7 @@ Read these before you upgrade, and back up with the version you run now.
   `/data` paths and point the server away from your volume. Read your `.env` before you pull,
   and remove what you did not mean to apply.
 - **New settings are checked at boot, and a value that does not fit stops it** (exit 78,
-  naming the variable) (#114, #117, #118, #119, #120, #123). If your environment or `.env`
+  naming the variable) (#114, #117, #118, #119, #120, #123, #130). If your environment or `.env`
   already sets one of these names for another purpose, change or remove it before you
   upgrade. An empty value counts as not set.
   - `SUPPORT_URL`, `REPORT_URL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL` and
@@ -88,13 +88,18 @@ Read these before you upgrade, and back up with the version you run now.
     `OPERATOR_CONTACT_EMAIL`, `SMTP_URL` and `MAIL_FROM` take the form `.env.example` shows;
     `EVENT_CREATION` takes `anyAccount` or `clientMembers`; `AUDIT_RETENTION_DAYS` takes a
     number from 365 to 3650.
+  - `MFA_ENCRYPTION_KEY` takes the form `.env.example` shows; `REQUIRE_OPERATOR_2FA` takes
+    `true`, `false`, `1` or `0`, and is the one name here whose empty value stops the boot
+    instead of counting as not set.
   - The new limits take positive whole numbers: `MIN_FREE_DISK_BYTES`,
     `MAX_CONCURRENT_UPLOAD_REQUESTS`, `MAX_QUEUED_CLIPS_PER_EVENT`, `MAX_STREAMS_PER_CLIENT`,
     `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT` and `RETENTION_CAP_NOTICE_DAYS`.
     `SQLITE_SHUTDOWN_CHECKPOINT` takes `truncate`, `passive` or `none`.
-  - Three combinations are refused too: `SMTP_URL` without `MAIL_FROM`,
-    `EVENT_CREATION=clientMembers` without `SITE_ADMIN=on`, and `OPERATOR_CONTACT_EMAIL`
-    without `OPERATOR_NAME`.
+  - These combinations are refused too: `SMTP_URL` without `MAIL_FROM`,
+    `EVENT_CREATION=clientMembers` without `SITE_ADMIN=on`, `OPERATOR_CONTACT_EMAIL`
+    without `OPERATOR_NAME`, `REQUIRE_OPERATOR_2FA=true` without a valid
+    `MFA_ENCRYPTION_KEY` or without `SITE_ADMIN=on`, and an `MFA_ENCRYPTION_KEY` equal to
+    `SESSION_SECRET` or `GUEST_TOKEN_SECRET`.
 - **An account that must change its password is stopped by the server** (#108), with
   `403 auth.passwordChangeRequired` on every `/api` route except `GET /api/auth/me`,
   `POST /api/auth/password` and `POST /api/auth/logout` (and the health and readiness
@@ -124,9 +129,10 @@ Read these before you upgrade, and back up with the version you run now.
 ### Behaviour changes to check before upgrading
 
 - **New migrations run at the first boot**, with any earlier one your database has not seen:
-  008 (clients, and `events.client_id` and `events.opened_at`), 009 (the audit log) and 010
+  008 (clients, and `events.client_id` and `events.opened_at`), 009 (the audit log), 010
   (account tokens, and the `credentials_changed_at` and `email_verified_at` columns of
-  `users`). Migrations are not reversed, and 2.1.0 refuses a database that holds them
+  `users`) and 011 (an operator's second factor: `user_totp` and `user_recovery_codes`).
+  Migrations are not reversed, and 2.1.0 refuses a database that holds them
   ("downgrading is not supported"), so back up first.
 - **The container's memory limit in `compose.yaml` goes from 1 GB to 2 GB** (#105), because
   up to four uploads are now decoded at once. `GET /api/ready` reports the disk margin under

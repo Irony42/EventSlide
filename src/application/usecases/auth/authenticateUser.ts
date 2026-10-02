@@ -6,6 +6,7 @@ import { Password } from '../../../domain/users/password'
 import type { PasswordHash, User } from '../../../domain/users/user'
 import type { Clock } from '../../ports/clock'
 import type { PasswordHasher } from '../../ports/passwordHasher'
+import type { SecondFactorRepository } from '../../ports/secondFactorRepository'
 import type { UserRepository } from '../../ports/userRepository'
 
 export interface AuthenticateUserInput {
@@ -26,10 +27,17 @@ export interface AuthenticatedUser {
   readonly displayName: string | null
   /** The invitee has not chosen a password yet; the caller must send them to do so. */
   readonly mustChangePassword: boolean
+  /**
+   * The account has a confirmed authenticator (G2-13 / P3-15): the password was the first half,
+   * and the caller must **not** start a session until `verifySecondFactor` has passed. The
+   * password having been right is all this says; nothing here is a session yet.
+   */
+  readonly secondFactorRequired: boolean
 }
 
 export interface AuthenticateUserDeps {
   readonly users: UserRepository
+  readonly factors: Pick<SecondFactorRepository, 'find'>
   readonly hasher: PasswordHasher
   readonly clock: Clock
 }
@@ -83,7 +91,7 @@ const upgradedHashFor = async (
 }
 
 export const makeAuthenticateUser =
-  ({ users, hasher, clock }: AuthenticateUserDeps): AuthenticateUser =>
+  ({ users, factors, hasher, clock }: AuthenticateUserDeps): AuthenticateUser =>
   async ({ email, password }) => {
     const parsedEmail = EmailAddress.create(email)
     const user = parsedEmail.ok ? await users.findByEmail(parsedEmail.value) : null
@@ -114,10 +122,16 @@ export const makeAuthenticateUser =
     const recorded = await users.recordSignIn(user.id, user.passwordHash, clock.now(), upgraded)
     if (!recorded) return err(invalidCredentials())
 
+    // Read after the password is proven and the sign-in committed, so how an address answers
+    // before that point does not depend on whether it has a factor: a wrong password is the
+    // same refusal for every account, and only the person who knows the password learns this.
+    const factor = await factors.find(user.id)
+
     return ok({
       userId: user.id,
       email: user.email.value,
       displayName: user.displayName,
       mustChangePassword: user.mustChangePassword,
+      secondFactorRequired: factor !== null && factor.confirmedAt !== null,
     })
   }

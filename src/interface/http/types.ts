@@ -14,6 +14,7 @@ import type {
 } from '../../application/ports/userRepository'
 import type { GuestTokenService } from '../../application/ports/guestTokenService'
 import type { Mailer } from '../../application/ports/mailer'
+import type { SecondFactorRepository } from '../../application/ports/secondFactorRepository'
 import type { AccessLogOptions } from './middleware/accessLog'
 import type { DiskSpaceChecker } from '../../application/ports/diskSpace'
 
@@ -82,6 +83,13 @@ export interface HttpDeps {
    * passes the whole adapter and the HTTP layer still cannot reach the rest of it.
    */
   readonly users: Pick<UserRepository, 'siteRoleFor' | 'authStateFor'>
+  /**
+   * One fact about an account's second factor: whether it has a confirmed one (`GET /api/auth/me`
+   * says so, and the console routes on it). `find` returns the sealed secret too, so the type
+   * narrows the *methods* and not the fields: `secondFactorStatusOf` in `authRoutes.ts` is the one
+   * reader, it reads `confirmedAt` and nothing else, and a second reader is a review blocker.
+   */
+  readonly secondFactors: Pick<SecondFactorRepository, 'find'>
   readonly guestTokens: GuestTokenService
   /**
    * One fact about the mailer: whether it can deliver. It is what `/api/about` publishes as
@@ -119,6 +127,17 @@ export interface HttpConfig {
    * nothing to anybody who is not the operator. It decides how much surface exists.
    */
   readonly siteAdmin: boolean
+  /**
+   * The operator's second factor (G2-13 / P3-15). Read by `buildServer` and the authorization
+   * middleware, and by nothing that can be talked into widening it: turning `requiredForOperators`
+   * on only ever refuses more.
+   */
+  readonly secondFactor: {
+    /** `MFA_ENCRYPTION_KEY` is set: an operator can enrol, and a code can be checked. */
+    readonly available: boolean
+    /** `REQUIRE_OPERATOR_2FA`: `/api/site/*` answers 403 until the session has passed one. */
+    readonly requiredForOperators: boolean
+  }
   /**
    * What the free-disk-space guard checks (G3-06 / P4-10) — deliberately not "the
    * database path" by name, so a route cannot quietly start depending on where the
@@ -255,4 +274,35 @@ export interface SessionPayload {
    * which falls back to `issuedAt`: for that session the two were always the same instant.
    */
   renewedAt?: number
+  /**
+   * When this session passed the second factor, in epoch milliseconds: written by the second
+   * step of a sign-in, by an enrolment that was just proven and by nothing else, and carried over
+   * a renewal of the session id (a password change does not make the person less who they are).
+   * Absent means the session has not — which is what `requireSecondFactor` refuses on a box that
+   * requires one. Dropped when the factor is removed.
+   */
+  secondFactorAt?: number
+  /**
+   * When the session last confirmed a password and a code together (`POST /api/auth/step-up`),
+   * in epoch milliseconds. Fresh for five minutes (`requireStepUp`). **Not** carried across a
+   * renewal: a new session id starts with nothing confirmed.
+   */
+  stepUpAt?: number
+  /**
+   * A sign-in that has passed the password and not the second factor. It has **no `userId`**,
+   * on purpose: `attachUser` and `enforceSessionAge` key on that field, so a session in this
+   * state is anonymous to every gate and reaches no route but `POST /api/auth/login/2fa`.
+   */
+  pendingSecondFactor?: PendingSecondFactor
+}
+
+export interface PendingSecondFactor {
+  readonly userId: string
+  readonly email: string
+  readonly displayName: string | null
+  readonly mustChangePassword: boolean
+  /** When the password was verified: the clock of the five minutes, and of the credentials check. */
+  readonly startedAt: number
+  /** Wrong codes so far; at the limit the sign-in is thrown away and the password is asked again. */
+  failures: number
 }

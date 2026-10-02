@@ -259,7 +259,7 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
 
 1. **Be on 2.1.0, and back up with it.** The newest release of the 2.x line carries the Docker
    backup commands the steps [above](#upgrading-with-docker) use, and it is the version that
-   can restore the archive if you go back: 3.0.0 applies migrations 008, 009 and 010, and
+   can restore the archive if you go back: 3.0.0 applies migrations 008, 009, 010 and 011, and
    2.1.0 refuses a database that holds them ("downgrading is not supported"). A build of
    2.1.0 reports `2.0.0` in `GET /api/health`, in its image tag and in its backup manifest,
    because the tag was cut before `package.json` was bumped: `git describe --tags --match 'v*'`
@@ -282,8 +282,9 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
    `DONATION_URL`, `BUDGET_URL`, `SOURCE_REF`, `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`,
    `SMTP_URL`, `MAIL_FROM`, `EVENT_CREATION`, `AUDIT_RETENTION_DAYS`, `MIN_FREE_DISK_BYTES`,
    `MAX_CONCURRENT_UPLOAD_REQUESTS`, `MAX_QUEUED_CLIPS_PER_EVENT`, `MAX_STREAMS_PER_CLIENT`,
-   `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`, `RETENTION_CAP_NOTICE_DAYS` and
-   `SQLITE_SHUTDOWN_CHECKPOINT`. The CHANGELOG says what each accepts.
+   `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`, `RETENTION_CAP_NOTICE_DAYS`,
+   `SQLITE_SHUTDOWN_CHECKPOINT`, `MFA_ENCRYPTION_KEY` and `REQUIRE_OPERATOR_2FA`. The
+   CHANGELOG says what each accepts.
 4. **Check the scripts and clients that call the API.**
    - An account that must change its password gets `403 auth.passwordChangeRequired` on every
      route but the three that let it see who it is, change the password and sign out.

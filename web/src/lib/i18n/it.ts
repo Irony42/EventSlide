@@ -254,6 +254,19 @@ export const it: UiText = {
     'auth.forbidden': 'Non ha i permessi per questa azione.',
     'auth.passwordChangeRequired': 'Scelga una nuova password prima di continuare.',
     'auth.invalidToken': 'Questo link non è più valido. Ne richieda uno nuovo.',
+    'auth.invalidSecondFactor':
+      'Questo codice non è valido. Attenda il successivo nella sua app, oppure usi un codice di recupero.',
+    'auth.secondFactorExpired': 'Questo accesso è scaduto. Ricominci con la password.',
+    'auth.tooManySecondFactorAttempts': 'Troppi codici errati. Riprovi tra un quarto d’ora.',
+    'auth.secondFactorRequired': 'Questo account deve prima superare la verifica in due passaggi.',
+    'auth.stepUpRequired': 'Confermi la sua identità per continuare.',
+    'auth.secondFactorAlreadyEnrolled':
+      'La verifica in due passaggi è già attiva su questo account.',
+    'auth.noEnrolmentInProgress': 'Nessuna attivazione in corso. Ricominci.',
+    'auth.secondFactorUnavailable':
+      'Questo server non può verificare adesso il codice dell’app. Usi un codice di recupero.',
+    'auth.totpCodeInvalid': 'Inserisca le sei cifre mostrate dall’app.',
+    'auth.secondFactorNotEnrolled': 'La verifica in due passaggi non è attiva su questo account.',
     'feature.unavailable': 'Questa funzione non è disponibile su questo server.',
 
     'event.notFound': 'Questo codice non corrisponde a nessuna galleria aperta.',
@@ -818,6 +831,43 @@ export const it: UiText = {
     mustChangePassword: 'Scelga una password prima di continuare.',
     changePasswordIntro: 'Scelga una password che non usa altrove.',
     passwordSaved: 'Password salvata.',
+
+    /* ---- Added by G2-13: the second factor. ---- */
+    secondFactorTitle: 'Verifica in due passaggi',
+    secondFactorIntro: 'Inserisca il codice di sei cifre mostrato dalla sua app di autenticazione.',
+    secondFactorCode: 'Codice di sei cifre',
+    secondFactorSubmit: 'Verifica',
+    secondFactorRecoveryToggle: 'Usa un codice di recupero',
+    secondFactorAppToggle: 'Usa il codice dell’app',
+    secondFactorRecoveryIntro:
+      'Inserisca uno dei codici di recupero ricevuti all’attivazione. Ognuno vale una sola volta.',
+    recoveryCode: 'Codice di recupero',
+    secondFactorRestart: 'Ricomincia con la password',
+    securityTitle: 'Sicurezza dell’account',
+    securityUnavailable:
+      'Questo server non ha una chiave di cifratura per la verifica in due passaggi. Chieda al suo amministratore di configurarla.',
+    setupIntro:
+      'Un’app di autenticazione (Aegis, 1Password, Google Authenticator…) genera un codice di sei cifre che si aggiunge alla sua password.',
+    setupStart: 'Attiva la verifica',
+    setupScan:
+      'Inquadri questo codice QR con la sua app. Senza fotocamera, digiti la chiave a mano.',
+    setupQrLabel: 'Codice QR di configurazione',
+    setupKeyLabel: 'Chiave di configurazione',
+    setupConfirm: 'Conferma',
+    recoveryCodesTitle: 'Codici di recupero',
+    recoveryCodesIntro:
+      'Se perde il telefono, ciascuno di questi dieci codici le apre la porta una volta. Li annoti adesso: non verranno mostrati di nuovo.',
+    recoveryCodesCopy: 'Copia i codici',
+    recoveryCodesCopied: 'Codici copiati.',
+    recoveryCodesSaved: 'Li ho annotati',
+    securityEnabled: 'La verifica in due passaggi è attiva su questo account.',
+    securityManageIntro:
+      'Per rinnovare i codici di recupero o disattivare la verifica, confermi prima la sua identità.',
+    stepUpSubmit: 'Conferma la mia identità',
+    stepUpDone: 'Identità confermata per cinque minuti.',
+    recoveryCodesRegenerate: 'Genera nuovi codici di recupero',
+    secondFactorDisable: 'Disattiva la verifica',
+    secondFactorDisabled: 'Verifica in due passaggi disattivata.',
   },
 
   mobileModeration: {

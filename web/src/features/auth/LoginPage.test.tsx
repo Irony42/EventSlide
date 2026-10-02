@@ -148,4 +148,83 @@ describe('LoginPage', () => {
     expect(button).toHaveAttribute('aria-busy', 'true')
     expect(button).toBeDisabled()
   })
+
+  describe('an account with an authenticator', () => {
+    const challenged = () =>
+      fakeApi({ login: vi.fn(async () => ({ secondFactorRequired: true as const })) })
+
+    it('asks for the second step in place of the form, and does not go anywhere yet', async () => {
+      renderLogin(challenged())
+      await signIn()
+
+      expect(await screen.findByRole('heading', { name: fr.auth.secondFactorTitle })).toBeVisible()
+      expect(screen.queryByLabelText(fr.auth.password)).toBeNull()
+      expect(screen.queryByText(DASHBOARD)).toBeNull()
+    })
+
+    it('lands the host where they were going once the code is accepted', async () => {
+      const api = challenged()
+      renderArrivingFrom(api, '/admin/events/mariage/moderation')
+      await signIn()
+
+      await userEvent.type(await screen.findByLabelText(fr.auth.secondFactorCode), '123456')
+      await userEvent.click(screen.getByRole('button', { name: fr.auth.secondFactorSubmit }))
+
+      expect(api.loginSecondFactor).toHaveBeenCalledWith({ code: '123456' })
+      expect(await screen.findByText(MODERATION)).toBeVisible()
+    })
+
+    it('goes back to the password with the reason when the server ends the sign-in, and keeps the address', async () => {
+      const api = fakeApi({
+        login: vi.fn(async () => ({ secondFactorRequired: true as const })),
+        loginSecondFactor: vi.fn(() =>
+          Promise.reject(new ApiError(401, 'auth.secondFactorExpired')),
+        ),
+      })
+      renderLogin(api)
+      await signIn('camille@example.com', 'un-mot-de-passe-long')
+
+      await userEvent.type(await screen.findByLabelText(fr.auth.secondFactorCode), '000000')
+      await userEvent.click(screen.getByRole('button', { name: fr.auth.secondFactorSubmit }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        fr.errors['auth.secondFactorExpired'],
+      )
+      expect(screen.getByLabelText(fr.auth.email)).toHaveValue('camille@example.com')
+      // Typed again: a half-finished sign-in holds nothing worth resubmitting.
+      expect(screen.getByLabelText(fr.auth.password)).toHaveValue('')
+    })
+
+    it('goes back to the password without a reason when the host chooses to', async () => {
+      renderLogin(challenged())
+      await signIn()
+
+      await userEvent.click(
+        await screen.findByRole('button', { name: fr.auth.secondFactorRestart }),
+      )
+
+      expect(await screen.findByLabelText(fr.auth.password)).toBeVisible()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('forgets a reason once the password is sent again', async () => {
+      const api = fakeApi({
+        login: vi.fn(async () => ({ secondFactorRequired: true as const })),
+        loginSecondFactor: vi.fn(() =>
+          Promise.reject(new ApiError(401, 'auth.secondFactorExpired')),
+        ),
+      })
+      renderLogin(api)
+      await signIn()
+      await userEvent.type(await screen.findByLabelText(fr.auth.secondFactorCode), '000000')
+      await userEvent.click(screen.getByRole('button', { name: fr.auth.secondFactorSubmit }))
+      await screen.findByRole('alert')
+
+      await userEvent.type(screen.getByLabelText(fr.auth.password), 'un-mot-de-passe-long')
+      await userEvent.click(screen.getByRole('button', { name: fr.auth.submit }))
+
+      expect(await screen.findByRole('heading', { name: fr.auth.secondFactorTitle })).toBeVisible()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+  })
 })

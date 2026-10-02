@@ -25,11 +25,15 @@ import type {
   PrivacyNoticeState,
   ReactionKind,
   ReactionsResponse,
+  RecoveryCodesDto,
+  SecondFactorProof,
+  SecondFactorRequiredDto,
   SessionResponse,
   SessionUserDto,
   ShareLinkCreated,
   ShareLinkResponse,
   TopPhotoDto,
+  TotpEnrolmentDto,
   UploadResponse,
   WallResponse,
 } from './dto'
@@ -43,6 +47,12 @@ import type {
  */
 
 const encode = encodeURIComponent
+
+/** The two halves of a second-factor proof, as the wire names them: one is always absent. */
+const codeOf = (proof: SecondFactorProof | undefined): string | undefined =>
+  proof !== undefined && 'code' in proof ? proof.code : undefined
+const recoveryCodeOf = (proof: SecondFactorProof | undefined): string | undefined =>
+  proof !== undefined && 'recoveryCode' in proof ? proof.recoveryCode : undefined
 
 export interface CreateEventInput {
   readonly name: string
@@ -304,8 +314,39 @@ export const createApi = (transport: Transport) => ({
 
   // -------------------------------------------------------------------- auth --
 
-  login: (email: string, password: string): Promise<SessionUserDto> =>
+  /** A session, or — for an account with an authenticator — the request for its second step. */
+  login: (email: string, password: string): Promise<SessionUserDto | SecondFactorRequiredDto> =>
     transport.post('/api/auth/login', { email, password }),
+
+  /** The second step of a sign-in: a code from the app, or one recovery code. */
+  loginSecondFactor: (proof: SecondFactorProof): Promise<SessionUserDto> =>
+    transport.post('/api/auth/login/2fa', {
+      code: codeOf(proof),
+      recoveryCode: recoveryCodeOf(proof),
+    }),
+
+  /** Starts an enrolment. The password again: a cookie alone must not attach a phone. */
+  enrollSecondFactor: (password: string): Promise<TotpEnrolmentDto> =>
+    transport.post('/api/auth/2fa/enroll', { password }),
+
+  /** Proves the app shows the right code; answers the recovery codes, once. */
+  confirmSecondFactor: (code: string): Promise<RecoveryCodesDto> =>
+    transport.post('/api/auth/2fa/confirm', { code }),
+
+  /** Confirms the person at the keyboard for five minutes: password, and a code if enrolled. */
+  stepUp: (password: string, proof?: SecondFactorProof): Promise<void> =>
+    transport.post('/api/auth/step-up', {
+      password,
+      code: codeOf(proof),
+      recoveryCode: recoveryCodeOf(proof),
+    }),
+
+  /** Needs a fresh step-up. Replaces every recovery code. */
+  regenerateRecoveryCodes: (): Promise<RecoveryCodesDto> =>
+    transport.post('/api/auth/2fa/recovery-codes'),
+
+  /** Needs a fresh step-up. Removes the authenticator and its recovery codes. */
+  disableSecondFactor: (): Promise<void> => transport.post('/api/auth/2fa/disable'),
 
   logout: (): Promise<void> => transport.post('/api/auth/logout'),
 

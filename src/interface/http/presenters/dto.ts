@@ -416,6 +416,49 @@ export interface SessionUserDto {
  */
 export interface CurrentUserDto extends SessionUserDto {
   readonly canOperateSite: boolean
+  /** Where the account stands with the second factor (G2-13 / P3-15). */
+  readonly secondFactor: SecondFactorStatusDto
+}
+
+/**
+ * What the console needs to decide between "carry on", "enrol", and "enter your code" — and
+ * nothing it could use to attack the factor.
+ *
+ * - `available`: this box has a key, so an operator can enrol and a code can be checked.
+ * - `enrolled`: the account has a confirmed authenticator.
+ * - `verified`: **this session** has passed the second factor.
+ * - `required`: this account must have, before `/api/site` answers: the box requires it of
+ *   operators and the account is one. A console that sees `required && !verified` routes to
+ *   the enrolment when `!enrolled`, and to the code prompt otherwise.
+ */
+export interface SecondFactorStatusDto {
+  readonly available: boolean
+  readonly enrolled: boolean
+  readonly verified: boolean
+  readonly required: boolean
+}
+
+/**
+ * `POST /api/auth/login` for an account that has an authenticator: the password was right and
+ * **no session was started**. The caller asks for a code and sends it to
+ * `POST /api/auth/login/2fa`. Deliberately no identity in it.
+ */
+export interface SecondFactorRequiredDto {
+  readonly secondFactorRequired: true
+}
+
+/**
+ * `POST /api/auth/2fa/enroll`: the secret, once, in the two forms an authenticator takes it.
+ * The URI carries the secret too — treat both as the secret they are (`no-store`).
+ */
+export interface TotpEnrolmentDto {
+  readonly otpauthUri: string
+  readonly secret: string
+}
+
+/** Recovery codes, shown once as `K7QM-2XTR-9PHD-4VNB`: only their digests are kept. */
+export interface RecoveryCodesDto {
+  readonly recoveryCodes: readonly string[]
 }
 
 export type SessionResponseDto =

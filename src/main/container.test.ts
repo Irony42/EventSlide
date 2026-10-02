@@ -15,7 +15,10 @@ import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
 import { createContainer, type Container } from './container'
 import { appVersion } from './version'
 import type { OutgoingMail } from '../application/ports/mailer'
+import { decodeBase32 } from '../domain/users/base32'
 import { EmailAddress } from '../domain/users/emailAddress'
+import { totpStepAt } from '../domain/users/totp'
+import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
 import { parseMessage, startSmtpSink, type SmtpSink } from '../infrastructure/mail/testing/smtpSink'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
 
@@ -1213,5 +1216,222 @@ describe('createContainer: sign out everywhere', () => {
 
     expect(account.credentials_changed_at).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/)
     expect(sessionColumns).not.toContain('user_id')
+  })
+})
+
+/**
+ * The operator's second factor through the real stack (roadmap §10.1; free plan G2-13, paid plan
+ * P3-15): the SQLite repositories and session store, the real bcrypt hasher, the real AES-256-GCM
+ * vault and the real HMAC engine, on a box configured the way the hosted instance is.
+ *
+ * The fakes can each pretend the parts agree: that the vault's text is what the table's `CHECK`
+ * accepts, that the repository's conditional `UPDATE` really spends a step, that a session from the
+ * SQLite store really carries the stamp the gate reads. This is the one place all of that is
+ * asked of the real thing together.
+ *
+ * It uses the real clock, so it cannot wait thirty seconds between uses of a code. It does not
+ * need to: the window accepts the step either side of now, and a code is only refused for a step
+ * not later than the last one spent, so it spends different steps in a row.
+ */
+describe('createContainer: the operator’s second factor', () => {
+  const OWNER = 'operateur@example.org'
+  const PASSWORD = 'un-mot-de-passe-solide'
+  const KEY = Buffer.alloc(32, 11)
+
+  const hostedBox = (extra: Record<string, string> = {}): Record<string, string> => ({
+    SITE_ADMIN: 'on',
+    REQUIRE_OPERATOR_2FA: 'true',
+    MFA_ENCRYPTION_KEY: KEY.toString('base64'),
+    BOOTSTRAP_OWNER_EMAIL: OWNER,
+    BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+    ...extra,
+  })
+
+  /**
+   * A bootstrapped owner is created with a provisional password, and the server refuses everything
+   * but choosing a new one until it is. That is not what is under test here, so the flag is
+   * cleared the way a person clearing it would have left the row.
+   */
+  const bootHosted = async (extra: Record<string, string> = {}): Promise<Container> => {
+    const booted = await boot(hostedBox(extra))
+    booted.db.prepare('UPDATE users SET must_change_password = 0').run()
+    return booted
+  }
+
+  const browser = async (app: Container['app']) => {
+    const agent = request.agent(app)
+    const first = await agent.get('/api/auth/me')
+    const cookie = (first.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+      c.startsWith(`${CSRF_COOKIE}=`),
+    )
+    let csrf = decodeURIComponent(cookie?.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? '')
+    const post = async (path: string, body: object = {}) => {
+      const response = await agent.post(path).set(CSRF_HEADER, csrf).send(body)
+      const rotated = (response.headers['set-cookie'] as unknown as string[] | undefined)?.find(
+        (c) => c.startsWith(`${CSRF_COOKIE}=`),
+      )
+      if (rotated !== undefined) {
+        csrf = decodeURIComponent(rotated.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? '')
+      }
+      return response
+    }
+    return {
+      agent,
+      post,
+      signIn: () => post('/api/auth/login', { email: OWNER, password: PASSWORD }),
+    }
+  }
+
+  /** The code the app would show `offset` steps from now, from the real clock. */
+  const codeFor = (secret: Uint8Array, offset: number): string =>
+    nodeTotpEngine.codeAt(secret, totpStepAt(new Date()) + offset)
+
+  const enrol = async (app: Container['app']) => {
+    const operator = await browser(app)
+    await operator.signIn()
+    const started = await operator.post('/api/auth/2fa/enroll', { password: PASSWORD })
+    expect(started.status, JSON.stringify(started.body)).toBe(200)
+    const secret = decodeBase32(started.body.secret as string) ?? new Uint8Array()
+    const confirmed = await operator.post('/api/auth/2fa/confirm', { code: codeFor(secret, 0) })
+    return { operator, secret, started, recoveryCodes: confirmed.body.recoveryCodes as string[] }
+  }
+
+  it('closes /api/site to a session that has not passed it, and opens it to one that has', async () => {
+    const { app } = await bootHosted()
+    const operator = await browser(app)
+    await operator.signIn()
+    const before = await operator.agent.get(NEVER_A_SITE_ROUTE)
+
+    const started = await operator.post('/api/auth/2fa/enroll', { password: PASSWORD })
+    const secret = decodeBase32(started.body.secret as string) ?? new Uint8Array()
+    await operator.post('/api/auth/2fa/confirm', { code: codeFor(secret, 0) })
+    const after = await operator.agent.get(NEVER_A_SITE_ROUTE)
+
+    expect([before.status, before.body.error.code]).toEqual([403, 'auth.secondFactorRequired'])
+    expect([after.status, after.body.error.code]).toEqual([404, 'route.notFound'])
+  })
+
+  it('asks an enrolled operator for a code, and starts no session until it comes', async () => {
+    const { app } = await bootHosted()
+    const { secret } = await enrol(app)
+    const returning = await browser(app)
+
+    const challenge = await returning.signIn()
+    const midway = await returning.agent.get(NEVER_A_SITE_ROUTE)
+    const finished = await returning.post('/api/auth/login/2fa', { code: codeFor(secret, 1) })
+    const inside = await returning.agent.get(NEVER_A_SITE_ROUTE)
+
+    expect(challenge.body).toEqual({ secondFactorRequired: true })
+    expect(midway.status).toBe(401)
+    expect(finished.status).toBe(200)
+    expect(inside.status).toBe(404)
+  })
+
+  it('refuses a code that has been used, on a fresh sign-in', async () => {
+    const { app } = await bootHosted()
+    const { secret } = await enrol(app)
+    const code = codeFor(secret, 1)
+    const first = await browser(app)
+    await first.signIn()
+    await first.post('/api/auth/login/2fa', { code })
+
+    const replayer = await browser(app)
+    await replayer.signIn()
+    const replay = await replayer.post('/api/auth/login/2fa', { code })
+
+    expect(replay.status).toBe(401)
+    expect(replay.body.error.code).toBe('auth.invalidSecondFactor')
+  })
+
+  it('lets a recovery code in once, and only once', async () => {
+    const { app } = await bootHosted()
+    const { recoveryCodes } = await enrol(app)
+    const first = await browser(app)
+    await first.signIn()
+    const used = await first.post('/api/auth/login/2fa', { recoveryCode: recoveryCodes[0] })
+    const second = await browser(app)
+    await second.signIn()
+
+    const again = await second.post('/api/auth/login/2fa', { recoveryCode: recoveryCodes[0] })
+
+    expect(used.status).toBe(200)
+    expect(again.status).toBe(401)
+  })
+
+  it('keeps the factor working when SESSION_SECRET is rotated: the key is its own', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'eventslide-rotation-'))
+    const bootAt = async (sessionSecret: string): Promise<Container> =>
+      createContainer(
+        loadConfig({
+          NODE_ENV: 'test',
+          LOG_LEVEL: 'fatal',
+          DATABASE_PATH: join(dir, 'eventslide.sqlite'),
+          MEDIA_ROOT: join(dir, 'media'),
+          FFMPEG_PATH: join(dir, 'no-ffmpeg-here'),
+          FFPROBE_PATH: join(dir, 'no-ffprobe-here'),
+          SESSION_SECRET: sessionSecret,
+          ...hostedBox(),
+        }),
+      )
+    try {
+      const before = await bootAt('a'.repeat(40))
+      before.db.prepare('UPDATE users SET must_change_password = 0').run()
+      const { secret } = await enrol(before.app)
+      await before.dispose()
+
+      const after = await bootAt('b'.repeat(40))
+      container = after
+      const returning = await browser(after.app)
+      await returning.signIn()
+      const finished = await returning.post('/api/auth/login/2fa', { code: codeFor(secret, 1) })
+
+      expect(finished.status).toBe(200)
+    } finally {
+      await container?.dispose()
+      container = null
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('writes no secret, code, recovery code or key into any table: the secret is encrypted and the codes are digests', async () => {
+    const { app, db } = await bootHosted()
+    const { secret, started, recoveryCodes } = await enrol(app)
+
+    const stored = db.prepare('SELECT secret_enc FROM user_totp').get() as { secret_enc: string }
+    expect(stored.secret_enc.split('.')).toHaveLength(3)
+
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as {
+      name: string
+    }[]
+    const planted = [
+      started.body.secret as string,
+      started.body.otpauthUri as string,
+      Buffer.from(secret).toString('hex'),
+      KEY.toString('base64'),
+      KEY.toString('hex'),
+      ...recoveryCodes,
+      ...recoveryCodes.map((code) => code.replaceAll('-', '')),
+    ]
+    for (const { name } of tables) {
+      const dump = JSON.stringify(db.prepare(`SELECT * FROM "${name}"`).all())
+      for (const value of planted) expect(dump, `table ${name}`).not.toContain(value)
+    }
+  })
+
+  it('audits the enrolment and the use of a recovery code, in the real log', async () => {
+    const { app, db } = await bootHosted()
+    const { recoveryCodes } = await enrol(app)
+    const returning = await browser(app)
+    await returning.signIn()
+    await returning.post('/api/auth/login/2fa', { recoveryCode: recoveryCodes[0] })
+
+    const actions = db.prepare('SELECT action FROM audit_log ORDER BY seq').all() as {
+      action: string
+    }[]
+
+    expect(actions.map((row) => row.action)).toEqual([
+      'account.secondFactorEnrolled',
+      'account.recoveryCodeUsed',
+    ])
   })
 })

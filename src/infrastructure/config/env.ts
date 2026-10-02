@@ -447,6 +447,19 @@ const sourceRef = z.preprocess(
 const siteAdmin = z.preprocess(blankAsAbsent, z.enum(['off', 'on']).default('off'))
 
 /**
+ * `REQUIRE_OPERATOR_2FA`: `true` or `false` (or `1` / `0`), `false` when absent (G2-13 / P3-15).
+ *
+ * **A blank is a refusal, not an absence** — the opposite of its neighbours, and on purpose.
+ * Every other switch here is read blank-as-default because the default is the posture with
+ * less surface, so a dangling `SITE_ADMIN=` can only take something away. This one is a
+ * protection: a hosted instance whose compose file rendered it empty would boot, look
+ * configured and guard nothing. Turning a protection off takes a word somebody had to mean,
+ * so `REQUIRE_OPERATOR_2FA=` names the variable at boot. `compose.yaml` passes it as
+ * `${REQUIRE_OPERATOR_2FA:-false}`, so a self-hoster who never set it still sends a word.
+ */
+const requireOperator2fa = boolishWithDefault('false')
+
+/**
  * Whether a derived slug always carries a random suffix (P4-09 / D-14, roadmap G3-05).
  *
  * **`'none'` reproduces 2.0's only behaviour exactly**, and is the core default a
@@ -590,6 +603,59 @@ const mailFrom = z.preprocess(
         return z.NEVER
       }
       return parsed.value
+    })
+    .optional(),
+)
+
+const MFA_KEY_MIN_BYTES = 32
+
+const decodeMfaKey = (value: string): Uint8Array | null => {
+  const text = value.trim()
+  if (/^[0-9a-fA-F]+$/.test(text)) {
+    return text.length % 2 === 0 ? Uint8Array.from(Buffer.from(text, 'hex')) : null
+  }
+  // Standard and URL-safe base64 alike, padded or not. A length of 1 modulo 4 is not the
+  // encoding of any byte string, and Node would drop the stray character in silence.
+  if (!/^[A-Za-z0-9+/_-]+={0,2}$/.test(text) || text.replace(/=+$/, '').length % 4 === 1) {
+    return null
+  }
+  return Uint8Array.from(Buffer.from(text, 'base64'))
+}
+
+/**
+ * `MFA_ENCRYPTION_KEY`: the key the operator's TOTP secrets are encrypted under at rest
+ * (roadmap §10.1, G2-13 / P3-15). 32 random bytes or more, written as hex (`openssl rand -hex
+ * 32`, 64 characters) or as base64 (`openssl rand -base64 32`, 44).
+ *
+ * **Its own variable, on purpose** (C-10 in the paid plan). The first draft derived it from
+ * `SESSION_SECRET`, and the cost of that is that rotating the session secret — which is
+ * routine, and which invalidates every cookie — would also make every enrolled factor
+ * undecryptable and lock every operator out of the box. A key that only ever encrypts one
+ * kind of thing can be rotated, lost and guarded on its own terms.
+ *
+ * Blank is absent, for the reason on {@link blankAsAbsent}. **The value never appears in a
+ * refusal**: the boot's list of problems is printed to a terminal and kept by whatever
+ * collects it, and a key refused for a stray character is still a key. What is kept is the
+ * decoded bytes, which are what the vault derives its AES key from.
+ */
+const mfaEncryptionKey = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .transform((value, ctx) => {
+      const decoded = decodeMfaKey(value)
+      if (
+        decoded === null ||
+        decoded.length < MFA_KEY_MIN_BYTES ||
+        PLACEHOLDER_SECRETS.has(value.trim())
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `MFA_ENCRYPTION_KEY must be at least ${MFA_KEY_MIN_BYTES} random bytes written as hex (64 characters or more) or as base64 (44 or more), and not an example value: generate one with 'openssl rand -base64 32'. The value is not repeated here because it is a key`,
+        })
+        return z.NEVER
+      }
+      return { text: value.trim(), bytes: decoded }
     })
     .optional(),
 )
@@ -1021,6 +1087,21 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       SMTP_URL: smtpUrl,
       /** See {@link mailFrom}. Required whenever `SMTP_URL` is set. */
       MAIL_FROM: mailFrom,
+
+      /**
+       * See {@link mfaEncryptionKey}. Absent means no operator can enrol a second factor on
+       * this box: the routes answer `404 feature.unavailable`, exactly as the reset routes
+       * do on a box with no relay.
+       */
+      MFA_ENCRYPTION_KEY: mfaEncryptionKey,
+      /**
+       * Whether an operator must have passed a second factor in this session before
+       * `/api/site/*` answers (G2-13 / P3-15). `false` unless the box says otherwise, so a
+       * solo install keeps its sign-in exactly as it was; the hosted instance sets `true`.
+       * Needs a key to decrypt the factor with and an operator namespace to guard — see the
+       * refinements below.
+       */
+      REQUIRE_OPERATOR_2FA: requireOperator2fa,
     })
     .superRefine((raw, ctx) => {
       // The first owner is a pair, and half of one creates nothing. Before `""` meant
@@ -1092,6 +1173,47 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
           message:
             'OPERATOR_CONTACT_EMAIL requires OPERATOR_NAME: a contact address is published beside the name of the operator it belongs to, and with no name it would be published nowhere',
         })
+      }
+
+      // Fail closed: a box that says its operators need a second factor and cannot decrypt
+      // one would either lock every operator out or, worse, be assumed to be guarded when
+      // nothing guards it. Not production-gated, for the reason the ceiling check above is not.
+      if (raw.REQUIRE_OPERATOR_2FA && raw.MFA_ENCRYPTION_KEY === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MFA_ENCRYPTION_KEY'],
+          message:
+            'MFA_ENCRYPTION_KEY is required when REQUIRE_OPERATOR_2FA is true: without a key no operator can enrol a factor, and every operator would be refused by the gate forever',
+        })
+      }
+
+      // Roadmap §10.9 again: a requirement that only means something with an operator is
+      // refused where there is none, so nobody believes a box is guarded by a gate that is
+      // not mounted.
+      if (raw.REQUIRE_OPERATOR_2FA && raw.SITE_ADMIN !== 'on') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['REQUIRE_OPERATOR_2FA'],
+          message:
+            'REQUIRE_OPERATOR_2FA=true requires SITE_ADMIN=on: the requirement guards the operator namespace /api/site, which a box with SITE_ADMIN=off does not mount (docs/ROADMAP.md §10.9)',
+        })
+      }
+
+      // The point of a dedicated key (C-10): a key that is also a signing secret is one the
+      // next rotation of that secret would change, and one a leak of that secret would expose.
+      //
+      // `text` is read through a variable because zod runs this refinement even when the field
+      // itself was refused, handing it the string as typed: there is no `.text` on that, and
+      // comparing two absent values would report a clash nobody typed.
+      const keyText: string | undefined = raw.MFA_ENCRYPTION_KEY?.text
+      for (const other of ['SESSION_SECRET', 'GUEST_TOKEN_SECRET'] as const) {
+        if (keyText !== undefined && keyText === raw[other]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['MFA_ENCRYPTION_KEY'],
+            message: `MFA_ENCRYPTION_KEY must not be the same value as ${other}: rotating or leaking one would change or expose the other`,
+          })
+        }
       }
 
       if (raw.NODE_ENV !== 'production') return
@@ -1402,6 +1524,20 @@ export interface AppConfig {
    */
   readonly warnings: readonly string[]
 
+  /**
+   * The operator's second factor (roadmap §10.1, G2-13 / P3-15).
+   *
+   * Carries a key, like `secrets` above: **nothing logs this object, and nothing may**. The
+   * key is the decoded bytes of `MFA_ENCRYPTION_KEY`, `null` on every box that never set it,
+   * and `null` is what makes the second-factor routes answer `404 feature.unavailable` and
+   * the composition root wire no vault at all.
+   */
+  readonly mfa: {
+    readonly encryptionKey: Uint8Array | null
+    /** `REQUIRE_OPERATOR_2FA`. True only with a key and `SITE_ADMIN=on`: the schema refuses the rest. */
+    readonly requireOperatorSecondFactor: boolean
+  }
+
   readonly audit: {
     /**
      * `AUDIT_RETENTION_DAYS`: how long a row of the audit log is kept, 365 at least. Read by
@@ -1696,6 +1832,11 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
 
     audit: {
       retentionDays: raw.AUDIT_RETENTION_DAYS,
+    },
+
+    mfa: {
+      encryptionKey: raw.MFA_ENCRYPTION_KEY?.bytes ?? null,
+      requireOperatorSecondFactor: raw.REQUIRE_OPERATOR_2FA,
     },
   }
 }

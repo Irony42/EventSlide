@@ -5,6 +5,7 @@ import { SESSION_COOKIE, authRoutes } from './authRoutes'
 import { ABSOLUTE_SESSION_LIFETIME_MS, GUEST_COOKIE } from '../middleware/authz'
 import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken, requireCsrfToken } from '../middleware/csrf'
 import { buildHarness, signInAs, testHttpConfig, type Harness } from '../testing/middlewareHarness'
+import { unusedSecondFactorUseCases } from '../testing/signIn'
 import type { HttpConfig } from '../types'
 import { AT, aUser } from '../../../application/testing/builders'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
@@ -16,6 +17,7 @@ import { makeResetPassword } from '../../../application/usecases/auth/resetPassw
 import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
 import { FakeAccountTokenRepository } from '../../../application/testing/fakeAccountTokenRepository'
 import { FakeMailer } from '../../../application/testing/fakeMailer'
+import { FakeSecondFactorRepository } from '../../../application/testing/fakeSecondFactorRepository'
 import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import type { Mailer } from '../../../application/ports/mailer'
@@ -156,7 +158,12 @@ const harness = ({
           // never given a user repository, so a route test has to compose the two use
           // cases itself.
           usecases: {
-            authenticateUser: makeAuthenticateUser({ users, hasher, clock: deps.clock }),
+            authenticateUser: makeAuthenticateUser({
+              users,
+              factors: new FakeSecondFactorRepository(),
+              hasher,
+              clock: deps.clock,
+            }),
             changePassword: makeChangePassword({ users, hasher, clock: deps.clock }),
             revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
             requestPasswordReset: makeRequestPasswordReset({
@@ -176,6 +183,9 @@ const harness = ({
               hasher,
               clock: deps.clock,
             }),
+            // The second factor has its own suite (`secondFactorRoutes.test.ts`); these
+            // routes are not what this one is about, and an unwired call fails loudly.
+            ...unusedSecondFactorUseCases,
           },
         }),
       )
@@ -270,6 +280,7 @@ describe('POST /api/auth/login', () => {
         displayName: null,
         mustChangePassword: false,
         canOperateSite: false,
+        secondFactor: { available: false, enrolled: false, verified: false, required: false },
       },
     })
   })
@@ -516,6 +527,7 @@ describe('GET /api/auth/me', () => {
         displayName: null,
         mustChangePassword: false,
         canOperateSite: false,
+        secondFactor: { available: false, enrolled: false, verified: false, required: false },
       },
     })
   })
@@ -693,6 +705,7 @@ describe('POST /api/auth/password', () => {
         displayName: null,
         mustChangePassword: false,
         canOperateSite: false,
+        secondFactor: { available: false, enrolled: false, verified: false, required: false },
       },
     })
   })

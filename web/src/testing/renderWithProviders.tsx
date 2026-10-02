@@ -374,6 +374,8 @@ export const aSessionUser = (overrides: Partial<CurrentUserDto> = {}): CurrentUs
   displayName: 'Camille',
   mustChangePassword: false,
   canOperateSite: false,
+  // A box with no key, as a stock install: nothing offered, nothing required.
+  secondFactor: { available: false, enrolled: false, verified: false, required: false },
   ...overrides,
 })
 
@@ -422,6 +424,15 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   // so a test that forgets to log in exercises the redirect rather than a 401 branch.
   session: vi.fn(async (): Promise<SessionResponse> => ({ authenticated: false })),
   changePassword: vi.fn(async () => undefined),
+  loginSecondFactor: vi.fn(async () => aSessionUser()),
+  enrollSecondFactor: vi.fn(async () => ({
+    otpauthUri: 'otpauth://totp/EventSlide:organisation%40example.com?secret=JBSWY3DPEHPK3PXP',
+    secret: 'JBSWY3DPEHPK3PXP',
+  })),
+  confirmSecondFactor: vi.fn(async () => ({ recoveryCodes: ['K7QM-2XTR-9PHD-4VNB'] })),
+  stepUp: vi.fn(async () => undefined),
+  regenerateRecoveryCodes: vi.fn(async () => ({ recoveryCodes: ['K7QM-2XTR-9PHD-4VNB'] })),
+  disableSecondFactor: vi.fn(async () => undefined),
 
   listEvents: vi.fn(async () => ({ items: [] })),
   createEvent: vi.fn(async () => anEventDto()),

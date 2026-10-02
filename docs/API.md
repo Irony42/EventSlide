@@ -138,6 +138,10 @@ generic fallback sentence to a guest, which is why the lists are kept in step.
 | `auth.forbidden`              | 403    | In scope for the event, role too weak; or not the site operator                  |
 | `auth.passwordChangeRequired` | 403    | Signed in, `mustChangePassword` set, and the route is not one of the three below |
 | `auth.invalidToken`           | 400    | A password-reset link that is dead for any reason (see `confirm`)                |
+| `auth.secondFactorRequired`   | 403    | An operator's session has not passed the second factor and the box requires it   |
+| `auth.stepUpRequired`         | 403    | An irreversible action without a password-and-code confirmation made in 5 min    |
+| `auth.invalidSecondFactor`    | 401    | A code or recovery code that is wrong, spent, or of the wrong shape              |
+| `auth.secondFactorExpired`    | 401    | The half-finished sign-in is over (see `login/2fa`)                              |
 | `feature.unavailable`         | 404    | A feature this box is not configured for (today: reset by mail, with no relay)   |
 | `guestToken.expired`          | 401    | The device token is past its 36 hours                                            |
 | `guestToken.badSignature`     | 401    | The device token does not verify                                                 |
@@ -177,12 +181,13 @@ CSRF (below) first, in both modes — `403 request.csrfMissing` or `request.csrf
 before this table applies. What is already contract is how the namespace itself answers
 once a request is past that gate:
 
-| `SITE_ADMIN`      | Caller                                                    | Answer, on `/api/site` or any `/api/site/*` path                                   |
-| ----------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `off` _(default)_ | anybody, signed in or not, operator or not                | `404 route.notFound` — status, body and headers exactly as for a path nobody wrote |
-| `on`              | no session                                                | `401 auth.required`                                                                |
-| `on`              | signed in, not the operator — or an operator now disabled | `403 auth.forbidden`, `details: { "required": "operator" }`                        |
-| `on`              | the operator, on a path no route claims                   | `404 route.notFound`, as anywhere else under `/api`                                |
+| `SITE_ADMIN`                      | Caller                                                           | Answer, on `/api/site` or any `/api/site/*` path                                   |
+| --------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `off` _(default)_                 | anybody, signed in or not, operator or not                       | `404 route.notFound` — status, body and headers exactly as for a path nobody wrote |
+| `on`                              | no session                                                       | `401 auth.required`                                                                |
+| `on`                              | signed in, not the operator — or an operator now disabled        | `403 auth.forbidden`, `details: { "required": "operator" }`                        |
+| `on`, `REQUIRE_OPERATOR_2FA=true` | the operator, whose session has **not** passed the second factor | `403 auth.secondFactorRequired` — see "The second factor" in §5                    |
+| `on`                              | the operator, on a path no route claims                          | `404 route.notFound`, as anywhere else under `/api`                                |
 
 Off, the namespace is **not mounted**, rather than mounted and refusing, so a box that never
 asked for administration exposes no operator surface at all. That does not hide the mode,
@@ -232,19 +237,21 @@ Per minute, configurable, `429` with `Retry-After` when exceeded — **except ev
 creation**, which is per **hour** and per **account** (see the row below and the
 paragraph beneath the table).
 
-| Endpoint                                      | Default       | Bucket                  | Code                        |
-| --------------------------------------------- | ------------- | ----------------------- | --------------------------- |
-| `POST /api/join`                              | 20            | client IP               | `rate.limited`              |
-| `POST /api/auth/login` †                      | 10            | client IP               | `rate.limited`              |
-| `POST /api/auth/password-reset/request` †     | 10            | client IP, own bucket   | `rate.limited`              |
-| `POST /api/auth/password-reset/confirm`       | 10            | client IP, own bucket   | `rate.limited`              |
-| `POST /api/events` (create)                   | 20 / **hour** | account                 | `event.creationRateLimited` |
-| `POST /api/events/:slug/photos`               | 12            | client IP **and** event | `rate.limited`              |
-| `POST /api/events/:slug/clips`                | 12            | client IP **and** event | `rate.limited`              |
-| `POST /api/events/:slug/photos/:id/reactions` | 30            | client IP **and** event | `reaction.rateLimited`      |
-| `GET /api/gallery/:token`, `…/photos`, unlock | 120           | client IP               | `rate.limited`              |
-| `GET /api/gallery-media/…`                    | 3000          | client IP               | `rate.limited`              |
-| `POST /api/gallery/:token/unlock`             | 10 / 50       | IP / link, per 15 min   | `gallery.tooManyAttempts`   |
+| Endpoint                                                           | Default       | Bucket                     | Code                               |
+| ------------------------------------------------------------------ | ------------- | -------------------------- | ---------------------------------- |
+| `POST /api/join`                                                   | 20            | client IP                  | `rate.limited`                     |
+| `POST /api/auth/login` †                                           | 10            | client IP                  | `rate.limited`                     |
+| `POST /api/auth/password-reset/request` †                          | 10            | client IP, own bucket      | `rate.limited`                     |
+| `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket      | `rate.limited`                     |
+| `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm` | 10            | client IP, own bucket each | `rate.limited`                     |
+| the same four                                                      | 10 / 15 min   | **account**, failures only | `auth.tooManySecondFactorAttempts` |
+| `POST /api/events` (create)                                        | 20 / **hour** | account                    | `event.creationRateLimited`        |
+| `POST /api/events/:slug/photos`                                    | 12            | client IP **and** event    | `rate.limited`                     |
+| `POST /api/events/:slug/clips`                                     | 12            | client IP **and** event    | `rate.limited`                     |
+| `POST /api/events/:slug/photos/:id/reactions`                      | 30            | client IP **and** event    | `reaction.rateLimited`             |
+| `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                  | `rate.limited`                     |
+| `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                     |
+| `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`          |
 
 † **Also throttled per account, with no lockout** (G3-04 / P4-07). The first five wrong
 passwords for an address from one network are free; from the sixth the answer is
@@ -1381,7 +1388,7 @@ an album they do not actually hold.
 
 ## 5. Authentication
 
-Five of these seven take no principal, and each for its own reason: a login is where a
+Six of these thirteen take no principal, and each for its own reason: a login is where a
 principal comes from, a logout can only ever destroy the one it was handed — answering
 401 to a client whose session has just expired would leave the stale cookie in the
 browser — and `/auth/me` exists to answer whether there is a principal at all. Stated
@@ -1398,6 +1405,12 @@ routes take none for the reason a login does: the person asking has lost the cre
 | `POST` | `/api/auth/sessions/revoke-others` | same: any signed-in user whose account is still enabled, for itself     |
 | `POST` | `/api/auth/password-reset/request` | none: the person asking has no credential                               |
 | `POST` | `/api/auth/password-reset/confirm` | none: the mailed link is the credential                                 |
+| `POST` | `/api/auth/login/2fa`              | none: the half-finished sign-in the password bought is the credential   |
+| `POST` | `/api/auth/2fa/enroll`             | any signed-in operator, and the password again                          |
+| `POST` | `/api/auth/2fa/confirm`            | the same operator, with the code the app shows                          |
+| `POST` | `/api/auth/step-up`                | any signed-in user whose account is still enabled; password, and code   |
+| `POST` | `/api/auth/2fa/recovery-codes`     | any signed-in user, behind a fresh step-up                              |
+| `POST` | `/api/auth/2fa/disable`            | any signed-in user, behind a fresh step-up                              |
 
 ### `POST /api/auth/login`
 
@@ -1424,6 +1437,19 @@ failure.
 }
 ```
 
+**200, when the account has an authenticator** — the password was right and **no session was
+started**:
+
+```json
+{ "secondFactorRequired": true }
+```
+
+The response names no one. The caller asks for a code and sends it to
+[`POST /api/auth/login/2fa`](#post-apiauthlogin2fa). Everything above about failure still
+holds: an unknown address, a wrong password and a disabled account are one `401`, and a wrong
+password costs an enrolled account exactly what it costs any other — the second factor is asked
+for only after the password is proven.
+
 ### `POST /api/auth/logout`
 
 Destroys the session and clears the cookie. **204**. Idempotent.
@@ -1438,7 +1464,13 @@ Destroys the session and clears the cookie. **204**. Idempotent.
     "email": "…",
     "displayName": null,
     "mustChangePassword": false,
-    "canOperateSite": false
+    "canOperateSite": false,
+    "secondFactor": {
+      "available": true,
+      "enrolled": false,
+      "verified": false,
+      "required": false
+    }
   }
 }
 ```
@@ -1474,6 +1506,14 @@ not change with it: an operator on a box with `SITE_ADMIN=off` still reads `true
 client that offers the console must require both. A disabled account is told
 `{ "authenticated": false }` and nothing else, so this is never reported for one. The login
 response (`POST /api/auth/login`) does not carry it.
+
+**`secondFactor`** is where this account stands with the second factor (G2-13), and nothing a
+caller could use against it: `available` — this box has a `MFA_ENCRYPTION_KEY`, so an operator can
+enrol; `enrolled` — the account has a confirmed authenticator (storage, this request); `verified`
+— **this session** has passed the second factor (the session's own stamp); `required` — the box
+sets `REQUIRE_OPERATOR_2FA` and the account operates it. A console that reads
+`required && !verified` sends the account to enrol when `!enrolled` and to the code prompt
+otherwise. It grants nothing: `/api/site/*` is judged by its gate.
 
 `Cache-Control: no-store`, always. The body is an identity and a rolling session
 re-sends its cookie alongside it, so a shared cache holding this response would hand
@@ -1545,6 +1585,130 @@ the policy refuses — and **the link is not spent by it**, so the form can be c
 resubmitted. `400 request.invalid`, `429 rate.limited` and the CSRF codes. Responses are
 `Cache-Control: no-store`.
 ---
+
+### The second factor (roadmap §10.1, G2-13 / P3-15)
+
+An operator account may enrol a TOTP authenticator (RFC 6238: HMAC-SHA1, six digits, thirty seconds,
+one step of drift either way) and ten recovery codes. It exists only on a box with an
+`MFA_ENCRYPTION_KEY`: with none, `enroll` and `confirm` answer `404 feature.unavailable`, and
+nothing about signing in changes. Enrolment is the operator's alone (`403 auth.forbidden` for any
+other account).
+
+**The secret is stored encrypted** (AES-256-GCM under the key, a fresh IV per row), the recovery
+codes as SHA-256 digests. Both are shown **once**, in a response that is `Cache-Control: no-store`.
+
+### `POST /api/auth/2fa/enroll`
+
+```json
+{ "password": "…" }
+```
+
+The password again — a session cookie alone must not be enough to attach a stranger's phone to an
+account. Mints a secret and stores it **unconfirmed**: nothing about signing in changes until the
+next call proves the app produces the right code. Calling it again replaces an unconfirmed secret.
+
+**200**
+
+```json
+{
+  "otpauthUri": "otpauth://totp/EventSlide:host%40example.com?secret=…&issuer=EventSlide&algorithm=SHA1&digits=6&period=30",
+  "secret": "JBSWY3DPEHPK3PXP…"
+}
+```
+
+The URI is what the QR code carries and `secret` is the same secret for an app that cannot scan.
+**401** `auth.invalidCredentials` for a wrong password; **403** `auth.forbidden` for an account that
+is not the operator; **409** `auth.secondFactorAlreadyEnrolled` while a confirmed authenticator
+stands (remove it first, behind a step-up); **404** `feature.unavailable` with no key.
+
+### `POST /api/auth/2fa/confirm`
+
+```json
+{ "code": "123456" }
+```
+
+Proves the app shows the right code (the steps either side of now are accepted). In one gesture the
+authenticator is confirmed, **the step that proved it is spent**, ten recovery codes are minted,
+**every session of the account issued before now is ended** (a thief who held the password is signed
+out; the caller's own session is renewed and stamped as having passed the second factor), and the
+enrolment is audited (`account.secondFactorEnrolled`).
+
+**200** `{ "recoveryCodes": ["K7QM-2XTR-9PHD-4VNB", …] }` — ten, shown once, 80 random bits each.
+**401** `auth.invalidSecondFactor` (wrong code, or a step already spent); **400**
+`auth.totpCodeInvalid` for text that is not six digits (the sign-in answers the neutral
+`auth.invalidSecondFactor` for the same text, so the shape of a code is not something it tells a
+caller); **409** `auth.noEnrolmentInProgress` when nothing was begun.
+
+### `POST /api/auth/login/2fa`
+
+```json
+{ "code": "123456" }
+```
+
+or `{ "recoveryCode": "K7QM-2XTR-9PHD-4VNB" }` — **exactly one** of the two (a body naming both, or
+neither, is `400 request.invalid`). Finishes the sign-in that `POST /api/auth/login` began. Until it
+does, the caller holds a half-finished sign-in in the session, **with no `userId`**: every gate keys
+on that, so the session is anonymous to `requireUser`, `requireRole` and `requireOperator` alike and
+reaches nothing else. It lives **five minutes**, allows **five wrong codes**, and is void if the
+account's credentials changed (a reset, a password change, a switch-off) after the password was typed.
+
+On success the session is regenerated (new id, new CSRF token) and stamped as having passed the
+second factor. **200** is the same body as the login's.
+
+- **401** `auth.invalidSecondFactor` — a code that matches no step, one for a step **already spent**
+  (the replay refusal), a recovery code never issued or already used, and text that is neither: one
+  answer, so what separates them stays the owner's to know.
+- **401** `auth.secondFactorExpired` — no half-finished sign-in, one past its five minutes, one that
+  used its five wrong codes, or one the account's credentials outlived. Start again with the password.
+- **429** `auth.tooManySecondFactorAttempts` — the account's budget of wrong attempts is spent
+  (below).
+- **500** `auth.secondFactorUnavailable` — the stored secret will not open under the
+  configured key. A recovery code still works, because it never needed the key.
+
+A recovery code is **single use**, decided by one conditional statement, and spending one is audited
+(`account.recoveryCodeUsed`, with the number left and never a code).
+
+### `POST /api/auth/step-up`
+
+```json
+{ "password": "…", "code": "123456" }
+```
+
+`code` may be `recoveryCode` instead; **at most one**, and neither for an account with no
+authenticator, which proves itself with the password alone. Stamps the session, for **five minutes**,
+as having confirmed the person at the keyboard. Two routes ask for it today — `2fa/recovery-codes` and
+`2fa/disable`, below — and answer **403 `auth.stepUpRequired`** without a fresh stamp; the operator
+routes that cannot be taken back (offboarding a client, suspending or resuming one, changing a
+ceiling, G2-14) will carry the same gate, `requireStepUp`, when they are mounted. **204**. The code must be of a step **later than
+the last one spent**, so the code that signed in cannot be reused here: the person waits for the
+app's next one. The stamp is not carried across a renewal of the session id (a password change).
+
+**401** `auth.invalidCredentials` / `auth.invalidSecondFactor`; **429** as above.
+
+### `POST /api/auth/2fa/recovery-codes` and `POST /api/auth/2fa/disable`
+
+Both need a fresh step-up (**403** `auth.stepUpRequired`). The first replaces **every** recovery code,
+spent or not, and answers **200** `{ "recoveryCodes": [...] }` (**409** `auth.secondFactorNotEnrolled`
+for an account with nothing to recover; audited as `account.recoveryCodesRegenerated`). The second
+removes the authenticator and its codes (**204**, idempotent, audited as
+`account.secondFactorDisabled`), ends every session of the account, and renews the caller's **without**
+the second-factor stamp: on a box that requires one, removing a factor never opens `/api/site`, it
+closes it.
+
+### The gate on `/api/site`, and what a session carries
+
+With `REQUIRE_OPERATOR_2FA=true`, `siteRoutes` applies `requireSecondFactor` **after**
+`requireOperator`: an account that does not operate the box is told `403 auth.forbidden` and nothing
+about second factors; an operator whose session has no `secondFactorAt` is told `403
+auth.secondFactorRequired`. The stamp is written into the server-side session by a passed second
+step or a confirmed enrolment and nowhere else, kept across a renewal, and dropped when the factor
+is removed. Off — the default — the gate does nothing at all.
+
+**Rate limits.** The four doors that take a secret — `login/2fa`, `step-up`, `2fa/enroll` and `2fa/confirm` — have
+the sign-in budget per client address (own bucket each, `rate.limited`), **and** one budget per
+**account** of 10 wrong attempts per quarter of an hour from every address together
+(`auth.tooManySecondFactorAttempts`, failures only: the owner who types it right spends nothing).
+The account budget is what bounds a distributed guesser against six digits.
 
 ## 6. Host and moderator
 

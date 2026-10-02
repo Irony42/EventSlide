@@ -5,6 +5,7 @@ import type { PasswordHash } from '../../../domain/users/user'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import { AT, aUser } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
+import { FakeSecondFactorRepository } from '../../testing/fakeSecondFactorRepository'
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { makeAuthenticateUser } from './authenticateUser'
 
@@ -59,16 +60,18 @@ class RecordingPasswordHasher implements PasswordHasher {
 
 describe('authenticateUser', () => {
   let users: FakeUserRepository
+  let factors: FakeSecondFactorRepository
   let hasher: RecordingPasswordHasher
   let clock: FakeClock
 
   const authenticate = (
     input: { email: string; password: string },
     withHasher: RecordingPasswordHasher = hasher,
-  ) => makeAuthenticateUser({ users, hasher: withHasher, clock })(input)
+  ) => makeAuthenticateUser({ users, factors, hasher: withHasher, clock })(input)
 
   beforeEach(() => {
     users = new FakeUserRepository()
+    factors = new FakeSecondFactorRepository().withAccounts(asUserId('user-1'))
     hasher = new RecordingPasswordHasher()
     clock = new FakeClock()
   })
@@ -83,6 +86,7 @@ describe('authenticateUser', () => {
       email: 'hote@example.test',
       displayName: 'Camille',
       mustChangePassword: false,
+      secondFactorRequired: false,
     })
   })
 
@@ -284,5 +288,39 @@ describe('authenticateUser', () => {
     const stored = await users.findById(asUserId('user-1'))
     expect(stored?.passwordHash).toBe(current(PASSWORD))
     expect(stored?.lastLoginAt).toEqual(AT)
+  })
+
+  describe('the second factor (G2-13 / P3-15)', () => {
+    const enrol = async (confirm: boolean): Promise<void> => {
+      await factors.beginEnrolment(asUserId('user-1'), 'aXY.dGFn.Y3Q', 1, AT)
+      if (confirm) await factors.confirmEnrolment(asUserId('user-1'), 'aXY.dGFn.Y3Q', 5, AT, [])
+    }
+
+    it('says the password was only the first half for an account with a confirmed authenticator', async () => {
+      users.seed(aUser({ id: 'user-1' }))
+      await enrol(true)
+
+      const result = await authenticate({ email: 'hote@example.test', password: PASSWORD })
+
+      expect(result.ok && result.value.secondFactorRequired).toBe(true)
+    })
+
+    it('does not ask for a factor that was shown but never confirmed', async () => {
+      users.seed(aUser({ id: 'user-1' }))
+      await enrol(false)
+
+      const result = await authenticate({ email: 'hote@example.test', password: PASSWORD })
+
+      expect(result.ok && result.value.secondFactorRequired).toBe(false)
+    })
+
+    it('answers a wrong password the same for an enrolled account as for any other', async () => {
+      users.seed(aUser({ id: 'user-1' }))
+      await enrol(true)
+
+      const result = await authenticate({ email: 'hote@example.test', password: 'nope-nope-nope' })
+
+      expect(!result.ok && result.error.code).toBe('auth.invalidCredentials')
+    })
   })
 })

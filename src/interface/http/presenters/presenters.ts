@@ -427,7 +427,15 @@ export const toTopPhotoDto = ({ photo, slug, counts, total }: TopPhotoDtoInput):
 // cleanly. Type-only, so nothing is added to the bundle.
 import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
 import type { UserPrincipal } from '../types'
-import type { CurrentUserDto, SessionResponseDto } from './dto'
+import type { TotpEnrolment } from '../../../application/usecases/auth/enrollTotp'
+import type {
+  CurrentUserDto,
+  RecoveryCodesDto,
+  SecondFactorRequiredDto,
+  SecondFactorStatusDto,
+  SessionResponseDto,
+  TotpEnrolmentDto,
+} from './dto'
 
 /**
  * What a successful login answers with.
@@ -467,11 +475,16 @@ export const toSignedInUserDto = (user: AuthenticatedUser): SessionUserDto => ({
  * `canOperateSite` by the **domain's own predicate**, the one the gate uses — so a menu
  * built on it and the gate cannot come to disagree about who an operator is. Only the
  * verdict leaves here: the role itself is not part of the response.
+ *
+ * `secondFactor` is the fourth: the account's standing with its authenticator
+ * (`SecondFactorStatusDto`), assembled by the route from storage and from the session's own
+ * stamp, because the first is read from a repository and the second from a cookie's session.
  */
 export const toSessionResponseDto = (
   principal: UserPrincipal | undefined,
   mustChangePassword: boolean,
   siteRole: SiteRole,
+  secondFactor: SecondFactorStatusDto,
 ): SessionResponseDto => {
   if (principal === undefined) return { authenticated: false }
 
@@ -481,9 +494,34 @@ export const toSessionResponseDto = (
     displayName: null,
     mustChangePassword,
     canOperateSite: canOperateSite(siteRole),
+    secondFactor,
   }
   return { authenticated: true, user }
 }
+
+/**
+ * The answer to a password that was right for an account with an authenticator: a session was
+ * not started, and the caller is asked for the second step. A constant, and it names no one —
+ * not the address, not the account — so it is as informative as the password was, which the
+ * caller already proved.
+ */
+export const toSecondFactorRequiredDto = (): SecondFactorRequiredDto => ({
+  secondFactorRequired: true,
+})
+
+/**
+ * The secret of an enrolment, field by field. `TotpEnrolment` is the use case's own shape and
+ * the wire is a contract: a field added there must not reach a QR code by accident.
+ */
+export const toTotpEnrolmentDto = (enrolment: TotpEnrolment): TotpEnrolmentDto => ({
+  otpauthUri: enrolment.otpauthUri,
+  secret: enrolment.secret,
+})
+
+/** Recovery codes as shown, once. A copy, so a later edit of the use case's array moves nothing. */
+export const toRecoveryCodesDto = (codes: readonly string[]): RecoveryCodesDto => ({
+  recoveryCodes: [...codes],
+})
 
 // ----------------------------------------------- guest routes (additive) --
 

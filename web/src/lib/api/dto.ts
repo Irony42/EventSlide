@@ -517,6 +517,43 @@ export interface SessionUserDto {
  */
 export interface CurrentUserDto extends SessionUserDto {
   readonly canOperateSite: boolean
+  /** Where the account stands with the second factor (G2-13 / P3-15). */
+  readonly secondFactor: SecondFactorStatusDto
+}
+
+/**
+ * What decides between "carry on", "enrol" and "enter your code". `available`: this box has a
+ * key, so an operator can enrol. `enrolled`: the account has a confirmed authenticator.
+ * `verified`: **this session** has passed the second factor. `required`: this account must
+ * have, before the operator's namespace answers.
+ */
+export interface SecondFactorStatusDto {
+  readonly available: boolean
+  readonly enrolled: boolean
+  readonly verified: boolean
+  readonly required: boolean
+}
+
+/**
+ * `POST /api/auth/login` for an account with an authenticator: the password was right and no
+ * session was started. The caller asks for a code and sends it to `POST /api/auth/login/2fa`.
+ */
+export interface SecondFactorRequiredDto {
+  readonly secondFactorRequired: true
+}
+
+/** What a person typed for a second factor: a code from the app, or one recovery code. */
+export type SecondFactorProof = { readonly code: string } | { readonly recoveryCode: string }
+
+/** The secret of an enrolment, once. The URI carries it too: both are the secret. */
+export interface TotpEnrolmentDto {
+  readonly otpauthUri: string
+  readonly secret: string
+}
+
+/** Recovery codes, shown once as `K7QM-2XTR-9PHD-4VNB`. */
+export interface RecoveryCodesDto {
+  readonly recoveryCodes: readonly string[]
 }
 
 export type SessionResponse =

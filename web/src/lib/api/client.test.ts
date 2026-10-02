@@ -216,6 +216,42 @@ const ENDPOINTS: readonly EndpointCase[] = [
     path: '/api/auth/password',
     invoke: (client) => client.changePassword('ancien', 'nouveau'),
   },
+  {
+    name: 'loginSecondFactor',
+    verb: 'post',
+    path: '/api/auth/login/2fa',
+    invoke: (client) => client.loginSecondFactor({ code: '123456' }),
+  },
+  {
+    name: 'enrollSecondFactor',
+    verb: 'post',
+    path: '/api/auth/2fa/enroll',
+    invoke: (client) => client.enrollSecondFactor('un-mot-de-passe'),
+  },
+  {
+    name: 'confirmSecondFactor',
+    verb: 'post',
+    path: '/api/auth/2fa/confirm',
+    invoke: (client) => client.confirmSecondFactor('123456'),
+  },
+  {
+    name: 'stepUp',
+    verb: 'post',
+    path: '/api/auth/step-up',
+    invoke: (client) => client.stepUp('un-mot-de-passe', { code: '123456' }),
+  },
+  {
+    name: 'regenerateRecoveryCodes',
+    verb: 'post',
+    path: '/api/auth/2fa/recovery-codes',
+    invoke: (client) => client.regenerateRecoveryCodes(),
+  },
+  {
+    name: 'disableSecondFactor',
+    verb: 'post',
+    path: '/api/auth/2fa/disable',
+    invoke: (client) => client.disableSecondFactor(),
+  },
 
   // events
   { name: 'listEvents', verb: 'get', path: '/api/events', invoke: (client) => client.listEvents() },

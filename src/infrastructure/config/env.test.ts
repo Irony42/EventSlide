@@ -177,6 +177,8 @@ describe('loadConfig', () => {
         // A development boot never gets a warning: every case below is production-only.
         warnings: [],
         audit: { retentionDays: 1095 },
+        // Nobody has set a key, and nobody is required to hold a second factor.
+        mfa: { encryptionKey: null, requireOperatorSecondFactor: false },
       })
     })
 
@@ -1939,6 +1941,180 @@ describe('loadConfig', () => {
 
       expect(issues.some((issue) => issue.startsWith('SMTP_URL: '))).toBe(true)
       expect(issues.some((issue) => issue.startsWith('JOIN_CODE_LENGTH: '))).toBe(true)
+    })
+  })
+
+  /**
+   * G2-13 / P3-15. The refusals are the point: a box that says its operators need a second
+   * factor and cannot decrypt one is a box that either locks them out or is believed to be
+   * guarded when it is not, so both are named at boot beside every other bad variable.
+   */
+  describe('the operator second factor (MFA_ENCRYPTION_KEY and REQUIRE_OPERATOR_2FA)', () => {
+    const HEX_KEY = 'a1'.repeat(32)
+    const BASE64_KEY = Buffer.from(HEX_KEY, 'hex').toString('base64')
+    const BASE64URL_KEY = Buffer.from(HEX_KEY, 'hex').toString('base64url')
+    const aHostedEnv = (overrides: Source = {}): Source =>
+      aProductionEnv({
+        SITE_ADMIN: 'on',
+        REQUIRE_OPERATOR_2FA: 'true',
+        MFA_ENCRYPTION_KEY: BASE64_KEY,
+        ...overrides,
+      })
+
+    it('leaves a self-hosted box exactly as it was: no key, nothing required', () => {
+      expect(loadConfig(aProductionEnv()).mfa).toEqual({
+        encryptionKey: null,
+        requireOperatorSecondFactor: false,
+      })
+    })
+
+    it('reads a blank key as absent, so a dangling compose variable changes nothing', () => {
+      const config = loadConfig({ ...DEV, MFA_ENCRYPTION_KEY: '' })
+
+      expect(config.mfa).toEqual({ encryptionKey: null, requireOperatorSecondFactor: false })
+    })
+
+    it('refuses a blank REQUIRE_OPERATOR_2FA: a protection must not be switched off by an empty string', () => {
+      // The hosted instance's compose file rendering the variable empty would otherwise
+      // boot, look configured and guard nothing.
+      const issues = refusalIssues(aHostedEnv({ REQUIRE_OPERATOR_2FA: '' }))
+
+      expect(issues).toHaveLength(1)
+      expect(issues[0]).toMatch(/^REQUIRE_OPERATOR_2FA: /)
+    })
+
+    it.each([
+      ['hex', HEX_KEY],
+      ['base64', BASE64_KEY],
+      ['base64url', BASE64URL_KEY],
+      ['base64 without its padding', BASE64_KEY.replace(/=+$/, '')],
+    ])('accepts 32 random bytes written as %s, and keeps the bytes', (_name, key) => {
+      const config = loadConfig({ ...DEV, MFA_ENCRYPTION_KEY: key })
+
+      expect(Buffer.from(config.mfa.encryptionKey ?? []).toString('hex')).toBe(HEX_KEY)
+    })
+
+    it('accepts a longer key than 32 bytes', () => {
+      const config = loadConfig({ ...DEV, MFA_ENCRYPTION_KEY: 'a1'.repeat(48) })
+
+      expect(config.mfa.encryptionKey?.length).toBe(48)
+    })
+
+    it('lets a key stand without the requirement, so a self-hosted operator may enrol voluntarily', () => {
+      const config = loadConfig(aProductionEnv({ MFA_ENCRYPTION_KEY: BASE64_KEY }))
+
+      expect(config.mfa.requireOperatorSecondFactor).toBe(false)
+      expect(config.mfa.encryptionKey).not.toBeNull()
+    })
+
+    it.each([
+      ['31 bytes of hex', 'a1'.repeat(31)],
+      ['an odd number of hex digits', 'a'.repeat(65)],
+      ['31 bytes of base64', Buffer.alloc(31, 7).toString('base64')],
+      ['a word', 'correct-horse-battery-staple'],
+      ['text that is not base64', 'not a key at all, but quite long enough to pass for one!!'],
+      ['a base64 length no byte string has', Buffer.alloc(32, 7).toString('base64url') + 'AA'],
+      ['the example value of SESSION_SECRET', 'change-me-in-production-at-least-32-characters'],
+      ['the example value of GUEST_TOKEN_SECRET', 'change-me-too-at-least-32-characters-long'],
+    ])('refuses %s, naming the variable and never repeating the value', (_name, key) => {
+      const issues = refusalIssues({ ...DEV, MFA_ENCRYPTION_KEY: key })
+
+      expect(issues).toHaveLength(1)
+      expect(issues[0]).toMatch(/^MFA_ENCRYPTION_KEY: /)
+      expect(issues[0]).not.toContain(key)
+    })
+
+    it('refuses REQUIRE_OPERATOR_2FA=true with no key: the box would refuse every operator forever', () => {
+      const issues = refusalIssues(aHostedEnv({ MFA_ENCRYPTION_KEY: undefined }))
+
+      expect(issues).toHaveLength(1)
+      expect(issues[0]).toMatch(
+        /^MFA_ENCRYPTION_KEY: MFA_ENCRYPTION_KEY is required when REQUIRE_OPERATOR_2FA is true/,
+      )
+    })
+
+    it('refuses REQUIRE_OPERATOR_2FA=true with a blank key, which is absent', () => {
+      expect(refusalIssues(aHostedEnv({ MFA_ENCRYPTION_KEY: '' }))[0]).toMatch(
+        /^MFA_ENCRYPTION_KEY: MFA_ENCRYPTION_KEY is required/,
+      )
+    })
+
+    it('refuses REQUIRE_OPERATOR_2FA=true with an invalid key, once, and with the format problem', () => {
+      const issues = refusalIssues(aHostedEnv({ MFA_ENCRYPTION_KEY: 'too-short' }))
+
+      expect(issues.filter((issue) => issue.startsWith('MFA_ENCRYPTION_KEY: '))).toHaveLength(1)
+      expect(issues[0]).toContain('at least 32 random bytes')
+    })
+
+    it('refuses REQUIRE_OPERATOR_2FA=true without SITE_ADMIN=on: it would guard a namespace nobody mounted', () => {
+      const issues = refusalIssues(aHostedEnv({ SITE_ADMIN: undefined }))
+
+      expect(issues).toHaveLength(1)
+      expect(issues[0]).toMatch(
+        /^REQUIRE_OPERATOR_2FA: REQUIRE_OPERATOR_2FA=true requires SITE_ADMIN=on/,
+      )
+    })
+
+    it('boots the hosted configuration, and says the requirement is on', () => {
+      const config = loadConfig(aHostedEnv())
+
+      expect(config.mfa.requireOperatorSecondFactor).toBe(true)
+      expect(config.siteAdmin).toBe(true)
+      expect(config.mfa.encryptionKey?.length).toBe(32)
+    })
+
+    it.each([
+      ['true', true],
+      ['1', true],
+      ['false', false],
+      ['0', false],
+    ])('reads REQUIRE_OPERATOR_2FA=%s as %s', (given, expected) => {
+      const config = loadConfig(aHostedEnv({ REQUIRE_OPERATOR_2FA: given }))
+
+      expect(config.mfa.requireOperatorSecondFactor).toBe(expected)
+    })
+
+    it.each(['yes', 'on', 'TRUE', 'enabled'])(
+      'refuses REQUIRE_OPERATOR_2FA=%s rather than guess',
+      (given) => {
+        expect(refusalIssues(aHostedEnv({ REQUIRE_OPERATOR_2FA: given }))[0]).toMatch(
+          /^REQUIRE_OPERATOR_2FA: /,
+        )
+      },
+    )
+
+    it('refuses a key that is the SESSION_SECRET: rotating one would change the other', () => {
+      const issues = refusalIssues(
+        aHostedEnv({ SESSION_SECRET: HEX_KEY, MFA_ENCRYPTION_KEY: HEX_KEY }),
+      )
+
+      expect(issues).toHaveLength(1)
+      expect(issues[0]).toMatch(
+        /^MFA_ENCRYPTION_KEY: MFA_ENCRYPTION_KEY must not be the same value as SESSION_SECRET/,
+      )
+      expect(issues[0]).not.toContain(HEX_KEY)
+    })
+
+    it('refuses a key that is the GUEST_TOKEN_SECRET, for the same reason', () => {
+      const issues = refusalIssues(
+        aHostedEnv({ GUEST_TOKEN_SECRET: HEX_KEY, MFA_ENCRYPTION_KEY: HEX_KEY }),
+      )
+
+      expect(issues).toHaveLength(1)
+      expect(issues[0]).toMatch(/must not be the same value as GUEST_TOKEN_SECRET/)
+    })
+
+    it('applies the same rules to a maintenance command, so one box cannot be two configurations', () => {
+      expect(() =>
+        loadMaintenanceConfig({ REQUIRE_OPERATOR_2FA: 'true', SITE_ADMIN: 'on' }),
+      ).toThrow(ConfigError)
+    })
+
+    it('rotating SESSION_SECRET leaves the key as it was', () => {
+      const before = loadConfig(aHostedEnv())
+      const after = loadConfig(aHostedEnv({ SESSION_SECRET: ANOTHER_REAL_SECRET + 'x' }))
+
+      expect(after.mfa.encryptionKey).toEqual(before.mfa.encryptionKey)
     })
   })
 

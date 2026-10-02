@@ -197,6 +197,63 @@ export const passwordResetConfirmBody = z
   })
   .strict()
 
+// ---------------------------------------------------------- second factor --
+
+/**
+ * What a person types for a second factor: the six digits from their app, or one recovery
+ * code. Both are optional *in the schema* and **exactly one is required by the handler**
+ * (`secondFactorProofOf`): the contract test that holds the client's requests to these schemas
+ * reads an object's fields, and a union of two objects is not one.
+ *
+ * Bounded in length only. Whether six digits are six digits is `parseTotpCode`'s, and whether
+ * a recovery code is one is `canonicalRecoveryCode`'s: both answer the same neutral
+ * `auth.invalidSecondFactor` for text of the wrong shape, so the shape of a code is not
+ * something this layer tells a caller about.
+ */
+export const secondFactorLoginBody = z
+  .object({
+    code: z.string().min(1).max(32).optional(),
+    recoveryCode: z.string().min(1).max(64).optional(),
+  })
+  .strict()
+
+/**
+ * The password again, for the act that adds a factor: a session cookie alone must not be
+ * enough to attach a stranger's phone to an operator's account.
+ */
+export const enrollSecondFactorBody = z.object({ password: z.string().min(1).max(1_000) }).strict()
+
+export const confirmSecondFactorBody = z.object({ code: z.string().min(1).max(32) }).strict()
+
+/**
+ * A step-up: the password, and the proof of the factor if the account has one. The proof is
+ * optional because an account without a factor proves itself with the password alone — the
+ * use case decides which it needs, and answers `auth.invalidSecondFactor` when it needed one
+ * that is missing. At most one of the two is sent (`secondFactorProofOf`).
+ */
+export const stepUpBody = z
+  .object({
+    password: z.string().min(1).max(1_000),
+    code: z.string().min(1).max(32).optional(),
+    recoveryCode: z.string().min(1).max(64).optional(),
+  })
+  .strict()
+
+/**
+ * The proof a body carries: `{ code }`, `{ recoveryCode }`, or `null` for neither. `'both'`
+ * is a body that names two, which no client sends and which is refused rather than guessed
+ * at — the one place a request could be read two ways.
+ */
+export const secondFactorProofOf = (body: {
+  readonly code?: string | undefined
+  readonly recoveryCode?: string | undefined
+}): { readonly code: string } | { readonly recoveryCode: string } | null | 'both' => {
+  if (body.code !== undefined && body.recoveryCode !== undefined) return 'both'
+  if (body.code !== undefined) return { code: body.code }
+  if (body.recoveryCode !== undefined) return { recoveryCode: body.recoveryCode }
+  return null
+}
+
 // ------------------------------------------------------------------- events --
 
 export const createEventBody = z
