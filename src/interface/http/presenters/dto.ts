@@ -611,3 +611,37 @@ export interface GalleryPageDto {
   readonly items: readonly GalleryPhotoDto[]
   readonly nextCursor: string | null
 }
+
+/**
+ * What a box can and cannot do, as the SPA reads it without probing for it.
+ *
+ * Additive on purpose: the instance-information endpoint grows one flag per capability
+ * that a client would otherwise have to discover by trying (forgot-password, e-mail
+ * invitations, content reports), and a client that does not know a flag ignores it.
+ */
+export interface AboutFeaturesDto {
+  /**
+   * `SITE_ADMIN=on` (docs/ROADMAP.md §10.9): the operator's namespace `/api/site` is
+   * mounted. It is what the SPA reads instead of probing a path that answers 401 in one
+   * mode and 404 in the other.
+   */
+  readonly siteAdmin: boolean
+}
+
+/**
+ * `GET /api/about` — what this box is, and where its source is (roadmap G1-04 / P1-05).
+ *
+ * **`sourceUrl` is the AGPL section 13 offer.** A user of a network service is entitled
+ * to the corresponding source of the version they are talking to, and this is the
+ * address, machine-readable. There is no configuration that omits it and no flag that
+ * hides it: the operator can say *where* the source is, never that there is none.
+ */
+export interface AboutDto {
+  readonly name: string
+  readonly version: string
+  readonly license: 'AGPL-3.0-only'
+  readonly sourceUrl: string
+  /** Operator links (terms, privacy, support…). Empty until the box has any to offer. */
+  readonly links: Readonly<Record<string, string>>
+  readonly features: AboutFeaturesDto
+}

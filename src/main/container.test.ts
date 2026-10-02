@@ -7,6 +7,7 @@ import { loadConfig } from '../infrastructure/config/env'
 import { migrations } from '../infrastructure/db/migrations'
 import { status } from '../infrastructure/db/migrator'
 import { createContainer, type Container } from './container'
+import { appVersion } from './version'
 
 /**
  * The one line of `SITE_ADMIN` that no other test reaches: the composition root handing
@@ -113,4 +114,67 @@ describe('createContainer: SITE_ADMIN decides surface, never schema', () => {
       )
     },
   )
+})
+
+/**
+ * The same gap, for the source offer (roadmap G1-04 / P1-05).
+ *
+ * `env.test.ts` proves `SOURCE_CODE_URL` and `SOURCE_REF` parse and `aboutRoutes.test.ts`
+ * proves the route prints what it is handed, but the harness there hands it a made-up
+ * `{ version, sourceUrl }`. What only this boot can show is the composition root doing its
+ * two jobs: reading the **one** version (`version.ts`, the same answer `/api/health` gives)
+ * and resolving the link from the parsed configuration rather than from a constant.
+ */
+describe('createContainer: the source offer reaches /api/about', () => {
+  const UPSTREAM = 'https://github.com/Irony42/EventSlide'
+
+  it('names the running version and its upstream tag on a box that configures nothing', async () => {
+    const { app } = await boot({})
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      version: appVersion(),
+      sourceUrl: `${UPSTREAM}/tree/v${appVersion()}`,
+    })
+  })
+
+  it('reports the same version as /api/health, so the two endpoints cannot name different builds', async () => {
+    const { app } = await boot({})
+
+    const [about, health] = await Promise.all([
+      request(app).get('/api/about'),
+      request(app).get('/api/health'),
+    ])
+
+    expect(about.body.version).toBe(health.body.version)
+  })
+
+  it("offers the operator's own SOURCE_CODE_URL when one is set", async () => {
+    const { app } = await boot({ SOURCE_CODE_URL: 'https://git.example.org/me/eventslide' })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.sourceUrl).toBe('https://git.example.org/me/eventslide')
+  })
+
+  it('offers the ref the image was built from when the build argument was given', async () => {
+    const { app } = await boot({ SOURCE_REF: 'v9.9.9' })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.sourceUrl).toBe(`${UPSTREAM}/tree/v9.9.9`)
+  })
+
+  it.each([
+    ['off', false],
+    ['on', true],
+  ] as const)('states SITE_ADMIN=%s as the flag the SPA reads', async (mode, flag) => {
+    const { app } = await boot({ SITE_ADMIN: mode })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.features).toEqual({ siteAdmin: flag })
+  })
 })

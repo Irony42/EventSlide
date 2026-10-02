@@ -2,6 +2,7 @@ import session from 'express-session'
 import type { Store } from 'express-session'
 import type { Express } from 'express'
 import { buildServer } from '../server'
+import type { AboutFacts } from '../presenters/aboutPresenter'
 import { buildTestWorld, type TestWorld } from './middlewareHarness'
 import type { HttpConfig } from '../types'
 import type { HttpUseCases } from '../useCases'
@@ -123,6 +124,8 @@ export interface MutableHealthChecks {
 
 export interface ServerHarnessOptions {
   readonly config?: Partial<HttpConfig>
+  /** What `GET /api/about` answers from. A fixed, recognisable build by default. */
+  readonly about?: Partial<AboutFacts>
   readonly usecases?: Partial<HttpUseCases>
   /** Where a built web app lives. Omitted means "API only", as in most tests. */
   readonly clientDir?: string
@@ -158,6 +161,7 @@ export const anUnusableSessionStore = (): Store => {
 
 export const buildServerHarness = ({
   config = {},
+  about = {},
   usecases = {},
   clientDir,
   sessionStore = new session.MemoryStore(),
@@ -186,6 +190,11 @@ export const buildServerHarness = ({
     // (a leak, and every session lost on restart) cost nothing inside one test.
     sessionStore,
     health,
+    about: {
+      version: '2.0.0-test',
+      sourceUrl: 'https://source.test/eventslide/tree/v2.0.0-test',
+      ...about,
+    },
     presenter: {
       publicUrl: deps.config.publicUrl,
       uploadLimits: deps.config.uploads,

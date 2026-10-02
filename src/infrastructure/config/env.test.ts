@@ -1038,6 +1038,23 @@ describe('loadConfig', () => {
       expect(issues.some((candidate) => candidate.startsWith('LOG_LEVEL: '))).toBe(true)
     })
 
+    it.each(['off', 'none', 'false', '0', 'no', 'disabled', '-'])(
+      'has no spelling that switches the offer off: SOURCE_CODE_URL=%s is refused',
+      (value) => {
+        // The offer is a licence obligation. The configuration can say *where* the source
+        // is, never that there is none, so the one variable that carries it has no
+        // off-word to be mistaken for — `off` is the convention SITE_ADMIN, the sweeps and
+        // the other switches in this file all use, which is what makes it the likely typo.
+        const issues = refusalIssues({ ...DEV, SOURCE_CODE_URL: value })
+
+        expect(issues.some((issue) => issue.startsWith('SOURCE_CODE_URL: '))).toBe(true)
+      },
+    )
+
+    it('exposes where the source is and never whether it is offered', () => {
+      expect(Object.keys(loadConfig({ ...DEV }).source).sort()).toEqual(['ref', 'url'])
+    })
+
     describe('SOURCE_REF, the build argument', () => {
       it('replaces /tree/v<version> with the tag it names', () => {
         // The Dockerfile's `ARG SOURCE_REF` becomes this variable, so an image built from a

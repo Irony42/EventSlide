@@ -3,7 +3,7 @@ import { access, constants, mkdir, realpath, rm, writeFile } from 'node:fs/promi
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import type { Express } from 'express'
-import type { AppConfig } from '../infrastructure/config/env'
+import { resolveSourceUrl, type AppConfig } from '../infrastructure/config/env'
 import { closeDatabase, openDatabase, type Db } from '../infrastructure/db/connection'
 import { migrate } from '../infrastructure/db/migrator'
 import { migrations } from '../infrastructure/db/migrations'
@@ -602,6 +602,11 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       videoTranscoding: () => (ffmpeg === null ? 'unavailable' : 'ok'),
       isShuttingDown: () => shutdownState.shuttingDown,
     },
+    // The source AGPL section 13 obliges this box to offer, for the version that is running.
+    // Resolved here, once, because the HTTP layer may not import the config module or the
+    // manifest reader — and from the same `appVersion()` as `health` above, so the two
+    // endpoints cannot name different builds.
+    about: { version: appVersion(), sourceUrl: resolveSourceUrl(appVersion(), config.source) },
     ...(hasClient ? { clientDir } : {}),
   })
 
