@@ -75,6 +75,10 @@ import type { UnlockGallery } from '../../application/usecases/gallery/unlockGal
  * `transcodeNextClip` and `recoverClipJobs` are absent for the same reason, and the
  * reason is sharper for them: both drain a queue across **every** event on the box, so a
  * route in front of either would be an endpoint with no tenant to scope it to.
+ *
+ * `pruneAuditLog` is absent for the sharpest reason of all: it is the one thing that ever
+ * deletes from the append-only audit log (roadmap §10.8), and the retention sweep is its
+ * only caller. A route that could trigger it is a route that could shorten the log's memory.
  */
 export interface HttpUseCases {
   // auth
