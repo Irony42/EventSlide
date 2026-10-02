@@ -204,7 +204,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // shipper aggregating several boxes can tell one instance's lines from another's, not
   // to be chosen or repeated by an operator.
   const instanceId = randomUUID()
-  const instanceBindings = { service: 'eventslide', version: VERSION, instance: instanceId }
+  const instanceBindings = { service: 'eventslide', version: appVersion(), instance: instanceId }
 
   const logger = createPinoLogger({
     level: config.logLevel,
