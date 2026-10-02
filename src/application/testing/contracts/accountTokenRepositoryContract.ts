@@ -101,6 +101,18 @@ export const accountTokenRepositoryContract = (
       ).rejects.toThrow(/UNIQUE/)
     })
 
+    it.each([
+      ['the token itself, in base64url', 'AbCdEf-raw-token_in_base64url'],
+      ['a digest in upper case', 'A'.repeat(64)],
+      ['a digest that is one character short', 'a'.repeat(63)],
+      ['an empty digest', ''],
+    ])('refuses %s in place of a digest', async (_label, tokenDigest) => {
+      // Built around the domain, which would refuse these first: the point is the table.
+      const bad = { ...anAccountToken({ id: 'tok-1' }), tokenDigest }
+
+      await expect(repo.save(bad)).rejects.toThrow(/CHECK/)
+    })
+
     it('refuses a token for an account that does not exist', async () => {
       await expect(
         repo.save(anAccountToken({ id: 'tok-1', userId: 'user-nobody' })),

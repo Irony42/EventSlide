@@ -1,4 +1,8 @@
-import { isAccountTokenUsable, type AccountToken } from '../../domain/users/accountToken'
+import {
+  isAccountTokenUsable,
+  isTokenDigest,
+  type AccountToken,
+} from '../../domain/users/accountToken'
 import type { EmailAddress } from '../../domain/users/emailAddress'
 import type { AccountTokenId, EventId, UserId } from '../../domain/shared/ids'
 import type { AccountTokenPurpose } from '../../domain/users/accountToken'
@@ -58,6 +62,11 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
     this.mustExist(token.approvedBy)
     if (token.eventId !== null && !this.events.has(token.eventId)) {
       throw new Error('FOREIGN KEY constraint failed: account_tokens.event_id')
+    }
+    // The table's `CHECK`: a digest is a SHA-256 in lower-case hex, and a token written
+    // in its place is the likeliest mistake there is.
+    if (!isTokenDigest(token.tokenDigest)) {
+      throw new Error('CHECK constraint failed: length(token_digest) = 64')
     }
     if (token.expiresAt.getTime() <= token.createdAt.getTime()) {
       throw new Error('CHECK constraint failed: expires_at > created_at')

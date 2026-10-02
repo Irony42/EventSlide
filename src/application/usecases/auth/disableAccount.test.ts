@@ -67,6 +67,17 @@ describe('disableAccount', () => {
     expect((await audit.list({ limit: 10 })).items).toHaveLength(0)
   })
 
+  it('leaves the account switched on when the log cannot take the entry, rather than switching it off unrecorded', async () => {
+    // Write-ahead: the entry goes in before the change. An audit log that refuses the actor
+    // (here, an account it has never heard of) must therefore stop the switch-off, since the
+    // other order leaves an account off with nobody able to say who did it.
+    audit = new FakeAuditLog()
+
+    await expect(disable()).rejects.toThrow(/FOREIGN KEY/)
+
+    expect((await users.findById(asUserId('user-1')))?.isDisabled()).toBe(false)
+  })
+
   it('does nothing and says nothing the second time, so the first moment is the one on record', async () => {
     await disable()
     clock.advance(60_000)
