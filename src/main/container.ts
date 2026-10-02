@@ -38,10 +38,13 @@ import { createSequentialIdGenerator } from '../infrastructure/crypto/sequential
 import { sha256ContentHasher } from '../infrastructure/crypto/sha256ContentHasher'
 import { createInMemoryEventBus } from '../infrastructure/realtime/inMemoryEventBus'
 import { createPinoLogger } from '../infrastructure/logging/pinoLogger'
+import { nullMailer } from '../infrastructure/mail/nullMailer'
+import { createSmtpMailer } from '../infrastructure/mail/smtpMailer'
 import { systemClock } from '../infrastructure/time/systemClock'
 import { statfsDiskSpaceChecker } from '../infrastructure/system/statfsDiskSpaceChecker'
 import { evaluateDiskSpace } from '../domain/shared/diskSpaceGuard'
 import type { Logger } from '../application/ports/logger'
+import type { Mailer } from '../application/ports/mailer'
 import { buildServer } from '../interface/http/server'
 import type { HttpConfig, HttpDeps } from '../interface/http/types'
 import type { PresenterContext } from '../interface/http/presenters/presenters'
@@ -73,6 +76,14 @@ export interface Container {
   readonly app: Express
   readonly logger: Logger
   readonly usecases: UseCases
+  /**
+   * Outgoing mail (G2-07 / P3-08): the SMTP adapter when `SMTP_URL` is set, `NullMailer`
+   * otherwise — which is what a self-hosted box with no mail server gets, and the caller's
+   * cue to show a link to copy. Exposed rather than folded into `usecases` because no use
+   * case sends mail yet; invitations and password reset (G2-08, G2-09) will take it from
+   * here as an adapter.
+   */
+  readonly mailer: Mailer
   readonly db: Db
   /**
    * The retention timer, built but never started here — `index.ts` starts it once the
@@ -286,6 +297,29 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     logger,
     maxSubscribersPerEvent: config.realtime.maxSubscribersPerEvent,
   })
+
+  // -------------------------------------------------------------------- mail --
+
+  /**
+   * Chosen once, from configuration, and never by asking the relay anything at boot.
+   *
+   * **No connection is opened here and none is checked.** An SMTP relay that is down when the
+   * box starts must not stop a photo wall from serving a room, so a bad address surfaces on
+   * the first send, as `mail.transient`, and not as a boot that refuses to finish.
+   * `NullMailer` is the default and logs nothing: a box with no relay is not misconfigured,
+   * it is working as designed. When there is one, the line below names the relay's host and
+   * port — never the URL, which carries the password.
+   */
+  const mailer: Mailer =
+    config.mail.smtp === null
+      ? nullMailer
+      : createSmtpMailer({ settings: config.mail.smtp, logger })
+  if (config.mail.smtp !== null) {
+    logger.info('outgoing mail goes through an SMTP relay', {
+      host: config.mail.smtp.endpoint.host,
+      port: config.mail.smtp.endpoint.port,
+    })
+  }
 
   // ------------------------------------------------------------------- video --
 
@@ -668,6 +702,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     app,
     logger,
     usecases,
+    mailer,
     db,
     retention,
     mediaReconciliation,

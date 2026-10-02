@@ -162,6 +162,8 @@ describe('loadConfig', () => {
           joinCodeLength: 6,
           creation: 'anyAccount',
         },
+        // No relay: the composition root wires `NullMailer` and a caller shows a link to copy.
+        mail: { smtp: null },
         // A development boot never gets a warning: every case below is production-only.
         warnings: [],
         audit: { retentionDays: 1095 },
@@ -1504,6 +1506,181 @@ describe('loadConfig', () => {
 
         expect(config.rateLimits.eventCreationPerHour).toBe(42)
       })
+    })
+  })
+
+  /**
+   * Outgoing mail (roadmap §10.3, G2-07 / P3-08). `SMTP_URL` is a credential: it is the one
+   * value in this file whose refusal must never repeat what it refused, and the one whose
+   * absence is the supported, default arrangement.
+   */
+  describe('outgoing mail (SMTP_URL and MAIL_FROM)', () => {
+    const A_PASSWORD = 'HUNTER2-canary-pw'
+
+    it('is no mail at all on a box that never set either variable', () => {
+      expect(loadConfig({ ...DEV }).mail.smtp).toBeNull()
+    })
+
+    it('reads a relay and a sender into parsed settings, never the raw URL', () => {
+      const { mail } = loadConfig({
+        ...DEV,
+        SMTP_URL: `smtps://camille:${A_PASSWORD}@mail.example.com:2465`,
+        MAIL_FROM: 'EventSlide <no-reply@photos.example.org>',
+      })
+
+      expect(mail.smtp).toEqual({
+        endpoint: {
+          host: 'mail.example.com',
+          port: 2465,
+          implicitTls: true,
+          credentials: { username: 'camille', password: A_PASSWORD },
+        },
+        from: { name: 'EventSlide', address: 'no-reply@photos.example.org' },
+      })
+    })
+
+    it('accepts a relay with no login, which is a local one', () => {
+      const { mail } = loadConfig({
+        ...DEV,
+        SMTP_URL: 'smtp://localhost:1025',
+        MAIL_FROM: 'no-reply@example.org',
+      })
+
+      expect(mail.smtp?.endpoint).toEqual({
+        host: 'localhost',
+        port: 1025,
+        implicitTls: false,
+        credentials: null,
+      })
+    })
+
+    it('is accepted in production, where it is the deployment that sets it', () => {
+      const config = loadConfig(
+        aProductionEnv({
+          SMTP_URL: 'smtp://mail.example.com:587',
+          MAIL_FROM: 'no-reply@photos.example.org',
+        }),
+      )
+
+      expect(config.mail.smtp?.endpoint.host).toBe('mail.example.com')
+    })
+
+    it('reads the empty strings compose renders for unset variables as absent, not as values', () => {
+      // `compose.yaml` passes `${SMTP_URL:-}` and `${MAIL_FROM:-}`, so the ordinary
+      // deployment with no relay arrives here as two empty strings.
+      const config = loadConfig({ ...DEV, SMTP_URL: '', MAIL_FROM: '' })
+
+      expect(config.mail.smtp).toBeNull()
+      expect(config.warnings).toEqual([])
+    })
+
+    it('refuses SMTP_URL without MAIL_FROM, naming MAIL_FROM, because a relay will not take a message with no sender', () => {
+      const issues = refusalIssues({ ...DEV, SMTP_URL: 'smtp://mail.example.com' })
+
+      expect(issues).toHaveLength(1)
+      expect(issues[0]).toMatch(/^MAIL_FROM: MAIL_FROM is required when SMTP_URL is set/)
+    })
+
+    it('refuses it in production too, which is where it would otherwise fail on the first invitation', () => {
+      const issues = refusalIssues(aProductionEnv({ SMTP_URL: 'smtps://mail.example.com' }))
+
+      expect(issues.some((issue) => issue.startsWith('MAIL_FROM: '))).toBe(true)
+    })
+
+    it('accepts MAIL_FROM with no SMTP_URL, and sends nothing', () => {
+      const config = loadConfig({ ...DEV, MAIL_FROM: 'no-reply@example.org' })
+
+      expect(config.mail.smtp).toBeNull()
+    })
+
+    it('warns in production about a sender with no relay, because mail the operator expects will not arrive', () => {
+      const config = loadConfig(
+        aProductionEnv({ TRUST_PROXY_HOPS: '1', MAIL_FROM: 'no-reply@example.org' }),
+      )
+
+      expect(config.warnings).toHaveLength(1)
+      expect(config.warnings[0]).toContain('MAIL_FROM is set but SMTP_URL is not')
+    })
+
+    it('does not warn about a sender when there is a relay, or outside production', () => {
+      expect(
+        loadConfig(
+          aProductionEnv({
+            TRUST_PROXY_HOPS: '1',
+            SMTP_URL: 'smtps://mail.example.com',
+            MAIL_FROM: 'no-reply@example.org',
+          }),
+        ).warnings,
+      ).toEqual([])
+      expect(loadConfig({ ...DEV, MAIL_FROM: 'no-reply@example.org' }).warnings).toEqual([])
+    })
+
+    it.each([
+      ['another scheme', 'https://mail.example.com'],
+      ['a path', 'smtp://mail.example.com/queue'],
+      ['a query string', 'smtp://mail.example.com?tls.rejectUnauthorized=false'],
+      ['a user with no password', 'smtps://camille@mail.example.com'],
+      ['a port out of range', 'smtp://mail.example.com:0'],
+      ['no host', 'smtp://'],
+    ])('refuses an SMTP_URL with %s, naming the variable', (_name, value) => {
+      const issues = refusalIssues({ ...DEV, SMTP_URL: value, MAIL_FROM: 'no-reply@example.org' })
+
+      expect(issues).toHaveLength(1)
+      expect(issues[0]).toMatch(/^SMTP_URL: SMTP_URL /)
+    })
+
+    it('never repeats a refused SMTP_URL, because it may still carry the password it was refused with', () => {
+      // The boot prints its problems to a terminal and the output is kept.
+      const refused = [
+        `smtps://camille:${A_PASSWORD}@mail.example.com/queue`,
+        `imaps://camille:${A_PASSWORD}@mail.example.com`,
+        `smtps://:${A_PASSWORD}@mail.example.com`,
+        `smtps://camille:${A_PASSWORD}@mail.example.com?x=1`,
+      ]
+
+      for (const value of refused) {
+        let message = ''
+        try {
+          loadConfig({ ...DEV, SMTP_URL: value, MAIL_FROM: 'no-reply@example.org' })
+        } catch (error) {
+          message = error instanceof ConfigError ? error.message : String(error)
+        }
+        expect(message, value).toContain('SMTP_URL')
+        expect(message).not.toContain(A_PASSWORD)
+        expect(message).not.toContain('camille')
+      }
+    })
+
+    it.each([
+      ['a list of addresses', 'a@example.org, b@example.com'],
+      ['no address', 'EventSlide'],
+      ['an unclosed bracket', 'EventSlide <no-reply@example.org'],
+    ])('refuses a MAIL_FROM that is %s, naming the variable', (_name, value) => {
+      const issues = refusalIssues({ ...DEV, SMTP_URL: 'smtp://localhost:1025', MAIL_FROM: value })
+
+      expect(issues).toHaveLength(1)
+      expect(issues[0]).toMatch(/^MAIL_FROM: MAIL_FROM must be one address/)
+    })
+
+    it('names both problems when the URL is malformed and there is no sender, since fixing the URL alone would not boot', () => {
+      // A refused URL leaves zod's aborted marker in its place, which is not `undefined`, so
+      // the "sender required" refinement still runs. The second line stays true after the
+      // first is fixed, which is why it is kept rather than suppressed.
+      const issues = refusalIssues({ ...DEV, SMTP_URL: 'ftp://mail.example.com' })
+
+      expect(issues.map((issue) => issue.split(':')[0])).toEqual(['SMTP_URL', 'MAIL_FROM'])
+    })
+
+    it('lists a bad SMTP_URL beside every other problem, like every other variable', () => {
+      const issues = refusalIssues({
+        ...DEV,
+        SMTP_URL: 'ftp://mail.example.com',
+        MAIL_FROM: 'no-reply@example.org',
+        JOIN_CODE_LENGTH: '99',
+      })
+
+      expect(issues.some((issue) => issue.startsWith('SMTP_URL: '))).toBe(true)
+      expect(issues.some((issue) => issue.startsWith('JOIN_CODE_LENGTH: '))).toBe(true)
     })
   })
 

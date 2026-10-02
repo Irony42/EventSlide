@@ -10,5 +10,10 @@
     "sourceMap": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "src/application/testing/**", "src/interface/http/testing/**"]
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/application/testing/**",
+    "src/infrastructure/**/testing/**",
+    "src/interface/http/testing/**"
+  ]
 }

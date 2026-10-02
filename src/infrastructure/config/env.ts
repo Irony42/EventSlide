@@ -7,6 +7,7 @@ import {
 } from '../../domain/audit/auditRetention'
 import { JoinCode } from '../../domain/shared/joinCode'
 import { Password } from '../../domain/users/password'
+import { parseMailbox, parseSmtpUrl, type SmtpSettings } from '../mail/smtpEndpoint'
 
 /**
  * The only module in the codebase that reads `process.env`. Lint enforces that
@@ -400,6 +401,62 @@ const auditRetentionDays = z.preprocess(
       `AUDIT_RETENTION_DAYS must be at most ${AUDIT_RETENTION_MAX_DAYS}`,
     )
     .default(AUDIT_RETENTION_DEFAULT_DAYS),
+)
+
+/**
+ * `SMTP_URL`: the relay outgoing mail goes through (roadmap §10.3, G2-07 / P3-08), as
+ * `smtp://host:587` (a plain connection upgraded with STARTTLS) or `smtps://host:465` (TLS
+ * from the first byte), with `user:password@` in front when the relay wants a login. Absent
+ * is the self-hoster default and means **no mail at all**: the composition root wires
+ * `NullMailer` and the caller shows the link to copy.
+ *
+ * Blank is absent, for the reason on {@link blankAsAbsent}: `compose.yaml` passes it as
+ * `${SMTP_URL:-}`, so an operator with no relay sends the empty string.
+ *
+ * **This value is a credential, and it never appears in a refusal.** The schema keeps the
+ * message fixed and does not echo the input, because the boot's list of problems is printed
+ * to a terminal and kept by whatever collects its output — and a URL refused for a stray
+ * character still carries the password it was refused with. What is stored is the parsed
+ * {@link SmtpEndpoint}, not the string: the adapter is handed parts and no query string
+ * (`parseSmtpUrl` refuses one) and the password has one reader.
+ */
+const smtpUrl = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .transform((value, ctx) => {
+      const parsed = parseSmtpUrl(value)
+      if (!parsed.ok) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `SMTP_URL ${parsed.error}. Expected smtp://host:587 or smtps://user:password@host:465, with special characters in the credentials percent-encoded; the value is not repeated here because it may carry a password`,
+        })
+        return z.NEVER
+      }
+      return parsed.value
+    })
+    .optional(),
+)
+
+/**
+ * `MAIL_FROM`: the sender of every message, `no-reply@example.org` or
+ * `EventSlide <no-reply@example.org>`. Required whenever {@link smtpUrl} is set, because a
+ * relay refuses mail with no sender and the failure would otherwise show up as a rejected
+ * invitation on the day someone first used it. Blank is absent.
+ */
+const mailFrom = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .transform((value, ctx) => {
+      const parsed = parseMailbox(value)
+      if (!parsed.ok) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `MAIL_FROM ${parsed.error}` })
+        return z.NEVER
+      }
+      return parsed.value
+    })
+    .optional(),
 )
 
 /**
@@ -809,6 +866,11 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
 
       /** See {@link auditRetentionDays}. Three years unless the box says otherwise. */
       AUDIT_RETENTION_DAYS: auditRetentionDays,
+
+      /** See {@link smtpUrl}. Absent means no mail: the composition root wires `NullMailer`. */
+      SMTP_URL: smtpUrl,
+      /** See {@link mailFrom}. Required whenever `SMTP_URL` is set. */
+      MAIL_FROM: mailFrom,
     })
     .superRefine((raw, ctx) => {
       // The first owner is a pair, and half of one creates nothing. Before `""` meant
@@ -823,6 +885,19 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
           code: z.ZodIssueCode.custom,
           path: [missing],
           message: `${missing} is required alongside the other half of the first-owner bootstrap: an email with no password, or a password with no email, creates no account at all`,
+        })
+      }
+
+      // Not production-gated either: a relay with no sender is wrong everywhere. A relay
+      // refuses a message with no `MAIL FROM`, so without this the box boots, the operator
+      // believes mail works, and the first invitation fails with `mail.rejected` on the one
+      // day somebody needed it. The reverse — a sender and no relay — is only a warning, below.
+      if (raw.SMTP_URL !== undefined && raw.MAIL_FROM === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MAIL_FROM'],
+          message:
+            'MAIL_FROM is required when SMTP_URL is set: a relay will not accept a message with no sender, so every invitation would be refused',
         })
       }
 
@@ -1118,6 +1193,22 @@ export interface AppConfig {
   }
 
   /**
+   * Outgoing mail (roadmap §10.3, G2-07 / P3-08). `smtp` is `null` on every box that never
+   * set `SMTP_URL`, which is what makes the composition root wire `NullMailer` and what keeps
+   * a solo install exactly as it was: no relay, no outbound connection, no mail.
+   *
+   * Carries the password, in `smtp.endpoint.credentials`, like `secrets` above carries the
+   * signing keys. **Nothing logs this object, and nothing may**: the logger's redaction list
+   * is shallow and would not catch a password four levels down, so the only protection is
+   * that no caller hands this to a log line (the container's boot line names the host and the
+   * port and nothing else, and a test pins it). A new field here is a new place a secret can
+   * leak from, so none is added without a reason.
+   */
+  readonly mail: {
+    readonly smtp: SmtpSettings | null
+  }
+
+  /**
    * Problems worth telling an operator about that are not worth refusing the boot
    * over — see {@link computeWarnings}. Empty outside production, and usually empty
    * inside it too; `src/main/index.ts` logs each one once, after the container
@@ -1168,6 +1259,8 @@ interface WarningInputs {
   readonly source: Source
   readonly secureCookie: boolean
   readonly trustProxyHops: number
+  /** `MAIL_FROM` is set and `SMTP_URL` is not: a sender with nothing to send through. */
+  readonly mailFromWithoutRelay: boolean
 }
 
 /**
@@ -1183,6 +1276,7 @@ const computeWarnings = ({
   source,
   secureCookie,
   trustProxyHops,
+  mailFromWithoutRelay,
 }: WarningInputs): readonly string[] => {
   if (!isProduction) return []
 
@@ -1210,6 +1304,14 @@ const computeWarnings = ({
         'misconfiguration that silently breaks per-IP rate limiting, and a host can find a ' +
         'session stops working with no visible cause. Set TRUST_PROXY_HOPS to the number of ' +
         'reverse proxies in front of this box, or leave it at 0 only when nothing does.',
+    )
+  }
+
+  if (mailFromWithoutRelay) {
+    warnings.push(
+      'MAIL_FROM is set but SMTP_URL is not: no mail will be sent, and an invitation or a ' +
+        'password reset will be shown as a link to copy instead. Set SMTP_URL to send by ' +
+        'e-mail, or remove MAIL_FROM.',
     )
   }
 
@@ -1381,11 +1483,21 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       creation: raw.EVENT_CREATION,
     },
 
+    mail: {
+      // Both halves or none: the refinement above refuses a relay with no sender, and a
+      // sender with no relay has nothing to send through, so it is dropped — and warned about.
+      smtp:
+        raw.SMTP_URL !== undefined && raw.MAIL_FROM !== undefined
+          ? { endpoint: raw.SMTP_URL, from: raw.MAIL_FROM }
+          : null,
+    },
+
     warnings: computeWarnings({
       isProduction,
       source,
       secureCookie: raw.SESSION_COOKIE_SECURE ?? isProduction,
       trustProxyHops: raw.TRUST_PROXY_HOPS,
+      mailFromWithoutRelay: raw.MAIL_FROM !== undefined && raw.SMTP_URL === undefined,
     }),
 
     audit: {
