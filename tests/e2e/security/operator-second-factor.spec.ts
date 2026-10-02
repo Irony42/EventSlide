@@ -117,7 +117,8 @@ test.describe('the operator’s second factor', () => {
   let recoveryCodes: string[]
   const NEVER_A_SITE_ROUTE = '/api/site/__never-a-route__'
 
-  test.beforeAll(async (_fixtures, testInfo) => {
+  // eslint-disable-next-line no-empty-pattern -- same reason as the beforeEach above: Playwright refuses anything but a destructuring pattern here.
+  test.beforeAll(async ({}, testInfo) => {
     app = await startTestApp({ worker: testInfo.workerIndex, env: HOSTED })
   })
 
