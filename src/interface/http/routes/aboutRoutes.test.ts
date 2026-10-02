@@ -27,6 +27,9 @@ const SOURCE_URL = 'https://git.example.org/me/eventslide/tree/v2.0.0-test'
 
 const about = { version: '2.0.0-test', sourceUrl: SOURCE_URL }
 
+const DONATE_URL = 'https://opencollective.com/eventslide'
+const BUDGET_URL = 'https://opencollective.com/eventslide/budget'
+
 /**
  * `set-cookie` is the one header that can legitimately repeat, so Node gives it as an
  * array while supertest's types declare every header as a string. Narrowing through
@@ -150,6 +153,65 @@ describe('GET /api/about', () => {
       .set('Cookie', `${signedSessionCookie('some-session')}; es_csrf=anything`)
 
     expect(stale.body).toEqual(anonymous.body)
+  })
+
+  /**
+   * The optional support links (roadmap G4-02). The rule is that a link is **on the wire
+   * only when the operator set it**: an instance that asks for nothing answers `links: {}`,
+   * so a self-hosted box has no key a client could render, and none that says `null`.
+   */
+  describe('links', () => {
+    const linksOf = async (links: { donate: string | null; budget: string | null }) =>
+      (await request(buildServerHarness({ about: { ...about, links } }).app).get('/api/about')).body
+        .links as Record<string, unknown>
+
+    it('is an empty object when the operator set neither link', async () => {
+      expect(await linksOf({ donate: null, budget: null })).toEqual({})
+    })
+
+    it('carries links.donate when DONATION_URL is set, and no budget key', async () => {
+      const links = await linksOf({ donate: DONATE_URL, budget: null })
+
+      expect(links).toEqual({ donate: DONATE_URL })
+      expect(Object.keys(links)).not.toContain('budget')
+    })
+
+    it('carries links.budget when BUDGET_URL is set, and no donate key', async () => {
+      const links = await linksOf({ donate: null, budget: BUDGET_URL })
+
+      expect(links).toEqual({ budget: BUDGET_URL })
+      expect(Object.keys(links)).not.toContain('donate')
+    })
+
+    it('carries both when both are set', async () => {
+      expect(await linksOf({ donate: DONATE_URL, budget: BUDGET_URL })).toEqual({
+        donate: DONATE_URL,
+        budget: BUDGET_URL,
+      })
+    })
+
+    it('never says null for an unset link: absent and null are different statements to a client', async () => {
+      // `"donate": null` is a key a client has to know to skip, and `if ("donate" in links)`
+      // would then render a button with no address.
+      const links = await linksOf({ donate: null, budget: null })
+
+      expect(JSON.stringify(links)).not.toContain('null')
+      expect(Object.keys(links)).toEqual([])
+    })
+
+    it('is the same for every caller, so a donation link is not a per-visitor decision', async () => {
+      const subject = buildServerHarness({
+        about: { ...about, links: { donate: DONATE_URL, budget: null } },
+      })
+
+      const anonymous = await request(subject.app).get('/api/about')
+      const stale = await request(subject.app)
+        .get('/api/about')
+        .set('Cookie', `${signedSessionCookie('some-session')}; es_csrf=anything`)
+
+      expect(stale.body.links).toEqual(anonymous.body.links)
+      expect(setCookies(stale.headers)).toEqual([])
+    })
   })
 
   describe('features.siteAdmin', () => {

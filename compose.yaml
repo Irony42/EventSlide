@@ -111,6 +111,12 @@ services:
       # How long the audit log keeps a row: 365 to 3650 days, refused at boot outside that.
       # Only a box run for other people (SITE_ADMIN=on) ever writes one. See .env.example.
       AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-1095}
+      # Optional support links, **empty unless you set them**: a self-hosted box shows nothing
+      # about money. Set, they appear in the host footer, on /about and in a card a host can
+      # close once their event has closed — never on a guest screen and never on the wall. A donation
+      # unlocks nothing. https URLs only; see .env.example.
+      DONATION_URL: ${DONATION_URL:-}
+      BUDGET_URL: ${BUDGET_URL:-}
     volumes:
       # The database, every photo, and under /data/backups the archives the backup
       # command writes (BACKUP_DIR, set in the Dockerfile). Everything is here, but do not

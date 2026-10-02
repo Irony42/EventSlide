@@ -629,6 +629,22 @@ export interface AboutFeaturesDto {
 }
 
 /**
+ * The operator's optional links, present **only when set** (roadmap G4-02): an instance
+ * that asks for nothing answers `{}`, so a client has no key to render and a self-hosted
+ * box says nothing about money. Additive, like `features`: a client ignores a key it does
+ * not know.
+ *
+ * Neither link is a condition of anything. A donation buys no counterpart — no tier, no
+ * badge, no priority — so there is no field here that could say who gave.
+ */
+export interface AboutLinksDto {
+  /** `DONATION_URL`: where to support the project. An https address. */
+  readonly donate?: string
+  /** `BUDGET_URL`: the public ledger the donations are accounted in. An https address. */
+  readonly budget?: string
+}
+
+/**
  * `GET /api/about` — what this box is, and where its source is (roadmap G1-04 / P1-05).
  *
  * **`sourceUrl` is the AGPL section 13 offer.** A user of a network service is entitled
@@ -641,7 +657,7 @@ export interface AboutDto {
   readonly version: string
   readonly license: 'AGPL-3.0-only'
   readonly sourceUrl: string
-  /** Operator links (terms, privacy, support…). Empty until the box has any to offer. */
-  readonly links: Readonly<Record<string, string>>
+  /** Operator links. Empty until the box has any to offer; see {@link AboutLinksDto}. */
+  readonly links: AboutLinksDto
   readonly features: AboutFeaturesDto
 }

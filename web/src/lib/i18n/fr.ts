@@ -1435,6 +1435,27 @@ export const fr = {
     sourceLabel: 'Code source',
     /** Under the link, because the version above it is the version the link points at. */
     sourceNote: 'Ce lien mène au code source de la version indiquée ci-dessus.',
+
+    /**
+     * The support link (roadmap G4-02), shown only where the operator set `DONATION_URL`: in
+     * the host footer, on `/about`, and in the card a host meets once their event is closed.
+     * Never on the wall and never on a guest screen. The verb is "soutenir", not "payer" or
+     * "acheter": a donation is not a price, and nothing below says otherwise.
+     */
+    supportLink: 'Soutenir le projet',
+    /** The card's and the /about section's heading. */
+    supportTitle: 'Le projet vit de dons',
+    supportIntro: 'EventSlide est un logiciel libre, gratuit et sans publicité.',
+    /**
+     * **The promise, in the product.** A donation changes nothing for the donor: no tier, no
+     * badge, no priority, no longer retention. Said wherever the link is offered, so nobody
+     * gives expecting a favour and nobody withholds expecting to be penalised.
+     */
+    supportNoCounterpart: 'Un don ne débloque rien : le service est le même pour tout le monde.',
+    /** `BUDGET_URL`: the public ledger the donations are accounted in. */
+    budgetLink: 'Voir le budget public',
+    /** The close control on the card; the choice is remembered for that event on this device. */
+    supportDismiss: 'Masquer ce message',
   },
 } as const
 

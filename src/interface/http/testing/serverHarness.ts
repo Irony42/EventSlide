@@ -196,6 +196,8 @@ export const buildServerHarness = ({
     about: {
       version: '2.0.0-test',
       sourceUrl: 'https://source.test/eventslide/tree/v2.0.0-test',
+      // No operator links, as on a box that set none.
+      links: { donate: null, budget: null },
       ...about,
     },
     presenter: {

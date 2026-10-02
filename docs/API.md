@@ -385,14 +385,25 @@ when the session store is unusable.
 }
 ```
 
-| Field                | Meaning                                                                                                                                                                                                            |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `name`               | The product, `EventSlide`.                                                                                                                                                                                         |
-| `version`            | The running build, from `package.json` — the same value `GET /api/health` reports and the backup manifest records.                                                                                                 |
-| `license`            | An SPDX identifier, `AGPL-3.0-only`, held to `package.json`'s `license`.                                                                                                                                           |
-| `sourceUrl`          | An **https** address of the complete source of this build. Resolved at boot, in order, from `SOURCE_CODE_URL`; from `SOURCE_REF`, as `https://github.com/Irony42/EventSlide/tree/<ref>`; else `…/tree/v<version>`. |
-| `links`              | Operator links. An empty object today; later items add named, optional entries.                                                                                                                                    |
-| `features.siteAdmin` | `true` when `SITE_ADMIN=on`, that is, when the operator's namespace `/api/site` is mounted (see above). Derived from the same setting as the mount, so it cannot disagree with it.                                 |
+An instance whose operator set `DONATION_URL` and `BUDGET_URL` answers, for example:
+
+```json
+{
+  "links": {
+    "donate": "https://opencollective.com/eventslide",
+    "budget": "https://opencollective.com/eventslide/budget"
+  }
+}
+```
+
+| Field                | Meaning                                                                                                                                                                                                                                                                             |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`               | The product, `EventSlide`.                                                                                                                                                                                                                                                          |
+| `version`            | The running build, from `package.json` — the same value `GET /api/health` reports and the backup manifest records.                                                                                                                                                                  |
+| `license`            | An SPDX identifier, `AGPL-3.0-only`, held to `package.json`'s `license`.                                                                                                                                                                                                            |
+| `sourceUrl`          | An **https** address of the complete source of this build. Resolved at boot, in order, from `SOURCE_CODE_URL`; from `SOURCE_REF`, as `https://github.com/Irony42/EventSlide/tree/<ref>`; else `…/tree/v<version>`.                                                                  |
+| `links`              | Operator links, each **present only when the operator set it** — a box that set nothing answers `{}`, never a key with `null` or an empty string. Today: `donate` (`DONATION_URL`) and `budget` (`BUDGET_URL`), each an **https** address. Later items add named, optional entries. |
+| `features.siteAdmin` | `true` when `SITE_ADMIN=on`, that is, when the operator's namespace `/api/site` is mounted (see above). Derived from the same setting as the mount, so it cannot disagree with it.                                                                                                  |
 
 `features` is **additive**: a client ignores a flag it does not know, and later items add
 one per capability a client would otherwise discover by trying.
@@ -415,6 +426,19 @@ It is read by the server at boot, not by the bundle, so a browser shows the upst
 the build's version from its first paint and **replaces it with `sourceUrl` as soon as this
 endpoint answers** — and keeps the upstream tag if it never does (an installed app opened
 offline).
+
+**The support links, and what they promise.** `DONATION_URL` and `BUDGET_URL` are optional and
+**empty by default**, so a self-hosted box says nothing about money. They accept an https URL
+and nothing else, exactly as `SOURCE_CODE_URL` does: `javascript:`, `data:` and `http:` addresses,
+and addresses carrying credentials, stop the boot (exit 78) naming the variable. Where the web
+app shows them, when set: a "Soutenir le projet" link in the footer of the **host** screens
+(`/login`, `/admin/**`), a section on `/about`, and **one** card, which the host can close, on
+the page of an event after it is closed — closing it is remembered by the browser (`localStorage`,
+per event) and nowhere else. They are **never** shown on the projected wall, on the guest screens
+(`/join`, `/e/:slug/upload`, `/g/:token`) or in e-mails; `/about`, which anyone may open, is the
+one public page that carries them. There is no modal, countdown or repeated prompt. **A donation unlocks nothing:** no tier, badge, priority or other counterpart
+exists, nothing in this API says who gave, and the screens that carry the link say it is the same
+service for everyone.
 
 ### `POST /api/join`
 

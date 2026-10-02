@@ -138,6 +138,21 @@ const RouteFallback = () => {
 const useGlassBackdrop = () => glassBackdropFor(useLocation().pathname)
 
 /**
+ * Whether the host footer may offer "Soutenir le projet" at this address (roadmap G4-02):
+ * `/login` and `/admin/**`, the host's own screens, and nothing else.
+ *
+ * Read from the address rather than assumed from the layout, because `HostLayout` also
+ * answers the router's catch-all. A guest holding a card printed against an older address
+ * shape — 1.0's `/upload?partyname=…` is outside `/join/*`, `/e/*` and `/g/*` — lands on that
+ * not-found screen under the host's footer, and a guest is not who is being asked. The
+ * source offer is not subject to this: it belongs on every screen that has a footer.
+ */
+const useHostSupportLink = (): boolean => {
+  const { pathname } = useLocation()
+  return pathname === '/login' || pathname === '/admin' || pathname.startsWith('/admin/')
+}
+
+/**
  * The guest surface, with the language picker in its header.
  *
  * The picker is here rather than inside `JoinPage` and `GuestUploadPage` because it
@@ -198,6 +213,7 @@ const LazyGuestPage = () => (
  */
 const HostLayout = () => {
   const backdrop = useGlassBackdrop()
+  const supportLink = useHostSupportLink()
   return (
     <ErrorBoundary>
       <ToastProvider>
@@ -205,7 +221,9 @@ const HostLayout = () => {
           surface="host"
           backdrop={backdrop}
           header={<LanguagePicker />}
-          footer={<SiteFooter />}
+          // The one footer that may carry "Soutenir le projet" (roadmap G4-02), and only on
+          // the host's own screens: nobody on them is mid-upload or in front of the room.
+          footer={<SiteFooter supportLink={supportLink} />}
         >
           <Suspense fallback={<RouteFallback />}>
             <Outlet />

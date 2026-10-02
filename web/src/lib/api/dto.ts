@@ -585,6 +585,18 @@ export interface AboutFeatures {
 }
 
 /**
+ * The operator's optional links, each present only when the operator set it (roadmap
+ * G4-02). Mirrors `AboutLinksDto` on the server. A donation buys no counterpart, so
+ * nothing here says who gave or what they get.
+ */
+export interface AboutLinks {
+  /** `DONATION_URL`: where to support the project. */
+  readonly donate?: string
+  /** `BUDGET_URL`: the public ledger the donations are accounted in. */
+  readonly budget?: string
+}
+
+/**
  * `GET /api/about`: what this box is, its licence and **where its source is** (roadmap
  * G1-04 / P1-05) — the AGPL section 13 offer. Mirrors `AboutDto` on the server.
  */
@@ -593,7 +605,7 @@ export interface About {
   readonly version: string
   readonly license: 'AGPL-3.0-only'
   readonly sourceUrl: string
-  /** Operator links (terms, privacy, support…). Empty until the box has any to offer. */
-  readonly links: Readonly<Record<string, string>>
+  /** Operator links. Empty until the box has any to offer; see {@link AboutLinks}. */
+  readonly links: AboutLinks
   readonly features: AboutFeatures
 }

@@ -1021,6 +1021,7 @@ once with zod at startup, exported as a frozen typed object.
 | `SOURCE_REF`                       | no                                        | none                                  | Docker build argument behind the same link: a git tag, branch or commit                                                      |
 | `EVENT_CREATION`                   | no                                        | `anyAccount`                          | `clientMembers`: members of a client and the operator only; needs `SITE_ADMIN=on`                                            |
 | `AUDIT_RETENTION_DAYS`             | no                                        | `1095`                                | how long the audit log keeps a row, 365 to 3650 (§17)                                                                        |
+| `DONATION_URL` / `BUDGET_URL`      | no                                        | empty                                 | optional support links: https only, no credentials, off guest screens and the wall (API.md §2)                               |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,

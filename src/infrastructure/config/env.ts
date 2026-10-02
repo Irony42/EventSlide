@@ -221,29 +221,55 @@ const parseHttpsUrl = (value: string): string | null => {
 }
 
 /**
- * `SOURCE_CODE_URL`: the complete source of this build, as the operator publishes it. It
- * wins over `SOURCE_REF` and over the default. Blank is absent, for the reason on
- * {@link blankAsAbsent}.
+ * An optional https link an operator publishes, validated once for every variable that
+ * carries one: `SOURCE_CODE_URL`, `DONATION_URL` and `BUDGET_URL`. Blank is absent, for the
+ * reason on {@link blankAsAbsent}, and what is returned is the canonical form
+ * ({@link parseHttpsUrl}), never the text as typed.
+ *
+ * One factory rather than three copies, so the three cannot drift apart: the rule that
+ * refuses `http:` for the source link is the rule that refuses it for a donation page, and
+ * a test that loosens one loosens all three and fails for all three.
  */
-const sourceCodeUrl = z.preprocess(
-  blankAsAbsent,
-  z
-    .string()
-    .trim()
-    .transform((value, ctx) => {
-      const parsed = parseHttpsUrl(value)
-      if (parsed === null) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'SOURCE_CODE_URL must be an https URL with no credentials in it: a javascript:, data: or http: address is refused, because this link is shown to every visitor',
-        })
-        return z.NEVER
-      }
-      return parsed
-    })
-    .optional(),
-)
+const optionalHttpsLink = (variable: string, shownTo: string) =>
+  z.preprocess(
+    blankAsAbsent,
+    z
+      .string()
+      .trim()
+      .transform((value, ctx) => {
+        const parsed = parseHttpsUrl(value)
+        if (parsed === null) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${variable} must be an https URL with no credentials in it: a javascript:, data: or http: address is refused, because this link is shown to ${shownTo}`,
+          })
+          return z.NEVER
+        }
+        return parsed
+      })
+      .optional(),
+  )
+
+/**
+ * `SOURCE_CODE_URL`: the complete source of this build, as the operator publishes it. It
+ * wins over `SOURCE_REF` and over the default.
+ */
+const sourceCodeUrl = optionalHttpsLink('SOURCE_CODE_URL', 'every visitor')
+
+/**
+ * `DONATION_URL`: where a visitor can support the project (roadmap G4-02). **Empty by
+ * default**, so a self-hoster's screens never mention money; set, it is offered in the host
+ * footer, on `/about` and once, closably, to a host whose event has just closed. It is
+ * never shown to a guest or on the projected wall. A donation buys nothing, and no
+ * setting adds a counterpart.
+ */
+const donationUrl = optionalHttpsLink('DONATION_URL', 'hosts and on the public /about page')
+
+/**
+ * `BUDGET_URL`: the public ledger the donations are accounted in, when the operator keeps
+ * one (roadmap G4-02). Empty by default, for the same reason as {@link donationUrl}.
+ */
+const budgetUrl = optionalHttpsLink('BUDGET_URL', 'hosts and on the public /about page')
 
 /**
  * `SOURCE_REF`: the tag or commit the image was built from, injected by the Dockerfile's
@@ -753,6 +779,11 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /** See {@link eventCreation}. `anyAccount` unless the box says otherwise. */
       EVENT_CREATION: eventCreation,
 
+      /** See {@link donationUrl}. Absent means no donation link anywhere. */
+      DONATION_URL: donationUrl,
+      /** See {@link budgetUrl}. Absent means no public-budget link anywhere. */
+      BUDGET_URL: budgetUrl,
+
       /** See {@link eventSlugSuffix}. `none` unless the box says otherwise. */
       EVENT_SLUG_SUFFIX: eventSlugSuffix,
       /** See {@link allowCustomSlugs}. `true` unless the box says otherwise. */
@@ -1031,6 +1062,20 @@ export interface AppConfig {
   }
 
   /**
+   * The optional links of an instance that asks for support (roadmap G4-02), both
+   * `null` unless the operator set them — so a self-hosted box says nothing about money.
+   * Canonical https, validated like `SOURCE_CODE_URL`. A link that is set is shown to
+   * hosts and on `/about`; there is deliberately no field here that could make it a
+   * condition of anything, because a donation buys no counterpart.
+   */
+  readonly support: {
+    /** `DONATION_URL`. See {@link donationUrl}. */
+    readonly donationUrl: string | null
+    /** `BUDGET_URL`. See {@link budgetUrl}. */
+    readonly budgetUrl: string | null
+  }
+
+  /**
    * P4-09 / D-14, grouped the way `createEvent` and `rotateJoinCode` consume them. A
    * self-hosted box that sets none of the three keeps 2.0's only behaviour exactly; the
    * hosted instance sets `slugSuffix: 'random'` and `allowCustomSlugs: false` from its
@@ -1299,6 +1344,11 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
     source: {
       url: raw.SOURCE_CODE_URL ?? null,
       ref: raw.SOURCE_REF ?? null,
+    },
+
+    support: {
+      donationUrl: raw.DONATION_URL ?? null,
+      budgetUrl: raw.BUDGET_URL ?? null,
     },
 
     events: {

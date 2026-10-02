@@ -3,6 +3,7 @@ import {
   allowsModeration,
   isMutable,
   lifecycleActions,
+  offersSupport,
   servesWall,
   statusLabel,
 } from './eventLifecycle'
@@ -74,6 +75,17 @@ describe('what each status still allows', () => {
   it('freezes settings, name and join code once archived', () => {
     expect(isMutable('live')).toBe(true)
     expect(isMutable('archived')).toBe(false)
+  })
+})
+
+describe('when the support mention may be offered', () => {
+  // Presentation only: there is nothing in the domain to mirror. The moment is "after the
+  // event is closed" (roadmap G4-02), when the host is least likely to be mid-task.
+  it('is the closed event and no other state', () => {
+    expect(offersSupport('draft')).toBe(false)
+    expect(offersSupport('live')).toBe(false)
+    expect(offersSupport('closed')).toBe(true)
+    expect(offersSupport('archived')).toBe(false)
   })
 })
 

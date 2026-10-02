@@ -852,5 +852,12 @@ export const en: UiText = {
     licenseLabel: 'Licence',
     sourceLabel: 'Source code',
     sourceNote: 'This link leads to the source code of the version shown above.',
+
+    supportLink: 'Support the project',
+    supportTitle: 'The project runs on donations',
+    supportIntro: 'EventSlide is free software, at no charge and without ads.',
+    supportNoCounterpart: 'A donation unlocks nothing: same service for everyone.',
+    budgetLink: 'See the public budget',
+    supportDismiss: 'Hide this message',
   },
 }
