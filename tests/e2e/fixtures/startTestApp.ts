@@ -72,11 +72,13 @@ export interface TestApp {
    * reading one back is what ring 6 already does to the media root when it checks that a
    * stored file carries no EXIF.
    *
-   * **Two narrow exceptions write**, both in `tenant-isolation.spec.ts` and both for a fact
-   * that no route can yet establish: switching an account off (`setAccountDisabled`), and
-   * enrolling an account in a client under `EVENT_CREATION=clientMembers` (`enrolInAClient`),
-   * because the operator API that creates clients is G2-14. When that ships, the second
-   * becomes a request. Nothing else may write through it.
+   * **Three narrow exceptions write**, all for a fact that no route can yet establish. Two are
+   * in `tenant-isolation.spec.ts`: switching an account off (`setAccountDisabled`), and
+   * enrolling an account in a client under `EVENT_CREATION=clientMembers` (`enrolInAClient`).
+   * The third is `fixtures/clients.ts`, which opens the file itself to make a client with its
+   * ceilings and to move a stored instant (a build has no clock seam). All three are there because
+   * the operator API that creates clients is G2-14; when that ships, the second and the third
+   * become requests. Nothing else may write through it.
    */
   readonly databasePath: string
   /** The policy this server was started under. A spec that depends on it says so. */

@@ -8,8 +8,8 @@ import type { TestApp } from './startTestApp'
  * for it: make a client.
  *
  * **No route creates a client** — that is G2-14, behind `SITE_ADMIN` — so a client, its roster
- * row and its ceilings are written to the running server's own database, which is the
- * operational path `docs/SECURITY.md` §11 describes today. It is the same narrow exception
+ * row and its ceilings are written to the running server's own database, which is how the box's
+ * operator makes one until G2-14 gives them a route. It is the same narrow exception
  * `tenant-isolation.spec.ts` makes for `enrolInAClient`, and for the same reason: the fact
  * under test (a ceiling) has no other way in. **Everything the specs then assert goes through
  * HTTP**, against the built server; the database is written to arrange a client and to move a
@@ -174,18 +174,26 @@ const withDatabase = <T>(app: TestApp, work: (db: Database.Database) => T): T =>
   }
 }
 
-/** Writes ceilings onto an existing client. A spec uses it to tighten one mid-test. */
+/**
+ * Writes ceilings onto an existing client. A spec uses it to tighten one mid-test.
+ *
+ * **One statement**, so the server never reads a client with half of what a spec asked for:
+ * the columns are fixed names from `COLUMNS`, never a value, and the values are bound.
+ */
 export const setCeilings = (app: TestApp, clientId: string, ceilings: Ceilings): void => {
+  const entries = (
+    Object.entries(ceilings) as [keyof Ceilings, number | boolean | Date | null | undefined][]
+  ).flatMap(([key, value]) =>
+    value === undefined ? [] : [[COLUMNS[key], asColumn(value)] as const],
+  )
+  if (entries.length === 0) return
+
   withDatabase(app, (db) => {
-    for (const [key, value] of Object.entries(ceilings) as [
-      keyof Ceilings,
-      number | boolean | Date | null,
-    ][]) {
-      db.prepare(`UPDATE clients SET ${COLUMNS[key]} = ? WHERE id = ?`).run(
-        asColumn(value),
-        clientId,
-      )
-    }
+    const assignments = entries.map(([column]) => `${column} = ?`).join(', ')
+    db.prepare(`UPDATE clients SET ${assignments} WHERE id = ?`).run(
+      ...entries.map(([, value]) => value),
+      clientId,
+    )
   })
 }
 
