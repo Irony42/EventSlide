@@ -40,6 +40,7 @@ import {
   passwordResetConfirmBody,
   passwordResetRequestBody,
   secondFactorLoginBody,
+  secondFactorProofOf,
   stepUpBody,
 } from '../schemas/requestSchemas'
 import type { HttpDeps, PendingSecondFactor, SessionPayload } from '../types'
@@ -359,6 +360,13 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       const body = secondFactorLoginBody.parse(req.body)
       res.setHeader('Cache-Control', 'no-store')
 
+      // Exactly one of the two. A body naming both or neither is malformed, not a wrong code.
+      const proof = secondFactorProofOf(body)
+      if (proof === null || proof === 'both') {
+        sendError(res, DomainError.invalid('request.invalid'))
+        return
+      }
+
       const pending = pendingOf(req, deps)
       if (pending === undefined) {
         // None, or past its five minutes. A stale half-login is thrown away so it cannot be
@@ -372,7 +380,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
 
       const result = await usecases.verifySecondFactor({
         userId: asUserId(pending.userId),
-        proof: body,
+        proof,
         passwordVerifiedAt: new Date(pending.startedAt),
       })
 
@@ -687,15 +695,18 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       const body = stepUpBody.parse(req.body)
       res.setHeader('Cache-Control', 'no-store')
 
+      // At most one proof; naming two is malformed, naming none is the password alone.
+      const proof = secondFactorProofOf(body)
+      if (proof === 'both') {
+        sendError(res, DomainError.invalid('request.invalid'))
+        return
+      }
+
       const result = await usecases.stepUp({
         // From the session, never from the body: this confirms *that* account.
         userId: user.userId,
         password: body.password,
-        ...('code' in body
-          ? { proof: { code: body.code } }
-          : 'recoveryCode' in body
-            ? { proof: { recoveryCode: body.recoveryCode } }
-            : {}),
+        ...(proof === null ? {} : { proof }),
       })
       if (!result.ok) {
         sendError(res, result.error)
