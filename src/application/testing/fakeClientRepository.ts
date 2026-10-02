@@ -53,6 +53,15 @@ export class FakeClientRepository implements ClientRepository {
   }
 
   /**
+   * A synchronous read, for `FakeEventRepository`'s atomic section: the adapter's creation
+   * reads the client's counter and writes the event inside one transaction, and a fake that
+   * had to `await` this read would let a second creation in between.
+   */
+  peek(id: ClientId): Client | undefined {
+    return this.clients.get(id)
+  }
+
+  /**
    * `clients.events_created_in_period + 1`, which the adapter does in SQL inside
    * `createWithOwner`'s transaction. Not on the port: nothing outside that one call may
    * move the counter, which is the rule that lets it never decrease.
@@ -72,8 +81,53 @@ export class FakeClientRepository implements ClientRepository {
     return this
   }
 
+  /**
+   * Insert or update, and — like the adapter — **never lets a save move the per-period
+   * counter** unless the period itself moved.
+   *
+   * The counter is written by exactly one thing, `FakeEventRepository.createWithOwner`
+   * (`recordEventCreated`), exactly as the adapter's `createWithOwner` is the only thing that
+   * increments the column. A `Client` read before two creations and saved after them
+   * carries a stale count, and writing it back would hand those two slots back: so on an
+   * update the stored counter wins, and the one exception is a renewal — a changed
+   * `periodStartedAt`, which `Client.withCeilings` pairs with a reset to zero — where the
+   * incoming counter is the point of the save.
+   */
   async save(client: Client): Promise<void> {
-    this.clients.set(client.id, client)
+    const existing = this.clients.get(client.id)
+    const renewed =
+      existing === undefined ||
+      (existing.ceilings.periodStartedAt?.getTime() ?? null) !==
+        (client.ceilings.periodStartedAt?.getTime() ?? null)
+    this.clients.set(
+      client.id,
+      renewed
+        ? client
+        : Client.restore({
+            ...client.toProps(),
+            eventsCreatedInPeriod: existing.eventsCreatedInPeriod,
+          }),
+    )
+  }
+
+  /**
+   * Takes back one `recordEventCreated`: the **fake's own rollback**, for a creation that
+   * counted and then failed to write its owner. The adapter needs no such method — a
+   * transaction that throws leaves the counter where it was — and this is not a way for
+   * anything else to give a slot back.
+   */
+  undoEventCreated(clientId: ClientId): this {
+    const client = this.clients.get(clientId)
+    if (client !== undefined) {
+      this.clients.set(
+        clientId,
+        Client.restore({
+          ...client.toProps(),
+          eventsCreatedInPeriod: Math.max(0, client.eventsCreatedInPeriod - 1),
+        }),
+      )
+    }
+    return this
   }
 
   async findById(id: ClientId): Promise<Client | null> {

@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { asClientId, asEventId, asUserId } from '../../domain/shared/ids'
-import { eventRepositoryContract } from './contracts/eventRepositoryContract'
-import { AT, aClient, aGuest, aPhoto, anEvent } from './builders'
+import {
+  EVENT_CONTRACT_FIXTURES,
+  eventRepositoryContract,
+} from './contracts/eventRepositoryContract'
+import { AT, aClient, aGuest, aPhoto, aUser, anEvent } from './builders'
 import { FakeClientRepository } from './fakeClientRepository'
 import { FakeEventRepository } from './fakeEventRepository'
+import { FakeUserRepository } from './fakeUserRepository'
 import { FakeGuestRepository } from './fakeGuestRepository'
 import { FakeMembershipRepository } from './fakeMembershipRepository'
 import { FakePhotoRepository } from './fakePhotoRepository'
@@ -12,7 +16,12 @@ import { FakePhotoRepository } from './fakePhotoRepository'
 eventRepositoryContract('fake', async () => {
   const memberships = new FakeMembershipRepository()
   const clients = new FakeClientRepository()
-  return { repo: new FakeEventRepository({ memberships, clients }), memberships, clients }
+  // The accounts the contract's fixtures name, so an owner who is not one is refused here
+  // as the foreign key refuses it in SQLite.
+  const users = new FakeUserRepository().seed(
+    ...EVENT_CONTRACT_FIXTURES.userIds.map((id) => aUser({ id, email: `${id}@example.test` })),
+  )
+  return { repo: new FakeEventRepository({ memberships, clients, users }), memberships, clients }
 })
 
 const WEDDING = asEventId('evt-wedding')

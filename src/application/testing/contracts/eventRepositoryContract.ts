@@ -7,6 +7,7 @@ import { Slug } from '../../../domain/shared/slug'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { AT, aClient, aClientCeilings, anEvent, atPlus } from '../builders'
 
 /**
@@ -373,6 +374,12 @@ export const eventRepositoryContract = (
       expect((await repo.findById(asEventId('evt-1')))?.clientId).toBeNull()
     })
 
+    it('refuses to save an event that names a client that does not exist', async () => {
+      await expect(repo.save(nthEvent(1, 'client-that-never-was'))).rejects.toThrow()
+
+      expect(await repo.findById(asEventId('evt-1'))).toBeNull()
+    })
+
     it('never moves an event to another client by saving it, because a handover is not a save', async () => {
       await clients.save(aClient({ id: CLIENT }))
       await clients.save(aClient({ id: OTHER_CLIENT, name: 'Un autre client' }))
@@ -467,25 +474,30 @@ export const eventRepositoryContract = (
         expect(await periodCount()).toBe(1)
       })
 
-      it('counts an event of every status toward the total ceiling', async () => {
-        const ceilings = aClientCeilings({ maxEvents: 1 })
-        await clients.save(aClient({ id: CLIENT, ceilings }))
-        // Closed, not draft or live: a finished wedding still holds its photographs.
-        await repo.save(
-          anEvent({
-            id: 'evt-1',
-            slug: 'evt-1',
-            joinCode: 'AAAAAA',
-            ownerId: HOST,
-            clientId: CLIENT,
-            status: 'closed',
-          }),
-        )
+      it.each(EVENT_STATUSES)(
+        'counts an event that is %s toward the total ceiling',
+        async (status) => {
+          // Every status, because a finished or archived wedding still holds its
+          // photographs, and a draft is the status every event is created in: filtering any
+          // of them out lets a client keep more than it was given.
+          const ceilings = aClientCeilings({ maxEvents: 1 })
+          await clients.save(aClient({ id: CLIENT, ceilings }))
+          await repo.save(
+            anEvent({
+              id: 'evt-1',
+              slug: 'evt-1',
+              joinCode: 'AAAAAA',
+              ownerId: HOST,
+              clientId: CLIENT,
+              status,
+            }),
+          )
 
-        const result = await create(nthEvent(2, CLIENT), ceilings)
+          const result = await create(nthEvent(2, CLIENT), ceilings)
 
-        expect(!result.ok && result.error.details).toMatchObject({ ceiling: 'events' })
-      })
+          expect(!result.ok && result.error.details).toMatchObject({ ceiling: 'events' })
+        },
+      )
 
       it('does not count another client’s events toward this client’s total ceiling', async () => {
         const ceilings = aClientCeilings({ maxEvents: 1 })
@@ -621,6 +633,80 @@ export const eventRepositoryContract = (
         ).rejects.toThrow()
 
         expect((await repo.findById(asEventId('evt-1')))?.slug.value).toBe('evt-1')
+      })
+
+      it('lets only one of two creations at the same moment pass a total ceiling of one', async () => {
+        // The race the transaction exists to remove: two requests that both read a count
+        // under the ceiling and both write. Started together, not one after the other.
+        const ceilings = aClientCeilings({ maxEvents: 1 })
+        await clients.save(aClient({ id: CLIENT, ceilings }))
+
+        const outcomes = await Promise.all([
+          create(nthEvent(1, CLIENT), ceilings),
+          create(nthEvent(2, CLIENT), ceilings),
+        ])
+
+        expect(outcomes.filter((outcome) => outcome.ok)).toHaveLength(1)
+        expect(await periodCount()).toBe(1)
+      })
+
+      it('lets only one of two creations at the same moment pass a per-period ceiling of one', async () => {
+        const ceilings = aClientCeilings({ maxEventsPerPeriod: 1 })
+        await clients.save(aClient({ id: CLIENT, ceilings }))
+
+        const outcomes = await Promise.all([
+          create(nthEvent(1, CLIENT), ceilings),
+          create(nthEvent(2, CLIENT), ceilings),
+        ])
+
+        expect(outcomes.filter((outcome) => outcome.ok)).toHaveLength(1)
+        expect(await periodCount()).toBe(1)
+      })
+
+      it('refuses an owner who is not an account, and leaves nothing behind', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+
+        await expect(
+          repo.createWithOwner(
+            nthEvent(1, CLIENT),
+            { userId: asUserId('ghost'), grantedAt: AT },
+            ClientCeilings.unlimited(),
+          ),
+        ).rejects.toThrow()
+
+        expect(await repo.findById(asEventId('evt-1'))).toBeNull()
+        expect(await periodCount()).toBe(0)
+      })
+
+      it('keeps the counter a creation wrote when a stale copy of the client is saved', async () => {
+        // A Client read before two creations and saved after them (rename it, change a
+        // ceiling) carries the old count. The counter is moved by createWithOwner and by
+        // nothing else, so writing it back would hand both slots over.
+        await clients.save(aClient({ id: CLIENT }))
+        const stale = await clients.findById(CLIENT)
+        await create(nthEvent(1, CLIENT))
+        await create(nthEvent(2, CLIENT))
+
+        if (stale === null) throw new Error('the client was just saved')
+        await clients.save(stale)
+
+        expect(await periodCount()).toBe(2)
+      })
+
+      it('does reset the counter when the client is renewed, which is what a new period is', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+        await create(nthEvent(1, CLIENT))
+        const before = await clients.findById(CLIENT)
+        if (before === null) throw new Error('the client was just saved')
+
+        // `withCeilings` pairs a changed period start with a zeroed counter.
+        await clients.save(
+          before.withCeilings(
+            aClientCeilings({ maxEventsPerPeriod: 1, periodStartedAt: atPlus(DAY) }),
+          ),
+        )
+
+        expect(await periodCount()).toBe(0)
       })
 
       it('refuses a client that does not exist, and leaves no owner behind', async () => {
