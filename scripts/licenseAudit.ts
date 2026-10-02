@@ -6,7 +6,7 @@ import { z } from 'zod'
  * The dependency licence audit (roadmap G1-07 / P1-09).
  *
  * EventSlide is AGPL-3.0-only (`LICENSE`), and the maintainer keeps the right to license
- * their own work on other terms too (`docs/CLA.md` grants it). Both are only true while no
+ * their own work on other terms too (the contributor licence agreement grants it). Both are only true while no
  * dependency that ships with the product asks for more than a notice in return. So this is
  * an **allow-list**, not a deny-list: a licence nobody has read is refused until somebody
  * does, and the day somebody does, the decision is written down here with its reason.
@@ -27,12 +27,20 @@ import { z } from 'zod'
  *    `license` for most packages and not all of them; for the rest the installed
  *    `package.json` is read, and only when it is the version the lockfile names. A package
  *    that is neither readable nor in {@link RECORDED_LICENSES} is a failure, because "I
- *    could not look" is not "it is fine".
+ *    could not look" is not "it is fine". The one narrow exception is a package that is
+ *    `dev` **and** `optional` and not installed here: a platform-gated build helper that
+ *    no CI machine of another platform can read, is `unverified` rather than refused.
  *
  * Nothing here touches the network, and nothing here installs anything.
  */
 
-/** Whether a package can end up in the published image. */
+/**
+ * Whether a package can end up in what is distributed. `development` is npm's `dev: true`:
+ * pruned from the image by `npm prune --omit=dev`. That is not the same as "never in the
+ * browser": Vite and rolldown are `dev: true` and their helpers are inlined into the web
+ * bundle, which is why `scripts/thirdPartyNotices.test.ts` audits every package of the real
+ * bundle as if it shipped.
+ */
 export type Scope = 'production' | 'development'
 
 /**
@@ -41,8 +49,8 @@ export type Scope = 'production' | 'development'
  * and every one combines with AGPL-3.0 (FSF's GPL-compatibility list for MIT, ISC, BSD and
  * 0BSD; Apache-2.0 since GPLv3).
  *
- * `MIT-0` (MIT without the notice condition) is here for `nodemailer` 10, which arrives
- * with the mailer (roadmap G2-07), and for two development packages already in the tree.
+ * `MIT-0` (MIT without the notice condition) is here for `nodemailer` 10, the mailer's
+ * SMTP adapter (roadmap G2-07), and for two development packages.
  *
  * Adding to this list is a licensing decision: the commit that does it says why.
  */
@@ -146,9 +154,11 @@ export interface RecordedLicense {
 }
 
 /**
- * Licences a person read, for packages whose own metadata cannot be used as it stands.
- * Keyed by name **and version**: a new release has to be read again. Only for a package the
- * lockfile states no licence for, and a human reading beats the machine-readable field.
+ * Licences a person read, for packages whose own metadata cannot be used as it stands:
+ * nothing to read, or something that is not an SPDX identifier ("BSD", "Apache 2.0"). Keyed
+ * by name **and version**: a new release has to be read again. A human reading beats what
+ * the lockfile and the package say for that exact release, and an entry that would be
+ * allowed without it is stale (`licenseAudit.test.ts` says which).
  *
  * - `fsevents` is macOS-only, so `npm ci` skips it on Linux (CI) and on Windows alike and
  *   there is nothing to read. It is `dev: true`, the optional file watcher of the
@@ -185,11 +195,9 @@ export const POLICY: LicensePolicy = {
 /**
  * Licences no exception can excuse: they restrict what the operator may do with the
  * running service (SSPL, BUSL, Elastic, Commons Clause, PolyForm), reach the network the
- * way AGPL does, or are not a licence at all (`UNLICENSED`, a `LicenseRef`, "SEE LICENSE
- * IN ...").
+ * way AGPL does, or are not a licence at all (`UNLICENSED`, a `LicenseRef`).
  */
-const NEVER_EXCUSED =
-  /^(?:SSPL|BUSL|Elastic|Commons-Clause|PolyForm|AGPL|UNLICENSED|LicenseRef|SEE\b)/i
+const NEVER_EXCUSED = /^(?:SSPL|BUSL|Elastic|Commons-Clause|PolyForm|AGPL|UNLICENSED|LicenseRef)/i
 
 export const isNeverExcused = (id: string): boolean => NEVER_EXCUSED.test(id)
 
@@ -341,6 +349,7 @@ const lockfileSchema = z.object({
         license: z.unknown(),
         licenses: z.unknown(),
         dev: z.boolean().optional(),
+        optional: z.boolean().optional(),
         link: z.boolean().optional(),
       })
       .passthrough(),
@@ -353,6 +362,8 @@ export interface LockedPackage {
   readonly name: string
   readonly version: string
   readonly scope: Scope
+  /** Only reachable through an `optionalDependencies` edge: installed only where it fits. */
+  readonly optional: boolean
   /** What the lockfile itself says; absent for roughly a fifth of the entries. */
   readonly license: string | undefined
 }
@@ -378,6 +389,7 @@ export const lockedPackages = (lockfile: unknown): LockedPackage[] => {
       name: entry.name ?? (at === -1 ? key : key.slice(at + NODE_MODULES.length)),
       version: entry.version ?? 'unknown',
       scope: entry.dev === true ? 'development' : 'production',
+      optional: entry.optional === true,
       license: declaredLicense(entry),
     })
   }
@@ -408,7 +420,7 @@ export interface Verdict {
   /** The licence that was judged; `undefined` if it could not be read. */
   readonly license: string | undefined
   readonly source: Source | undefined
-  readonly status: 'allowed' | 'excepted' | 'refused'
+  readonly status: 'allowed' | 'excepted' | 'unverified' | 'refused'
   readonly why: string
   /** The exception that excused it, when `status` is `excepted`. */
   readonly exception?: LicenseException
@@ -419,6 +431,8 @@ interface Resolved {
   readonly source: Source | undefined
   /** Why there is no licence, when there is none. */
   readonly missing?: string
+  /** Nothing to read because the package is not installed here and cannot matter if it is not. */
+  readonly unverifiable?: true
 }
 
 const resolveLicense = (
@@ -426,10 +440,9 @@ const resolveLicense = (
   read: ManifestReader,
   policy: LicensePolicy,
 ): Resolved => {
-  if (pkg.license !== undefined) return { license: pkg.license, source: 'lockfile' }
-
   const recorded = policy.recorded.find((r) => r.package === `${pkg.name}@${pkg.version}`)
   if (recorded !== undefined) return { license: recorded.license, source: 'recorded' }
+  if (pkg.license !== undefined) return { license: pkg.license, source: 'lockfile' }
 
   const installed = manifestSchema.safeParse(read(pkg.key))
   let missing = 'is not installed here'
@@ -443,10 +456,15 @@ const resolveLicense = (
       missing = `is installed at ${installed.data.version ?? 'an unknown version'}, not the locked ${pkg.version}; run npm ci`
     }
   }
+  // A development, optional package that is not installed is a platform-gated build helper
+  // (a file watcher for macOS, a WebAssembly binding). It is in no image and on no CI
+  // machine of this platform, so there is nothing it could be doing here to be refused for.
+  const unverifiable = !installed.success && pkg.optional && pkg.scope === 'development'
   return {
     license: undefined,
     source: undefined,
     missing: `the lockfile states no licence for it and it ${missing}`,
+    ...(unverifiable ? { unverifiable: true as const } : {}),
   }
 }
 
@@ -460,7 +478,18 @@ const judge = (pkg: LockedPackage, resolved: Resolved, policy: LicensePolicy): V
     why,
   })
 
-  if (license === undefined) return refuse(resolved.missing ?? 'declares no licence')
+  if (license === undefined) {
+    if (resolved.unverifiable === true) {
+      return {
+        package: pkg,
+        license,
+        source,
+        status: 'unverified',
+        why: `${resolved.missing ?? 'unreadable'}; a development-only optional package`,
+      }
+    }
+    return refuse(resolved.missing ?? 'declares no licence')
+  }
   const expression = parseExpression(license)
   if (expression === undefined)
     return refuse(`declares ${JSON.stringify(license)}, which is not an SPDX expression`)

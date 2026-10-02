@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ALLOWED_LICENSES,
   EXCEPTIONS,
+  POLICY,
   RECORDED_LICENSES,
   auditLockfile,
   declaredLicense,
@@ -19,7 +20,7 @@ import {
  * The dependency licence audit (roadmap G1-07 / P1-09), asserted rather than described.
  *
  * EventSlide is AGPL-3.0-only and its maintainer keeps the right to license their own work
- * on other terms as well (`docs/CLA.md`). That is only true while nothing that ships with
+ * on other terms as well (the contributor licence agreement). That is only true while nothing that ships with
  * the product asks for more than a notice, and nothing in the toolchain looks: `npm install`
  * accepts any licence. Dependabot opens a pull request, the tests are green, and a
  * transitive package has changed from MIT to something with a network clause.
@@ -79,18 +80,32 @@ describe('the lockfile this repository ships', () => {
     expect(unused.map((exception) => String(exception.packages))).toEqual([])
   })
 
-  it('records a licence only for a package the lockfile leaves without one', () => {
-    // A recorded licence is a claim about a package nobody here can read. Once the
-    // lockfile states it, or the version moves on, the claim is stale and must go.
-    const packages = lockedPackages(lockfile)
-    const stale = RECORDED_LICENSES.filter(
-      (recorded) =>
-        !packages.some(
-          (pkg) => `${pkg.name}@${pkg.version}` === recorded.package && pkg.license === undefined,
-        ),
-    )
+  it('records a licence only for a release that is locked and would not pass without it', () => {
+    // A recorded licence is a person's reading standing in for metadata that cannot be
+    // used. Once the version moves on, or the package states something the policy accepts
+    // by itself, the entry is stale and must go.
+    const without = auditLockfile(lockfile, installedManifests(ROOT), { ...POLICY, recorded: [] })
+    const stale = RECORDED_LICENSES.filter((recorded) => {
+      const verdict = without.find(
+        (candidate) =>
+          `${candidate.package.name}@${candidate.package.version}` === recorded.package,
+      )
+      return verdict === undefined || verdict.status === 'allowed' || verdict.status === 'excepted'
+    })
 
     expect(stale.map((recorded) => recorded.package)).toEqual([])
+  })
+
+  it('leaves unverified only the packages that are development-only and optional', () => {
+    // The one tolerance of the audit: a platform-gated build helper that is not installed
+    // here (and so cannot be read) is reported, not refused. Nothing else may be.
+    const unverified = verdicts.filter((verdict) => verdict.status === 'unverified')
+
+    expect(
+      unverified
+        .filter((verdict) => verdict.package.scope !== 'development' || !verdict.package.optional)
+        .map((verdict) => verdict.package.key),
+    ).toEqual([])
   })
 })
 
@@ -132,6 +147,27 @@ describe('the policy', () => {
     expect(unnamed.map((exception) => String(exception.packages))).toEqual([])
   })
 
+  it.each([
+    'SSPL-1.0',
+    'BUSL-1.1',
+    'Elastic-2.0',
+    'Commons-Clause',
+    'PolyForm-Noncommercial-1.0.0',
+    'AGPL-3.0-only',
+    'AGPL-3.0-or-later',
+    'UNLICENSED',
+    'LicenseRef-custom',
+  ])('puts %s beyond any exception', (id) => {
+    expect(isNeverExcused(id)).toBe(true)
+  })
+
+  it.each(['MPL-2.0', 'GPL-3.0-or-later', 'LGPL-3.0-or-later', 'CC-BY-4.0', 'CC0-1.0'])(
+    'leaves %s open to a named, argued exception',
+    (id) => {
+      expect(isNeverExcused(id)).toBe(false)
+    },
+  )
+
   it('excuses no licence that restricts the operator or reaches the network', () => {
     const excused = EXCEPTIONS.flatMap((exception) => exception.licenses).filter((license) =>
       license.split(/[\s()]+/).some(isNeverExcused),
@@ -151,6 +187,9 @@ interface Entry {
   readonly license?: unknown
   readonly licenses?: unknown
   readonly dev?: boolean
+  readonly optional?: boolean
+  readonly peer?: boolean
+  readonly devOptional?: boolean
   readonly link?: boolean
 }
 
@@ -229,7 +268,7 @@ describe('a dependency under an allowed licence', () => {
     expect(refusalsOf(one('some-pkg', { license }))).toEqual([])
   })
 
-  it('passes nodemailer 10 under MIT-0, so the mailer’s pull request stays green (roadmap G2-07)', () => {
+  it('passes nodemailer 10 under MIT-0, the mailer’s SMTP adapter (roadmap G2-07)', () => {
     const lockfile = lock({
       'node_modules/nodemailer': { version: '10.0.13', license: 'MIT-0' },
     })
@@ -369,6 +408,59 @@ describe('a licence the lockfile does not state', () => {
 
     expect(refusalsOf(lockfile)).toHaveLength(1)
   })
+
+  it('is overridden by a recorded reading, even when the lockfile states something unusable', () => {
+    // "Apache 2.0" is not an identifier, so no exception could ever match it. The way out
+    // is to read the package once and write the reading down, with its reason.
+    const lockfile = lock({
+      'node_modules/odd': { version: '1.0.0', license: 'Apache 2.0', dev: true },
+    })
+    const reading = { package: 'odd@1.0.0', license: 'Apache-2.0', reason: 'read its LICENSE' }
+
+    expect(refusalsOf(lockfile)).toHaveLength(1)
+    expect(
+      describeRefusals(
+        auditLockfile(lockfile, nothingInstalled, { ...POLICY, recorded: [reading] }),
+      ),
+    ).toEqual([])
+  })
+})
+
+/**
+ * The audit's one tolerance. A development-only, optional package that is not installed is a
+ * platform-gated build helper (a file watcher for macOS, a WebAssembly binding): in no image,
+ * on no machine of this platform, and the lockfile of a dependency bump can add one without a
+ * licence field. Refusing it would turn a Dependabot pull request red for want of a platform
+ * nobody runs. Everything that can be read is still judged, and nothing that ships is excused.
+ */
+describe('a licence-less package that is development-only, optional and not installed', () => {
+  const key = 'node_modules/gated-helper'
+  const statusOf = (entry: Entry, read: ManifestReader = nothingInstalled): string | undefined =>
+    auditLockfile(lock({ [key]: { version: '1.0.0', ...entry } }), read)[0]?.status
+
+  it('is reported as unverified instead of refused', () => {
+    expect(statusOf({ dev: true, optional: true })).toBe('unverified')
+  })
+
+  it('is refused when it is not optional, because then it should have been installed', () => {
+    expect(statusOf({ dev: true })).toBe('refused')
+  })
+
+  it('is refused when it is optional but not development-only, because it can ship', () => {
+    expect(statusOf({ optional: true })).toBe('refused')
+  })
+
+  it('is refused when something is installed in its place that is not the locked release', () => {
+    const read = installed({ [key]: { version: '0.9.0', license: 'MIT' } })
+
+    expect(statusOf({ dev: true, optional: true }, read)).toBe('refused')
+  })
+
+  it('is judged, and refused, when it is installed and the licence it declares is not allowed', () => {
+    const read = installed({ [key]: { version: '1.0.0', license: 'GPL-3.0-only' } })
+
+    expect(statusOf({ dev: true, optional: true }, read)).toBe('refused')
+  })
 })
 
 describe('an exception', () => {
@@ -376,7 +468,7 @@ describe('an exception', () => {
 
   it('excuses the LGPL libvips that sharp loads, in production, by exact licence', () => {
     const lockfile = lock({
-      [sharpLibvips]: { version: '1.3.3', license: 'LGPL-3.0-or-later', optional: true } as Entry,
+      [sharpLibvips]: { version: '1.3.3', license: 'LGPL-3.0-or-later', optional: true },
     })
     const [verdict] = auditLockfile(lockfile, nothingInstalled)
 
@@ -394,6 +486,28 @@ describe('an exception', () => {
     const lockfile = lock({
       'node_modules/left-pad': { version: '1.0.0', license: 'LGPL-3.0-or-later' },
     })
+
+    expect(refusalsOf(lockfile)).toHaveLength(1)
+  })
+
+  it.each([
+    ['sharp-evil', 'LGPL-3.0-or-later', false],
+    ['evil-sharp', 'LGPL-3.0-or-later', false],
+    ['@img-evil/sharp-libvips-linux-x64', 'LGPL-3.0-or-later', false],
+    ['@evil/@img/sharp-libvips-linux-x64', 'LGPL-3.0-or-later', false],
+    ['evil-ffmpeg-static', 'GPL-3.0-or-later', true],
+    ['ffmpeg-static-evil', 'GPL-3.0-or-later', true],
+    ['evil-axe-core', 'MPL-2.0', true],
+    ['axe-core-evil', 'MPL-2.0', true],
+    ['evil-caniuse-lite', 'CC-BY-4.0', true],
+    ['caniuse-lite-data', 'CC-BY-4.0', true],
+    ['evil-mdn-data', 'CC0-1.0', true],
+    ['mdn-data-extra', 'CC0-1.0', true],
+    ['evil-lightningcss', 'MPL-2.0', true],
+  ])('does not excuse the look-alike %s under %s', (name, license, dev) => {
+    // Each exception is for one named package. A pattern that only has to *contain* the
+    // name would excuse the next package whose name does.
+    const lockfile = lock({ [`node_modules/${name}`]: { version: '1.0.0', license, dev } })
 
     expect(refusalsOf(lockfile)).toHaveLength(1)
   })
@@ -441,13 +555,24 @@ describe('reading a lockfile', () => {
     expect(lockedPackages(lockfile).map((pkg) => pkg.name)).toEqual(['real-name'])
   })
 
-  it('treats anything not marked dev as shipped, optional and peer included', () => {
+  it('treats only dev: true as development; optional, peer and devOptional ship', () => {
+    // `devOptional` is npm's "reachable through a dev edge or an optional one", and the
+    // optional edge can reach an image. Being unsure whether a package ships is shipping.
     const lockfile = lock({
       'node_modules/a': { version: '1.0.0', license: 'MIT', dev: true },
-      'node_modules/b': { version: '1.0.0', license: 'MIT', optional: true } as Entry,
+      'node_modules/b': { version: '1.0.0', license: 'MIT', optional: true },
+      'node_modules/c': { version: '1.0.0', license: 'MIT', peer: true },
+      'node_modules/d': { version: '1.0.0', license: 'MIT', devOptional: true },
+      'node_modules/e': { version: '1.0.0', license: 'MIT', dev: true, optional: true },
     })
 
-    expect(lockedPackages(lockfile).map((pkg) => pkg.scope)).toEqual(['development', 'production'])
+    expect(lockedPackages(lockfile).map((pkg) => pkg.scope)).toEqual([
+      'development',
+      'production',
+      'production',
+      'production',
+      'development',
+    ])
   })
 
   it('refuses a file that is not a lockfile instead of auditing nothing', () => {
