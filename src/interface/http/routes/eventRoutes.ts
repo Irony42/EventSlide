@@ -6,7 +6,13 @@ import { makeRevokeModerator } from '../../../application/usecases/events/revoke
 import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { DomainError } from '../../../domain/shared/errors'
-import { asGuestId, asUserId, type EventId, type UserId } from '../../../domain/shared/ids'
+import {
+  asClientId,
+  asGuestId,
+  asUserId,
+  type EventId,
+  type UserId,
+} from '../../../domain/shared/ids'
 import { unwrapOr, type Result } from '../../../domain/shared/result'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireRole, requireUser } from '../middleware/authz'
@@ -176,6 +182,10 @@ export const eventRoutes = ({
         // event. Absent means the product default, which is a different thing from any
         // tag — and it is what an event created through the API gets.
         ...(body.wallLanguage === undefined ? {} : { wallLanguage: body.wallLanguage }),
+        // Which client the event is for, when the caller says. Absent is the common case
+        // and carries meaning: the use case attaches a member of one client to it, and
+        // refuses a member of several who did not choose.
+        ...(body.clientId === undefined ? {} : { clientId: asClientId(body.clientId) }),
       })
 
       // The creator is the owner: `createEvent` grants that membership as part of

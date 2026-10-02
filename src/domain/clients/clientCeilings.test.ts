@@ -247,6 +247,52 @@ describe('ClientCeilings.allowsAnotherEvent', () => {
   })
 })
 
+describe('ClientCeilings.creationRefusal', () => {
+  it('refuses nothing with no ceiling at all', () => {
+    expect(ClientCeilings.unlimited().creationRefusal(1_000_000, 1_000_000)).toBeNull()
+  })
+
+  it('names the total ceiling, with what is used and what the bound is', () => {
+    const ceilings = must(ClientCeilings.create({ maxEvents: 5 }))
+
+    expect(ceilings.creationRefusal(5, 0)).toEqual({ ceiling: 'events', used: 5, max: 5 })
+  })
+
+  it('names the per-period ceiling when it is the one reached', () => {
+    const ceilings = must(ClientCeilings.create({ maxEvents: 5, maxEventsPerPeriod: 2 }))
+
+    // Three events now is under five; two created this period is not under two.
+    expect(ceilings.creationRefusal(3, 2)).toEqual({ ceiling: 'eventsPerPeriod', used: 2, max: 2 })
+  })
+
+  it('names the total ceiling first when both are reached, so the answer is one thing', () => {
+    const ceilings = must(ClientCeilings.create({ maxEvents: 1, maxEventsPerPeriod: 1 }))
+
+    expect(ceilings.creationRefusal(1, 1)?.ceiling).toBe('events')
+  })
+
+  it('refuses nothing one event under each ceiling', () => {
+    const ceilings = must(ClientCeilings.create({ maxEvents: 5, maxEventsPerPeriod: 30 }))
+
+    expect(ceilings.creationRefusal(4, 29)).toBeNull()
+  })
+
+  it('agrees with allowsAnotherEvent, which is the same rule asked as a yes or no', () => {
+    const ceilings = must(ClientCeilings.create({ maxEvents: 2, maxEventsPerPeriod: 3 }))
+
+    for (const [total, created] of [
+      [0, 0],
+      [1, 2],
+      [2, 0],
+      [1, 3],
+    ] as const) {
+      expect(ceilings.allowsAnotherEvent(total, created)).toBe(
+        ceilings.creationRefusal(total, created) === null,
+      )
+    }
+  })
+})
+
 describe('ClientCeilings.admitsQuota', () => {
   it('admits any quota with no ceiling at all', () => {
     expect(ClientCeilings.unlimited().admitsQuota(Number.MAX_SAFE_INTEGER)).toBe(true)

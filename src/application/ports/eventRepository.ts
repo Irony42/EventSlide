@@ -1,7 +1,10 @@
+import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import type { Event } from '../../domain/events/event'
 import type { EventStatus } from '../../domain/events/eventStatus'
+import type { DomainError } from '../../domain/shared/errors'
 import type { EventId, UserId } from '../../domain/shared/ids'
 import type { JoinCode } from '../../domain/shared/joinCode'
+import type { Result } from '../../domain/shared/result'
 import type { Slug } from '../../domain/shared/slug'
 
 /**
@@ -19,6 +22,12 @@ export interface EventSummary {
   readonly guestCount: number
   readonly usedBytes: number
   readonly createdAt: Date
+}
+
+/** The membership a new event is created with: its creator, as owner. */
+export interface EventOwnerGrant {
+  readonly userId: UserId
+  readonly grantedAt: Date
 }
 
 export interface EventRepository {
@@ -39,14 +48,57 @@ export interface EventRepository {
   /**
    * Insert or update. The unique indexes on slug and join code are the real guard.
    *
-   * **Last write wins, over the whole row.** There is no version column and no
-   * compare-and-set, which is safe only because the production adapter is synchronous
-   * and single-process: `applyEventSchedules` does a read-modify-write over this method
-   * and would otherwise be able to revert a concurrent rename. An adapter that is
-   * genuinely asynchronous or admits a second writer has to add optimistic concurrency
-   * and revisit that use case — the reasoning is written out there.
+   * **Last write wins, over the whole row — except `client_id`**, which is written when the
+   * row is created and by nothing else: which client an event answers to decides which
+   * ceilings bind it, so a `save` of a copy read before a handover must not undo it. And a
+   * `save` that **creates** a row inserts the `client_id` it is given with no ceiling check, no
+   * counting and no owner: creating an event is {@link EventRepository.createWithOwner},
+   * and `save` is for the aggregate's later changes (and for fixtures).
+   *
+   * There is no version column and no compare-and-set, which is safe only because the
+   * production adapter is synchronous and single-process: `applyEventSchedules` does a
+   * read-modify-write over this method and would otherwise be able to revert a concurrent
+   * rename. An adapter that is genuinely asynchronous or admits a second writer has to add
+   * optimistic concurrency and revisit that use case — the reasoning is written out there.
    */
   save(event: Event): Promise<void>
+
+  /**
+   * Creates an event: the event row, its creator's owner membership and — for an event
+   * that belongs to a client — the client's creation counter, as **one atomic step**.
+   *
+   * It exists because those writes used to be three calls with an `await` between each: an
+   * event saved and then a failure granting its owner left an event nobody could open, and
+   * two requests creating events for one client at the same moment both read a count under
+   * the ceiling and both wrote. The adapter does the whole of it inside one write
+   * transaction, so a failure anywhere leaves no row and no count behind, and the ceilings
+   * are compared against the very rows that the insert then changes.
+   *
+   * What it checks, in the same transaction as it writes, for an event whose
+   * {@link Event.clientId} is set (roadmap §10.5 / P3-05):
+   *
+   * - the client's events now, **every status**, against `ceilings.maxEvents` — deleting an
+   *   event frees a slot of this one;
+   * - `clients.events_created_in_period` against `ceilings.maxEventsPerPeriod` — and that
+   *   counter is incremented here, by this call and by nothing else. **It never
+   *   decreases**: {@link EventRepository.delete} does not touch it, so create, delete,
+   *   recreate cannot walk around the ceiling.
+   *
+   * A refusal is a `Result`, `409 client.ceilingReached {ceiling, used, max}`, and nothing
+   * was written. `ceilings` is the event's client's own and is **ignored** for an event with
+   * no client, which writes no counter and meets no ceiling: pass
+   * `ClientCeilings.unlimited()`.
+   *
+   * Everything else throws, as {@link EventRepository.save} does: a slug or join code
+   * another event holds (the unique indexes are the real guard), an owner or a client that
+   * does not exist (foreign keys), an id already taken. None of those leaves a partial
+   * write either.
+   */
+  createWithOwner(
+    event: Event,
+    owner: EventOwnerGrant,
+    ceilings: ClientCeilings,
+  ): Promise<Result<void, DomainError>>
 
   /**
    * Removes the event and, through `ON DELETE CASCADE`, its photos, guests, reactions

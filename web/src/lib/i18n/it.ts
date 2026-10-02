@@ -261,6 +261,9 @@ export const it: UiText = {
     'event.customSlugNotAllowed': 'Questa istanza non consente di scegliere il proprio indirizzo.',
     'event.creationRateLimited': 'Hai creato troppi eventi di recente. Riprova più tardi.',
     'event.quotaAboveCeiling': 'Questa quota supera il limite consentito da questo server.',
+    'event.creationNotAllowed': 'Il tuo account non può creare eventi su questo server.',
+    'client.notFound': 'Questo account cliente non è stato trovato.',
+    'client.ceilingReached': 'Il tuo account ha raggiunto il numero di eventi consentito.',
     'event.immutable': 'Questo evento è archiviato e non può più essere modificato.',
     'event.illegalTransition': 'Questo cambio di stato non è possibile.',
 

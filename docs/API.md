@@ -1389,25 +1389,28 @@ a caller with no membership of it; `403 auth.forbidden` — `details.required` n
 `owner` or `moderator` — for a moderator on an owner-only route. Beyond the
 cross-cutting codes in §1:
 
-| Code                         | Status | Where                                                              |
-| ---------------------------- | ------ | ------------------------------------------------------------------ |
-| `event.slugUnavailable`      | 409    | Create, when the slug is in use — custom or derived, never echoed  |
-| `event.customSlugNotAllowed` | 400    | Create, with a `slug` when `ALLOW_CUSTOM_SLUGS=false`              |
-| `event.creationRateLimited`  | 429    | Create, beyond the account's hourly allowance                      |
-| `event.quotaAboveCeiling`    | 400    | Create, when `quotaBytes` exceeds `MAX_EVENT_QUOTA_BYTES`          |
-| `event.immutable`            | 409    | Rename, settings or schedule on an `archived` event                |
-| `event.illegalTransition`    | 409    | A status change the lifecycle does not allow                       |
-| `event.scheduleInPast`       | 400    | A scheduled instant whose minute has already gone by               |
-| `event.scheduleOutOfOrder`   | 400    | A scheduled closing at or before the scheduled opening             |
-| `event.notModeratable`       | 409    | A single or bulk decision on an `archived` event                   |
-| `photo.illegalTransition`    | 409    | A decision the photo's status machine does not allow               |
-| `guest.notFound`             | 404    | Revoking a guest id that is not in this event                      |
-| `membership.alreadyExists`   | 409    | Inviting someone who already moderates this event                  |
-| `membership.notFound`        | 404    | Revoking a membership that is not there                            |
-| `membership.lastOwner`       | 409    | Revoking the only remaining owner                                  |
-| `event.joinCodeExhausted`    | 500    | Rotation could not find a free code — a bug, not a client error    |
-| `event.slugExhausted`        | 500    | `EVENT_SLUG_SUFFIX=random` could not find a free suffix — likewise |
-| `event.mediaPurgeFailed`     | 500    | A purge that could not remove the bytes; rows are left alone       |
+| Code                         | Status | Where                                                                                          |
+| ---------------------------- | ------ | ---------------------------------------------------------------------------------------------- |
+| `event.slugUnavailable`      | 409    | Create, when the slug is in use — custom or derived, never echoed                              |
+| `event.customSlugNotAllowed` | 400    | Create, with a `slug` when `ALLOW_CUSTOM_SLUGS=false`                                          |
+| `event.creationRateLimited`  | 429    | Create, beyond the account's hourly allowance                                                  |
+| `event.quotaAboveCeiling`    | 400    | Create, when `quotaBytes` exceeds `MAX_EVENT_QUOTA_BYTES`                                      |
+| `event.creationNotAllowed`   | 403    | Create, under `EVENT_CREATION=clientMembers`, by an account with no client                     |
+| `client.notFound`            | 404    | Create, naming a client that is not the caller's, or not saying which of several               |
+| `client.ceilingReached`      | 409    | Create, when the client has used its events (`details.ceiling`: `events` or `eventsPerPeriod`) |
+| `event.immutable`            | 409    | Rename, settings or schedule on an `archived` event                                            |
+| `event.illegalTransition`    | 409    | A status change the lifecycle does not allow                                                   |
+| `event.scheduleInPast`       | 400    | A scheduled instant whose minute has already gone by                                           |
+| `event.scheduleOutOfOrder`   | 400    | A scheduled closing at or before the scheduled opening                                         |
+| `event.notModeratable`       | 409    | A single or bulk decision on an `archived` event                                               |
+| `photo.illegalTransition`    | 409    | A decision the photo's status machine does not allow                                           |
+| `guest.notFound`             | 404    | Revoking a guest id that is not in this event                                                  |
+| `membership.alreadyExists`   | 409    | Inviting someone who already moderates this event                                              |
+| `membership.notFound`        | 404    | Revoking a membership that is not there                                                        |
+| `membership.lastOwner`       | 409    | Revoking the only remaining owner                                                              |
+| `event.joinCodeExhausted`    | 500    | Rotation could not find a free code — a bug, not a client error                                |
+| `event.slugExhausted`        | 500    | `EVENT_SLUG_SUFFIX=random` could not find a free suffix — likewise                             |
+| `event.mediaPurgeFailed`     | 500    | A purge that could not remove the bytes; rows are left alone                                   |
 
 ### `GET /api/events`
 
@@ -1435,6 +1438,12 @@ like a broken page on a host's first login.
 
 A summary carries no join code and no settings. `GET /api/events/:slug` is where those
 live, and it needs a role in the event to answer.
+
+`usedBytes` is **the same sum the upload paths enforce the event's quota against**:
+photographs of every status **plus** the staged sources of clips still waiting to be
+transcoded (`reserved`, `queued`, `running`; a `done` or `failed` clip holds no bytes). It
+used to count photographs alone, so a host could be shown room that an upload then
+refused as full. The same number appears in every `EventDto`.
 
 ### `POST /api/events`
 
@@ -1471,6 +1480,44 @@ is the only signal anybody has about a screen nobody will be holding — and it 
 their own browser has not moved a projector in a room. `PATCH /settings` is where it
 changes deliberately.
 
+**Who may create, and the client an event belongs to (roadmap §10.2, P3-05 / G2-04).**
+`EVENT_CREATION` is `anyAccount` (the default, and every box's behaviour before it existed:
+any signed-in account, an invited moderator included) or `clientMembers`, which a box run
+for other people sets and which **boot refuses unless `SITE_ADMIN=on`** (exit 78, roadmap
+§10.9). Under `clientMembers` an account that belongs to no client is refused
+**403 `event.creationNotAllowed`**, before the name or the slug is looked at, so a refused
+account learns nothing about other tenants from a validation error or a slug collision. The
+box's operator is allowed, and so is a member of a client.
+
+The new event is attached to a client, fixed at creation:
+
+- a member of **one** client: that client, with nothing to send;
+- a member of **several**: the body must carry `"clientId"` (a uuid) naming one of theirs;
+  without it, **404 `client.notFound`**;
+- the operator: no client, unless they name one of their own (`clientId`) — their events are
+  never counted against anybody's ceilings by default; an account with no client under
+  `anyAccount`: no client either (`client_id` is null in storage, which is what every event
+  on a box that never had clients has).
+
+`clientId` is optional, and naming a client that is not the caller's — whether it exists or
+not — is the same **404 `client.notFound`**, so the field is not a way to enumerate clients.
+A value that is not a uuid is `400 request.invalid`. The id is **never echoed**: nothing in
+the `EventDto` carries it.
+
+The event, its owner's membership and — for a client's event — the client's creation counter
+are written **in one transaction**. Two ceilings of the client are checked in that same
+transaction: its events now, of every status (`max_events`), and the events it has created
+this period (`max_events_per_period`). A creation they refuse is
+**409 `client.ceilingReached`** with `details: { ceiling, used, max }`, and nothing is
+written. The per-period counter **never decreases**: deleting an event
+(`DELETE /api/events/:slug`) frees a slot of the first ceiling and none of the second, so
+create, delete, recreate cannot walk around it. The other §10.5 ceilings are not enforced
+here yet (roadmap G2-05).
+
+Until the operator API exists (roadmap §10.2, G2-14), nothing over HTTP creates a client or
+adds a member, so on a box that sets `clientMembers` today the operator is the only account
+that can create an event; leave the policy at `anyAccount` until clients can be enrolled.
+
 **The slug (roadmap G3-05 / P4-09, decision D-14).** Three environment variables govern
 it, all backward-compatible by default:
 
@@ -1500,7 +1547,9 @@ rate limit table.
 **Errors** — `409 event.slugUnavailable`, `400 event.customSlugNotAllowed`,
 `429 event.creationRateLimited`, `400 eventName.*`, `400 slug.*`,
 `400 event.quotaAboveCeiling {maxBytes}` for a `quotaBytes` above `MAX_EVENT_QUOTA_BYTES`,
-`400 request.invalid` for a language outside the five.
+`403 event.creationNotAllowed` under `EVENT_CREATION=clientMembers`,
+`404 client.notFound`, `409 client.ceilingReached {ceiling, used, max}`,
+`400 request.invalid` for a language outside the five or a `clientId` that is not a uuid.
 
 #### `template` — what the settings start from
 

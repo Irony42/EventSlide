@@ -104,6 +104,10 @@ services:
       # tag names. It changes where the link
       # points; nothing hides it. See .env.example.
       SOURCE_CODE_URL: ${SOURCE_CODE_URL:-}
+      # Who may create an event: `anyAccount` (the default, every box's behaviour so far) or
+      # `clientMembers` (only members of a client, and the operator). `clientMembers` needs
+      # SITE_ADMIN=on and the boot refuses it otherwise. See .env.example.
+      EVENT_CREATION: ${EVENT_CREATION:-anyAccount}
     volumes:
       # The database, every photo, and under /data/backups the archives the backup
       # command writes (BACKUP_DIR, set in the Dockerfile). Everything is here, but do not

@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { asEventId, asUserId } from '../../../domain/shared/ids'
+import { ClientCeilings } from '../../../domain/clients/clientCeilings'
+import type { Event } from '../../../domain/events/event'
+import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
 import { Slug } from '../../../domain/shared/slug'
+import type { ClientRepository } from '../../ports/clientRepository'
 import type { EventRepository } from '../../ports/eventRepository'
-import { AT, anEvent, atPlus } from '../builders'
+import type { MembershipRepository } from '../../ports/userRepository'
+import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
+import { AT, aClient, aClientCeilings, anEvent, atPlus } from '../builders'
 
 /**
  * The shared `EventRepository` contract.
@@ -31,6 +36,38 @@ const HOST = asUserId('user-host')
 const OTHER = asUserId('user-other')
 const DAY = 86_400_000
 
+const CLIENT = asClientId('client-1')
+const OTHER_CLIENT = asClientId('client-2')
+
+/**
+ * Join codes that are valid and distinct, for the cases that create several events in one
+ * test. A slug is derived from the same index, so the pair is always unique.
+ */
+const JOIN_CODES = ['AAAAAA', 'BBBBBB', 'CCCCCC', 'DDDDDD'] as const
+
+/** The nth event of a test, optionally attached to a client. */
+const nthEvent = (n: number, clientId: string | null = null): Event =>
+  anEvent({
+    id: `evt-${n}`,
+    slug: `evt-${n}`,
+    joinCode: JOIN_CODES[n - 1] ?? 'ZZZZZZ',
+    ownerId: HOST,
+    clientId,
+  })
+
+/**
+ * What a subject is built from: the repository under test, plus the two neighbours its
+ * `createWithOwner` writes to in the same step. They are the **same storage** the
+ * repository uses (one database, or one linked world of fakes) — that is the whole point
+ * of the method — so the contract can read back what it did to them.
+ */
+export interface EventRepositorySubject {
+  readonly repo: EventRepository
+  readonly memberships: MembershipRepository
+  readonly clients: ClientRepository
+  readonly dispose?: () => Promise<void>
+}
+
 const slug = (value: string): Slug => {
   const parsed = Slug.create(value)
   if (!parsed.ok) throw new Error(`invalid fixture slug: ${value}`)
@@ -45,15 +82,19 @@ const joinCode = (value: string): JoinCode => {
 
 export const eventRepositoryContract = (
   name: string,
-  makeSubject: () => Promise<{ repo: EventRepository; dispose?: () => Promise<void> }>,
+  makeSubject: () => Promise<EventRepositorySubject>,
 ): void => {
   describe(`EventRepository contract: ${name}`, () => {
     let repo: EventRepository
+    let memberships: MembershipRepository
+    let clients: ClientRepository
     let dispose: (() => Promise<void>) | undefined
 
     beforeEach(async () => {
       const subject = await makeSubject()
       repo = subject.repo
+      memberships = subject.memberships
+      clients = subject.clients
       dispose = subject.dispose
     })
 
@@ -314,6 +355,366 @@ export const eventRepositoryContract = (
           createdAt: atPlus(1_000),
         },
       ])
+    })
+
+    // ----------------------------------------------------------------- client --
+
+    it('round-trips the client an event belongs to', async () => {
+      await clients.save(aClient({ id: CLIENT }))
+      await repo.save(nthEvent(1, CLIENT))
+
+      const stored = await repo.findById(asEventId('evt-1'))
+
+      expect(stored?.clientId).toBe(CLIENT)
+    })
+
+    it('round-trips an event with no client as null, which is every event on a solo box', async () => {
+      await repo.save(nthEvent(1))
+
+      expect((await repo.findById(asEventId('evt-1')))?.clientId).toBeNull()
+    })
+
+    it('refuses to save an event that names a client that does not exist', async () => {
+      await expect(repo.save(nthEvent(1, 'client-that-never-was'))).rejects.toThrow()
+
+      expect(await repo.findById(asEventId('evt-1'))).toBeNull()
+    })
+
+    it('never moves an event to another client by saving it, because a handover is not a save', async () => {
+      await clients.save(aClient({ id: CLIENT }))
+      await clients.save(aClient({ id: OTHER_CLIENT, name: 'Un autre client' }))
+      await repo.save(nthEvent(1, CLIENT))
+
+      // A stale copy of the entity, written back after the event changed hands elsewhere,
+      // must not undo the handover: `save` is last-write-wins over the whole row and this
+      // is the one column that has an owner of its own.
+      await repo.save(nthEvent(1, OTHER_CLIENT))
+
+      expect((await repo.findById(asEventId('evt-1')))?.clientId).toBe(CLIENT)
+    })
+
+    // ------------------------------------------------------- createWithOwner --
+
+    describe('createWithOwner', () => {
+      const owner = { userId: HOST, grantedAt: atPlus(5_000) }
+
+      const create = (event: Event, ceilings: ClientCeilings = ClientCeilings.unlimited()) =>
+        repo.createWithOwner(event, owner, ceilings)
+
+      const periodCount = async (): Promise<number | undefined> =>
+        (await clients.findById(CLIENT))?.eventsCreatedInPeriod
+
+      it('stores the event and makes its creator the owner, in one call', async () => {
+        const result = await create(nthEvent(1))
+
+        expect(result.ok).toBe(true)
+        expect((await repo.findById(asEventId('evt-1')))?.slug.value).toBe('evt-1')
+        expect(await memberships.roleFor(asEventId('evt-1'), HOST)).toBe('owner')
+      })
+
+      it('records when the creator was made owner', async () => {
+        await create(nthEvent(1))
+
+        const membership = await memberships.membershipFor(asEventId('evt-1'), HOST)
+
+        expect(membership?.grantedAt).toEqual(atPlus(5_000))
+      })
+
+      it('stores the client the event belongs to', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+
+        await create(nthEvent(1, CLIENT))
+
+        expect((await repo.findById(asEventId('evt-1')))?.clientId).toBe(CLIENT)
+      })
+
+      it('counts the event against its client’s period', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+
+        await create(nthEvent(1, CLIENT))
+        await create(nthEvent(2, CLIENT))
+
+        expect(await periodCount()).toBe(2)
+      })
+
+      it('counts nothing for an event with no client, and touches no client’s counter', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+
+        const result = await create(nthEvent(1))
+
+        expect(result.ok).toBe(true)
+        expect(await periodCount()).toBe(0)
+      })
+
+      it('refuses an event past the client’s total ceiling, naming what was reached', async () => {
+        const ceilings = aClientCeilings({ maxEvents: 1 })
+        await clients.save(aClient({ id: CLIENT, ceilings }))
+        await create(nthEvent(1, CLIENT), ceilings)
+
+        const result = await create(nthEvent(2, CLIENT), ceilings)
+
+        expect(!result.ok && result.error.code).toBe('client.ceilingReached')
+        expect(!result.ok && result.error.kind).toBe('conflict')
+        expect(!result.ok && result.error.details).toEqual({
+          ceiling: 'events',
+          used: 1,
+          max: 1,
+        })
+      })
+
+      it('leaves nothing behind when a ceiling refuses: no event, no owner, no count', async () => {
+        const ceilings = aClientCeilings({ maxEvents: 1 })
+        await clients.save(aClient({ id: CLIENT, ceilings }))
+        await create(nthEvent(1, CLIENT), ceilings)
+
+        await create(nthEvent(2, CLIENT), ceilings)
+
+        expect(await repo.findById(asEventId('evt-2'))).toBeNull()
+        expect(await memberships.roleFor(asEventId('evt-2'), HOST)).toBeNull()
+        expect(await periodCount()).toBe(1)
+      })
+
+      it.each(EVENT_STATUSES)(
+        'counts an event that is %s toward the total ceiling',
+        async (status) => {
+          // Every status, because a finished or archived wedding still holds its
+          // photographs, and a draft is the status every event is created in: filtering any
+          // of them out lets a client keep more than it was given.
+          const ceilings = aClientCeilings({ maxEvents: 1 })
+          await clients.save(aClient({ id: CLIENT, ceilings }))
+          await repo.save(
+            anEvent({
+              id: 'evt-1',
+              slug: 'evt-1',
+              joinCode: 'AAAAAA',
+              ownerId: HOST,
+              clientId: CLIENT,
+              status,
+            }),
+          )
+
+          const result = await create(nthEvent(2, CLIENT), ceilings)
+
+          expect(!result.ok && result.error.details).toMatchObject({ ceiling: 'events' })
+        },
+      )
+
+      it('does not count another client’s events toward this client’s total ceiling', async () => {
+        const ceilings = aClientCeilings({ maxEvents: 1 })
+        await clients.save(aClient({ id: CLIENT, ceilings }))
+        await clients.save(aClient({ id: OTHER_CLIENT, name: 'Un autre client' }))
+        await repo.save(nthEvent(1, OTHER_CLIENT))
+
+        const result = await create(nthEvent(2, CLIENT), ceilings)
+
+        expect(result.ok).toBe(true)
+      })
+
+      it('does not count a client-less event toward any client’s total ceiling', async () => {
+        const ceilings = aClientCeilings({ maxEvents: 1 })
+        await clients.save(aClient({ id: CLIENT, ceilings }))
+        await repo.save(nthEvent(1))
+
+        const result = await create(nthEvent(2, CLIENT), ceilings)
+
+        expect(result.ok).toBe(true)
+      })
+
+      it('refuses an event past the per-period ceiling, naming it', async () => {
+        const ceilings = aClientCeilings({ maxEventsPerPeriod: 2 })
+        await clients.save(aClient({ id: CLIENT, ceilings, eventsCreatedInPeriod: 2 }))
+
+        const result = await create(nthEvent(1, CLIENT), ceilings)
+
+        expect(!result.ok && result.error.details).toEqual({
+          ceiling: 'eventsPerPeriod',
+          used: 2,
+          max: 2,
+        })
+      })
+
+      it('admits the event that reaches the ceiling and refuses the one after it', async () => {
+        const ceilings = aClientCeilings({ maxEventsPerPeriod: 2 })
+        await clients.save(aClient({ id: CLIENT, ceilings, eventsCreatedInPeriod: 1 }))
+
+        const atTheLimit = await create(nthEvent(1, CLIENT), ceilings)
+        const pastIt = await create(nthEvent(2, CLIENT), ceilings)
+
+        expect(atTheLimit.ok).toBe(true)
+        expect(pastIt.ok).toBe(false)
+      })
+
+      it('refuses create, delete, recreate under max_events_per_period=1', async () => {
+        // The point of a counter that is not a count of rows. Counting the client's
+        // events would let it create one, delete it and create the next, forever, and a
+        // permanent public wall is exactly what that ceiling exists to stop.
+        const ceilings = aClientCeilings({ maxEventsPerPeriod: 1 })
+        await clients.save(aClient({ id: CLIENT, ceilings }))
+
+        const first = await create(nthEvent(1, CLIENT), ceilings)
+        await repo.delete(asEventId('evt-1'))
+        const again = await create(nthEvent(2, CLIENT), ceilings)
+
+        expect(first.ok).toBe(true)
+        expect(!again.ok && again.error.code).toBe('client.ceilingReached')
+        expect(!again.ok && again.error.details).toMatchObject({ ceiling: 'eventsPerPeriod' })
+      })
+
+      it('never decrements the period counter when an event is deleted', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+        await create(nthEvent(1, CLIENT))
+        await create(nthEvent(2, CLIENT))
+
+        await repo.delete(asEventId('evt-1'))
+
+        expect(await periodCount()).toBe(2)
+      })
+
+      it('frees a slot of the total ceiling when an event is deleted, unlike the per-period one', async () => {
+        // The two ceilings answer different questions — events the client has now, events
+        // it has created this period — and conflating them in either direction is a bug.
+        const ceilings = aClientCeilings({ maxEvents: 1 })
+        await clients.save(aClient({ id: CLIENT, ceilings }))
+        await create(nthEvent(1, CLIENT), ceilings)
+        await repo.delete(asEventId('evt-1'))
+
+        const again = await create(nthEvent(2, CLIENT), ceilings)
+
+        expect(again.ok).toBe(true)
+      })
+
+      it('ignores every ceiling for an event with no client', async () => {
+        const result = await create(nthEvent(1), aClientCeilings({ maxEvents: 1 }))
+        const second = await create(nthEvent(2), aClientCeilings({ maxEvents: 1 }))
+
+        expect(result.ok && second.ok).toBe(true)
+      })
+
+      it('refuses a slug another event holds, and leaves no owner and no count behind', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+        await create(nthEvent(1, CLIENT))
+        const clash = anEvent({
+          id: 'evt-2',
+          slug: 'evt-1',
+          joinCode: 'BBBBBB',
+          ownerId: HOST,
+          clientId: CLIENT,
+        })
+
+        await expect(create(clash)).rejects.toThrow()
+
+        expect(await repo.findById(asEventId('evt-2'))).toBeNull()
+        expect(await memberships.roleFor(asEventId('evt-2'), HOST)).toBeNull()
+        expect(await periodCount()).toBe(1)
+      })
+
+      it('refuses a join code another event holds, and leaves no owner and no count behind', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+        await create(nthEvent(1, CLIENT))
+        const clash = anEvent({
+          id: 'evt-2',
+          slug: 'evt-2',
+          joinCode: 'AAAAAA',
+          ownerId: HOST,
+          clientId: CLIENT,
+        })
+
+        await expect(create(clash)).rejects.toThrow()
+
+        expect(await memberships.roleFor(asEventId('evt-2'), HOST)).toBeNull()
+        expect(await periodCount()).toBe(1)
+      })
+
+      it('refuses an id that is already taken rather than overwriting the event', async () => {
+        await create(nthEvent(1))
+
+        await expect(
+          create(anEvent({ id: 'evt-1', slug: 'another', joinCode: 'BBBBBB', ownerId: HOST })),
+        ).rejects.toThrow()
+
+        expect((await repo.findById(asEventId('evt-1')))?.slug.value).toBe('evt-1')
+      })
+
+      it('lets only one of two creations at the same moment pass a total ceiling of one', async () => {
+        // The race the transaction exists to remove: two requests that both read a count
+        // under the ceiling and both write. Started together, not one after the other.
+        const ceilings = aClientCeilings({ maxEvents: 1 })
+        await clients.save(aClient({ id: CLIENT, ceilings }))
+
+        const outcomes = await Promise.all([
+          create(nthEvent(1, CLIENT), ceilings),
+          create(nthEvent(2, CLIENT), ceilings),
+        ])
+
+        expect(outcomes.filter((outcome) => outcome.ok)).toHaveLength(1)
+        expect(await periodCount()).toBe(1)
+      })
+
+      it('lets only one of two creations at the same moment pass a per-period ceiling of one', async () => {
+        const ceilings = aClientCeilings({ maxEventsPerPeriod: 1 })
+        await clients.save(aClient({ id: CLIENT, ceilings }))
+
+        const outcomes = await Promise.all([
+          create(nthEvent(1, CLIENT), ceilings),
+          create(nthEvent(2, CLIENT), ceilings),
+        ])
+
+        expect(outcomes.filter((outcome) => outcome.ok)).toHaveLength(1)
+        expect(await periodCount()).toBe(1)
+      })
+
+      it('refuses an owner who is not an account, and leaves nothing behind', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+
+        await expect(
+          repo.createWithOwner(
+            nthEvent(1, CLIENT),
+            { userId: asUserId('ghost'), grantedAt: AT },
+            ClientCeilings.unlimited(),
+          ),
+        ).rejects.toThrow()
+
+        expect(await repo.findById(asEventId('evt-1'))).toBeNull()
+        expect(await periodCount()).toBe(0)
+      })
+
+      it('keeps the counter a creation wrote when a stale copy of the client is saved', async () => {
+        // A Client read before two creations and saved after them (rename it, change a
+        // ceiling) carries the old count. The counter is moved by createWithOwner and by
+        // nothing else, so writing it back would hand both slots over.
+        await clients.save(aClient({ id: CLIENT }))
+        const stale = await clients.findById(CLIENT)
+        await create(nthEvent(1, CLIENT))
+        await create(nthEvent(2, CLIENT))
+
+        if (stale === null) throw new Error('the client was just saved')
+        await clients.save(stale)
+
+        expect(await periodCount()).toBe(2)
+      })
+
+      it('does reset the counter when the client is renewed, which is what a new period is', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+        await create(nthEvent(1, CLIENT))
+        const before = await clients.findById(CLIENT)
+        if (before === null) throw new Error('the client was just saved')
+
+        // `withCeilings` pairs a changed period start with a zeroed counter.
+        await clients.save(
+          before.withCeilings(
+            aClientCeilings({ maxEventsPerPeriod: 1, periodStartedAt: atPlus(DAY) }),
+          ),
+        )
+
+        expect(await periodCount()).toBe(0)
+      })
+
+      it('refuses a client that does not exist, and leaves no owner behind', async () => {
+        await expect(create(nthEvent(1, 'client-that-never-was'))).rejects.toThrow()
+
+        expect(await repo.findById(asEventId('evt-1'))).toBeNull()
+        expect(await memberships.roleFor(asEventId('evt-1'), HOST)).toBeNull()
+      })
     })
 
     // ---------------------------------------------------------------- delete --

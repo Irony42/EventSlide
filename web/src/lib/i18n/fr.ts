@@ -1104,6 +1104,9 @@ export const fr = {
     'event.customSlugNotAllowed': 'Cette instance ne permet pas de choisir sa propre adresse.',
     'event.creationRateLimited': 'Vous avez créé trop d’évènements récemment. Réessayez plus tard.',
     'event.quotaAboveCeiling': 'Ce quota dépasse la limite que ce serveur autorise.',
+    'event.creationNotAllowed': 'Votre compte ne peut pas créer d’évènement sur ce serveur.',
+    'client.notFound': 'Ce compte client est introuvable.',
+    'client.ceilingReached': 'Votre compte a atteint le nombre d’évènements autorisé.',
     'event.immutable': 'Cet évènement est archivé et ne peut plus être modifié.',
     'event.illegalTransition': 'Ce changement d’état n’est pas possible.',
 

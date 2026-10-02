@@ -261,6 +261,13 @@ export class SqliteClientRepository implements ClientRepository {
         LIMIT ?`,
     )
 
+    // **A save never moves `events_created_in_period` unless the period itself moved.** The
+    // counter is written by `SqliteEventRepository.createWithOwner` and by nothing else; a
+    // `Client` read before two creations and saved after them carries a stale count, and
+    // writing it back would hand both slots over. The one exception is a renewal — a changed
+    // `period_started_at`, which `Client.withCeilings` pairs with a reset to zero — where the
+    // incoming counter is the point of the save. (`clients.` names the stored row in an
+    // upsert's update list; a bare column would too, and this reads as what it means.)
     this.upsert = db.prepare<ClientParams>(
       `INSERT INTO clients (id, name, contact_email, created_at, suspended_at, purge_after,
                             max_events, max_total_bytes, max_event_quota_bytes,
@@ -286,7 +293,11 @@ export class SqliteClientRepository implements ClientRepository {
                                       max_live_days             = excluded.max_live_days,
                                       max_events_per_period     = excluded.max_events_per_period,
                                       period_started_at         = excluded.period_started_at,
-                                      events_created_in_period  = excluded.events_created_in_period,
+                                      events_created_in_period  = CASE
+                                        WHEN excluded.period_started_at IS NOT clients.period_started_at
+                                        THEN excluded.events_created_in_period
+                                        ELSE clients.events_created_in_period
+                                      END,
                                       locale                    = excluded.locale`,
     )
 

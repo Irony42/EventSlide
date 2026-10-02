@@ -1,13 +1,28 @@
-import { describe, expect, it } from 'vitest'
-import { asEventId, asUserId } from '../../domain/shared/ids'
-import { eventRepositoryContract } from './contracts/eventRepositoryContract'
-import { AT, aGuest, aPhoto, anEvent } from './builders'
+import { describe, expect, it, vi } from 'vitest'
+import { ClientCeilings } from '../../domain/clients/clientCeilings'
+import { asClientId, asEventId, asUserId } from '../../domain/shared/ids'
+import {
+  EVENT_CONTRACT_FIXTURES,
+  eventRepositoryContract,
+} from './contracts/eventRepositoryContract'
+import { AT, aClient, aGuest, aPhoto, aUser, anEvent } from './builders'
+import { FakeClientRepository } from './fakeClientRepository'
 import { FakeEventRepository } from './fakeEventRepository'
+import { FakeUserRepository } from './fakeUserRepository'
 import { FakeGuestRepository } from './fakeGuestRepository'
 import { FakeMembershipRepository } from './fakeMembershipRepository'
 import { FakePhotoRepository } from './fakePhotoRepository'
 
-eventRepositoryContract('fake', async () => ({ repo: new FakeEventRepository() }))
+eventRepositoryContract('fake', async () => {
+  const memberships = new FakeMembershipRepository()
+  const clients = new FakeClientRepository()
+  // The accounts the contract's fixtures name, so an owner who is not one is refused here
+  // as the foreign key refuses it in SQLite.
+  const users = new FakeUserRepository().seed(
+    ...EVENT_CONTRACT_FIXTURES.userIds.map((id) => aUser({ id, email: `${id}@example.test` })),
+  )
+  return { repo: new FakeEventRepository({ memberships, clients, users }), memberships, clients }
+})
 
 const WEDDING = asEventId('evt-wedding')
 const HOST = asUserId('user-host')
@@ -86,6 +101,24 @@ describe('FakeEventRepository dashboard summary', () => {
     expect(summaries.map((summary) => summary.usedBytes)).toEqual([7_000])
   })
 
+  it('counts the clips still waiting to be transcoded, because admission does', async () => {
+    // The SQLite adapter's dashboard row and its upload paths read one expression
+    // (`eventBytesSum.test.ts`); here the fake asks the photo fake for the same total, and
+    // that total is charged for the queue once a clip source is wired in.
+    const photos = new FakePhotoRepository()
+      .seed(aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 1_000 }))
+      .chargeStagedBytesFrom({
+        stagedBytes: async () => 40_000,
+        stagedBytesOf: async () => 0,
+        listStagedSources: async () => new Set<string>(),
+      })
+    const events = new FakeEventRepository({ photos }).seed(anEvent({ id: WEDDING, ownerId: HOST }))
+
+    const summaries = await events.listForUser(HOST)
+
+    expect(summaries.map((summary) => summary.usedBytes)).toEqual([41_000])
+  })
+
   it('lists an event the user only moderates', async () => {
     const { events, memberships } = world()
     await memberships.grant({
@@ -106,5 +139,67 @@ describe('FakeEventRepository dashboard summary', () => {
     const summaries = await events.listForUser(HOST)
 
     expect(summaries.map((summary) => summary.photoCount)).toEqual([0])
+  })
+})
+
+/**
+ * What the fake refuses to do on its own, so a test cannot pass by quietly skipping a
+ * ceiling or an owner — the same silence the contract suite exists to keep out.
+ */
+describe('FakeEventRepository createWithOwner and its links', () => {
+  const owner = { userId: HOST, grantedAt: AT }
+  const unlimited = ClientCeilings.unlimited()
+
+  it('refuses to create an event when no memberships fake is linked, rather than create one nobody can open', async () => {
+    const events = new FakeEventRepository()
+
+    await expect(
+      events.createWithOwner(anEvent({ id: WEDDING }), owner, unlimited),
+    ).rejects.toThrow(/needs the memberships fake/)
+    expect(await events.findById(WEDDING)).toBeNull()
+  })
+
+  it('refuses to store an event that has a client when no clients fake is linked, rather than skip its ceilings', async () => {
+    const memberships = new FakeMembershipRepository()
+    const events = new FakeEventRepository({ memberships })
+
+    await expect(
+      events.createWithOwner(anEvent({ id: WEDDING, clientId: 'client-1' }), owner, unlimited),
+    ).rejects.toThrow(/needs the clients fake linked/)
+    expect(() => events.seed(anEvent({ id: WEDDING, clientId: 'client-1' }))).toThrow(
+      /needs the clients fake linked/,
+    )
+  })
+
+  it('leaves no event and no count behind when writing the owner fails', async () => {
+    const clients = new FakeClientRepository().seed(aClient({ id: 'client-1' }))
+    const memberships = new FakeMembershipRepository()
+    vi.spyOn(memberships, 'grant').mockRejectedValue(new Error('the membership write failed'))
+    const events = new FakeEventRepository({ memberships, clients })
+
+    await expect(
+      events.createWithOwner(anEvent({ id: WEDDING, clientId: 'client-1' }), owner, unlimited),
+    ).rejects.toThrow(/the membership write failed/)
+
+    expect(await events.findById(WEDDING)).toBeNull()
+    expect((await clients.findById(asClientId('client-1')))?.eventsCreatedInPeriod).toBe(0)
+  })
+
+  it('drops the client link when the event is deleted, so an emptied client can be deleted', async () => {
+    const clients = new FakeClientRepository().seed(aClient({ id: 'client-1' }))
+    const events = new FakeEventRepository({ memberships: new FakeMembershipRepository(), clients })
+    await events.createWithOwner(anEvent({ id: WEDDING, clientId: 'client-1' }), owner, unlimited)
+    expect(await clients.deleteIfEmpty(asClientId('client-1'))).toBe(false)
+
+    await events.delete(WEDDING)
+
+    expect(await clients.deleteIfEmpty(asClientId('client-1'))).toBe(true)
+  })
+
+  it('links a seeded event to its client, so the client’s context can be read back', async () => {
+    const clients = new FakeClientRepository().seed(aClient({ id: 'client-1' }))
+    new FakeEventRepository({ clients }).seed(anEvent({ id: WEDDING, clientId: 'client-1' }))
+
+    expect((await clients.contextForEvent(WEDDING))?.clientId).toBe('client-1')
   })
 })

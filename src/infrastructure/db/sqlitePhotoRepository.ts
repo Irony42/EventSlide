@@ -32,7 +32,7 @@ import {
   type PhotoId,
 } from '../../domain/shared/ids'
 import type { Result } from '../../domain/shared/result'
-import { HOLDING_BYTES_SQL } from './clipJobStatusSql'
+import { eventHoldingBytesSum } from './clipJobStatusSql'
 import type { Db } from './connection'
 import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
 
@@ -96,12 +96,7 @@ const INSERT_PHOTO = `
  * charged for both the source and the result. It refuses at the very edge of a full quota
  * rather than over-filling a disk, which is the direction to err in.
  */
-const SUM_EVENT_BYTES = `
-  SELECT (SELECT COALESCE(SUM(byte_size), 0) FROM photos WHERE event_id = :eventId)
-       + (SELECT COALESCE(SUM(source_byte_size), 0)
-            FROM clip_jobs
-           WHERE event_id = :eventId AND status IN (${HOLDING_BYTES_SQL})) AS value
-`
+const SUM_EVENT_BYTES = `SELECT ${eventHoldingBytesSum(':eventId')} AS value`
 
 /**
  * The same sum, minus one job's staged source.
@@ -116,14 +111,10 @@ const SUM_EVENT_BYTES = `
  * `id IS NOT NULL`, which is true of every row, so one statement serves both callers
  * and there is no second SQL string to keep in step.
  */
-const SUM_EVENT_BYTES_CREDITING_CLIP = `
-  SELECT (SELECT COALESCE(SUM(byte_size), 0) FROM photos WHERE event_id = :eventId)
-       + (SELECT COALESCE(SUM(source_byte_size), 0)
-            FROM clip_jobs
-           WHERE event_id = :eventId
-             AND status IN (${HOLDING_BYTES_SQL})
-             AND id IS NOT :excludeClipJobId) AS value
-`
+const SUM_EVENT_BYTES_CREDITING_CLIP = `SELECT ${eventHoldingBytesSum(
+  ':eventId',
+  ':excludeClipJobId',
+)} AS value`
 
 const COUNT_BY_AUTHOR = `
   SELECT COUNT(*) AS value FROM photos WHERE event_id = ? AND author_guest_id = ?

@@ -106,8 +106,19 @@ jobs:
         # every other one carries testIgnore: '**/offline/**'. Left out of this matrix
         # it would be a project nothing ever selected, which is the exact failure the
         # firefox-desktop note above describes.
+        # chromium-client-members runs tests/e2e/security/tenant-isolation.spec.ts alone, on a
+        # server started with EVENT_CREATION=clientMembers and SITE_ADMIN=on — roadmap §10.9:
+        # tenant isolation holds under both creation policies. The other projects run the same
+        # file under the default, anyAccount, so between them the spec runs under both.
         project:
-          [chromium-desktop, chromium-mobile, webkit-mobile, firefox-desktop, chromium-offline]
+          [
+            chromium-desktop,
+            chromium-mobile,
+            webkit-mobile,
+            firefox-desktop,
+            chromium-offline,
+            chromium-client-members,
+          ]
     steps:
       - uses: actions/checkout@v4
 

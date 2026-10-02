@@ -18,6 +18,14 @@ import type { EventLanguage, MissionScope } from '../../../web/src/lib/api/dto'
  * cannot see each other's photos and a failed run leaves nothing behind.
  */
 
+/**
+ * Who may create an event on the server under test (`EVENT_CREATION`, roadmap §10.9 /
+ * P3-05). `anyAccount` is the core default and what every journey runs against;
+ * `clientMembers` is what a box run for other people sets, and the one project that runs
+ * the security specs under it is `chromium-client-members` in `playwright.config.ts`.
+ */
+export type EventCreation = 'anyAccount' | 'clientMembers'
+
 export interface SeededEvent {
   readonly slug: string
   readonly name: string
@@ -62,9 +70,17 @@ export interface TestApp {
    * Reading is not the shortcut `apiSession` refuses. Writing rows would let a fixture
    * build state the application cannot, and a journey on impossible state proves nothing;
    * reading one back is what ring 6 already does to the media root when it checks that a
-   * stored file carries no EXIF. Nothing in this suite may write through it.
+   * stored file carries no EXIF.
+   *
+   * **Two narrow exceptions write**, both in `tenant-isolation.spec.ts` and both for a fact
+   * that no route can yet establish: switching an account off (`setAccountDisabled`), and
+   * enrolling an account in a client under `EVENT_CREATION=clientMembers` (`enrolInAClient`),
+   * because the operator API that creates clients is G2-14. When that ships, the second
+   * becomes a request. Nothing else may write through it.
    */
   readonly databasePath: string
+  /** The policy this server was started under. A spec that depends on it says so. */
+  readonly eventCreation: EventCreation
   dispose(): Promise<void>
 }
 
@@ -203,9 +219,19 @@ export interface StartOptions {
   readonly worker: number
   /** Overrides merged over the defaults, for a test that needs a different limit. */
   readonly env?: Readonly<Record<string, string>>
+  /**
+   * `EVENT_CREATION`. `clientMembers` also turns `SITE_ADMIN` on, because boot refuses the
+   * one without the other (roadmap §10.9): the fixture states the pair a real operator
+   * would, instead of a configuration the server would reject.
+   */
+  readonly eventCreation?: EventCreation
 }
 
-export const startTestApp = async ({ worker, env = {} }: StartOptions): Promise<TestApp> => {
+export const startTestApp = async ({
+  worker,
+  env = {},
+  eventCreation = 'anyAccount',
+}: StartOptions): Promise<TestApp> => {
   const root = await mkdtemp(join(tmpdir(), `eventslide-e2e-${worker}-`))
   const databasePath = join(root, 'eventslide.sqlite')
   const port = await freePort()
@@ -243,6 +269,10 @@ export const startTestApp = async ({ worker, env = {} }: StartOptions): Promise<
         BOOTSTRAP_OWNER_EMAIL: OWNER.email,
         BOOTSTRAP_OWNER_PASSWORD: OWNER.password,
         LOG_LEVEL: 'warn',
+        // Always stated, never inherited: a developer's exported `EVENT_CREATION` must not
+        // make `app.eventCreation` say one thing while the server does another.
+        EVENT_CREATION: eventCreation,
+        ...(eventCreation === 'clientMembers' ? { SITE_ADMIN: 'on' } : {}),
         ...env,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -361,6 +391,7 @@ export const startTestApp = async ({ worker, env = {} }: StartOptions): Promise<
     createMission,
     owner: { email: OWNER.email, password: OWNER_SETTLED_PASSWORD },
     databasePath,
+    eventCreation,
     dispose,
   }
 }

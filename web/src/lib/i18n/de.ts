@@ -264,6 +264,10 @@ export const de: UiText = {
       'Sie haben zuletzt zu viele Veranstaltungen erstellt. Versuchen Sie es später erneut.',
     'event.quotaAboveCeiling':
       'Dieses Kontingent überschreitet das von diesem Server erlaubte Limit.',
+    'event.creationNotAllowed':
+      'Mit Ihrem Konto können auf diesem Server keine Veranstaltungen erstellt werden.',
+    'client.notFound': 'Dieses Kundenkonto wurde nicht gefunden.',
+    'client.ceilingReached': 'Ihr Konto hat die zulässige Anzahl an Veranstaltungen erreicht.',
     'event.immutable': 'Diese Veranstaltung ist archiviert und kann nicht mehr geändert werden.',
     'event.illegalTransition': 'Dieser Statuswechsel ist nicht möglich.',
 

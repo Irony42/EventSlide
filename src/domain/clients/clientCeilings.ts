@@ -50,6 +50,18 @@ const UNLIMITED: ClientCeilingsProps = {
 
 export type ClientCeilingsInput = Partial<ClientCeilingsProps>
 
+/**
+ * Which event-creation ceiling stopped a creation, and where that client stood against it.
+ *
+ * Carried into the refusal's details (`client.ceilingReached`) so a client's own page can
+ * say "3 of 3" rather than "no".
+ */
+export interface EventCreationRefusal {
+  readonly ceiling: 'events' | 'eventsPerPeriod'
+  readonly used: number
+  readonly max: number
+}
+
 const MIN_RETENTION_DAYS = 1
 const MAX_RETENTION_DAYS = 3650
 const MIN_LIVE_DAYS = 1
@@ -188,14 +200,27 @@ export class ClientCeilings {
    * not mean the other grants it.
    */
   allowsAnotherEvent(totalEvents: number, eventsCreatedInPeriod: number): boolean {
-    if (this.props.maxEvents !== null && totalEvents >= this.props.maxEvents) return false
-    if (
-      this.props.maxEventsPerPeriod !== null &&
-      eventsCreatedInPeriod >= this.props.maxEventsPerPeriod
-    ) {
-      return false
+    return this.creationRefusal(totalEvents, eventsCreatedInPeriod) === null
+  }
+
+  /**
+   * The same question as {@link ClientCeilings.allowsAnotherEvent}, answered with the
+   * ceiling that said no instead of a bare `false` — which is what the transaction that
+   * creates an event needs to build its refusal, and why the rule lives in one place.
+   *
+   * The total ceiling is named first when both are reached. It is the one a client can
+   * act on by deleting an event; the per-period one cannot be cured that way, and telling a
+   * client who has hit both only the second would send them to delete something for nothing.
+   */
+  creationRefusal(totalEvents: number, eventsCreatedInPeriod: number): EventCreationRefusal | null {
+    const { maxEvents, maxEventsPerPeriod } = this.props
+    if (maxEvents !== null && totalEvents >= maxEvents) {
+      return { ceiling: 'events', used: totalEvents, max: maxEvents }
     }
-    return true
+    if (maxEventsPerPeriod !== null && eventsCreatedInPeriod >= maxEventsPerPeriod) {
+      return { ceiling: 'eventsPerPeriod', used: eventsCreatedInPeriod, max: maxEventsPerPeriod }
+    }
+    return null
   }
 
   /** Whether a single event may be given this many bytes of quota. */

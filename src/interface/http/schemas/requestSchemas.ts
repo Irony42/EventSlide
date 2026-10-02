@@ -207,6 +207,18 @@ export const createEventBody = z
      * a choice, and the domain answers it with French.
      */
     wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
+    /**
+     * The client the event is for (roadmap §10.2 / P3-05), which only an account that
+     * belongs to **several** clients ever needs to say: a member of one is attached to it, and
+     * the operator and an account with no client to none.
+     *
+     * A uuid, as every id on this surface is, so a malformed one is `400 request.invalid` —
+     * a fact about the string, true whether or not a client exists. Whether it names one of
+     * the caller's own is the use case's question and its answer is `404 client.notFound`,
+     * the same for a client that does not exist and one that belongs to somebody else.
+     * `.optional()`, not `.nullish()`: "no client" is the absence of a choice.
+     */
+    clientId: z.string().uuid().optional(),
   })
   .strict()
 

@@ -112,6 +112,12 @@ const DOCUMENTED_CODES: readonly string[] = [
   // The per-account, per-hour creation limit (P4-09).
   'event.creationRateLimited',
   'event.quotaAboveCeiling',
+  // EVENT_CREATION=clientMembers: an account that belongs to no client may not create (P3-05).
+  'event.creationNotAllowed',
+  // A client the caller named is not one of theirs, or does not exist: the same answer.
+  'client.notFound',
+  // The client's total or per-period event ceiling stopped a creation (P3-05 / P3-06).
+  'client.ceilingReached',
   'event.immutable',
   'event.illegalTransition',
   'event.captionsNotAllowed',

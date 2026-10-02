@@ -6,7 +6,10 @@ import type { MediaMetadata, MediaStore, StoredObject } from '../../../applicati
 import type { PasswordHasher } from '../../../application/ports/passwordHasher'
 import { makeRegisterModerator } from '../../../application/usecases/auth/registerModerator'
 import { makeChangeEventStatus } from '../../../application/usecases/events/changeEventStatus'
-import { makeCreateEvent } from '../../../application/usecases/events/createEvent'
+import {
+  makeCreateEvent,
+  type EventCreationPolicy,
+} from '../../../application/usecases/events/createEvent'
 import { makeGetEventBySlug } from '../../../application/usecases/events/getEventBySlug'
 import { makeListEventsForHost } from '../../../application/usecases/events/listEventsForHost'
 import { makePurgeEvent } from '../../../application/usecases/events/purgeEvent'
@@ -15,14 +18,30 @@ import { makeScheduleEvent } from '../../../application/usecases/events/schedule
 import { makeUpdateEventSettings } from '../../../application/usecases/events/updateEventSettings'
 import { makeListGuests } from '../../../application/usecases/guests/listGuests'
 import { makeRevokeGuest } from '../../../application/usecases/guests/revokeGuest'
-import { AT, anEvent, aGuest, aPhoto, aUser, atPlus } from '../../../application/testing/builders'
+import {
+  AT,
+  aClient,
+  anEvent,
+  aGuest,
+  aPhoto,
+  aUser,
+  atPlus,
+} from '../../../application/testing/builders'
+import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../../application/testing/fakeMembershipRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
-import { asEventId, asGuestId, asUserId, type EventId } from '../../../domain/shared/ids'
+import {
+  asClientId,
+  asEventId,
+  asGuestId,
+  asUserId,
+  type EventId,
+} from '../../../domain/shared/ids'
+import { Slug } from '../../../domain/shared/slug'
 import type { Password } from '../../../domain/users/password'
 import type { PasswordHash } from '../../../domain/users/user'
 import { eventCreationLimiter } from '../middleware/rateLimit'
@@ -67,11 +86,25 @@ const MODERATOR = '22222222-2222-4222-8222-222222222222'
 const GALA_OWNER = '33333333-3333-4333-8333-333333333333'
 const NEWCOMER = '44444444-4444-4444-8444-444444444444'
 const WEDDING_GUEST = '55555555-5555-4555-8555-555555555555'
+/** Belongs to one client. */
+const CLIENT_MEMBER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+/** Belongs to two clients, and so has to say which. */
+const TWO_CLIENTS_MEMBER = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+/** Runs the box. */
+const OPERATOR = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const CLIENT_ONE = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+const CLIENT_TWO = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 const AWAY_GUEST = '66666666-6666-4666-8666-666666666666'
 const REVOKED_GUEST = '77777777-7777-4777-8777-777777777777'
 const GALA_GUEST = '88888888-8888-4888-8888-888888888888'
 
 const SLUG = 'camille-et-sacha'
+
+const slugOf = (value: string): Slug => {
+  const parsed = Slug.create(value)
+  if (!parsed.ok) throw new Error(`invalid test slug: ${value}`)
+  return parsed.value
+}
 const NO_SUCH_SLUG = 'un-evenement-qui-nexiste-pas'
 
 /** What the create form leaves to configuration: the host is asked for a name only. */
@@ -154,6 +187,7 @@ const absent = (name: string) => (): Promise<never> =>
 interface World {
   readonly app: Express
   readonly events: FakeEventRepository
+  readonly clients: FakeClientRepository
   readonly guests: FakeGuestRepository
   readonly memberships: FakeMembershipRepository
   readonly users: FakeUserRepository
@@ -163,16 +197,22 @@ interface World {
 interface BuildWorldOptions {
   /** Defaults to {@link GENEROUS_CREATION_LIMIT}; a test about the limiter itself narrows it. */
   readonly creationLimit?: number
+  /** `EVENT_CREATION`. Defaults to `anyAccount`, which is what a box that never set it has. */
+  readonly eventCreation?: EventCreationPolicy
 }
 
-const buildWorld = ({ creationLimit = GENEROUS_CREATION_LIMIT }: BuildWorldOptions = {}): World => {
+const buildWorld = ({
+  creationLimit = GENEROUS_CREATION_LIMIT,
+  eventCreation = 'anyAccount',
+}: BuildWorldOptions = {}): World => {
   const users = new FakeUserRepository()
   const photos = new FakePhotoRepository()
   const guests = new FakeGuestRepository()
   const memberships = new FakeMembershipRepository({ users })
   // Linked, so a dashboard row carries the counts the SQLite join would really produce
   // and a membership carries the address of a real account.
-  const events = new FakeEventRepository({ memberships, photos, guests })
+  const clients = new FakeClientRepository()
+  const events = new FakeEventRepository({ memberships, photos, guests, clients })
   const media = new PurgingMediaStore()
   const ids = new SequentialIdGenerator()
   const hasher = new FakePasswordHasher()
@@ -200,7 +240,9 @@ const buildWorld = ({ creationLimit = GENEROUS_CREATION_LIMIT }: BuildWorldOptio
 
         createEvent: makeCreateEvent({
           events,
-          memberships,
+          clients,
+          users,
+          eventCreation,
           ids,
           clock: deps.clock,
           defaultQuotaBytes: DEFAULT_QUOTA_BYTES,
@@ -283,6 +325,15 @@ const buildWorld = ({ creationLimit = GENEROUS_CREATION_LIMIT }: BuildWorldOptio
       )
       app.post('/sign-in/gala-owner', signInAs({ userId: GALA_OWNER, email: 'gala@example.test' }))
       app.post('/sign-in/newcomer', signInAs({ userId: NEWCOMER, email: 'nouvelle@example.test' }))
+      app.post(
+        '/sign-in/client-member',
+        signInAs({ userId: CLIENT_MEMBER, email: 'cliente@example.test' }),
+      )
+      app.post(
+        '/sign-in/two-clients-member',
+        signInAs({ userId: TWO_CLIENTS_MEMBER, email: 'agence@example.test' }),
+      )
+      app.post('/sign-in/operator', signInAs({ userId: OPERATOR, email: 'operateur@example.test' }))
 
       app.use(
         '/api',
@@ -309,7 +360,26 @@ const buildWorld = ({ creationLimit = GENEROUS_CREATION_LIMIT }: BuildWorldOptio
     aUser({ id: MODERATOR, email: 'moderateur@example.test' }),
     aUser({ id: GALA_OWNER, email: 'gala@example.test' }),
     aUser({ id: NEWCOMER, email: 'nouvelle@example.test' }),
+    aUser({ id: CLIENT_MEMBER, email: 'cliente@example.test' }),
+    aUser({ id: TWO_CLIENTS_MEMBER, email: 'agence@example.test' }),
+    aUser({ id: OPERATOR, email: 'operateur@example.test', siteRole: 'operator' }),
   )
+
+  clients.seed(
+    aClient({ id: CLIENT_ONE, name: 'Atelier Camille' }),
+    aClient({ id: CLIENT_TWO, name: 'Studio Sacha' }),
+  )
+  const grantClient = (clientId: string, userId: string): void => {
+    void clients.grantMember({
+      clientId: asClientId(clientId),
+      userId: asUserId(userId),
+      role: 'member',
+      grantedAt: AT,
+    })
+  }
+  grantClient(CLIENT_ONE, CLIENT_MEMBER)
+  grantClient(CLIENT_ONE, TWO_CLIENTS_MEMBER)
+  grantClient(CLIENT_TWO, TWO_CLIENTS_MEMBER)
 
   events.seed(
     anEvent({
@@ -358,10 +428,17 @@ const buildWorld = ({ creationLimit = GENEROUS_CREATION_LIMIT }: BuildWorldOptio
     aGuest({ id: GALA_GUEST, eventId: GALA, displayName: 'Sacha', lastSeenAt: AT }),
   )
 
-  return { app: harness.app, events, guests, memberships, users, media }
+  return { app: harness.app, events, clients, guests, memberships, users, media }
 }
 
-type Who = 'owner' | 'moderator' | 'gala-owner' | 'newcomer'
+type Who =
+  | 'owner'
+  | 'moderator'
+  | 'gala-owner'
+  | 'newcomer'
+  | 'client-member'
+  | 'two-clients-member'
+  | 'operator'
 
 /** A supertest agent holding a session cookie, without driving a real login. */
 const signedIn = async (world: World, who: Who): Promise<Agent> => {
@@ -1301,6 +1378,178 @@ describe('the host event routes', () => {
       expect(response.body.joinUrl).toBe(
         `http://localhost:4300/join/${String(response.body.joinCode)}`,
       )
+    })
+  })
+
+  /**
+   * `EVENT_CREATION` and the client an event belongs to (P3-05 / G2-04), through the real
+   * router. The use case's own cases are ring 2; what only this ring can show is that the
+   * refusals reach the caller with the right status and code, and that the one field the
+   * body gained is parsed, forwarded and not echoed back.
+   */
+  describe('POST /api/events under EVENT_CREATION', () => {
+    describe('=clientMembers', () => {
+      beforeEach(() => {
+        world = buildWorld({ eventCreation: 'clientMembers' })
+      })
+
+      it('answers 403 event.creationNotAllowed to a moderator somebody invited', async () => {
+        const agent = await signedIn(world, 'moderator')
+
+        const response = await agent.post('/api/events').send({ name: 'Un mariage en juin' })
+
+        expect(response.status).toBe(403)
+        expect(response.body.error.code).toBe('event.creationNotAllowed')
+      })
+
+      it('answers 403 to an account that belongs to no client, and creates nothing', async () => {
+        const agent = await signedIn(world, 'newcomer')
+
+        const response = await agent.post('/api/events').send({ name: 'Un mariage en juin' })
+
+        expect(response.status).toBe(403)
+        expect(await world.events.slugTaken(slugOf('un-mariage-en-juin'))).toBe(false)
+      })
+
+      it('creates the event of a member, carrying the client', async () => {
+        const agent = await signedIn(world, 'client-member')
+
+        const response = await agent.post('/api/events').send({ name: 'Un mariage en juin' })
+
+        expect(response.status).toBe(201)
+        expect((await world.events.findBySlug(slugOf('un-mariage-en-juin')))?.clientId).toBe(
+          CLIENT_ONE,
+        )
+      })
+
+      it('does not tell the caller which client the event was attached to', async () => {
+        const agent = await signedIn(world, 'client-member')
+
+        const response = await agent.post('/api/events').send({ name: 'Un mariage en juin' })
+
+        expect(JSON.stringify(response.body)).not.toContain(CLIENT_ONE)
+      })
+
+      it('lets the operator create an event, with no client', async () => {
+        const agent = await signedIn(world, 'operator')
+
+        const response = await agent.post('/api/events').send({ name: 'Un mariage en juin' })
+
+        expect(response.status).toBe(201)
+        expect((await world.events.findBySlug(slugOf('un-mariage-en-juin')))?.clientId).toBeNull()
+      })
+
+      it('refuses a client the operator does not belong to, as 404 client.notFound', async () => {
+        const agent = await signedIn(world, 'operator')
+
+        const response = await agent
+          .post('/api/events')
+          .send({ name: 'Un mariage en juin', clientId: CLIENT_ONE })
+
+        expect(response.status).toBe(404)
+        expect(response.body.error.code).toBe('client.notFound')
+      })
+
+      it('asks a member of two clients which one, as 404 client.notFound when they do not say', async () => {
+        const agent = await signedIn(world, 'two-clients-member')
+
+        const response = await agent.post('/api/events').send({ name: 'Un mariage en juin' })
+
+        expect(response.status).toBe(404)
+        expect(response.body.error.code).toBe('client.notFound')
+      })
+
+      it('attaches the event to the client a member of two names', async () => {
+        const agent = await signedIn(world, 'two-clients-member')
+
+        const response = await agent
+          .post('/api/events')
+          .send({ name: 'Un mariage en juin', clientId: CLIENT_TWO })
+
+        expect(response.status).toBe(201)
+        expect((await world.events.findBySlug(slugOf('un-mariage-en-juin')))?.clientId).toBe(
+          CLIENT_TWO,
+        )
+      })
+
+      it('answers a client that is not the caller’s with 404, exactly as one that does not exist', async () => {
+        const agent = await signedIn(world, 'client-member')
+
+        const foreign = await agent
+          .post('/api/events')
+          .send({ name: 'Un mariage en juin', clientId: CLIENT_TWO })
+        const unknown = await agent
+          .post('/api/events')
+          .send({ name: 'Un mariage en juin', clientId: 'ffffffff-ffff-4fff-8fff-ffffffffffff' })
+
+        expect(foreign.status).toBe(404)
+        expect(foreign.body).toEqual(unknown.body)
+      })
+
+      it('refuses a client id that is not a uuid as 400 request.invalid', async () => {
+        const agent = await signedIn(world, 'client-member')
+
+        const response = await agent
+          .post('/api/events')
+          .send({ name: 'Un mariage en juin', clientId: 'client-one' })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('request.invalid')
+      })
+
+      it('answers 409 client.ceilingReached once the client has used its events', async () => {
+        world.clients.seed(
+          aClient({ id: CLIENT_ONE, name: 'Atelier Camille', ceilings: { maxEvents: 1 } }),
+        )
+        const agent = await signedIn(world, 'client-member')
+        await agent.post('/api/events').send({ name: 'Un premier soir' }).expect(201)
+
+        const response = await agent.post('/api/events').send({ name: 'Un second soir' })
+
+        expect(response.status).toBe(409)
+        expect(response.body.error.code).toBe('client.ceilingReached')
+        expect(response.body.error.details).toEqual({ ceiling: 'events', used: 1, max: 1 })
+      })
+
+      it('refuses create, delete, recreate under max_events_per_period=1, end to end', async () => {
+        // The route that deletes is the route that must not give the slot back.
+        world.clients.seed(
+          aClient({
+            id: CLIENT_ONE,
+            name: 'Atelier Camille',
+            ceilings: { maxEventsPerPeriod: 1 },
+          }),
+        )
+        const agent = await signedIn(world, 'client-member')
+        const created = await agent.post('/api/events').send({ name: 'Un premier soir' })
+        await agent.delete(`/api/events/${String(created.body.slug)}`).expect(204)
+
+        const again = await agent.post('/api/events').send({ name: 'Un second soir' })
+
+        expect(again.status).toBe(409)
+        expect(again.body.error.details).toMatchObject({ ceiling: 'eventsPerPeriod' })
+      })
+    })
+
+    describe('=anyAccount, the default', () => {
+      it('lets an account that belongs to no client create an event, as every box always has', async () => {
+        const agent = await signedIn(world, 'newcomer')
+
+        const response = await agent.post('/api/events').send({ name: 'Un mariage en juin' })
+
+        expect(response.status).toBe(201)
+        expect((await world.events.findBySlug(slugOf('un-mariage-en-juin')))?.clientId).toBeNull()
+      })
+
+      it('still attaches the event of a client member to the client', async () => {
+        const agent = await signedIn(world, 'client-member')
+
+        await agent.post('/api/events').send({ name: 'Un mariage en juin' }).expect(201)
+
+        expect((await world.events.findBySlug(slugOf('un-mariage-en-juin')))?.clientId).toBe(
+          CLIENT_ONE,
+        )
+      })
     })
   })
 

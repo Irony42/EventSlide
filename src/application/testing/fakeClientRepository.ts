@@ -1,4 +1,4 @@
-import type { Client } from '../../domain/clients/client'
+import { Client } from '../../domain/clients/client'
 import type { ClientRole } from '../../domain/clients/clientRole'
 import type { ClientId, EventId, UserId } from '../../domain/shared/ids'
 import type {
@@ -11,11 +11,13 @@ import type {
 /**
  * In-memory `ClientRepository`.
  *
- * `events.client_id` belongs to `Event`, wired starting at G2-04/P3-05, so this fake —
- * like the SQLite adapter's `JOIN` — needs a way to answer "which client owns this
- * event" without owning the events table itself. {@link FakeClientRepository.linkEvent}
- * is that link, seeded directly by a test the same way the adapter's own contract test
- * seeds a real `events` row with `client_id` set.
+ * `events.client_id` belongs to `Event`, so this fake — like the SQLite adapter's `JOIN` —
+ * needs a way to answer "which client owns this event" without owning the events table
+ * itself. {@link FakeClientRepository.linkEvent} is that link. `FakeEventRepository` makes
+ * it for every event it stores that has a client, and drops it when the event is deleted,
+ * so a world built from the two fakes answers `contextForEvent` and `deleteIfEmpty` the
+ * way one database does; a test that wants a link without an event repository makes it by
+ * hand, the way the adapter's own contract test writes a real `events` row.
  */
 
 /** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
@@ -38,14 +40,94 @@ export class FakeClientRepository implements ClientRepository {
     return this
   }
 
-  /** See the class doc: the stand-in for `events.client_id` until G2-04 wires it. */
+  /** See the class doc: the stand-in for `events.client_id`. */
   linkEvent(eventId: EventId, clientId: ClientId): this {
     this.eventClientLinks.set(eventId, clientId)
     return this
   }
 
+  /** The other half of {@link FakeClientRepository.linkEvent}: the event row is gone. */
+  unlinkEvent(eventId: EventId): this {
+    this.eventClientLinks.delete(eventId)
+    return this
+  }
+
+  /**
+   * A synchronous read, for `FakeEventRepository`'s atomic section: the adapter's creation
+   * reads the client's counter and writes the event inside one transaction, and a fake that
+   * had to `await` this read would let a second creation in between.
+   */
+  peek(id: ClientId): Client | undefined {
+    return this.clients.get(id)
+  }
+
+  /**
+   * `clients.events_created_in_period + 1`, which the adapter does in SQL inside
+   * `createWithOwner`'s transaction. Not on the port: nothing outside that one call may
+   * move the counter, which is the rule that lets it never decrease.
+   */
+  recordEventCreated(clientId: ClientId): this {
+    const client = this.clients.get(clientId)
+    if (client === undefined) {
+      throw new Error(`FOREIGN KEY constraint failed: events.client_id (${clientId})`)
+    }
+    this.clients.set(
+      clientId,
+      Client.restore({
+        ...client.toProps(),
+        eventsCreatedInPeriod: client.eventsCreatedInPeriod + 1,
+      }),
+    )
+    return this
+  }
+
+  /**
+   * Insert or update, and — like the adapter — **never lets a save move the per-period
+   * counter** unless the period itself moved.
+   *
+   * The counter is written by exactly one thing, `FakeEventRepository.createWithOwner`
+   * (`recordEventCreated`), exactly as the adapter's `createWithOwner` is the only thing that
+   * increments the column. A `Client` read before two creations and saved after them
+   * carries a stale count, and writing it back would hand those two slots back: so on an
+   * update the stored counter wins, and the one exception is a renewal — a changed
+   * `periodStartedAt`, which `Client.withCeilings` pairs with a reset to zero — where the
+   * incoming counter is the point of the save.
+   */
   async save(client: Client): Promise<void> {
-    this.clients.set(client.id, client)
+    const existing = this.clients.get(client.id)
+    const renewed =
+      existing === undefined ||
+      (existing.ceilings.periodStartedAt?.getTime() ?? null) !==
+        (client.ceilings.periodStartedAt?.getTime() ?? null)
+    this.clients.set(
+      client.id,
+      renewed
+        ? client
+        : Client.restore({
+            ...client.toProps(),
+            eventsCreatedInPeriod: existing.eventsCreatedInPeriod,
+          }),
+    )
+  }
+
+  /**
+   * Takes back one `recordEventCreated`: the **fake's own rollback**, for a creation that
+   * counted and then failed to write its owner. The adapter needs no such method — a
+   * transaction that throws leaves the counter where it was — and this is not a way for
+   * anything else to give a slot back.
+   */
+  undoEventCreated(clientId: ClientId): this {
+    const client = this.clients.get(clientId)
+    if (client !== undefined) {
+      this.clients.set(
+        clientId,
+        Client.restore({
+          ...client.toProps(),
+          eventsCreatedInPeriod: Math.max(0, client.eventsCreatedInPeriod - 1),
+        }),
+      )
+    }
+    return this
   }
 
   async findById(id: ClientId): Promise<Client | null> {

@@ -296,6 +296,24 @@ const siteAdmin = z.preprocess(blankAsAbsent, z.enum(['off', 'on']).default('off
 const eventSlugSuffix = z.preprocess(blankAsAbsent, z.enum(['none', 'random']).default('none'))
 
 /**
+ * Who may create an event (P3-05 / G2-04, decision D-07).
+ *
+ * **`anyAccount` is the core default, and it is today's behaviour exactly**: every signed-in
+ * account, a moderator someone invited included, may create events, with no client in the
+ * picture at all. A self-hosted box whose compose file predates this variable sees nothing
+ * change. `clientMembers` is what a box run for other people sets: only an account that
+ * belongs to a client, or the box's operator, may create one.
+ *
+ * Same spelling convention as {@link siteAdmin}: exact words, blank or absent lands on the
+ * default, and anything else is a refusal that names the variable. `clientMembers`
+ * additionally requires `SITE_ADMIN=on`, in the refinement below.
+ */
+const eventCreation = z.preprocess(
+  blankAsAbsent,
+  z.enum(['anyAccount', 'clientMembers']).default('anyAccount'),
+)
+
+/**
  * Whether a host — or, over the API, any caller — may address their own event by a
  * slug they chose (P4-09 / D-14). `true` is the core default: a self-hosted host could
  * always type their own address, and nothing here takes that away. The hosted instance
@@ -696,6 +714,9 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /** See {@link sourceRef}. Set by the Dockerfile's build argument, never by hand. */
       SOURCE_REF: sourceRef,
 
+      /** See {@link eventCreation}. `anyAccount` unless the box says otherwise. */
+      EVENT_CREATION: eventCreation,
+
       /** See {@link eventSlugSuffix}. `none` unless the box says otherwise. */
       EVENT_SLUG_SUFFIX: eventSlugSuffix,
       /** See {@link allowCustomSlugs}. `true` unless the box says otherwise. */
@@ -733,6 +754,21 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
           code: z.ZodIssueCode.custom,
           path: ['MAX_EVENT_QUOTA_BYTES'],
           message: `MAX_EVENT_QUOTA_BYTES (${raw.MAX_EVENT_QUOTA_BYTES}) must be at least DEFAULT_EVENT_QUOTA_BYTES (${raw.DEFAULT_EVENT_QUOTA_BYTES}), or every event created with no opinion would already be above the ceiling`,
+        })
+      }
+
+      // Roadmap §10.9, "configuration that only means something with an operator is refused
+      // when the mode is off". Restricting creation to client members is a policy that only
+      // an operator can satisfy — nobody can create a client, or add a member to one, on a box
+      // with no operator surface — so on such a box it would lock every account but the
+      // operator's out of creating anything, and the operator who set it would believe it was
+      // a feature. Not production-gated, for the reason the ceiling check above is not.
+      if (raw.EVENT_CREATION === 'clientMembers' && raw.SITE_ADMIN !== 'on') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['EVENT_CREATION'],
+          message:
+            'EVENT_CREATION=clientMembers requires SITE_ADMIN=on: restricting event creation to client members only means something on a box that has an operator and clients, and with SITE_ADMIN=off there is no way to create either (docs/ROADMAP.md §10.9)',
         })
       }
 
@@ -968,6 +1004,11 @@ export interface AppConfig {
     readonly allowCustomSlugs: boolean
     /** `JOIN_CODE_LENGTH`. See {@link joinCodeLength}. */
     readonly joinCodeLength: number
+    /**
+     * `EVENT_CREATION`. See {@link eventCreation}. `clientMembers` is possible only when
+     * {@link AppConfig.siteAdmin} is true: the schema refuses the pair at boot.
+     */
+    readonly creation: 'anyAccount' | 'clientMembers'
   }
 
   /**
@@ -1217,6 +1258,7 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       slugSuffix: raw.EVENT_SLUG_SUFFIX,
       allowCustomSlugs: raw.ALLOW_CUSTOM_SLUGS,
       joinCodeLength: raw.JOIN_CODE_LENGTH,
+      creation: raw.EVENT_CREATION,
     },
 
     warnings: computeWarnings({

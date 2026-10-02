@@ -1,18 +1,20 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Event } from '../../../domain/events/event'
 import { EventSettings } from '../../../domain/events/eventSettings'
 import { eventTemplateSettings } from '../../../domain/events/eventTemplate'
 import type { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asUserId } from '../../../domain/shared/ids'
+import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
 import type { Result } from '../../../domain/shared/result'
 import { Slug } from '../../../domain/shared/slug'
-import { AT, anEvent } from '../../testing/builders'
+import { AT, aClient, aClientCeilings, aUser, anEvent } from '../../testing/builders'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
+import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
-import { makeCreateEvent, type CreateEvent } from './createEvent'
+import { makeCreateEvent, type CreateEvent, type EventCreationPolicy } from './createEvent'
 
 const OWNER = asUserId('user-host')
 const DEFAULT_QUOTA = 5_000_000_000
@@ -79,18 +81,24 @@ class ShortEntropyIdGenerator extends SequentialIdGenerator {
 describe('createEvent', () => {
   let events: FakeEventRepository
   let memberships: FakeMembershipRepository
+  let clients: FakeClientRepository
+  let users: FakeUserRepository
   let ids: SequentialIdGenerator
   let clock: FakeClock
   let createEvent: CreateEvent
 
   beforeEach(() => {
-    events = new FakeEventRepository()
     memberships = new FakeMembershipRepository()
+    clients = new FakeClientRepository()
+    users = new FakeUserRepository()
+    events = new FakeEventRepository({ memberships, clients })
     ids = new SequentialIdGenerator()
     clock = new FakeClock()
     createEvent = makeCreateEvent({
       events,
-      memberships,
+      clients,
+      users,
+      eventCreation: 'anyAccount',
       ids,
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
@@ -210,7 +218,9 @@ describe('createEvent', () => {
     beforeEach(() => {
       createWithoutCustomSlugs = makeCreateEvent({
         events,
-        memberships,
+        clients,
+        users,
+        eventCreation: 'anyAccount',
         ids,
         clock,
         defaultQuotaBytes: DEFAULT_QUOTA,
@@ -255,7 +265,9 @@ describe('createEvent', () => {
     beforeEach(() => {
       createWithRandomSuffix = makeCreateEvent({
         events,
-        memberships,
+        clients,
+        users,
+        eventCreation: 'anyAccount',
         ids,
         clock,
         defaultQuotaBytes: DEFAULT_QUOTA,
@@ -304,7 +316,9 @@ describe('createEvent', () => {
       const saturatedSlugs = new SlugSaturatedEventRepository()
       const create = makeCreateEvent({
         events: saturatedSlugs,
-        memberships,
+        clients,
+        users,
+        eventCreation: 'anyAccount',
         ids,
         clock,
         defaultQuotaBytes: DEFAULT_QUOTA,
@@ -337,7 +351,9 @@ describe('createEvent', () => {
     it('mints a code of the configured length instead of the default six', async () => {
       const create = makeCreateEvent({
         events,
-        memberships,
+        clients,
+        users,
+        eventCreation: 'anyAccount',
         ids,
         clock,
         defaultQuotaBytes: DEFAULT_QUOTA,
@@ -372,7 +388,9 @@ describe('createEvent', () => {
     const saturated = new SaturatedEventRepository()
     const create = makeCreateEvent({
       events: saturated,
-      memberships,
+      clients,
+      users,
+      eventCreation: 'anyAccount',
       ids,
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
@@ -389,7 +407,9 @@ describe('createEvent', () => {
     const saturated = new SaturatedEventRepository()
     const create = makeCreateEvent({
       events: saturated,
-      memberships,
+      clients,
+      users,
+      eventCreation: 'anyAccount',
       ids,
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
@@ -405,7 +425,9 @@ describe('createEvent', () => {
   it('surfaces a generator that hands back too little entropy for a code', async () => {
     const create = makeCreateEvent({
       events,
-      memberships,
+      clients,
+      users,
+      eventCreation: 'anyAccount',
       ids: new ShortEntropyIdGenerator(),
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
@@ -461,7 +483,9 @@ describe('createEvent', () => {
     beforeEach(() => {
       ceilinged = makeCreateEvent({
         events,
-        memberships,
+        clients,
+        users,
+        eventCreation: 'anyAccount',
         ids,
         clock,
         defaultQuotaBytes: DEFAULT_QUOTA,
@@ -505,7 +529,9 @@ describe('createEvent', () => {
       // passing.
       const create = makeCreateEvent({
         events,
-        memberships,
+        clients,
+        users,
+        eventCreation: 'anyAccount',
         ids,
         clock,
         defaultQuotaBytes: DEFAULT_QUOTA,
@@ -694,5 +720,430 @@ describe('createEvent', () => {
       expect(!result.ok && result.error.code).toBe('eventSettings.wallLanguageInvalid')
       expect(await events.findBySlug(slug('camille-sacha'))).toBeNull()
     })
+  })
+
+  // ============================================================ the client ==
+
+  /**
+   * Which client an event belongs to, and who may create one at all (P3-05 / G2-04).
+   *
+   * The accounts: `OWNER` has no client; `MEMBER` belongs to one; `TWO_CLIENTS` belongs to
+   * two; `OPERATOR` runs the box. The clients: `client-1` and `client-2`, each unlimited
+   * until a case narrows it.
+   */
+  describe('the client an event belongs to', () => {
+    const MEMBER = asUserId('user-member')
+    const TWO_CLIENTS = asUserId('user-two-clients')
+    const OPERATOR = asUserId('user-operator')
+    const CLIENT_1 = asClientId('client-1')
+    const CLIENT_2 = asClientId('client-2')
+
+    const policyCreateEvent = (eventCreation: EventCreationPolicy): CreateEvent =>
+      makeCreateEvent({
+        events,
+        clients,
+        users,
+        eventCreation,
+        ids,
+        clock,
+        defaultQuotaBytes: DEFAULT_QUOTA,
+        maxQuotaBytes: null,
+        ...CORE_DEFAULTS,
+      })
+
+    const grant = (clientId: typeof CLIENT_1, userId: typeof MEMBER) =>
+      clients.grantMember({ clientId, userId, role: 'member', grantedAt: AT })
+
+    beforeEach(async () => {
+      users.seed(
+        aUser({ id: OWNER, email: 'invitee@example.test' }),
+        aUser({ id: MEMBER, email: 'member@example.test' }),
+        aUser({ id: TWO_CLIENTS, email: 'two-clients@example.test' }),
+        aUser({ id: OPERATOR, email: 'operator@example.test', siteRole: 'operator' }),
+      )
+      clients.seed(
+        aClient({ id: CLIENT_1, name: 'Atelier Camille' }),
+        aClient({ id: CLIENT_2, name: 'Studio Sacha' }),
+      )
+      await grant(CLIENT_1, MEMBER)
+      await grant(CLIENT_1, TWO_CLIENTS)
+      await grant(CLIENT_2, TWO_CLIENTS)
+    })
+
+    describe.each<EventCreationPolicy>(['anyAccount', 'clientMembers'])(
+      'under EVENT_CREATION=%s',
+      (policy) => {
+        let create: CreateEvent
+        beforeEach(() => {
+          create = policyCreateEvent(policy)
+        })
+
+        it('attaches the event of a member of one client to that client, without being told', async () => {
+          const created = unwrap(await create({ ownerId: MEMBER, name: 'Camille & Sacha' }))
+
+          expect(created.clientId).toBe(CLIENT_1)
+        })
+
+        it('persists the client on the stored event, not only on the returned one', async () => {
+          await create({ ownerId: MEMBER, name: 'Camille & Sacha' })
+
+          expect((await events.findBySlug(slug('camille-sacha')))?.clientId).toBe(CLIENT_1)
+        })
+
+        it('attaches the event of the operator to no client, however it is asked', async () => {
+          const created = unwrap(await create({ ownerId: OPERATOR, name: 'Camille & Sacha' }))
+
+          expect(created.clientId).toBeNull()
+        })
+
+        it('does not hold the operator to any client’s ceilings', async () => {
+          clients.seed(aClient({ id: CLIENT_1, ceilings: { maxEvents: 1, maxEventsPerPeriod: 1 } }))
+
+          const first = await create({ ownerId: OPERATOR, name: 'Un premier soir' })
+          const second = await create({ ownerId: OPERATOR, name: 'Un second soir' })
+
+          expect(first.ok && second.ok).toBe(true)
+        })
+
+        it('attaches the operator’s event to a client of theirs only when they name it', async () => {
+          await grant(CLIENT_2, OPERATOR)
+
+          const created = unwrap(
+            await create({ ownerId: OPERATOR, clientId: CLIENT_2, name: 'Camille & Sacha' }),
+          )
+
+          expect(created.clientId).toBe(CLIENT_2)
+        })
+
+        it('refuses a client the operator does not belong to, because the box they run is not that client', async () => {
+          // The exemption from ceilings is not a licence to attach to somebody else's: an
+          // event named for a client eats that client's slots and counts against its period.
+          const result = await create({
+            ownerId: OPERATOR,
+            clientId: CLIENT_1,
+            name: 'Camille & Sacha',
+          })
+
+          expect(!result.ok && result.error.code).toBe('client.notFound')
+          expect((await clients.findById(CLIENT_1))?.eventsCreatedInPeriod).toBe(0)
+        })
+
+        it('attaches the operator’s own event to no client even when they also belong to one, unless they name it', async () => {
+          await grant(CLIENT_1, OPERATOR)
+
+          const unnamed = unwrap(
+            await create({ ownerId: OPERATOR, name: 'Le soir de l’opérateur' }),
+          )
+          const named = unwrap(
+            await create({ ownerId: OPERATOR, clientId: CLIENT_1, name: 'Le soir de la cliente' }),
+          )
+
+          expect(unnamed.clientId).toBeNull()
+          expect(named.clientId).toBe(CLIENT_1)
+        })
+
+        it('holds a member of several clients to the ceilings of the one they name, not of another', async () => {
+          clients.seed(aClient({ id: CLIENT_1, ceilings: { maxEvents: 1 } }))
+          await create({ ownerId: TWO_CLIENTS, clientId: CLIENT_1, name: 'Un premier soir' })
+
+          const overTheLimit = await create({
+            ownerId: TWO_CLIENTS,
+            clientId: CLIENT_1,
+            name: 'Un second soir',
+          })
+          const otherClient = await create({
+            ownerId: TWO_CLIENTS,
+            clientId: CLIENT_2,
+            name: 'Un soir ailleurs',
+          })
+
+          expect(!overTheLimit.ok && overTheLimit.error.code).toBe('client.ceilingReached')
+          expect(otherClient.ok).toBe(true)
+        })
+
+        it('lets a member of several clients name the one the event is for', async () => {
+          const created = unwrap(
+            await create({ ownerId: TWO_CLIENTS, clientId: CLIENT_2, name: 'Camille & Sacha' }),
+          )
+
+          expect(created.clientId).toBe(CLIENT_2)
+        })
+
+        it('refuses a member of several clients who does not say which, as client not found', async () => {
+          const result = await create({ ownerId: TWO_CLIENTS, name: 'Camille & Sacha' })
+
+          expect(!result.ok && result.error.code).toBe('client.notFound')
+          expect(!result.ok && result.error.kind).toBe('notFound')
+        })
+
+        it('refuses a client the account does not belong to, even though it exists', async () => {
+          const result = await create({
+            ownerId: MEMBER,
+            clientId: CLIENT_2,
+            name: 'Camille & Sacha',
+          })
+
+          expect(!result.ok && result.error.code).toBe('client.notFound')
+        })
+
+        it('answers a client that does not exist exactly as one the account does not belong to', async () => {
+          const unknown = await create({
+            ownerId: MEMBER,
+            clientId: asClientId('client-that-never-was'),
+            name: 'Camille & Sacha',
+          })
+          const foreign = await create({
+            ownerId: MEMBER,
+            clientId: CLIENT_2,
+            name: 'Camille & Sacha',
+          })
+
+          expect(unknown).toEqual(foreign)
+        })
+
+        it('refuses a client named by an account that belongs to none, whatever the policy', async () => {
+          const result = await create({
+            ownerId: OWNER,
+            clientId: CLIENT_1,
+            name: 'Camille & Sacha',
+          })
+
+          expect(!result.ok && result.error.code).toBe('client.notFound')
+        })
+
+        it('creates nothing when the client is refused', async () => {
+          await create({ ownerId: TWO_CLIENTS, name: 'Camille & Sacha' })
+
+          expect(await events.findBySlug(slug('camille-sacha'))).toBeNull()
+          expect(await memberships.listForUser(TWO_CLIENTS)).toEqual([])
+          expect((await clients.findById(CLIENT_1))?.eventsCreatedInPeriod).toBe(0)
+        })
+
+        it('refuses to attach an event to a client that went away under the account', async () => {
+          // A membership cannot outlive its client in the database, so this is the race
+          // between reading the roster and reading the client; the fake is told the lie.
+          class StaleRoster extends FakeClientRepository {
+            override async findById(): Promise<null> {
+              return null
+            }
+          }
+          const stale = new StaleRoster()
+          stale.seed(aClient({ id: CLIENT_1 }))
+          await stale.grantMember({
+            clientId: CLIENT_1,
+            userId: MEMBER,
+            role: 'member',
+            grantedAt: AT,
+          })
+
+          const result = await makeCreateEvent({
+            events: new FakeEventRepository({ memberships, clients: stale }),
+            clients: stale,
+            users,
+            eventCreation: policy,
+            ids,
+            clock,
+            defaultQuotaBytes: DEFAULT_QUOTA,
+            maxQuotaBytes: null,
+            ...CORE_DEFAULTS,
+          })({ ownerId: MEMBER, name: 'Camille & Sacha' })
+
+          expect(!result.ok && result.error.code).toBe('client.notFound')
+        })
+
+        it('counts the creation against the client’s period', async () => {
+          await create({ ownerId: MEMBER, name: 'Un premier soir' })
+          await create({ ownerId: MEMBER, name: 'Un second soir' })
+
+          expect((await clients.findById(CLIENT_1))?.eventsCreatedInPeriod).toBe(2)
+        })
+
+        it('counts nothing for an event that has no client', async () => {
+          await create({ ownerId: OPERATOR, name: 'Camille & Sacha' })
+
+          expect((await clients.findById(CLIENT_1))?.eventsCreatedInPeriod).toBe(0)
+          expect((await clients.findById(CLIENT_2))?.eventsCreatedInPeriod).toBe(0)
+        })
+      },
+    )
+
+    describe('under EVENT_CREATION=anyAccount', () => {
+      let create: CreateEvent
+      beforeEach(() => {
+        create = policyCreateEvent('anyAccount')
+      })
+
+      it('lets an account that belongs to no client create an event, with no client, as it always could', async () => {
+        const created = unwrap(await create({ ownerId: OWNER, name: 'Camille & Sacha' }))
+
+        expect(created.clientId).toBeNull()
+      })
+
+      it('lets a moderator somebody invited create an event, which is the behaviour a solo box keeps', async () => {
+        await memberships.grant({
+          eventId: asEventId('someone-elses-event'),
+          userId: OWNER,
+          role: 'moderator',
+          grantedAt: AT,
+        })
+
+        const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+        expect(result.ok).toBe(true)
+      })
+    })
+
+    describe('under EVENT_CREATION=clientMembers', () => {
+      let create: CreateEvent
+      beforeEach(() => {
+        create = policyCreateEvent('clientMembers')
+      })
+
+      it('refuses an account that belongs to no client, as creation not allowed', async () => {
+        const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+        expect(!result.ok && result.error.code).toBe('event.creationNotAllowed')
+        expect(!result.ok && result.error.kind).toBe('forbidden')
+      })
+
+      it('refuses a moderator somebody invited to an event, because that is not a client', async () => {
+        // The case the policy exists for: an invited moderator is an account on the box
+        // with a part in somebody's evening, and no standing to start their own.
+        await memberships.grant({
+          eventId: asEventId('someone-elses-event'),
+          userId: OWNER,
+          role: 'moderator',
+          grantedAt: AT,
+        })
+
+        const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+        expect(!result.ok && result.error.code).toBe('event.creationNotAllowed')
+      })
+
+      it('creates nothing for the account it refuses', async () => {
+        await create({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+        expect(await events.findBySlug(slug('camille-sacha'))).toBeNull()
+        expect(await memberships.listForUser(OWNER)).toEqual([])
+      })
+
+      it('refuses before it looks at the name, so a stranger learns nothing from a 400', async () => {
+        const result = await create({ ownerId: OWNER, name: '' })
+
+        expect(!result.ok && result.error.code).toBe('event.creationNotAllowed')
+      })
+
+      it('refuses before it looks at the slug, so a stranger cannot probe which addresses are taken', async () => {
+        await create({ ownerId: MEMBER, name: 'Camille & Sacha' })
+
+        const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+        expect(!result.ok && result.error.code).toBe('event.creationNotAllowed')
+      })
+
+      it('allows the operator, with no client', async () => {
+        const created = unwrap(await create({ ownerId: OPERATOR, name: 'Camille & Sacha' }))
+
+        expect(created.clientId).toBeNull()
+      })
+
+      it('allows a member, and the event carries the client', async () => {
+        const created = unwrap(await create({ ownerId: MEMBER, name: 'Camille & Sacha' }))
+
+        expect(created.clientId).toBe(CLIENT_1)
+      })
+
+      it('does not treat a disabled operator as one', async () => {
+        users.seed(
+          aUser({
+            id: OPERATOR,
+            email: 'operator@example.test',
+            siteRole: 'operator',
+            disabledAt: AT,
+          }),
+        )
+
+        const result = await create({ ownerId: OPERATOR, name: 'Camille & Sacha' })
+
+        expect(!result.ok && result.error.code).toBe('event.creationNotAllowed')
+      })
+    })
+
+    // -------------------------------------------------- the creation ceilings --
+
+    /**
+     * The two ceilings that live in `createWithOwner`'s transaction. The rest of §10.5
+     * — the quota clamp, retention, clips, suspension, going live — is G2-05's.
+     */
+    describe('the ceilings of the client', () => {
+      let create: CreateEvent
+      beforeEach(() => {
+        create = policyCreateEvent('clientMembers')
+      })
+
+      it('refuses the event after the one that reaches the client’s total ceiling', async () => {
+        clients.seed(aClient({ id: CLIENT_1, ceilings: { maxEvents: 1 } }))
+
+        const first = await create({ ownerId: MEMBER, name: 'Un premier soir' })
+        const second = await create({ ownerId: MEMBER, name: 'Un second soir' })
+
+        expect(first.ok).toBe(true)
+        expect(!second.ok && second.error.code).toBe('client.ceilingReached')
+        expect(!second.ok && second.error.kind).toBe('conflict')
+        expect(!second.ok && second.error.details).toEqual({ ceiling: 'events', used: 1, max: 1 })
+      })
+
+      it('creates nothing, and grants nothing, for the event a ceiling refuses', async () => {
+        clients.seed(aClient({ id: CLIENT_1, ceilings: { maxEvents: 1 } }))
+        await create({ ownerId: MEMBER, name: 'Un premier soir' })
+
+        await create({ ownerId: MEMBER, name: 'Un second soir' })
+
+        expect(await events.findBySlug(slug('un-second-soir'))).toBeNull()
+        expect(await memberships.listForUser(MEMBER)).toHaveLength(1)
+        expect((await clients.findById(CLIENT_1))?.eventsCreatedInPeriod).toBe(1)
+      })
+
+      it('refuses create, delete, recreate under max_events_per_period=1', async () => {
+        clients.seed(
+          aClient({ id: CLIENT_1, ceilings: aClientCeilings({ maxEventsPerPeriod: 1 }) }),
+        )
+
+        const first = unwrap(await create({ ownerId: MEMBER, name: 'Un premier soir' }))
+        await events.delete(first.id)
+        const again = await create({ ownerId: MEMBER, name: 'Un second soir' })
+
+        expect(!again.ok && again.error.code).toBe('client.ceilingReached')
+        expect(!again.ok && again.error.details).toMatchObject({ ceiling: 'eventsPerPeriod' })
+      })
+
+      it('holds each client to its own ceiling, not to a neighbour’s', async () => {
+        clients.seed(aClient({ id: CLIENT_1, ceilings: { maxEvents: 1 } }))
+        await create({ ownerId: MEMBER, name: 'Un premier soir' })
+
+        const other = await create({
+          ownerId: TWO_CLIENTS,
+          clientId: CLIENT_2,
+          name: 'Un autre soir',
+        })
+
+        expect(other.ok).toBe(true)
+      })
+    })
+  })
+
+  // ===================================================== one atomic creation ==
+
+  it('leaves no event behind when the owner cannot be granted, instead of an event nobody can open', async () => {
+    // What `createEvent` used to do: `save`, then `grant`. A failure between the two left
+    // a row with no owner membership, which no one could open and no one could delete.
+    vi.spyOn(memberships, 'grant').mockRejectedValue(new Error('the membership write failed'))
+
+    await expect(createEvent({ ownerId: OWNER, name: 'Camille & Sacha' })).rejects.toThrow(
+      /membership write failed/,
+    )
+
+    expect(await events.findBySlug(slug('camille-sacha'))).toBeNull()
   })
 })
