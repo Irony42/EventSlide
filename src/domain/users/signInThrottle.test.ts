@@ -45,12 +45,13 @@ const pile = (
   client = HOME,
 ): number => {
   let now = from
-  for (let made = 0; made < count; made += 1) {
+  let made = 0
+  // Bounded: a throttle that kept asking for longer waits would otherwise spin here for ever.
+  for (let tries = 0; made < count; tries += 1) {
+    if (tries > count * 2 + 10) throw new Error(`still being asked to wait after ${tries} tries`)
     const verdict = throttle.begin(account, client, now)
-    if (verdict.kind === 'wait') {
-      now += verdict.retryAfterSeconds * SECOND
-      made -= 1
-    }
+    if (verdict.kind === 'wait') now += verdict.retryAfterSeconds * SECOND
+    else made += 1
   }
   return now
 }

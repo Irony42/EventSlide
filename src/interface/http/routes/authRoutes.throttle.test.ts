@@ -89,9 +89,15 @@ interface SubjectOptions {
   /** The per-client limit. Out of the way by default: most of these tests are about the other one. */
   readonly perMinute?: number
   readonly gate?: Promise<void>
+  /** Session regeneration fails, as when the store goes away between the password and the cookie. */
+  readonly sessionStoreDown?: boolean
 }
 
-const subjectOf = ({ perMinute = 10_000, gate }: SubjectOptions = {}): Subject => {
+const subjectOf = ({
+  perMinute = 10_000,
+  gate,
+  sessionStoreDown = false,
+}: SubjectOptions = {}): Subject => {
   const users = new FakeUserRepository()
   users.seed(aUser({ id: OWNER_ID, email: OWNER, displayName: 'Camille' }))
   users.seed(aUser({ id: 'former-id', email: FORMER, disabledAt: new Date(0) }))
@@ -120,6 +126,15 @@ const subjectOf = ({ perMinute = 10_000, gate }: SubjectOptions = {}): Subject =
       // One proxy hop, so `X-Forwarded-For` is the client address: the only way a test can
       // present more than one network, and the deployment this product actually has.
       app.set('trust proxy', 1)
+      if (sessionStoreDown) {
+        app.use((req, _res, next) => {
+          req.session.regenerate = (done) => {
+            done(new Error('session store unavailable'))
+            return req.session
+          }
+          next()
+        })
+      }
       app.use(
         '/api',
         authRoutes({
@@ -199,7 +214,9 @@ const failFrom = async (subject: Subject, count: number, attempt: Attempt = {}):
  */
 const pileUp = async (subject: Subject, count: number, attempt: Attempt = {}): Promise<void> => {
   let failures = 0
-  while (failures < count) {
+  // Bounded: a throttle that kept asking for longer waits would otherwise loop here for ever.
+  for (let tries = 0; failures < count; tries += 1) {
+    if (tries > count * 2 + 10) throw new Error(`still being asked to wait after ${tries} tries`)
     const response = await signIn(subject, attempt)
     if (response.status === 429) {
       subject.clock.advance(Number(response.headers['retry-after']) * 1_000)
@@ -395,6 +412,17 @@ describe('the sign-in throttle, per account', () => {
           .send(body)
         expect(response.status).toBe(400)
       }
+    }
+    await failFrom(subject, 5)
+
+    expect((await signIn(subject)).status).toBe(429)
+  })
+
+  it('does not charge a sign-in that failed on the server after the right password', async () => {
+    const subject = subjectOf({ sessionStoreDown: true })
+
+    for (let tries = 0; tries < 5; tries += 1) {
+      expect((await signIn(subject, { password: PASSWORD })).status).toBe(500)
     }
     await failFrom(subject, 5)
 

@@ -308,7 +308,11 @@ yet. The rules, each with the test that holds it:
 - **At most 3 mails an hour per address** (`PASSWORD_RESET_MAX_REQUESTS_PER_HOUR`), counted on
   what was _issued_. The per-client rate limit (the sign-in budget, its own limiter per route)
   bounds an attacker's speed and says nothing about **whom** they write to; this bounds how
-  many mails any inbox can be made to receive, from any number of networks.
+  many mails any inbox can be made to receive, from any number of networks. The per-account
+  throttle (§5) sits in front of it and slows one address from one network (five requests
+  free, then a growing wait, `429 rate.limited`); it counts every request, so it answers a
+  real address and an invented one alike, and a request it refuses is never mailed and never
+  counts toward the three.
 - **A box with no mail relay has no self-service reset**, and says so: `404
 feature.unavailable`, `features.forgotPassword = false` on `/api/about`. The link is **never**
   shown to the person who typed the address — that would let anyone take over any account. This
@@ -911,7 +915,7 @@ on a restart loop)**.
 
 | Endpoint                                      | Per IP       | Per event              | Per guest token | Window |
 | --------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
-| `POST /api/auth/login`                        | 10           | —                      | —               | 1 min  |
+| `POST /api/auth/login` †                      | 10           | —                      | —               | 1 min  |
 | `POST /api/events` (create)\*                 | —            | —                      | —               | 1 hour |
 | `GET /api/join/:code` (code lookup)           | 20           | 60                     | —               | 1 min  |
 | `POST /api/events/:slug/guests` (join)        | 10           | 60                     | —               | 1 min  |
@@ -968,6 +972,70 @@ behalf — is served by the composite key rather than by three tiers.
   200 per event and 500 per process. The whole SSE row of the table above — and the login
   and join-code rows with it — describes numbers and a route that were never built. See
   §14.7.
+
+† **Also throttled per account**, which no column of this table can say: see the next
+section. The 10 per minute per client, over a one-minute window, is unchanged and is what
+the code does; a quarter hour belongs to the gallery unlock alone.
+
+### Sign-in, per account, and why there is no lockout (G3-04 / P4-07)
+
+The per-client limit counts requests from one address and cannot see **whom** they are
+aimed at: a botnet has a fresh allowance per address, and one address can try ten passwords
+a minute against the same account for as long as it likes. This is the half that counts
+attempts per account, and the whole design is about not turning that counter into a weapon,
+because anyone who knows an owner's address can type wrong passwords into it.
+
+| Bucket                      | Key                                                      | Counts   | What it does                                                                                                                     |
+| --------------------------- | -------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Client                      | the client's address, IPv6 collapsed to its /56          | requests | unchanged: 10 a minute, `429 rate.limited`                                                                                       |
+| Account, from one network   | HMAC of the normalised address, **and** the client's /56 | failures | five free; after `n` failures the next attempt waits `2^(n-5)` s from the previous one, capped at **15 minutes**                 |
+| Account, from every network | HMAC of the normalised address alone                     | failures | beyond **100 in an hour**, every attempt is **held 2 seconds** before it is looked at, never refused; one `warn` line per window |
+
+- **There is never a lockout.** The stranger's failures spend the stranger's network's
+  bucket, and the owner on another network has a bucket of their own: after ten failures
+  from ten prefixes the owner signs in from their usual one with no wait at all. The
+  account-wide bucket can only _slow_ an attempt, by a fixed two seconds, so it can neither
+  refuse the right password nor grow. The worst a network can do to the owner **on that same
+  network** is fifteen minutes after its last failure, and the wait is a function of the
+  failures it caused itself, never of the attempts it was refused. Sessions that are already
+  open are not consulted at all.
+- **The right password is refused while a wait runs, and accepted when it is over.** A wait
+  that checked the password first would not slow a guess. After the wait the next attempt is
+  an ordinary one, and a success clears the wait of the network it came from.
+- **Failures only.** An attempt is reserved when it starts and given back unless it ends
+  `401`: a success, a `500` after the right password and a body the handler refuses as
+  malformed (which never reaches a comparison, and has no address to count against) spend
+  nothing. Reserving at the start, instead of counting at the end, is what stops twelve
+  guesses started together from all seeing an empty counter. A refusal is not a failure
+  either, so knocking during a wait does not lengthen it.
+- **The answer does not depend on the account.** The throttle never sees the outcome of the
+  lookup: an address that is an account, one that is not, a switched-off account and a
+  malformed address spend the same budget and get the same `429 rate.limited` after the same
+  number of tries, with the same `Retry-After`. The code is the per-client limit's, so the
+  response does not say which bucket spoke. A ring-4 test compares the whole sequence.
+- **The address is keyed, not stored.** The key is an HMAC under `SESSION_SECRET` of the
+  address as the lookup normalises it (trimmed, lower-cased), so `Camille@Example.test` and
+  `camille@example.test` are one budget and not two, and a heap dump holds digests. The
+  stuffing alert logs the first twelve characters of the digest and never the address.
+- **Asking for a reset link is throttled by the same mechanism, with a budget of its own**
+  (a failed sign-in does not spend it, nor the other way round), counting every request,
+  because the answer is the same `202` for everyone and there is no failure to count. It
+  sits ahead of the cap of three mails an hour per address (§2) and does not replace it: a
+  throttled request is never mailed and never counts toward the three, and a request the
+  throttle admits is answered by the cap exactly as before. `password-reset/confirm` is
+  keyed by a token, not an address, and keeps the per-client limit alone.
+- **In memory, and bounded.** Two tables, at most 20 000 entries each (stale entries first,
+  then the oldest), because the number of distinct addresses a stranger may type is theirs
+  to choose; a pair is forgotten an hour after its last failure. A restart forgets
+  everything, like the per-client limiter. Forgetting only ever hands an attacker a few free
+  tries; it can not refuse anybody.
+
+Held by `domain/users/signInThrottle.test.ts` (the arithmetic, the bound, the independence of
+the buckets) and `routes/authRoutes.throttle.test.ts` (ring 4: per account across networks,
+per client across accounts, an unknown address answered identically, the right password after
+the wait, no lockout, a hundred failures held and never refused). The rules are in
+`domain/users/signInThrottle.ts`, the HTTP side in `middleware/signInThrottle.ts`, and it is
+mounted in `routes/authRoutes.ts` behind `loginLimiter`.
 
 ### A client's ceilings, on every write path
 
@@ -1060,7 +1128,7 @@ force-closed: `max_live_days` bounds it, and quarantine is about opening.
 | Timeouts                       | idle 12 h (`rolling: true`), **and 7 days absolute** from login — `enforceSessionAge`, ahead of `attachUser`; see §2                                                                         | a projector laptop is left unlocked at a venue, and `rolling` alone never expires an active session           |
 | `resave` / `saveUninitialized` | `false` / `false`                                                                                                                                                                            | no row for an anonymous visitor; no write amplification                                                       |
 | Password hashing               | bcrypt cost 12                                                                                                                                                                               | 1.0 used cost 10 and a hardcoded hash                                                                         |
-| Failed login                   | generic `auth.invalidCredentials`, and a bcrypt compare against a dummy hash when the user does not exist                                                                                    | otherwise response time enumerates accounts                                                                   |
+| Failed login                   | generic `auth.invalidCredentials`, and a bcrypt compare against a dummy hash when the user does not exist; failures are also throttled per account, with no lockout (§5)                     | otherwise response time enumerates accounts                                                                   |
 | Logout                         | `req.session.destroy()` **and** `res.clearCookie('es_sid')`                                                                                                                                  | 1.0 called `req.logout()` and left the session row behind                                                     |
 | Credentials change             | the credentials epoch (`users.credentials_changed_at`) is raised by a password change, a reset, "sign out everywhere" and switching the account off; the caller's own session is regenerated | `sessions` has no `user_id`, so the account says when, and `enforceSessionAge` refuses older sessions. See §2 |
 
@@ -1756,6 +1824,7 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 | A leaked display URL exposes published photos **and the join code**      | the wall doubles as the invitation — the empty state exists to tell the room how to join, and someone arriving at 23:00 has only the screen to read. Withholding the code there would break the product to protect what the QR code on every table already gives away                                       | only `published` photos are ever served; the host can rotate the join code, which invalidates it immediately; display access can require the join code for private events **(planned)** |
 | Guest identity is a device cookie, not a person                          | anonymity is a feature; a cleared cookie means a new guest, and a shared phone means a shared identity. This is also the ceiling on revocation (§11): it refuses the revoked **device**, so clearing cookies or borrowing a phone is a new guest with the same code                                         | grace-window deletion is deliberately short, so a mis-attributed identity has a narrow blast radius; revocation stops the re-scan, and a join-code rotation is what stops the evader    |
 | Captions and display names are guest-supplied text on a 3 m screen       | pre-moderating text as well as photos would slow the wall to uselessness                                                                                                                                                                                                                                    | length-bounded, control characters stripped in the domain, rendered as text (React escapes; no `dangerouslySetInnerHTML` anywhere), and the host can hide any photo instantly           |
+| A stranger on the owner's own network can slow the owner's sign-in       | keyed by account **and** network, so the owner's other networks are untouched and the wait is capped at fifteen minutes after the stranger's last failure; a bucket shared across networks would be a lockout, which is worse (§5). Sessions already open are never touched                                 |
 | Rate-limit state is in-process in the first cut                          | a restart resets buckets                                                                                                                                                                                                                                                                                    | quota is transactional and survives restarts; SQLite-backed limiter store is **(planned)**                                                                                              |
 | An event's byte quota can be held by clips that never become photographs | the staged source is charged from the moment it lands, because it is on the disk the quota protects, and released only when the job reaches `done` or `failed`. Both the depth and the byte total are decided inside `ClipJobRepository.stage`'s own transaction, so two uploads in flight cannot both pass | bounded by the event's own queue at `MAX_QUEUED_CLIPS x MAX_CLIP_BYTES`, and released as each clip finishes or fails (§4.1)                                                             |
 | One event can fill the clip queue for every event on the box             | backpressure is process-wide because the worker is: one encoder at concurrency 1 serves the whole machine, and the wait a guest experiences is the global one. A per-event cap would admit a clip and then make it queue behind another event's backlog anyway — the same wait, reported as a success       | the deployment target is one venue with one live event; per-event fairness is carried by the byte quota and by the upload limiter, which is keyed by event                              |
