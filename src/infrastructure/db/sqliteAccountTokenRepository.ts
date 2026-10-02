@@ -67,15 +67,16 @@ interface AccountTokenRow {
 /**
  * The definition of "could be spent right now", in SQL, with one placeholder: `now`.
  *
- * Written once and used by both {@link SqliteAccountTokenRepository.findUsable} and
- * {@link SqliteAccountTokenRepository.consume}, so what a lookup calls usable and what a
- * spend accepts cannot drift apart. `expires_at > now` is exclusive on purpose: a token is
+ * Written once and used by {@link SqliteAccountTokenRepository.findUsable},
+ * {@link SqliteAccountTokenRepository.consume} and the invitation's acceptance
+ * (`SqliteInvitationAcceptance`), so what a lookup calls usable and what a spend accepts
+ * cannot drift apart. `expires_at > now` is exclusive on purpose: a token is
  * dead at its expiry. The approval clause is the reason this is not simply "not consumed":
  * a token that needs somebody else's approval is not spendable until it has it.
  *
  * ISO-8601 UTC text sorts as time, which is what makes these string comparisons honest.
  */
-const USABLE = `consumed_at IS NULL
+export const ACCOUNT_TOKEN_USABLE_SQL = `consumed_at IS NULL
                 AND revoked_at IS NULL
                 AND expires_at > ?
                 AND (requires_approval = 0 OR approved_at IS NOT NULL)`
@@ -184,7 +185,7 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
     const row = this.db
       .prepare<[string, string, string], AccountTokenRow>(
         `SELECT ${COLUMNS} FROM account_tokens
-          WHERE token_digest = ? AND purpose = ? AND ${USABLE}`,
+          WHERE token_digest = ? AND purpose = ? AND ${ACCOUNT_TOKEN_USABLE_SQL}`,
       )
       .get(digest, purpose, toIsoText(now))
 
@@ -196,7 +197,7 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
     const result = this.db
       .prepare<[string, string, string]>(
         `UPDATE account_tokens SET consumed_at = ?
-          WHERE id = ? AND ${USABLE}`,
+          WHERE id = ? AND ${ACCOUNT_TOKEN_USABLE_SQL}`,
       )
       .run(at, id, at)
 

@@ -92,7 +92,7 @@ const LATEST_EPOCH = `NULLIF(MAX(COALESCE(users.credentials_changed_at, ''),
  */
 const KEPT_VERIFICATION = `COALESCE(users.email_verified_at, excluded.email_verified_at)`
 
-const UPSERT_USER = `
+export const UPSERT_USER = `
   INSERT INTO users (id, email, display_name, password_hash, created_at,
                      last_login_at, must_change_password, disabled_at, site_role,
                      credentials_changed_at, email_verified_at)
@@ -163,6 +163,38 @@ const toUser = (row: UserRow): User =>
     credentialsChangedAt: fromNullableIsoText(row.credentials_changed_at),
     emailVerifiedAt: fromNullableIsoText(row.email_verified_at),
   })
+
+/** The values of `UPSERT_USER`, in its order: one place that knows the column list. */
+export const userRow = (
+  user: User,
+): [
+  string,
+  string,
+  string | null,
+  string,
+  string,
+  string | null,
+  number,
+  string | null,
+  SiteRole,
+  string | null,
+  string | null,
+] => {
+  const props = user.toProps()
+  return [
+    props.id,
+    props.email.value,
+    props.displayName,
+    props.passwordHash,
+    toIsoText(props.createdAt),
+    props.lastLoginAt === null ? null : toIsoText(props.lastLoginAt),
+    toSqliteBoolean(props.mustChangePassword),
+    props.disabledAt === null ? null : toIsoText(props.disabledAt),
+    props.siteRole,
+    props.credentialsChangedAt === null ? null : toIsoText(props.credentialsChangedAt),
+    props.emailVerifiedAt === null ? null : toIsoText(props.emailVerifiedAt),
+  ]
+}
 
 export class SqliteUserRepository implements UserRepository {
   constructor(private readonly db: Db) {}
@@ -258,37 +290,7 @@ export class SqliteUserRepository implements UserRepository {
   }
 
   async save(user: User): Promise<void> {
-    const props = user.toProps()
-
-    this.db
-      .prepare<
-        [
-          string,
-          string,
-          string | null,
-          string,
-          string,
-          string | null,
-          number,
-          string | null,
-          SiteRole,
-          string | null,
-          string | null,
-        ]
-      >(UPSERT_USER)
-      .run(
-        props.id,
-        props.email.value,
-        props.displayName,
-        props.passwordHash,
-        toIsoText(props.createdAt),
-        props.lastLoginAt === null ? null : toIsoText(props.lastLoginAt),
-        toSqliteBoolean(props.mustChangePassword),
-        props.disabledAt === null ? null : toIsoText(props.disabledAt),
-        props.siteRole,
-        props.credentialsChangedAt === null ? null : toIsoText(props.credentialsChangedAt),
-        props.emailVerifiedAt === null ? null : toIsoText(props.emailVerifiedAt),
-      )
+    this.db.prepare(UPSERT_USER).run(...userRow(user))
   }
 
   async delete(id: UserId): Promise<void> {
