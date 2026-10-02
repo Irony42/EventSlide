@@ -95,6 +95,17 @@ export interface NoticePolicy {
   readonly guestSelfDeleteGraceSeconds: number
 }
 
+/**
+ * The longest operator name `OPERATOR_NAME` may carry, in UTF-16 units.
+ *
+ * Here and not in `env.ts` because it is a property of the notice: the name is the last
+ * clause of {@link PrivacyNotice.revision}, and a guest sends the revision back when they
+ * press "J'ai compris". The HTTP schema that receives it caps the text at 512, so this
+ * number has to leave room under it for the other four clauses; `privacyNotice.test.ts`
+ * holds the two together.
+ */
+export const OPERATOR_NAME_MAX_LENGTH = 100
+
 export interface PrivacyNotice {
   readonly publication: NoticePublication
   readonly audiences: readonly NoticeAudience[]
@@ -124,6 +135,20 @@ export interface PrivacyNotice {
    * the screen": a photo approved and then hidden is off the screen and still refused.
    */
   readonly selfRemovalSeconds: number | null
+  /**
+   * Who hosts the photo, as the box's operator named themselves (`OPERATOR_NAME`), or
+   * `null` on a box whose operator said nothing — which is every self-hosted box.
+   *
+   * The notice is where a guest is told *who* holds their photograph, and a self-hoster
+   * has no one to name: the host of the event is the only party, and the notice already
+   * says so ("the organiser"). An instance run for other people is a second party — a
+   * processor of the hosts' data and, for the guest, the one a complaint is addressed to —
+   * so it names itself here, once, in the guest's own screen (roadmap G2-17).
+   *
+   * It is part of the revision when present, because a guest who read a notice naming no
+   * one has not read one naming an operator.
+   */
+  readonly operator: string | null
   /**
    * The notice's identity: two notices with the same revision say the same thing.
    *
@@ -177,6 +202,14 @@ const selfRemovalFor = (policy: NoticePolicy): number | null => {
  * has ever had. It also cannot collide, which a 32-bit hash could, and a collision here
  * would be a guest silently not re-asked about a changed retention period.
  *
+ * **The operator is the last clause, and only when there is one.** A box that names no
+ * operator produces the revision it always produced, character for character, so a
+ * self-hosted install that upgrades does not ask one of its guests to read the notice
+ * again; a box that starts naming one, changes the name, or stops, does — it reads
+ * differently, and "reads differently" is the whole definition of material here.
+ * Last, because the name is free text: placed after the fixed clauses it can lengthen
+ * only itself.
+ *
  * **Material means "reads differently", and nothing else.** Every field above is in it
  * and nothing outside the notice is: changing the accent colour, the wall's language or
  * the caption switch leaves every acknowledgement valid, because none of them changes
@@ -192,15 +225,26 @@ const revisionOf = (notice: Omit<PrivacyNotice, 'revision'>): string =>
     `audiences=${notice.audiences.join('+')}`,
     `retention=${notice.retentionDays ?? 'none'}`,
     `selfRemoval=${notice.selfRemovalSeconds ?? 'none'}`,
+    ...(notice.operator === null ? [] : [`operator=${notice.operator}`]),
   ].join(';')
 
-/** The notice a guest of an event with this policy must read before their first upload. */
-export const privacyNoticeFor = (policy: NoticePolicy): PrivacyNotice => {
+/**
+ * The notice a guest of an event with this policy must read before their first upload.
+ *
+ * `operator` is the box's `OPERATOR_NAME`, already validated by the configuration, and
+ * `null` unless the operator set it. It is a parameter and not a policy field because it
+ * belongs to the box, not to the event: no host setting moves it.
+ */
+export const privacyNoticeFor = (
+  policy: NoticePolicy,
+  operator: string | null = null,
+): PrivacyNotice => {
   const clauses = {
     publication: publicationFor(policy.moderation),
     audiences: [...NOTICE_AUDIENCES],
     retentionDays: policy.retentionDays,
     selfRemovalSeconds: selfRemovalFor(policy),
+    operator,
   }
   return { ...clauses, revision: revisionOf(clauses) }
 }

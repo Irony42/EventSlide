@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { EventSettings, type EventSettingsPatch } from '../events/eventSettings'
-import { NOTICE_AUDIENCES, privacyNoticeFor, type NoticePolicy } from './privacyNotice'
+import {
+  NOTICE_AUDIENCES,
+  OPERATOR_NAME_MAX_LENGTH,
+  privacyNoticeFor,
+  type NoticePolicy,
+} from './privacyNotice'
 
 /**
  * The notice is a function of the event's settings, so every clause is tested by moving
@@ -184,5 +189,80 @@ describe('privacyNoticeFor — the revision', () => {
     )
 
     expect(after.revision).toBe(before.revision)
+  })
+})
+
+describe('privacyNoticeFor — who hosts it (roadmap G2-17)', () => {
+  const HOST = 'Association Les Photographes'
+
+  it('names no operator on a box that configured none, which is every self-hosted box', () => {
+    expect(privacyNoticeFor(settings()).operator).toBeNull()
+    expect(privacyNoticeFor(settings(), null).operator).toBeNull()
+  })
+
+  it('names the operator the box was configured with', () => {
+    expect(privacyNoticeFor(settings(), HOST).operator).toBe(HOST)
+  })
+
+  it('leaves the revision exactly as it was when no operator is named, so nobody is asked again', () => {
+    // The self-hosted promise: a box that sets none of the operator keys must not see a
+    // single guest shown the notice a second time because a release added a clause. The
+    // string is spelled out, as in the test above, so a new clause that always prints
+    // fails here and not in front of a room.
+    const notice = privacyNoticeFor(
+      settings({ moderation: 'manual', retentionDays: 30, guestSelfDeleteGraceSeconds: 900 }),
+      null,
+    )
+
+    expect(notice.revision).toBe(
+      'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900',
+    )
+    expect(notice.revision).toBe(
+      privacyNoticeFor(
+        settings({ moderation: 'manual', retentionDays: 30, guestSelfDeleteGraceSeconds: 900 }),
+      ).revision,
+    )
+  })
+
+  it('spells the operator out at the end of the revision, so the stored value says who hosted', () => {
+    const notice = privacyNoticeFor(settings({ retentionDays: 30 }), HOST)
+
+    expect(notice.revision).toBe(
+      `publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900;operator=${HOST}`,
+    )
+  })
+
+  it('changes the revision when an operator starts to be named, so guests read who hosts them', () => {
+    const before = privacyNoticeFor(settings({ retentionDays: 30 }), null)
+    const after = privacyNoticeFor(settings({ retentionDays: 30 }), HOST)
+
+    expect(after.revision).not.toBe(before.revision)
+  })
+
+  it('changes the revision when the operator changes, because another party now holds the photos', () => {
+    const before = privacyNoticeFor(settings(), HOST)
+    const after = privacyNoticeFor(settings(), 'Another Operator')
+
+    expect(after.revision).not.toBe(before.revision)
+  })
+
+  it('changes the revision when the operator is withdrawn, which is a change to what the guest read', () => {
+    const before = privacyNoticeFor(settings(), HOST)
+    const after = privacyNoticeFor(settings(), null)
+
+    expect(after.revision).not.toBe(before.revision)
+  })
+
+  it('keeps the longest name an operator may configure within the revision a guest can send back', () => {
+    // `noticeAcknowledgementBody` caps the revision at 512; a name that pushed the revision
+    // past it would answer 400 to every guest who pressed "J'ai compris", on a box whose
+    // operator did nothing wrong. 512 is repeated here on purpose: the schema is in another
+    // layer, and this is the number the two layers have to agree on.
+    const longest = privacyNoticeFor(
+      settings({ moderation: 'manual', retentionDays: 3650, guestSelfDeleteGraceSeconds: 86_400 }),
+      'N'.repeat(OPERATOR_NAME_MAX_LENGTH),
+    )
+
+    expect(longest.revision.length).toBeLessThan(512)
   })
 })
