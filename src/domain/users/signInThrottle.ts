@@ -87,10 +87,15 @@ export const waitSecondsAfter = (failures: number): number => {
   return Math.min(2 ** doublings, MAX_WAIT_SECONDS)
 }
 
-/** One (account, network) pair: how many failures, and when the latest was counted. */
+/**
+ * One (account, network) pair: how many failures, when the latest was counted, and when the
+ * one before it was. The last is what a refund puts back, so that an attempt which turns out
+ * not to have been a guess does not leave a fresh wait behind it.
+ */
 interface Slowdown {
   readonly failures: number
   readonly lastAtMs: number
+  readonly priorAtMs: number
 }
 
 /** One account over an hour: how many failures, since when, and whether it was reported. */
@@ -179,7 +184,7 @@ export class SignInThrottle {
     remember(
       this.slowdowns,
       key,
-      { failures: (slow?.failures ?? 0) + 1, lastAtMs: nowMs },
+      { failures: (slow?.failures ?? 0) + 1, lastAtMs: nowMs, priorAtMs: slow?.lastAtMs ?? nowMs },
       this.limit,
       (entry) => nowMs - entry.lastAtMs >= FAILURE_MEMORY_MS,
     )
@@ -202,15 +207,18 @@ export class SignInThrottle {
   }
 
   /**
-   * The attempt was not a failed guess (the request was malformed, the server failed): give
-   * back what {@link begin} reserved.
+   * The attempt was not a failed guess (the server failed after the right password): give
+   * back what {@link begin} reserved, **including the instant it stamped**, so a wait that was
+   * over when the attempt was admitted is still over when it is refunded. Otherwise a transient
+   * `500` for the owner would cost them a fresh wait, up to fifteen minutes.
    */
   refund(account: string, client: string): void {
     const key = pairKey(client, account)
     const slow = this.slowdowns.get(key)
     if (slow !== undefined) {
       if (slow.failures <= 1) this.slowdowns.delete(key)
-      else this.slowdowns.set(key, { ...slow, failures: slow.failures - 1 })
+      else
+        this.slowdowns.set(key, { ...slow, failures: slow.failures - 1, lastAtMs: slow.priorAtMs })
     }
     this.refundHour(account)
   }

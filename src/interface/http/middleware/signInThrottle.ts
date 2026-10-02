@@ -56,6 +56,8 @@ export interface SignInThrottleOptions {
    */
   readonly addressOf: (body: unknown) => string | undefined
   readonly counts: 'failures' | 'every'
+  /** The one line logged when an account starts being held, without the address in it. */
+  readonly alert: string
   readonly clock: Clock
   readonly logger: Logger
   /** `SESSION_SECRET`: the key of the digest an address is tracked under. */
@@ -86,6 +88,7 @@ const accountDigest = (secret: string, raw: string): string => {
 export const signInThrottle = ({
   addressOf,
   counts,
+  alert,
   clock,
   logger,
   secret,
@@ -121,9 +124,7 @@ export const signInThrottle = ({
     if (admission.credentialStuffing) {
       // The digest's first characters, not the address: enough to tell one account's alert
       // from another's, and the operator can compute the same HMAC to find out whose.
-      logger.warn('credential stuffing on one account: every attempt on it is being held', {
-        account: account.slice(0, 12),
-      })
+      logger.warn(alert, { account: account.slice(0, 12) })
     }
 
     if (counts === 'failures') {

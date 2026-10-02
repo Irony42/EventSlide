@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   FAILURE_MEMORY_MS,
   FREE_FAILURES,
+  MAX_TRACKED_KEYS,
   MAX_WAIT_SECONDS,
   STUFFING_FAILURES_PER_HOUR,
   STUFFING_HOLD_MS,
@@ -222,6 +223,41 @@ describe('SignInThrottle, what a non-failure gives back', () => {
     expect(throttle.begin(OWNER, HOME, T0 + 20).kind).toBe('wait')
   })
 
+  it('a refund gives back one attempt and keeps the others', () => {
+    const throttle = new SignInThrottle()
+    for (let i = 0; i < 3; i += 1) fail(throttle, T0 + i)
+    throttle.refund(OWNER, HOME)
+
+    // Two are left, so three more make five, and only then is the next asked to wait.
+    for (let i = 0; i < 3; i += 1) fail(throttle, T0 + 10 + i)
+    expect(throttle.begin(OWNER, HOME, T0 + 20)).toEqual({ kind: 'wait', retryAfterSeconds: 1 })
+  })
+
+  it('a refund gives back the instant too, so a wait that was over is still over', () => {
+    const throttle = new SignInThrottle()
+    const last = pile(throttle, 8, T0)
+    const later = last + 8 * SECOND // exactly when the wait of eight seconds ends
+    expect(fail(throttle, later).kind).toBe('admit')
+
+    throttle.refund(OWNER, HOME)
+
+    // The attempt that was admitted turned out not to be a guess (the server failed after the
+    // right password): it must not leave a fresh wait behind it.
+    expect(throttle.begin(OWNER, HOME, later).kind).toBe('admit')
+  })
+
+  it('a success gives the account-wide count back', () => {
+    const throttle = new SignInThrottle()
+    for (let i = 0; i < STUFFING_FAILURES_PER_HOUR - 1; i += 1) {
+      fail(throttle, T0 + i, OWNER, `botnet-${i}`)
+    }
+
+    for (let i = 0; i < 50; i += 1) {
+      expect(fail(throttle, T0 + 1_000 + i, OWNER, `owner-${i}`).holdMs).toBe(0)
+      throttle.succeeded(OWNER, `owner-${i}`)
+    }
+  })
+
   it('refunding an attempt that was never reserved changes nothing', () => {
     const throttle = new SignInThrottle()
 
@@ -307,6 +343,18 @@ describe('SignInThrottle, one account attacked from every network', () => {
     })
   })
 
+  it('is not pushed over the line by attempts that were turned away', () => {
+    const throttle = new SignInThrottle()
+    pile(throttle, 20, T0)
+
+    for (let i = 0; i < 500; i += 1) {
+      expect(throttle.begin(OWNER, HOME, T0 + i).kind).toBe('wait')
+    }
+
+    // 20 failures and 500 refusals: only the 20 count against the account, so nobody is held.
+    expect(fail(throttle, T0 + 600, OWNER, 'elsewhere').holdMs).toBe(0)
+  })
+
   it('leaves another account alone', () => {
     const throttle = new SignInThrottle()
     stuff(throttle, STUFFING_FAILURES_PER_HOUR + 5)
@@ -347,6 +395,28 @@ describe('SignInThrottle, how much it remembers', () => {
     expect(throttle.tracked.pairs).toBe(3)
     // Forgotten, so it is not asked to wait for its eight failures any more.
     expect(throttle.begin('recent', HOME, last + 4).kind).toBe('admit')
+  })
+
+  it('keeps the entries that were used last, not the ones that were added first', () => {
+    const throttle = new SignInThrottle(3)
+    let now = T0
+    for (const account of ['a', 'b', 'c']) now = pile(throttle, 6, now + 1, account, HOME)
+    // 'a' is the oldest entry, and is then used again: 'b' is now the one nobody has touched.
+    now = pile(throttle, 1, now + 1, 'a', HOME)
+
+    fail(throttle, now + 1, 'd', HOME) // full: one entry makes room
+
+    expect(throttle.begin('a', HOME, now + 1).kind).toBe('wait')
+    expect(throttle.begin('b', HOME, now + 1).kind).toBe('admit')
+  })
+
+  it('bounds the tables at MAX_TRACKED_KEYS unless told otherwise', () => {
+    const throttle = new SignInThrottle()
+
+    for (let i = 0; i < MAX_TRACKED_KEYS + 5; i += 1) fail(throttle, T0 + i, `account-${i}`, HOME)
+
+    expect(throttle.tracked).toEqual({ pairs: MAX_TRACKED_KEYS, accounts: MAX_TRACKED_KEYS })
+    expect(MAX_TRACKED_KEYS).toBe(20_000)
   })
 
   it('treats a limit below one as one', () => {

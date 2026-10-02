@@ -178,17 +178,27 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
   const accountThrottle = (
     counts: SignInThrottleOptions['counts'],
     addressOf: SignInThrottleOptions['addressOf'],
+    alert: string,
   ): RequestHandler =>
     signInThrottle({
       addressOf,
       counts,
+      alert,
       clock: deps.clock,
       logger: deps.logger,
       secret: deps.config.sessionSecret,
       ...(throttleHold === undefined ? {} : { hold: throttleHold }),
     })
-  const signInAccountThrottle = accountThrottle('failures', loginAddress)
-  const resetRequestAccountThrottle = accountThrottle('every', resetAddress)
+  const signInAccountThrottle = accountThrottle(
+    'failures',
+    loginAddress,
+    'credential stuffing on one account: every sign-in attempt on it is being held',
+  )
+  const resetRequestAccountThrottle = accountThrottle(
+    'every',
+    resetAddress,
+    'password reset requests flooding one address: every request for it is being held',
+  )
 
   router.post(
     '/auth/login',

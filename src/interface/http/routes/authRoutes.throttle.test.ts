@@ -1,7 +1,13 @@
+import { createHmac } from 'node:crypto'
 import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
 import { authRoutes } from './authRoutes'
-import { buildHarness, testHttpConfig, type Harness } from '../testing/middlewareHarness'
+import {
+  TEST_SESSION_SECRET,
+  buildHarness,
+  testHttpConfig,
+  type Harness,
+} from '../testing/middlewareHarness'
 import { aUser } from '../../../application/testing/builders'
 import { FakeAccountTokenRepository } from '../../../application/testing/fakeAccountTokenRepository'
 import { FakeMailer } from '../../../application/testing/fakeMailer'
@@ -370,6 +376,23 @@ describe('the sign-in throttle, per account', () => {
     expect(sixth.status).toBe(429)
   })
 
+  it('shares one budget between every spelling of what is not an address either', async () => {
+    const subject = subjectOf()
+    const spellings = [
+      NOT_AN_ADDRESS,
+      'PAS-UNE-ADRESSE',
+      ` ${NOT_AN_ADDRESS}`,
+      'Pas-Une-Adresse',
+      NOT_AN_ADDRESS,
+    ]
+
+    for (const email of spellings) {
+      expect((await signIn(subject, { email })).status).toBe(401)
+    }
+
+    expect((await signIn(subject, { email: 'pas-UNE-adresse ' })).status).toBe(429)
+  })
+
   it('keeps the per-client limit, which counts across accounts', async () => {
     const subject = subjectOf({ perMinute: 10 })
 
@@ -418,14 +441,40 @@ describe('the sign-in throttle, per account', () => {
     expect((await signIn(subject)).status).toBe(429)
   })
 
-  it('does not charge a sign-in that failed on the server after the right password', async () => {
+  it('answers a malformed body 400 even during a wait: it has no address, so there is nothing to wait for', async () => {
+    const subject = subjectOf()
+    await failFrom(subject, 5)
+    expect((await signIn(subject)).status).toBe(429)
+
+    const response = await request(subject.app)
+      .post('/api/auth/login')
+      .set('X-Forwarded-For', HOME)
+      .send({ email: OWNER })
+
+    expect(response.status).toBe(400)
+  })
+
+  it('sits behind the client limit: a client that limit has refused is not answered by the throttle', async () => {
+    const subject = subjectOf({ perMinute: 5 })
+    await failFrom(subject, 5)
+
+    // Over the client limit and inside the account's wait at once: the client limit speaks.
+    const refused = await signIn(subject)
+
+    expect(refused.status).toBe(429)
+    expect(refused.body.error.details).toEqual({})
+  })
+
+  it('does not charge a sign-in that failed on the server after the right password, nor forget the earlier ones', async () => {
     const subject = subjectOf({ sessionStoreDown: true })
+    await failFrom(subject, 4)
 
     for (let tries = 0; tries < 5; tries += 1) {
       expect((await signIn(subject, { password: PASSWORD })).status).toBe(500)
     }
-    await failFrom(subject, 5)
 
+    // Four failures stand, so one more is the fifth and the one after it waits.
+    expect((await signIn(subject)).status).toBe(401)
     expect((await signIn(subject)).status).toBe(429)
   })
 
@@ -572,6 +621,19 @@ describe('the sign-in throttle, on an account being stuffed from everywhere', ()
     expect(subject.warnings[0]?.context?.['account']).toMatch(/^[0-9a-f]{12}$/)
   })
 
+  it('tracks the account under a keyed digest of its normalised address, and says so in the alert', async () => {
+    const subject = subjectOf()
+    await stuff(subject, 100)
+
+    await signIn(subject, { from: network(120), email: ` ${OWNER.toUpperCase()}` })
+
+    const expected = createHmac('sha256', TEST_SESSION_SECRET)
+      .update(`sign-in-throttle:${OWNER}`)
+      .digest('hex')
+      .slice(0, 12)
+    expect(subject.warnings[0]?.context?.['account']).toBe(expected)
+  })
+
   it('does not hold another account for it', async () => {
     const subject = subjectOf()
     await stuff(subject, 100)
@@ -631,6 +693,22 @@ describe('the same throttle on POST /api/auth/password-reset/request', () => {
     // Accepted again by the throttle, and answered the same 202 by the cap: still three mails.
     expect(later.status).toBe(202)
     expect(subject.mailer.sent).toHaveLength(3)
+  })
+
+  it('holds a request two seconds once an address has been asked about a hundred times in an hour, and never refuses one', async () => {
+    const subject = subjectOf()
+    for (let n = 1; n <= 100; n += 1) {
+      expect((await askForReset(subject, OWNER, `203.0.113.${n}`)).status).toBe(202)
+    }
+    expect(subject.holds).toEqual([])
+
+    const next = await askForReset(subject, OWNER, network(150))
+
+    expect(next.status).toBe(202)
+    expect(subject.holds).toEqual([2_000])
+    expect(subject.warnings).toHaveLength(1)
+    expect(subject.warnings[0]?.message).toMatch(/reset requests flooding one address/)
+    expect(JSON.stringify(subject.warnings)).not.toContain('camille')
   })
 
   it('keeps a budget of its own, apart from the sign-in', async () => {
