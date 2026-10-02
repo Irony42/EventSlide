@@ -707,6 +707,51 @@ export const clipJobRepositoryContract = (
 
           expect(admission.refusal).toBeNull()
         })
+
+        it('names the per-event cap even when the box-wide cap is also full at that moment, and reports the larger wait', async () => {
+          // Constructed so BOTH caps would refuse this call, with different numbers:
+          // evt-wedding is at its own cap of 2, and the box-wide total (2 + 1 from
+          // evt-gala) is also at its cap of 3. A check in the wrong order — box-wide
+          // before per-event — would answer with maxDepth 3 instead of 2, and nothing
+          // in the simpler cases above would catch that: each of them leaves one cap
+          // generous enough that it is never actually in play.
+          //
+          // `depth` is asserted as the larger of the two numbers on purpose. One
+          // worker drains every event's queue together, so the real wait behind this
+          // refusal is the box-wide one (3), not evt-wedding's own, smaller count (2) —
+          // under-reporting it would tell a guest to retry sooner than the queue
+          // actually allows, which is the retry storm this mechanism exists to avoid.
+          const TIGHT = {
+            quotaBytes: 1_000_000,
+            maxQueuedClips: 3,
+            maxQueuedClipsPerEvent: 2,
+          } as const
+
+          await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 10 }),
+            TIGHT,
+          )
+          await repo.stage(
+            aClipJob({ id: 'job-2', eventId: 'evt-wedding', sourceByteSize: 10 }),
+            TIGHT,
+          )
+          await repo.stage(
+            aClipJob({
+              id: 'job-3',
+              eventId: 'evt-gala',
+              author: { kind: 'guest', id: 'guest-sam' },
+              sourceByteSize: 10,
+            }),
+            TIGHT,
+          )
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-4', eventId: 'evt-wedding', sourceByteSize: 10 }),
+            TIGHT,
+          )
+
+          expect(admission.refusal).toEqual({ reason: 'queueFull', depth: 3, maxDepth: 2 })
+        })
       })
 
       it('lets a finished job give its slot and its bytes back', async () => {

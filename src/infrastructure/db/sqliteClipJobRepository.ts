@@ -306,9 +306,22 @@ export class SqliteClipJobRepository implements ClipJobRepository {
    * **Depth is checked twice**: this event's own count against
    * `maxQueuedClipsPerEvent`, then the box-wide count against `maxQueuedClips`. The
    * per-event check goes first because it is the one a single over-eager event can
-   * actually trip on its own — an event at its own cap is refused here without ever
-   * reading the box-wide count, which is what keeps a second, well-behaved event's
-   * uploads from being judged against a number its own guests had no part in reaching.
+   * actually trip on its own — an event at its own cap is refused **naming that cap**
+   * (`maxDepth: limits.maxQueuedClipsPerEvent`) rather than the box-wide one, which is
+   * what keeps a second, well-behaved event's uploads from being judged against a
+   * number its own guests had no part in reaching.
+   *
+   * **Both counts are read before either is compared**, even though the per-event one
+   * is checked first. One worker drains the queue at concurrency 1 **across every
+   * event on the box** (`src/domain/clips/clipQueue.ts`), so the real wait behind a
+   * per-event refusal is never shorter than the box-wide depth: an event capped at 2
+   * of its own slots on a box where another event has pushed the total to 40 is not
+   * looking at a ten-second wait. `clipQueueFull`'s `Retry-After` is derived from
+   * whichever `depth` this method reports, so under-reporting it here is how a cap
+   * meant to prevent a retry storm would recreate one. Reporting
+   * `Math.max(eventDepth, depth)` keeps `maxDepth` naming the cap that actually
+   * refused while keeping the wait estimate honest about the queue it is really
+   * behind.
    */
   async stage(job: ClipJob, limits: ClipAdmissionLimits): Promise<ClipAdmission> {
     const activeForEvent = this.db.prepare<{ readonly eventId: string }, CountRow>(
@@ -323,17 +336,18 @@ export class SqliteClipJobRepository implements ClipJobRepository {
         // The domain owns the comparison, so the repository cannot drift from the rule
         // the guest is told about in `clipQueueFull`.
         const eventDepth = activeForEvent.get({ eventId: job.eventId })?.value ?? 0
+        const depth = active.get()?.value ?? 0
+
         if (!admitsAnotherClip(eventDepth, limits.maxQueuedClipsPerEvent)) {
           return {
             refusal: {
               reason: 'queueFull',
-              depth: eventDepth,
+              depth: Math.max(eventDepth, depth),
               maxDepth: limits.maxQueuedClipsPerEvent,
             },
           }
         }
 
-        const depth = active.get()?.value ?? 0
         if (!admitsAnotherClip(depth, limits.maxQueuedClips)) {
           return { refusal: { reason: 'queueFull', depth, maxDepth: limits.maxQueuedClips } }
         }
