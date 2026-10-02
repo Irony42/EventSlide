@@ -599,6 +599,27 @@ describe('the support link', () => {
 
   describe('where it never is', () => {
     it.each([
+      ['a card printed against 1.0’s /upload address', '/upload'],
+      ['a path with an event name and no prefix', '/photos/camille'],
+      ['an address that does not exist', '/nowhere'],
+    ])(
+      'is not under the host footer’s catch-all, where a guest with a stale address lands: %s',
+      async (_name, route) => {
+        // The not-found screen is answered by `HostLayout`, so its footer is the host's. The
+        // source offer is there; the donation link is not, because nobody here is a host.
+        renderWithProviders(<AppRoutes />, { api: donating(signedIn), route })
+
+        expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
+        await screen.findByRole('link', {
+          name: new RegExp(fr.about.sourceCode.replace(/[()]/g, '\\$&')),
+        })
+        await settle()
+
+        expectNoSupportAnywhere()
+      },
+    )
+
+    it.each([
       ['the join screen', '/join'],
       ['a resolved join code', '/join/H7K2QM'],
       ['a dead end under /join', '/join/a/b'],
