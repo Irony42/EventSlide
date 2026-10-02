@@ -1,10 +1,22 @@
 # Changelog
 
 What changed in each tagged release, newest first. This file is written by hand until
-releases are automated.
+releases are automated: the pull request that prepares a release writes its entry, and the
+pull requests before it do not touch this file.
 
-Versions are tagged `vX.Y.Z`. The tag `gpl-final` is not a version: it marks the last
-commit published under the GPL (see [docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md)).
+Versions are tagged `vX.Y.Z` and mean what [docs/UPGRADING.md](docs/UPGRADING.md) says they
+mean: a patch fixes, a minor adds, and only a major breaks something. The tag `gpl-final` is
+not a version: it marks the last commit published under the GPL (see
+[docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md)).
+
+In an entry:
+
+- `### BREAKING` lists what stops working and what to change. It is in a major and in no
+  other release, and every major has one.
+- `### Behaviour changes to check before upgrading` lists what an existing installation will
+  notice without being broken by it: a migration (by number), a new limit that is off unless
+  you set it, a new warning at boot, a default that is opt-in for now.
+- `### Deprecated` lists what a later major will remove.
 
 ## [2.1.0] - 2026-10-02
 
