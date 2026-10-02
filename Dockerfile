@@ -37,8 +37,10 @@ WORKDIR /app
 
 # The tag or commit this image's source is published at, for the AGPL section 13 link
 # (roadmap G1-04). Left empty, the link is the upstream tag of package.json's version —
-# right for the published image, wrong for any build from a commit no tag names, which
-# should say so: `docker build --build-arg SOURCE_REF=<commit-or-tag> .`.
+# right for an unmodified copy of a tagged release, wrong for anything else. For an
+# unmodified upstream commit no tag names, `docker build --build-arg SOURCE_REF=<commit> .`;
+# for a modified build or a fork, SOURCE_REF cannot help (it points into the upstream
+# repository) and the operator sets SOURCE_CODE_URL at run time instead.
 #
 # Declared here so `vite build` sees it as the default the footer shows from its first
 # paint (web/buildInfo.ts), and again on the runtime stage so the server answers
@@ -66,11 +68,6 @@ WORKDIR /app
 # fails that test rather than drifting silently. Only one such LABEL may exist here: a
 # later one with the same key would silently win.
 LABEL org.opencontainers.image.licenses=AGPL-3.0-only
-
-# See the build stage: what the running server offers as its source when the operator has
-# not set SOURCE_CODE_URL. Empty is "not set", which is the upstream tag of this version.
-ARG SOURCE_REF=""
-ENV SOURCE_REF=$SOURCE_REF
 
 # BACKUP_DIR is where `node dist/ops/scripts/backup.js` writes when it is not given `--to`.
 # The default outside the image, `./backups`, resolves against `/app` here, which is
@@ -120,6 +117,14 @@ COPY package.json ./
 # at this path into a fresh named volume, so this is what a default install gets. A bind
 # mount keeps the host directory's own permissions instead — set them yourself there.
 RUN mkdir -p /data/media && chown -R node:node /data && chmod 700 /data /data/media
+
+# See the build stage: what the running server offers as its source when the operator has
+# not set SOURCE_CODE_URL. Empty is "not set", which is the upstream tag of this version.
+# Below the layers that install ffmpeg and copy the build, so a different ref rebuilds
+# nothing but this line's metadata.
+ARG SOURCE_REF=""
+ENV SOURCE_REF=$SOURCE_REF
+
 VOLUME ["/data"]
 
 USER node
