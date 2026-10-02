@@ -41,13 +41,17 @@ export interface SupportCardProps {
 export function SupportCard({ eventId, donateUrl, budgetUrl }: SupportCardProps) {
   const t = useTranslations()
   // This page load's own answer, so the card goes at once even where storage cannot keep it.
-  const [closedHere, setClosedHere] = useState(false)
+  // It names the **event** it was closed for rather than being a bare flag: one card
+  // instance can be handed another event (the route parameter changed under a mounted
+  // page), and a flag would carry the first event's "closed" over to an event that is owed
+  // its own mention.
+  const [closedFor, setClosedFor] = useState<string | null>(null)
 
-  if (closedHere || wasSupportCardDismissed(eventId)) return null
+  if (closedFor === eventId || wasSupportCardDismissed(eventId)) return null
 
   const close = () => {
     rememberSupportCardDismissal(eventId)
-    setClosedHere(true)
+    setClosedFor(eventId)
   }
 
   return (

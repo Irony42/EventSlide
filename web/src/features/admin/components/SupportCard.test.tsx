@@ -96,6 +96,23 @@ describe('SupportCard', () => {
       expect(screen.queryByText(fr.about.supportTitle)).toBeNull()
     })
 
+    it('is closed for the event it was closed for even where storage cannot remember, and not for the next one', async () => {
+      // Storage that throws leaves only this page load's own memory, which must be about the
+      // event and not a bare flag: the same card instance can be handed another event.
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('blocked', 'SecurityError')
+      })
+      const { rerender } = renderWithProviders(
+        <SupportCard eventId="event-1" donateUrl={DONATE_URL} />,
+      )
+      await userEvent.click(closeButton())
+      expect(screen.queryByText(fr.about.supportTitle)).toBeNull()
+
+      rerender(<SupportCard eventId="event-2" donateUrl={DONATE_URL} />)
+
+      expect(screen.getByText(fr.about.supportTitle)).toBeVisible()
+    })
+
     it('is remembered for that event only: another event still gets its one mention', async () => {
       const first = renderWithProviders(<SupportCard eventId="event-1" donateUrl={DONATE_URL} />)
       await userEvent.click(closeButton())

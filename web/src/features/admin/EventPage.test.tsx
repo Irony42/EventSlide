@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes } from 'react-router-dom'
+import { Link, Route, Routes } from 'react-router-dom'
 import { EventPage } from './EventPage'
 import { ApiError } from '../../lib/http'
 import { formatBytes } from '../../lib/format'
@@ -478,6 +478,34 @@ describe('EventPage, the support card', () => {
 
     renderFor('closed', { donate: DONATE_URL }, { id: 'event-2' })
 
+    expect(await screen.findByText(fr.about.supportNoCounterpart)).toBeVisible()
+  })
+
+  it('is offered again for the next event when the host walks to it without leaving the page', async () => {
+    // One `EventPage` instance serves every `/admin/events/:slug`: React Router keeps it
+    // mounted when only the parameter changes. A "closed it" held in that instance's state
+    // would carry over to the next event and hide a card that event is owed.
+    const api = fakeApi({
+      getEvent: vi.fn(async (slug: string) =>
+        anEventDto({ slug, id: `id-${slug}`, name: `Fête ${slug}`, status: 'closed' }),
+      ),
+      about: vi.fn(async () => anAbout({ links: { donate: DONATE_URL } })),
+    })
+    renderWithProviders(
+      <>
+        <Link to="/admin/events/deuxieme">suivant</Link>
+        <Routes>
+          <Route path="/admin/events/:slug" element={<EventPage />} />
+        </Routes>
+      </>,
+      { api, route: '/admin/events/premier' },
+    )
+    await userEvent.click(await screen.findByRole('button', { name: fr.about.supportDismiss }))
+    expect(card()).toBeNull()
+
+    await userEvent.click(screen.getByRole('link', { name: 'suivant' }))
+
+    expect(await screen.findByRole('heading', { name: 'Fête deuxieme' })).toBeVisible()
     expect(await screen.findByText(fr.about.supportNoCounterpart)).toBeVisible()
   })
 })

@@ -191,12 +191,7 @@ export function EventPage() {
               (roadmap G4-02): a card that can be closed and stays closed for this event. It
               is in the host's console and nowhere a guest or the room can see. */}
           {offersSupport(event.status) && links.donate !== undefined ? (
-            <SupportCard
-              key={event.id}
-              eventId={event.id}
-              donateUrl={links.donate}
-              budgetUrl={links.budget}
-            />
+            <SupportCard eventId={event.id} donateUrl={links.donate} budgetUrl={links.budget} />
           ) : null}
         </div>
 
