@@ -137,6 +137,8 @@ generic fallback sentence to a guest, which is why the lists are kept in step.
 | `auth.required`               | 401    | A route needs a principal and there is none                                      |
 | `auth.forbidden`              | 403    | In scope for the event, role too weak; or not the site operator                  |
 | `auth.passwordChangeRequired` | 403    | Signed in, `mustChangePassword` set, and the route is not one of the three below |
+| `auth.invalidToken`           | 400    | A password-reset link that is dead for any reason (see `confirm`)                |
+| `feature.unavailable`         | 404    | A feature this box is not configured for (today: reset by mail, with no relay)   |
 | `guestToken.expired`          | 401    | The device token is past its 36 hours                                            |
 | `guestToken.badSignature`     | 401    | The device token does not verify                                                 |
 | `guestToken.malformed`        | 401    | The token is unreadable, or its guest row no longer exists                       |
@@ -234,6 +236,8 @@ paragraph beneath the table).
 | --------------------------------------------- | ------------- | ----------------------- | --------------------------- |
 | `POST /api/join`                              | 20            | client IP               | `rate.limited`              |
 | `POST /api/auth/login`                        | 10            | client IP               | `rate.limited`              |
+| `POST /api/auth/password-reset/request`       | 10            | client IP, own bucket   | `rate.limited`              |
+| `POST /api/auth/password-reset/confirm`       | 10            | client IP, own bucket   | `rate.limited`              |
 | `POST /api/events` (create)                   | 20 / **hour** | account                 | `event.creationRateLimited` |
 | `POST /api/events/:slug/photos`               | 12            | client IP **and** event | `rate.limited`              |
 | `POST /api/events/:slug/clips`                | 12            | client IP **and** event | `rate.limited`              |
@@ -381,7 +385,7 @@ when the session store is unusable.
   "license": "AGPL-3.0-only",
   "sourceUrl": "https://github.com/Irony42/EventSlide/tree/v2.1.0",
   "links": {},
-  "features": { "siteAdmin": false }
+  "features": { "siteAdmin": false, "forgotPassword": false }
 }
 ```
 
@@ -424,6 +428,8 @@ for example (the other fields are as above):
 | `operator`           | Who runs the instance (roadmap G2-17 / P3-18): `name` (`OPERATOR_NAME`) and, when set, `contactEmail` (`OPERATOR_CONTACT_EMAIL`). **The key is absent** on a box that named nobody, which is every self-hosted box; the address never appears without a name. Plain text, never markup.                                                                                                                                                                                                                        |
 | `links`              | Operator links, each **present only when the operator set it** — a box that set nothing answers `{}`, never a key with `null` or an empty string. `terms` (`LEGAL_TERMS_URL`), `privacy` (`LEGAL_PRIVACY_URL`), `legalNotice` (`LEGAL_NOTICE_URL`), `support` (`SUPPORT_URL`: help for a host) and `report` (`REPORT_URL`: where to report a content), each an **https** address or a **path on this site** (see below); and `donate` (`DONATION_URL`) and `budget` (`BUDGET_URL`), each an **https** address. |
 | `features.siteAdmin` | `true` when `SITE_ADMIN=on`, that is, when the operator's namespace `/api/site` is mounted (see above). Derived from the same setting as the mount, so it cannot disagree with it.                                                                                                                                                                                                                                                                                                                             |
+
+| `features.forgotPassword` | `true` when the box can mail (`SMTP_URL` is set), that is, when `POST /api/auth/password-reset/request` is not `404 feature.unavailable`. Derived from the mailer's own `canDeliver`, so it cannot disagree with the route. A client that cannot read it treats it as `false`. |
 
 `features` is **additive**: a client ignores a flag it does not know, and later items add
 one per capability a client would otherwise discover by trying.
@@ -1361,19 +1367,23 @@ an album they do not actually hold.
 
 ## 5. Authentication
 
-Three of these four take no principal, and each for its own reason: a login is where a
+Five of these seven take no principal, and each for its own reason: a login is where a
 principal comes from, a logout can only ever destroy the one it was handed — answering
 401 to a client whose session has just expired would leave the stale cookie in the
 browser — and `/auth/me` exists to answer whether there is a principal at all. Stated
 here so that an absent authorization middleware in `routes/authRoutes.ts` is a
-documented decision rather than an omission a reader has to judge.
+documented decision rather than an omission a reader has to judge. The two password-reset
+routes take none for the reason a login does: the person asking has lost the credential.
 
-| Method | Path                 | Principal                                                               |
-| ------ | -------------------- | ----------------------------------------------------------------------- |
-| `POST` | `/api/auth/login`    | none                                                                    |
-| `POST` | `/api/auth/logout`   | none                                                                    |
-| `GET`  | `/api/auth/me`       | none                                                                    |
-| `POST` | `/api/auth/password` | any signed-in user whose account is still enabled; no event, so no role |
+| Method | Path                               | Principal                                                               |
+| ------ | ---------------------------------- | ----------------------------------------------------------------------- |
+| `POST` | `/api/auth/login`                  | none                                                                    |
+| `POST` | `/api/auth/logout`                 | none                                                                    |
+| `GET`  | `/api/auth/me`                     | none                                                                    |
+| `POST` | `/api/auth/password`               | any signed-in user whose account is still enabled; no event, so no role |
+| `POST` | `/api/auth/sessions/revoke-others` | same: any signed-in user whose account is still enabled, for itself     |
+| `POST` | `/api/auth/password-reset/request` | none: the person asking has no credential                               |
+| `POST` | `/api/auth/password-reset/confirm` | none: the mailed link is the credential                                 |
 
 ### `POST /api/auth/login`
 
@@ -1442,7 +1452,10 @@ one host's session to whoever asks next.
 { "currentPassword": "…", "newPassword": "…" }
 ```
 
-**204**. **Errors** — `401 auth.invalidCredentials`, `400 password.*`,
+**204**, and **every other session of the account is signed out** (the credentials epoch, SECURITY.md
+§2): a cookie that was stolen before the change stops working on its next request. The
+response replaces the caller's own session — a new `es_session` and a new `es_csrf`, so the
+client must read the CSRF cookie again — and the caller stays signed in. **Errors** — `401 auth.invalidCredentials`, `400 password.*`,
 `400 password.unchanged`, and `401 auth.required` when the session outlived the account it
 names or that account has been disabled. Both are refused by `requireUser` before the
 handler runs, and they are one answer on purpose: the id comes from the session, so either
@@ -1450,6 +1463,53 @@ case means the session no longer names anybody, and a browser holding a dead ses
 be sent back to the login form rather than told the route is missing. (It used to answer
 `404 user.notFound` here; the use case still returns that code, and nothing routes to it.)
 
+### `POST /api/auth/sessions/revoke-others`
+
+No body. **204**, and every session of this account issued before now is refused from its next
+request on — the lost laptop, the shared office machine, the cookie someone else may hold.
+The caller's own session is replaced (a new `es_session`, a new `es_csrf`) and stays signed
+in. It changes nothing else: not the password, not the flags. **Errors** — `401 auth.required`
+(no session, or the account is switched off), `403 auth.passwordChangeRequired` while the
+account must still choose a password.
+
+### `POST /api/auth/password-reset/request`
+
+```json
+{ "email": "camille@example.org", "locale": "fr" }
+```
+
+`locale` is optional (`fr`, `en`, `de`, `es`, `it`; default `fr`): the language of the page the
+person asked from, and the language the mail is written in. Unknown keys are refused.
+
+**202** with the body `{}`, **for every address**: an account, an address nobody uses, a
+malformed one, a switched-off account, one that has already been mailed three times this hour.
+The status, the body and the headers are the same, and the answer does not wait for the mail
+to be sent, so the time is the same too. If an enabled account uses the address it is mailed a
+plain-text message with a link to `/password/reset/<token>` on `PUBLIC_URL`, good for **an
+hour** and **once**; asking again revokes the earlier link.
+
+**`404 feature.unavailable`** when the box can send no mail (`SMTP_URL` unset), whatever the
+address. There is no self-service reset on such a box and `features.forgotPassword` on
+`GET /api/about` is `false`. The link is never returned in a response. **Errors** — `400
+request.invalid`, `429 rate.limited` (the sign-in budget, its own bucket), and the CSRF codes
+like every write. Responses are `Cache-Control: no-store`.
+
+### `POST /api/auth/password-reset/confirm`
+
+```json
+{ "token": "…", "password": "…" }
+```
+
+`token` is the last segment of the mailed link. **204**: the password is set, a forced change
+is cleared, **every session the account had is signed out**, and no session is started — the
+person signs in with the password they chose. The link works once.
+
+**Errors** — `400 auth.invalidToken` for every way a link can be dead (never issued, expired,
+already used, replaced by a newer one, issued for another purpose, for an account that is now
+switched off or uses another address), always the same answer. `400 password.*` for a password
+the policy refuses — and **the link is not spent by it**, so the form can be corrected and
+resubmitted. `400 request.invalid`, `429 rate.limited` and the CSRF codes. Responses are
+`Cache-Control: no-store`.
 ---
 
 ## 6. Host and moderator

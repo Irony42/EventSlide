@@ -74,13 +74,14 @@ and grants nothing any row in this table does not.
 
 ### Two clocks and one account read
 
-Three things bound a host session, and they answer different questions.
+Four things bound a host session, and they answer different questions.
 
 | Bound                                                   | Where                                                         | What it is for                                                                                                                                                                                                                           |
 | ------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Idle, 12 h**, `rolling: true`                         | `server.ts` cookie `maxAge`, `sqliteSessionStore.touch`       | a laptop nobody comes back to                                                                                                                                                                                                            |
 | **Absolute, 7 days** from the login that established it | `enforceSessionAge` in `middleware/authz.ts`                  | a session that keeps being used. Rolling alone never ends one, so without this the window had no end at all rather than the twelve hours this document used to claim                                                                     |
 | **The account, on every request**                       | `MembershipRepository.roleFor`, `UserRepository.authStateFor` | the host you switched off five minutes ago, or the one who still must change a password. A capability answered from the session is a capability nobody can take back — see "Disabling an account" and "Forcing a password change", below |
+| **The credentials epoch**, on every request             | `enforceSessionAge`, against `users.credentials_changed_at`   | a cookie that was stolen, lost or left on a shared machine, **after** the password was changed, reset or the account signed out everywhere. See "The credentials epoch", below                                                           |
 
 The absolute cap is a week and not a day on purpose: the control that acts on the
 unlocked laptop is the idle timeout, and a tighter absolute cap would buy little against
@@ -112,7 +113,10 @@ is switched off, the last-owner rule is about rows rather than about who happens
 switched on this evening, and re-enabling an account gives back exactly what it had. And
 sessions are **not** hunted down and deleted — `sessions` carries no `user_id` to
 invalidate against, and adding one would buy nothing the per-request account read does not
-already give, since the very next request that session makes is refused.
+already give, since the very next request that session makes is refused. What `User.disable`
+does add is the **credentials epoch** (below): switching an account off raises it, so the
+cookies that were out in the world while the account was off stay dead after it is switched
+back on, instead of quietly working again.
 
 **The residual, stated plainly: a connection already open is not a request.** Both SSE
 streams are authorized once, when the socket is opened, and then held — the wall's is
@@ -171,8 +175,7 @@ to make two reads — one trusted, one not — now makes one, cached on the requ
 (`resolveAuthState`) so `requirePasswordCurrent`, `requireUser` and `GET /api/auth/me` do
 not each ask storage again.
 
-`credentialsChangedAt` on the same read is `null` until roadmap §10's account-tokens epoch
-(P3-09) ships the column; nothing reads it yet.
+`credentialsChangedAt` on the same read is the credentials epoch — see the next section.
 
 Named tests at ring 3 (`userRepositoryContract`'s `authStateFor` cases, fake **and**
 SQLite) and ring 4 (`authz.test.ts`'s sweep over every mounted `/api` route, built the way
@@ -180,6 +183,123 @@ SQLite) and ring 4 (`authz.test.ts`'s sweep over every mounted `/api` route, bui
 moderator-invitation.spec.ts` is the ring-6 case that was already there and stays green:
 an invited moderator signs in on the temporary password, is sent to the rotation screen,
 and only reaches the moderation queue after choosing their own.
+
+### The credentials epoch, and signing out everywhere
+
+Until G2-08 / P3-09, changing a password could not end the account's other sessions: the
+`sessions` table has no `user_id` (migration 001), so "every session of this account" was not
+a question the store could answer, and a cookie that had been stolen survived the password
+change that was meant to cure it. Adding the column would mean rewriting a table whose rows
+are rewritten on every request. The epoch answers it from the other side.
+
+- **The account says when its credentials last changed**: `users.credentials_changed_at`
+  (migration 010), `NULL` until something first changed them.
+- **The session says when it was issued**: `SessionPayload.issuedAt`, written at login and
+  nowhere else (the same field the absolute cap reads).
+- **`enforceSessionAge` refuses a session issued before the epoch** — `issuedAt < epoch`,
+  strictly, so the session a password change replaces itself with (stamped with the very
+  instant of the change) survives it. The row is regenerated rather than destroyed, for the
+  reason the absolute cap already documents: a handler behind it dereferences `req.session`.
+
+| What raises the epoch                                           | Where                                               | What happens to the caller's own session                             |
+| --------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------- |
+| `POST /api/auth/password`                                       | `changePassword` → `User.changePassword`            | regenerated: new id, new CSRF token, `issuedAt` now. Stays signed in |
+| `POST /api/auth/sessions/revoke-others` ("sign out everywhere") | `revokeOtherSessions` → `User.revokeSessionsBefore` | regenerated, likewise                                                |
+| `POST /api/auth/password-reset/confirm`                         | `resetPassword` → `User.changePassword`             | none to renew: nobody is signed in by a reset                        |
+| switching the account off                                       | `disableAccount` → `User.disable`                   | not applicable                                                       |
+
+**What does not raise it, on purpose.** The login's opportunistic re-hash (`authenticateUser`
+upgrading a bcrypt hash to the current cost) goes through `User.withPasswordHash`, not
+`changePassword`: the person has the same password, and treating the upgrade as a change would
+sign them out of every other device the first time they signed in after an upgrade. A test
+holds it (`authenticateUser.test.ts`).
+
+**It only moves forward**, in three places that agree: `User.revokeSessionsBefore` ignores an
+earlier instant, `FakeUserRepository` stores the later of the two, and the `UPSERT` in
+`SqliteUserRepository` writes `MAX(stored, incoming)`. The third is the one that matters: a
+sign-in reads the account, spends ~200 ms in bcrypt and saves it back, and a reset can finish
+in that window — a plain overwrite would put the old epoch back and bring the revoked
+sessions back with it. (The password hash itself still has that race, which predates this
+and is not fixed here.)
+
+**Costs and limits, stated.**
+
+- One account read per authenticated request, which was already being made: the answer is
+  parked on `req.context.authState` and `requirePasswordCurrent`, `requireUser` and
+  `GET /api/auth/me` reuse it (a test counts the reads).
+- **Millisecond resolution.** A session issued in the same millisecond as a credentials change
+  is not older than it and survives. A person does not sign in and have their password reset in
+  one millisecond; the tests advance the clock instead.
+- **An SSE stream already open is not a request** — the residual of "Disabling an account"
+  applies unchanged: it reads, it decides nothing, and it ends at the next reconnect.
+- **No session list.** There is no "these are your 3 devices" screen and no way to revoke
+  one: the epoch is all-or-nothing, which is what "sign out everywhere" means.
+
+### Account tokens and password reset
+
+An invitation is a password reset for an account that does not exist yet, so one table holds
+every link that proves control of a mailbox (`account_tokens`, migration 010; purposes
+`invitation`, `passwordReset`, `emailVerification`). Only `passwordReset` is spent by anything
+yet. The rules, each with the test that holds it:
+
+- **Stored as a digest, never as the token.** 256 random bits (`SecretTokens.mint`, base64url,
+  43 characters) are in the mail; the row holds their SHA-256. A backup archive resets nothing.
+  `container.test.ts` dumps every table after a reset and finds neither the token nor the new
+  password.
+- **Single use, decided by one statement.** `consume` is a conditional `UPDATE` that reports
+  whether this call changed the row; exactly one of any number of simultaneous requests wins
+  (`accountTokenRepositoryContract`, 8 concurrent, fake and SQLite).
+- **Short-lived, by the domain.** An hour for a reset, a week for an invitation, a day for a
+  verification: `issueAccountToken` computes the expiry and takes no `expiresAt`. Expiry is
+  exclusive.
+- **Constant-time compared.** The lookup is by digest (an index seek, so no secret is compared
+  character by character in JavaScript) and `SecretTokens.verify` re-checks the digest with
+  `timingSafeEqual` before anything is changed. The timing itself cannot be asserted by a test;
+  the _second check_ can, and is (`resetPassword.test.ts`, a repository that matches loosely).
+- **One live link per address.** Issuing a reset revokes the earlier ones; using one revokes
+  the rest.
+- **The password is judged before the link is spent**, so a weak password costs the person
+  nothing and the same link still works.
+- **A refusal is one refusal.** Never issued, expired, spent, revoked, for another purpose, for
+  a disabled account, for an address the account has left: all `400 auth.invalidToken`.
+
+**Asking for a link, and what it must not reveal** (`requestPasswordReset`):
+
+- The answer is `202 {}` for an address that is an account, one that is not, a malformed one, a
+  disabled account, and one over its cap — the same status, body and headers (a ring-4 test
+  compares them).
+- **The time is the same too**, because the HTTP layer answers before the work is done: the
+  lookup, the token and the mail run behind a `completion` promise it does not await. How long a
+  mail relay takes to say yes is otherwise a way to tell an address that exists from one that
+  does not. A test holds a mailer that never finishes and requires the 202 anyway.
+- **At most 3 mails an hour per address** (`PASSWORD_RESET_MAX_REQUESTS_PER_HOUR`), counted on
+  what was _issued_. The per-client rate limit (the sign-in budget, its own limiter per route)
+  bounds an attacker's speed and says nothing about **whom** they write to; this bounds how
+  many mails any inbox can be made to receive, from any number of networks.
+- **A box with no mail relay has no self-service reset**, and says so: `404
+feature.unavailable`, `features.forgotPassword = false` on `/api/about`. The link is **never**
+  shown to the person who typed the address — that would let anyone take over any account. This
+  is the difference from an invitation, where the person holding the screen is the host who
+  created it. An operator asked for help resets the password by hand. (The "copy the link"
+  fallback of `NullMailer` is for invitations, and for an operator's reset of _another_ account
+  behind its own guard rules; neither exists yet.)
+- **The link carries the token in the path** (`/password/reset/<token>`), not the query string:
+  the access log writes route patterns, the edge filter rewrites `/password/*`, and helmet sends
+  `Referrer-Policy: no-referrer`. The responses are `Cache-Control: no-store`.
+- **Nothing secret is logged.** The address, the token, the link and the new password appear in
+  no log line on any channel: `passwordResetLogCanary.test.ts` runs the whole journey against a
+  real logger and a real, enabled access log, and reads every byte written.
+- **Plain text only.** No HTML part, no image, no second link: a reset mail is a credential in
+  transit and an HTML part is a surface (a remote image tells a stranger when it was opened).
+
+**Residuals.** The web pages that use these routes (forgot-password, reset, "sign out
+everywhere") are roadmap G2-10 / P3-11 and are not in the same change: until they land the
+routes have no browser client, and `features.forgotPassword` is published but unread. A
+successful reset does not set `email_verified_at` and does not mail the account holder that
+their password changed; both are possible later without a schema change. Expired token rows
+are deleted opportunistically by the next reset request, a day after they expire — there is no
+dedicated sweep, because a reset token cascades with its account and holds no address the
+`users` table does not.
 
 ### Guest token format
 
@@ -884,16 +1004,17 @@ force-closed: `max_live_days` bounds it, and quarantine is about opening.
 
 ## 6. Session security
 
-| Property                       | Value                                                                                                                                                          | Why                                                                                                 |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Store                          | `src/infrastructure/db/sessionStore.ts`, a `Store` over `better-sqlite3`, table `sessions(sid TEXT PRIMARY KEY, expires_at TEXT NOT NULL, data TEXT NOT NULL)` | 1.0's `MemoryStore` leaked memory and logged every moderator out on restart — mid-event             |
-| Pruning                        | `DELETE FROM sessions WHERE expires_at < ?` on an interval and on boot                                                                                         | an unpruned session table is both a growth and a replay problem                                     |
-| Regeneration                   | `req.session.regenerate()` on **successful login**, before the user id is written                                                                              | defeats session fixation: a pre-set `es_sid` from an attacker is discarded                          |
-| Timeouts                       | idle 12 h (`rolling: true`), **and 7 days absolute** from login — `enforceSessionAge`, ahead of `attachUser`; see §2                                           | a projector laptop is left unlocked at a venue, and `rolling` alone never expires an active session |
-| `resave` / `saveUninitialized` | `false` / `false`                                                                                                                                              | no row for an anonymous visitor; no write amplification                                             |
-| Password hashing               | bcrypt cost 12                                                                                                                                                 | 1.0 used cost 10 and a hardcoded hash                                                               |
-| Failed login                   | generic `auth.invalidCredentials`, and a bcrypt compare against a dummy hash when the user does not exist                                                      | otherwise response time enumerates accounts                                                         |
-| Logout                         | `req.session.destroy()` **and** `res.clearCookie('es_sid')`                                                                                                    | 1.0 called `req.logout()` and left the session row behind                                           |
+| Property                       | Value                                                                                                                                                                                        | Why                                                                                                           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Store                          | `src/infrastructure/db/sessionStore.ts`, a `Store` over `better-sqlite3`, table `sessions(sid TEXT PRIMARY KEY, expires_at TEXT NOT NULL, data TEXT NOT NULL)`                               | 1.0's `MemoryStore` leaked memory and logged every moderator out on restart — mid-event                       |
+| Pruning                        | `DELETE FROM sessions WHERE expires_at < ?` on an interval and on boot                                                                                                                       | an unpruned session table is both a growth and a replay problem                                               |
+| Regeneration                   | `req.session.regenerate()` on **successful login**, before the user id is written                                                                                                            | defeats session fixation: a pre-set `es_sid` from an attacker is discarded                                    |
+| Timeouts                       | idle 12 h (`rolling: true`), **and 7 days absolute** from login — `enforceSessionAge`, ahead of `attachUser`; see §2                                                                         | a projector laptop is left unlocked at a venue, and `rolling` alone never expires an active session           |
+| `resave` / `saveUninitialized` | `false` / `false`                                                                                                                                                                            | no row for an anonymous visitor; no write amplification                                                       |
+| Password hashing               | bcrypt cost 12                                                                                                                                                                               | 1.0 used cost 10 and a hardcoded hash                                                                         |
+| Failed login                   | generic `auth.invalidCredentials`, and a bcrypt compare against a dummy hash when the user does not exist                                                                                    | otherwise response time enumerates accounts                                                                   |
+| Logout                         | `req.session.destroy()` **and** `res.clearCookie('es_sid')`                                                                                                                                  | 1.0 called `req.logout()` and left the session row behind                                                     |
+| Credentials change             | the credentials epoch (`users.credentials_changed_at`) is raised by a password change, a reset, "sign out everywhere" and switching the account off; the caller's own session is regenerated | `sessions` has no `user_id`, so the account says when, and `enforceSessionAge` refuses older sessions. See §2 |
 
 Passport is removed. Login is one use case (`authenticateUser`) plus one controller;
 `passport.deserializeUser` hit the database on every request through a module-level
@@ -1056,6 +1177,10 @@ holds for every mounted route at once rather than for the handful a test author 
 to try: it calls each one with a gallery token, a join code, a slug, a caption, an email,
 a password and a cookie, placed in the path, the query, the headers and the body, and
 asserts none of them appears anywhere a logger wrote. It runs in `npm run verify`.
+**`passwordResetLogCanary.test.ts`** is the deep version for the one flow that handles a
+credential in transit: it follows a reset from request to confirmation (and a refused
+confirmation) against a real logger and a real access log and requires that the address, the
+token, the link and the new password appear in none of it.
 
 ### Data-subject flows a host can actually perform
 
@@ -1176,8 +1301,9 @@ default, not the override.
 suite (`mailerContract.ts`): `NullMailer`, the in-memory fake, and the SMTP adapter on
 `nodemailer`. **With `SMTP_URL` unset — the default, and the right answer for most
 self-hosted boxes — the container wires `NullMailer`: nothing is sent, nothing connects out,
-nothing is logged, and a caller is told `mail.notConfigured` and shows the link to copy.** No
-use case sends mail yet; invitations and password reset are the first.
+nothing is logged, and a caller is told `mail.notConfigured` and shows the link to copy.** The
+first use case that sends mail is `requestPasswordReset` (G2-08 / P3-09), which does **not** show
+a link when there is no relay — see "Account tokens and password reset" in §2 for why.
 
 - **`SMTP_URL` is a secret** and is handled as one. It is parsed once, in `env.ts`, into a
   host, a port and a pair of credentials: the adapter is never handed the URL, so a query
