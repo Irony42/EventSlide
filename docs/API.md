@@ -1703,7 +1703,7 @@ auth.secondFactorRequired`. The stamp is written into the server-side session by
 step or a confirmed enrolment and nowhere else, kept across a renewal, and dropped when the factor
 is removed. Off — the default — the gate does nothing at all.
 
-**Rate limits.** The three doors that take a secret — `login/2fa`, `step-up` and `2fa/enroll` — have
+**Rate limits.** The four doors that take a secret — `login/2fa`, `step-up`, `2fa/enroll` and `2fa/confirm` — have
 the sign-in budget per client address (own bucket each, `rate.limited`), **and** one budget per
 **account** of 10 wrong attempts per quarter of an hour from every address together
 (`auth.tooManySecondFactorAttempts`, failures only: the owner who types it right spends nothing).

@@ -350,6 +350,22 @@ describe('POST /api/auth/login/2fa', () => {
     expect((await fresh.get('/api/auth/me')).body).toEqual({ authenticated: false })
   })
 
+  it('is one budget for every door that takes a code: ten wrong step-ups close the sign-in as well', async () => {
+    const { server, secret } = await anEnrolledServer()
+    const signedIn = await aBrowser(server)
+    await signInWithCode(server, signedIn, secret)
+    for (let wrong = 0; wrong < 10; wrong += 1) {
+      await signedIn.post('/api/auth/step-up', { password: PASSWORD, code: '000000' })
+    }
+
+    const fresh = await aBrowser(server)
+    await fresh.signIn()
+    const right = await fresh.post('/api/auth/login/2fa', { code: server.world.codeFor(secret) })
+
+    expect(right.status).toBe(429)
+    expect(codeOf(right)).toBe('auth.tooManySecondFactorAttempts')
+  })
+
   it('does not charge the owner for codes they typed right', async () => {
     const { server, secret } = await anEnrolledServer()
 

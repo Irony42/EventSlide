@@ -305,6 +305,13 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     'password reset requests flooding one address: every request for it is being held',
   )
 
+  // **One instance, shared by every door that takes a code or a password for the second
+  // factor.** `express-rate-limit` gives each call its own store, so a limiter built per route
+  // would be four budgets of ten under one name — and the attacker with a stolen session would
+  // have forty guesses, not ten. The per-address limiters stay one per route, on purpose (see
+  // `secondFactorLimiter`): this one is keyed by the *account*, which is what the doors share.
+  const secondFactorBudget = secondFactorAccountLimiter()
+
   router.post(
     '/auth/login',
     // Genuinely public: this route is where a principal comes from, so there is none to
@@ -355,7 +362,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     // anywhere, together — the botnet that stays under every per-address limit), and the
     // sign-in itself (five wrong codes and the password is asked again).
     secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
-    secondFactorAccountLimiter(),
+    secondFactorBudget,
     asyncHandler(async (req, res) => {
       const body = secondFactorLoginBody.parse(req.body)
       res.setHeader('Cache-Control', 'no-store')
@@ -629,7 +636,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     // of a sign-in has, because a wrong password here is a guess like any other.
     requireUser(deps),
     secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
-    secondFactorAccountLimiter(),
+    secondFactorBudget,
     asyncHandler(async (req, res) => {
       const user = req.context.user
       if (!user) {
@@ -654,7 +661,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     '/auth/2fa/confirm',
     requireUser(deps),
     secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
-    secondFactorAccountLimiter(),
+    secondFactorBudget,
     asyncHandler(async (req, res) => {
       const user = req.context.user
       if (!user) {
@@ -685,7 +692,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     '/auth/step-up',
     requireUser(deps),
     secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
-    secondFactorAccountLimiter(),
+    secondFactorBudget,
     asyncHandler(async (req, res) => {
       const user = req.context.user
       if (!user) {
