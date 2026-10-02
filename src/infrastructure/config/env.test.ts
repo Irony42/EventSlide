@@ -159,6 +159,7 @@ describe('loadConfig', () => {
           slugSuffix: 'none',
           allowCustomSlugs: true,
           joinCodeLength: 6,
+          creation: 'anyAccount',
         },
         // A development boot never gets a warning: every case below is production-only.
         warnings: [],
@@ -1245,6 +1246,79 @@ describe('loadConfig', () => {
 
         expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
       })
+    })
+
+    /**
+     * P3-05 / G2-04, and roadmap §10.9's "refuse operator-only settings when off". The
+     * default is the half that carries the promise: a self-hosted box whose compose file
+     * predates the variable keeps letting every account create events, exactly as before.
+     * The refusal is the other half — a restriction to client members is a policy only an
+     * operator can satisfy, so a box with no operator surface must stop the boot instead
+     * of quietly ignoring a setting its owner believes is in force.
+     */
+    describe('EVENT_CREATION', () => {
+      const NAME = 'EVENT_CREATION'
+
+      it('is anyAccount on a box that never mentions it, so every account keeps creating events', () => {
+        expect(loadConfig({ ...DEV }).events.creation).toBe('anyAccount')
+        expect(loadConfig(aProductionEnv()).events.creation).toBe('anyAccount')
+      })
+
+      it('is clientMembers when SITE_ADMIN is on, which is what the hosted instance sets', () => {
+        const config = loadConfig(aProductionEnv({ [NAME]: 'clientMembers', SITE_ADMIN: 'on' }))
+
+        expect(config.events.creation).toBe('clientMembers')
+      })
+
+      it('accepts anyAccount spelled out, with the site administration off', () => {
+        const config = loadConfig(aProductionEnv({ [NAME]: 'anyAccount', SITE_ADMIN: 'off' }))
+
+        expect(config.events.creation).toBe('anyAccount')
+      })
+
+      it('reads a blank EVENT_CREATION as absent, landing on anyAccount like any other absence', () => {
+        expect(loadConfig(aProductionEnv({ [NAME]: '' })).events.creation).toBe('anyAccount')
+      })
+
+      it('refuses clientMembers while SITE_ADMIN is off, which is its default', () => {
+        const issues = refusalIssues(aProductionEnv({ [NAME]: 'clientMembers' }))
+        const issue = issues.find((candidate) => candidate.startsWith(`${NAME}: `)) ?? ''
+
+        // Names both variables, so the operator knows which of the two to change.
+        expect(issue).toContain('SITE_ADMIN=on')
+        expect(issue).toContain('clientMembers')
+      })
+
+      it('refuses clientMembers beside an explicit SITE_ADMIN=off, in development too', () => {
+        // Not production-gated: a restriction nobody can satisfy is wrong on a laptop as
+        // much as on a server, and it is the same refusal the operator meets either way.
+        const issues = refusalIssues({ ...DEV, [NAME]: 'clientMembers', SITE_ADMIN: 'off' })
+
+        expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+      })
+
+      it('lists the refusal beside every other problem, instead of stopping at it', () => {
+        const issues = refusalIssues({
+          ...DEV,
+          [NAME]: 'clientMembers',
+          DEFAULT_EVENT_QUOTA_BYTES: '2000',
+          MAX_EVENT_QUOTA_BYTES: '1000',
+        })
+
+        expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+        // Both come from the one refinement: a field that fails to parse at all stops the
+        // refinement from running, which is true of every cross-field rule in this file.
+        expect(issues.some((issue) => issue.startsWith('MAX_EVENT_QUOTA_BYTES: '))).toBe(true)
+      })
+
+      it.each(['ClientMembers', 'client_members', 'members', 'true', 'any', 'ANYACCOUNT'])(
+        "refuses EVENT_CREATION='%s' rather than guessing which policy was meant",
+        (value) => {
+          const issues = refusalIssues(aProductionEnv({ [NAME]: value, SITE_ADMIN: 'on' }))
+
+          expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+        },
+      )
     })
 
     describe('EVENT_CREATION_RATE_LIMIT_PER_HOUR', () => {
