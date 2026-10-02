@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ConfigError, loadConfig, loadMaintenanceConfig, resolveSourceUrl } from './env'
+import { OPERATOR_NAME_MAX_LENGTH } from '../../domain/privacy/privacyNotice'
 import { Password } from '../../domain/users/password'
 
 /**
@@ -156,6 +157,15 @@ describe('loadConfig', () => {
         siteAdmin: false,
         source: { url: null, ref: null },
         support: { donationUrl: null, budgetUrl: null },
+        operator: {
+          name: null,
+          contactEmail: null,
+          termsUrl: null,
+          privacyUrl: null,
+          legalNoticeUrl: null,
+          supportUrl: null,
+          reportUrl: null,
+        },
         events: {
           slugSuffix: 'none',
           allowCustomSlugs: true,
@@ -1294,6 +1304,224 @@ describe('loadConfig', () => {
         'budgetUrl',
         'donationUrl',
       ])
+    })
+  })
+
+  /**
+   * The operator's identity and the links they owe a visitor (roadmap G2-17 / P3-18): who
+   * runs this box, how to reach them, where their terms, privacy policy and legal notice
+   * are, where to get help, and where to report a piece of content (DSA art. 16).
+   *
+   * **Every one is empty by default**, and an empty box must stay silent: a self-hoster who
+   * sets none of the seven sees no new link, no name and no extra line in the guest notice.
+   * Each link is something an operator typed into a file and every visitor will be invited
+   * to press, so the rule is the strict one: https, or a path on this site, and never a
+   * script, a data URI, plain http or a protocol-relative address that would leave the site.
+   */
+  const OPERATOR_LINKS = [
+    ['LEGAL_TERMS_URL', 'termsUrl', 'https://hosted.example.org/legal/cgu'],
+    ['LEGAL_PRIVACY_URL', 'privacyUrl', 'https://hosted.example.org/legal/confidentialite'],
+    ['LEGAL_NOTICE_URL', 'legalNoticeUrl', 'https://hosted.example.org/legal/mentions'],
+    ['SUPPORT_URL', 'supportUrl', 'https://hosted.example.org/legal/avant-evenement'],
+    ['REPORT_URL', 'reportUrl', 'https://hosted.example.org/legal/signaler'],
+  ] as const
+
+  describe('the operator identity', () => {
+    it('is empty by default, so a box that sets nothing names nobody and links to nothing', () => {
+      const empty = {
+        name: null,
+        contactEmail: null,
+        termsUrl: null,
+        privacyUrl: null,
+        legalNoticeUrl: null,
+        supportUrl: null,
+        reportUrl: null,
+      }
+
+      expect(loadConfig({ ...DEV }).operator).toEqual(empty)
+      expect(loadConfig(aProductionEnv()).operator).toEqual(empty)
+    })
+
+    it('reads a blank value as absent, which is what a dangling compose variable renders', () => {
+      // `${OPERATOR_NAME:-}` and the six like it are empty strings whenever the operator
+      // set nothing, which is the ordinary `docker compose up`.
+      const blanks = Object.fromEntries(
+        ['OPERATOR_NAME', 'OPERATOR_CONTACT_EMAIL', ...OPERATOR_LINKS.map(([name]) => name)].map(
+          (name) => [name, ''],
+        ),
+      )
+
+      expect(loadConfig({ ...DEV, ...blanks }).operator).toEqual({
+        name: null,
+        contactEmail: null,
+        termsUrl: null,
+        privacyUrl: null,
+        legalNoticeUrl: null,
+        supportUrl: null,
+        reportUrl: null,
+      })
+    })
+
+    it('has no field beyond the seven the plan names', () => {
+      expect(Object.keys(loadConfig({ ...DEV }).operator).sort()).toEqual([
+        'contactEmail',
+        'legalNoticeUrl',
+        'name',
+        'privacyUrl',
+        'reportUrl',
+        'supportUrl',
+        'termsUrl',
+      ])
+    })
+
+    describe('OPERATOR_NAME', () => {
+      it('carries the name, trimmed, with its accents and its ampersand', () => {
+        expect(loadConfig({ ...DEV, OPERATOR_NAME: '  Café Photo & Fils  ' }).operator.name).toBe(
+          'Café Photo & Fils',
+        )
+      })
+
+      it('accepts a name of exactly the longest length', () => {
+        const longest = 'N'.repeat(OPERATOR_NAME_MAX_LENGTH)
+
+        expect(loadConfig({ ...DEV, OPERATOR_NAME: longest }).operator.name).toBe(longest)
+      })
+
+      it.each([
+        ['one character too long', 'N'.repeat(OPERATOR_NAME_MAX_LENGTH + 1)],
+        ['only spaces', '   '],
+        ['a newline inside', 'Les Photographes' + String.fromCharCode(10) + 'Association'],
+        ['a tab inside', 'Les' + String.fromCharCode(9) + 'Photographes'],
+        ['a NUL byte', 'Les Photographes' + String.fromCharCode(0)],
+        [
+          'a right-to-left override, which can make a name read backwards',
+          'Les ' + String.fromCharCode(0x202e) + 'segmatsoN',
+        ],
+        ['a line separator', 'Les' + String.fromCharCode(0x2028) + 'Photographes'],
+      ])('refuses a name with %s, naming the variable', (_why, value) => {
+        const issues = refusalIssues({ ...DEV, OPERATOR_NAME: value })
+
+        expect(issues.some((issue) => issue.startsWith('OPERATOR_NAME: '))).toBe(true)
+      })
+    })
+
+    describe('OPERATOR_CONTACT_EMAIL', () => {
+      it('carries the address, trimmed, next to the name it belongs to', () => {
+        const operator = loadConfig({
+          ...DEV,
+          OPERATOR_NAME: 'Les Photographes',
+          OPERATOR_CONTACT_EMAIL: '  contact@hosted.example.org ',
+        }).operator
+
+        expect(operator.contactEmail).toBe('contact@hosted.example.org')
+      })
+
+      it.each([
+        ['text that is not an address', 'write to the office'],
+        ['an address with a space in it', 'contact @hosted.example.org'],
+        ['a mailto: URI', 'mailto:contact@hosted.example.org'],
+        ['two addresses', 'a@hosted.example.org,b@hosted.example.org'],
+        [
+          'an address that smuggles a header into the mailto: link',
+          'a@hosted.example.org?bcc=x@y.zz',
+        ],
+        [
+          'an address with a newline in it',
+          'a@hosted.example.org' + String.fromCharCode(10) + 'bcc:x@y.zz',
+        ],
+      ])('refuses %s, naming the variable', (_why, value) => {
+        const issues = refusalIssues({
+          ...DEV,
+          OPERATOR_NAME: 'Les Photographes',
+          OPERATOR_CONTACT_EMAIL: value,
+        })
+
+        expect(issues.some((issue) => issue.startsWith('OPERATOR_CONTACT_EMAIL: '))).toBe(true)
+      })
+
+      it('is refused without a name, because /api/about has nowhere to put an address with no one behind it', () => {
+        const issues = refusalIssues({
+          ...DEV,
+          OPERATOR_CONTACT_EMAIL: 'contact@hosted.example.org',
+        })
+
+        const issue = issues.find((candidate) => candidate.startsWith('OPERATOR_CONTACT_EMAIL: '))
+        expect(issue).toContain('OPERATOR_NAME')
+      })
+    })
+
+    describe.each(OPERATOR_LINKS)('%s', (variable, field, address) => {
+      const configured = (value: string) =>
+        loadConfig({ ...DEV, [variable]: value }).operator[field]
+
+      it('is empty by default', () => {
+        expect(loadConfig({ ...DEV }).operator[field]).toBeNull()
+      })
+
+      it('carries an https address, in its canonical form', () => {
+        expect(configured(address)).toBe(address)
+        expect(configured('  HTTPS://Hosted.Example.ORG/Legal  ')).toBe(
+          'https://hosted.example.org/Legal',
+        )
+      })
+
+      it('carries a path on this site as a path, because the hosted instance serves /legal/* itself', () => {
+        expect(configured('/legal/signaler')).toBe('/legal/signaler')
+        expect(configured('  /legal/signaler?lang=fr#form ')).toBe('/legal/signaler?lang=fr#form')
+      })
+
+      it.each([
+        ['a javascript: URI', 'javascript:alert(document.cookie)'],
+        ['a data: URI', 'data:text/html,<script>alert(1)</script>'],
+        ['plain http', 'http://hosted.example.org/legal'],
+        ['plain http on localhost', 'http://localhost:3000/legal'],
+        ['an uppercase HTTP scheme', 'HTTP://hosted.example.org/legal'],
+        ['a file: URI', 'file:///etc/passwd'],
+        ['a mailto: URI', 'mailto:abuse@hosted.example.org'],
+        ['a protocol-relative address, which leaves the site', '//evil.example/legal'],
+        ['a backslash that the browser reads as a slash', '/\\evil.example/legal'],
+        [
+          'a path whose dot segments resolve to a protocol-relative address',
+          '/.//evil.example/legal',
+        ],
+        ['a path with no leading slash', 'legal/signaler'],
+        ['text that is not an address at all', 'ask the organiser'],
+        ['credentials in the address', 'https://user:secret@hosted.example.org/legal'],
+        [
+          'a newline inside an https address',
+          'https://hosted.example.org/' + String.fromCharCode(10) + 'x',
+        ],
+        ['a newline inside a path', '/legal/' + String.fromCharCode(10) + 'signaler'],
+        ['a space inside a path', '/legal/ signaler'],
+        [
+          'an address over two thousand characters',
+          'https://hosted.example.org/' + 'a'.repeat(2_100),
+        ],
+      ])('refuses %s, naming the variable', (_why, value) => {
+        const issues = refusalIssues({ ...DEV, [variable]: value })
+
+        const issue = issues.find((candidate) => candidate.startsWith(`${variable}: `)) ?? ''
+        expect(issue).toContain('https')
+        expect(issue).toContain('path')
+      })
+
+      it('refuses beside every other problem at once, and on a production box too', () => {
+        const issues = refusalIssues(
+          aProductionEnv({ [variable]: 'http://hosted.example.org', LOG_LEVEL: 'verbose' }),
+        )
+
+        expect(issues.some((candidate) => candidate.startsWith(`${variable}: `))).toBe(true)
+        expect(issues.some((candidate) => candidate.startsWith('LOG_LEVEL: '))).toBe(true)
+      })
+    })
+
+    it('keeps the seven independent: a link is fine with no name, and each link stands alone', () => {
+      const operator = loadConfig({ ...DEV, REPORT_URL: '/legal/signaler' }).operator
+
+      expect(operator.reportUrl).toBe('/legal/signaler')
+      expect(operator.name).toBeNull()
+      expect(operator.termsUrl).toBeNull()
+      expect(operator.privacyUrl).toBeNull()
     })
   })
 
