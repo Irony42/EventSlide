@@ -1746,6 +1746,14 @@ describe('migration 009, the append-only audit log', () => {
     closeDatabase(db)
   })
 
+  it('accepts an action of 80 characters and refuses one of 81', () => {
+    const db = migrated()
+
+    expect(() => insertEntry(db, { action: 'a'.repeat(80) })).not.toThrow()
+    expect(refusalOf(() => insertEntry(db, { action: 'a'.repeat(81) }))).toMatch(/CHECK/)
+    closeDatabase(db)
+  })
+
   it('refuses an empty action and an empty subject id', () => {
     const db = migrated()
 
@@ -1851,6 +1859,77 @@ describe('migration 009, the append-only audit log', () => {
       { actor_user_id: null },
       { actor_user_id: 'u2' },
     ])
+    closeDatabase(db)
+  })
+
+  it.each([
+    ['at', `at = '2030-01-01T00:00:00.000Z'`],
+    ['actor_kind', `actor_kind = 'system'`],
+    ['actor_label', `actor_label = 'rewritten'`],
+    ['action', `action = 'client.nothingHappened'`],
+    ['subject_type', `subject_type = 'event'`],
+    ['subject_id', `subject_id = 'c2'`],
+    ['client_id', `client_id = 'c2'`],
+    ['details', `details = '{"forged":true}'`],
+    ['seq', `seq = 99`],
+  ])(
+    'refuses to rewrite %s even in the same statement that erases the actor of an account that is already gone',
+    (_column, assignment) => {
+      // The one situation in which the equality clauses of the trigger decide anything:
+      // the pointer dangles because the account went with foreign keys off, so the
+      // "account is gone" clause is satisfied and only the other columns stand in the way.
+      const db = migrated()
+      db.pragma('foreign_keys = OFF')
+      insertEntry(db, { actorUserId: 'u1', actorLabel: 'console' })
+      db.prepare(`DELETE FROM users WHERE id = 'u1'`).run()
+
+      expect(
+        refusalOf(() =>
+          db.prepare(`UPDATE audit_log SET actor_user_id = NULL, ${assignment}`).run(),
+        ),
+      ).toMatch(/append-only/)
+      expect(db.prepare(`SELECT actor_user_id FROM audit_log`).get()).toEqual({
+        actor_user_id: 'u1',
+      })
+      closeDatabase(db)
+    },
+  )
+
+  it('lets only the erasure through when the account is gone: nothing else changes with it', () => {
+    const db = migrated()
+    db.pragma('foreign_keys = OFF')
+    insertEntry(db, { actorUserId: 'u1', actorLabel: 'console', details: '{"a":1}' })
+    const before = db.prepare(`SELECT * FROM audit_log`).get() as Record<string, unknown>
+    db.prepare(`DELETE FROM users WHERE id = 'u1'`).run()
+
+    db.prepare(`UPDATE audit_log SET actor_user_id = NULL`).run()
+
+    expect(db.prepare(`SELECT * FROM audit_log`).get()).toEqual({ ...before, actor_user_id: null })
+    closeDatabase(db)
+  })
+
+  it('refuses any UPDATE of a row whose actor is already gone, even one that changes nothing', () => {
+    const db = migrated()
+    insertEntry(db, { actorKind: 'system', actorUserId: null })
+
+    expect(refusalOf(() => db.prepare(`UPDATE audit_log SET actor_user_id = NULL`).run())).toMatch(
+      /append-only/,
+    )
+    closeDatabase(db)
+  })
+
+  it('refuses a sequence number that is not positive, which would make every later append look like an overwrite', () => {
+    const db = migrated()
+    const insertAt = (seq: number): void => {
+      db.prepare(
+        `INSERT INTO audit_log (seq, at, actor_kind, action, subject_type, subject_id)
+              VALUES (?, '${AT}', 'system', 'x', 'client', 'c1')`,
+      ).run(seq)
+    }
+
+    expect(refusalOf(() => insertAt(-1))).toMatch(/CHECK/)
+    expect(refusalOf(() => insertAt(0))).toMatch(/CHECK/)
+    expect(() => insertEntry(db)).not.toThrow()
     closeDatabase(db)
   })
 

@@ -81,7 +81,10 @@ export const migration009: Migration = {
         -- AUTOINCREMENT, unlike every other key in this schema, on purpose: it is a sequence
         -- number and not an identifier, and it must never be reused after a prune, or a
         -- reader holding the cursor of a row that was pruned would meet a different row.
-        seq            INTEGER PRIMARY KEY AUTOINCREMENT,
+        -- Positive, because audit_log_no_overwrite reads the seq of an auto-numbered insert as
+        -- -1: a hand-written row with that seq would make every later append look like an
+        -- overwrite of it.
+        seq            INTEGER PRIMARY KEY AUTOINCREMENT CHECK (seq > 0),
         at             TEXT    NOT NULL,
         actor_user_id  TEXT    REFERENCES users (id) ON DELETE SET NULL,
         actor_kind     TEXT    NOT NULL
