@@ -86,7 +86,7 @@ describe('createSequentialIdGenerator', () => {
     const ids = createSequentialIdGenerator()
 
     const codes = Array.from({ length: 100 }, () => {
-      const code = JoinCode.fromBytes(ids.bytes(JoinCode.entropyBytes))
+      const code = JoinCode.fromBytes(ids.bytes(JoinCode.minLength))
       if (!code.ok) throw new Error(`the generator produced bytes no join code accepts`)
       return code.value.value
     })

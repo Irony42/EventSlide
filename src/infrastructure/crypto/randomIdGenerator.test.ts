@@ -51,11 +51,11 @@ describe('randomIdGenerator', () => {
 
     it('returns entropy the domain join-code function accepts at the width it asks for', () => {
       // The only caller (createEvent / rotateJoinCode) hands this straight to
-      // JoinCode.fromBytes, which refuses anything but exactly `entropyBytes`. This is
-      // the seam where the adapter and the pure derivation have to agree; asserting
+      // JoinCode.fromBytes, which refuses anything but exactly the requested length.
+      // This is the seam where the adapter and the pure derivation have to agree; asserting
       // `instanceof Uint8Array` instead would pass for a Buffer, an Int8Array, or any
       // other view, and prove nothing a caller can observe.
-      const result = JoinCode.fromBytes(randomIdGenerator.bytes(JoinCode.entropyBytes))
+      const result = JoinCode.fromBytes(randomIdGenerator.bytes(JoinCode.minLength))
 
       expect(result.ok).toBe(true)
     })

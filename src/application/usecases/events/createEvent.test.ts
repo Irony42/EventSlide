@@ -19,6 +19,18 @@ const DEFAULT_QUOTA = 5_000_000_000
 const STARTS_AT = new Date('2026-06-20T17:00:00.000Z')
 
 /**
+ * D-14: a self-hosted box stays exactly as it was before P4-09 — `EVENT_SLUG_SUFFIX`
+ * off, `ALLOW_CUSTOM_SLUGS` on, `JOIN_CODE_LENGTH` six. Every test in this file that is
+ * not specifically about one of the three configurable behaviours spreads this, so a
+ * reader can tell the ordinary cases from the ones that turn a switch.
+ */
+const CORE_DEFAULTS = {
+  slugSuffix: 'none',
+  allowCustomSlugs: true,
+  joinCodeLength: 6,
+} as const
+
+/**
  * `SequentialIdGenerator.bytes` walks `0, 1, 2, …`, and `JoinCode.fromBytes` maps each
  * byte onto its alphabet — so the first code a test sees is exactly this one, and the
  * second is {@link SECOND_CODE}. Asserting the printed code beats matching a pattern.
@@ -50,6 +62,13 @@ class SaturatedEventRepository extends FakeEventRepository {
   }
 }
 
+/** The same bound, for the random slug suffix's own retry loop. */
+class SlugSaturatedEventRepository extends FakeEventRepository {
+  override async slugTaken(): Promise<boolean> {
+    return true
+  }
+}
+
 /** A generator that under-delivers entropy: the port lying, which `JoinCode` refuses. */
 class ShortEntropyIdGenerator extends SequentialIdGenerator {
   override bytes(count: number): Uint8Array {
@@ -76,6 +95,7 @@ describe('createEvent', () => {
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
       maxQuotaBytes: null,
+      ...CORE_DEFAULTS,
     })
   })
 
@@ -135,12 +155,12 @@ describe('createEvent', () => {
     expect(!result.ok && result.error.code).toBe('slug.reserved')
   })
 
-  it('refuses a slug another event already holds', async () => {
+  it('refuses a slug another event already holds, derived or not', async () => {
     events.seed(anEvent({ id: 'evt-other', slug: 'camille-sacha', joinCode: 'H7K2QM' }))
 
     const result = await createEvent({ ownerId: OWNER, name: 'Camille & Sacha' })
 
-    expect(!result.ok && result.error.code).toBe('event.slugTaken')
+    expect(!result.ok && result.error.code).toBe('event.slugUnavailable')
   })
 
   it('reports a taken slug as a conflict, so the form can offer another', async () => {
@@ -151,10 +171,185 @@ describe('createEvent', () => {
     expect(!result.ok && result.error.kind).toBe('conflict')
   })
 
+  // The regression this replaces: `createEvent.ts:111` used to answer
+  // `event.slugTaken` with the computed slug in its details, which proved a caller who
+  // only ever typed a free-text name the literal, already-normalised address of another
+  // tenant's event (docs/SECURITY.md, R-08 / A-16 / A-42 — "collision neutre", P4-09).
+  it('answers a slug collision with no echo of the slug it computed', async () => {
+    events.seed(anEvent({ id: 'evt-other', slug: 'camille-sacha', joinCode: 'H7K2QM' }))
+
+    const result = await createEvent({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+    expect(!result.ok && result.error.details).toEqual({})
+  })
+
+  it('answers a custom slug collision the same neutral way', async () => {
+    events.seed(anEvent({ id: 'evt-other', slug: 'gala-2026', joinCode: 'H7K2QM' }))
+
+    const result = await createEvent({
+      ownerId: OWNER,
+      name: 'Un autre évènement',
+      slug: 'gala-2026',
+    })
+
+    expect(!result.ok && result.error.code).toBe('event.slugUnavailable')
+    expect(!result.ok && result.error.details).toEqual({})
+  })
+
   it('refuses a name the domain will not accept', async () => {
     const result = await createEvent({ ownerId: OWNER, name: 'A' })
 
     expect(!result.ok && result.error.code).toBe('eventName.tooShort')
+  })
+
+  // ---------------------------------------------------- ALLOW_CUSTOM_SLUGS=false --
+
+  describe('with custom slugs disabled (the hosted instance)', () => {
+    let createWithoutCustomSlugs: CreateEvent
+
+    beforeEach(() => {
+      createWithoutCustomSlugs = makeCreateEvent({
+        events,
+        memberships,
+        ids,
+        clock,
+        defaultQuotaBytes: DEFAULT_QUOTA,
+        maxQuotaBytes: null,
+        ...CORE_DEFAULTS,
+        allowCustomSlugs: false,
+      })
+    })
+
+    it('refuses a host-supplied slug outright, rather than silently ignoring it', async () => {
+      const result = await createWithoutCustomSlugs({
+        ownerId: OWNER,
+        name: 'Camille & Sacha',
+        slug: 'gala-2026',
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.customSlugNotAllowed')
+    })
+
+    it('saves nothing when a host-supplied slug is refused', async () => {
+      await createWithoutCustomSlugs({
+        ownerId: OWNER,
+        name: 'Camille & Sacha',
+        slug: 'gala-2026',
+      })
+
+      expect(await events.findBySlug(slug('gala-2026'))).toBeNull()
+    })
+
+    it('still derives a slug from the name when the host supplied none', async () => {
+      const result = await createWithoutCustomSlugs({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+      expect(unwrap(result).slug.value).toBe('camille-sacha')
+    })
+  })
+
+  // --------------------------------------------------- EVENT_SLUG_SUFFIX=random --
+
+  describe('with a random slug suffix (the hosted instance)', () => {
+    let createWithRandomSuffix: CreateEvent
+
+    beforeEach(() => {
+      createWithRandomSuffix = makeCreateEvent({
+        events,
+        memberships,
+        ids,
+        clock,
+        defaultQuotaBytes: DEFAULT_QUOTA,
+        maxQuotaBytes: null,
+        ...CORE_DEFAULTS,
+        slugSuffix: 'random',
+      })
+    })
+
+    it('always appends a random suffix to a derived slug, not only on collision', async () => {
+      const result = await createWithRandomSuffix({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+      // `SequentialIdGenerator.bytes` walks `0, 1, 2, …`, so the first six bytes this
+      // call consumes map onto the suffix alphabet's own first six characters.
+      expect(unwrap(result).slug.value).toBe('camille-sacha-012345')
+    })
+
+    it('never saves the bare derived slug a sequential fallback would have revealed existed', async () => {
+      await createWithRandomSuffix({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+      expect(await events.findBySlug(slug('camille-sacha'))).toBeNull()
+    })
+
+    it('still honours a host-supplied slug: the suffix only applies to a derived one', async () => {
+      const result = await createWithRandomSuffix({
+        ownerId: OWNER,
+        name: 'Camille & Sacha',
+        slug: 'gala-2026',
+      })
+
+      expect(unwrap(result).slug.value).toBe('gala-2026')
+    })
+
+    it('retries with a fresh suffix past a collision, rather than refusing the host', async () => {
+      // The first suffix this generator derives collides; a working generator must not
+      // surface that as a conflict the host can do nothing about.
+      events.seed(anEvent({ id: 'evt-other', slug: 'camille-sacha-012345', joinCode: 'Z3N9PT' }))
+
+      const result = await createWithRandomSuffix({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+      expect(result.ok).toBe(true)
+      expect(unwrap(result).slug.value).not.toBe('camille-sacha-012345')
+    })
+
+    it('gives up rather than looping when every suffix it tries is already taken', async () => {
+      const saturatedSlugs = new SlugSaturatedEventRepository()
+      const create = makeCreateEvent({
+        events: saturatedSlugs,
+        memberships,
+        ids,
+        clock,
+        defaultQuotaBytes: DEFAULT_QUOTA,
+        maxQuotaBytes: null,
+        ...CORE_DEFAULTS,
+        slugSuffix: 'random',
+      })
+
+      const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+      expect(!result.ok && result.error.code).toBe('event.slugExhausted')
+      expect(!result.ok && result.error.kind).toBe('unexpected')
+    })
+
+    it('refuses a name that folds away to nothing even with a suffix to append', async () => {
+      // `EventName` accepts this — 東京 has alphanumeric characters by its own rule,
+      // `\p{L}` — but `slugify` keeps only `[a-z0-9]`, so it folds to '' exactly as pure
+      // punctuation does. `Slug.fromNameWithRandomSuffix` then builds a bare `-xxxxxx`,
+      // which `Slug.create` refuses for the leading dash. That refusal must stop the
+      // attempt loop outright, rather than being swallowed as "try the next suffix".
+      const result = await createWithRandomSuffix({ ownerId: OWNER, name: '東京' })
+
+      expect(!result.ok && result.error.code).toBe('slug.malformed')
+    })
+  })
+
+  // -------------------------------------------------------- JOIN_CODE_LENGTH --
+
+  describe('a configured join code length', () => {
+    it('mints a code of the configured length instead of the default six', async () => {
+      const create = makeCreateEvent({
+        events,
+        memberships,
+        ids,
+        clock,
+        defaultQuotaBytes: DEFAULT_QUOTA,
+        maxQuotaBytes: null,
+        ...CORE_DEFAULTS,
+        joinCodeLength: 8,
+      })
+
+      const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+      expect(unwrap(result).joinCode.value).toHaveLength(8)
+    })
   })
 
   // -------------------------------------------------------------- join code --
@@ -182,6 +377,7 @@ describe('createEvent', () => {
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
       maxQuotaBytes: null,
+      ...CORE_DEFAULTS,
     })
 
     const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
@@ -198,6 +394,7 @@ describe('createEvent', () => {
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
       maxQuotaBytes: null,
+      ...CORE_DEFAULTS,
     })
 
     await create({ ownerId: OWNER, name: 'Camille & Sacha' })
@@ -213,6 +410,7 @@ describe('createEvent', () => {
       clock,
       defaultQuotaBytes: DEFAULT_QUOTA,
       maxQuotaBytes: null,
+      ...CORE_DEFAULTS,
     })
 
     const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
@@ -268,6 +466,7 @@ describe('createEvent', () => {
         clock,
         defaultQuotaBytes: DEFAULT_QUOTA,
         maxQuotaBytes: MAX_QUOTA,
+        ...CORE_DEFAULTS,
       })
     })
 
@@ -311,6 +510,7 @@ describe('createEvent', () => {
         clock,
         defaultQuotaBytes: DEFAULT_QUOTA,
         maxQuotaBytes: DEFAULT_QUOTA,
+        ...CORE_DEFAULTS,
       })
 
       const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })

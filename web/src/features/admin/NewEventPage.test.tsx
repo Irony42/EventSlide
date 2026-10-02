@@ -97,14 +97,14 @@ describe('NewEventPage', () => {
 
   it('says an address is taken and keeps the form as it was', async () => {
     const api = fakeApi({
-      createEvent: vi.fn(() => Promise.reject(new ApiError(409, 'event.slugTaken'))),
+      createEvent: vi.fn(() => Promise.reject(new ApiError(409, 'event.slugUnavailable'))),
     })
 
     renderPage(api)
     await userEvent.type(screen.getByLabelText(fr.admin.eventName), 'Camille & Sacha')
     await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['event.slugTaken'])
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['event.slugUnavailable'])
     expect(screen.getByLabelText(fr.admin.eventName)).toHaveValue('Camille & Sacha')
     expect(screen.queryByText(EVENT_PAGE)).toBeNull()
   })

@@ -5,7 +5,7 @@ import type { Store } from 'express-session'
 import { errorHandler, requestContext } from './middleware/errorHandler'
 import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
 import { attachUser, enforceSessionAge } from './middleware/authz'
-import { uploadLimiter } from './middleware/rateLimit'
+import { eventCreationLimiter, uploadLimiter } from './middleware/rateLimit'
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
 import { authRoutes } from './routes/authRoutes'
 import { clipRoutes } from './routes/clipRoutes'
@@ -209,7 +209,16 @@ export const buildServer = ({
   // before the event router for no reason other than reading order: the four routes here
   // are all 'events/:eventSlug/missions' and none of them collides with anything above.
   app.use('/api', missionRoutes(routeDeps))
-  app.use('/api', eventRoutes(routeDeps))
+  app.use(
+    '/api',
+    eventRoutes({
+      ...routeDeps,
+      // Its own limiter, not a share of `uploadRateLimiter`: event creation is a host
+      // action gated behind a session, not a public write a stranger can reach, and it
+      // is keyed by account rather than by address (P4-09 / D-14).
+      creationLimiter: eventCreationLimiter(config.rateLimits.eventCreationPerHour),
+    }),
+  )
   app.use('/api', streamRoutes(deps))
 
   // An unmatched /api path is a 404 in the API's own error shape, not the HTML the

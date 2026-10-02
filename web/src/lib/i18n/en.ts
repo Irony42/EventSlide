@@ -244,7 +244,9 @@ export const en: UiText = {
     'event.notFound': 'This code does not match any open gallery.',
     'event.notAcceptingUploads': 'This gallery is no longer accepting photos.',
     'event.quotaExceeded': 'The gallery is full. Let the organiser know.',
-    'event.slugTaken': 'This address is already in use.',
+    'event.slugUnavailable': 'This address is already in use.',
+    'event.customSlugNotAllowed': 'This instance does not allow choosing your own address.',
+    'event.creationRateLimited': 'You created too many events recently. Try again later.',
     'event.quotaAboveCeiling': 'This quota exceeds the limit this server allows.',
     'event.immutable': 'This event is archived and can no longer be changed.',
     'event.illegalTransition': 'This change of state is not possible.',
@@ -296,7 +298,7 @@ export const en: UiText = {
     'membership.alreadyExists': 'This person already moderates this event.',
 
     'displayName.tooLong': 'First name too long.',
-    'joinCode.wrongLength': 'The code is six characters long.',
+    'joinCode.wrongLength': 'This code has the wrong number of characters.',
     'joinCode.malformed': 'This code contains an unexpected character.',
 
     'reaction.rateLimited': 'Gently — wait a moment before reacting again.',

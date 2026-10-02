@@ -681,6 +681,7 @@ on a restart loop)**.
 | Endpoint                                      | Per IP       | Per event              | Per guest token | Window |
 | --------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
 | `POST /api/auth/login`                        | 10           | —                      | —               | 1 min  |
+| `POST /api/events` (create)\*                 | —            | —                      | —               | 1 hour |
 | `GET /api/join/:code` (code lookup)           | 20           | 60                     | —               | 1 min  |
 | `POST /api/events/:slug/guests` (join)        | 10           | 60                     | —               | 1 min  |
 | `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**           | —               | 1 min  |
@@ -691,6 +692,13 @@ on a restart loop)**.
 | `GET /api/gallery-media/…`                    | 3000         | —                      | —               | 1 min  |
 | `POST /api/gallery/:token/unlock` (failures)  | 10           | 50 per link            | —               | 15 min |
 | `GET /api/gallery-media/:linkId/album.zip`    | 2 concurrent | 4 concurrent, box-wide | —               | —      |
+
+**\*** Keyed by **account**, which none of this table's three columns name — the one
+row here that is not about an anonymous caller. An office or a venue's own guest Wi-Fi is
+one address shared by several hosts, and one host's burst of event creation must not
+spend a colleague's allowance; `EVENT_CREATION_RATE_LIMIT_PER_HOUR` (default **20**) and
+`event.creationRateLimited` are in `env.ts` and `middleware/rateLimit.ts` (P4-09 / D-14,
+roadmap G3-05).
 
 **(defect)** The two upload rows describe three independent limits and there is one.
 `uploadLimiter` in `middleware/rateLimit.ts` mints a single bucket keyed by

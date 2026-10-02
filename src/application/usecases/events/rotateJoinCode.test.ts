@@ -58,7 +58,7 @@ describe('rotateJoinCode', () => {
     memberships = new FakeMembershipRepository()
     ids = new SequentialIdGenerator()
     bus = new RecordingEventBus()
-    rotateJoinCode = makeRotateJoinCode({ events, memberships, ids, bus })
+    rotateJoinCode = makeRotateJoinCode({ events, memberships, ids, bus, joinCodeLength: 6 })
 
     events.seed(
       anEvent({
@@ -116,6 +116,7 @@ describe('rotateJoinCode', () => {
       memberships,
       ids: new ShortEntropyIdGenerator(),
       bus,
+      joinCodeLength: 6,
     })
 
     const result = await rotate({ eventId: WEDDING, actorId: OWNER })
@@ -137,7 +138,7 @@ describe('rotateJoinCode', () => {
           joinCode: PRINTED_CODE,
         }),
       )
-      rotate = makeRotateJoinCode({ events: saturated, memberships, ids, bus })
+      rotate = makeRotateJoinCode({ events: saturated, memberships, ids, bus, joinCodeLength: 6 })
       await seedRoles(memberships)
     })
 
@@ -160,6 +161,16 @@ describe('rotateJoinCode', () => {
 
       expect(bus.published).toEqual([])
     })
+  })
+
+  // -------------------------------------------------------- JOIN_CODE_LENGTH --
+
+  it('mints the rotated code at the configured length', async () => {
+    const rotate = makeRotateJoinCode({ events, memberships, ids, bus, joinCodeLength: 8 })
+
+    const result = await rotate({ eventId: WEDDING, actorId: OWNER })
+
+    expect(result.ok && result.value.joinCode.value).toHaveLength(8)
   })
 
   // ------------------------------------------------------------------ refusals --

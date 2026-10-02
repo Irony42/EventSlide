@@ -282,6 +282,7 @@ describe('buildServer: which client a rate limit is counting', () => {
           galleryMediaPerMinute: 600,
           galleryUnlockPerClient: 10,
           galleryUnlockPerLink: 50,
+          eventCreationPerHour: 20,
         },
       },
     })
@@ -332,6 +333,7 @@ describe('buildServer: which client a rate limit is counting', () => {
           galleryMediaPerMinute: 600,
           galleryUnlockPerClient: 10,
           galleryUnlockPerLink: 50,
+          eventCreationPerHour: 20,
         },
       },
     })

@@ -25,10 +25,29 @@ import { SequentialIdGenerator } from '../../../application/testing/sequentialId
 import { asEventId, asGuestId, asUserId, type EventId } from '../../../domain/shared/ids'
 import type { Password } from '../../../domain/users/password'
 import type { PasswordHash } from '../../../domain/users/user'
+import { eventCreationLimiter } from '../middleware/rateLimit'
 import { buildHarness, signInAs } from '../testing/middlewareHarness'
 import type { HttpDeps, RequestContext } from '../types'
 import type { HttpUseCases } from '../useCases'
 import { currentUser, eventRoutes, hostScope } from './eventRoutes'
+
+/**
+ * D-14: the self-hosted defaults `makeCreateEvent` and `makeRotateJoinCode` get
+ * everywhere in this file that is not specifically testing one of P4-09's three
+ * switches.
+ */
+const CORE_DEFAULTS = {
+  slugSuffix: 'none',
+  allowCustomSlugs: true,
+  joinCodeLength: 6,
+} as const
+
+/**
+ * Generous enough that no test here trips it by accident — the limiter's own keying
+ * and 429 are `rateLimit.test.ts`'s and the dedicated test below, not every other case
+ * in this file.
+ */
+const GENEROUS_CREATION_LIMIT = 1_000
 
 /**
  * The host's surface, driven through a real Express app.
@@ -141,7 +160,12 @@ interface World {
   readonly media: PurgingMediaStore
 }
 
-const buildWorld = (): World => {
+interface BuildWorldOptions {
+  /** Defaults to {@link GENEROUS_CREATION_LIMIT}; a test about the limiter itself narrows it. */
+  readonly creationLimit?: number
+}
+
+const buildWorld = ({ creationLimit = GENEROUS_CREATION_LIMIT }: BuildWorldOptions = {}): World => {
   const users = new FakeUserRepository()
   const photos = new FakePhotoRepository()
   const guests = new FakeGuestRepository()
@@ -181,12 +205,19 @@ const buildWorld = (): World => {
           clock: deps.clock,
           defaultQuotaBytes: DEFAULT_QUOTA_BYTES,
           maxQuotaBytes: MAX_QUOTA_BYTES,
+          ...CORE_DEFAULTS,
         }),
         getEventBySlug: makeGetEventBySlug({ events }),
         listEventsForHost: makeListEventsForHost({ events }),
         resolveJoinCode: absent('resolveJoinCode'),
         updateEventSettings: makeUpdateEventSettings({ events, memberships, bus: deps.bus }),
-        rotateJoinCode: makeRotateJoinCode({ events, memberships, ids, bus: deps.bus }),
+        rotateJoinCode: makeRotateJoinCode({
+          events,
+          memberships,
+          ids,
+          bus: deps.bus,
+          joinCodeLength: CORE_DEFAULTS.joinCodeLength,
+        }),
         changeEventStatus: makeChangeEventStatus({
           events,
           memberships,
@@ -267,6 +298,7 @@ const buildWorld = (): World => {
               supported: deps.config.clips.supported,
             },
           },
+          creationLimiter: eventCreationLimiter(creationLimit),
         }),
       )
     },
@@ -751,13 +783,26 @@ describe('the host event routes', () => {
       expect(response.body.error.details).toEqual({ maxBytes: MAX_QUOTA_BYTES })
     })
 
-    it('answers 409 for a slug another event already holds', async () => {
+    it('answers 409 for a slug another event already holds, with no echo of it (P4-09, collision neutre)', async () => {
       const agent = await signedIn(world, 'owner')
 
       const response = await agent.post('/api/events').send({ name: 'Encore un', slug: SLUG })
 
       expect(response.status).toBe(409)
-      expect(response.body.error.code).toBe('event.slugTaken')
+      expect(response.body.error.code).toBe('event.slugUnavailable')
+      expect(response.body.error.details).toEqual({})
+    })
+
+    it('answers 429 once an account spends its creation allowance for the hour', async () => {
+      const narrowWorld = buildWorld({ creationLimit: 1 })
+      const narrowAgent = request.agent(narrowWorld.app)
+      await narrowAgent.post('/sign-in/owner').expect(204)
+
+      await narrowAgent.post('/api/events').send({ name: 'Premier évènement' }).expect(201)
+      const response = await narrowAgent.post('/api/events').send({ name: 'Second évènement' })
+
+      expect(response.status).toBe(429)
+      expect(response.body.error.code).toBe('event.creationRateLimited')
     })
 
     it('starts from the product defaults when no template is named', async () => {

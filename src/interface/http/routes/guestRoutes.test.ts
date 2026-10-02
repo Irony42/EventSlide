@@ -674,6 +674,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
           galleryMediaPerMinute: 600,
           galleryUnlockPerClient: 10,
           galleryUnlockPerLink: 50,
+          eventCreationPerHour: 20,
         },
       },
     })

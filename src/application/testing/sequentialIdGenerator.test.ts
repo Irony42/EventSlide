@@ -24,16 +24,16 @@ describe('SequentialIdGenerator', () => {
   })
 
   it('derives an exact join code from its first bytes', async () => {
-    const code = JoinCode.fromBytes(new SequentialIdGenerator().bytes(JoinCode.entropyBytes))
+    const code = JoinCode.fromBytes(new SequentialIdGenerator().bytes(JoinCode.minLength))
 
     expect(code.ok && code.value.value).toBe('012345')
   })
 
   it('derives a different join code for the next event', async () => {
     const ids = new SequentialIdGenerator()
-    ids.bytes(JoinCode.entropyBytes)
+    ids.bytes(JoinCode.minLength)
 
-    const code = JoinCode.fromBytes(ids.bytes(JoinCode.entropyBytes))
+    const code = JoinCode.fromBytes(ids.bytes(JoinCode.minLength))
 
     expect(code.ok && code.value.value).toBe('6789AB')
   })

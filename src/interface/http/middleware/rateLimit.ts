@@ -98,6 +98,47 @@ export const uploadLimiter = (perMinute: number): RateLimitRequestHandler =>
 export const reactionLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'reaction.rateLimited', (req) => `${clientKey(req)}:${eventKey(req)}`)
 
+// -------------------------------------------------------------- event creation --
+
+/**
+ * The account that created the request, as a rate-limit key.
+ *
+ * `requireUser` runs ahead of this limiter on `POST /events` and leaves
+ * `req.context.user` set, so the account is on the request by the time this reads it.
+ * The fallback to {@link clientKey} is defensive only — reached if this were ever
+ * mounted ahead of `requireUser` by mistake — and keeps the limiter a limiter rather
+ * than a crash, the same way `eventKey` collapses an unparseable slug into one bucket
+ * instead of refusing to key the request at all.
+ */
+const accountKey = (req: Request): string => req.context.user?.userId ?? clientKey(req)
+
+/**
+ * How many events one **account** may create per hour (P4-09 / D-14).
+ *
+ * Keyed by account rather than address, unlike every other limiter in this file: an
+ * office, a venue's guest Wi-Fi, or a shared office address is one IP behind which many
+ * hosts work, and a host who already created six events today must not spend an
+ * allowance a colleague on the same router never touched — nor must one host's burst
+ * leave a colleague locked out. The flip side of `uploadLimiter`'s reasoning for keying
+ * on **event**: there the shared address is the attack surface to protect against, here
+ * it is the legitimate case the key must not punish.
+ *
+ * An hour, not a minute: event creation is the one write here that is rare by nature —
+ * a host opens one event per occasion — so the window this limiter resets on is sized
+ * to the behaviour it is bounding, same as the gallery unlock's fifteen minutes is.
+ */
+export const eventCreationLimiter = (perHour: number): RateLimitRequestHandler =>
+  rateLimit({
+    windowMs: 60 * 60_000,
+    limit: perHour,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    keyGenerator: accountKey,
+    handler: (_req, res) => {
+      res.status(429).json(errorBody(DomainError.rateLimited('event.creationRateLimited')))
+    },
+  })
+
 // ----------------------------------------------------------- shared gallery --
 
 /**
