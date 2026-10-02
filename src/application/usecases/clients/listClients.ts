@@ -8,9 +8,10 @@ import type { ClientPage, ClientRepository } from '../../ports/clientRepository'
  * operator's act on the box, gated by `requireOperator` at the HTTP layer (G2-14); see
  * {@link makeCreateClient} for why there is no actor here.
  *
- * The page size is validated here rather than trusted to the adapter: it is interpolated
- * into a `LIMIT` one past what is asked for, and a caller who could pass `Infinity` or a
- * million would be choosing how much of the table one request reads.
+ * The page size is validated here rather than trusted to the adapter: it is bound into a
+ * `LIMIT` one past what is asked for, so a caller who could pass `Infinity` or a million
+ * would be choosing how much of the table one request reads, and a zero or a negative
+ * would be answered differently by SQLite (`LIMIT -1` reads everything) and by the fake.
  */
 
 export const DEFAULT_CLIENT_PAGE_SIZE = 50

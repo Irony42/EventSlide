@@ -7,9 +7,11 @@ import { err, ok, type Result } from '../shared/result'
  * on any mail a client receives (P3-08), so it is bounded and stripped of anything
  * invisible, the same way `EventName` is.
  *
- * The bound is the catalogue's own `CHECK (length(name) BETWEEN 1 AND 200)` — see the paid
- * plan's "Schéma des clients" (P3-04) — so the domain refuses nothing the database would
- * accept, and the database refuses nothing a hand-edited row could otherwise hold.
+ * The bounds are the catalogue's own `CHECK (length(name) BETWEEN 1 AND 200)` — see the
+ * paid plan's "Schéma des clients" (P3-04) — so the two layers use the same numbers. They
+ * count differently, which is why this is not a claim that they agree on every string:
+ * SQLite's `length()` counts code points and this counts UTF-16 units, so the domain is the
+ * stricter of the two for a name of astral characters.
  */
 
 const MIN_LENGTH = 1

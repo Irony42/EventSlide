@@ -44,7 +44,13 @@ export interface ClientRepository {
 
   findById(id: ClientId): Promise<Client | null>
 
-  /** Newest first, keyset-paginated so an operator console can page through every client. */
+  /**
+   * Newest first, keyset-paginated so an operator console can page through every client.
+   *
+   * `limit` must be a positive integer; the adapters do **not** agree on anything else (a
+   * zero reads nothing, SQLite reads everything for a negative), and `listClients` is what
+   * guarantees they are never asked.
+   */
   list(page: { readonly after?: ClientId; readonly limit: number }): Promise<ClientPage>
 
   /** Every client account the user belongs to, most recently granted first. */

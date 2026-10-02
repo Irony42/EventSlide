@@ -197,6 +197,21 @@ describe('SqliteClientRepository', () => {
     await expect(repo.findById(asClientId('client-1'))).rejects.toThrow(/clients\.contact_email/)
   })
 
+  it('names the column of a corrupt row but never repeats its value, which may be personal data', async () => {
+    await repo.save(aClient({ id: 'client-1' }))
+    corrupt('contact_email', 'marie.dupont-sans-arobase')
+
+    const thrown = await rejectionOf(() => repo.findById(asClientId('client-1')))
+    expect(String(thrown)).toContain('clients.contact_email')
+    expect(String(thrown)).not.toContain('marie.dupont')
+
+    corrupt('name', 'Marie Dupont'.repeat(20))
+    corrupt('contact_email', 'marie@example.test')
+    const nameThrown = await rejectionOf(() => repo.findById(asClientId('client-1')))
+    expect(String(nameThrown)).toContain('clients.name')
+    expect(String(nameThrown)).not.toContain('Marie Dupont')
+  })
+
   it('refuses to hydrate a timestamp it cannot read', async () => {
     await repo.save(aClient({ id: 'client-1' }))
     corrupt('created_at', 'yesterday-ish')

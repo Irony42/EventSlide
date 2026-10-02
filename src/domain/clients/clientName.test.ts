@@ -72,27 +72,27 @@ describe('ClientName', () => {
   })
 
   it('accepts a single character, matching the table CHECK of BETWEEN 1 AND 200', () => {
-    const result = ClientName.create('x'.repeat(ClientName.minLength))
+    const result = ClientName.create('x'.repeat(1))
 
     expect(result.ok).toBe(true)
   })
 
-  it('accepts the longest allowed name', () => {
-    const result = ClientName.create('x'.repeat(ClientName.maxLength))
+  it('accepts a name of exactly 200 characters, the table CHECK’s upper bound', () => {
+    const result = ClientName.create('x'.repeat(200))
 
     expect(result.ok).toBe(true)
   })
 
-  it('refuses a name one character past the table CHECK', () => {
-    const result = ClientName.create('x'.repeat(ClientName.maxLength + 1))
+  it('refuses a name of 201 characters, one past the table CHECK’s upper bound', () => {
+    const result = ClientName.create('x'.repeat(201))
 
     expect(!result.ok && result.error.code).toBe('clientName.tooLong')
   })
 
   it('reports the limit it enforced', () => {
-    const result = ClientName.create('x'.repeat(ClientName.maxLength + 1))
+    const result = ClientName.create('x'.repeat(201))
 
-    expect(!result.ok && result.error.details).toEqual({ max: ClientName.maxLength })
+    expect(!result.ok && result.error.details).toEqual({ max: 200 })
   })
 
   it('refuses a non-string, which is what a stored row or a JSON body can hand over', () => {
@@ -102,11 +102,11 @@ describe('ClientName', () => {
   })
 
   it('measures the name after stripping, so padding cannot buy extra characters', () => {
-    const padded = `${'x'.repeat(ClientName.maxLength)}${ZERO_WIDTH_JOINER.repeat(20)}`
+    const padded = `${'x'.repeat(200)}${ZERO_WIDTH_JOINER.repeat(20)}`
 
     const result = ClientName.create(padded)
 
-    expect(result.ok && result.value.value.length).toBe(ClientName.maxLength)
+    expect(result.ok && result.value.value.length).toBe(200)
   })
 
   it('reports a bad name as a parse failure, not a conflict', () => {

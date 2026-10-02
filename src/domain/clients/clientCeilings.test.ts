@@ -133,6 +133,39 @@ describe('ClientCeilings.create', () => {
     expect(!result.ok && result.error.code).toBe('clientCeilings.maxEventsPerPeriodInvalid')
   })
 
+  // ------------------------------------------------------------ flags and instant --
+
+  it('accepts false for either flag', () => {
+    expect(ClientCeilings.create({ clipsAllowed: false, liveAllowed: false }).ok).toBe(true)
+  })
+
+  it.each([undefined, 'false', 0, null])('refuses %s as clipsAllowed', (bad) => {
+    const result = ClientCeilings.create({ clipsAllowed: bad as unknown as boolean })
+
+    expect(!result.ok && result.error.code).toBe('clientCeilings.clipsAllowedInvalid')
+  })
+
+  it.each([undefined, 'true', 1, null])('refuses %s as liveAllowed', (bad) => {
+    const result = ClientCeilings.create({ liveAllowed: bad as unknown as boolean })
+
+    expect(!result.ok && result.error.code).toBe('clientCeilings.liveAllowedInvalid')
+  })
+
+  it('accepts a real period instant', () => {
+    expect(
+      ClientCeilings.create({ periodStartedAt: new Date('2026-06-20T00:00:00.000Z') }).ok,
+    ).toBe(true)
+  })
+
+  it.each([new Date('not a date'), undefined, '2026-06-20T00:00:00.000Z'])(
+    'refuses %s as periodStartedAt, which the adapter could not write',
+    (bad) => {
+      const result = ClientCeilings.create({ periodStartedAt: bad as unknown as Date })
+
+      expect(!result.ok && result.error.code).toBe('clientCeilings.periodStartedAtInvalid')
+    },
+  )
+
   // -------------------------------------------------------------- restore/flags --
 
   it('restores a row the database already validated, trusting it rather than re-checking', () => {

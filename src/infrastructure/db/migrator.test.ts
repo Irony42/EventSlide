@@ -1349,6 +1349,27 @@ describe('migration 008, clients', () => {
     closeDatabase(db)
   })
 
+  it.each([
+    { column: 'clips_allowed', value: 2 },
+    { column: 'clips_allowed', value: -1 },
+    { column: 'live_allowed', value: 2 },
+    { column: 'live_allowed', value: -1 },
+    // The only database guard behind "the counter never decreases": it cannot go negative.
+    { column: 'events_created_in_period', value: -1 },
+  ])('refuses a $column of $value', ({ column, value }) => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO clients (id, name, created_at, ${column}) VALUES ('c1', 'x', '${AT}', ?)`,
+        )
+        .run(value),
+    ).toThrow(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
   it('accepts max_retention_days and max_live_days at either edge of ClientCeilings’ own bound', () => {
     const db = freshDb()
     migrate(db, migrations)

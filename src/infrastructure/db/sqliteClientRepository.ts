@@ -114,6 +114,11 @@ interface ContextRow {
   readonly suspended_at: string | null
 }
 
+/**
+ * `detail` is a domain error code or a closed tag, **never the offending value**: this
+ * message reaches the error log, and `name` and `contact_email` are personal data that
+ * docs/SECURITY.md's log table does not allow there.
+ */
 const corrupt = (column: string, detail: string): Error =>
   new Error(`Corrupt clients.${column} in the database: ${detail}`)
 
@@ -163,12 +168,12 @@ const toCeilingsProps = (row: {
  */
 const toClient = (row: ClientRow): Client => {
   const name = ClientName.create(row.name)
-  if (!name.ok) throw corrupt('name', `${name.error.code} (${row.name})`)
+  if (!name.ok) throw corrupt('name', name.error.code)
 
   let contactEmail: EmailAddress | null = null
   if (row.contact_email !== null) {
     const parsed = EmailAddress.create(row.contact_email)
-    if (!parsed.ok) throw corrupt('contact_email', `${parsed.error.code} (${row.contact_email})`)
+    if (!parsed.ok) throw corrupt('contact_email', parsed.error.code)
     contactEmail = parsed.value
   }
 
@@ -267,6 +272,7 @@ export class SqliteClientRepository implements ClientRepository {
                     @retentionCapSince, @clipsAllowed, @liveAllowed, @maxLiveDays,
                     @maxEventsPerPeriod, @periodStartedAt, @eventsCreatedInPeriod, @locale)
        ON CONFLICT (id) DO UPDATE SET name                     = excluded.name,
+                                      created_at                = excluded.created_at,
                                       contact_email             = excluded.contact_email,
                                       suspended_at              = excluded.suspended_at,
                                       purge_after               = excluded.purge_after,

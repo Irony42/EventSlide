@@ -11,8 +11,9 @@ import { err, ok, type Result } from '../shared/result'
  * `allowsAnotherEvent`, `admitsQuota` and the rest all answer "yes" unconditionally. The
  * bounds below are not product limits; they are the shape a number must have to mean
  * anything at all (a byte quota of zero, a retention of thirty centuries), and they are
- * copied verbatim from the table's own `CHECK` constraints so the domain refuses nothing
- * the database would accept and accepts nothing the database would refuse.
+ * copied from the table's own `CHECK` constraints, so the two layers use the same numbers.
+ * The domain is the stricter where it has to be: it also requires an integer, which a bare
+ * SQLite `INTEGER` column does not (it stores `1.5` as a real).
  *
  * **Deliberately stateless with respect to `events_created_in_period`.** The counter that
  * a ceiling is compared against lives on the `Client` record, not here: this type answers
@@ -60,6 +61,10 @@ const isPositiveInteger = (value: number): boolean => Number.isInteger(value) &&
 const isInRange = (value: number, min: number, max: number): boolean =>
   Number.isInteger(value) && value >= min && value <= max
 
+/** A `Date` built from a malformed string is `NaN`, and the adapter cannot write it. */
+const isRealInstant = (value: unknown): boolean =>
+  value instanceof Date && Number.isFinite(value.getTime())
+
 export class ClientCeilings {
   private constructor(private readonly props: ClientCeilingsProps) {}
 
@@ -101,6 +106,19 @@ export class ClientCeilings {
     }
     if (props.maxEventsPerPeriod !== null && !isPositiveInteger(props.maxEventsPerPeriod)) {
       return err(DomainError.invalid('clientCeilings.maxEventsPerPeriodInvalid'))
+    }
+
+    // The types forbid all three, so these are for a caller the types cannot see: a patch
+    // spread over the current values (`setClientCeilings`) turns an explicit `undefined`
+    // into a flag the adapter would write as `0`, silently switching clips or opening off.
+    if (typeof props.clipsAllowed !== 'boolean') {
+      return err(DomainError.invalid('clientCeilings.clipsAllowedInvalid'))
+    }
+    if (typeof props.liveAllowed !== 'boolean') {
+      return err(DomainError.invalid('clientCeilings.liveAllowedInvalid'))
+    }
+    if (props.periodStartedAt !== null && !isRealInstant(props.periodStartedAt)) {
+      return err(DomainError.invalid('clientCeilings.periodStartedAtInvalid'))
     }
 
     return ok(new ClientCeilings(props))
@@ -163,9 +181,11 @@ export class ClientCeilings {
    * P3-05's `createWithOwner`) and `eventsCreatedInPeriod` created since the period
    * started may create one more.
    *
-   * Two independent ceilings, both `NULL`-means-unbounded: a total the client never
-   * shrinks below by deleting an event, and a per-period count that a renewal resets.
-   * Either one being reached refuses the event; neither does not mean the other grants it.
+   * Two independent ceilings, both `NULL`-means-unbounded: a cap on the events the client
+   * has **now** (so deleting one frees a slot), and a cap on the events it has created
+   * **this period** (a counter that never decreases, so deleting one frees nothing, and
+   * that a renewal resets). Either one being reached refuses the event; passing one does
+   * not mean the other grants it.
    */
   allowsAnotherEvent(totalEvents: number, eventsCreatedInPeriod: number): boolean {
     if (this.props.maxEvents !== null && totalEvents >= this.props.maxEvents) return false

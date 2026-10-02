@@ -50,12 +50,23 @@ describe('listClients', () => {
     expect(second.ok && second.value.next).toBeNull()
   })
 
+  it('returns fifty clients to a caller who named no page size, and a cursor for the rest', async () => {
+    for (let index = 0; index < 51; index += 1) {
+      clients.seed(aClient({ id: `bulk-${index}`, createdAt: atPlus(10_000 + index) }))
+    }
+
+    const result = await listClients({})
+
+    expect(result.ok && result.value.items).toHaveLength(50)
+    expect(result.ok && result.value.next).not.toBeNull()
+  })
+
   it('accepts the largest page it allows', async () => {
     expect((await listClients({ limit: MAX_CLIENT_PAGE_SIZE })).ok).toBe(true)
   })
 
   it.each([0, -1, 1.5, MAX_CLIENT_PAGE_SIZE + 1, Number.POSITIVE_INFINITY, Number.NaN])(
-    'refuses a page size of %s, which the adapter would interpolate into a LIMIT',
+    'refuses a page size of %s, which no adapter answers the same way',
     async (limit) => {
       const result = await listClients({ limit })
 

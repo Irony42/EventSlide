@@ -89,6 +89,15 @@ export class FakeClientRepository implements ClientRepository {
 
   /** Upsert on `(clientId, userId)`, replacing `grantedAt`: a re-grant is a fresh decision. */
   async grantMember(membership: ClientMembership): Promise<void> {
+    // `client_members.client_id` is a foreign key: SQLite refuses a roster row for a client
+    // that was never saved, and a fake that stored it would pass the tests of whatever
+    // grants a member (G2-09) and then fail in production. The user half cannot be
+    // mirrored, because this fake owns no users.
+    if (!this.clients.has(membership.clientId)) {
+      throw new Error(
+        `FOREIGN KEY constraint failed: client_members.client_id (${membership.clientId})`,
+      )
+    }
     this.memberships.set(key(membership.clientId, membership.userId), membership)
   }
 

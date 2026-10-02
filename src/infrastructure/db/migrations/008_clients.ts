@@ -41,12 +41,16 @@ import type { Migration } from '../migrator'
  * `ON DELETE CASCADE` both ways: a deleted client takes its own roster with it, and a
  * deleted account loses every client membership it held, the same as `event_memberships`.
  *
- * ## Bounds copied verbatim from `ClientCeilings`
+ * ## Bounds copied from `ClientCeilings`
  *
- * Every numeric ceiling's `CHECK` matches `src/domain/clients/clientCeilings.ts` bound
- * for bound, so the database refuses nothing the domain would accept and accepts nothing
- * the domain would refuse: `max_retention_days` 1–3650, `max_live_days` 1–365, every
- * other ceiling a bare positive integer, `NULL` meaning "no ceiling" throughout.
+ * Every numeric ceiling's `CHECK` uses the same numbers as
+ * `src/domain/clients/clientCeilings.ts`: `max_retention_days` 1–3650, `max_live_days`
+ * 1–365, every other ceiling a bare positive integer, `NULL` meaning "no ceiling"
+ * throughout. The domain is the stricter of the two where it must be: it also requires an
+ * integer, which a bare `INTEGER` column does not (SQLite stores `1.5` as a real), and it
+ * measures a name in UTF-16 units where `length()` counts code points.
+ * `events_created_in_period >= 0` is the one `CHECK` the paid plan's schema block does not
+ * have: it is the only database guard behind "the counter never decreases".
  *
  * ## No index on `clients.name` or `clients.contact_email`
  *

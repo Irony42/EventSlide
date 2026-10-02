@@ -154,6 +154,7 @@ export const clientRepositoryContract = (
         aClient({
           id: 'client-1',
           name: 'Studio Jean',
+          createdAt: atPlus(1_000),
           contactEmail: 'jean@example.test',
           ceilings: aClientCeilings({
             maxEvents: 2,
@@ -176,6 +177,7 @@ export const clientRepositoryContract = (
 
       const found = await repo.findById(asClientId('client-1'))
       expect(found?.name.value).toBe('Studio Jean')
+      expect(found?.createdAt).toEqual(atPlus(1_000))
       expect(found?.contactEmail?.value).toBe('jean@example.test')
       expect(found?.ceilings.toProps()).toEqual({
         maxEvents: 2,
@@ -249,6 +251,46 @@ export const clientRepositoryContract = (
       expect(second.next).toBeNull()
     })
 
+    it('pages through clients that share one created-at, without skipping or repeating any', async () => {
+      for (const id of ['client-a', 'client-b', 'client-c', 'client-d']) {
+        await repo.save(aClient({ id, createdAt: AT }))
+      }
+
+      const seen: string[] = []
+      let after: ClientId | undefined
+      for (let guard = 0; guard < 10; guard += 1) {
+        const page = await repo.list(after === undefined ? { limit: 1 } : { after, limit: 1 })
+        seen.push(...page.items.map((client) => client.id))
+        if (page.next === null) break
+        after = page.next
+      }
+
+      expect(seen).toEqual(['client-d', 'client-c', 'client-b', 'client-a'])
+    })
+
+    it('resumes inside a run of tied created-at values with a page of more than one', async () => {
+      for (const id of ['client-a', 'client-b', 'client-c', 'client-d', 'client-e']) {
+        await repo.save(aClient({ id, createdAt: AT }))
+      }
+
+      const first = await repo.list({ limit: 2 })
+      const second = await repo.list({ after: first.next ?? asClientId('missing'), limit: 2 })
+
+      expect(first.items.map((client) => client.id)).toEqual(['client-e', 'client-d'])
+      expect(second.items.map((client) => client.id)).toEqual(['client-c', 'client-b'])
+      expect(second.next).toBe('client-b')
+    })
+
+    it('reports no next cursor when the last page is exactly full', async () => {
+      await repo.save(aClient({ id: 'client-1', createdAt: AT }))
+      await repo.save(aClient({ id: 'client-2', createdAt: atPlus(1_000) }))
+
+      const page = await repo.list({ limit: 2 })
+
+      expect(page.items).toHaveLength(2)
+      expect(page.next).toBeNull()
+    })
+
     it('reports no next cursor on the last page', async () => {
       await repo.save(aClient({ id: 'client-1' }))
 
@@ -295,6 +337,12 @@ export const clientRepositoryContract = (
       expect(await repo.memberRole(asClientId('client-1'), MEMBER)).toBeNull()
     })
 
+    it('refuses a membership for a client that was never saved, as the foreign key does', async () => {
+      await expect(
+        repo.grantMember(aMembership(asClientId('ghost'), OWNER, 'owner')),
+      ).rejects.toThrow()
+    })
+
     it('replaces the role when a membership is granted again', async () => {
       await repo.save(aClient({ id: 'client-1' }))
       await repo.grantMember(aMembership(asClientId('client-1'), OWNER, 'member'))
@@ -302,6 +350,16 @@ export const clientRepositoryContract = (
       await repo.grantMember(aMembership(asClientId('client-1'), OWNER, 'owner', atPlus(1_000)))
 
       expect(await repo.memberRole(asClientId('client-1'), OWNER)).toBe('owner')
+    })
+
+    it('replaces the grant time on a re-grant, because a re-grant is a fresh decision', async () => {
+      await repo.save(aClient({ id: 'client-1' }))
+      await repo.grantMember(aMembership(asClientId('client-1'), OWNER, 'member', AT))
+
+      await repo.grantMember(aMembership(asClientId('client-1'), OWNER, 'owner', atPlus(1_000)))
+
+      const memberships = await repo.membershipsForUser(OWNER)
+      expect(memberships.map((membership) => membership.grantedAt)).toEqual([atPlus(1_000)])
     })
 
     it('keeps one row per client and user across a re-grant', async () => {
