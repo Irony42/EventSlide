@@ -9,9 +9,10 @@ import { asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
 import { migrations } from '../infrastructure/db/migrations'
 import { status } from '../infrastructure/db/migrator'
+import { anAuditEntry, anEventSettings } from '../application/testing/builders'
+import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
 import { createContainer, type Container } from './container'
 import { appVersion } from './version'
-import { anEventSettings } from '../application/testing/builders'
 
 /**
  * The one line of `SITE_ADMIN` that no other test reaches: the composition root handing
@@ -341,5 +342,52 @@ describe('createContainer: EVENT_CREATION reaches createEvent', () => {
         )
         .get()?.n,
     ).toBe(1)
+  })
+})
+
+describe('createContainer: the audit log is wired end to end (roadmap 10.8)', () => {
+  const rows = (db: Container['db']): number =>
+    (db.prepare(`SELECT COUNT(*) AS n FROM audit_log`).get() as { n: number }).n
+
+  it('writes setClientCeilings’ entry into the real audit_log, not into a fake', async () => {
+    const { usecases, db } = await boot({ SITE_ADMIN: 'on' })
+    const created = await usecases.createClient({ name: 'Atelier Photo Camille' })
+    if (!created.ok) throw new Error(`fixture rejected: ${created.error.code}`)
+
+    const changed = await usecases.setClientCeilings({
+      clientId: created.value.id,
+      ceilings: { maxEvents: 3 },
+      actor: { kind: 'integration', label: 'test:wiring' },
+    })
+
+    expect(changed.ok).toBe(true)
+    expect(db.prepare(`SELECT action, actor_kind, client_id FROM audit_log`).all()).toEqual([
+      { action: 'client.ceilingsChanged', actor_kind: 'integration', client_id: created.value.id },
+    ])
+  })
+
+  it('hands AUDIT_RETENTION_DAYS to the pruning use case, so the cutoff is that many days back', async () => {
+    const { usecases } = await boot({ AUDIT_RETENTION_DAYS: '400' })
+
+    const report = await usecases.pruneAuditLog()
+
+    const daysBack = (Date.now() - report.cutoff.getTime()) / 86_400_000
+    expect(Math.round(daysBack)).toBe(400)
+  })
+
+  it('has the retention sweep prune an old entry through the real adapter, and leave the gate shut', async () => {
+    const { retention, db } = await boot({ RETENTION_SWEEP_INTERVAL_MINUTES: '60' })
+    await new SqliteAuditLog(db).record(
+      anAuditEntry({
+        at: new Date('2001-01-01T00:00:00.000Z'),
+        actor: { kind: 'integration', label: 'test:wiring' },
+      }),
+    )
+    expect(rows(db)).toBe(1)
+
+    await retention?.runOnce()
+
+    expect(rows(db)).toBe(0)
+    expect(db.prepare(`SELECT open FROM audit_prune_gate`).get()).toEqual({ open: 0 })
   })
 })

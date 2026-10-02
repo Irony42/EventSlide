@@ -533,6 +533,9 @@ describe('createRetentionSweeper', () => {
       const { sweeper } = build({
         pruneAuditLog: () => {
           started += 1
+          // Only the first prune hangs: a second one, which is the failure under test, must
+          // end the test red and quickly, not by timing out.
+          if (started > 1) return Promise.resolve(nothingPruned)
           return new Promise<PruneAuditLogReport>((resolve) => {
             release = resolve
           })
