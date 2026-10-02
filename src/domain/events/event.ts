@@ -663,11 +663,6 @@ export class Event {
     return new Date(closedAt.getTime() + retentionDays * MS_PER_DAY)
   }
 
-  isDueForPurge(now: Date): boolean {
-    const deadline = this.retentionDeadline()
-    return deadline !== null && now.getTime() >= deadline.getTime()
-  }
-
   // -------------------------------------------------------------------- helpers --
 
   equals(other: Event): boolean {

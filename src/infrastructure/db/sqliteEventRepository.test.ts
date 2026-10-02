@@ -434,14 +434,14 @@ describe('SqliteEventRepository', () => {
   /**
    * The deadline is computed in SQL — `closed_at + retentionDays`, with `retentionDays`
    * read out of the JSON column — so these two cases hold that arithmetic to what
-   * `Event.isDueForPurge` decides. The contract cannot: it only ever sees a repository
+   * `purgeDeadline` decides. The contract cannot: it only ever sees a repository
    * that agrees with itself.
    */
   describe('the purge deadline computed in SQL', () => {
     const DAY = 86_400_000
 
     it('treats the deadline instant itself as due, to the millisecond', async () => {
-      // `Event.isDueForPurge` is `now >= deadline`, and `closed_at` carries
+      // `purgeDeadline` is due at `now >= deadline`, and `closed_at` carries
       // milliseconds. A deadline formatted to whole seconds compares as later than the
       // instant it should match, and the last album of the night is never collected.
       await repo.save(

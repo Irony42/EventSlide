@@ -383,30 +383,6 @@ describe('Event retention', () => {
 
     expect(event.retentionDeadline()).toBeNull()
   })
-
-  it('is not due for purge the day before its deadline', () => {
-    const event = anEvent({ status: 'closed', settings: RETAINED_30_DAYS, closedAt: ENDED_AT })
-
-    expect(event.isDueForPurge(new Date('2026-07-20T02:00:00.000Z'))).toBe(false)
-  })
-
-  it('is due for purge on the deadline itself', () => {
-    const event = anEvent({ status: 'closed', settings: RETAINED_30_DAYS, closedAt: ENDED_AT })
-
-    expect(event.isDueForPurge(PURGE_DUE_AT)).toBe(true)
-  })
-
-  it('is due for purge after its deadline', () => {
-    const event = anEvent({ status: 'closed', settings: RETAINED_30_DAYS, closedAt: ENDED_AT })
-
-    expect(event.isDueForPurge(new Date('2026-08-01T00:00:00.000Z'))).toBe(true)
-  })
-
-  it('is never due for purge without a retention policy', () => {
-    const event = anEvent({ status: 'archived', closedAt: ENDED_AT })
-
-    expect(event.isDueForPurge(new Date('2030-01-01T00:00:00.000Z'))).toBe(false)
-  })
 })
 
 describe('Event identity', () => {
