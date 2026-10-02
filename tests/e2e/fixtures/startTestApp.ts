@@ -108,7 +108,7 @@ const OWNER = {
  * So the rotation is completed once per worker at boot, through the real endpoint, and
  * the journeys start from a settled account.
  */
-const OWNER_SETTLED_PASSWORD = 'e2e-fixture-rotated-passphrase-not-a-secret'
+export const OWNER_SETTLED_PASSWORD = 'e2e-fixture-rotated-passphrase-not-a-secret'
 
 /**
  * A cookie jar and a CSRF token, because the fixture talks to the API exactly as a

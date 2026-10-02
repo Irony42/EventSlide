@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { decodeBase32, encodeBase32 } from './base32'
 
-const bytesOf = (text: string): Uint8Array => new TextEncoder().encode(text)
+/** ASCII only, which is all the vectors are: the domain project has no `TextEncoder`. */
+const bytesOf = (text: string): Uint8Array =>
+  Uint8Array.from([...text].map((character) => character.charCodeAt(0)))
 
 /** RFC 4648 section 10: the test vectors the standard itself publishes. */
 const RFC_4648_VECTORS: readonly (readonly [string, string])[] = [
@@ -25,7 +27,7 @@ describe('base32 (RFC 4648)', () => {
 
   it.each(RFC_4648_VECTORS)('decodes %s back to %j', (plain, encoded) => {
     const decoded = decodeBase32(encoded)
-    expect(decoded === null ? null : new TextDecoder().decode(decoded)).toBe(plain)
+    expect(decoded === null ? null : String.fromCharCode(...decoded)).toBe(plain)
   })
 
   it('decodes the unpadded spelling as well as the padded one', () => {

@@ -117,7 +117,9 @@ describe('matchTotpStep', () => {
 })
 
 describe('otpauthUri', () => {
-  const secret = new TextEncoder().encode('12345678901234567890')
+  const secret = Uint8Array.from(
+    [...'12345678901234567890'].map((character) => character.charCodeAt(0)),
+  )
 
   it('is the key-URI an authenticator app reads, with every parameter spelled out', () => {
     expect(otpauthUri({ account: 'op@example.org', issuer: 'EventSlide', secret })).toBe(
