@@ -270,7 +270,7 @@ export const it: UiText = {
       'Il periodo di apertura di questo evento è terminato: non può più essere riaperto.',
     'client.retentionAboveCeiling':
       'Questo periodo di conservazione supera quello consentito dal tuo account.',
-    'client.clipsNotAllowed': 'Il tuo account non consente i video.',
+    'client.clipsNotAllowed': 'I video non sono disponibili per questa galleria.',
     'event.immutable': 'Questo evento è archiviato e non può più essere modificato.',
     'event.illegalTransition': 'Questo cambio di stato non è possibile.',
 

@@ -273,7 +273,7 @@ export const de: UiText = {
     'client.liveWindowOver':
       'Der Öffnungszeitraum dieser Veranstaltung ist abgelaufen: Sie kann nicht mehr erneut geöffnet werden.',
     'client.retentionAboveCeiling': 'Diese Aufbewahrungsdauer ist länger, als Ihr Konto erlaubt.',
-    'client.clipsNotAllowed': 'Ihr Konto erlaubt keine Videos.',
+    'client.clipsNotAllowed': 'Videos sind für diese Galerie nicht verfügbar.',
     'event.immutable': 'Diese Veranstaltung ist archiviert und kann nicht mehr geändert werden.',
     'event.illegalTransition': 'Dieser Statuswechsel ist nicht möglich.',
 

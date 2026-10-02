@@ -1113,7 +1113,7 @@ export const fr = {
       'La durée d’ouverture de cet évènement est écoulée : il ne peut plus être rouvert.',
     'client.retentionAboveCeiling':
       'Cette durée de conservation dépasse celle que votre compte autorise.',
-    'client.clipsNotAllowed': 'Votre compte ne permet pas les vidéos.',
+    'client.clipsNotAllowed': 'Les vidéos ne sont pas disponibles pour cette galerie.',
     'event.immutable': 'Cet évènement est archivé et ne peut plus être modifié.',
     'event.illegalTransition': 'Ce changement d’état n’est pas possible.',
 

@@ -257,7 +257,7 @@ export const en: UiText = {
     'client.liveWindowOver':
       'The opening period of this event is over: it can no longer be reopened.',
     'client.retentionAboveCeiling': 'This retention period is longer than your account allows.',
-    'client.clipsNotAllowed': 'Your account does not allow videos.',
+    'client.clipsNotAllowed': 'Videos are not available for this gallery.',
     'event.immutable': 'This event is archived and can no longer be changed.',
     'event.illegalTransition': 'This change of state is not possible.',
 
