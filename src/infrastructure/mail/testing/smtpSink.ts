@@ -1,4 +1,5 @@
 import { createServer, type AddressInfo, type Server, type Socket } from 'node:net'
+import { createServer as createTlsServer } from 'node:tls'
 
 /**
  * A relay that lives inside the test process: a real TCP listener speaking enough SMTP
@@ -33,6 +34,11 @@ export interface SmtpSinkOptions {
   readonly greeting?: 'normal' | 'never'
   /** `hang`: take the message, then never answer the end of DATA. */
   readonly afterData?: 'accept' | 'hang'
+  /**
+   * Speak TLS from the first byte, as an `smtps://` relay does, with this key and certificate.
+   * The test supplies a self-signed pair, which is the point: the adapter must refuse it.
+   */
+  readonly tls?: { readonly key: string; readonly cert: string }
 }
 
 export interface SmtpSink {
@@ -41,12 +47,16 @@ export interface SmtpSink {
   readonly messages: readonly ReceivedMessage[]
   /** Every login attempted, correct or not. */
   readonly logins: readonly { readonly user: string; readonly pass: string }[]
+  /** How many connections the relay has accepted: zero is "nobody ever dialled it". */
+  readonly connections: number
   /**
    * The next `RCPT TO` is answered with this code, once: a 5xx is a mailbox that does not
    * exist, a 4xx is a relay that cannot take it right now. The reply text **names the
    * recipient**, as real relays do, which is what the log canary needs to see survive.
    */
   refuseNextRecipient(code: number): void
+  /** The next message is taken and its end never answered, once; later ones are accepted. */
+  hangNextMessage(): void
   close(): Promise<void>
 }
 
@@ -59,8 +69,11 @@ export const startSmtpSink = async (options: SmtpSinkOptions = {}): Promise<Smtp
   const logins: { user: string; pass: string }[] = []
   const sockets = new Set<Socket>()
   const refusals: number[] = []
+  let connections = 0
+  let hangs = 0
 
   const serve = (socket: Socket): void => {
+    connections += 1
     sockets.add(socket)
     socket.on('close', () => sockets.delete(socket))
     // A client that hangs up mid-sentence is part of the cases under test.
@@ -166,7 +179,8 @@ export const startSmtpSink = async (options: SmtpSinkOptions = {}): Promise<Smtp
         messages.push({ envelopeFrom, envelopeTo, raw: dataLines.join(CRLF) + CRLF })
         envelopeTo = []
         phase = 'command'
-        if (options.afterData !== 'hang') reply('250 2.0.0 Queued')
+        if (hangs > 0) hangs -= 1
+        else if (options.afterData !== 'hang') reply('250 2.0.0 Queued')
         return
       }
 
@@ -196,7 +210,8 @@ export const startSmtpSink = async (options: SmtpSinkOptions = {}): Promise<Smtp
     if (options.greeting !== 'never') reply('220 sink.test ESMTP ready')
   }
 
-  const server: Server = createServer(serve)
+  const server: Server =
+    options.tls === undefined ? createServer(serve) : createTlsServer(options.tls, serve)
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', resolve)
@@ -206,8 +221,14 @@ export const startSmtpSink = async (options: SmtpSinkOptions = {}): Promise<Smtp
     port: (server.address() as AddressInfo).port,
     messages,
     logins,
+    get connections() {
+      return connections
+    },
     refuseNextRecipient: (code) => {
       refusals.push(code)
+    },
+    hangNextMessage: () => {
+      hangs += 1
     },
     close: async () => {
       for (const socket of sockets) socket.destroy()

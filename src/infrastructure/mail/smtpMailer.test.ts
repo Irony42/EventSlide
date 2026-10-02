@@ -1,4 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createTransport, type SMTPTransportOptions } from 'nodemailer'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { LogContext, Logger } from '../../application/ports/logger'
 import type { OutgoingMail } from '../../application/ports/mailer'
 import { mailerContract } from '../../application/testing/contracts/mailerContract'
@@ -12,6 +17,7 @@ import {
   describeFailure,
   transportOptionsFor,
   type MailTimeouts,
+  type TransportFactory,
 } from './smtpMailer'
 import {
   parseMessage,
@@ -306,24 +312,38 @@ describe('createSmtpMailer: a relay that is not there, or does not answer', () =
     expect(elapsed).toBeLessThan(3_000)
   })
 
-  it('stays usable after a send that hit the deadline', async () => {
-    const stuck = await sink({ afterData: 'hang' })
-    const healthy = await sink()
-    const timeouts = { connectMs: 3_000, greetingMs: 3_000, inactivityMs: 60_000, totalMs: 300 }
-
-    const first = await createSmtpMailer({
-      settings: settingsFor(stuck.port),
+  it('is still usable after a send that hit the deadline, on the same instance', async () => {
+    const relay = await sink()
+    const mailer = createSmtpMailer({
+      settings: settingsFor(relay.port),
       logger: silentLogger(),
-      timeouts,
-    }).send(aMail())
-    const second = await createSmtpMailer({
-      settings: settingsFor(healthy.port),
-      logger: silentLogger(),
-      timeouts,
-    }).send(aMail())
+      timeouts: { connectMs: 3_000, greetingMs: 3_000, inactivityMs: 60_000, totalMs: 300 },
+    })
+    relay.hangNextMessage()
 
-    expect(first.ok).toBe(false)
+    const first = await mailer.send(aMail({ subject: 'Hangs' }))
+    const second = await mailer.send(aMail({ subject: 'Goes through' }))
+
+    expect(!first.ok && first.error.code).toBe('mail.transient')
     expect(second.ok).toBe(true)
+    // The first message was taken by the relay before it stopped answering — which is the
+    // "transient does not mean unsent" caveat in `MailTimeouts.totalMs`, observed.
+    expect(relay.messages.map((message) => parseMessage(message.raw).subject)).toEqual([
+      'Hangs',
+      'Goes through',
+    ])
+  })
+
+  it('answers mail.transient, and does not throw, when given something that is not a message', async () => {
+    const logger = new RecordingLogger()
+    const mailer = createSmtpMailer({ settings: settingsFor(1), logger, timeouts: ORDINARY })
+
+    const result = await mailer.send({} as unknown as OutgoingMail)
+
+    expect(!result.ok && result.error.code).toBe('mail.transient')
+    expect(logger.lines).toEqual([
+      { level: 'error', message: 'mail failed unexpectedly', context: {} },
+    ])
   })
 })
 
@@ -395,7 +415,8 @@ describe('transportOptionsFor', () => {
     expect(DEFAULT_MAIL_TIMEOUTS.connectMs).toBeLessThanOrEqual(30_000)
     expect(DEFAULT_MAIL_TIMEOUTS.greetingMs).toBeLessThanOrEqual(30_000)
     expect(DEFAULT_MAIL_TIMEOUTS.inactivityMs).toBeLessThanOrEqual(60_000)
-    expect(DEFAULT_MAIL_TIMEOUTS.totalMs).toBeLessThanOrEqual(120_000)
+    // A person is waiting behind this one: it is what the docs promise as the worst case.
+    expect(DEFAULT_MAIL_TIMEOUTS.totalMs).toBeLessThanOrEqual(30_000)
   })
 
   it('leaves nodemailer’s logging off, because with debug it prints the message and the login', () => {
@@ -410,6 +431,188 @@ describe('transportOptionsFor', () => {
 
     expect(options.disableFileAccess).toBe(true)
     expect(options.disableUrlAccess).toBe(true)
+  })
+
+  it('passes exactly these options and no others, so a new one has to be argued for in a diff to this test', () => {
+    // Every TLS rule is an absence: no `tls` (which is where `rejectUnauthorized: false`
+    // would go), no `ignoreTLS`, no `opportunisticTLS`, no `url`, no `proxy`. Listing the
+    // keys is what makes an absence something a test can see.
+    const bare = Object.keys(optionsFor({})).sort()
+    const withLogin = Object.keys(
+      optionsFor({ credentials: { username: 'camille', password: 's3cret' } }),
+    ).sort()
+
+    expect(bare).toEqual([
+      'connectionTimeout',
+      'debug',
+      'disableFileAccess',
+      'disableUrlAccess',
+      'dnsTimeout',
+      'greetingTimeout',
+      'host',
+      'logger',
+      'port',
+      'requireTLS',
+      'secure',
+      'socketTimeout',
+    ])
+    expect(withLogin).toEqual([...bare, 'auth'].sort())
+  })
+})
+
+describe('createSmtpMailer: what actually reaches the library', () => {
+  const record = (): { seen: SMTPTransportOptions[]; transport: TransportFactory } => {
+    const seen: SMTPTransportOptions[] = []
+    return {
+      seen,
+      transport: (options) => {
+        seen.push(options)
+        return createTransport(options)
+      },
+    }
+  }
+
+  it('builds its transporter from exactly what transportOptionsFor computed, with nothing added at the call site', () => {
+    // The TLS rules are options, and a function that returns the right ones proves nothing
+    // about the call that uses it: `tls: { rejectUnauthorized: false }` spread in at
+    // `createTransport(...)` leaves every test of the function above green.
+    const { seen, transport } = record()
+    const settings = settingsFor(2525, {
+      host: 'mail.example.com',
+      credentials: { username: 'u', password: 'p' },
+    })
+
+    createSmtpMailer({ settings, logger: silentLogger(), timeouts: ORDINARY, transport })
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toStrictEqual(transportOptionsFor(settings, ORDINARY))
+  })
+
+  it('never turns certificate checking, STARTTLS or the library’s own logging off', () => {
+    const { seen, transport } = record()
+
+    createSmtpMailer({
+      settings: settingsFor(587, { host: 'mail.example.com' }),
+      logger: silentLogger(),
+      timeouts: ORDINARY,
+      transport,
+    })
+
+    const options = seen[0]
+    expect(options).toMatchObject({ requireTLS: true, secure: false, logger: false, debug: false })
+    for (const absent of ['tls', 'ignoreTLS', 'opportunisticTLS', 'url', 'proxy', 'service']) {
+      expect(options, absent).not.toHaveProperty(absent)
+    }
+  })
+})
+
+/**
+ * Certificate checking, over a real TLS handshake.
+ *
+ * It is on because the library's default is on, and the only thing that can turn it off is an
+ * option this adapter never passes — which the exact-keys test above asserts, and which this
+ * asserts again from the other end: a relay with a self-signed certificate is refused, no
+ * login is sent to it (the point of checking a certificate is that the password goes to the
+ * right machine), and the failure is permanent. The self-signed pair is made here with the
+ * `openssl` that CI images and developer machines carry, rather than committed: a private
+ * key in the tree is a thing scanners flag whether or not it is a test's.
+ */
+const hasOpenssl = ((): boolean => {
+  try {
+    execFileSync('openssl', ['version'], { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+})()
+
+describe.skipIf(!hasOpenssl)('a relay whose certificate this box does not trust', () => {
+  let directory = ''
+  let key = ''
+  let cert = ''
+
+  beforeAll(() => {
+    directory = mkdtempSync(join(tmpdir(), 'eventslide-tls-'))
+    execFileSync(
+      'openssl',
+      [
+        'req',
+        '-x509',
+        '-newkey',
+        'ec',
+        '-pkeyopt',
+        'ec_paramgen_curve:prime256v1',
+        '-nodes',
+        '-keyout',
+        join(directory, 'key.pem'),
+        '-out',
+        join(directory, 'cert.pem'),
+        '-days',
+        '2',
+        '-subj',
+        '/CN=localhost',
+        '-addext',
+        'subjectAltName=DNS:localhost,IP:127.0.0.1',
+      ],
+      { stdio: 'ignore' },
+    )
+    key = readFileSync(join(directory, 'key.pem'), 'utf8')
+    cert = readFileSync(join(directory, 'cert.pem'), 'utf8')
+  })
+
+  afterAll(() => {
+    rmSync(directory, { recursive: true, force: true })
+  })
+
+  const login = { username: 'camille', password: 'right' }
+
+  it('refuses a self-signed certificate: permanent, no login sent, no message sent, and the log says why', async () => {
+    const relay = await sink({ tls: { key, cert }, auth: { user: 'camille', pass: 'right' } })
+    const logger = new RecordingLogger()
+    const mailer = createSmtpMailer({
+      settings: settingsFor(relay.port, { implicitTls: true, credentials: login }),
+      logger,
+      timeouts: ORDINARY,
+    })
+
+    const result = await mailer.send(aMail())
+
+    expect(!result.ok && result.error.code).toBe('mail.rejected')
+    expect(relay.logins).toEqual([])
+    expect(relay.messages).toEqual([])
+    // A flag, never the library's wording: that message names the host and the chain.
+    expect(logger.lines).toEqual([
+      {
+        level: 'warn',
+        message: 'mail not sent',
+        context: {
+          reason: 'rejected',
+          recipientDomain: 'example.org',
+          errorCode: 'ESOCKET',
+          command: 'CONN',
+          tlsCertificate: true,
+        },
+      },
+    ])
+  })
+
+  it('is a relay that works: the same send succeeds once checking is switched off, so the refusal above is the check', async () => {
+    // The control. It builds the transporter by hand with the option this adapter must never
+    // pass, to show the relay, the login and the message are all fine and only the
+    // certificate stood in the way.
+    const relay = await sink({ tls: { key, cert }, auth: { user: 'camille', pass: 'right' } })
+    const mailer = createSmtpMailer({
+      settings: settingsFor(relay.port, { implicitTls: true, credentials: login }),
+      logger: silentLogger(),
+      timeouts: ORDINARY,
+      transport: (options) => createTransport({ ...options, tls: { rejectUnauthorized: false } }),
+    })
+
+    const result = await mailer.send(aMail())
+
+    expect(result.ok).toBe(true)
+    expect(relay.logins).toEqual([{ user: 'camille', pass: 'right' }])
+    expect(relay.messages).toHaveLength(1)
   })
 })
 
@@ -453,6 +656,28 @@ describe('describeFailure', () => {
     expect(describeFailure(error)).toEqual({ errorCode: 'EENVELOPE' })
   })
 
+  it('flags a certificate the box did not accept, without repeating what the library said about it', () => {
+    const error = Object.assign(
+      new Error("Hostname/IP does not match certificate's altnames: Host: a."),
+      { code: 'ESOCKET', command: 'CONN' },
+    )
+
+    expect(describeFailure(error)).toEqual({
+      errorCode: 'ESOCKET',
+      command: 'CONN',
+      tlsCertificate: true,
+    })
+  })
+
+  it('does not flag an ordinary connection failure', () => {
+    const error = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:465'), {
+      code: 'ESOCKET',
+      command: 'CONN',
+    })
+
+    expect(describeFailure(error)).toEqual({ errorCode: 'ESOCKET', command: 'CONN' })
+  })
+
   it.each([
     ['a string', 'boom'],
     ['null', null],
@@ -487,6 +712,43 @@ describe('classifyMailError', () => {
     ['a 400 reply', { responseCode: 400 }],
   ])('treats %s as transient: the relay itself said to try again', (_name, fields) => {
     expect(classifyMailError(failure(fields))).toBe('transient')
+  })
+
+  it.each([
+    ['a self-signed certificate', 'self-signed certificate; if the root CA is installed locally'],
+    [
+      'one signed by an authority this box does not trust',
+      'unable to get local issuer certificate',
+    ],
+    ['an incomplete chain', 'unable to verify the first certificate'],
+    ['an expired certificate', 'certificate has expired'],
+    [
+      'one issued to another name',
+      "Hostname/IP does not match certificate's altnames: Host: a. is not in the cert's altnames: DNS:b",
+    ],
+  ])('treats %s as rejected: it stays wrong until the operator acts', (_name, message) => {
+    expect(classifyMailError(failure({ code: 'ESOCKET', command: 'CONN', message }))).toBe(
+      'rejected',
+    )
+    expect(classifyMailError(failure({ code: 'ETLS', command: 'CONN', message }))).toBe('rejected')
+  })
+
+  it.each([
+    ['a refused connection', 'connect ECONNREFUSED 127.0.0.1:465'],
+    ['a reset', 'read ECONNRESET'],
+    ['a name that does not resolve', 'getaddrinfo ENOTFOUND mail.example.com'],
+  ])('keeps %s transient: nothing in it says the certificate is the problem', (_name, message) => {
+    expect(classifyMailError(failure({ code: 'ESOCKET', command: 'CONN', message }))).toBe(
+      'transient',
+    )
+  })
+
+  it('lets a 4xx reply decide before the wording of a message does', () => {
+    expect(
+      classifyMailError(
+        failure({ code: 'ETLS', responseCode: 454, message: 'certificate has expired' }),
+      ),
+    ).toBe('transient')
   })
 
   it.each(['EAUTH', 'ENOAUTH', 'EENVELOPE', 'EREQUIRETLS', 'ECONFIG'])(
