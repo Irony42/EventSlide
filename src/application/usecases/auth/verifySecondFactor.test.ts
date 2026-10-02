@@ -4,7 +4,7 @@ import { canonicalRecoveryCode } from '../../../domain/users/recoveryCode'
 import { totpStepAt } from '../../../domain/users/totp'
 import { aUser } from '../../testing/builders'
 import { FakeMfaVault } from '../../testing/fakeMfaVault'
-import { USER, aSecondFactorWorld } from '../../testing/secondFactorWorld'
+import { AN_ID_THE_LOG_REFUSES, USER, aSecondFactorWorld } from '../../testing/secondFactorWorld'
 import { makeVerifySecondFactor } from './verifySecondFactor'
 
 const signedIn = async () => {
@@ -328,6 +328,25 @@ describe('verifySecondFactor: a recovery code', () => {
       verify({ userId: USER, proof: { recoveryCode: recoveryCodes[0] ?? '' } }),
     ).rejects.toThrow('the log is down')
     expect(await world.factors.unusedRecoveryDigests(USER)).toHaveLength(9)
+  })
+})
+
+describe('verifySecondFactor: a log that refuses', () => {
+  it('fails closed: the code is spent and the sign-in is not given', async () => {
+    const world = aSecondFactorWorld()
+    const code = 'AAAA-AAAA-AAAA-AAAA'
+    await world.factors.beginEnrolment(AN_ID_THE_LOG_REFUSES, 'aXY.dGFn.Y3Q', 1, world.clock.now())
+    await world.factors.confirmEnrolment(AN_ID_THE_LOG_REFUSES, 1, world.clock.now(), [
+      world.secrets.digestOf(canonicalRecoveryCode(code) ?? ''),
+    ])
+
+    const result = await world.verifySecondFactor({
+      userId: AN_ID_THE_LOG_REFUSES,
+      proof: { recoveryCode: code },
+    })
+
+    expect(!result.ok && result.error.code).toBe('audit.subjectIdInvalid')
+    expect(await world.factors.unusedRecoveryDigests(AN_ID_THE_LOG_REFUSES)).toEqual([])
   })
 })
 

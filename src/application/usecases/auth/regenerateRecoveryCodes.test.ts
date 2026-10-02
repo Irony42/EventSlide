@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { asUserId } from '../../../domain/shared/ids'
 import { aUser } from '../../testing/builders'
-import { USER, aSecondFactorWorld } from '../../testing/secondFactorWorld'
+import { AN_ID_THE_LOG_REFUSES, USER, aSecondFactorWorld } from '../../testing/secondFactorWorld'
 import { makeRegenerateRecoveryCodes } from './regenerateRecoveryCodes'
 
 const regenerateFor = (world: ReturnType<typeof aSecondFactorWorld>) =>
@@ -115,5 +115,18 @@ describe('regenerateRecoveryCodes', () => {
     const result = await regenerateFor(world)({ userId: USER })
 
     expect(!result.ok && result.error.code).toBe('auth.secondFactorNotEnrolled')
+  })
+
+  it('replaces nothing when the log would refuse the entry', async () => {
+    const world = aSecondFactorWorld()
+    await world.factors.beginEnrolment(AN_ID_THE_LOG_REFUSES, 'aXY.dGFn.Y3Q', 1, world.clock.now())
+    await world.factors.confirmEnrolment(AN_ID_THE_LOG_REFUSES, 1, world.clock.now(), [
+      'a'.repeat(64),
+    ])
+
+    const result = await regenerateFor(world)({ userId: AN_ID_THE_LOG_REFUSES })
+
+    expect(!result.ok && result.error.code).toBe('audit.subjectIdInvalid')
+    expect(world.factors.digestsOf(AN_ID_THE_LOG_REFUSES)).toEqual(['a'.repeat(64)])
   })
 })

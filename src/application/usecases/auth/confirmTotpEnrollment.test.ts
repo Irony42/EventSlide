@@ -3,7 +3,12 @@ import { decodeBase32 } from '../../../domain/users/base32'
 import { canonicalRecoveryCode } from '../../../domain/users/recoveryCode'
 import { totpStepAt } from '../../../domain/users/totp'
 import { FakeMfaVault } from '../../testing/fakeMfaVault'
-import { PASSWORD, USER, aSecondFactorWorld } from '../../testing/secondFactorWorld'
+import {
+  AN_ID_THE_LOG_REFUSES,
+  PASSWORD,
+  USER,
+  aSecondFactorWorld,
+} from '../../testing/secondFactorWorld'
 
 const begin = async (world: ReturnType<typeof aSecondFactorWorld>): Promise<Uint8Array> => {
   const started = await world.enrollTotp({ userId: USER, password: PASSWORD })
@@ -217,5 +222,21 @@ describe('confirmTotpEnrollment', () => {
     const result = await world.confirmTotpEnrollment({ userId: USER, code: world.codeFor(secret) })
 
     expect(!result.ok && result.error.code).toBe('user.notFound')
+  })
+
+  it('confirms nothing when the log would refuse the entry, and ends no session', async () => {
+    const world = aSecondFactorWorld()
+    const started = await world.enrollTotp({ userId: AN_ID_THE_LOG_REFUSES, password: PASSWORD })
+    const secret = started.ok ? decodeBase32(started.value.secret) : null
+    if (secret === null) throw new Error('the enrolment did not start')
+
+    const result = await world.confirmTotpEnrollment({
+      userId: AN_ID_THE_LOG_REFUSES,
+      code: world.codeFor(secret),
+    })
+
+    expect(!result.ok && result.error.code).toBe('audit.subjectIdInvalid')
+    expect(await world.factors.find(AN_ID_THE_LOG_REFUSES)).toMatchObject({ confirmedAt: null })
+    expect((await world.users.findById(AN_ID_THE_LOG_REFUSES))?.credentialsChangedAt).toBeNull()
   })
 })

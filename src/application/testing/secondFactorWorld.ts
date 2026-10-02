@@ -58,6 +58,14 @@ export interface SecondFactorWorldOptions {
   readonly secrets?: SecretTokens
 }
 
+/**
+ * An id the audit log cannot hold (it allows letters, digits, `_` and `-`), for the account whose
+ * every audit entry the log refuses. A real account id is never this; the point is the branch
+ * every use case has for "the entry I just built is not one the log accepts", which fails
+ * closed and has to be shown to.
+ */
+export const AN_ID_THE_LOG_REFUSES = asUserId('not an id the log can hold!')
+
 export const aSecondFactorWorld = ({
   siteRole = 'operator',
   withVault = true,
@@ -72,9 +80,12 @@ export const aSecondFactorWorld = ({
 }: SecondFactorWorldOptions = {}) => {
   const captured = new CapturingLogger()
   const wiredLogger: Logger = logger ?? captured
-  users.seed(aUser({ id: 'user-1', email: EMAIL, siteRole }))
-  factors.withAccounts(USER)
-  audit.withAccounts(USER)
+  users.seed(
+    aUser({ id: 'user-1', email: EMAIL, siteRole }),
+    aUser({ id: AN_ID_THE_LOG_REFUSES, email: 'autre@example.test', siteRole: 'operator' }),
+  )
+  factors.withAccounts(USER, AN_ID_THE_LOG_REFUSES)
+  audit.withAccounts(USER, AN_ID_THE_LOG_REFUSES)
   const ids = new SequentialIdGenerator()
   const hasher = new FakePasswordHasher()
 

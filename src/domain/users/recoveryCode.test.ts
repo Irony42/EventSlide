@@ -28,6 +28,10 @@ describe('recoveryCodeFromBytes', () => {
 })
 
 describe('formatRecoveryCode', () => {
+  it('shows nothing for nothing', () => {
+    expect(formatRecoveryCode('')).toBe('')
+  })
+
   it('shows four groups of four', () => {
     expect(formatRecoveryCode('K7QM2XTR9PHD4VNB')).toBe('K7QM-2XTR-9PHD-4VNB')
   })

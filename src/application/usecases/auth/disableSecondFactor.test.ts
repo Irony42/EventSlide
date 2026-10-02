@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { asUserId } from '../../../domain/shared/ids'
 import { aUser } from '../../testing/builders'
-import { USER, aSecondFactorWorld } from '../../testing/secondFactorWorld'
+import { AN_ID_THE_LOG_REFUSES, USER, aSecondFactorWorld } from '../../testing/secondFactorWorld'
 import { makeDisableSecondFactor } from './disableSecondFactor'
 
 const disableFor = (world: ReturnType<typeof aSecondFactorWorld>) =>
@@ -114,5 +114,16 @@ describe('disableSecondFactor', () => {
     const again = await world.enrollTotp({ userId: USER, password: 'un-mot-de-passe-solide' })
 
     expect(again.ok).toBe(true)
+  })
+
+  it('removes nothing when the log would refuse the entry', async () => {
+    const world = aSecondFactorWorld()
+    await world.factors.beginEnrolment(AN_ID_THE_LOG_REFUSES, 'aXY.dGFn.Y3Q', 1, world.clock.now())
+    await world.factors.confirmEnrolment(AN_ID_THE_LOG_REFUSES, 1, world.clock.now(), [])
+
+    const result = await disableFor(world)({ userId: AN_ID_THE_LOG_REFUSES })
+
+    expect(!result.ok && result.error.code).toBe('audit.subjectIdInvalid')
+    expect(world.factors.has(AN_ID_THE_LOG_REFUSES)).toBe(true)
   })
 })
