@@ -158,6 +158,12 @@ generic fallback sentence to a guest, which is why the lists are kept in step.
 | **Link holder**      | a gallery token in the path; for a protected link, an `es_gallery` unlock cookie  | a host, §6 share link  |
 | **Public**           | none                                                                              | —                      |
 
+Two cookies are not credentials. `es_csrf` is the CSRF value (below). **`es_device`** is set by a
+successful `POST /api/auth/login` and is a key for the sign-in throttle's bucket, not a principal:
+it authenticates nobody and skips no step of a sign-in (see `POST /api/auth/login` and
+docs/SECURITY.md §5). `HttpOnly`, `SameSite=Strict`, `Secure` behind TLS, `Path=/api/auth`, 90
+days, renewed by every successful sign-in and kept across a sign-out.
+
 A guest token grants: upload to **that one event** while it is `live`, deletion of
 **their own** photo inside the grace window, a caption on their own pending photo, a
 reaction, and reading and acknowledging the event's privacy notice for **that device**.
@@ -265,7 +271,10 @@ answered normally: it is never refused. The answer is the same for an address th
 account, one that is not, a switched-off account and a malformed one, at every step.
 `password-reset/request` counts every request the same way, in a bucket of its own, and is
 answered `202` (or `429`, or `404` on a box with no relay) identically for every address; it sits ahead of the cap of three
-mails an hour per address and does not replace it. See docs/SECURITY.md §5.
+mails an hour per address and does not replace it. A browser that has signed in to the account
+before presents the `es_device` cookie its last login set and is counted in a bucket of its own,
+so a stranger who shares the owner's network no longer delays it; every other limit applies to it
+unchanged. See docs/SECURITY.md §5.
 
 The gallery unlock is the one row counted per **quarter hour** and per **failure**: a
 successful unlock spends none of that allowance, so a family opening one album on the
@@ -1425,6 +1434,15 @@ per-client limit, a network that has failed five times for one address is answer
 `429 rate.limited` with a `Retry-After` for a growing wait of at most 15 minutes, the same
 for every address, real or not (§1, "Rate limits"). A `401` is the only answer that counts as a
 failure.
+
+A successful login also sets **`es_device`**: `HttpOnly`, `SameSite=Strict`, `Secure` behind TLS,
+`Path=/api/auth`, `Max-Age` 90 days, renewed by every successful login and left alone by a logout, a
+password change and "sign out everywhere". It holds an opaque device id, the account id and the
+instant, signed; no e-mail address. A login that presents a valid one for the address being tried
+is counted in a bucket of its own, per account and device, in place of the network's; one that
+is missing, forged, expired, issued for another address or older than the account's last change
+of credentials is ignored and answered exactly as a login with no cookie. It grants nothing and
+skips no step. See docs/SECURITY.md §5.
 
 **200**
 
