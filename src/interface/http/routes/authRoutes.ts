@@ -364,9 +364,10 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
 
       await startSession(req, res, deps, result.value)
 
-      // After the session, so a sign-in that fails on the server leaves no cookie behind. Here
-      // and nowhere else: a password change or "sign out everywhere" renews a session, but
-      // proves nothing about the browser, and a stolen session must not be able to mint a device.
+      // After the session, so a sign-in that fails on the server leaves no cookie behind. Set
+      // by a request that has just proved the password (here, the second step below, and a
+      // password change) and by nothing else: "sign out everywhere" renews a session without
+      // proving anything, and a stolen session must not be able to mint a device.
       devices.remember(res, result.value)
 
       sendJson(res, toSignedInUserDto(result.value))
@@ -432,6 +433,13 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       await startSession(req, res, deps, pending, {
         secondFactorAt: deps.clock.now().getTime(),
       })
+
+      // The sign-in is complete only now, so this is where the device is remembered, not at the
+      // password: a password alone sets no cookie. The cookie is a throttle key and skips
+      // nothing, so the next sign-in from this browser asks for the password and for the second
+      // factor again.
+      devices.remember(res, pending)
+
       sendJson(
         res,
         toSignedInUserDto({
@@ -556,6 +564,13 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       // The `mustChangePassword` flag needs no session write: `changePassword` cleared it
       // in storage and `resolveAuthState` reads it from there on the next request.
       await startSession(req, res, deps, user, stampsOf(req))
+
+      // The change moved the epoch, which ended the trust this browser had. It has just proved
+      // the current password, as a sign-in does, so it is remembered again: the owner who rotates
+      // the password because somebody is guessing it must not land back in the bucket that
+      // somebody is holding. After the result check, so a session without the password (a stolen
+      // one) mints nothing.
+      devices.remember(res, user)
       sendNoContent(res)
     }),
   )

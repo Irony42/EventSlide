@@ -11,6 +11,7 @@ import {
 import { aUser } from '../../../application/testing/builders'
 import { FakeAccountTokenRepository } from '../../../application/testing/fakeAccountTokenRepository'
 import { FakeMailer } from '../../../application/testing/fakeMailer'
+import { FakeSecondFactorRepository } from '../../../application/testing/fakeSecondFactorRepository'
 import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
@@ -25,6 +26,7 @@ import type { Password } from '../../../domain/users/password'
 import type { PasswordHash } from '../../../domain/users/user'
 import { TRUSTED_DEVICE_LIFETIME_MS } from '../../../domain/users/trustedDevice'
 import { TRUSTED_DEVICE_COOKIE, trustedDeviceCodec } from '../middleware/trustedDevice'
+import { unusedSecondFactorUseCases } from '../testing/signIn'
 
 /**
  * The trusted-device cookie of the sign-in throttle (free plan G3-04b, on top of G3-04 / P4-07),
@@ -147,7 +149,12 @@ const subjectOf = ({
         authRoutes({
           deps: { ...deps, users },
           usecases: {
-            authenticateUser: makeAuthenticateUser({ users, hasher, clock: deps.clock }),
+            authenticateUser: makeAuthenticateUser({
+              users,
+              factors: new FakeSecondFactorRepository(),
+              hasher,
+              clock: deps.clock,
+            }),
             changePassword: makeChangePassword({ users, hasher, clock: deps.clock }),
             revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
             requestPasswordReset: makeRequestPasswordReset({
@@ -161,6 +168,7 @@ const subjectOf = ({
               publicUrl: deps.config.publicUrl,
             }),
             resetPassword: makeResetPassword({ users, tokens, secrets, hasher, clock: deps.clock }),
+            ...unusedSecondFactorUseCases,
           },
           throttleHold: async (ms) => {
             holds.push(ms)
@@ -366,23 +374,43 @@ describe('the trusted-device cookie, as a sign-in sets it', () => {
     expect(setCookiesOf(response)).toEqual([])
   })
 
-  it('is not set by a password change or by "sign out everywhere": a stolen session must not be able to mint a device', async () => {
+  it('is set again by a password change, which has just proved the current password: the browser that chose it stays trusted', async () => {
+    const subject = subjectOf()
+    const login = await signIn(subject, { from: FIRST_SIGN_IN, password: PASSWORD })
+    subject.clock.advance(1_000)
+
+    const changed = await request(subject.server)
+      .post('/api/auth/password')
+      .set('Cookie', sessionCookieOf(login))
+      .send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD })
+    await pileUp(subject, 8)
+    const stale = await signIn(subject, { cookie: deviceCookieOf(login) })
+    const fresh = await signIn(subject, { cookie: deviceCookieOf(changed) })
+
+    expect(changed.status).toBe(204)
+    expect(deviceSetCookie(changed)).toBeDefined()
+    // The shared network is in the stranger's wait: the old cookie is not trusted any more (the
+    // change ended it), the one the change set is.
+    expect([stale.status, fresh.status]).toEqual([429, 401])
+  })
+
+  it('is not set by a password change that did not prove the current password, nor by "sign out everywhere": a stolen session must not be able to mint a device', async () => {
     const subject = subjectOf()
     const login = await signIn(subject, { password: PASSWORD })
     const session = sessionCookieOf(login)
 
     subject.clock.advance(1_000)
+    const guessed = await request(subject.server)
+      .post('/api/auth/password')
+      .set('Cookie', session)
+      .send({ currentPassword: WRONG, newPassword: NEW_PASSWORD })
     const revoked = await request(subject.server)
       .post('/api/auth/sessions/revoke-others')
       .set('Cookie', session)
-    const changed = await request(subject.server)
-      .post('/api/auth/password')
-      .set('Cookie', sessionCookieOf(revoked))
-      .send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD })
 
-    expect([revoked.status, changed.status]).toEqual([204, 204])
+    expect([guessed.status, revoked.status]).toEqual([401, 204])
+    expect(deviceSetCookie(guessed)).toBeUndefined()
     expect(deviceSetCookie(revoked)).toBeUndefined()
-    expect(deviceSetCookie(changed)).toBeUndefined()
   })
 
   it('survives a sign-out: logging out does not clear it, and the browser still counts', async () => {
@@ -512,13 +540,13 @@ describe('the trusted device’s own bucket still throttles', () => {
     const cookie = await trustedCookieFor(subject)
 
     const statuses: number[] = []
-    for (let n = 0; n < 14; n += 1) {
+    for (let n = 0; n < 20; n += 1) {
       statuses.push((await signIn(subject, { from: network(100 + n), cookie })).status)
     }
 
     expect(statuses).toEqual([
       ...Array.from({ length: 5 }, () => 401),
-      ...Array.from({ length: 9 }, () => 429),
+      ...Array.from({ length: 15 }, () => 429),
     ])
   })
 
@@ -542,15 +570,37 @@ describe('the trusted device’s own bucket still throttles', () => {
   })
 
   it('is still behind the per-client limit, which counts across accounts and cookies', async () => {
-    const subject = subjectOf({ perMinute: 3 })
+    const subject = subjectOf({ perMinute: 4 })
     const cookie = await trustedCookieFor(subject)
 
-    const answers = []
-    for (let n = 0; n < 4; n += 1) answers.push(await signIn(subject, { cookie }))
+    const answers = [
+      await signIn(subject, { cookie }),
+      await signIn(subject, { email: OTHER }),
+      await signIn(subject, { email: 'inconnu@example.test' }),
+      await signIn(subject, { email: OTHER, cookie }),
+      await signIn(subject, { cookie }),
+    ]
 
-    expect(answers.map((answer) => answer.status)).toEqual([401, 401, 401, 429])
-    // The client limit's own body, not the throttle's: it names no wait.
-    expect(answers[3]?.body.error.details).toEqual({})
+    // Four requests from one address, three accounts and two cookie states: the fifth is the
+    // client limit's. Its body names no wait; the device's own would.
+    expect(answers.map((answer) => answer.status)).toEqual([401, 401, 401, 401, 429])
+    expect(answers[4]?.body.error.details).toEqual({})
+  })
+
+  it('gives back an attempt that was not a wrong guess: a server failure after the right password is no failure of the device', async () => {
+    const subject = subjectOf({ sessionStoreDown: true })
+    // The store is down, so no sign-in can issue a cookie: seal one, as the table below does.
+    const cookie = `${TRUSTED_DEVICE_COOKIE}=${trustedDeviceCodec(TEST_SESSION_SECRET).seal(
+      { device: 'sealed-device', userId: OWNER_ID, issuedAtMs: subject.clock.now().getTime() },
+      OWNER,
+    )}`
+    for (let n = 0; n < 4; n += 1) expect((await signIn(subject, { cookie })).status).toBe(401)
+
+    expect((await signIn(subject, { password: PASSWORD, cookie })).status).toBe(500)
+
+    // Four failures stand, so one more is the fifth and the one after it waits.
+    expect((await signIn(subject, { cookie })).status).toBe(401)
+    expect((await signIn(subject, { cookie })).status).toBe(429)
   })
 
   it('is still held two seconds, and never refused, once the account is being stuffed from everywhere', async () => {
@@ -682,6 +732,14 @@ describe('a cookie that does not count is ignored, and answered exactly as no co
       async () => `${TRUSTED_DEVICE_COOKIE}=${encodeURIComponent('j:{"a":1}')}`,
     ],
     [
+      'a signature the right length in characters and the wrong one in bytes',
+      async (s) => {
+        const cookie = await trustedCookieFor(s)
+        const head = cookie.slice(0, cookie.lastIndexOf('.') + 1)
+        return head + encodeURIComponent(String.fromCharCode(0xe9).repeat(43))
+      },
+    ],
+    [
       'far too long',
       async () => `${TRUSTED_DEVICE_COOKIE}=v1.${'a'.repeat(5_000)}.${'b'.repeat(43)}`,
     ],
@@ -728,7 +786,7 @@ describe('a cookie that does not count is ignored, and answered exactly as no co
 describe('the credentials epoch ends the trust', () => {
   const raisers: readonly (readonly [
     string,
-    (subject: Subject, session: string) => Promise<void>,
+    (subject: Subject, session: string) => Promise<Answer>,
   ])[] = [
     [
       'a password change',
@@ -738,6 +796,7 @@ describe('the credentials epoch ends the trust', () => {
           .set('Cookie', session)
           .send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD })
         expect(response.status).toBe(204)
+        return response
       },
     ],
     [
@@ -747,6 +806,7 @@ describe('the credentials epoch ends the trust', () => {
           .post('/api/auth/sessions/revoke-others')
           .set('Cookie', session)
         expect(response.status).toBe(204)
+        return response
       },
     ],
   ]
@@ -762,7 +822,7 @@ describe('the credentials epoch ends the trust', () => {
       const login = await signIn(subject, { password: PASSWORD, cookie: stale })
       expect(login.status).toBe(200)
       subject.clock.advance(1_000)
-      await raise(subject, sessionCookieOf(login))
+      const raised = await raise(subject, sessionCookieOf(login))
       subject.clock.advance(1_000)
 
       // The cookie is older than the change: it is not there, and neither is its estate. The
@@ -770,6 +830,12 @@ describe('the credentials epoch ends the trust', () => {
       const afterwards = await signIn(subject, { cookie: stale })
       const alsoTheRenewedOne = await signIn(subject, { cookie: deviceCookieOf(login) })
       expect([afterwards.status, alsoTheRenewedOne.status]).toEqual([429, 429])
+      // Only a request that proved the password sets a new one at once.
+      if (name === 'a password change') {
+        expect((await signIn(subject, { cookie: deviceCookieOf(raised) })).status).toBe(401)
+      } else {
+        expect(deviceSetCookie(raised)).toBeUndefined()
+      }
 
       // A successful sign-in sets a new one, stamped after the change, and it counts.
       subject.clock.advance(Number(afterwards.headers['retry-after']) * 1_000)

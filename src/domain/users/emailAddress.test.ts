@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DomainError } from '../shared/errors'
 import type { Result } from '../shared/result'
-import { EmailAddress } from './emailAddress'
+import { EmailAddress, normalisedAddress } from './emailAddress'
 
 /**
  * Awkward code points are built here rather than typed, so this file stays plain ASCII
@@ -181,5 +181,24 @@ describe('EmailAddress identity', () => {
 
   it('publishes the RFC 5321 path limit the sign-up form counts against', () => {
     expect(EmailAddress.maxLength).toBe(254)
+  })
+})
+
+describe('normalisedAddress', () => {
+  it('is the address the lookup finds, whatever the spelling', () => {
+    for (const spelling of [
+      'camille@example.com',
+      'Camille@Example.COM',
+      '  camille@example.com ',
+      `${TAB}CAMILLE@example.com${NON_BREAKING_SPACE}`,
+    ]) {
+      expect(normalisedAddress(spelling)).toBe('camille@example.com')
+    }
+  })
+
+  it('is the trimmed, lower-cased text for what is not an address at all', () => {
+    expect(normalisedAddress('  PAS-UNE-Adresse ')).toBe('pas-une-adresse')
+    expect(normalisedAddress('a b@example.com')).toBe('a b@example.com')
+    expect(normalisedAddress('')).toBe('')
   })
 })

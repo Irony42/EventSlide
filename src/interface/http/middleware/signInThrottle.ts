@@ -3,11 +3,12 @@ import type { RequestHandler } from 'express'
 import type { Clock } from '../../../application/ports/clock'
 import type { Logger } from '../../../application/ports/logger'
 import { DomainError } from '../../../domain/shared/errors'
+import { normalisedAddress } from '../../../domain/users/emailAddress'
 import { SignInThrottle, deviceSource, networkSource } from '../../../domain/users/signInThrottle'
 import { sendError } from '../presenters/send'
 import { asyncHandler } from './asyncHandler'
 import { clientKey } from './rateLimit'
-import { normalisedAddress, type TrustedDevices } from './trustedDevice'
+import type { TrustedDevices } from './trustedDevice'
 
 /**
  * The per-account half of the sign-in limit (free plan G3-04, paid plan P4-07).

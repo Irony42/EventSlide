@@ -5,12 +5,7 @@ import { AT } from '../../../application/testing/builders'
 import { FakeClock } from '../../../application/testing/fakeClock'
 import type { AuthState, UserRepository } from '../../../application/ports/userRepository'
 import { TRUSTED_DEVICE_LIFETIME_MS } from '../../../domain/users/trustedDevice'
-import {
-  TRUSTED_DEVICE_COOKIE,
-  normalisedAddress,
-  trustedDeviceCodec,
-  trustedDevices,
-} from './trustedDevice'
+import { TRUSTED_DEVICE_COOKIE, trustedDeviceCodec, trustedDevices } from './trustedDevice'
 
 /**
  * The trusted-device cookie's format and its reading (free plan G3-04b): what it holds, what it
@@ -21,6 +16,9 @@ import {
 
 const SECRET = 'a-session-secret-of-more-than-32-characters'
 const ADDRESS = 'camille@example.test'
+/** Built here, so this file stays plain ASCII text. */
+const E_ACUTE = String.fromCharCode(0xe9)
+const NUL = String.fromCharCode(0)
 const CLAIMS = { device: 'device-1', userId: 'user-1', issuedAtMs: 1_800_000_000_000 }
 
 describe('the trusted-device cookie', () => {
@@ -98,6 +96,12 @@ describe('the trusted-device cookie', () => {
       `v1.${payload}.${mac}A`,
       `v1.${'a'.repeat(5_000)}.${mac}`,
       'x'.repeat(100_000),
+      // 43 characters, 86 bytes: the right length to a character count and the wrong one to
+      // `timingSafeEqual`, which throws on it. A forged cookie must not be a 500.
+      `v1.${payload}.${E_ACUTE.repeat(43)}`,
+      `v1.${payload}.${NUL.repeat(43)}`,
+      `v1.${payload}.${mac?.slice(0, 42)}${E_ACUTE}`,
+      `v1.${payload}.${mac?.replace(/.$/, '=')}`,
     ]
     for (const value of junk) expect(codec.open(value, ADDRESS)).toBeUndefined()
   })
@@ -152,17 +156,6 @@ describe('the trusted-device cookie', () => {
         ).toBeUndefined()
       }
     })
-  })
-})
-
-describe('the address a cookie is bound to', () => {
-  it('is the one the lookup finds: every spelling of an account is one address', () => {
-    expect(normalisedAddress(' Camille@Example.TEST ')).toBe(ADDRESS)
-    expect(normalisedAddress(ADDRESS)).toBe(ADDRESS)
-  })
-
-  it('is the trimmed, lower-cased text for what is not an address at all', () => {
-    expect(normalisedAddress('  PAS-UNE-Adresse ')).toBe('pas-une-adresse')
   })
 })
 

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import type { Clock } from '../../../application/ports/clock'
 import type { UserRepository } from '../../../application/ports/userRepository'
 import { asUserId } from '../../../domain/shared/ids'
-import { EmailAddress } from '../../../domain/users/emailAddress'
+import { normalisedAddress } from '../../../domain/users/emailAddress'
 import { TRUSTED_DEVICE_LIFETIME_MS, isTrustedDevice } from '../../../domain/users/trustedDevice'
 
 /**
@@ -77,7 +77,7 @@ import { TRUSTED_DEVICE_LIFETIME_MS, isTrustedDevice } from '../../../domain/use
  *
  * A cookie that is missing, malformed, forged, signed with another key, issued for another
  * address, expired, from the future, or belonging to an account whose credentials changed since
- * is **the same outcome**: `undefined`, no log line, no distinguishing response. The one read it
+ * is **the same outcome**: `undefined`, with nothing to tell it from the rest. The one read it
  * costs is the account's state, and it is made only for a cookie whose signature is valid for
  * this address, which nobody can produce without a successful sign-in.
  */
@@ -90,11 +90,13 @@ const LABEL = 'eventslide/trusted-device/v1'
 const KEY_BYTES = 32
 const DEVICE_ID_BYTES = 16
 
-/** Longer than any cookie we set, by a wide margin: refused before anything is decoded. */
-const MAX_COOKIE_LENGTH = 512
-
-/** A base64url HMAC-SHA256 is always 43 characters. Anything else is not one of ours. */
-const MAC_LENGTH = 43
+/**
+ * A base64url HMAC-SHA256 is always these 43 characters, which are also 43 bytes. Checked as a
+ * shape and not as a length: `timingSafeEqual` throws when its two inputs differ in **bytes**,
+ * and a cookie made of 43 two-byte characters has the right length in characters. The throw
+ * would be a 500 for a forged cookie where no cookie gets a 401.
+ */
+const MAC_SHAPE = /^[A-Za-z0-9_-]{43}$/
 
 const claims = z
   .object({
@@ -108,16 +110,6 @@ export interface DeviceClaims {
   readonly device: string
   readonly userId: string
   readonly issuedAtMs: number
-}
-
-/**
- * The address as the lookup normalises it, so that every spelling of an account is one
- * address; anything that is not an address at all is trimmed and lower-cased. Shared by the
- * throttle's account digest and this cookie's MAC.
- */
-export const normalisedAddress = (raw: string): string => {
-  const parsed = EmailAddress.create(raw)
-  return parsed.ok ? parsed.value.value : raw.trim().toLowerCase()
 }
 
 /** Length-prefixed, so no boundary between two parts can be moved. */
@@ -156,16 +148,15 @@ export const trustedDeviceCodec = (secret: string) => {
     open(value: unknown, address: string): DeviceClaims | undefined {
       // `cookie-parser` hands back an object for a value that starts `j:`, so this is not
       // always a string.
-      if (typeof value !== 'string' || value.length > MAX_COOKIE_LENGTH) return undefined
+      if (typeof value !== 'string') return undefined
       const parts = value.split('.')
       const [version, payload, mac] = parts
       if (parts.length !== 3 || version !== VERSION || payload === undefined || mac === undefined) {
         return undefined
       }
-      if (mac.length !== MAC_LENGTH) return undefined
+      if (!MAC_SHAPE.test(mac)) return undefined
       const expected = Buffer.from(macOf(payload, address), 'utf8')
       const presented = Buffer.from(mac, 'utf8')
-      if (expected.length !== presented.length) return undefined
       if (!timingSafeEqual(new Uint8Array(expected), new Uint8Array(presented))) return undefined
 
       let decoded: unknown
