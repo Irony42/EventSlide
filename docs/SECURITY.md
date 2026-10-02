@@ -1102,18 +1102,32 @@ use case sends mail yet; invitations and password reset are the first.
   from the first byte. `smtp://` must **upgrade** with STARTTLS (`requireTLS`) to every host
   except `localhost`, `127.0.0.0/8` and `::1` — whatever `NODE_ENV` says — so a login is
   never sent in the clear and an attacker cannot strip the advertisement to make it so.
-  Certificate verification is `nodemailer`'s default, which is on, and nothing exposes a way
-  to turn it off. A relay on another machine without STARTTLS is therefore unusable, by
-  design; a developer's MailHog on `localhost:1025` is the one plaintext case.
-- **Time is bounded.** 10 s to connect and to resolve the name, 10 s for the greeting, 30 s
-  of silence, and a hard 60 s deadline on the whole send — against `nodemailer`'s own
-  defaults of two minutes, thirty seconds and ten minutes. An unreachable relay is
-  `mail.transient` within seconds, and `send` never throws into a use case: every failure is
-  an `Err`.
+  A relay on another machine without STARTTLS is therefore unusable, by design; a
+  developer's MailHog on `localhost:1025` is the one plaintext case.
+- **The relay's certificate is checked, and a self-signed one is refused.** Verification is
+  `nodemailer`'s default, which is on, and the adapter passes no `tls` option, so no
+  setting of this application can turn it off. Two tests hold that from both ends: the options
+  the library receives are asserted as an exact list of keys, and a real TLS handshake against
+  a self-signed relay is refused with no login and no message sent. The failure is
+  `mail.rejected` (permanent) and the log carries a `tlsCertificate` flag — never the
+  library's wording, which names the host and the chain. A relay signed by a private
+  authority is reached by adding that authority to the box's trust store (Node reads
+  `NODE_EXTRA_CA_CERTS`, a file path, at start-up); there is no switch to skip the check. A
+  process-wide `NODE_TLS_REJECT_UNAUTHORIZED=0` would defeat it, as it defeats every TLS
+  client in Node, and is not something this adapter can prevent.
+- **Time is bounded.** 10 s to connect, 10 s for the greeting, 20 s of silence, and a hard
+  30 s deadline on the whole send — against `nodemailer`'s own defaults of two minutes,
+  thirty seconds and ten minutes. The last is the one that holds: Node's resolver retries, so
+  a name server that never answers outlasts the per-phase settings (measured), and only the
+  whole-send deadline ends it. An unreachable relay is `mail.transient` within seconds, or
+  within thirty at worst, and `send` never throws into a use case: every failure is an
+  `Err`. **`mail.transient` is not "not sent"**: a relay that answered at second thirty-one
+  has answered, and the library cannot be cancelled, so a caller that retries may deliver
+  twice.
 - **A log carries the recipient's domain and nothing else of the message.** A success logs
   the domain; a failure logs the reason (`rejected` is permanent, `transient` may succeed on
-  a retry), the domain, the library's error code, the relay's numeric reply (`550`) and the
-  SMTP command in flight. Never the local part, the subject, the body, a link (a reset link
+  a retry), the domain, the library's error code, the relay's numeric reply (`550`), the
+  SMTP command in flight, and a flag when the cause was a certificate the box did not accept. Never the local part, the subject, the body, a link (a reset link
   is a credential), the credentials, or the relay's reply text — which `nodemailer` appends
   to every error it throws and which, on a refused recipient, names the mailbox. Not even
   `nodemailer`'s own `logger` or `debug` is turned on: with `debug` it prints the message and
@@ -1122,14 +1136,16 @@ use case sends mail yet; invitations and password reset are the first.
   anything logged or returned.
 - **One message, one mailbox, one line of subject.** `checkOutgoingMail` is run first by
   every implementation, the fake included. `EmailAddress` is deliberately shallow and accepts
-  `a@example.org,b@example.com`; an SMTP client reads that as two recipients, so a stricter
+  `a@example.org,b@example.com`; a mail library either splits that into two recipients or
+  (`nodemailer`) rewrites it into one quoted mailbox that nobody chose, so a stricter
   single-mailbox check stands between a use case and the envelope. A line break in a subject
   — how a caller-supplied string becomes a `Bcc:` header — is refused rather than flattened.
+  `NullMailer` sends nothing and so validates nothing: it answers `mail.notConfigured`.
 - **The dependency.** `nodemailer` is MIT-0 (the `LICENSE` in the package is MIT with the
   attribution condition removed), which is permissive and compatible with this project's
   AGPL-3.0-only, and it has no dependencies of its own. It ships its own type declarations.
-  Domain and application may not import it (lint), so it is reachable only from
-  `src/infrastructure/mail/`.
+  Domain, application and the HTTP layer may not import it (lint, with a test per layer);
+  in practice only `src/infrastructure/mail/` does.
 
 **There is no default account in 2.0.** 1.0 recreated `admin` / `password` on every
 boot, in `initDatabase`, in production, forever. Instead: there is no HTTP endpoint and

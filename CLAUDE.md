@@ -115,6 +115,7 @@ src/
     reactions/     Reaction rules
     clients/       Client entity, ceilings, roles (roadmap §10.2; no route yet)
     audit/         Audit entries, their allow-listed details, retention (roadmap §10.8; no route yet)
+    mail/          Outgoing message rules: one mailbox, a one-line subject (roadmap §10.3)
   application/
     ports/         Interfaces. One file per port. No implementations.
     usecases/      One file, one exported factory, one responsibility.
@@ -123,6 +124,7 @@ src/
     db/            Connection, migrator, migrations/, SQLite repositories
     media/         Filesystem store, sharp pipeline, magic bytes
     crypto/        Hashing, HMAC tokens, id generation
+    mail/          NullMailer (the default) and the optional SMTP adapter on nodemailer
     realtime/      Event bus + SSE hub
     logging/       pino
     time/          System clock

@@ -135,7 +135,7 @@ describe('checkOutgoingMail', () => {
     expect(codeOf(checkOutgoingMail(aMail({ subject: `${longest}x` })))).toBe('mail.subjectInvalid')
   })
 
-  it('accepts accents and emoji in a subject, which are text and not control characters', () => {
+  it('accepts accents in a subject, which are text and not control characters', () => {
     expect(checkOutgoingMail(aMail({ subject: 'Invitation à la fête' })).ok).toBe(true)
   })
 

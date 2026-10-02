@@ -1176,9 +1176,11 @@ export interface AppConfig {
    * a solo install exactly as it was: no relay, no outbound connection, no mail.
    *
    * Carries the password, in `smtp.endpoint.credentials`, like `secrets` above carries the
-   * signing keys. Nothing logs this object, and the logger redacts `smtpUrl` and `password`
-   * wherever they appear; a new field here is a new place a secret can leak from, so none
-   * is added without a reason.
+   * signing keys. **Nothing logs this object, and nothing may**: the logger's redaction list
+   * is shallow and would not catch a password four levels down, so the only protection is
+   * that no caller hands this to a log line (the container's boot line names the host and the
+   * port and nothing else, and a test pins it). A new field here is a new place a secret can
+   * leak from, so none is added without a reason.
    */
   readonly mail: {
     readonly smtp: SmtpSettings | null

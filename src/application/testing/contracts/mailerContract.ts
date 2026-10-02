@@ -19,8 +19,9 @@ import type { SentMail } from '../fakeMailer'
  * Three of the cases are the expensive traps, written out as assertions:
  *
  * - **a recipient that is really a list.** `EmailAddress` is shallow on purpose and accepts
- *   `a@example.org,b@example.com`; an SMTP client reads that as two recipients, so an
- *   invitation meant for one person goes to both.
+ *   `a@example.org,b@example.com`; a mail library either splits that into two recipients,
+ *   so an invitation meant for one person goes to both, or rewrites it into one quoted
+ *   mailbox that nobody chose. Either way the mail goes somewhere the caller did not mean.
  * - **a subject with a line break in it.** That is how a caller-supplied string becomes a
  *   `Bcc:` header.
  * - **a body line that is a single dot.** SMTP ends a message on `<CRLF>.<CRLF>`, so an

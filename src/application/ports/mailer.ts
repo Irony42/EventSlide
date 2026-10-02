@@ -21,19 +21,24 @@ export type { OutgoingMail }
  *   invitation must not lose the whole request to a relay that was down.
  * - **`ok` means the relay accepted the message, not that anyone read it.** SMTP gives no
  *   better answer. A bounce arrives later, at the sender address, and nothing here sees it.
- * - **It is bounded in time.** An unreachable relay answers `mail.transient` after a few
- *   seconds, not after the operating system's TCP timeout, because a person is waiting on
- *   the request that asked.
+ * - **It is bounded in time.** An unreachable relay answers `mail.transient` within the
+ *   adapter's whole-send deadline (30 s, at the worst; usually seconds), not after the
+ *   operating system's TCP timeout, because a person is waiting on the request that asked.
+ *   **`transient` is not "not sent"**: a relay that said yes at second thirty-one has said
+ *   it, and the deadline cannot take it back.
  * - **It does not retry, queue or deduplicate.** Whether to try again, and whether to fall
- *   back to a link, is the caller's decision. A mailer that retried behind its caller's
- *   back could send a password reset twice.
+ *   back to a link, is the caller's decision — made knowing the previous try may in fact
+ *   have gone through. A mailer that retried behind its caller's back could send a password
+ *   reset twice.
  * - **It logs no address beyond its domain, and never a subject, a body or a link.** A
  *   password-reset link is a credential; one line in a log shipper would make it a leaked
  *   one. docs/SECURITY.md §9 states the rule and `smtpMailer.test.ts` plants a canary.
  *
  * What a caller must supply: a message already checked by `checkOutgoingMail`'s rules.
- * Every implementation applies them again, because the port is the last place that can
- * stop a recipient that is really a list or a subject that is really a header.
+ * Every implementation that can deliver applies them again, because the port is the last
+ * place that can stop a recipient that is really a list or a subject that is really a
+ * header. (`NullMailer` sends nothing, so it answers `mail.notConfigured` for any message,
+ * valid or not.)
  */
 export interface Mailer {
   /**
@@ -54,7 +59,9 @@ export interface Mailer {
    * - `mail.recipientInvalid`, `mail.subjectInvalid`, `mail.bodyInvalid` (kind `invalid`):
    *   the message breaks a rule of `checkOutgoingMail`. Nothing was sent.
    * - {@link MailFailureReason} codes, kind `unexpected` (an unavailable dependency):
-   *   `mail.notConfigured`, `mail.rejected` and `mail.transient`.
+   *   `mail.notConfigured`, `mail.rejected` and `mail.transient`. That kind would map to a
+   *   500 if one ever reached the HTTP layer, so a use case translates them — into a link
+   *   to copy, in practice — rather than passing them up.
    */
   send(mail: OutgoingMail): Promise<Result<void, DomainError>>
 }
@@ -65,8 +72,8 @@ export interface Mailer {
  * - `notConfigured`: there is no relay. Permanent until an operator sets one; the caller
  *   shows a link.
  * - `rejected`: **do not retry**. The relay, or the address, was refused for good — a
- *   mailbox that does not exist (5xx), credentials that are wrong, a policy the relay
- *   enforces. The same message will fail the same way.
+ *   mailbox that does not exist (5xx), credentials that are wrong, a certificate this box
+ *   does not trust, a policy the relay enforces. The same message will fail the same way.
  * - `transient`: **retrying may help**. A timeout, a refused connection, a 4xx reply, a
  *   dropped socket. Also the answer for anything unclassified, because "try again later" is
  *   the safer thing to tell a caller than "never".

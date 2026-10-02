@@ -35,10 +35,13 @@ export const MAX_SUBJECT_LENGTH = 255
  * decides whether a string is plausible as a login identifier, and says so: it is shallow on
  * purpose, rejecting whitespace and a missing `@` and little else. `a@b.example,c@d.example`
  * passes it — the last `@` splits the string into a "local part" holding the first address
- * and a comma. As a login that is merely a strange account; handed to an SMTP client as a
- * recipient it is **two recipients**, and an invitation to one person goes to both. The same
- * goes for an angle bracket, a quote, a parenthesis or a backslash, which an address parser
- * reads as a display name, a comment or an escape.
+ * and a comma. As a login that is merely a strange account; handed to a mail library as a
+ * recipient it goes **somewhere nobody chose**. An address parser splits it into two
+ * recipients, and an invitation to one person goes to both; `nodemailer`, given it as a
+ * single address, instead rewrites it into one quoted mailbox (`"a@b.example,c"@d.example`),
+ * which is a different one. The same goes for an angle bracket, a quote, a parenthesis, a
+ * backslash or a NUL, which a parser reads as a display name, a comment, an escape or the
+ * end of the string, and which `nodemailer` silently rewrites rather than refuses.
  *
  * So the mailer asks this of every recipient, in every implementation — the fake included,
  * so that a use-case test cannot pass with an address the real adapter would refuse. An
