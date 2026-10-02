@@ -256,6 +256,9 @@ export const es: UiText = {
     'event.creationRateLimited':
       'Ha creado demasiados eventos recientemente. Inténtelo de nuevo más tarde.',
     'event.quotaAboveCeiling': 'Esta cuota supera el límite que permite este servidor.',
+    'event.creationNotAllowed': 'Su cuenta no puede crear eventos en este servidor.',
+    'client.notFound': 'No se encuentra esta cuenta de cliente.',
+    'client.ceilingReached': 'Su cuenta ha alcanzado el número de eventos permitido.',
     'event.immutable': 'Este evento está archivado y ya no se puede modificar.',
     'event.illegalTransition': 'Este cambio de estado no es posible.',
 
