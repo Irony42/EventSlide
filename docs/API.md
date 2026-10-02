@@ -190,10 +190,11 @@ applied to the namespace as a whole, so every route that lands under it inherits
 without restating it. The operator is the account whose site role is `operator`, read from
 storage on every request, and the role grants nothing inside any event — docs/SECURITY.md §2.
 
-The web client does not probe this namespace to learn the mode. It reads
+The web client does not probe this namespace to learn the mode. It will read
 `features.siteAdmin` from the public instance-information endpoint, `GET /api/about` (§2),
 which is derived from the very setting that decides whether the namespace is mounted, so
-the two cannot disagree.
+the two cannot disagree. (Nothing in the SPA reads it yet: the `/admin/site` screens it
+gates do not exist.)
 
 ### CSRF
 
@@ -355,12 +356,20 @@ one per capability a client would otherwise discover by trying.
 nothing hides it: every guest and host screen of the web app carries a "Code source
 (AGPL-3.0)" link built from this response (the wall, which is projected for a room, does
 not), and `/about` shows the version, the licence and the source. The default is the
-upstream tag of the running version, which is the source of exactly that build **only for
-the published image, unmodified.** A deployment of a modified build, or of a commit no tag
-names, **must** set `SOURCE_CODE_URL` to where that source is published — or bake the ref in
-with the image's `SOURCE_REF` build argument (`docker build --build-arg SOURCE_REF=<tag-or-commit>`).
+upstream tag of the running version, which is the source of exactly that build **only when
+the build is an unmodified copy of that tagged release.** A deployment of a modified build,
+a fork, or a commit no tag names **must** set `SOURCE_CODE_URL` to where its source is
+published. `SOURCE_REF` (the image's build argument, `docker build --build-arg
+SOURCE_REF=<tag-or-commit>`) is only for an **unmodified upstream** tag or commit: it always
+points into the upstream repository, so for anything modified it would offer code that lacks
+the modification.
+
 `SOURCE_CODE_URL` accepts an https URL and nothing else: `javascript:`, `data:` and `http:`
 addresses, and addresses carrying credentials, stop the boot (exit 78) naming the variable.
+It is read by the server at boot, not by the bundle, so a browser shows the upstream tag of
+the build's version from its first paint and **replaces it with `sourceUrl` as soon as this
+endpoint answers** — and keeps the upstream tag if it never does (an installed app opened
+offline).
 
 ### `POST /api/join`
 

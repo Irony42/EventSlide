@@ -7,8 +7,9 @@ Accepted. The relicensing itself — `LICENSE`, `package.json`, `package-lock.js
 This ADR records the decision behind it, the shape of the maintainer's own hosted
 instance, and the invariants that bind that instance. It touches none of those files.
 
-Several things it relies on are **(planned)**, not built: the AGPL §13 source offer in
-the application (`GET /api/about`), a contributor licence agreement, a licensing FAQ
+The AGPL §13 source offer it relies on is built (`GET /api/about`, the "Code source" link
+on the guest and host screens, and `SOURCE_CODE_URL`; roadmap G1-04). Several other things
+it relies on are **(planned)**, not built: a contributor licence agreement, a licensing FAQ
 (`docs/LICENSING-FAQ.md`), the instance's terms of use (CGU), an access-request page,
 and a donation channel. Each is marked where it is named.
 
@@ -62,7 +63,7 @@ nothing (**(planned)**), and offers no contract and no availability guarantee (t
 
 Running the unmodified image obligates the operator to nothing beyond what the GPL already
 asked. Only a _modified_ version served to others triggers §13, and that is what the
-planned source offer (`GET /api/about`, with a configurable source URL) is for: an operator
+source offer (`GET /api/about` and the footer link, with a configurable source URL) is for: an operator
 who forks and serves the fork can point it at their own source. The maintainer's instance
 needs no such change, so there is no private branch to keep in compliance.
 

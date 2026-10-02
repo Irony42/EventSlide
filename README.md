@@ -477,9 +477,9 @@ else still means passing on the licence and the source, exactly as before.
 
 EventSlide makes the offer for you: every guest and host screen carries a "Code source
 (AGPL-3.0)" link, and `GET /api/about` publishes the same address. Unset, it points at the
-upstream tag of the running version, which is the source of exactly that build **only for
-the unmodified published image**. For anything else — a modified build, a fork, a commit no
-tag names — set `SOURCE_CODE_URL` to where your source is published
+upstream tag of the running version, which is the source of exactly that build **only when
+you run an unmodified copy of that tagged release**. For anything else — a modified build, a
+fork, a commit no tag names — set `SOURCE_CODE_URL` to where your source is published
 ([`.env.example`](.env.example) says how). You can change where the link points; there is no
 setting that hides it.
 

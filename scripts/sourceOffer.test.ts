@@ -122,6 +122,18 @@ describe('docs/API.md', () => {
     expect(text).toMatch(/no switch/i)
   })
 
+  it('says SOURCE_REF is only for an unmodified upstream tag or commit, and in .env.example too', () => {
+    // SOURCE_REF always points into the upstream repository, so for a modified build it
+    // would offer code that lacks the modification — a false section 13 offer. The one
+    // sentence that stops an operator reaching for it is worth pinning.
+    expect(section().replace(/\s+/g, ' ')).toContain(
+      'is only for an **unmodified upstream** tag or commit',
+    )
+    expect(read('.env.example').replace(/\n#\s*/g, ' ')).toContain(
+      'only for an UNMODIFIED upstream tag or commit',
+    )
+  })
+
   it('says a modified or untagged deployment must set SOURCE_CODE_URL', () => {
     expect(section().replace(/\s+/g, ' ')).toMatch(/must\*\* set `SOURCE_CODE_URL`/)
   })
