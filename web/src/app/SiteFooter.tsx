@@ -49,7 +49,7 @@ export function SiteFooter({ supportLink = false }: SiteFooterProps) {
         {text.about.aboutLink}
       </NewTabLink>
       {supportLink && links.donate !== undefined ? (
-        <NewTabLink href={links.donate} className={styles['link']}>
+        <NewTabLink href={links.donate} className={`${styles['link']} ${styles['support']}`}>
           {text.about.supportLink}
         </NewTabLink>
       ) : null}
