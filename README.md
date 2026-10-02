@@ -435,6 +435,20 @@ single command, `stop` and `run` included, until the three variables `compose.ya
 requires are back. Details, and what the checks do and do not catch, are in
 [docs/SECURITY.md §11](docs/SECURITY.md#11-deployment-posture).
 
+## Upgrading
+
+Run a tagged release, not the tip of `main` (`git clone` leaves you on it), and take a
+[backup](#backups) first: the migrations a new version applies when it starts only go
+forward, and a backup is the only way back.
+
+```bash
+git fetch --tags && git checkout vX.Y.Z
+docker compose up -d --build
+```
+
+What a major version may break, how a break is announced, and how to go back are in
+[docs/UPGRADING.md](docs/UPGRADING.md).
+
 ## For contributors
 
 The interesting parts are documented rather than left to be inferred:

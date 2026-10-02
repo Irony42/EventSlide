@@ -77,3 +77,27 @@ that notices — after the fact, against someone else's diff.
 This is the whole of what G2-01 / P3-01 (see
 `PLAN-SAAS-GRATUIT-DONS-EVENTSLIDE.md` / `PLAN-SAAS-PAYANT-EVENTSLIDE.md`) asks for: a
 documented convention plus a CI test that enforces the parts of it a machine can check.
+
+## Changing what an existing installation sees
+
+[docs/UPGRADING.md](docs/UPGRADING.md) is what the people who run EventSlide have been
+promised, and a pull request is held to it. `scripts/changelogPolicy.test.ts` and
+`scripts/upgradingDocs.test.ts` check what a machine can.
+
+- **A break is a major.** Removing or renaming what that page lists as promised (an API route
+  or error code, a setting, an operator command), or changing what a default does to an
+  installation that already runs, is a break. Mark the commit `feat!:` (or `fix!:`) with a
+  `BREAKING CHANGE:` footer, and add the `## Upgrading to N.0` section to that page in the
+  same pull request: who is affected, what to change and in which order, how to tell it
+  worked. Once one has merged, the next release is a major.
+- **A refusal at boot starts as a warning.** If an installation that runs today would be
+  refused, log a warning instead (`computeWarnings` in `src/infrastructure/config/env.ts`) and
+  refuse only in a major. A default that destroys data starts as an opt-in.
+- **Something to remove is deprecated first**, with a warning logged when it is used where
+  the code can, for at least one minor release and 90 days.
+- **A migration is SQL only.** It holds no program code, so what happens to existing rows is
+  what one SQL statement can compute. Where a feature needs a value they cannot be given, they
+  keep a default or `NULL` and the feature reads that as "not set".
+- **Leave `CHANGELOG.md` to the release.** The entry is written when the release is prepared,
+  from the commit messages, so a commit that breaks or changes behaviour says so in its own
+  words.
