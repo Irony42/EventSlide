@@ -198,6 +198,8 @@ describe('the real schema', () => {
       'sessions',
       'share_links',
       'sqlite_sequence',
+      'user_recovery_codes',
+      'user_totp',
       'users',
     ])
     closeDatabase(db)
@@ -2415,6 +2417,167 @@ describe('migration 010, account tokens and the credentials epoch', () => {
       name: 'Camille & Sacha',
     })
     expect(db.prepare(`SELECT COUNT(*) AS n FROM account_tokens`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+})
+
+describe('migration 011, the operator second factor', () => {
+  const AT = '2026-06-20T21:00:00.000Z'
+  const SEALED = 'aXY.dGFn.Y2lwaGVydGV4dA'
+  const DIGEST = 'b'.repeat(64)
+
+  const seedUser = (db: Db, id = 'u1'): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, 'hash:x', '${AT}')`,
+    ).run(id, `${id}@example.test`)
+  }
+
+  const insertFactor = (db: Db, over: Record<string, string | number | null> = {}): void => {
+    const row: Record<string, string | number | null> = {
+      user_id: 'u1',
+      secret_enc: SEALED,
+      created_at: AT,
+      ...over,
+    }
+    const names = Object.keys(row)
+    db.prepare(
+      `INSERT INTO user_totp (${names.join(', ')}) VALUES (${names.map(() => '?').join(', ')})`,
+    ).run(...Object.values(row))
+  }
+
+  const refusalOf = (action: () => unknown): string => {
+    try {
+      action()
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+    return ''
+  }
+
+  it('creates the two tables, empty, with the columns the repository reads', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    const columns = (table: string): string[] =>
+      (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name)
+
+    expect(columns('user_totp')).toEqual([
+      'user_id',
+      'secret_enc',
+      'key_version',
+      'created_at',
+      'confirmed_at',
+      'last_used_step',
+    ])
+    expect(columns('user_recovery_codes')).toEqual(['user_id', 'code_digest', 'used_at'])
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM user_totp`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('refuses a secret stored in the clear: the base32 text has no dots, a sealed one has two', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUser(db)
+
+    for (const clear of ['GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 'one.dot', 'a.b.c.d', 'a b.c.d']) {
+      expect(refusalOf(() => insertFactor(db, { secret_enc: clear }))).toMatch(/CHECK/)
+    }
+    expect(refusalOf(() => insertFactor(db))).toBe('')
+    closeDatabase(db)
+  })
+
+  it('refuses a step spent by a factor that was never confirmed', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUser(db)
+
+    expect(refusalOf(() => insertFactor(db, { last_used_step: 5 }))).toMatch(/CHECK/)
+    expect(refusalOf(() => insertFactor(db, { confirmed_at: AT, last_used_step: 5 }))).toBe('')
+    closeDatabase(db)
+  })
+
+  it('keeps one authenticator per account, and one for an account that exists', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUser(db)
+    insertFactor(db)
+
+    expect(refusalOf(() => insertFactor(db))).toMatch(/UNIQUE|PRIMARY/)
+    expect(refusalOf(() => insertFactor(db, { user_id: 'nobody' }))).toMatch(/FOREIGN KEY/)
+    closeDatabase(db)
+  })
+
+  it('refuses a recovery code that is not a SHA-256 digest, and a duplicate', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUser(db)
+    insertFactor(db)
+    const insert = (digest: string): void => {
+      db.prepare(`INSERT INTO user_recovery_codes (user_id, code_digest) VALUES ('u1', ?)`).run(
+        digest,
+      )
+    }
+
+    expect(refusalOf(() => insert('K7QM-2XTR-9PHD-4VNB'))).toMatch(/CHECK/)
+    expect(refusalOf(() => insert('B'.repeat(64)))).toMatch(/CHECK/)
+    expect(refusalOf(() => insert(DIGEST))).toBe('')
+    expect(refusalOf(() => insert(DIGEST))).toMatch(/UNIQUE|PRIMARY/)
+    closeDatabase(db)
+  })
+
+  it('holds no recovery code for an account with no factor', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUser(db)
+
+    expect(
+      refusalOf(() =>
+        db
+          .prepare(`INSERT INTO user_recovery_codes (user_id, code_digest) VALUES ('u1', ?)`)
+          .run(DIGEST),
+      ),
+    ).toMatch(/FOREIGN KEY/)
+    closeDatabase(db)
+  })
+
+  it('takes the factor and its codes with the account, and the codes with the factor', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUser(db, 'u1')
+    seedUser(db, 'u2')
+    insertFactor(db, { user_id: 'u1' })
+    insertFactor(db, { user_id: 'u2' })
+    const insertCode = db.prepare(
+      `INSERT INTO user_recovery_codes (user_id, code_digest) VALUES (?, ?)`,
+    )
+    insertCode.run('u1', DIGEST)
+    insertCode.run('u2', DIGEST)
+
+    db.prepare(`DELETE FROM users WHERE id = 'u1'`).run()
+    expect(db.prepare(`SELECT user_id FROM user_totp`).all()).toEqual([{ user_id: 'u2' }])
+    expect(db.prepare(`SELECT user_id FROM user_recovery_codes`).all()).toEqual([{ user_id: 'u2' }])
+
+    db.prepare(`DELETE FROM user_totp WHERE user_id = 'u2'`).run()
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM user_recovery_codes`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('keeps a box that existed before it, accounts intact and nobody enrolled', () => {
+    // The upgrade path, on somebody's wedding album: two tables added, nothing rewritten.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 11),
+    )
+    seedUser(db, 'u1')
+    seedUser(db, 'u2')
+
+    migrate(db, migrations)
+
+    expect(db.prepare(`SELECT id, email FROM users ORDER BY id`).all()).toEqual([
+      { id: 'u1', email: 'u1@example.test' },
+      { id: 'u2', email: 'u2@example.test' },
+    ])
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM user_totp`).get()).toEqual({ n: 0 })
     closeDatabase(db)
   })
 })
