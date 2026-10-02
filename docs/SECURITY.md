@@ -810,9 +810,11 @@ rings 2 to 4 and again, against the built server, in `tests/e2e/security/ceiling
 
 **Read from the data, never from the switch.** `SITE_ADMIN` decides how much surface exists, not whether
 ceilings apply: an event with a client is bound whether or not the operator console is mounted. And an
-event with **no** client — every event on a box that never had one — never reads the clients table at all
-(`clientContextOf` answers from `event.clientId`), so a self-hosted install does the same work it did
-before ceilings existed and meets none of them. `clientContextOf.test.ts` asserts it, and the upload, clip, transcode and lifecycle use-case tests repeat it for their own path.
+event with **no** client — every event on a box that never had one — never reads the clients table on a
+write path (`clientContextOf` answers from `event.clientId`), so a self-hosted install runs the write
+paths it always ran and meets none of the ceilings. The one place the table is touched for such an event
+is the purge's single listing, which joins it and finds no row. `clientContextOf.test.ts` asserts the
+first, and the upload, clip, transcode and lifecycle use-case tests repeat it for their own path.
 
 | Path                                       | Ceiling                                                                                                                                       | Decided                                                                                                                                   | Refusal                                                                                                      |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -1091,7 +1093,7 @@ once with zod at startup, exported as a frozen typed object.
 | `MIN_FREE_DISK_BYTES`              | no                                        | `1000000000`                          | free bytes `statfs` must find before an upload is admitted, else `413 storage.boxFull`                                       |
 | `PORT` / `LOG_LEVEL`               | no                                        | `4300`, `info`                        |                                                                                                                              |
 | `RETENTION_SWEEP_INTERVAL_MINUTES` | no                                        | `60`, and `off` under `NODE_ENV=test` | how often expired events are deleted; see §11                                                                                |
-| `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                                        | `5`, and `off` under `NODE_ENV=test`  | how often scheduled openings and closings are applied; deletes nothing                                                       |
+| `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                                        | `5`, and `off` under `NODE_ENV=test`  | how often scheduled openings and closings are applied, and a client's expired live window closed; deletes nothing            |
 | `SQLITE_SHUTDOWN_CHECKPOINT`       | no                                        | `truncate`                            | what `closeDatabase` runs at shutdown (`truncate`, `passive`, `none`); **unused on this instance**, which runs no Litestream |
 | `SITE_ADMIN`                       | no                                        | `off`                                 | `on` mounts `/api/site` behind `requireOperator` (§2); `off`/`on` only                                                       |
 | `SOURCE_CODE_URL`                  | no                                        | upstream tag of this version          | the AGPL §13 source link: https only, no credentials, never hidden (API.md §2)                                               |

@@ -671,7 +671,7 @@ that one client's 4K video habit should not fill the disk the other four wedding
 > settings, going live, photo and clip upload, the transcode worker, the schedule sweep and the
 > retention purge. The table, and the argument for each choice (one byte sum in the write
 > transaction, the live window counted from the first opening, a purge that no `NULL` can disable),
-> is in [SECURITY.md](SECURITY.md) §5; the wire contract is in [API.md](API.md) §2 and §3.
+> is in [SECURITY.md](SECURITY.md) §5; the wire contract is in [API.md](API.md) §2, §3 and §6.
 
 ### 10.6 Support access, with the audit trail that makes it acceptable (P2, effort M, risk: medium)
 

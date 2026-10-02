@@ -2026,6 +2026,13 @@ applies the whole backlog in one pass, by the rules above — which includes reo
 `closed` event that is still carrying a stale opening, and clearing its `closedAt` with
 it. Clear the schedules of any affected event before re-enabling it.
 
+**It also stops the live window from closing anything.** The sweep is what closes a client's live
+event once `opened_at + max_live_days` has passed, and what stamps the opening of one that has none
+recorded. With it `off`, such an event stays live until a host closes it by hand — the refusal of a
+`closed → live` after the window still holds, because that is decided on the request, but nothing
+ends the window for a room that never closes it. A box that serves clients with a `max_live_days`
+leaves the sweep on.
+
 ### `POST /api/events/:slug/join-code`
 
 No body. The emergency lever: a join link is circulating outside the venue, so the old
