@@ -60,7 +60,7 @@ describe('SqliteSecondFactorRepository', () => {
 
   it('writes the digests it was given, in the table the recovery codes live in', async () => {
     await repo.beginEnrolment(USER, SEALED, 1, AT)
-    await repo.confirmEnrolment(USER, 7, atPlus(1_000), ['c'.repeat(64)])
+    await repo.confirmEnrolment(USER, SEALED, 7, atPlus(1_000), ['c'.repeat(64)])
 
     expect(
       db.prepare(`SELECT user_id, code_digest, used_at FROM user_recovery_codes`).all(),
@@ -71,7 +71,7 @@ describe('SqliteSecondFactorRepository', () => {
     await repo.beginEnrolment(USER, SEALED, 1, AT)
 
     await expect(
-      repo.confirmEnrolment(USER, 7, atPlus(1_000), ['c'.repeat(64), 'not-a-digest']),
+      repo.confirmEnrolment(USER, SEALED, 7, atPlus(1_000), ['c'.repeat(64), 'not-a-digest']),
     ).rejects.toThrow(/CHECK/)
 
     expect(await repo.find(USER)).toMatchObject({ confirmedAt: null, lastUsedStep: null })
@@ -80,7 +80,7 @@ describe('SqliteSecondFactorRepository', () => {
 
   it('keeps the old codes when a replacement fails half-way', async () => {
     await repo.beginEnrolment(USER, SEALED, 1, AT)
-    await repo.confirmEnrolment(USER, 7, atPlus(1_000), ['c'.repeat(64)])
+    await repo.confirmEnrolment(USER, SEALED, 7, atPlus(1_000), ['c'.repeat(64)])
 
     await expect(repo.replaceRecoveryCodes(USER, ['d'.repeat(64), 'not-a-digest'])).rejects.toThrow(
       /CHECK/,
@@ -91,7 +91,7 @@ describe('SqliteSecondFactorRepository', () => {
 
   it('takes the factor with the account that owned it', async () => {
     await repo.beginEnrolment(USER, SEALED, 1, AT)
-    await repo.confirmEnrolment(USER, 7, atPlus(1_000), ['c'.repeat(64)])
+    await repo.confirmEnrolment(USER, SEALED, 7, atPlus(1_000), ['c'.repeat(64)])
 
     db.prepare(`DELETE FROM users WHERE id = 'user-1'`).run()
 

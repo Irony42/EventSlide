@@ -53,12 +53,18 @@ export interface SecondFactorRepository {
    * Confirms the pending enrolment, records `step` as spent, and installs the recovery
    * digests — all or nothing.
    *
-   * `false` when there is no pending enrolment (none, or already confirmed). The step is
-   * spent here and not by a separate `useStep` call, so a code that confirms an enrolment
+   * `sealedSecret` is **the secret the code was checked against**, and the enrolment is
+   * confirmed only if that is still the pending one: a code proves one secret, and if a second
+   * enrolment replaced it between the read and this call, confirming would make the account
+   * hold a factor nobody has proven. A compare-and-set, in one statement.
+   *
+   * `false` when there is no pending enrolment (none, already confirmed, or replaced). The step
+   * is spent here and not by a separate `useStep` call, so a code that confirms an enrolment
    * cannot be replayed to sign in a moment later.
    */
   confirmEnrolment(
     userId: UserId,
+    sealedSecret: string,
     step: number,
     at: Date,
     recoveryDigests: readonly string[],

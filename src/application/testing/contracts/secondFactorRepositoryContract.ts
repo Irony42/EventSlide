@@ -56,7 +56,7 @@ export const secondFactorRepositoryContract = (
       codes: readonly string[] = CODES,
     ): Promise<void> => {
       expect(await repo.beginEnrolment(userId, SEALED, 1, AT)).toBe(true)
-      expect(await repo.confirmEnrolment(userId, step, atPlus(1_000), codes)).toBe(true)
+      expect(await repo.confirmEnrolment(userId, SEALED, step, atPlus(1_000), codes)).toBe(true)
     }
 
     // ------------------------------------------------------------ enrolment --
@@ -96,7 +96,7 @@ export const secondFactorRepositoryContract = (
     it('confirms a pending enrolment, spends the step that proved it and installs the codes', async () => {
       await repo.beginEnrolment(USER, SEALED, 1, AT)
 
-      expect(await repo.confirmEnrolment(USER, 100, atPlus(1_000), CODES)).toBe(true)
+      expect(await repo.confirmEnrolment(USER, SEALED, 100, atPlus(1_000), CODES)).toBe(true)
 
       expect(await repo.find(USER)).toEqual({
         userId: USER,
@@ -108,15 +108,28 @@ export const secondFactorRepositoryContract = (
       expect([...(await repo.unusedRecoveryDigests(USER))].sort()).toEqual([...CODES])
     })
 
+    it('cannot confirm a secret that is no longer the pending one: the code proved another', async () => {
+      await repo.beginEnrolment(USER, SEALED, 1, AT)
+      await repo.beginEnrolment(USER, SEALED_AGAIN, 1, atPlus(1_000))
+
+      expect(await repo.confirmEnrolment(USER, SEALED, 100, atPlus(2_000), CODES)).toBe(false)
+
+      expect(await repo.find(USER)).toMatchObject({ sealedSecret: SEALED_AGAIN, confirmedAt: null })
+      expect(await repo.unusedRecoveryDigests(USER)).toEqual([])
+      expect(await repo.confirmEnrolment(USER, SEALED_AGAIN, 100, atPlus(3_000), CODES)).toBe(true)
+    })
+
     it('cannot confirm what was never begun', async () => {
-      expect(await repo.confirmEnrolment(USER, 100, AT, CODES)).toBe(false)
+      expect(await repo.confirmEnrolment(USER, SEALED, 100, AT, CODES)).toBe(false)
       expect(await repo.find(USER)).toBeNull()
     })
 
     it('cannot confirm twice: the second confirmation changes nothing, codes included', async () => {
       await enrolled(USER, 100, CODES)
 
-      expect(await repo.confirmEnrolment(USER, 200, atPlus(9_000), [digest('d')])).toBe(false)
+      expect(await repo.confirmEnrolment(USER, SEALED, 200, atPlus(9_000), [digest('d')])).toBe(
+        false,
+      )
 
       expect(await repo.find(USER)).toMatchObject({ lastUsedStep: 100, confirmedAt: atPlus(1_000) })
       expect([...(await repo.unusedRecoveryDigests(USER))].sort()).toEqual([...CODES])
@@ -126,7 +139,7 @@ export const secondFactorRepositoryContract = (
       await repo.beginEnrolment(USER, SEALED, 1, AT)
       await repo.beginEnrolment(OTHER, SEALED_AGAIN, 1, AT)
 
-      await repo.confirmEnrolment(USER, 100, AT, CODES)
+      await repo.confirmEnrolment(USER, SEALED, 100, AT, CODES)
 
       expect(await repo.find(OTHER)).toMatchObject({ confirmedAt: null, lastUsedStep: null })
       expect(await repo.unusedRecoveryDigests(OTHER)).toEqual([])

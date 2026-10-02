@@ -293,7 +293,7 @@ describe('authenticateUser', () => {
   describe('the second factor (G2-13 / P3-15)', () => {
     const enrol = async (confirm: boolean): Promise<void> => {
       await factors.beginEnrolment(asUserId('user-1'), 'aXY.dGFn.Y3Q', 1, AT)
-      if (confirm) await factors.confirmEnrolment(asUserId('user-1'), 5, AT, [])
+      if (confirm) await factors.confirmEnrolment(asUserId('user-1'), 'aXY.dGFn.Y3Q', 5, AT, [])
     }
 
     it('says the password was only the first half for an account with a confirmed authenticator', async () => {

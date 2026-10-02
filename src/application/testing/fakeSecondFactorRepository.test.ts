@@ -40,9 +40,9 @@ describe('FakeSecondFactorRepository', () => {
     const repo = new FakeSecondFactorRepository().withAccounts(USER)
     await repo.beginEnrolment(USER, SEALED, 1, AT)
 
-    await expect(repo.confirmEnrolment(USER, 1, AT, ['K7QM-2XTR'])).rejects.toThrow(/CHECK/)
+    await expect(repo.confirmEnrolment(USER, SEALED, 1, AT, ['K7QM-2XTR'])).rejects.toThrow(/CHECK/)
     await expect(
-      repo.confirmEnrolment(USER, 1, AT, ['a'.repeat(64), 'a'.repeat(64)]),
+      repo.confirmEnrolment(USER, SEALED, 1, AT, ['a'.repeat(64), 'a'.repeat(64)]),
     ).rejects.toThrow(/UNIQUE/)
     expect(await repo.find(USER)).toMatchObject({ confirmedAt: null })
   })
@@ -53,7 +53,7 @@ describe('FakeSecondFactorRepository', () => {
     expect(repo.digestsOf(USER)).toEqual([])
 
     await repo.beginEnrolment(USER, SEALED, 1, AT)
-    await repo.confirmEnrolment(USER, 1, AT, ['a'.repeat(64)])
+    await repo.confirmEnrolment(USER, SEALED, 1, AT, ['a'.repeat(64)])
 
     expect(repo.has(USER)).toBe(true)
     expect(repo.digestsOf(USER)).toEqual(['a'.repeat(64)])

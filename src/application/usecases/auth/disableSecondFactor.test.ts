@@ -119,7 +119,13 @@ describe('disableSecondFactor', () => {
   it('removes nothing when the log would refuse the entry', async () => {
     const world = aSecondFactorWorld()
     await world.factors.beginEnrolment(AN_ID_THE_LOG_REFUSES, 'aXY.dGFn.Y3Q', 1, world.clock.now())
-    await world.factors.confirmEnrolment(AN_ID_THE_LOG_REFUSES, 1, world.clock.now(), [])
+    await world.factors.confirmEnrolment(
+      AN_ID_THE_LOG_REFUSES,
+      'aXY.dGFn.Y3Q',
+      1,
+      world.clock.now(),
+      [],
+    )
 
     const result = await disableFor(world)({ userId: AN_ID_THE_LOG_REFUSES })
 

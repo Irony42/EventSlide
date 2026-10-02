@@ -214,6 +214,24 @@ describe('confirmTotpEnrollment', () => {
     expect((await world.users.findById(USER))?.credentialsChangedAt).toBeNull()
   })
 
+  it('confirms nothing when a new enrolment replaced the secret the code was checked against', async () => {
+    const world = aSecondFactorWorld()
+    const secret = await begin(world)
+    const find = world.factors.find.bind(world.factors)
+    world.factors.find = async (id) => {
+      const record = await find(id)
+      // Between the read and the confirmation, a second enrolment starts.
+      await world.factors.beginEnrolment(id, 'bmV3.c2Vj.cmV0', 1, world.clock.now())
+      return record
+    }
+
+    const result = await world.confirmTotpEnrollment({ userId: USER, code: world.codeFor(secret) })
+
+    expect(!result.ok && result.error.code).toBe('auth.noEnrolmentInProgress')
+    expect(await world.factors.find(USER)).toMatchObject({ confirmedAt: null })
+    expect(world.factors.digestsOf(USER)).toEqual([])
+  })
+
   it('answers user.notFound when the account was deleted under the session', async () => {
     const world = aSecondFactorWorld()
     const secret = await begin(world)

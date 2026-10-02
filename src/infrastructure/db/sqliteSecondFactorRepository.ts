@@ -73,6 +73,7 @@ export class SqliteSecondFactorRepository implements SecondFactorRepository {
 
   async confirmEnrolment(
     userId: UserId,
+    sealedSecret: string,
     step: number,
     at: Date,
     recoveryDigests: readonly string[],
@@ -81,9 +82,9 @@ export class SqliteSecondFactorRepository implements SecondFactorRepository {
       const confirmed = this.db
         .prepare(
           `UPDATE user_totp SET confirmed_at = ?, last_used_step = ?
-            WHERE user_id = ? AND confirmed_at IS NULL`,
+            WHERE user_id = ? AND confirmed_at IS NULL AND secret_enc = ?`,
         )
-        .run(toIsoText(at), step, userId)
+        .run(toIsoText(at), step, userId, sealedSecret)
       if (confirmed.changes !== 1) return false
 
       this.installCodes(userId, recoveryDigests)

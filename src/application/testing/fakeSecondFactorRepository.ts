@@ -98,12 +98,15 @@ export class FakeSecondFactorRepository implements SecondFactorRepository {
 
   async confirmEnrolment(
     userId: UserId,
+    sealedSecret: string,
     step: number,
     at: Date,
     recoveryDigests: readonly string[],
   ): Promise<boolean> {
     const row = this.rows.get(userId)
-    if (row === undefined || row.confirmedAt !== null) return false
+    if (row === undefined || row.confirmedAt !== null || row.sealedSecret !== sealedSecret) {
+      return false
+    }
     this.assertDigests(recoveryDigests)
 
     row.confirmedAt = new Date(at.getTime())

@@ -161,8 +161,9 @@ const journey = async (): Promise<readonly string[]> => {
     engine: nodeTotpEngine,
     secrets: sha256SecretTokens,
   })
-  await lost.factors.beginEnrolment(USER, stored?.sealedSecret ?? 'a.b.c', 1, clock.now())
-  await lost.factors.confirmEnrolment(USER, 1, clock.now(), [])
+  const foreign = stored?.sealedSecret ?? 'a.b.c'
+  await lost.factors.beginEnrolment(USER, foreign, 1, clock.now())
+  await lost.factors.confirmEnrolment(USER, foreign, 1, clock.now(), [])
   await lost.verifySecondFactor({ userId: USER, proof: { code: '654321' } })
 
   planted.push(

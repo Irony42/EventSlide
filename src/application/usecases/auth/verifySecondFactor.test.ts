@@ -336,9 +336,13 @@ describe('verifySecondFactor: a log that refuses', () => {
     const world = aSecondFactorWorld()
     const code = 'AAAA-AAAA-AAAA-AAAA'
     await world.factors.beginEnrolment(AN_ID_THE_LOG_REFUSES, 'aXY.dGFn.Y3Q', 1, world.clock.now())
-    await world.factors.confirmEnrolment(AN_ID_THE_LOG_REFUSES, 1, world.clock.now(), [
-      world.secrets.digestOf(canonicalRecoveryCode(code) ?? ''),
-    ])
+    await world.factors.confirmEnrolment(
+      AN_ID_THE_LOG_REFUSES,
+      'aXY.dGFn.Y3Q',
+      1,
+      world.clock.now(),
+      [world.secrets.digestOf(canonicalRecoveryCode(code) ?? '')],
+    )
 
     const result = await world.verifySecondFactor({
       userId: AN_ID_THE_LOG_REFUSES,

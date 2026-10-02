@@ -114,9 +114,11 @@ export const makeConfirmTotpEnrollment =
     const recovery = mintRecoveryCodes(ids, secrets)
 
     await audit.record(entry.value)
-    if (!(await factors.confirmEnrolment(userId, step, at, recovery.digests))) {
-      // Two confirmations raced and the other one won; this person's code was valid, and the
-      // factor is theirs either way, but the codes this call minted were never stored.
+    if (
+      !(await factors.confirmEnrolment(userId, record.sealedSecret, step, at, recovery.digests))
+    ) {
+      // Two confirmations raced and the other one won, or a new enrolment replaced the secret
+      // this code was checked against: either way nothing was confirmed and nothing is stored.
       return err(DomainError.conflict('auth.noEnrolmentInProgress'))
     }
 
