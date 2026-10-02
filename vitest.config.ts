@@ -67,6 +67,9 @@ export default defineConfig({
         // suites; counting them again would only inflate the number.
         'src/application/testing/**',
         'src/interface/http/testing/**',
+        // The in-process SMTP relay the mailer adapter is tested against: a test double,
+        // exercised by the Mailer contract suite, not production code.
+        'src/infrastructure/**/testing/**',
         'web/src/testing/**',
         // Any `testing/` folder, not just the top-level one: a port's contract suite
         // lives beside the port it describes (web/src/lib/offline/testing/), exactly as

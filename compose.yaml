@@ -117,6 +117,15 @@ services:
       # unlocks nothing. https URLs only; see .env.example.
       DONATION_URL: ${DONATION_URL:-}
       BUDGET_URL: ${BUDGET_URL:-}
+      # Outgoing mail, optional. Both empty — what `:-` renders when you set neither — means
+      # no mail: wherever an invitation or a reset would be e-mailed, the link is shown to
+      # copy instead, and no outbound connection is made. To send, set both in `.env`:
+      # SMTP_URL is the relay (smtps://user:password@host:465, or smtp://… upgraded with
+      # STARTTLS) and **holds the password**, so it belongs in `.env` or a secrets manager and
+      # never in this file; MAIL_FROM is the sender and is required with it. Neither is ever
+      # logged. See .env.example.
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
     volumes:
       # The database, every photo, and under /data/backups the archives the backup
       # command writes (BACKUP_DIR, set in the Dockerfile). Everything is here, but do not
