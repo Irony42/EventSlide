@@ -449,6 +449,7 @@ The interesting parts are documented rather than left to be inferred:
 | [docs/SECURITY.md](docs/SECURITY.md)           | The threat model, written around who is actually in the room                         |
 | [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) | Tokens, primitives, and the accessibility contract                                   |
 | [docs/API.md](docs/API.md)                     | The HTTP contract                                                                    |
+| [docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md) | What the licence asks of someone who runs it, changes it or forks it                 |
 | [docs/ROADMAP.md](docs/ROADMAP.md)             | What comes next, and what will never be built                                        |
 | [docs/adr/](docs/adr/)                         | Why the architecture is the way it is, including the alternatives that lost          |
 
@@ -498,7 +499,9 @@ bundled libraries ask for to `/third-party-licenses.txt`, which `/about` links.
 **Everything published before this change remains under GPL-3.0, permanently** — a
 licence grant cannot be revoked after the fact. [.github/gpl-boundary](.github/gpl-boundary)
 names the last commit that carries the GPL text, and the `licenseHistory` CI job
-checks that every commit after it carries the AGPL one.
+checks that every commit after it on the first-parent line of `main` carries the AGPL one.
+[docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md) answers what this asks of someone who runs,
+changes or forks it.
 
 In short: run it, read it, change it, and pass it on — and if you let others use a
 modified version over a network, ship them its source under the same licence.

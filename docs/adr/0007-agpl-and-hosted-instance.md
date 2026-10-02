@@ -8,10 +8,10 @@ This ADR records the decision behind it, the shape of the maintainer's own hoste
 instance, and the invariants that bind that instance. It touches none of those files.
 
 The AGPL §13 source offer it relies on is built (`GET /api/about`, the "Code source" link
-on the guest and host screens, and `SOURCE_CODE_URL`; roadmap G1-04). Several other things
-it relies on are **(planned)**, not built: a contributor licence agreement, a licensing FAQ
-(`docs/LICENSING-FAQ.md`), the instance's terms of use (CGU), an access-request page,
-and a donation channel. Each is marked where it is named.
+on the guest and host screens, and `SOURCE_CODE_URL`; roadmap G1-04), and so is the licensing
+FAQ for self-hosters (`docs/LICENSING-FAQ.md`). Several other things it relies on are
+**(planned)**, not built: a contributor licence agreement, the instance's terms of use
+(CGU), an access-request page, and a donation channel. Each is marked where it is named.
 
 ## Date
 
@@ -128,7 +128,7 @@ so that an agent does not have to infer the distribution model from `package.jso
 - **AGPL is easily misread as "commercial use needs another licence".** It does not:
   running EventSlide for other people, unmodified, obliges nothing new; only modifying it
   and serving the modified version triggers §13. That needs its own document
-  (`docs/LICENSING-FAQ.md`, **(planned)**) or it will cost adoption among the self-hosting
+  (`docs/LICENSING-FAQ.md`) or it will cost adoption among the self-hosting
   photographers and venues who are the audience.
 - **The privacy invariant of the instance is a promise, not a control.** A maintainer with
   root can read media; nothing in the application changes that. It is weaker than the
@@ -152,8 +152,9 @@ so that an agent does not have to infer the distribution model from `package.jso
 - **The instance is not promised to exist indefinitely.** This ADR records the licence and
   the operating model, not a commitment to keep it running; whether and when it accepts
   public access requests is a later decision.
-- **Nothing here is an announcement.** The announcement of the instance, the licence change
-  notes and the FAQ are separate, later work.
+- **Nothing here is an announcement.** The announcement of the instance is separate, later
+  work. The licence change notes and the FAQ (`docs/LICENSING-FAQ.md`) announce the licence
+  only.
 - **Other installations are unaffected.** `SITE_ADMIN` stays `off` by default (roadmap
   §10.9); this ADR describes the one instance the maintainer personally operates.
 
