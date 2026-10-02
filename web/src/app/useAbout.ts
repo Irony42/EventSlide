@@ -26,10 +26,11 @@ const BUILD_ABOUT: About = {
 /**
  * An https address in its canonical form, or `null`.
  *
- * The server refuses anything else at boot (`SOURCE_CODE_URL` in `env.ts`), so this is the
- * same rule applied a second time at the point the string becomes an `href`: a response
- * rewritten by a proxy, or a server older than that check, must not be able to put a
- * `javascript:` URI behind a link every visitor is invited to press.
+ * The server refuses anything else at boot (`SOURCE_CODE_URL`, `DONATION_URL` and
+ * `BUDGET_URL` in `env.ts`: https only, **no credentials**), so this is the same rule applied
+ * a second time at the point the string becomes an `href`: a response rewritten by a proxy,
+ * or a server older than that check, must not be able to put a `javascript:` URI, or a
+ * `user:password@` address, behind a link every visitor is invited to press.
  *
  * The **parsed** form is what is returned, never the input. `https:x.example` parses as
  * `https://x.example/` but, left as written, is a relative reference to a browser and
@@ -38,7 +39,7 @@ const BUILD_ABOUT: About = {
 const httpsOnly = (value: string): string | null => {
   try {
     const url = new URL(value)
-    return url.protocol === 'https:' ? url.href : null
+    return url.protocol === 'https:' && url.username === '' && url.password === '' ? url.href : null
   } catch {
     return null
   }
@@ -50,8 +51,9 @@ const httpsOnly = (value: string): string | null => {
  *
  * Applied to the response and not to the build, because the build knows none: a donation
  * address is the operator's, read by the server at boot. Anything unrecognised is dropped
- * rather than rendered — a response rewritten by a proxy must not be able to put a
- * `javascript:` URI, or an address the operator never configured, behind a link.
+ * rather than rendered. What this guards is the *kind* of address (`httpsOnly`), not whose
+ * it is: a client cannot tell the operator's https page from another one, and the transport
+ * is the same one that carries `sourceUrl`.
  */
 const trustedLinks = (links: unknown): AboutLinks => {
   if (typeof links !== 'object' || links === null) return {}

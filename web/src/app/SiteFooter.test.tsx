@@ -64,6 +64,7 @@ describe('SiteFooter', () => {
     ['a javascript: URI', 'javascript:alert(document.cookie)'],
     ['a data: URI', 'data:text/html,<script>alert(1)</script>'],
     ['plain http', 'http://git.example.org/me/eventslide'],
+    ['credentials in the address', 'https://user:secret@git.example.org/me/eventslide'],
     ['something that is not a URL', 'the source is on my laptop'],
     ['an empty string', ''],
   ])('never puts %s behind the link, whatever the response says', async (_name, hostile) => {
@@ -275,6 +276,7 @@ describe('SiteFooter, the support link', () => {
   it.each([
     ['a javascript: URI', 'javascript:alert(document.cookie)'],
     ['plain http', 'http://opencollective.com/eventslide'],
+    ['credentials in the address', 'https://user:secret@opencollective.com/eventslide'],
     ['something that is not a URL', 'send a coffee'],
     ['an empty string', ''],
   ])('never puts %s behind it, whatever the response says', async (_name, hostile) => {

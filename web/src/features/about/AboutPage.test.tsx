@@ -164,6 +164,7 @@ describe('AboutPage, the support section', () => {
   it.each([
     ['a javascript: URI', 'javascript:alert(document.cookie)'],
     ['plain http', 'http://opencollective.com/eventslide'],
+    ['credentials in the address', 'https://user:secret@opencollective.com/eventslide'],
     ['something that is not a URL', 'send a coffee'],
   ])('draws nothing for %s in either link, whatever the response says', async (_name, hostile) => {
     const api = serving({ donate: hostile, budget: hostile })
