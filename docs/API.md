@@ -1020,8 +1020,8 @@ a setting since. `Cache-Control: no-store`.
 }
 ```
 
-**Values, never sentences.** Every field is derived from the event's settings by
-`src/domain/privacy/privacyNotice.ts` on every read, and the client words them in the
+**Values, never sentences.** Every field but `operator` is derived from the event's settings (and,
+for `retentionDays`, its client's ceiling) by `src/domain/privacy/privacyNotice.ts` on every read, and the client words them in the
 guest's language, so the notice cannot promise something the configuration contradicts:
 
 | Field                | Derived from                                                              | Meaning                                                                                                                                                                                                                                                                                                                                          |

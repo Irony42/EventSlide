@@ -11,7 +11,8 @@ import type { ModerationMode } from '../events/eventSettings'
  * setting that decides it, and the sentences are composed from those values by the
  * client, in the guest's language.
  *
- * Four questions, and each answer names the setting it reads:
+ * Four questions, and each answer names the setting it reads (a fifth line, who hosts the
+ * photograph, comes from the box and not from the event: see {@link PrivacyNotice.operator}):
  *
  * | Question               | Answered by                                                    |
  * | ---------------------- | -------------------------------------------------------------- |

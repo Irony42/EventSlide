@@ -986,7 +986,12 @@ retry, the offline outbox) keep going: they were chosen under the notice the gue
 (`src/domain/privacy/privacyNotice.ts`), never written as prose, so it cannot say
 "checked before the screen" on an event that publishes on arrival, promise a self-delete
 window the server would refuse, or state a retention period the host has since changed.
-Where the configuration has no deletion date, it says so. The only removal path it names
+Where the configuration has no deletion date, it says so. **One line is not about the event:**
+on a box whose operator set `OPERATOR_NAME` (roadmap G2-17), a fifth line, "Hébergé par <name>",
+says who holds the photograph, and the operator's privacy policy is linked under the button.
+It comes from the box, not from the event, and it is part of the notice's revision only when
+it is there, so a box with no operator produces the revision it always did and asks nobody to
+read the notice again. The only removal path it names
 is asking the host, because that is the only one that exists for a guest beyond the grace
 window: self-service erasure is roadmap §5.2 and is not built.
 
