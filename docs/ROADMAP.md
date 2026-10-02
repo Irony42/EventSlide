@@ -602,8 +602,8 @@ and an install that never wanted any of this must behave exactly as it does toda
 > the `ClientRepository` port with its SQLite and in-memory adapters under one contract
 > suite, and the use cases `createClient`, `renameClient`, `setClientCeilings`,
 > `listClients` and `deleteEmptyClient` are built. **No HTTP route calls those**: the operator
-> API is its own item, behind `SITE_ADMIN` and `requireOperator` (§10.9), and so is the audit
-> entry `setClientCeilings` will write once §10.8 exists.
+> API is its own item, behind `SITE_ADMIN` and `requireOperator` (§10.9). `setClientCeilings`
+> now writes its audit entries; see §10.8.
 >
 > **Events are attached to a client at creation** (G2-04 / P3-05). `createEvent` resolves the
 > creator's client and writes `events.client_id`, fixed from then on; `EventRepository.createWithOwner`
@@ -676,6 +676,21 @@ ownership of an event to another account; export-then-purge (§4.4) is the door 
 three together are what let an operator stop a relationship without a database console.
 
 ### 10.8 An audit log of operator actions (P2, effort S, risk: low)
+
+> **Partly shipped**: the log itself, and no way to read it yet. Migration 009 creates
+> `audit_log` and the permanent `audit_prune_gate`, with triggers that refuse every `UPDATE`
+> (but the `SET NULL` of a deleted account), every `DELETE` while the gate is shut, and an
+> `INSERT OR REPLACE` over an existing row. The `AuditLog` port has a SQLite adapter and an
+> in-memory fake under one contract suite, an entry cannot carry anything outside its action's
+> declared allow-list of numbers, switches, instants and ids (no caption, name, address, slug or
+> token), `subject_type` already admits `photo` (§5.4 shares this storage) and `access_request`,
+> and `AUDIT_RETENTION_DAYS` (1095 by default, 365 at least) is honoured by the retention sweep
+> through `pruneAuditLog`. `setClientCeilings` is the first writer:
+> `client.ceilingsChanged {before, after}`, and `client.periodReset {before, after}` when a
+> renewal zeroes the period counter. **Not built**: any route that reads the log (the operator's
+> `/api/site` view, G2-14, and the client-readable view, G2-16), the other operator actions'
+> entries, pruning from `npm run purge`, and a transaction shared with the act being recorded.
+> See [SECURITY.md §17](SECURITY.md).
 
 Who created this client, who changed that ceiling, who used support access and when. Pairs
 with the moderation audit log (§5.4) and shares its storage — the moment an account can act
