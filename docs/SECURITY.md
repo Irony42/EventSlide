@@ -350,6 +350,18 @@ different middleware, from the question of what anybody may do inside an event.
 | An operator is created in exactly two places, both on a box's first day | `bootstrapOwner` on a fresh install, and migration `004_site_role` on an upgrade — never both, since `bootstrapOwner` stops on a non-empty `users` table. An invitation creates `none` explicitly (`registerModerator`), and there is no route that changes a site role at all today                                                  |
 | The operator's namespace exists only on a box that asked for it         | `/api/site` — itself and `/api/site/*`, never `/api/sites` — is mounted only with `SITE_ADMIN=on` (roadmap §10.9) and gated by `requireOperator` at **router level**, so a route there inherits the check. Off, every path under it answers as an unknown route does, headers included (`siteAdminMode.test.ts`): no operator surface |
 
+**Who may create an event** (`EVENT_CREATION`, roadmap §10.9 and P3-05). Under `clientMembers` an
+account that belongs to no client is refused `403 event.creationNotAllowed` — an invited
+moderator included, who has a part in somebody's evening and no standing to start their own.
+The operator is allowed and is attached to no client. The check is the first thing
+`createEvent` does, before the name is parsed or a slug is probed, so a refused account
+learns nothing about other tenants' events from a validation error or a slug collision; and
+a client the caller names that is not theirs is `404 client.notFound`, the same whether or
+not it exists. The policy is refused at boot unless `SITE_ADMIN=on`. It is held at ring 2
+(`createEvent.test.ts`), ring 4 (`eventRoutes.test.ts`), through the real adapters
+(`container.test.ts`) and at ring 6, where `tenant-isolation.spec.ts` runs once under each
+policy (the `chromium-client-members` project).
+
 `SITE_ADMIN` is not a security boundary, and nothing may treat it as one. It decides how
 much surface exists; who may use that surface is `requireOperator`'s answer in both modes,
 and `siteOperatorScope.test.ts` runs its whole sweep once per mode. On, the namespace is
@@ -1006,6 +1018,7 @@ once with zod at startup, exported as a frozen typed object.
 | `SITE_ADMIN`                       | no                                        | `off`                                 | `on` mounts `/api/site` behind `requireOperator` (§2); `off`/`on` only                                                       |
 | `SOURCE_CODE_URL`                  | no                                        | upstream tag of this version          | the AGPL §13 source link: https only, no credentials, never hidden (API.md §2)                                               |
 | `SOURCE_REF`                       | no                                        | none                                  | Docker build argument behind the same link: a git tag, branch or commit                                                      |
+| `EVENT_CREATION`                   | no                                        | `anyAccount`                          | `clientMembers`: members of a client and the operator only; needs `SITE_ADMIN=on`                                            |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,

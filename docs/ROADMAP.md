@@ -596,16 +596,25 @@ and an install that never wanted any of this must behave exactly as it does toda
 
 ### 10.2 Clients as a record, not a convention (P1, effort M, risk: low)
 
-> **Partly shipped**: the record itself, and no way to reach it yet. The `clients` and
-> `client_members` tables (migration 008, with `events.client_id` and `events.opened_at`),
-> the `Client` entity and its `ClientCeilings`, the `ClientRepository` port with its SQLite
-> and in-memory adapters under one contract suite, and the use cases `createClient`,
-> `renameClient`, `setClientCeilings`, `listClients` and `deleteEmptyClient` are built.
-> **No HTTP route calls them**: the operator API is its own item, behind `SITE_ADMIN` and
-> `requireOperator` (§10.9), and so are attaching an event to a client at creation, enforcing
-> any ceiling on a write path, and the audit entry `setClientCeilings` will write once §10.8
-> exists. The schema carries every ceiling the product will ever charge for, used or not,
-> because a migration cannot be edited once it is on `main`.
+> **Partly shipped**: the record itself, and the events' side of it; still no way to reach
+> the records over HTTP. The `clients` and `client_members` tables (migration 008, with
+> `events.client_id` and `events.opened_at`), the `Client` entity and its `ClientCeilings`,
+> the `ClientRepository` port with its SQLite and in-memory adapters under one contract
+> suite, and the use cases `createClient`, `renameClient`, `setClientCeilings`,
+> `listClients` and `deleteEmptyClient` are built. **No HTTP route calls those**: the operator
+> API is its own item, behind `SITE_ADMIN` and `requireOperator` (§10.9), and so is the audit
+> entry `setClientCeilings` will write once §10.8 exists.
+>
+> **Events are attached to a client at creation** (G2-04 / P3-05). `createEvent` resolves the
+> creator's client and writes `events.client_id`, fixed from then on; `EventRepository.createWithOwner`
+> writes the event, the creator's owner membership and the client's `events_created_in_period`
+> in one transaction, and compares the client's `max_events` (every status) and
+> `max_events_per_period` (a counter that deleting an event never decrements) inside it.
+> `EVENT_CREATION=anyAccount|clientMembers` decides who may create at all, and the host's
+> dashboard `usedBytes` is now the same sum the upload paths enforce. **Still to come**: the
+> other ceilings on every write path — quota clamp, retention, clips, going live, suspension
+> (G2-05 / P3-06). The schema carries every ceiling the product will ever charge for, used or
+> not, because a migration cannot be edited once it is on `main`.
 
 An event has an `ownerId`; a client is currently the pattern of one person owning several
 events, which nothing enforces and nothing can query. Make it a thing: a client has a name,
@@ -682,11 +691,16 @@ on data it does not own, "what happened" stops being a question the git history 
 > `features.siteAdmin` now exists on the instance-info endpoint, `GET /api/about` —
 > derived from the same `config.siteAdmin` that decides whether `/api/site` is mounted, so
 > the flag cannot disagree with the mount, and read by the SPA instead of probing a path
-> that answers 401 in one mode and 404 in the other. **Still to come**, each with the item
-> that gives it something to act on: the SPA's `/admin/site` routes (which will read that
-> flag); the boot warning when clients exist and the mode is off; refusing operator-only
-> settings when off; and the ring-6 half — CI running rings 4 and 6 once per mode,
-> `tenant-isolation.spec.ts` included.
+> that answers 401 in one mode and 404 in the other. **Refusing operator-only settings when
+> off now exists, for the first setting that needs it**: `EVENT_CREATION=clientMembers` stops
+> the boot (exit 78, naming the variable) unless `SITE_ADMIN=on` (G2-04 / P3-05); each later
+> operator-only setting adds its own line to the same refinement in `env.ts`. The first slice
+> of the ring-6 half has landed with it: CI runs `tenant-isolation.spec.ts` under both creation
+> policies (the `chromium-client-members` Playwright project). **Still to come**, each with
+> the item that gives it something to act on: the SPA's `/admin/site` routes (which will read
+> that flag); the boot warning when clients exist and the mode is off; the remaining
+> operator-only settings; and the rest of the ring-6 half — CI running rings 4 and 6 once per
+> `SITE_ADMIN` mode.
 
 Everything from 10.2 to 10.8 is for a box that serves other people. Most installs are not
 that box: the person who installed EventSlide is the person whose wedding it is, and for
