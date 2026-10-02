@@ -1363,6 +1363,29 @@ describe('uploadPhotos under a client’s ceilings', () => {
     expect(refusal(result).code).toBe('event.quotaExceeded')
   })
 
+  it('hands the write transaction the clamped quota too, so a sibling upload that fills the event in between is still refused by it', async () => {
+    // The advisory check passed (nothing was stored when it looked); then another guest of the
+    // same event committed a megabyte. Only the transaction can notice, and it can only notice
+    // against the quota it is given — the stored 1 GB would admit this photograph.
+    seedClient('client-1', { maxEventQuotaBytes: MB })
+    class FillsTheEventFirst extends FakePhotoRepository {
+      override async saveManyWithinLimits(
+        eventId: EventId,
+        batch: readonly Photo[],
+        limits: Parameters<FakePhotoRepository['saveManyWithinLimits']>[2],
+      ): Promise<readonly PhotoAdmission[]> {
+        await this.save(aPhoto({ id: 'sibling', eventId, byteSize: MB }))
+        return super.saveManyWithinLimits(eventId, batch, limits)
+      }
+    }
+    const racing = new FillsTheEventFirst().chargeClientBytesFrom(clients)
+
+    const result = await send(EVENT, 'sunset', buildWith(racing))
+
+    expect(refusal(result).code).toBe('event.quotaExceeded')
+    expect(media.objectCount).toBe(0)
+  })
+
   it('does not raise an event’s own smaller quota up to the client’s ceiling', async () => {
     seedClient('client-1', { maxEventQuotaBytes: 100 * MB })
     events.seed(

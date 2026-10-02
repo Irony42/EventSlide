@@ -814,6 +814,22 @@ export const eventRepositoryContract = (
       expect(await repo.listDueForPurge(atPlus(DAY * 3_650), PURGE_POLICY)).toEqual([])
     })
 
+    it('excludes a live event even with a closing instant left on its row, because the status says it is running', async () => {
+      // A reopening clears `closed_at`, so a live row with one is a hand-edited database.
+      // The purge must not trust it: deleting the album of an event a room is watching is the
+      // one mistake this query cannot be allowed to make.
+      await repo.save(
+        anEvent({
+          id: 'evt-1',
+          status: 'live',
+          closedAt: atPlus(DAY),
+          settings: { retentionDays: 1 },
+        }),
+      )
+
+      expect(await repo.listDueForPurge(atPlus(DAY * 3_650), PURGE_POLICY)).toEqual([])
+    })
+
     // ------------------------------------------ retention under a client ceiling --
 
     /**
