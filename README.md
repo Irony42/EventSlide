@@ -334,10 +334,9 @@ Three settings worth a thought before you start:
   the next sweep would remove, and the same command without `--dry-run` does it now —
   `npm run purge:dry-run` and `npm run purge` from a source checkout. Both are safe with
   the server running. `RETENTION_SWEEP_INTERVAL_MINUTES=off` hands the schedule to your
-  own cron; with Docker it goes in the `environment:` block of `compose.yaml`, since the
-  container sees only the variables listed there. The audit log of a box run for other
-  people (`SITE_ADMIN=on`) is pruned only by the in-process sweep, so turning it off also
-  stops that.
+  own cron; with Docker it goes in your `.env`, which `compose.yaml` passes to the
+  container. The audit log of a box run for other people (`SITE_ADMIN=on`) is pruned only by
+  the in-process sweep, so turning it off also stops that.
 - **Opening and closing on their own.** The settings page takes an opening time and a
   closing time; leave either empty and you do that one yourself. The times are read on
   your own computer's clock, so 18:00 means 18:00 where the party is. If the server was
@@ -450,6 +449,7 @@ The interesting parts are documented rather than left to be inferred:
 | [docs/SECURITY.md](docs/SECURITY.md)           | The threat model, written around who is actually in the room                         |
 | [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) | Tokens, primitives, and the accessibility contract                                   |
 | [docs/API.md](docs/API.md)                     | The HTTP contract                                                                    |
+| [docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md) | What the licence asks of someone who runs it, changes it or forks it                 |
 | [docs/ROADMAP.md](docs/ROADMAP.md)             | What comes next, and what will never be built                                        |
 | [docs/adr/](docs/adr/)                         | Why the architecture is the way it is, including the alternatives that lost          |
 
@@ -499,7 +499,9 @@ bundled libraries ask for to `/third-party-licenses.txt`, which `/about` links.
 **Everything published before this change remains under GPL-3.0, permanently** — a
 licence grant cannot be revoked after the fact. [.github/gpl-boundary](.github/gpl-boundary)
 names the last commit that carries the GPL text, and the `licenseHistory` CI job
-checks that every commit after it carries the AGPL one.
+checks that every commit after it on the first-parent line of `main` carries the AGPL one.
+[docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md) answers what this asks of someone who runs,
+changes or forks it.
 
 In short: run it, read it, change it, and pass it on — and if you let others use a
 modified version over a network, ship them its source under the same licence.
