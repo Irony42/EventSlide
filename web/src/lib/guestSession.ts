@@ -197,6 +197,7 @@ export const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
   const audiences = field(notice, 'audiences')
   const retentionDays = field(notice, 'retentionDays')
   const selfRemovalSeconds = field(notice, 'selfRemovalSeconds')
+  const operator = field(notice, 'operator')
 
   if (typeof revision !== 'string' || !isOneOf(PUBLICATIONS, publication)) return null
   if (!Array.isArray(audiences)) return null
@@ -205,9 +206,22 @@ export const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
   )
   if (known.length !== audiences.length) return null
   if (!isCountOrNull(retentionDays) || !isCountOrNull(selfRemovalSeconds)) return null
+  // Absent on every notice that names nobody, so absence is fine. Present, it is the operator's
+  // name and must be text worth printing: a notice that names something unreadable is
+  // refetched rather than shown with a host line that says nothing (roadmap G2-17).
+  if (operator !== undefined && (typeof operator !== 'string' || operator.trim() === '')) {
+    return null
+  }
 
   return {
-    notice: { revision, publication, audiences: known, retentionDays, selfRemovalSeconds },
+    notice: {
+      revision,
+      publication,
+      audiences: known,
+      retentionDays,
+      selfRemovalSeconds,
+      ...(operator === undefined ? {} : { operator }),
+    },
     acknowledgement,
   }
 }

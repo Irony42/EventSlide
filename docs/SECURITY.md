@@ -986,7 +986,12 @@ retry, the offline outbox) keep going: they were chosen under the notice the gue
 (`src/domain/privacy/privacyNotice.ts`), never written as prose, so it cannot say
 "checked before the screen" on an event that publishes on arrival, promise a self-delete
 window the server would refuse, or state a retention period the host has since changed.
-Where the configuration has no deletion date, it says so. The only removal path it names
+Where the configuration has no deletion date, it says so. **One line is not about the event:**
+on a box whose operator set `OPERATOR_NAME` (roadmap G2-17), a fifth line, "Hébergé par <name>",
+says who holds the photograph, and the operator's privacy policy is linked under the button.
+It comes from the box, not from the event, and it is part of the notice's revision only when
+it is there, so a box with no operator produces the revision it always did and asks nobody to
+read the notice again. The only removal path it names
 is asking the host, because that is the only one that exists for a guest beyond the grace
 window: self-service erasure is roadmap §5.2 and is not built.
 
@@ -1106,6 +1111,10 @@ once with zod at startup, exported as a frozen typed object.
 | `DONATION_URL` / `BUDGET_URL`      | no                                        | empty                                 | optional support links: https only, no credentials, off guest screens and the wall (API.md §2)                               |
 | `SMTP_URL`                         | no                                        | none: no mail is sent                 | the SMTP relay; **holds the password**, never logged — see "Outgoing mail" below                                             |
 | `MAIL_FROM`                        | **yes when `SMTP_URL` is set**            | none                                  | the sender of every message: one address, or `Name <address>`                                                                |
+| `OPERATOR_NAME`                    | no                                        | empty                                 | who runs the box: plain text, 100 characters, no control or bidi character; also named in the guest notice (API.md §2)       |
+| `OPERATOR_CONTACT_EMAIL`           | no                                        | empty                                 | one plain address published beside the name; refused at boot without `OPERATOR_NAME`                                         |
+| `LEGAL_*_URL`                      | no                                        | empty                                 | `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`: https or a path on this site (API.md §2)                         |
+| `SUPPORT_URL` / `REPORT_URL`       | no                                        | empty                                 | help for a host; where to report a content. Same rule: never `javascript:`, `data:`, `http:` or `//host`                     |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,

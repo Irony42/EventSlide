@@ -274,6 +274,19 @@ export const startTestApp = async ({
         // Always stated, never inherited: a developer's exported `EVENT_CREATION` must not
         // make `app.eventCreation` say one thing while the server does another.
         EVENT_CREATION: eventCreation,
+        // The operator's links and identity are stated empty for the same reason: a developer
+        // or a CI runner with a `SUPPORT_URL` or `REPORT_URL` already exported for something
+        // else must not turn the "stock server" specs into specs of a configured one, or
+        // refuse the boot. A spec that wants one passes it in `env` below.
+        OPERATOR_NAME: '',
+        OPERATOR_CONTACT_EMAIL: '',
+        LEGAL_TERMS_URL: '',
+        LEGAL_PRIVACY_URL: '',
+        LEGAL_NOTICE_URL: '',
+        SUPPORT_URL: '',
+        REPORT_URL: '',
+        DONATION_URL: '',
+        BUDGET_URL: '',
         ...(eventCreation === 'clientMembers' ? { SITE_ADMIN: 'on' } : {}),
         ...env,
       },

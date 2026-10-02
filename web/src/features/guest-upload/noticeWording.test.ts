@@ -77,3 +77,47 @@ describe('noticeSections', () => {
     },
   )
 })
+
+/**
+ * The line that names who hosts the photograph (roadmap G2-17 / P3-18). The server decided
+ * whether there is one — the notice carries an `operator` only on a box whose operator named
+ * themselves — and this module only words it.
+ */
+describe('noticeSections, the operator', () => {
+  const OPERATOR = 'Association Les Photographes'
+
+  it('adds nothing on a notice that names no operator, which is every self-hosted box', () => {
+    expect(noticeSections(aPrivacyNotice(), fr)).toHaveLength(4)
+  })
+
+  it('ends on "Hébergé par" with the operator’s name when the notice names one', () => {
+    const sections = noticeSections(aPrivacyNotice({ operator: OPERATOR }), fr)
+
+    expect(sections).toHaveLength(5)
+    expect(sections.at(-1)).toEqual({ term: fr.about.operatorHostedBy, sentences: [OPERATOR] })
+  })
+
+  it('keeps the four answers where they were, so naming an operator moves nothing', () => {
+    const bare = noticeSections(aPrivacyNotice(), fr)
+    const named = noticeSections(aPrivacyNotice({ operator: OPERATOR }), fr)
+
+    expect(named.slice(0, 4)).toEqual(bare)
+  })
+
+  it.each([
+    ['de', de],
+    ['en', en],
+    ['es', es],
+    ['it', italian],
+  ] as const)(
+    'words the label in %s and leaves the name as the operator wrote it',
+    (_locale, table) => {
+      // The name is content, not interface: no table translates it. The label is interface.
+      const last = noticeSections(aPrivacyNotice({ operator: OPERATOR }), table).at(-1)
+
+      expect(last?.sentences).toEqual([OPERATOR])
+      expect(last?.term).toBe(table.about.operatorHostedBy)
+      expect(last?.term).not.toBe(fr.about.operatorHostedBy)
+    },
+  )
+})

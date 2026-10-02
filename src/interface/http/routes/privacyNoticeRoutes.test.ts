@@ -9,7 +9,7 @@ import {
 } from '../../../application/testing/builders'
 import { makeAcknowledgePrivacyNotice } from '../../../application/usecases/guests/acknowledgePrivacyNotice'
 import { makeGetPrivacyNotice } from '../../../application/usecases/guests/getPrivacyNotice'
-import { privacyNoticeFor } from '../../../domain/privacy/privacyNotice'
+import { OPERATOR_NAME_MAX_LENGTH, privacyNoticeFor } from '../../../domain/privacy/privacyNotice'
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
 import { GUEST_COOKIE } from '../middleware/authz'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
@@ -40,8 +40,9 @@ const cookie = (token: string): string => `${GUEST_COOKIE}=${token}`
 
 let harness: Harness
 
-beforeEach(() => {
-  harness = buildHarness({
+/** The two routes over the fakes, on a box whose operator is `operatorName`, or nobody. */
+const buildNoticeHarness = (operatorName: string | null): Harness =>
+  buildHarness({
     routes: (app, deps, world) => {
       app.use(
         '/api',
@@ -52,12 +53,14 @@ beforeEach(() => {
               events: deps.events,
               clients: world.clients,
               guests: deps.guests,
+              operatorName,
             }),
             acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
               events: deps.events,
               clients: world.clients,
               guests: deps.guests,
               clock: deps.clock,
+              operatorName,
             }),
           },
         }),
@@ -65,16 +68,22 @@ beforeEach(() => {
     },
   })
 
-  harness.events.seed(
+const seedWedding = (target: Harness): void => {
+  target.events.seed(
     anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', settings: { retentionDays: 30 } }),
     anEvent({ id: GALA, slug: 'gala', joinCode: 'Z3N9PT', settings: { retentionDays: null } }),
   )
-  harness.guests.seed(
+  target.guests.seed(
     aGuest({ id: LEA, eventId: WEDDING }),
     aGuest({ id: SACHA, eventId: WEDDING }),
     aGuest({ id: REVOKED, eventId: WEDDING, revokedAt: AT }),
     aGuest({ id: LEA, eventId: GALA }),
   )
+}
+
+beforeEach(() => {
+  harness = buildNoticeHarness(null)
+  seedWedding(harness)
 })
 
 const lea = (): string => cookie(harness.issueGuestToken(WEDDING, LEA))
@@ -279,5 +288,62 @@ describe('POST /api/events/:slug/privacy-notice/acknowledgement', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.error.code).toBe('request.invalid')
+  })
+})
+
+// ------------------------------------------------------------ the operator --
+
+describe('the notice on a box whose operator named themselves (roadmap G2-17)', () => {
+  const OPERATOR = 'Association Les Photographes'
+
+  const named = (name: string): Harness => {
+    const subject = buildNoticeHarness(name)
+    seedWedding(subject)
+    return subject
+  }
+
+  const leaOn = (subject: Harness): string => cookie(subject.issueGuestToken(WEDDING, LEA))
+
+  it('names the operator in the notice, and leaves the key out on a box that has none', async () => {
+    const withOperator = named(OPERATOR)
+
+    const response = await request(withOperator.app).get(NOTICE).set('Cookie', leaOn(withOperator))
+    const bare = await request(harness.app).get(NOTICE).set('Cookie', lea())
+
+    expect(response.body.notice.operator).toBe(OPERATOR)
+    expect(Object.keys(bare.body.notice)).not.toContain('operator')
+  })
+
+  it('changes the revision, so a guest who read the unnamed notice is asked again', async () => {
+    // The same device with the same stored acknowledgement: only the box differs.
+    const withOperator = named(OPERATOR)
+    withOperator.guests.seed(
+      aGuest({
+        id: LEA,
+        eventId: WEDDING,
+        noticeAcknowledgement: { revision: WEDDING_NOTICE.revision, at: AT },
+      }),
+    )
+
+    const response = await request(withOperator.app).get(NOTICE).set('Cookie', leaOn(withOperator))
+
+    expect(response.body.acknowledgement).toBe('outdated')
+    expect(response.body.notice.revision).not.toBe(WEDDING_NOTICE.revision)
+  })
+
+  it('accepts the acknowledgement of the longest name an operator may configure', async () => {
+    // `noticeAcknowledgementBody` caps the revision at 512 characters. A name that pushed the
+    // revision past it would answer 400 to every guest on that box, so the cap and the
+    // longest name are held together here, through the real schema.
+    const longest = named('N'.repeat(OPERATOR_NAME_MAX_LENGTH))
+    const notice = await request(longest.app).get(NOTICE).set('Cookie', leaOn(longest))
+
+    const response = await request(longest.app)
+      .post(ACKNOWLEDGE)
+      .set('Cookie', leaOn(longest))
+      .send({ revision: notice.body.notice.revision })
+
+    expect(response.status).toBe(200)
+    expect(response.body.acknowledgement).toBe('current')
   })
 })

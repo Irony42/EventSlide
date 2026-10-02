@@ -1,4 +1,6 @@
 import { forwardRef, useId } from 'react'
+import { NewTabLink } from '../../../app/NewTabLink'
+import { useAbout } from '../../../app/useAbout'
 import { Button } from '../../../design-system/components/Button'
 import { Dialog } from '../../../design-system/components/Dialog'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -16,7 +18,8 @@ import styles from './PrivacyNotice.module.css'
  */
 
 /**
- * The four answers, as a definition list.
+ * The four answers, as a definition list, and a fifth line — "Hébergé par", then the name — when
+ * the server sent an operator (roadmap G2-17).
  *
  * `<dl>` because that is what this is — a question and its answer, four times — and a
  * screen reader announces it as such: "Qui les voit", then the sentences under it. Each
@@ -39,6 +42,31 @@ export function PrivacyNoticeContent({ notice }: { readonly notice: PrivacyNotic
         </div>
       ))}
     </dl>
+  )
+}
+
+/**
+ * The operator's privacy policy, as a link, when the operator set `LEGAL_PRIVACY_URL`
+ * (roadmap G2-17 / P3-18): the notice says what happens to a photo, and the policy is where
+ * the rest of the guest's data is accounted for. A box that set none renders nothing here.
+ *
+ * **It stands after the button, never before it.** The address arrives from `/api/about`
+ * a moment after the card is on screen, and a line that appears above "J'ai compris" pushes
+ * the button down by a touch target under the thumb that is about to press it. Below the
+ * button the same arrival moves nothing. It opens in a tab of its own, since this card sits
+ * on the upload screen and an unmount there aborts every send in flight.
+ */
+export function PrivacyPolicyLink() {
+  const t = useTranslations()
+  const { links } = useAbout()
+
+  if (links.privacy === undefined) return null
+  return (
+    <p className={styles['policy']}>
+      <NewTabLink href={links.privacy} className={styles['policyLink']}>
+        {t.about.privacyLink}
+      </NewTabLink>
+    </p>
   )
 }
 
@@ -84,6 +112,7 @@ export const PrivacyNoticeCard = forwardRef<HTMLElement, PrivacyNoticeCardProps>
         <Button variant="primary" size="lg" block onClick={onAcknowledge}>
           {t.upload.noticeAcknowledge}
         </Button>
+        <PrivacyPolicyLink />
       </section>
     )
   },
@@ -119,6 +148,7 @@ export function PrivacyNoticeDialog({ notice, open, onClose }: PrivacyNoticeDial
       }
     >
       <PrivacyNoticeContent notice={notice} />
+      <PrivacyPolicyLink />
     </Dialog>
   )
 }

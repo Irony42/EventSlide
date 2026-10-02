@@ -74,7 +74,7 @@ describe('joinEvent', () => {
   let ids: SequentialIdGenerator
 
   /** Built per call, so a test may replace a seeded event before it acts. */
-  const join = (input: JoinEventInput) =>
+  const joinOn = (operatorName: string | null) => (input: JoinEventInput) =>
     makeJoinEvent({
       events,
       clients: new FakeClientRepository(),
@@ -83,7 +83,9 @@ describe('joinEvent', () => {
       ids,
       clock,
       bus,
+      operatorName,
     })(input)
+  const join = joinOn(null)
 
   beforeEach(() => {
     events = new FakeEventRepository().seed(aWedding(), aGala())
@@ -179,6 +181,34 @@ describe('joinEvent', () => {
     )
 
     const result = await join({
+      joinCode: WEDDING_CODE,
+      deviceToken: deviceTokenFor(WEDDING, asGuestId('guest-lea')),
+    })
+
+    expect(result.ok && result.value.privacyNotice.acknowledgement).toBe('outdated')
+  })
+
+  it('hands the notice that names the operator on a box whose operator named themselves', async () => {
+    const result = await joinOn('Association Les Photographes')({ joinCode: WEDDING_CODE })
+
+    expect(result.ok && result.value.privacyNotice).toEqual({
+      notice: privacyNoticeFor(anEventSettings(), 'Association Les Photographes'),
+      acknowledgement: 'none',
+    })
+  })
+
+  it('tells a returning phone the notice changed once the box started naming its operator', async () => {
+    // The phone read the unnamed notice; the box has since been configured with an operator.
+    const unnamed = privacyNoticeFor(anEventSettings())
+    guests.seed(
+      aGuest({
+        id: 'guest-lea',
+        eventId: WEDDING,
+        noticeAcknowledgement: { revision: unnamed.revision, at: AT },
+      }),
+    )
+
+    const result = await joinOn('Association Les Photographes')({
       joinCode: WEDDING_CODE,
       deviceToken: deviceTokenFor(WEDDING, asGuestId('guest-lea')),
     })
@@ -606,6 +636,7 @@ describe('joinEvent', () => {
         ids,
         clock,
         bus,
+        operatorName: null,
       })({ joinCode: CLIENT_EVENT_CODE })
     }
 

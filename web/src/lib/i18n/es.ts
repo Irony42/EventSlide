@@ -907,5 +907,15 @@ export const es: UiText = {
     supportNoCounterpart: 'Una donación no desbloquea nada: el mismo servicio para todos.',
     budgetLink: 'Ver el presupuesto público',
     supportDismiss: 'Ocultar este mensaje',
+
+    termsLink: 'Condiciones de uso',
+    privacyLink: 'Política de privacidad',
+    legalNoticeLink: 'Aviso legal',
+    helpLink: 'Ayuda',
+    reportLink: 'Denunciar un contenido',
+    operatorTitle: 'Quién gestiona esta instancia',
+    operatorNameLabel: 'Operador',
+    operatorContactLabel: 'Contacto',
+    operatorHostedBy: 'Alojado por',
   },
 }

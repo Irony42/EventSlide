@@ -39,6 +39,13 @@ export interface AcknowledgePrivacyNoticeDeps {
   readonly clients: ClientRepository
   readonly guests: GuestRepository
   readonly clock: Clock
+  /**
+   * `OPERATOR_NAME`, or `null` on a box whose operator said nothing (roadmap G2-17). Part of
+   * the notice, and so of its revision: the same value must reach every use case that
+   * derives the notice, or a guest's acknowledgement would be compared with a text the
+   * guest never saw.
+   */
+  readonly operatorName: string | null
 }
 
 export type AcknowledgePrivacyNotice = (
@@ -46,7 +53,13 @@ export type AcknowledgePrivacyNotice = (
 ) => Promise<Result<NoticeForGuest, DomainError>>
 
 export const makeAcknowledgePrivacyNotice =
-  ({ events, clients, guests, clock }: AcknowledgePrivacyNoticeDeps): AcknowledgePrivacyNotice =>
+  ({
+    events,
+    clients,
+    guests,
+    clock,
+    operatorName,
+  }: AcknowledgePrivacyNoticeDeps): AcknowledgePrivacyNotice =>
   async ({ eventId, guestId, revision }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -56,7 +69,7 @@ export const makeAcknowledgePrivacyNotice =
 
     // The notice with the retention the box applies, so the revision a guest acknowledges is the
     // one the join and the read hand them — see `privacyNoticeOf`.
-    const notice = await privacyNoticeOf(clients, event)
+    const notice = await privacyNoticeOf(clients, event, operatorName)
     const acknowledged = guest.acknowledgeNotice(notice, revision, clock.now())
     if (!acknowledged.ok) return acknowledged
 

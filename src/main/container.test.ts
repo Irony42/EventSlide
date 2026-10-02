@@ -750,3 +750,150 @@ describe('createContainer: outgoing mail', () => {
     expect(output).not.toContain('camille')
   })
 })
+
+/**
+ * The same gap, for the operator's identity (roadmap G2-17 / P3-18): `env.test.ts` proves the
+ * seven variables parse, `aboutRoutes.test.ts` proves the route leaves an unset one out, and
+ * `getPrivacyNotice.test.ts` proves a use case names the operator it was given. Only this boot
+ * shows the composition root handing the parsed values to **both** the route and the three use
+ * cases — and that a box which sets none of them says nothing, to anyone.
+ */
+describe('createContainer: the operator reaches /api/about and the guest notice', () => {
+  /**
+   * What the notice handed to a guest who joins a freshly created event says about its
+   * operator, through the real use cases over the real SQLite file: the owner is a row, the
+   * event is created by `createEvent`, and the join is `joinEvent` with the code it minted.
+   */
+  const joinFreshEvent = async (booted: Container) => {
+    booted.db
+      .prepare(
+        `INSERT INTO users (id, email, password_hash, created_at, site_role)
+         VALUES ('user-host', 'user-host@example.test', 'hash:x', ?, 'none')`,
+      )
+      .run(new Date().toISOString())
+    const created = await booted.usecases.createEvent({
+      ownerId: asUserId('user-host'),
+      name: 'Camille & Sacha',
+    })
+    if (!created.ok) throw new Error(`fixture rejected: ${created.error.code}`)
+    // A new event is a draft, and the front door answers only for one that is live.
+    const opened = await booted.usecases.changeEventStatus({
+      eventId: created.value.id,
+      actorId: asUserId('user-host'),
+      status: 'live',
+    })
+    if (!opened.ok) throw new Error(`fixture rejected: ${opened.error.code}`)
+    const row = booted.db
+      .prepare<[], { readonly join_code: string }>('SELECT join_code FROM events')
+      .get()
+    if (row === undefined) throw new Error('fixture: no event row')
+
+    const joined = await booted.usecases.joinEvent({ joinCode: row.join_code })
+    if (!joined.ok) throw new Error(`fixture rejected: ${joined.error.code}`)
+    return { eventId: created.value.id, ...joined.value }
+  }
+
+  const noticeOperatorOn = async (booted: Container): Promise<string | null> =>
+    (await joinFreshEvent(booted)).privacyNotice.notice.operator
+
+  it('publishes no operator and no legal link on a box that configures nothing', async () => {
+    const { app } = await boot({})
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.operator).toBeUndefined()
+    expect(response.body.links).toEqual({})
+  })
+
+  it('publishes none when compose renders the unset variables as empty strings', async () => {
+    const { app } = await boot({
+      OPERATOR_NAME: '',
+      OPERATOR_CONTACT_EMAIL: '',
+      LEGAL_TERMS_URL: '',
+      LEGAL_PRIVACY_URL: '',
+      LEGAL_NOTICE_URL: '',
+      SUPPORT_URL: '',
+      REPORT_URL: '',
+    })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.operator).toBeUndefined()
+    expect(response.body.links).toEqual({})
+  })
+
+  it('publishes the operator, and each link under the name the plan gives it', async () => {
+    const { app } = await boot({
+      OPERATOR_NAME: 'Association Les Photographes',
+      OPERATOR_CONTACT_EMAIL: 'contact@hosted.example.org',
+      LEGAL_TERMS_URL: 'https://hosted.example.org/legal/cgu',
+      LEGAL_PRIVACY_URL: 'https://hosted.example.org/legal/confidentialite',
+      LEGAL_NOTICE_URL: '/legal/mentions',
+      SUPPORT_URL: '/legal/avant-evenement',
+      REPORT_URL: '/legal/signaler',
+    })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.operator).toEqual({
+      name: 'Association Les Photographes',
+      contactEmail: 'contact@hosted.example.org',
+    })
+    expect(response.body.links).toEqual({
+      terms: 'https://hosted.example.org/legal/cgu',
+      privacy: 'https://hosted.example.org/legal/confidentialite',
+      legalNotice: '/legal/mentions',
+      support: '/legal/avant-evenement',
+      report: '/legal/signaler',
+    })
+  })
+
+  it('publishes a name with no contact address', async () => {
+    const { app } = await boot({ OPERATOR_NAME: 'Les Photographes' })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.operator).toEqual({ name: 'Les Photographes' })
+  })
+
+  it('publishes a link on a box that named nobody, with no operator beside it', async () => {
+    const { app } = await boot({ REPORT_URL: '/legal/signaler' })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.operator).toBeUndefined()
+    expect(response.body.links).toEqual({ report: '/legal/signaler' })
+  })
+
+  it('names the operator in the notice a joining guest is handed', async () => {
+    const booted = await boot({ OPERATOR_NAME: 'Association Les Photographes' })
+
+    expect(await noticeOperatorOn(booted)).toBe('Association Les Photographes')
+  })
+
+  it('lets that guest acknowledge the notice and read it back as current, which needs all three use cases to name the same operator', async () => {
+    // `joinEvent`, `getPrivacyNotice` and `acknowledgePrivacyNotice` each derive the notice.
+    // Handed the name in one place and not another, a guest would be shown a revision that
+    // the acknowledgement refuses as outdated, and asked again for ever.
+    const booted = await boot({ OPERATOR_NAME: 'Association Les Photographes' })
+    const joined = await joinFreshEvent(booted)
+    const { eventId, guestId, privacyNotice } = joined
+
+    const acknowledged = await booted.usecases.acknowledgePrivacyNotice({
+      eventId,
+      guestId,
+      revision: privacyNotice.notice.revision,
+    })
+    const read = await booted.usecases.getPrivacyNotice({ eventId, guestId })
+
+    expect(acknowledged.ok && acknowledged.value.acknowledgement).toBe('current')
+    expect(read.ok && read.value.acknowledgement).toBe('current')
+    expect(read.ok && read.value.notice.revision).toBe(privacyNotice.notice.revision)
+  })
+
+  it('names nobody in that notice on a box whose operator said nothing', async () => {
+    const booted = await boot({})
+
+    expect(await noticeOperatorOn(booted)).toBeNull()
+  })
+})

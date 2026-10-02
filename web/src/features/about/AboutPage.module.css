@@ -39,7 +39,8 @@
   color: var(--text-secondary);
 }
 
-/* The operator's support section, drawn only when they set a link. */
+/* The operator's own section, drawn only when they named themselves or set a page. */
+.operator,
 .support {
   display: flex;
   flex-direction: column;
@@ -49,6 +50,7 @@
   border-block-start: 1px solid var(--border-subtle);
 }
 
+.sectionTitle,
 .supportTitle {
   font-size: var(--text-lg);
 }

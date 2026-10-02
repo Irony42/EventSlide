@@ -163,6 +163,12 @@ export interface UseCasePolicy {
   readonly mediaSweepMaxDigestsPerPass: number
   /** `audit.retentionDays`: how long a row of the audit log is kept. 365 at the least. */
   readonly auditRetentionDays: number
+  /**
+   * `operator.name`: who the guest's privacy notice says hosts their photo, or `null` on a
+   * box whose operator said nothing (roadmap G2-17). One value for the three use cases that
+   * derive the notice, so a guest's acknowledgement is always compared with the text they saw.
+   */
+  readonly operatorName: string | null
   readonly clips: {
     readonly maxQueuedClips: number
     /** The same backpressure, scoped to one event. */
@@ -307,6 +313,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     ids: adapters.ids,
     clock: adapters.clock,
     bus: adapters.bus,
+    operatorName: policy.operatorName,
   }),
   authenticateGuest: makeAuthenticateGuest({
     events: adapters.events,
@@ -329,12 +336,14 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     events: adapters.events,
     clients: adapters.clients,
     guests: adapters.guests,
+    operatorName: policy.operatorName,
   }),
   acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
     events: adapters.events,
     clients: adapters.clients,
     guests: adapters.guests,
     clock: adapters.clock,
+    operatorName: policy.operatorName,
   }),
 
   // ----------------------------------------------------------------- photos --
