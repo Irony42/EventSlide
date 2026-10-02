@@ -9,6 +9,7 @@ import {
   DEFAULT_MAIL_TIMEOUTS,
   classifyMailError,
   createSmtpMailer,
+  describeFailure,
   transportOptionsFor,
   type MailTimeouts,
 } from './smtpMailer'
@@ -407,6 +408,61 @@ describe('transportOptionsFor', () => {
 
     expect(options.disableFileAccess).toBe(true)
     expect(options.disableUrlAccess).toBe(true)
+  })
+})
+
+describe('describeFailure', () => {
+  it('keeps the library code, the relay’s numeric reply and the name of the command', () => {
+    const error = Object.assign(new Error('Recipient address rejected'), {
+      code: 'EENVELOPE',
+      responseCode: 550,
+      command: 'RCPT TO',
+    })
+
+    expect(describeFailure(error)).toEqual({
+      errorCode: 'EENVELOPE',
+      smtpCode: 550,
+      command: 'RCPT TO',
+    })
+  })
+
+  it('drops everything else an error from the library carries, each of which can name the mailbox', () => {
+    const error = Object.assign(
+      new Error('550 5.1.1 <camille@example.org>: Recipient address rejected'),
+      {
+        code: 'EENVELOPE',
+        response: '550 5.1.1 <camille@example.org>: Recipient address rejected',
+        recipient: 'camille@example.org',
+        rejected: ['camille@example.org'],
+        rejectedErrors: [new Error('camille@example.org')],
+        sourceUrl: 'https://photos.example.org/reset/LINK-CANARY',
+      },
+    )
+
+    expect(JSON.stringify(describeFailure(error))).not.toMatch(/camille|LINK-CANARY|Recipient/)
+  })
+
+  it('drops a command that is more than a command’s name, so a library that put the whole line there cannot leak the address', () => {
+    const error = Object.assign(new Error('x'), {
+      code: 'EENVELOPE',
+      command: 'RCPT TO:<camille@example.org>',
+    })
+
+    expect(describeFailure(error)).toEqual({ errorCode: 'EENVELOPE' })
+  })
+
+  it.each([
+    ['a string', 'boom'],
+    ['null', null],
+    ['undefined', undefined],
+  ])('says nothing about %s, which is not an error object', (_name, value) => {
+    expect(describeFailure(value)).toEqual({})
+  })
+
+  it('ignores fields of the wrong type rather than logging them', () => {
+    const error = Object.assign(new Error('x'), { code: 7, responseCode: '550', command: 42 })
+
+    expect(describeFailure(error)).toEqual({})
   })
 })
 

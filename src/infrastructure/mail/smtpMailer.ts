@@ -103,7 +103,7 @@ const COMMAND_NAME = /^[A-Z][A-Z0-9 -]{0,23}$/
  * version that put a full command line (`RCPT TO:<camille@example.org>`) in that field
  * would be dropped here instead of printed.
  */
-const describeFailure = (error: unknown): LogContext => {
+export const describeFailure = (error: unknown): LogContext => {
   if (typeof error !== 'object' || error === null) return {}
   const { code, responseCode, command } = error as NodemailerError
   return {
