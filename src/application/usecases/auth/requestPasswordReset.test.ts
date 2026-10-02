@@ -341,6 +341,26 @@ describe('requestPasswordReset', () => {
     expect(tokens.all.map((token) => token.id)).toContain('tok-edge')
   })
 
+  // ------------------------------------------------------- a faulty adapter --
+
+  it('issues nothing, sends nothing and says why by code when the adapter mints an unusable digest', async () => {
+    // Defence in depth: the domain refuses a digest that is not a SHA-256, so an adapter that
+    // returned the token itself — the likeliest way to break the storage rule — is stopped
+    // before anything is written or mailed.
+    secrets.mint = () => ({ token: 'secret-1', digest: 'secret-1' })
+
+    const result = await ask(HOST_EMAIL)
+
+    expect(result.ok).toBe(true)
+    expect(tokens.all).toEqual([])
+    expect(mailer.sent).toEqual([])
+    expect(logger.lines).toContainEqual({
+      level: 'error',
+      message: 'a password reset token could not be issued',
+      context: { code: 'accountToken.digestInvalid' },
+    })
+  })
+
   // ------------------------------------------------------------- the relay fails --
 
   it.each(['rejected', 'transient'] as const)(
@@ -380,6 +400,26 @@ describe('requestPasswordReset', () => {
     if (result.ok) await expect(result.value.completion).resolves.toBeUndefined()
 
     expect(logger.lines.map((line) => line.level)).toContain('error')
+  })
+
+  it.each([
+    ['an Error', new Error('database is locked'), 'database is locked'],
+    ['something that is not an Error', 'disk on fire', 'disk on fire'],
+  ])('logs what a repository threw, whether it threw %s', async (_label, thrown, logged) => {
+    Object.assign(tokens, {
+      countCreatedSince: async () => {
+        throw thrown
+      },
+    })
+
+    const result = await build()({ email: HOST_EMAIL, locale: 'fr' })
+    if (result.ok) await result.value.completion
+
+    expect(logger.lines).toContainEqual({
+      level: 'error',
+      message: 'a password reset request failed',
+      context: { error: logged },
+    })
   })
 
   // ------------------------------------------------------------- nothing secret --

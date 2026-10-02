@@ -272,6 +272,34 @@ describe('resetPassword', () => {
     )
   })
 
+  // ------------------------------------------------------ a hasher that repeats itself --
+
+  it('changes nothing, and signs nobody out, when the hasher hands back the hash already on file', async () => {
+    // A salted algorithm never does; a broken adapter might. Saving it would report success
+    // for a change that did not happen, and the epoch would end sessions for nothing.
+    const token = await issueLink()
+    const stuck: PasswordHasher = {
+      dummyHash: 'hash:factice',
+      hash: async () => 'hash:ancien-mot-de-passe',
+      verify: async () => false,
+      needsRehash: () => false,
+    }
+
+    const result = await makeResetPassword({
+      users,
+      tokens,
+      secrets,
+      hasher: stuck,
+      clock,
+    })({ token, newPassword: NEW_PASSWORD })
+
+    expect(!result.ok && result.error.code).toBe('user.passwordUnchanged')
+    expect(await epochOf()).toBeUndefined()
+    expect((await users.findById(asUserId('user-1')))?.passwordHash).toBe(
+      'hash:ancien-mot-de-passe',
+    )
+  })
+
   // ------------------------------------------------------------- one live link --
 
   it('revokes every other outstanding link for the address once one has been used', async () => {

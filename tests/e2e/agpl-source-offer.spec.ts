@@ -48,7 +48,7 @@ test.describe('the AGPL source offer', () => {
     expect(about).toMatchObject({
       name: 'EventSlide',
       license: 'AGPL-3.0-only',
-      features: { siteAdmin: false },
+      features: { siteAdmin: false, forgotPassword: false },
     })
     // Exactly empty, not "an object": `toMatchObject({ links: {} })` matches any object, so it
     // could not see a box that set nothing and still published a donation page (G4-02).
