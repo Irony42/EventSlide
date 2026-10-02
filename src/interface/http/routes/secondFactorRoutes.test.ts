@@ -1,4 +1,4 @@
-import request from 'supertest'
+import type request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { AT, aUser } from '../../../application/testing/builders'
 import { FakeClock } from '../../../application/testing/fakeClock'
