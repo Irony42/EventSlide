@@ -16,7 +16,8 @@ import { describe, expect, it } from 'vitest'
  *   - an action pinned to a tag instead of a commit SHA hands a third party the write
  *     token of a workflow that runs with the repository's secrets;
  *   - an allowlist missing `dependabot[bot]` blocks every dependency pull request behind
- *     a signature a bot cannot give, and one missing `Irony42` blocks the maintainer;
+ *     a signature a bot cannot give, one missing `Irony42` blocks the maintainer, and one
+ *     with a wildcard in it exempts everybody;
  *   - a workflow with no `permissions:` block inherits the repository default, which is a
  *     setting somebody can change from the web without a diff;
  *   - a `pull_request_target` workflow that checks out the pull request is the textbook
@@ -29,8 +30,13 @@ import { describe, expect, it } from 'vitest'
  * forever. A mutation whose target text has been reworded throws, rather than silently
  * becoming a no-op.
  *
+ * The rules that guard against an attacker are written as allowlists, not denylists: the
+ * workflow has exactly two steps, interpolates exactly one expression and uses exactly one
+ * action. A denylist (`actions/checkout` is forbidden) lets `gh pr checkout` through, and
+ * the review of this file found exactly that.
+ *
  * YAML is read by hand because this repository has no YAML dependency, and adding one to
- * read a sixty-line workflow would cost more than it protects. The file is small and
+ * read a hundred-line workflow would cost more than it protects. The file is small and
  * hand-written; a line scan is enough and is honest about being one.
  */
 
@@ -39,11 +45,23 @@ const read = (...segments: string[]): string => readFileSync(join(ROOT, ...segme
 
 const REPOSITORY_URL = 'https://github.com/Irony42/EventSlide'
 const CLA_ACTION = 'contributor-assistant/github-action'
-/** The comment the action's own matcher accepts, and the one docs/CLA.md tells people to post. */
+/**
+ * The commit of v2.6.1 whose source the permissions were read from. Pinned in the test as
+ * well as the workflow so that moving the pin is a deliberate act that sends the author
+ * back to the action's source, not a one-line change nothing notices.
+ */
+const AUDITED_SHA = 'ca4a40a7d1004f18d9960b404b97e5f30a505a08'
+/** The comment the action accepts, the job gate waits for, and docs/CLA.md tells people to post. */
 const SIGN_PHRASE = 'I have read the CLA Document and I hereby sign the CLA'
 const BOOTSTRAP_STEP = 'Create the signatures branch if it does not exist'
 /** Everything the action does through the API, and nothing else. See cla.yml for the audit. */
 const EXPECTED_PERMISSIONS = { actions: 'write', contents: 'write', 'pull-requests': 'write' }
+const EXPECTED_GATE =
+  "github.repository == 'Irony42/EventSlide' && " +
+  "(github.event_name == 'pull_request_target' || " +
+  '(github.event.issue.pull_request && ' +
+  "(github.event.comment.body == 'recheck' || " +
+  `github.event.comment.body == '${SIGN_PHRASE}')))`
 
 /* ------------------------------------------------------------ reading the YAML -- */
 
@@ -89,6 +107,25 @@ const topLevel = (
   return { inline, entries }
 }
 
+/** The `types: [a, b]` list under one trigger of `on:`. Undefined when there is none. */
+const triggerTypes = (yaml: string, trigger: string): string[] | undefined => {
+  const lines = codeOf(yaml).split('\n')
+  const at = lines.findIndex((line) => line === `  ${trigger}:`)
+  if (at === -1) return undefined
+  for (const line of lines.slice(at + 1)) {
+    if (line.trim() === '') continue
+    if (indentOf(line) <= 2) break
+    const match = /^\s+types:\s*\[(.*)\]\s*$/.exec(line)
+    if (match) {
+      return (match[1] ?? '')
+        .split(',')
+        .map((type) => type.trim())
+        .filter((type) => type !== '')
+    }
+  }
+  return undefined
+}
+
 /** Every `uses:` reference in the workflow. */
 const usesOf = (yaml: string): string[] =>
   codeOf(yaml)
@@ -112,6 +149,37 @@ const actionInputs = (yaml: string): Record<string, string> => {
     if (match) inputs[match[1] ?? ''] = unquote(match[2] ?? '')
   }
   return inputs
+}
+
+/** The steps of the (single) job, each as its own block of lines. */
+const stepsOf = (yaml: string): string[] => {
+  const lines = codeOf(yaml).split('\n')
+  const at = lines.findIndex((line) => line.trim() === 'steps:')
+  if (at === -1) return []
+  const stepIndent = indentOf(lines[at] ?? '') + 2
+  const steps: string[][] = []
+  for (const line of lines.slice(at + 1)) {
+    if (line.trim() === '') continue
+    if (indentOf(line) < stepIndent) break
+    if (indentOf(line) === stepIndent && line.trimStart().startsWith('- ')) steps.push([])
+    steps[steps.length - 1]?.push(line)
+  }
+  return steps.map((step) => step.join('\n'))
+}
+
+/** The job's `if:` gate, folded scalar or single line, whitespace-normalised. */
+const jobGate = (yaml: string): string => {
+  const lines = codeOf(yaml).split('\n')
+  const at = lines.findIndex((line) => /^ {4}if:/.test(line))
+  if (at === -1) return ''
+  const first = (lines[at] ?? '').replace(/^ {4}if:\s*>?-?\s*/, '')
+  const parts = first === '' ? [] : [first]
+  for (const line of lines.slice(at + 1)) {
+    if (line.trim() === '') continue
+    if (indentOf(line) <= 4) break
+    parts.push(line.trim())
+  }
+  return parts.join(' ')
 }
 
 /** The `run: |` script of the named step, dedented. Empty when the step is absent. */
@@ -183,6 +251,15 @@ const RULES: readonly Rule[] = [
     mutate: (workflow) => swap(workflow, /github-action@[0-9a-f]{40}/, 'github-action@v2.6.1'),
   },
   {
+    name: 'pins the commit of v2.6.1 whose source the permissions were audited against',
+    check: (workflow) =>
+      usesOf(workflow).includes(`${CLA_ACTION}@${AUDITED_SHA}`)
+        ? []
+        : [`the action is not ${CLA_ACTION}@${AUDITED_SHA}`],
+    mutation: 'the pin moved to another commit, so the audit no longer describes what runs',
+    mutate: (workflow) => swap(workflow, AUDITED_SHA, '0123456789abcdef0123456789abcdef01234567'),
+  },
+  {
     name: 'allowlists the maintainer, Irony42',
     check: (workflow) => (allowlistOf(workflow).includes('Irony42') ? [] : ['Irony42 missing']),
     mutation: 'Irony42 removed from the allowlist',
@@ -194,6 +271,25 @@ const RULES: readonly Rule[] = [
       allowlistOf(workflow).includes('dependabot[bot]') ? [] : ['dependabot[bot] missing'],
     mutation: 'dependabot[bot] removed from the allowlist',
     mutate: (workflow) => swap(workflow, /,dependabot\[bot\]/, ''),
+  },
+  {
+    name: 'allowlists nobody else, and no wildcard (the action turns * into .*)',
+    check: (workflow) => {
+      const entries = allowlistOf(workflow)
+      const problems = entries
+        .filter((entry) => !['Irony42', 'dependabot[bot]'].includes(entry))
+        .map((entry) => `${entry} is allowlisted`)
+      if (entries.some((entry) => entry.includes('*')))
+        problems.push('the allowlist has a wildcard')
+      return problems
+    },
+    mutation: 'the action README example `bot*` added, which exempts any login containing "bot"',
+    mutate: (workflow) =>
+      swap(
+        workflow,
+        'allowlist: Irony42,dependabot[bot]',
+        'allowlist: Irony42,dependabot[bot],bot*',
+      ),
   },
   {
     name: 'points path-to-document at docs/CLA.md in this repository',
@@ -216,6 +312,22 @@ const RULES: readonly Rule[] = [
     },
     mutation: 'pull_request_target downgraded to pull_request, which has no write token for forks',
     mutate: (workflow) => swap(workflow, /^ {2}pull_request_target:/m, '  pull_request:'),
+  },
+  {
+    name: 'listens for exactly the event types it needs: new, pushed and reopened pull requests, new comments',
+    check: (workflow) => {
+      const problems: string[] = []
+      const pullRequest = (triggerTypes(workflow, 'pull_request_target') ?? []).sort().join(',')
+      const comment = (triggerTypes(workflow, 'issue_comment') ?? []).sort().join(',')
+      if (pullRequest !== 'opened,reopened,synchronize') {
+        problems.push(`pull_request_target types are "${pullRequest}"`)
+      }
+      if (comment !== 'created') problems.push(`issue_comment types are "${comment}"`)
+      return problems
+    },
+    mutation: 'pull_request_target narrowed to [opened], so a later push is never re-checked',
+    mutate: (workflow) =>
+      swap(workflow, 'types: [opened, synchronize, reopened]', 'types: [opened]'),
   },
   {
     name: 'sets permissions explicitly instead of inheriting the repository default',
@@ -241,26 +353,75 @@ const RULES: readonly Rule[] = [
       swap(workflow, /^ {2}pull-requests: write\n/m, (m) => `${m}  packages: write\n`),
   },
   {
+    name: 'declares permissions once, at the top, with no job-level override',
+    check: (workflow) => {
+      const keys = codeOf(workflow)
+        .split('\n')
+        .filter((line) => /^\s*permissions:/.test(line))
+      return keys.length === 1 && keys[0]?.startsWith('permissions:') === true
+        ? []
+        : [`permissions: is declared ${keys.length} times`]
+    },
+    mutation: 'permissions: write-all added to the job, which overrides the audited block',
+    mutate: (workflow) =>
+      swap(workflow, /^ {4}name: CLA signed\n/m, (m) => `${m}    permissions: write-all\n`),
+  },
+  {
+    name: 'has exactly two steps, its own bootstrap script and the CLA action, and runs nothing else',
+    check: (workflow) => {
+      const steps = stepsOf(workflow)
+      const problems: string[] = []
+      if (steps.length !== 2) problems.push(`the job has ${steps.length} steps, not 2`)
+      if (!steps[0]?.includes(`- name: ${BOOTSTRAP_STEP}`) || !steps[0].includes('run: |')) {
+        problems.push('the first step is not the bootstrap script')
+      }
+      if (!steps[1]?.includes(`uses: ${CLA_ACTION}@`) || steps[1].includes('run:')) {
+        problems.push('the second step is not the bare CLA action')
+      }
+      const runs = codeOf(workflow)
+        .split('\n')
+        .filter((line) => /^\s*run:/.test(line))
+      if (runs.length !== 1) problems.push(`${runs.length} run: keys, not 1`)
+      return problems
+    },
+    mutation:
+      'a third step that builds the repository, which is a checkout of a stranger by another name',
+    mutate: (workflow) =>
+      swap(workflow, /\n$/, '\n      - name: Build\n        run: npm ci && npm test\n'),
+  },
+  {
     name: 'never checks out, or reads the head of, the pull request',
     check: (workflow) => {
       const code = codeOf(workflow)
-      const forbidden = [/actions\/checkout/, /pull_request\.head/, /github\.head_ref/]
+      const forbidden = [
+        /actions\/checkout/,
+        /pull_request\.head/,
+        /github\.head_ref/,
+        /\bgit (clone|fetch|checkout)\b/,
+        /\bgh pr (checkout|diff)\b/,
+      ]
       return forbidden.filter((pattern) => pattern.test(code)).map((p) => `matches ${String(p)}`)
     },
-    mutation: 'an actions/checkout step added ahead of the action',
+    mutation: 'an actions/checkout of the pull request head added ahead of the action',
     mutate: (workflow) =>
       swap(
         workflow,
         /^ {6}- name: CLA assistant\n/m,
-        (m) => `      - uses: actions/checkout@v4\n${m}`,
+        (m) =>
+          '      - uses: actions/checkout@v4\n        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n' +
+          m,
       ),
   },
   {
-    name: 'never interpolates an expression into a shell script',
-    check: (workflow) =>
-      stepScript(workflow, BOOTSTRAP_STEP).includes('${{')
-        ? ['the bootstrap script contains ${{ ... }}']
-        : [],
+    name: 'interpolates nothing but the workflow token',
+    check: (workflow) => {
+      const expressions = [...codeOf(workflow).matchAll(/\$\{\{\s*([^}]*?)\s*\}\}/g)].map(
+        (match) => match[1] ?? '',
+      )
+      return expressions
+        .filter((expression) => expression !== 'secrets.GITHUB_TOKEN')
+        .map((expression) => `\${{ ${expression} }} is interpolated`)
+    },
     mutation: 'the pull request title interpolated into the bootstrap script',
     mutate: (workflow) =>
       swap(workflow, 'repo="$GITHUB_REPOSITORY"', 'repo="${{ github.event.pull_request.title }}"'),
@@ -288,18 +449,22 @@ const RULES: readonly Rule[] = [
       ),
   },
   {
-    name: 'keeps signatures on a dedicated branch that the bootstrap step also creates',
+    name: 'keeps signatures on a dedicated branch and a versioned file, which the bootstrap step also creates',
     check: (workflow) => {
       const inputs = actionInputs(workflow)
       const problems: string[] = []
       const branch = inputs['branch'] ?? ''
+      const path = inputs['path-to-signatures'] ?? ''
       if (branch === '' || ['main', 'master'].includes(branch)) {
         problems.push(`signatures branch is "${branch}", not a dedicated branch`)
+      }
+      if (!/^signatures\/v\d+\/cla\.json$/.test(path)) {
+        problems.push(`signatures file is "${path}", not signatures/vN/cla.json`)
       }
       if (branch !== envValue(workflow, 'SIGNATURES_BRANCH')) {
         problems.push('the action and the bootstrap step name different branches')
       }
-      if ((inputs['path-to-signatures'] ?? '') !== envValue(workflow, 'SIGNATURES_PATH')) {
+      if (path !== envValue(workflow, 'SIGNATURES_PATH')) {
         problems.push('the action and the bootstrap step name different signature files')
       }
       if (stepScript(workflow, BOOTSTRAP_STEP) === '') problems.push('no bootstrap step')
@@ -310,22 +475,38 @@ const RULES: readonly Rule[] = [
       swap(workflow, /^ {10}branch: cla-signatures$/m, '          branch: main'),
   },
   {
-    name: 'only runs for pull requests, and for the two comments that mean something',
+    name: 'is skipped in forks, so another project is not asked to grant rights to this maintainer',
+    check: (workflow) =>
+      jobGate(workflow).startsWith("github.repository == 'Irony42/EventSlide' && ")
+        ? []
+        : ['the job gate does not start with a repository check'],
+    mutation: 'the repository check deleted from the job gate',
+    mutate: (workflow) =>
+      swap(workflow, /^ +github\.repository == 'Irony42\/EventSlide' &&\n/m, ''),
+  },
+  {
+    name: 'reacts only to pull request events, to `recheck` and to the sign phrase',
     check: (workflow) => {
-      const code = codeOf(workflow)
+      const gate = jobGate(workflow)
+      return gate === EXPECTED_GATE ? [] : [`the job gate is "${gate}"`]
+    },
+    mutation: 'the pull_request_target clause deleted, so the job is skipped on every pull request',
+    mutate: (workflow) =>
+      swap(workflow, /^ +\(github\.event_name == 'pull_request_target' \|\|\n/m, '      (\n'),
+  },
+  {
+    name: 'accepts exactly the sign phrase, in the job gate and in the action itself',
+    check: (workflow) => {
       const problems: string[] = []
-      if (!code.includes('github.event.issue.pull_request')) {
-        problems.push('the job does not require the comment to be on a pull request')
+      if (actionInputs(workflow)['custom-pr-sign-comment'] !== SIGN_PHRASE) {
+        problems.push('the action is not told to accept exactly the sign phrase')
       }
-      if (!code.includes(`github.event.comment.body == '${SIGN_PHRASE}'`)) {
-        problems.push('the job does not wait for the sign phrase')
-      }
-      if (!code.includes("github.event.comment.body == 'recheck'")) {
-        problems.push('the job does not wait for recheck')
+      if (!jobGate(workflow).includes(`github.event.comment.body == '${SIGN_PHRASE}'`)) {
+        problems.push('the job gate does not wait for the sign phrase')
       }
       return problems
     },
-    mutation: 'the sign phrase in the job gate reworded, so nobody can ever sign',
+    mutation: 'the sign phrase reworded in the job gate, so nobody can ever sign',
     mutate: (workflow) =>
       swap(
         workflow,
@@ -359,12 +540,6 @@ describe('.github/workflows/cla.yml', () => {
     // person reads it first. If the three drift, nobody can sign and nothing says why.
     expect(read('docs', 'CLA.md')).toContain(SIGN_PHRASE)
   })
-
-  it('does not set the action up with a non-default sign comment that the gate would miss', () => {
-    // A `custom-pr-sign-comment` input would change what the bot asks for and what its
-    // matcher accepts, while the job gate above keeps waiting for the default.
-    expect(actionInputs(workflow)['custom-pr-sign-comment']).toBeUndefined()
-  })
 })
 
 /* --------------------------------------------- the bootstrap step, actually run -- */
@@ -378,7 +553,13 @@ describe('.github/workflows/cla.yml', () => {
  * it is run here against a stand-in `gh` that records what it was asked.
  *
  * The stand-in is a shell function defined ahead of the script, so it shadows the real
- * binary without touching PATH, which is unreliable under Git Bash on Windows.
+ * binary without touching PATH, which is unreliable under Git Bash on Windows. The script
+ * runs under plain `bash -c`, not `bash -e`: the step's own `set -euo pipefail` is what
+ * has to stop it, not a flag the harness happens to pass.
+ *
+ * What this cannot do is reach GitHub. The bodies and arguments are checked against the
+ * REST documentation for blobs, trees, commits, refs and contents, not against the live
+ * API, and the first real run is the real test (docs/SECURITY.md §17 says so).
  */
 describe('the bootstrap step that creates the signatures branch', () => {
   const workflow = read('.github', 'workflows', 'cla.yml')
@@ -395,11 +576,15 @@ gh() {
   case "$*" in
     "api repos/o/r/git/ref/heads/"*)
       case "$STUB_MODE" in
-        exists) return 0 ;;
+        exists|nofile) return 0 ;;
         race) grep -q 'git/refs' "$STUB_LOG" ;;
         *) return 1 ;;
       esac ;;
-    "api repos/o/r/git/blobs"*) echo blob-sha ;;
+    "api repos/o/r/contents/"*) [ "$STUB_MODE" = exists ] ;;
+    "api --method PUT repos/o/r/contents/"*) return 0 ;;
+    "api repos/o/r/git/blobs"*)
+      if [ "$STUB_MODE" = blobfails ]; then return 1; fi
+      echo blob-sha ;;
     "api repos/o/r/git/trees"*) echo tree-sha ;;
     "api repos/o/r/git/commits"*) echo commit-sha ;;
     "api repos/o/r/git/refs"*) [ "$STUB_MODE" = missing ] ;;
@@ -408,14 +593,15 @@ gh() {
 }
 `
 
-  type Mode = 'exists' | 'missing' | 'race' | 'broken'
+  /** exists: branch and file; nofile: branch only; missing: neither; race: lose the ref race. */
+  type Mode = 'exists' | 'nofile' | 'missing' | 'race' | 'blobfails' | 'broken'
 
-  /** Runs the step the way Actions does (bash -e) and returns what `gh` was asked. */
+  /** Runs the step and returns what `gh` was asked. */
   const run = (mode: Mode): { status: number | null; calls: string[]; output: string } => {
     const dir = mkdtempSync(join(tmpdir(), 'cla-bootstrap-'))
     const log = join(dir, 'gh.log').replace(/\\/g, '/')
     try {
-      const result = spawnSync('bash', ['-e', '-c', GH_STAND_IN + script], {
+      const result = spawnSync('bash', ['-c', GH_STAND_IN + script], {
         encoding: 'utf8',
         env: {
           ...process.env,
@@ -435,6 +621,19 @@ gh() {
     }
   }
 
+  /** The endpoint each `gh api` call went to, in order. */
+  const endpoints = (calls: string[]): string[] =>
+    calls
+      .filter((call) => call.startsWith('gh api'))
+      .map(
+        (call) =>
+          /repos\/o\/r\/(git\/(?:blobs|trees|commits|refs|ref\/heads)|contents)/.exec(call)?.[1] ??
+          call,
+      )
+
+  const bodies = (calls: string[]): unknown[] =>
+    calls.filter((call) => call.startsWith('body ')).map((call) => JSON.parse(call.slice(5)))
+
   // Where bash cannot write to a Windows temp directory (WSL's launcher shadowing Git
   // Bash, say) the probe says so and the half is skipped rather than reported as a
   // failure of the step it cannot reach. CI is Linux and always has bash.
@@ -442,7 +641,7 @@ gh() {
     const dir = mkdtempSync(join(tmpdir(), 'cla-bootstrap-probe-'))
     try {
       const log = join(dir, 'probe.log').replace(/\\/g, '/')
-      const result = spawnSync('bash', ['-e', '-c', 'printf ok >> "$STUB_LOG"'], {
+      const result = spawnSync('bash', ['-c', 'printf ok >> "$STUB_LOG"'], {
         env: { ...process.env, STUB_LOG: log },
       })
       return result.status === 0 && readFileSync(join(dir, 'probe.log'), 'utf8') === 'ok'
@@ -460,12 +659,13 @@ gh() {
   })
 
   describe.skipIf(!canRunBash)('run under bash with a stand-in gh', () => {
-    it('does nothing when the signatures branch is already there', () => {
+    it('does nothing when the signatures branch and its file are already there', () => {
       const { status, calls } = run('exists')
 
       expect(status).toBe(0)
-      expect(calls).toHaveLength(1)
+      expect(endpoints(calls)).toEqual(['git/ref/heads', 'contents'])
       expect(calls[0]).toContain(`git/ref/heads/${branch}`)
+      expect(calls[1]).toContain(`contents/${signaturesPath}?ref=${branch}`)
     })
 
     it('creates a parentless branch holding an empty signatures file at the path the action reads', () => {
@@ -474,19 +674,43 @@ gh() {
       expect(status, output).toBe(0)
       // The order is the dependency order: a tree needs the blob, a commit the tree, a
       // ref the commit.
-      const verbs = calls
-        .filter((call) => call.startsWith('gh api'))
-        .map((call) => /git\/(blobs|trees|commits|refs|ref\/heads)/.exec(call)?.[1])
-      expect(verbs).toEqual(['ref/heads', 'blobs', 'trees', 'commits', 'refs'])
+      expect(endpoints(calls)).toEqual([
+        'git/ref/heads',
+        'git/blobs',
+        'git/trees',
+        'git/commits',
+        'git/refs',
+      ])
 
-      const joined = calls.join('\n')
-      expect(joined).toContain('{"signedContributors":[]}')
-      expect(joined).toContain(`"path":"${signaturesPath}"`)
-      expect(joined).toContain('"sha":"blob-sha"')
-      expect(joined).toContain('"tree":"tree-sha"')
-      expect(joined).toContain('"parents":[]')
-      expect(joined).toContain(`ref=refs/heads/${branch}`)
-      expect(joined).toContain('sha=commit-sha')
+      const [blobCall, treeCall, commitCall, refCall] = calls.filter(
+        (call) => /git\/(blobs|trees|commits|refs)(?!\/)/.test(call) && call.startsWith('gh api'),
+      )
+      // `--jq .sha` is what turns the API's JSON answer into the bare SHA the next call
+      // needs. Without it the next body would carry a whole JSON document as a "sha".
+      expect(blobCall).toContain('-f content={"signedContributors":[]}')
+      expect(blobCall).toContain('-f encoding=utf-8')
+      for (const call of [blobCall, treeCall, commitCall]) expect(call).toContain('--jq .sha')
+
+      const [tree, commit] = bodies(calls)
+      expect(tree).toEqual({
+        tree: [{ path: signaturesPath, mode: '100644', type: 'blob', sha: 'blob-sha' }],
+      })
+      expect(commit).toMatchObject({ tree: 'tree-sha', parents: [] })
+      expect(refCall).toContain(`ref=refs/heads/${branch}`)
+      expect(refCall).toContain('sha=commit-sha')
+    })
+
+    it('adds the missing file to a branch that exists without it', () => {
+      const { status, calls, output } = run('nofile')
+
+      expect(status, output).toBe(0)
+      expect(endpoints(calls)).toEqual(['git/ref/heads', 'contents', 'contents'])
+      const put = calls[2] ?? ''
+      expect(put).toContain('--method PUT')
+      expect(put).toContain(`contents/${signaturesPath}`)
+      expect(put).toContain(`-f branch=${branch}`)
+      const content = /-f content=(\S+)/.exec(put)?.[1] ?? ''
+      expect(Buffer.from(content, 'base64').toString()).toBe('{"signedContributors":[]}')
     })
 
     it('accepts losing the race to another run that created the branch first', () => {
@@ -500,6 +724,13 @@ gh() {
 
       expect(status).not.toBe(0)
     })
+
+    it('stops at the first call that fails instead of pressing on with an empty SHA', () => {
+      const { status, calls } = run('blobfails')
+
+      expect(status).not.toBe(0)
+      expect(endpoints(calls)).toEqual(['git/ref/heads', 'git/blobs'])
+    })
   })
 })
 
@@ -508,14 +739,24 @@ gh() {
 /**
  * docs/CLA.md is prose, and prose is where a guarantee quietly disappears: somebody
  * tidies a sentence and the grant no longer says "proprietary" or "sublicense". These are
- * the claims the plan makes about it (P1-04 design details). They are checked on the
- * text with whitespace collapsed, so re-wrapping a paragraph does not trip them.
+ * the claims the plan makes about it (P1-04 design details). Each is checked in the
+ * section that is supposed to carry it, with whitespace collapsed so re-wrapping a
+ * paragraph does not trip them: a file-wide match would pass on the wrong section, as a
+ * review of this file showed ("irrevocable" in the patent grant satisfied the copyright
+ * grant, "employer" in the note to the lawyer satisfied the representation).
  */
 describe('docs/CLA.md', () => {
   // Read inside each test, not at collection: a missing file should fail these tests by
   // name rather than take the whole suite down.
   const squash = (value: string): string => value.replace(/\s+/g, ' ')
   const claText = (): string => squash(read('docs', 'CLA.md'))
+  /** The text of `## N. ...`, up to the next `## `. */
+  const section = (n: number): string =>
+    squash(
+      read('docs', 'CLA.md')
+        .split(/^## /m)
+        .find((part) => part.startsWith(`${n}. `)) ?? '',
+    )
 
   it('opens with the note that it is not legal advice and awaits a lawyer', () => {
     const top = squash(
@@ -531,53 +772,74 @@ describe('docs/CLA.md', () => {
   })
 
   it('is a licence grant: the contributor keeps the copyright and nothing is assigned', () => {
-    const text = claText()
-
-    expect(text).toMatch(/you keep (the )?copyright/i)
-    expect(text).toMatch(/not an assignment/i)
-    expect(text).not.toMatch(/\bhereby assigns?\b/i)
+    expect(section(2)).toMatch(/you keep the copyright/i)
+    expect(section(2)).toMatch(/not an assignment/i)
+    // Assignment language anywhere in the file would turn the grant into a transfer.
+    expect(claText()).not.toMatch(/\bassign(?:s)?\b[^.]*\b(?:right|title|interest|copyright)\b/i)
+    expect(claText()).not.toMatch(/\byou (?:hereby )?assign\b/i)
   })
 
-  it('grants a perpetual, worldwide, irrevocable licence to sublicense on any terms', () => {
-    const text = claText()
+  it('grants a perpetual, worldwide, irrevocable copyright licence to sublicense on any terms', () => {
+    const grant = section(3)
 
     for (const word of ['perpetual', 'worldwide', 'irrevocable', 'sublicense']) {
-      expect(text, word).toMatch(new RegExp(word, 'i'))
+      expect(grant, word).toMatch(new RegExp(word, 'i'))
     }
-    expect(text).toMatch(/any (licen[cs]e )?terms[^.]*including[^.]*proprietary/i)
+    expect(grant).toMatch(/any licen[cs]e terms[^.]*including[^.]*proprietary/i)
   })
 
   it('grants a patent licence as well as a copyright one', () => {
+    const grant = section(4)
+
     // The grant itself, not the heading that announces it.
-    expect(claText()).toMatch(/irrevocable patent licen[cs]e to make, have made, use/i)
+    expect(grant).toMatch(/perpetual, worldwide, non-exclusive, royalty-free and irrevocable/i)
+    expect(grant).toMatch(/patent licen[cs]e to make, have made, use/i)
   })
 
   it('names the beneficiary: Pierre Tijou, his successors, and entities he controls', () => {
-    const text = claText()
+    const words = section(1)
 
-    expect(text).toContain('Pierre Tijou')
-    expect(text).toMatch(/successors/i)
-    expect(text).toMatch(/controls?/i)
+    expect(words).toContain('Pierre Tijou')
+    expect(words).toMatch(/successors/i)
+    // Not "patent claims you own or control": the entity that runs the paid service.
+    expect(words).toMatch(/entity that he controls/i)
+    expect(words).toMatch(/carries on the Project/i)
   })
 
   it('carries the representations: entitled to grant, original work, employer rights', () => {
-    const text = claText()
+    const promises = section(5)
 
-    expect(text).toMatch(/legally entitled/i)
-    expect(text).toMatch(/original work|your own original/i)
-    expect(text).toMatch(/employer/i)
+    expect(promises).toMatch(/legally entitled/i)
+    expect(promises).toMatch(/original work/i)
+    expect(promises).toMatch(/employer/i)
+    // Third-party code may only come in under terms that leave the Maintainer free to
+    // relicense it; "compatible with the AGPL" would let GPL code in.
+    expect(promises).not.toMatch(/sit with AGPL/i)
+    expect(promises).toMatch(/sublicens/i)
   })
 
   it('tells people exactly which comment to post', () => {
-    expect(claText()).toContain(SIGN_PHRASE)
+    expect(section(9)).toContain(SIGN_PHRASE)
+  })
+
+  it('names the branch and the versioned file where signatures are kept, at its own version', () => {
+    const workflow = read('.github', 'workflows', 'cla.yml')
+    const signatures = actionInputs(workflow)['path-to-signatures'] ?? ''
+    const major = /^Version (\d+)\./m.exec(read('docs', 'CLA.md'))?.[1]
+
+    expect(signatures).toBe(`signatures/v${major}/cla.json`)
+    expect(claText()).toContain(`signatures/v${major}/`)
+    expect(section(9)).toContain(actionInputs(workflow)['branch'] ?? '(no branch)')
   })
 })
 
 /* ---------------------------------------------- the documents around the CLA -- */
 
 describe('the contributor documents that point at the CLA', () => {
+  const squash = (value: string): string => value.replace(/\s+/g, ' ')
+
   it('has a CONTRIBUTING.md that states the licence, the CLA, the freeze, and keeps the migration rule', () => {
-    const contributing = read('CONTRIBUTING.md').replace(/\s+/g, ' ')
+    const contributing = squash(read('CONTRIBUTING.md'))
 
     expect(contributing).toContain('AGPL-3.0-only')
     expect(contributing).toContain('docs/CLA.md')
@@ -585,6 +847,9 @@ describe('the contributor documents that point at the CLA', () => {
     expect(contributing).toMatch(/external pull requests[^.]*(paused|on hold)/i)
     expect(contributing).toMatch(/lifts[^.]*CLA workflow[^.]*live/i)
     expect(contributing).toContain('CODE_OF_CONDUCT.md')
+    // How to sign, and what to do when the check stays red after signing.
+    expect(contributing).toContain('`CLA signed`')
+    expect(contributing).toContain('recheck')
     // G2-01's rule lives in the same file and must survive this one.
     expect(contributing).toContain('## Migration numbers')
   })
@@ -593,7 +858,9 @@ describe('the contributor documents that point at the CLA', () => {
     const conduct = read('CODE_OF_CONDUCT.md')
 
     expect(conduct).toContain('https://www.contributor-covenant.org')
-    expect(conduct).toMatch(/to be filled in/i)
+    // The contact is a placeholder until the maintainer fills it in; once he has, an
+    // address takes its place and this stays green.
+    expect(conduct).toMatch(/to be filled in|[\w.+-]+@[\w-]+\.[\w.-]+/i)
     // The Covenant's own opening pledge, which a pasted copy would carry verbatim.
     expect(conduct).not.toContain('We as members, contributors, and leaders pledge')
   })
@@ -607,18 +874,51 @@ describe('the contributor documents that point at the CLA', () => {
     }
   })
 
+  it('has a pull request template whose links work from a pull request page', () => {
+    // A relative link in a pull request body resolves against the pull request's own URL,
+    // not the repository tree, so only absolute ones can be followed.
+    expect(read('.github', 'pull_request_template.md')).not.toMatch(/\]\((?!https?:)[^)]*\)/)
+  })
+
   it('is linked from the README, so a reader of the front page can find the CLA', () => {
     const readme = read('README.md')
 
     expect(readme).toContain('(docs/CLA.md)')
     expect(readme).toContain('(CODE_OF_CONDUCT.md)')
+    expect(squash(readme)).toContain('licence grant, not an assignment')
   })
 
-  it('explains the pull_request_target rules in SECURITY.md, naming the workflow', () => {
-    const security = read('docs', 'SECURITY.md').replace(/\s+/g, ' ')
+  it('explains the pull_request_target rules in SECURITY.md, naming the workflow and what it does not prove', () => {
+    const security = squash(read('docs', 'SECURITY.md'))
 
     expect(security).toContain('.github/workflows/cla.yml')
     expect(security).toContain('pull_request_target')
     expect(security).toMatch(/never checks out/i)
+    expect(security).toContain('What the check does not prove')
+    expect(security).toMatch(/archived/i)
+  })
+
+  // Relative links in the documents this branch wrote or extended, resolved against the
+  // file that contains them. A moved or misspelt target would otherwise be a dead link
+  // that nothing notices until a contributor clicks it.
+  it.each([
+    ['CONTRIBUTING.md', () => read('CONTRIBUTING.md')],
+    ['CODE_OF_CONDUCT.md', () => read('CODE_OF_CONDUCT.md')],
+    ['docs/CLA.md', () => read('docs', 'CLA.md')],
+    [
+      'docs/SECURITY.md section 17',
+      () => read('docs', 'SECURITY.md').slice(read('docs', 'SECURITY.md').indexOf('## 17. ')),
+    ],
+  ] as const)('has no dead relative link in %s', (file, content) => {
+    const base = file.startsWith('docs/') ? join(ROOT, 'docs') : ROOT
+    const targets = [...content().matchAll(/\]\(([^)\s]+)\)/g)]
+      .map((match) => match[1] ?? '')
+      .filter((target) => !/^(https?:|mailto:|#)/.test(target))
+      .map((target) => target.replace(/#.*$/, ''))
+      .filter((target) => target !== '')
+
+    for (const target of targets) {
+      expect(existsSync(join(base, target)), `${file} links to ${target}`).toBe(true)
+    }
   })
 })
