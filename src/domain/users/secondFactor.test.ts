@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_SECOND_FACTOR_ATTEMPTS,
+  SECOND_FACTOR_FAILURES_PER_ACCOUNT,
+  SECOND_FACTOR_FAILURE_WINDOW_MS,
   PENDING_SECOND_FACTOR_LIFETIME_MS,
   STEP_UP_LIFETIME_MS,
   isStampFresh,
@@ -11,6 +13,11 @@ describe('the second-factor lifetimes', () => {
     expect(STEP_UP_LIFETIME_MS).toBe(300_000)
     expect(PENDING_SECOND_FACTOR_LIFETIME_MS).toBe(300_000)
     expect(MAX_SECOND_FACTOR_ATTEMPTS).toBe(5)
+  })
+
+  it('allow an account ten wrong attempts a quarter of an hour, from anywhere', () => {
+    expect(SECOND_FACTOR_FAILURES_PER_ACCOUNT).toBe(10)
+    expect(SECOND_FACTOR_FAILURE_WINDOW_MS).toBe(900_000)
   })
 })
 

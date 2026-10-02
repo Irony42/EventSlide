@@ -174,7 +174,7 @@ describe('confirmTotpEnrollment', () => {
     const result = await world.confirmTotpEnrollment({ userId: USER, code: world.codeFor(secret) })
 
     expect(!result.ok && result.error.code).toBe('auth.secondFactorUnavailable')
-    expect(world.logger.lines).toEqual([
+    expect(world.captured.lines).toEqual([
       {
         level: 'error',
         message: 'a pending second factor could not be opened with the configured key',

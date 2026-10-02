@@ -130,7 +130,7 @@ describe('verifySecondFactor: a code from the app', () => {
     const result = await verify({ userId: USER, proof: { code: world.codeFor(secret) } })
 
     expect(!result.ok && result.error.code).toBe('auth.secondFactorUnavailable')
-    expect(world.logger.lines).toEqual([
+    expect(world.captured.lines).toEqual([
       {
         level: 'error',
         message: 'a stored second factor could not be opened with the configured key',

@@ -1,21 +1,48 @@
 import { Router, type Request, type RequestHandler, type Response } from 'express'
 import type { Session } from 'express-session'
 import { DomainError } from '../../../domain/shared/errors'
-import { DEFAULT_SITE_ROLE } from '../../../domain/users/siteRole'
+import { asUserId, type UserId } from '../../../domain/shared/ids'
+import {
+  MAX_SECOND_FACTOR_ATTEMPTS,
+  PENDING_SECOND_FACTOR_LIFETIME_MS,
+  isStampFresh,
+} from '../../../domain/users/secondFactor'
+import { DEFAULT_SITE_ROLE, canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 import { asyncHandler } from '../middleware/asyncHandler'
-import { requireUser, resolveAuthState } from '../middleware/authz'
+import {
+  ABSOLUTE_SESSION_LIFETIME_MS,
+  requireStepUp,
+  requireUser,
+  resolveAuthState,
+} from '../middleware/authz'
 import { rotateCsrfToken } from '../middleware/csrf'
-import { loginLimiter, passwordResetLimiter } from '../middleware/rateLimit'
+import {
+  loginLimiter,
+  passwordResetLimiter,
+  secondFactorAccountLimiter,
+  secondFactorLimiter,
+} from '../middleware/rateLimit'
 import { signInThrottle, type SignInThrottleOptions } from '../middleware/signInThrottle'
-import { toSessionResponseDto, toSignedInUserDto } from '../presenters/presenters'
+import type { SecondFactorStatusDto } from '../presenters/dto'
+import {
+  toRecoveryCodesDto,
+  toSecondFactorRequiredDto,
+  toSessionResponseDto,
+  toSignedInUserDto,
+  toTotpEnrolmentDto,
+} from '../presenters/presenters'
 import { sendError, sendJson, sendNoContent, sendResultNoContent } from '../presenters/send'
 import {
   changePasswordBody,
+  confirmSecondFactorBody,
+  enrollSecondFactorBody,
   loginBody,
   passwordResetConfirmBody,
   passwordResetRequestBody,
+  secondFactorLoginBody,
+  stepUpBody,
 } from '../schemas/requestSchemas'
-import type { HttpDeps, SessionPayload } from '../types'
+import type { HttpDeps, PendingSecondFactor, SessionPayload } from '../types'
 import type { HttpUseCases } from '../useCases'
 
 /**
@@ -107,10 +134,16 @@ const startSession = async (
   deps: HttpDeps,
   who: { readonly userId: string; readonly email: string },
   /**
-   * The sign-in instant to keep, for a renewal; omitted by a login, which is the sign-in.
-   * Read from the session **before** it is regenerated, because regenerating empties it.
+   * What to keep from the session this request arrived with, for a renewal; omitted by a
+   * login, which starts everything afresh. Read from the session **before** it is
+   * regenerated, because regenerating empties it.
+   *
+   * `issuedAt` is the sign-in instant (see above). `secondFactorAt` is when the session
+   * passed the second factor: **a renewal keeps it** — choosing a new password does not make
+   * the person less who they proved they are — and **only a passed factor writes a new one**.
+   * `stepUpAt` is deliberately not here: a new session id starts with nothing confirmed.
    */
-  carryIssuedAt?: number,
+  stamps: SessionStamps = {},
 ): Promise<void> => {
   await regenerateSession(req.session)
   rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
@@ -119,16 +152,81 @@ const startSession = async (
   const payload: SessionPayload = {
     userId: who.userId,
     email: who.email,
-    issuedAt: carryIssuedAt ?? now,
+    issuedAt: stamps.issuedAt ?? now,
     renewedAt: now,
+    ...(stamps.secondFactorAt === undefined ? {} : { secondFactorAt: stamps.secondFactorAt }),
   }
   Object.assign(req.session, payload)
 }
 
-/** The sign-in instant of the session this request arrived with, to hand to a renewal. */
-const signedInAtOf = (req: Request): number | undefined => {
-  const issuedAt = (req.session as unknown as SessionPayload).issuedAt
-  return typeof issuedAt === 'number' ? issuedAt : undefined
+interface SessionStamps {
+  readonly issuedAt?: number
+  readonly secondFactorAt?: number
+}
+
+/**
+ * The stamps of the session this request arrived with, to hand to a renewal: when the person
+ * signed in, and when (if ever) they passed the second factor.
+ */
+const stampsOf = (req: Request): SessionStamps => {
+  const session = req.session as unknown as SessionPayload
+  return {
+    ...(typeof session.issuedAt === 'number' ? { issuedAt: session.issuedAt } : {}),
+    ...(typeof session.secondFactorAt === 'number'
+      ? { secondFactorAt: session.secondFactorAt }
+      : {}),
+  }
+}
+
+/**
+ * Parks a sign-in that has passed the password and not the second factor (G2-13 / P3-15).
+ *
+ * A fresh session id and a fresh CSRF token, for the reason a login gets them: the caller's
+ * identity is about to change, if only partly. What the session holds is
+ * `pendingSecondFactor` and **no `userId`**, which is what every gate keys on — so until
+ * the second step passes, this session is anonymous to `attachUser`, `requireUser`,
+ * `requireRole` and `requireOperator` alike, and no route that needs a principal can be
+ * reached with it. The failure counter lives here so five wrong codes end the attempt and the
+ * password has to be typed again.
+ */
+const startPendingSecondFactor = async (
+  req: Request,
+  res: Response,
+  deps: HttpDeps,
+  who: PendingIdentity,
+): Promise<void> => {
+  await regenerateSession(req.session)
+  rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
+
+  const pending: PendingSecondFactor = {
+    userId: who.userId,
+    email: who.email,
+    displayName: who.displayName,
+    mustChangePassword: who.mustChangePassword,
+    startedAt: deps.clock.now().getTime(),
+    failures: 0,
+  }
+  Object.assign(req.session, { pendingSecondFactor: pending } satisfies SessionPayload)
+}
+
+interface PendingIdentity {
+  readonly userId: string
+  readonly email: string
+  readonly displayName: string | null
+  readonly mustChangePassword: boolean
+}
+
+/** The half-finished sign-in this request belongs to, if there is one and it is still open. */
+const pendingOf = (req: Request, deps: HttpDeps): PendingSecondFactor | undefined => {
+  const pending = (req.session as unknown as SessionPayload | undefined)?.pendingSecondFactor
+  if (pending === undefined) return undefined
+  return isStampFresh(
+    pending.startedAt,
+    deps.clock.now().getTime(),
+    PENDING_SECOND_FACTOR_LIFETIME_MS,
+  )
+    ? pending
+    : undefined
 }
 
 /**
@@ -147,6 +245,12 @@ export interface AuthRouteDeps {
     | 'revokeOtherSessions'
     | 'requestPasswordReset'
     | 'resetPassword'
+    | 'verifySecondFactor'
+    | 'enrollTotp'
+    | 'confirmTotpEnrollment'
+    | 'stepUp'
+    | 'regenerateRecoveryCodes'
+    | 'disableSecondFactor'
   >
   /**
    * How an attempt on an account that is being stuffed is held for two seconds. Timers unless
@@ -226,9 +330,82 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
         return
       }
 
+      if (result.value.secondFactorRequired) {
+        // The password was the first half. No session is started: the caller holds a
+        // half-finished sign-in that only `POST /api/auth/login/2fa` can finish, and the
+        // response carries no identity at all — not the address, not the name.
+        await startPendingSecondFactor(req, res, deps, result.value)
+        res.setHeader('Cache-Control', 'no-store')
+        sendJson(res, toSecondFactorRequiredDto())
+        return
+      }
+
       await startSession(req, res, deps, result.value)
 
       sendJson(res, toSignedInUserDto(result.value))
+    }),
+  )
+
+  router.post(
+    '/auth/login/2fa',
+    // Genuinely public, like the login it finishes: the caller holds no principal yet, only
+    // the half-finished sign-in their password bought. Three controls, each closing what the
+    // others leave open: the address (the sign-in budget), the account (wrong attempts from
+    // anywhere, together — the botnet that stays under every per-address limit), and the
+    // sign-in itself (five wrong codes and the password is asked again).
+    secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
+    secondFactorAccountLimiter(),
+    asyncHandler(async (req, res) => {
+      const body = secondFactorLoginBody.parse(req.body)
+      res.setHeader('Cache-Control', 'no-store')
+
+      const pending = pendingOf(req, deps)
+      if (pending === undefined) {
+        // None, or past its five minutes. A stale half-login is thrown away so it cannot be
+        // resumed, and the person starts again from the password.
+        if ((req.session as unknown as SessionPayload).pendingSecondFactor !== undefined) {
+          await regenerateSession(req.session)
+        }
+        sendError(res, DomainError.unauthenticated('auth.secondFactorExpired'))
+        return
+      }
+
+      const result = await usecases.verifySecondFactor({
+        userId: asUserId(pending.userId),
+        proof: body,
+        passwordVerifiedAt: new Date(pending.startedAt),
+      })
+
+      if (!result.ok) {
+        if (result.error.code === 'auth.invalidSecondFactor') {
+          pending.failures += 1
+          if (pending.failures < MAX_SECOND_FACTOR_ATTEMPTS) {
+            sendError(res, result.error)
+            return
+          }
+          // The fifth wrong code ends the attempt.
+          await regenerateSession(req.session)
+          sendError(res, DomainError.unauthenticated('auth.secondFactorExpired'))
+          return
+        }
+        if (result.error.code === 'auth.secondFactorExpired') await regenerateSession(req.session)
+        sendError(res, result.error)
+        return
+      }
+
+      // Both factors passed. A new session, stamped as having passed the second one: this is
+      // the only place a sign-in earns it.
+      await startSession(req, res, deps, pending, {
+        secondFactorAt: deps.clock.now().getTime(),
+      })
+      sendJson(
+        res,
+        toSignedInUserDto({
+          ...pending,
+          userId: asUserId(pending.userId),
+          secondFactorRequired: false,
+        }),
+      )
     }),
   )
 
@@ -299,7 +476,12 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       const siteRole =
         principal === undefined ? DEFAULT_SITE_ROLE : await deps.users.siteRoleFor(principal.userId)
 
-      sendJson(res, toSessionResponseDto(principal, state?.mustChangePassword ?? false, siteRole))
+      const secondFactor = await secondFactorStatusOf(req, deps, principal?.userId, siteRole)
+
+      sendJson(
+        res,
+        toSessionResponseDto(principal, state?.mustChangePassword ?? false, siteRole, secondFactor),
+      )
     }),
   )
 
@@ -339,7 +521,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       //
       // The `mustChangePassword` flag needs no session write: `changePassword` cleared it
       // in storage and `resolveAuthState` reads it from there on the next request.
-      await startSession(req, res, deps, user, signedInAtOf(req))
+      await startSession(req, res, deps, user, stampsOf(req))
       sendNoContent(res)
     }),
   )
@@ -427,10 +609,186 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       // time and not a list of ids to spare. Put a fresh session in its place before
       // answering, or the button would sign out the person who pressed it. Their sign-in
       // instant is kept: pressing the button does not make the session any younger.
-      await startSession(req, res, deps, user, signedInAtOf(req))
+      await startSession(req, res, deps, user, stampsOf(req))
+      sendNoContent(res)
+    }),
+  )
+
+  router.post(
+    '/auth/2fa/enroll',
+    // An account of the caller's own, and the password again: a session cookie alone must not
+    // be enough to attach a stranger's phone to it. The limiters are the ones the second step
+    // of a sign-in has, because a wrong password here is a guess like any other.
+    requireUser(deps),
+    secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
+    secondFactorAccountLimiter(),
+    asyncHandler(async (req, res) => {
+      const user = req.context.user
+      if (!user) {
+        sendError(res, DomainError.unauthenticated('auth.required'))
+        return
+      }
+      const body = enrollSecondFactorBody.parse(req.body)
+      // The secret is in this response, twice. Never stored by anything between here and the
+      // person.
+      res.setHeader('Cache-Control', 'no-store')
+
+      const result = await usecases.enrollTotp({ userId: user.userId, password: body.password })
+      if (!result.ok) {
+        sendError(res, result.error)
+        return
+      }
+      sendJson(res, toTotpEnrolmentDto(result.value))
+    }),
+  )
+
+  router.post(
+    '/auth/2fa/confirm',
+    requireUser(deps),
+    secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
+    secondFactorAccountLimiter(),
+    asyncHandler(async (req, res) => {
+      const user = req.context.user
+      if (!user) {
+        sendError(res, DomainError.unauthenticated('auth.required'))
+        return
+      }
+      const body = confirmSecondFactorBody.parse(req.body)
+      res.setHeader('Cache-Control', 'no-store')
+
+      const result = await usecases.confirmTotpEnrollment({ userId: user.userId, code: body.code })
+      if (!result.ok) {
+        sendError(res, result.error)
+        return
+      }
+
+      // `confirmTotpEnrollment` raised the credentials epoch to now, which ends every session
+      // of the account — a thief's included, which is the point — and this one with them. Renew
+      // it, stamped as having passed the second factor: the person has just proved their phone.
+      await startSession(req, res, deps, user, {
+        ...stampsOf(req),
+        secondFactorAt: deps.clock.now().getTime(),
+      })
+      sendJson(res, toRecoveryCodesDto(result.value.recoveryCodes))
+    }),
+  )
+
+  router.post(
+    '/auth/step-up',
+    requireUser(deps),
+    secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
+    secondFactorAccountLimiter(),
+    asyncHandler(async (req, res) => {
+      const user = req.context.user
+      if (!user) {
+        sendError(res, DomainError.unauthenticated('auth.required'))
+        return
+      }
+      const body = stepUpBody.parse(req.body)
+      res.setHeader('Cache-Control', 'no-store')
+
+      const result = await usecases.stepUp({
+        // From the session, never from the body: this confirms *that* account.
+        userId: user.userId,
+        password: body.password,
+        ...('code' in body
+          ? { proof: { code: body.code } }
+          : 'recoveryCode' in body
+            ? { proof: { recoveryCode: body.recoveryCode } }
+            : {}),
+      })
+      if (!result.ok) {
+        sendError(res, result.error)
+        return
+      }
+
+      // The only place the stamp is written. No regeneration: nothing about who the caller is
+      // has changed, only how recently they proved it.
+      ;(req.session as unknown as SessionPayload).stepUpAt = deps.clock.now().getTime()
+      sendNoContent(res)
+    }),
+  )
+
+  router.post(
+    '/auth/2fa/recovery-codes',
+    // A fresh step-up first: a session alone must not be able to mint the codes that stand in
+    // for the phone. `requireUser` before it, so an anonymous caller is told 401 and not that
+    // a step-up is due.
+    requireUser(deps),
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const user = req.context.user
+      if (!user) {
+        sendError(res, DomainError.unauthenticated('auth.required'))
+        return
+      }
+      res.setHeader('Cache-Control', 'no-store')
+
+      const result = await usecases.regenerateRecoveryCodes({ userId: user.userId })
+      if (!result.ok) {
+        sendError(res, result.error)
+        return
+      }
+      sendJson(res, toRecoveryCodesDto(result.value.recoveryCodes))
+    }),
+  )
+
+  router.post(
+    '/auth/2fa/disable',
+    requireUser(deps),
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const user = req.context.user
+      if (!user) {
+        sendError(res, DomainError.unauthenticated('auth.required'))
+        return
+      }
+
+      const result = await usecases.disableSecondFactor({ userId: user.userId })
+      if (!result.ok) {
+        sendError(res, result.error)
+        return
+      }
+
+      // The epoch ended every session of the account, this one included. Renew it **without**
+      // the second-factor stamp and without the step-up: on a box that requires a factor the
+      // operator is at the gate again until they enrol, so removing a factor never opens
+      // `/api/site` — it closes it.
+      const { issuedAt } = stampsOf(req)
+      await startSession(req, res, deps, user, issuedAt === undefined ? {} : { issuedAt })
       sendNoContent(res)
     }),
   )
 
   return router
+}
+
+/**
+ * Where this session stands with the second factor, for `GET /api/auth/me` (G2-13 / P3-15).
+ *
+ * The one place the HTTP layer reads whether an account has an authenticator, and it reads
+ * only the fact: `find` returns a record, and what leaves is four booleans. `verified` is
+ * the session's own stamp; `enrolled` and `required` are storage and configuration. An
+ * anonymous caller costs no query, and learns that the box has no key or has one — which is
+ * what `GET /api/about` would tell it anyway.
+ */
+const secondFactorStatusOf = async (
+  req: Request,
+  deps: HttpDeps,
+  userId: UserId | undefined,
+  siteRole: SiteRole,
+): Promise<SecondFactorStatusDto> => {
+  const factor = userId === undefined ? null : await deps.secondFactors.find(userId)
+  const enrolled = factor !== null && factor.confirmedAt !== null
+  const session = req.session as unknown as SessionPayload | undefined
+  return {
+    available: deps.config.secondFactor.available,
+    enrolled,
+    verified: isStampFresh(
+      session?.secondFactorAt,
+      deps.clock.now().getTime(),
+      ABSOLUTE_SESSION_LIFETIME_MS,
+    ),
+    required: deps.config.secondFactor.requiredForOperators && canOperateSite(siteRole),
+  }
 }

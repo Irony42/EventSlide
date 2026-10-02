@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireOperator } from '../middleware/authz'
+import { requireOperator, requireSecondFactor } from '../middleware/authz'
 import type { RouteDeps } from '../useCases'
 
 /**
@@ -35,6 +35,11 @@ export const siteRoutes = ({ deps }: SiteRouteDeps): Router => {
   // First, and for every method and every path under the mount point. Nothing may be
   // registered above this line.
   router.use(requireOperator(deps))
+
+  // Second, and only for an operator: on a box with `REQUIRE_OPERATOR_2FA` a session that has not
+  // passed the second factor reaches nothing below (G2-13 / P3-15). After `requireOperator` so a
+  // stranger is told `auth.forbidden` and nothing about second factors. Off, it does nothing.
+  router.use(requireSecondFactor(deps))
 
   return router
 }

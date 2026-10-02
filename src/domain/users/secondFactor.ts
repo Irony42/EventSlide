@@ -29,6 +29,20 @@ export const STEP_UP_LIFETIME_MS = 5 * 60 * 1000
 export const MAX_SECOND_FACTOR_ATTEMPTS = 5
 
 /**
+ * The budget of wrong second-factor attempts **per account**, whatever the address they come
+ * from: ten in a quarter of an hour. The per-address limiter and the five-try cap of one
+ * half-finished sign-in are what slow a single source; this is what bounds a botnet, each
+ * member of which stays under both. Only failures count, so the person who owns the account
+ * spends nothing by signing in.
+ *
+ * A budget and not a lockout of the account for good: when it is spent the answer is
+ * `429` until the window passes, which costs the owner at most a quarter of an hour and costs
+ * an attacker the whole of their guessing rate.
+ */
+export const SECOND_FACTOR_FAILURES_PER_ACCOUNT = 10
+export const SECOND_FACTOR_FAILURE_WINDOW_MS = 15 * 60 * 1000
+
+/**
  * Whether a stamp written into a session at `stampedAt` still counts at `nowMs`.
  *
  * A stamp is fresh only if it is a finite number, **not in the future**, and no older than

@@ -19,6 +19,9 @@ import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepos
 import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
 import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
 import { SqliteAccountTokenRepository } from '../infrastructure/db/sqliteAccountTokenRepository'
+import { SqliteSecondFactorRepository } from '../infrastructure/db/sqliteSecondFactorRepository'
+import { createAesGcmMfaVault } from '../infrastructure/crypto/aesGcmMfaVault'
+import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
 import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
@@ -407,6 +410,15 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     accountTokens: new SqliteAccountTokenRepository(db),
     secretTokens: sha256SecretTokens,
     mailer,
+    secondFactors: new SqliteSecondFactorRepository(db),
+    totpEngine: nodeTotpEngine,
+    // Chosen once, from configuration: no key, no vault, and the enrolment routes answer
+    // `404 feature.unavailable`. A recovery code still opens an enrolled account on such a box,
+    // because it never needed the key.
+    mfaVault:
+      config.mfa.encryptionKey === null
+        ? null
+        : createAesGcmMfaVault({ keyMaterial: config.mfa.encryptionKey }),
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.
     gallerySigner: createHmacGallerySigner({ rootSecret: config.secrets.session }),
@@ -424,6 +436,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     mediaSweepMaxDigestsPerPass: MEDIA_SWEEP_MAX_DIGESTS,
     auditRetentionDays: config.audit.retentionDays,
     operatorName: config.operator.name,
+    mfaIssuer: config.operator.name ?? 'EventSlide',
     clips: {
       maxQueuedClips: config.clips.maxQueuedClips,
       maxQueuedClipsPerEvent: config.clips.maxQueuedClipsPerEvent,
@@ -593,6 +606,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secureCookie: config.session.secureCookie,
     e2eHooks: config.e2eHooks,
     siteAdmin: config.siteAdmin,
+    secondFactor: {
+      available: config.mfa.encryptionKey !== null,
+      requiredForOperators: config.mfa.requireOperatorSecondFactor,
+    },
     accessLog: {
       enabled: true,
       level: config.logLevel,
@@ -630,6 +647,9 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // authorization reads about the account behind a session. Never a password hash, a
     // rename or a delete.
     users: adapters.users,
+    // Narrowed by `HttpDeps` to `find`: whether an account has an authenticator, and nothing
+    // of what it holds.
+    secondFactors: adapters.secondFactors,
     guestTokens: adapters.guestTokens,
     // Narrowed by `HttpDeps` to the one fact the HTTP layer publishes.
     mailer,

@@ -3,7 +3,12 @@ import rateLimit, { ipKeyGenerator, type RateLimitRequestHandler } from 'express
 import type { Request, RequestHandler } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { Slug } from '../../../domain/shared/slug'
+import {
+  SECOND_FACTOR_FAILURES_PER_ACCOUNT,
+  SECOND_FACTOR_FAILURE_WINDOW_MS,
+} from '../../../domain/users/secondFactor'
 import { errorBody } from '../presenters/send'
+import type { SessionPayload } from '../types'
 
 /**
  * Per-IP limits on the endpoints an outsider can reach.
@@ -152,6 +157,55 @@ export const eventCreationLimiter = (perHour: number): RateLimitRequestHandler =
     keyGenerator: accountKey,
     handler: (_req, res) => {
       res.status(429).json(errorBody(DomainError.rateLimited('event.creationRateLimited')))
+    },
+  })
+
+// ------------------------------------------------------------ second factor --
+
+/**
+ * The second step of a sign-in, a step-up and the start of an enrolment, per client address.
+ *
+ * The sign-in budget (`LOGIN_RATE_LIMIT_PER_MINUTE`) on purpose, for the reason
+ * {@link passwordResetLimiter} gives, and **one limiter per route** — each built by its own
+ * call, because `express-rate-limit` gives every call its own store and a code guessed at one
+ * door must not spend the allowance of another.
+ */
+export const secondFactorLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited')
+
+/**
+ * The account a second-factor request is about, as a key: the signed-in account, or the one a
+ * half-finished sign-in is for. Both come from the server-side session, never from the body —
+ * a caller cannot choose a key, and cannot point the budget of another account at themselves.
+ * Falls back to the address for a request with neither, which the handler refuses anyway.
+ */
+const secondFactorAccountKey = (req: Request): string => {
+  const session = req.session as unknown as SessionPayload | undefined
+  const who = req.context.user?.userId ?? session?.pendingSecondFactor?.userId
+  return who === undefined ? clientKey(req) : `account:${who}`
+}
+
+/**
+ * Wrong attempts per **account**, from every address together
+ * ({@link SECOND_FACTOR_FAILURES_PER_ACCOUNT} per quarter of an hour), counting failures only.
+ *
+ * The control that makes six digits a defensible secret against a distributed guesser: the
+ * per-address limiter and the five-try cap of one half-finished sign-in each stop one source,
+ * and each member of a botnet stays under both. Keyed by account, they all spend one budget.
+ * Failures only (`skipSuccessfulRequests`), so the owner who types their code correctly spends
+ * nothing and cannot be locked out by an attacker's volume of *successes* — there are none —
+ * only by their failures, which then cost the attacker the same quarter of an hour.
+ */
+export const secondFactorAccountLimiter = (): RateLimitRequestHandler =>
+  rateLimit({
+    windowMs: SECOND_FACTOR_FAILURE_WINDOW_MS,
+    limit: SECOND_FACTOR_FAILURES_PER_ACCOUNT,
+    skipSuccessfulRequests: true,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    keyGenerator: secondFactorAccountKey,
+    handler: (_req, res) => {
+      res.status(429).json(errorBody(DomainError.rateLimited('auth.tooManySecondFactorAttempts')))
     },
   })
 

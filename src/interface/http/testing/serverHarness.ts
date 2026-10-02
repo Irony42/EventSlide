@@ -4,6 +4,9 @@ import type { Express } from 'express'
 import type { DiskSpaceStatus } from '../../../domain/shared/diskSpaceGuard'
 import { buildServer } from '../server'
 import type { AboutFacts } from '../presenters/aboutPresenter'
+import type { FakeClock } from '../../../application/testing/fakeClock'
+import type { FakeSecondFactorRepository } from '../../../application/testing/fakeSecondFactorRepository'
+import type { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { buildTestWorld, type TestWorld } from './middlewareHarness'
 import type { HttpConfig, HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
@@ -46,6 +49,12 @@ export const notWiredUseCases = (): HttpUseCases => ({
   revokeOtherSessions: notWired('revokeOtherSessions'),
   requestPasswordReset: notWired('requestPasswordReset'),
   resetPassword: notWired('resetPassword'),
+  verifySecondFactor: notWired('verifySecondFactor'),
+  enrollTotp: notWired('enrollTotp'),
+  confirmTotpEnrollment: notWired('confirmTotpEnrollment'),
+  stepUp: notWired('stepUp'),
+  regenerateRecoveryCodes: notWired('regenerateRecoveryCodes'),
+  disableSecondFactor: notWired('disableSecondFactor'),
   registerModerator: notWired('registerModerator'),
 
   createEvent: notWired('createEvent'),
@@ -149,6 +158,14 @@ export interface ServerHarnessOptions {
    * what a real logger actually writes.
    */
   readonly logger?: Logger
+  /**
+   * The accounts and authenticators of the world, when a test builds use cases over its own: the
+   * session middleware reads the credentials epoch from the same repository the use cases write.
+   */
+  readonly users?: FakeUserRepository
+  readonly secondFactors?: FakeSecondFactorRepository
+  /** The clock the use cases were built with, so the server and they agree on now. */
+  readonly clock?: FakeClock
 }
 
 /**
@@ -174,9 +191,15 @@ export const buildServerHarness = ({
   clientDir,
   sessionStore = new session.MemoryStore(),
   logger,
+  users,
+  secondFactors,
+  clock,
 }: ServerHarnessOptions = {}): ServerHarness => {
   const world = buildTestWorld(config, {
     ...(logger === undefined ? {} : { logger }),
+    ...(users === undefined ? {} : { users }),
+    ...(secondFactors === undefined ? {} : { secondFactors }),
+    ...(clock === undefined ? {} : { clock }),
     ...(mailer === undefined ? {} : { mailer }),
   })
   const { deps } = world

@@ -45,7 +45,13 @@ export const signInByAddress =
   async ({ email }) => {
     const userId = accounts[email]
     if (userId === undefined) return err(DomainError.unauthenticated('auth.invalidCredentials'))
-    return ok({ userId: asUserId(userId), email, displayName: null, mustChangePassword: false })
+    return ok({
+      userId: asUserId(userId),
+      email,
+      displayName: null,
+      mustChangePassword: false,
+      secondFactorRequired: false,
+    })
   }
 
 export interface Caller {

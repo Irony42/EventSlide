@@ -235,6 +235,12 @@ const buildWorld = ({
         revokeOtherSessions: absent('revokeOtherSessions'),
         requestPasswordReset: absent('requestPasswordReset'),
         resetPassword: absent('resetPassword'),
+        verifySecondFactor: absent('verifySecondFactor'),
+        enrollTotp: absent('enrollTotp'),
+        confirmTotpEnrollment: absent('confirmTotpEnrollment'),
+        stepUp: absent('stepUp'),
+        regenerateRecoveryCodes: absent('regenerateRecoveryCodes'),
+        disableSecondFactor: absent('disableSecondFactor'),
         registerModerator: makeRegisterModerator({
           events,
           users,

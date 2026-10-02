@@ -9,6 +9,7 @@ import { FakeDiskSpaceChecker } from '../../../application/testing/fakeDiskSpace
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../../application/testing/fakeMembershipRepository'
+import { FakeSecondFactorRepository } from '../../../application/testing/fakeSecondFactorRepository'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
 import { AT } from '../../../application/testing/builders'
@@ -47,6 +48,9 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   // product a solo install runs. A test about the operator's namespace passes
   // `{ siteAdmin: true }` through `config`, the same way it would any other setting.
   siteAdmin: false,
+  // Off, as on a box that never set a key: no enrolment is offered and nothing is required of an
+  // operator. A test about the second factor passes `secondFactor` through `config`.
+  secondFactor: { available: false, requiredForOperators: false },
   // Generous and unreachable by an ordinary test, the same posture `testHttpConfig`
   // already takes for every other limit: a test about the disk guard or the
   // concurrency semaphore (G3-06 / P4-10) overrides this; one that is not must not
@@ -106,6 +110,8 @@ export interface TestWorld {
   readonly memberships: FakeMembershipRepository
   /** Accounts, for the one thing the HTTP layer asks them: who operates the box. */
   readonly users: FakeUserRepository
+  /** Authenticators, for the one thing the HTTP layer asks them: whether an account has one. */
+  readonly secondFactors: FakeSecondFactorRepository
   readonly bus: RecordingEventBus
   readonly clock: FakeClock
   /** The free-disk-space guard's probe (G3-06 / P4-10), generous until a test says otherwise. */
@@ -124,11 +130,14 @@ export const buildTestWorld = (
   options: {
     readonly logger?: Logger
     readonly users?: FakeUserRepository
+    readonly secondFactors?: FakeSecondFactorRepository
+    /** A clock the test already holds, so use cases built beforehand and the server agree on now. */
+    readonly clock?: FakeClock
     /** Defaults to a box with no relay, like one that never set SMTP_URL. */
     readonly mailer?: HttpDeps['mailer']
   } = {},
 ): TestWorld => {
-  const clock = new FakeClock(AT)
+  const clock = options.clock ?? new FakeClock(AT)
   // Linked: an event seeded with a `clientId` names a client that has to exist, exactly as the
   // foreign key says, and a world with no client in it behaves as it always did.
   const clients = new FakeClientRepository()
@@ -144,6 +153,7 @@ export const buildTestWorld = (
   // for an account this world had switched off, and every HTTP test of that rule would
   // pass against a product that was broken.
   const memberships = new FakeMembershipRepository({ users })
+  const secondFactors = options.secondFactors ?? new FakeSecondFactorRepository()
   const bus = new RecordingEventBus()
   // Silent by default — almost every HTTP test wants no log output at all.
   // `logCanary.test.ts` passes a real logger, because it is the one test asking what a
@@ -160,6 +170,7 @@ export const buildTestWorld = (
     guests,
     memberships,
     users,
+    secondFactors,
     guestTokens,
     mailer: options.mailer ?? { canDeliver: false },
     diskSpaceChecker,
@@ -174,6 +185,7 @@ export const buildTestWorld = (
     diskSpaceChecker,
     memberships,
     users,
+    secondFactors,
     bus,
     clock,
     issueGuestToken: (eventId, guestId) =>

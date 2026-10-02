@@ -20,6 +20,9 @@ import type { ShareLinkRepository } from '../application/ports/shareLinkReposito
 import type { ClientRepository } from '../application/ports/clientRepository'
 import type { AuditLog } from '../application/ports/auditLog'
 import type { AccountTokenRepository } from '../application/ports/accountTokenRepository'
+import type { MfaVault } from '../application/ports/mfaVault'
+import type { SecondFactorRepository } from '../application/ports/secondFactorRepository'
+import type { TotpEngine } from '../application/ports/totpEngine'
 import type { Mailer } from '../application/ports/mailer'
 import type { SecretTokens } from '../application/ports/secretTokens'
 import type { GallerySigner } from '../application/ports/gallerySigner'
@@ -27,11 +30,17 @@ import type { GallerySigner } from '../application/ports/gallerySigner'
 import { makeAuthenticateUser } from '../application/usecases/auth/authenticateUser'
 import { makeBootstrapOwner } from '../application/usecases/auth/bootstrapOwner'
 import { makeChangePassword } from '../application/usecases/auth/changePassword'
+import { makeConfirmTotpEnrollment } from '../application/usecases/auth/confirmTotpEnrollment'
 import { makeDisableAccount } from '../application/usecases/auth/disableAccount'
+import { makeDisableSecondFactor } from '../application/usecases/auth/disableSecondFactor'
+import { makeEnrollTotp } from '../application/usecases/auth/enrollTotp'
+import { makeRegenerateRecoveryCodes } from '../application/usecases/auth/regenerateRecoveryCodes'
 import { makeRegisterModerator } from '../application/usecases/auth/registerModerator'
 import { makeRequestPasswordReset } from '../application/usecases/auth/requestPasswordReset'
 import { makeResetPassword } from '../application/usecases/auth/resetPassword'
 import { makeRevokeOtherSessions } from '../application/usecases/auth/revokeOtherSessions'
+import { makeStepUp } from '../application/usecases/auth/stepUp'
+import { makeVerifySecondFactor } from '../application/usecases/auth/verifySecondFactor'
 
 import { makeApplyEventSchedules } from '../application/usecases/events/applyEventSchedules'
 import { makeChangeEventStatus } from '../application/usecases/events/changeEventStatus'
@@ -145,6 +154,12 @@ export interface Adapters {
   readonly secretTokens: SecretTokens
   /** `NullMailer` unless `SMTP_URL` is set (roadmap §10.3). */
   readonly mailer: Mailer
+  /** The operators' authenticators and recovery codes (roadmap §10.1, G2-13). */
+  readonly secondFactors: SecondFactorRepository
+  /** RFC 6238's one primitive. */
+  readonly totpEngine: TotpEngine
+  /** Encryption of a secret at rest; `null` on a box with no `MFA_ENCRYPTION_KEY`. */
+  readonly mfaVault: MfaVault | null
 }
 
 /** The policy values a use case needs, drawn from validated configuration. */
@@ -166,6 +181,8 @@ export interface UseCasePolicy {
     /** `EVENT_CREATION`: who may create an event (P3-05 / G2-04). */
     readonly creation: EventCreationPolicy
   }
+  /** What an authenticator app shows above the digits: the box's operator, or the product. */
+  readonly mfaIssuer: string
   /** `RETENTION_CAP_NOTICE_DAYS`, read by the purge. */
   readonly retention: { readonly capNoticeDays: number }
   readonly reactionBudget: {
@@ -207,6 +224,19 @@ const galleryAccess = (adapters: Adapters) => ({
   clock: adapters.clock,
 })
 
+/** One instance of the second-factor check per caller: it holds no state, so sharing is not a concern. */
+const verifySecondFactorFrom = (adapters: Adapters) =>
+  makeVerifySecondFactor({
+    users: adapters.users,
+    factors: adapters.secondFactors,
+    vault: adapters.mfaVault,
+    engine: adapters.totpEngine,
+    secrets: adapters.secretTokens,
+    audit: adapters.audit,
+    clock: adapters.clock,
+    logger: adapters.logger,
+  })
+
 /**
  * Builds every use case once, at startup.
  *
@@ -219,6 +249,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   // ------------------------------------------------------------------- auth --
   authenticateUser: makeAuthenticateUser({
     users: adapters.users,
+    factors: adapters.secondFactors,
     hasher: adapters.passwordHasher,
     clock: adapters.clock,
   }),
@@ -246,6 +277,47 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     tokens: adapters.accountTokens,
     secrets: adapters.secretTokens,
     hasher: adapters.passwordHasher,
+    clock: adapters.clock,
+  }),
+  verifySecondFactor: verifySecondFactorFrom(adapters),
+  enrollTotp: makeEnrollTotp({
+    users: adapters.users,
+    factors: adapters.secondFactors,
+    hasher: adapters.passwordHasher,
+    vault: adapters.mfaVault,
+    ids: adapters.ids,
+    clock: adapters.clock,
+    issuer: policy.mfaIssuer,
+  }),
+  confirmTotpEnrollment: makeConfirmTotpEnrollment({
+    users: adapters.users,
+    factors: adapters.secondFactors,
+    vault: adapters.mfaVault,
+    engine: adapters.totpEngine,
+    secrets: adapters.secretTokens,
+    ids: adapters.ids,
+    audit: adapters.audit,
+    clock: adapters.clock,
+    logger: adapters.logger,
+  }),
+  stepUp: makeStepUp({
+    users: adapters.users,
+    factors: adapters.secondFactors,
+    hasher: adapters.passwordHasher,
+    verifySecondFactor: verifySecondFactorFrom(adapters),
+  }),
+  regenerateRecoveryCodes: makeRegenerateRecoveryCodes({
+    users: adapters.users,
+    factors: adapters.secondFactors,
+    secrets: adapters.secretTokens,
+    ids: adapters.ids,
+    audit: adapters.audit,
+    clock: adapters.clock,
+  }),
+  disableSecondFactor: makeDisableSecondFactor({
+    users: adapters.users,
+    factors: adapters.secondFactors,
+    audit: adapters.audit,
     clock: adapters.clock,
   }),
   /**

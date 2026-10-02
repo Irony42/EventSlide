@@ -197,6 +197,47 @@ export const passwordResetConfirmBody = z
   })
   .strict()
 
+// ---------------------------------------------------------- second factor --
+
+/**
+ * What a person types for a second factor: the six digits from their app, or one recovery
+ * code — **one of the two, never both and never neither**.
+ *
+ * Bounded in length only. Whether six digits are six digits is `parseTotpCode`'s, and whether
+ * a recovery code is one is `canonicalRecoveryCode`'s: both answer the same neutral
+ * `auth.invalidSecondFactor` for text of the wrong shape, so the shape of a code is not
+ * something this layer tells a caller about. The two members are strict and distinct, so a
+ * body carrying both fields, or a field of another name, is a 400 and not a guess.
+ */
+const secondFactorProof = z.union([
+  z.object({ code: z.string().min(1).max(32) }).strict(),
+  z.object({ recoveryCode: z.string().min(1).max(64) }).strict(),
+])
+
+export const secondFactorLoginBody = secondFactorProof
+
+/**
+ * The password again, for the act that adds a factor: a session cookie alone must not be
+ * enough to attach a stranger's phone to an operator's account.
+ */
+export const enrollSecondFactorBody = z.object({ password: z.string().min(1).max(1_000) }).strict()
+
+export const confirmSecondFactorBody = z.object({ code: z.string().min(1).max(32) }).strict()
+
+/**
+ * A step-up: the password, and the proof of the factor if the account has one. The proof is
+ * optional here because an account without a factor proves itself with the password alone —
+ * the use case decides which it needs, and answers `auth.invalidSecondFactor` when it needed
+ * one that is missing.
+ */
+export const stepUpBody = z.union([
+  z.object({ password: z.string().min(1).max(1_000) }).strict(),
+  z.object({ password: z.string().min(1).max(1_000), code: z.string().min(1).max(32) }).strict(),
+  z
+    .object({ password: z.string().min(1).max(1_000), recoveryCode: z.string().min(1).max(64) })
+    .strict(),
+])
+
 // ------------------------------------------------------------------- events --
 
 export const createEventBody = z

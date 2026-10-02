@@ -1,5 +1,6 @@
 import type { Request, RequestHandler } from 'express'
 import { canModerate, canManageEvent, type EventRole } from '../../../domain/events/eventRole'
+import { STEP_UP_LIFETIME_MS, isStampFresh } from '../../../domain/users/secondFactor'
 import { canOperateSite } from '../../../domain/users/siteRole'
 import { DomainError } from '../../../domain/shared/errors'
 import { Slug } from '../../../domain/shared/slug'
@@ -479,6 +480,79 @@ export const requireOperator =
 
       next()
     })().catch(next)
+  }
+
+/** The code {@link requireSecondFactor} refuses with. Exported for the tests that assert it. */
+export const SECOND_FACTOR_REQUIRED_CODE = 'auth.secondFactorRequired'
+
+/** The code {@link requireStepUp} refuses with. */
+export const STEP_UP_REQUIRED_CODE = 'auth.stepUpRequired'
+
+/**
+ * The second half of the operator's gate (G2-13 / P3-15): on a box with
+ * `REQUIRE_OPERATOR_2FA`, a session that has not passed the second factor reaches nothing
+ * under `/api/site`.
+ *
+ * **Mounted after `requireOperator`, never before it** (`siteRoutes.ts`), so the two refusals
+ * keep their meanings. An account that does not operate the box is told `auth.forbidden` and
+ * nothing about second factors — what the gate asks of operators is not something a stranger
+ * should learn — and an operator who has not passed the factor is told so, which is what the
+ * console routes on to send them to the enrolment or the code prompt.
+ *
+ * ## What it reads, and why that is enough
+ *
+ * The session's `secondFactorAt`, a stamp the server wrote into a server-side store and that
+ * only a passed second step (or a confirmed enrolment) writes. A cookie cannot carry it and a
+ * client cannot supply it. It is *not* re-derived from storage on every request, which is the
+ * rule `requireOperator` follows for the role, and the difference is deliberate: a role is
+ * something an administrator changes under a live session, while "this session proved a factor"
+ * is a fact about the session itself. What changes under it — the factor being removed, the
+ * password being reset — raises the credentials epoch, and `enforceSessionAge` ends the
+ * session before this runs.
+ *
+ * A stamp in the future is no stamp (`isStampFresh`), and one older than the session cap
+ * cannot exist, because the session would be gone. Off, the gate does nothing at all and
+ * does not read the session: a self-hosted box is exactly what it was.
+ */
+export const requireSecondFactor =
+  (deps: HttpDeps): RequestHandler =>
+  (req, res, next) => {
+    if (!deps.config.secondFactor.requiredForOperators) {
+      next()
+      return
+    }
+
+    const session = (req.session ?? {}) as SessionPayload
+    const now = deps.clock.now().getTime()
+    if (!isStampFresh(session.secondFactorAt, now, ABSOLUTE_SESSION_LIFETIME_MS)) {
+      sendError(res, DomainError.forbidden(SECOND_FACTOR_REQUIRED_CODE))
+      return
+    }
+    next()
+  }
+
+/**
+ * A confirmation of the person at the keyboard, for the actions that cannot be taken back
+ * (G2-13 / P3-15): `POST /api/auth/step-up` stamps the session with the password and a fresh
+ * code, and this lets a request through for five minutes after.
+ *
+ * Declared per route, like `requireRole`, and not on a router: which actions are sensitive is
+ * a decision about each one (offboarding a client, suspending it, changing a ceiling, removing
+ * a second factor), and the operator routes that follow put it where it belongs. It reads the
+ * stamp and nothing else, so it is the same answer on every route that carries it.
+ *
+ * `403 auth.stepUpRequired` rather than 401: the person is who the session says, and is told
+ * to prove it again, which the console answers with a prompt rather than a sign-in page.
+ */
+export const requireStepUp =
+  (deps: Pick<HttpDeps, 'clock'>): RequestHandler =>
+  (req, res, next) => {
+    const session = (req.session ?? {}) as SessionPayload
+    if (!isStampFresh(session.stepUpAt, deps.clock.now().getTime(), STEP_UP_LIFETIME_MS)) {
+      sendError(res, DomainError.forbidden(STEP_UP_REQUIRED_CODE))
+      return
+    }
+    next()
   }
 
 /**

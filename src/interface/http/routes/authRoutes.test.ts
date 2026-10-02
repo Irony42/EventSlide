@@ -16,6 +16,7 @@ import { makeResetPassword } from '../../../application/usecases/auth/resetPassw
 import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
 import { FakeAccountTokenRepository } from '../../../application/testing/fakeAccountTokenRepository'
 import { FakeMailer } from '../../../application/testing/fakeMailer'
+import { FakeSecondFactorRepository } from '../../../application/testing/fakeSecondFactorRepository'
 import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import type { Mailer } from '../../../application/ports/mailer'
@@ -156,7 +157,12 @@ const harness = ({
           // never given a user repository, so a route test has to compose the two use
           // cases itself.
           usecases: {
-            authenticateUser: makeAuthenticateUser({ users, hasher, clock: deps.clock }),
+            authenticateUser: makeAuthenticateUser({
+              users,
+              factors: new FakeSecondFactorRepository(),
+              hasher,
+              clock: deps.clock,
+            }),
             changePassword: makeChangePassword({ users, hasher, clock: deps.clock }),
             revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
             requestPasswordReset: makeRequestPasswordReset({
@@ -176,6 +182,9 @@ const harness = ({
               hasher,
               clock: deps.clock,
             }),
+            // The second factor has its own suite (`secondFactorRoutes.test.ts`); these
+            // routes are not what this one is about, and an unwired call fails loudly.
+            ...unusedSecondFactorUseCases,
           },
         }),
       )
@@ -186,6 +195,27 @@ const harness = ({
 }
 
 /** supertest types `headers` loosely, so the shape read here is narrowed explicitly. */
+const unusedSecondFactorUseCases = {
+  verifySecondFactor: async (): Promise<never> => {
+    throw new Error('verifySecondFactor is not what this suite is about')
+  },
+  enrollTotp: async (): Promise<never> => {
+    throw new Error('enrollTotp is not what this suite is about')
+  },
+  confirmTotpEnrollment: async (): Promise<never> => {
+    throw new Error('confirmTotpEnrollment is not what this suite is about')
+  },
+  stepUp: async (): Promise<never> => {
+    throw new Error('stepUp is not what this suite is about')
+  },
+  regenerateRecoveryCodes: async (): Promise<never> => {
+    throw new Error('regenerateRecoveryCodes is not what this suite is about')
+  },
+  disableSecondFactor: async (): Promise<never> => {
+    throw new Error('disableSecondFactor is not what this suite is about')
+  },
+}
+
 const setCookies = (headers: Record<string, unknown>): readonly string[] => {
   const raw = headers['set-cookie']
   if (typeof raw === 'string') return [raw]
@@ -270,6 +300,7 @@ describe('POST /api/auth/login', () => {
         displayName: null,
         mustChangePassword: false,
         canOperateSite: false,
+        secondFactor: { available: false, enrolled: false, verified: false, required: false },
       },
     })
   })
@@ -516,6 +547,7 @@ describe('GET /api/auth/me', () => {
         displayName: null,
         mustChangePassword: false,
         canOperateSite: false,
+        secondFactor: { available: false, enrolled: false, verified: false, required: false },
       },
     })
   })
@@ -693,6 +725,7 @@ describe('POST /api/auth/password', () => {
         displayName: null,
         mustChangePassword: false,
         canOperateSite: false,
+        secondFactor: { available: false, enrolled: false, verified: false, required: false },
       },
     })
   })
