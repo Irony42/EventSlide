@@ -37,6 +37,17 @@ export interface UserProps {
   readonly disabledAt: Date | null
   /** Authority over the box itself. Never authority inside an event. */
   readonly siteRole: SiteRole
+  /**
+   * The credentials epoch (roadmap §10.3, G2-08 / P3-09): sessions issued **before** this
+   * instant are no longer valid, whatever their cookie says. `null` until something first
+   * changed the account's credentials.
+   *
+   * It is what stands in for `sessions.user_id`, which the session table does not have: a
+   * password change, a reset, "sign out everywhere" and switching the account off each move
+   * it forward, and `enforceSessionAge` refuses a session older than it. It only ever moves
+   * forward, see {@link User.revokeSessionsBefore}.
+   */
+  readonly credentialsChangedAt: Date | null
 }
 
 export interface NewUser {
@@ -71,6 +82,7 @@ export class User {
         mustChangePassword: input.mustChangePassword,
         disabledAt: null,
         siteRole: input.siteRole,
+        credentialsChangedAt: null,
       }),
     )
   }
@@ -113,6 +125,10 @@ export class User {
 
   get siteRole(): SiteRole {
     return this.props.siteRole
+  }
+
+  get credentialsChangedAt(): Date | null {
+    return this.props.credentialsChangedAt
   }
 
   isDisabled(): boolean {
@@ -160,6 +176,35 @@ export class User {
     return ok(this.with({ passwordHash: hash, mustChangePassword: false }))
   }
 
+  /**
+   * Choosing a password **as a person does**: a new hash, the forced change cleared, and
+   * every session issued before `at` revoked — in one transition, so the three cannot be
+   * done separately by a caller who forgets one.
+   *
+   * Not what a login's opportunistic cost upgrade calls: that is {@link withPasswordHash}
+   * on its own, because re-hashing the password a person already has must not sign them out
+   * of their other devices. The refusals are `withPasswordHash`'s.
+   */
+  changePassword(hash: PasswordHash, at: Date): Result<User, DomainError> {
+    const rotated = this.withPasswordHash(hash)
+    return rotated.ok ? ok(rotated.value.revokeSessionsBefore(at)) : rotated
+  }
+
+  /**
+   * Ends every session issued before `at`: "sign out everywhere", and the revocation that
+   * every other credential change implies.
+   *
+   * **Monotonic.** An epoch earlier than the one on record is ignored, because the only
+   * thing a lower epoch could do is revive a session someone already revoked — a clock that
+   * stepped back, or a stale copy of the account saved after a newer one.
+   */
+  revokeSessionsBefore(at: Date): User {
+    const current = this.props.credentialsChangedAt
+    return current !== null && current.getTime() >= at.getTime()
+      ? this
+      : this.with({ credentialsChangedAt: at })
+  }
+
   requirePasswordChange(): User {
     return this.with({ mustChangePassword: true })
   }
@@ -170,7 +215,14 @@ export class User {
 
   disable(at: Date): User {
     // Idempotent: keep the first timestamp, so an audit trail is not rewritten.
-    return this.props.disabledAt === null ? this.with({ disabledAt: at }) : this
+    //
+    // Switching an account off also raises the credentials epoch. The authorization reads
+    // already refuse a disabled account on every request, so this is not what ends its
+    // sessions today; it is what keeps them ended after `enable()`, when the same cookies
+    // would otherwise quietly work again.
+    return this.props.disabledAt === null
+      ? this.with({ disabledAt: at }).revokeSessionsBefore(at)
+      : this
   }
 
   enable(): User {

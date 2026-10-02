@@ -66,6 +66,7 @@ const snapshot = (user: User): Record<string, unknown> => ({
   mustChangePassword: user.mustChangePassword,
   disabledAt: user.disabledAt,
   siteRole: user.siteRole,
+  credentialsChangedAt: user.credentialsChangedAt,
 })
 
 describe('User.create', () => {
@@ -136,6 +137,7 @@ describe('User.restore', () => {
       mustChangePassword: true,
       disabledAt: DISABLED_AT,
       siteRole: 'operator',
+      credentialsChangedAt: A_DAY_LATER,
     }
 
     const user = User.restore(stored)
@@ -318,6 +320,74 @@ describe('User.enable', () => {
   })
 })
 
+describe('User credentials epoch', () => {
+  const EARLIER = new Date('2026-06-13T19:00:00.000Z')
+
+  it('is unset on a new account, so no session is refused on its account', () => {
+    expect(aUser().credentialsChangedAt).toBeNull()
+  })
+
+  it('records the moment sessions issued before it stop being valid', () => {
+    expect(aUser().revokeSessionsBefore(SIGNED_IN_AT).credentialsChangedAt).toBe(SIGNED_IN_AT)
+  })
+
+  it('moves forward when sessions are revoked again later', () => {
+    const twice = aUser().revokeSessionsBefore(SIGNED_IN_AT).revokeSessionsBefore(A_DAY_LATER)
+
+    expect(twice.credentialsChangedAt).toBe(A_DAY_LATER)
+  })
+
+  it('never moves backwards, so a stale write cannot bring a revoked session back', () => {
+    const later = aUser().revokeSessionsBefore(A_DAY_LATER)
+
+    expect(later.revokeSessionsBefore(EARLIER).credentialsChangedAt).toBe(A_DAY_LATER)
+  })
+
+  it('is not touched by a login that only upgrades the stored hash', () => {
+    // authenticateUser re-hashes at the current cost with withPasswordHash. If that raised
+    // the epoch, every sign-in on a box with older hashes would sign the owner out of their
+    // other devices.
+    const rehashed = aUser().withPasswordHash(ROTATED_HASH)
+
+    expect(unwrap(rehashed).credentialsChangedAt).toBeNull()
+  })
+
+  it('is raised by choosing a password, together with the hash and the forced change', () => {
+    const changed = unwrap(
+      aUser({ mustChangePassword: true }).changePassword(ROTATED_HASH, SIGNED_IN_AT),
+    )
+
+    expect(changed.passwordHash).toBe(ROTATED_HASH)
+    expect(changed.mustChangePassword).toBe(false)
+    expect(changed.credentialsChangedAt).toBe(SIGNED_IN_AT)
+  })
+
+  it('refuses the stored hash handed straight back, as withPasswordHash does', () => {
+    const refused = aUser().changePassword(STORED_HASH, SIGNED_IN_AT)
+
+    expect(!refused.ok && refused.error.code).toBe('user.passwordUnchanged')
+  })
+
+  it('is raised by switching the account off, so re-enabling it does not revive old sessions', () => {
+    const disabled = aUser().disable(DISABLED_AT)
+
+    expect(disabled.credentialsChangedAt).toBe(DISABLED_AT)
+    expect(disabled.enable().credentialsChangedAt).toBe(DISABLED_AT)
+  })
+
+  it('keeps the first epoch when an already disabled account is disabled again', () => {
+    const twice = aUser().disable(DISABLED_AT).disable(A_DAY_LATER)
+
+    expect(twice.credentialsChangedAt).toBe(DISABLED_AT)
+  })
+
+  it('does not lower a later epoch when an account is switched off at an earlier instant', () => {
+    const disabled = aUser().revokeSessionsBefore(A_DAY_LATER).disable(DISABLED_AT)
+
+    expect(disabled.credentialsChangedAt).toBe(A_DAY_LATER)
+  })
+})
+
 describe('User immutability', () => {
   const transitions: readonly [string, (user: User) => unknown][] = [
     ['recording a login', (user) => user.recordLogin(SIGNED_IN_AT)],
@@ -326,6 +396,8 @@ describe('User immutability', () => {
     ['renaming', (user) => user.rename('Claire M.')],
     ['disabling', (user) => user.disable(DISABLED_AT)],
     ['enabling', (user) => user.enable()],
+    ['signing everywhere out', (user) => user.revokeSessionsBefore(A_DAY_LATER)],
+    ['changing the password', (user) => user.changePassword(ROTATED_HASH, A_DAY_LATER)],
   ]
 
   it.each(transitions)(
@@ -367,6 +439,7 @@ describe('User identity', () => {
       .rename('Claire M.')
       .requirePasswordChange()
       .disable(DISABLED_AT)
+      .revokeSessionsBefore(A_DAY_LATER)
 
     const rehydrated = User.restore(stored.toProps())
 
