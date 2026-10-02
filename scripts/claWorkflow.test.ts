@@ -548,7 +548,8 @@ describe('docs/CLA.md', () => {
   })
 
   it('grants a patent licence as well as a copyright one', () => {
-    expect(claText()).toMatch(/patent licen[cs]e/i)
+    // The grant itself, not the heading that announces it.
+    expect(claText()).toMatch(/irrevocable patent licen[cs]e to make, have made, use/i)
   })
 
   it('names the beneficiary: Pierre Tijou, his successors, and entities he controls', () => {
