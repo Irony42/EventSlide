@@ -1934,8 +1934,10 @@ exactly as before.
 **Retention under a ceiling.** For an event of a client with `max_retention_days`, the album is purged at
 the earliest of the host's own retention and `max(closed_at + max_retention_days, retention_cap_since +
 RETENTION_CAP_NOTICE_DAYS)` — so an event kept "for ever" is not kept for ever, and lowering a ceiling
-never purges an album closed long ago the same night: it is owed `RETENTION_CAP_NOTICE_DAYS` (30 by default)
-from the day the ceiling was lowered. A `NULL` anywhere (no host retention, no ceiling, an event that
+never purges an album closed long ago the same night: an album **already closed when the ceiling was
+lowered** is owed `RETENTION_CAP_NOTICE_DAYS` (30 by default) from that day, and one closed afterwards is
+not — it was under the lower ceiling from its first day and is purged at `closed_at + max_retention_days`,
+the number its guests were told. A `NULL` anywhere (no host retention, no ceiling, an event that
 never opened) removes one candidate and never switches the others off.
 
 ### `PATCH /api/events/:slug/schedule`

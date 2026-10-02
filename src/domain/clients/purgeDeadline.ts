@@ -27,7 +27,10 @@ import type { Client } from './client'
  *    closed long ago must not be purged before that notice has run, whatever the new
  *    number says. It is what turns "your ceiling is now 14 days" into at least 30 days'
  *    warning instead of an album gone the same night. The old form, `max(closed_at,
- *    since) + cap`, gave only `cap` days, which is 14 for the client in the example;
+ *    since) + cap`, gave only `cap` days, which is 14 for the client in the example. **The
+ *    floor applies only to an album closed before `retention_cap_since`**: one closed after
+ *    it was never promised the longer retention and gets `closed_at + cap`, which is what its
+ *    guests were told;
  * 3. **the live-window bound**, `max(opened_at + max_live_days + max_retention_days,
  *    retention_cap_since + noticeDays)`, which makes "whatever reopenings happened" true.
  *    A reopening clears `closed_at`, so a rule that counts only from it is a rule a host can
@@ -62,8 +65,13 @@ export const purgeDeadline = (
   const ceilings = client.ceilings
   const cap = ceilings.maxRetentionDays
   if (cap !== null) {
+    // The notice is owed to an album that was **already closed** when the ceiling was lowered:
+    // it was promised the longer retention. One closed afterwards was under the lower ceiling
+    // from its first day, and padding its purge with a notice would keep it past the number its
+    // guests are told — the ceiling would not be a ceiling.
+    const since = client.retentionCapSince
     const floor =
-      client.retentionCapSince === null ? null : addDays(client.retentionCapSince, noticeDays)
+      since !== null && closedAt.getTime() < since.getTime() ? addDays(since, noticeDays) : null
 
     candidates.push(later(addDays(closedAt, cap), floor))
 

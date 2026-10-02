@@ -124,8 +124,16 @@ const ISO = `'%Y-%m-%dT%H:%M:%fZ'`
  */
 const HOST_RETENTION_DAYS = `json_extract(e.settings, '$.retentionDays')`
 
-/** `retention_cap_since + :noticeDays`, or the beginning of time when nobody lowered anything. */
-const NOTICE_FLOOR = `COALESCE(strftime(${ISO}, c.retention_cap_since, '+' || :noticeDays || ' days'), '0000')`
+/**
+ * `retention_cap_since + :noticeDays` for an album that was **already closed** when the ceiling
+ * was lowered, and the beginning of time otherwise — nobody lowered anything, or the album was
+ * closed after, under the lower ceiling from its first day. `closed_at` and
+ * `retention_cap_since` are both ISO-8601 text to the millisecond, so `<` is the instant order.
+ */
+const NOTICE_FLOOR = `COALESCE(
+    CASE WHEN e.closed_at < c.retention_cap_since
+         THEN strftime(${ISO}, c.retention_cap_since, '+' || :noticeDays || ' days') END,
+    '0000')`
 
 /**
  * **The purge deadline, in SQL — `purgeDeadline` in the domain, spelled a second time.**

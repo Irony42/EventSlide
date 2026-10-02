@@ -194,6 +194,33 @@ describe('purgeDeadline when the ceiling was lowered, and the notice that goes w
     expect(deadline(event, client)).toEqual(day(2))
   })
 
+  it('owes no notice to an album closed after the ceiling was lowered: it is purged at closed_at + the ceiling', () => {
+    // Lowered ten days ago to 14; closed five days ago. It was never promised the longer
+    // retention, and its guests were told fourteen days — not twenty-nine.
+    const event = anEvent({ closedAt: day(-5), retentionDays: null, clientId: 'client-1' })
+    const client = aClient({ maxRetentionDays: 14, retentionCapSince: day(-10) })
+
+    expect(deadline(event, client)).toEqual(day(9))
+  })
+
+  it('owes no notice to an album closed at the very instant the ceiling was lowered, which was already under it', () => {
+    const event = anEvent({ closedAt: day(-10), retentionDays: null, clientId: 'client-1' })
+    const client = aClient({ maxRetentionDays: 14, retentionCapSince: day(-10) })
+
+    expect(deadline(event, client)).toEqual(day(4))
+  })
+
+  it('owes the notice to an album closed one millisecond before the ceiling was lowered', () => {
+    const event = anEvent({
+      closedAt: new Date(day(-10).getTime() - 1),
+      retentionDays: null,
+      clientId: 'client-1',
+    })
+    const client = aClient({ maxRetentionDays: 14, retentionCapSince: day(-10) })
+
+    expect(deadline(event, client)).toEqual(day(20))
+  })
+
   it('counts the notice in days of the number it is given, not a constant', () => {
     const client = aClient({ maxRetentionDays: 14, retentionCapSince: TODAY })
 

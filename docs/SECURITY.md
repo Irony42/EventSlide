@@ -862,8 +862,11 @@ from the list rather than switching the others off. The SQL spells it a second t
 sentinel in place of every `NULL`, and `eventRepositoryContract` runs one table of scenarios through the
 fake, SQLite and `purgeDeadline` together, to the millisecond. **Lowering a ceiling never purges an album
 closed long ago the same night**: `retention_cap_since` is stamped when `max_retention_days` gets smaller
-(`Client.withCeilings`), and the album is owed `RETENTION_CAP_NOTICE_DAYS` (default 30) from then —
-whatever the new number is, so a client taken from 90 days to 14 gets 30, not 14. The notice does not
+(`Client.withCeilings`), and an album **already closed at that moment** is owed
+`RETENTION_CAP_NOTICE_DAYS` (default 30) from then — whatever the new number is, so a client taken from
+90 days to 14 gets 30, not 14. An album closed _after_ the ceiling was lowered owes nothing: it was under
+the lower ceiling from its first day, and a notice on top would keep it past the number its guests were
+told. The notice does not
 hold back what the host themselves asked for: their shorter retention was the promise before the ceiling
 moved. The guest's privacy notice carries the retention the box applies (`privacyNoticeOf`), not the
 host's "for ever".

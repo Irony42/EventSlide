@@ -946,6 +946,17 @@ export const eventRepositoryContract = (
         expect(await dueIds(at(30))).toEqual(['evt-1'])
       })
 
+      it('owes no notice to an event closed after the ceiling was lowered: it is due at closed_at + the ceiling', async () => {
+        await seed({
+          name: 'closed after',
+          event: { closedAt: at(-5), retentionDays: null },
+          client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: at(-10) },
+        })
+
+        expect(await dueIds(at(9, -1))).toEqual([])
+        expect(await dueIds(at(9))).toEqual(['evt-1'])
+      })
+
       it('does not push the purge back when an event was reopened: it is due at opened_at + max_live_days + max_retention_days', async () => {
         // Opened on day -40, closed for good on day -20 — past its window, as an event
         // reopened and closed again late would be. closed_at + 30 would only say day 10.
@@ -1060,6 +1071,21 @@ export const eventRepositoryContract = (
             name: 'ceiling lowered to 14 today, closed 60 days ago',
             event: { closedAt: at(-60), retentionDays: null },
             client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: NOON },
+          },
+          {
+            name: 'closed after the ceiling was lowered: no notice owed',
+            event: { closedAt: at(-5), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: at(-10) },
+          },
+          {
+            name: 'closed at the instant the ceiling was lowered: no notice owed',
+            event: { closedAt: at(-10), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: at(-10) },
+          },
+          {
+            name: 'closed one millisecond before the ceiling was lowered: the notice is owed',
+            event: { closedAt: at(-10, -1), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: at(-10) },
           },
           {
             name: 'ceiling lowered to 30 ten days ago, closed today',
