@@ -21,7 +21,7 @@ import {
   type PhotoId,
 } from '../../domain/shared/ids'
 import type { Result } from '../../domain/shared/result'
-import { BLOCKING_REUPLOAD_SQL, HOLDING_BYTES_SQL } from './clipJobStatusSql'
+import { BLOCKING_REUPLOAD_SQL, HOLDING_BYTES_SQL, eventHoldingBytesSum } from './clipJobStatusSql'
 import type { Db } from './connection'
 import { fromIsoText, toIsoText } from './rowMapping'
 
@@ -194,18 +194,16 @@ interface CountRow {
 /**
  * The event's whole byte total, in one statement: the album **and** the queue.
  *
- * Character for character what `SqlitePhotoRepository`'s `SUM_EVENT_BYTES` asks, and it
- * has to be — the two enforce one quota from two tables, and a staged clip is on the
- * same disk as a published photograph. Duplicated rather than shared because each is
- * read inside its own adapter's write transaction, and a module that both imported would
- * be a third place to keep in step with the schema.
+ * The same expression `SqlitePhotoRepository` and the dashboard ask, because it is the
+ * same expression: `eventHoldingBytesSum` in `clipJobStatusSql.ts`, which both adapters
+ * already import. The two enforce one quota from two tables and a staged clip is on the
+ * same disk as a published photograph, so there is one place to keep in step with the
+ * schema and `eventBytesSum.test.ts` holds every reader to it. (This used to be a
+ * character-for-character copy, on the argument that a module both adapters imported
+ * would be a third place to maintain; that module already existed, and the copies were
+ * what drifted.)
  */
-const SUM_EVENT_BYTES = `
-  SELECT (SELECT COALESCE(SUM(byte_size), 0) FROM photos WHERE event_id = :eventId)
-       + (SELECT COALESCE(SUM(source_byte_size), 0)
-            FROM clip_jobs
-           WHERE event_id = :eventId AND status IN (${HOLDING_BYTES_SQL})) AS value
-`
+const SUM_EVENT_BYTES = `SELECT ${eventHoldingBytesSum(':eventId')} AS value`
 
 const COUNT_ACTIVE_CLIPS = `
   SELECT COUNT(*) AS value FROM clip_jobs WHERE status IN (${HOLDING_BYTES_SQL})

@@ -92,6 +92,23 @@ describe('FakeEventRepository dashboard summary', () => {
     expect(summaries.map((summary) => summary.usedBytes)).toEqual([7_000])
   })
 
+  it('counts the clips still waiting to be transcoded, because admission does', async () => {
+    // The SQLite adapter's dashboard row and its upload paths read one expression
+    // (`eventBytesSum.test.ts`); here the fake asks the photo fake for the same total, and
+    // that total is charged for the queue once a clip source is wired in.
+    const photos = new FakePhotoRepository()
+      .seed(aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 1_000 }))
+      .chargeStagedBytesFrom({
+        stagedBytes: async () => 40_000,
+        stagedBytesOf: async () => 0,
+      })
+    const events = new FakeEventRepository({ photos }).seed(anEvent({ id: WEDDING, ownerId: HOST }))
+
+    const summaries = await events.listForUser(HOST)
+
+    expect(summaries.map((summary) => summary.usedBytes)).toEqual([41_000])
+  })
+
   it('lists an event the user only moderates', async () => {
     const { events, memberships } = world()
     await memberships.grant({

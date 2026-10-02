@@ -32,6 +32,7 @@ import { JoinCode } from '../../domain/shared/joinCode'
 import { err, ok, type Result } from '../../domain/shared/result'
 import { Slug } from '../../domain/shared/slug'
 import type { Db } from './connection'
+import { eventHoldingBytesSum } from './clipJobStatusSql'
 import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
 
 /**
@@ -418,18 +419,21 @@ export class SqliteEventRepository implements EventRepository {
       `SELECT ${EVENT_COLUMNS} FROM events WHERE join_code = ?`,
     )
 
-    // Four correlated subqueries instead of four queries per event: a host with twenty
-    // events would otherwise cost eighty round trips to draw one dashboard, which is
-    // exactly the lag that makes an admin screen feel broken. Each subquery is served
-    // by an index leading with event_id.
+    // Correlated subqueries instead of a query per count: a host with twenty events
+    // would otherwise cost eighty round trips to draw one dashboard, which is exactly the
+    // lag that makes an admin screen feel broken. Each subquery is served by an index
+    // leading with event_id.
+    //
+    // `used_bytes` is the one sum every reader of an event's bytes shares (photographs
+    // **and** the clips still waiting to be transcoded), so the dashboard says what the
+    // upload path will enforce: it used to count photographs alone.
     this.selectSummaries = db.prepare<[string, string], SummaryRow>(
       `SELECT e.id, e.slug, e.name, e.status, e.created_at,
               (SELECT COUNT(*) FROM photos p WHERE p.event_id = e.id) AS photo_count,
               (SELECT COUNT(*) FROM photos p
                 WHERE p.event_id = e.id AND p.status = 'pending')      AS pending_count,
               (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id)  AS guest_count,
-              (SELECT COALESCE(SUM(p.byte_size), 0) FROM photos p
-                WHERE p.event_id = e.id)                               AS used_bytes
+              ${eventHoldingBytesSum('e.id')}                           AS used_bytes
          FROM events e
         WHERE e.owner_id = ?
            OR EXISTS (SELECT 1 FROM event_memberships m
