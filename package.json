@@ -1,6 +1,6 @@
 {
   "name": "eventslide",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Self-hosted live photo wall for events. Guests upload from their phone with no account, a host moderates, approved photos appear on the projector in real time.",
   "license": "AGPL-3.0-only",

@@ -28,7 +28,7 @@
 services:
   eventslide:
     build: .
-    image: eventslide:2.1.0
+    image: eventslide:3.0.0
     restart: unless-stopped
     # Loopback, because the reverse proxy above is the only thing that should reach this
     # port — docs/SECURITY.md §11 says bind to 127.0.0.1 and this is where that happens.
