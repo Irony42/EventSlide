@@ -8,6 +8,7 @@ import { migrate } from './migrator'
 import { SqliteClipJobRepository } from './sqliteClipJobRepository'
 import { SqliteEventRepository } from './sqliteEventRepository'
 import { SqlitePhotoRepository } from './sqlitePhotoRepository'
+import { SqliteSiteOverview } from './sqliteSiteOverview'
 
 /**
  * Ring 3. **One answer to "how many bytes has this event spent", from every reader.**
@@ -18,8 +19,8 @@ import { SqlitePhotoRepository } from './sqlitePhotoRepository'
  * the clips still waiting to be transcoded, because a staged source is on the disk the
  * quota exists to protect. The host's dashboard asked a third way and counted photographs
  * only — so an event could show 1.2 GB used and refuse the next upload as full, and the
- * difference was exactly the queue. The operator's overview (P3-12, G2-11) will be a
- * fourth asker.
+ * difference was exactly the queue. The operator's overview (P3-12, G2-11) is the
+ * fourth asker, and the first whose answer is not for the person who owns the event.
  *
  * The whole point is that these four numbers are one number, so this asserts they are equal
  * to each other **and** to a figure worked out by hand from the rows below — the second half
@@ -62,6 +63,7 @@ describe('the event byte sum', () => {
   let events: SqliteEventRepository
   let photos: SqlitePhotoRepository
   let clips: SqliteClipJobRepository
+  let overview: SqliteSiteOverview
 
   const insertGuest = (guestId: string, eventId: string): void => {
     db.prepare(
@@ -120,6 +122,7 @@ describe('the event byte sum', () => {
     events = new SqliteEventRepository(db)
     photos = new SqlitePhotoRepository(db)
     clips = new SqliteClipJobRepository(db)
+    overview = new SqliteSiteOverview(db)
 
     await events.save(
       anEvent({
@@ -177,6 +180,16 @@ describe('the event byte sum', () => {
     closeDatabase(db)
   })
 
+  /** What the operator's overview says the wedding has used, listed under its client. */
+  const overviewBytes = async (eventId: string = WEDDING): Promise<number | undefined> =>
+    (await overview.clientEvents(ATELIER, { limit: 10 }))?.items.find((row) => row.id === eventId)
+      ?.usedBytes
+
+  /** What the operator's overview says a client has used across all its events. */
+  const overviewClientBytes = async (clientId: string): Promise<number | undefined> =>
+    (await overview.listClients({ limit: 10 })).items.find((row) => row.id === clientId)?.usage
+      .usedBytes
+
   /** What the dashboard says the wedding has used. */
   const dashboardBytes = async (): Promise<number | undefined> =>
     (await events.listForUser(HOST)).find((row) => row.id === WEDDING)?.usedBytes
@@ -233,6 +246,15 @@ describe('the event byte sum', () => {
       WEDDING_USED,
       WEDDING_USED,
     ])
+  })
+
+  it('is the number the operator’s overview reports for the event, queued clip sources included', async () => {
+    // The fifth reader. The operator sizes a client's events with this figure, and it must
+    // be the one a guest is refused against — not a photograph-only sum that leaves the
+    // queue out, as the host's dashboard once did.
+    expect(await overviewBytes(WEDDING)).toBe(WEDDING_USED)
+    expect(await overviewBytes(GALA)).toBe(GALA_USED)
+    expect(await overviewBytes(WEDDING)).toBe(await dashboardBytes())
   })
 
   it('counts a clip that is still waiting to be transcoded on the dashboard, as admission does', async () => {
@@ -331,6 +353,14 @@ describe('the event byte sum', () => {
       // figure is WEDDING_USED (reserved + queued + running + photographs) + GALA_USED.
       expect(await photos.clientTotalBytes(ATELIER)).toBe(
         2_000 + 1_000 + 500 + 100_000 + 200_000 + 400_000 + 7_000_000 + 3_000_000,
+      )
+    })
+
+    it('is the number the operator’s overview reports for the client, equal to clientTotalBytes', async () => {
+      expect(await overviewClientBytes(ATELIER)).toBe(WEDDING_USED + GALA_USED)
+      expect(await overviewClientBytes(ATELIER)).toBe(await photos.clientTotalBytes(ATELIER))
+      expect(await overviewClientBytes(OTHER_ATELIER)).toBe(
+        await photos.clientTotalBytes(OTHER_ATELIER),
       )
     })
 

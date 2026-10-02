@@ -269,6 +269,7 @@ describe('POST /api/auth/login', () => {
         email: HOST_EMAIL,
         displayName: null,
         mustChangePassword: false,
+        canOperateSite: false,
       },
     })
   })
@@ -514,7 +515,130 @@ describe('GET /api/auth/me', () => {
         email: HOST_EMAIL,
         displayName: null,
         mustChangePassword: false,
+        canOperateSite: false,
       },
+    })
+  })
+
+  describe('canOperateSite', () => {
+    // The account menu will offer the operator's console on this flag together with
+    // `features.siteAdmin` (RC3.4), so it is the one place a plain host could be handed a
+    // link to a surface that refuses them.
+    // It reports the account's authority over the box, read from storage on this request,
+    // and it grants nothing: `requireOperator` is what gates `/api/site`, and asks the
+    // same question (`canOperateSite(siteRole)`) of the same column.
+
+    const canOperateSite = async (subject: AuthHarness): Promise<unknown> => {
+      const agent = await signedIn(subject)
+      const response = await agent.get('/api/auth/me')
+      return response.body.user?.canOperateSite
+    }
+
+    it('is true for an operator', async () => {
+      const subject = harness()
+      subject.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'operator' }))
+
+      expect(await canOperateSite(subject)).toBe(true)
+    })
+
+    it('is false for an ordinary account, an owner of events included', async () => {
+      const subject = harness()
+      subject.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'none' }))
+
+      expect(await canOperateSite(subject)).toBe(false)
+    })
+
+    it('is not moved by anything else about the account, such as a password it must still change', async () => {
+      const ordinary = harness()
+      ordinary.users.seed(
+        aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'none', mustChangePassword: true }),
+      )
+      const operator = harness()
+      operator.users.seed(
+        aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'operator', mustChangePassword: true }),
+      )
+
+      expect(await canOperateSite(ordinary)).toBe(false)
+      expect(await canOperateSite(operator)).toBe(true)
+    })
+
+    it('is read from storage on this request, not from the session that was opened before', async () => {
+      // Demoted at 19:00, still holding the tab opened at 18:00: the next `/me` says so.
+      const subject = harness()
+      subject.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'operator' }))
+      const agent = await signedIn(subject)
+      expect((await agent.get('/api/auth/me')).body.user.canOperateSite).toBe(true)
+
+      await subject.users.save(aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'none' }))
+
+      expect((await agent.get('/api/auth/me')).body.user.canOperateSite).toBe(false)
+    })
+
+    it('says nothing about a disabled operator, who is not signed in as far as anyone can tell', async () => {
+      const subject = harness()
+      subject.users.seed(
+        aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'operator', disabledAt: AT }),
+      )
+      const agent = await signedIn(subject)
+
+      expect((await agent.get('/api/auth/me')).body).toEqual({ authenticated: false })
+    })
+
+    it.each([true, false])(
+      'does not depend on SITE_ADMIN, which decides how much surface exists and not who is whom (siteAdmin: %s)',
+      async (siteAdmin) => {
+        // The SPA shows the console entry when this AND `features.siteAdmin` (GET
+        // /api/about) are both true. Folding the switch in here would make this field a
+        // second place that knows what the mode is.
+        const subject = harness({ config: { siteAdmin } })
+        subject.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'operator' }))
+
+        expect(await canOperateSite(subject)).toBe(true)
+      },
+    )
+
+    it('asks for the role of an account that may act, and of nobody else', async () => {
+      // An anonymous page load is the commonest request this API gets, and a disabled
+      // account is told it is not signed in: neither has any use for a site role, and a
+      // read made for them is a read that could one day answer.
+      const asked: string[] = []
+      const watched = (subject: AuthHarness): AuthHarness => {
+        const original = subject.users.siteRoleFor.bind(subject.users)
+        subject.users.siteRoleFor = async (id) => {
+          asked.push(id)
+          return original(id)
+        }
+        return subject
+      }
+
+      await request(watched(harness()).app).get('/api/auth/me')
+      const disabled = watched(harness())
+      disabled.users.seed(
+        aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'operator', disabledAt: AT }),
+      )
+      await (await signedIn(disabled)).get('/api/auth/me')
+      expect(asked).toEqual([])
+
+      const active = watched(harness())
+      active.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL }))
+      await (await signedIn(active)).get('/api/auth/me')
+      expect(asked).toEqual([HOST_ID])
+    })
+
+    it('is not part of the login response, which stays the identity and nothing else', async () => {
+      const subject = harness()
+      subject.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'operator' }))
+
+      const response = await request(subject.app)
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: PASSWORD })
+
+      expect(Object.keys(response.body).sort()).toEqual([
+        'displayName',
+        'email',
+        'mustChangePassword',
+        'userId',
+      ])
     })
   })
 
@@ -568,6 +692,7 @@ describe('POST /api/auth/password', () => {
         email: HOST_EMAIL,
         displayName: null,
         mustChangePassword: false,
+        canOperateSite: false,
       },
     })
   })

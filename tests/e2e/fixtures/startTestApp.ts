@@ -61,7 +61,9 @@ export interface TestApp {
    * surface does not expose.
    *
    * Exactly one thing needs it today, and it is the premise of the site-operator spec:
-   * nothing in the API carries an account's site role — `/api/auth/me` does not — so a
+   * nothing in the API carried an account's site role when this was written (`/api/auth/me`
+   * reports a `canOperateSite` verdict since G2-11, and a premise should not come from the
+   * surface under test) — so a
    * spec asserting that "the operator" is refused had no way to establish that the
    * account it signed in as was an operator at all, and asserted 404s that any signed-in
    * stranger produces just as well. The same suite would have stayed green with

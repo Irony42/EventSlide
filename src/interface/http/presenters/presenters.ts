@@ -35,6 +35,7 @@ import type {
   GalleryPage,
 } from '../../../application/usecases/gallery/listGalleryPhotos'
 import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
+import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
 /**
  * Entity to wire format.
@@ -426,7 +427,7 @@ export const toTopPhotoDto = ({ photo, slug, counts, total }: TopPhotoDtoInput):
 // cleanly. Type-only, so nothing is added to the bundle.
 import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
 import type { UserPrincipal } from '../types'
-import type { SessionResponseDto } from './dto'
+import type { CurrentUserDto, SessionResponseDto } from './dto'
 
 /**
  * What a successful login answers with.
@@ -460,22 +461,29 @@ export const toSignedInUserDto = (user: AuthenticatedUser): SessionUserDto => ({
  * carries only that), it is a fact about the account's credentials that storage must be
  * asked for on this very request (`middleware/authz.ts`'s `resolveAuthState`, P3-03).
  * The caller passes `false` when there is no principal, where the value is never read.
+ *
+ * `siteRole` is the third thing storage must be asked on this request, for the same reason
+ * (`siteRoleFor`, the very read `requireOperator` makes), and it is turned into
+ * `canOperateSite` by the **domain's own predicate**, the one the gate uses — so a menu
+ * built on it and the gate cannot come to disagree about who an operator is. Only the
+ * verdict leaves here: the role itself is not part of the response.
  */
 export const toSessionResponseDto = (
   principal: UserPrincipal | undefined,
   mustChangePassword: boolean,
-): SessionResponseDto =>
-  principal === undefined
-    ? { authenticated: false }
-    : {
-        authenticated: true,
-        user: {
-          userId: principal.userId,
-          email: principal.email,
-          displayName: null,
-          mustChangePassword,
-        },
-      }
+  siteRole: SiteRole,
+): SessionResponseDto => {
+  if (principal === undefined) return { authenticated: false }
+
+  const user: CurrentUserDto = {
+    userId: principal.userId,
+    email: principal.email,
+    displayName: null,
+    mustChangePassword,
+    canOperateSite: canOperateSite(siteRole),
+  }
+  return { authenticated: true, user }
+}
 
 // ----------------------------------------------- guest routes (additive) --
 

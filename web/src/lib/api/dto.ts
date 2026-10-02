@@ -508,8 +508,19 @@ export interface SessionUserDto {
   readonly mustChangePassword: boolean
 }
 
+/**
+ * Who `GET /api/auth/me` says is signed in. `canOperateSite` is the account's authority
+ * over the box, read from storage on that request; it is **not** whether the operator's
+ * console exists here, which is `features.siteAdmin` on `GET /api/about`. The console entry
+ * the account menu will offer (G2-15) needs both to be true. Nothing reads this field yet;
+ * the login answers with `SessionUserDto` alone.
+ */
+export interface CurrentUserDto extends SessionUserDto {
+  readonly canOperateSite: boolean
+}
+
 export type SessionResponse =
-  | { readonly authenticated: true; readonly user: SessionUserDto }
+  | { readonly authenticated: true; readonly user: CurrentUserDto }
   | { readonly authenticated: false }
 
 export interface ReactionsResponse {
