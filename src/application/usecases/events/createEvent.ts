@@ -1,7 +1,7 @@
 import { ClientCeilings } from '../../../domain/clients/clientCeilings'
 import { Event } from '../../../domain/events/event'
 import { EventName } from '../../../domain/events/eventName'
-import { EventSettings } from '../../../domain/events/eventSettings'
+import { EventSettings, type EventSettingsPatch } from '../../../domain/events/eventSettings'
 import type { EventLanguage } from '../../../domain/events/eventLanguage'
 import { eventTemplateSettings, type EventTemplateKey } from '../../../domain/events/eventTemplate'
 import { DomainError } from '../../../domain/shared/errors'
@@ -285,8 +285,8 @@ const resolveClient = async (
 }
 
 /**
- * The settings a client's ceilings leave an event with — reductions, never refusals,
- * because an event being **created** has no value the host chose to override:
+ * What a client's ceilings change in the settings an event is created with — reductions,
+ * never refusals, because an event being **created** has no value the host chose to override:
  *
  * - `retentionDays` is clamped to `max_retention_days`, and "keep for ever" (`null`, which is
  *   the default and what no template turns off) becomes the ceiling itself. This is where
@@ -295,18 +295,16 @@ const resolveClient = async (
  *   in the settings, and `uploadClip` refuses either way — this keeps what the page says and
  *   what the box does in step.
  *
- * Nothing is touched when nothing changes, so an event with no client — or a client with no
- * ceiling — gets the very settings object the template and the language produced.
+ * A patch rather than a new settings object, so it travels in the one `with` that validates
+ * the language as well; and empty when nothing changes, so an event with no client — or a
+ * client with no ceiling — gets the very settings the template produced.
  */
-const applyCeilingsToSettings = (
-  settings: EventSettings,
-  ceilings: ClientCeilings,
-): Result<EventSettings, DomainError> => {
+const ceilingsPatch = (settings: EventSettings, ceilings: ClientCeilings): EventSettingsPatch => {
   const retentionDays = ceilings.clampRetention(settings.retentionDays)
-  const turnClipsOff = !ceilings.clipsAllowed && settings.allowClips
-
-  if (retentionDays === settings.retentionDays && !turnClipsOff) return ok(settings)
-  return settings.with({ retentionDays, ...(turnClipsOff ? { allowClips: false } : {}) })
+  return {
+    ...(retentionDays === settings.retentionDays ? {} : { retentionDays }),
+    ...(!ceilings.clipsAllowed && settings.allowClips ? { allowClips: false } : {}),
+  }
 }
 
 export const makeCreateEvent =
@@ -362,16 +360,15 @@ export const makeCreateEvent =
     // The creator's language on top, because no template has an opinion about it. This
     // is the one place the value is read from anybody's preference; from here on it is
     // the event's, and only the settings page moves it.
-    const withLanguage =
-      input.wallLanguage === undefined
-        ? ok(preset)
-        : preset.with({ wallLanguage: input.wallLanguage })
-    if (!withLanguage.ok) return withLanguage
-
-    // What the client's ceilings make of those settings (roadmap §10.5 / G2-05). For an
-    // event with no client the ceilings are `ClientCeilings.unlimited()` and this changes
-    // nothing: the same settings object comes back.
-    const settings = applyCeilingsToSettings(withLanguage.value, resolved.value.ceilings)
+    // What the client's ceilings make of those settings (roadmap §10.5 / G2-05), in the same
+    // patch as the language: one validation, and for an event with no client — whose ceilings
+    // are `ClientCeilings.unlimited()` — an empty patch, so the template's own settings object
+    // comes back untouched.
+    const patch: EventSettingsPatch = {
+      ...(input.wallLanguage === undefined ? {} : { wallLanguage: input.wallLanguage }),
+      ...ceilingsPatch(preset, resolved.value.ceilings),
+    }
+    const settings = Object.keys(patch).length === 0 ? ok(preset) : preset.with(patch)
     if (!settings.ok) return settings
 
     // The ceilings on a quota the host asked for: the box's (G3-02) and the client's

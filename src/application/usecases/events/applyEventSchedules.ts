@@ -147,8 +147,13 @@ export const makeApplyEventSchedules =
     // event the schedule closed a moment ago is not live any more and is not closed twice.
     // The same `now`, so one pass judges every event against one instant.
     for (const event of await events.listLiveOfClients()) {
-      const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
-      const expired = event.expireLiveWindow(now, ceilings)
+      const context = await clientContextOf(clients, event)
+      // The listing is of events that have a client, so a missing context is a client deleted
+      // between the two reads — which `ON DELETE RESTRICT` forbids while it owns an event. If it
+      // ever happened there would be no window to judge the event by, and closing a wall on a
+      // guess is the wrong way to find out.
+      if (context === null) continue
+      const expired = event.expireLiveWindow(now, context.ceilings)
       if (expired === null) continue
 
       try {

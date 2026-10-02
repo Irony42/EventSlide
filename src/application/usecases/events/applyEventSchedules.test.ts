@@ -484,6 +484,24 @@ describe('applyEventSchedules', () => {
       })
     })
 
+    it('leaves an event alone when its client cannot be read, rather than close a wall on a guess', async () => {
+      class VanishedClients extends CountingClientRepository {
+        override async contextForEvent(): Promise<null> {
+          return null
+        }
+      }
+      clients = new VanishedClients()
+      wire(new FakeEventRepository({ clients }))
+      seedClient({ maxLiveDays: 3 })
+      seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+      clock.set(DEADLINE)
+
+      const report = await applyEventSchedules()
+
+      expect(report.autoClosed).toEqual([])
+      expect((await events.findById(WEDDING))?.status).toBe('live')
+    })
+
     it('never closes an event of a client with no max_live_days, however long it has been live', async () => {
       seedClient({ maxLiveDays: null })
       seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
