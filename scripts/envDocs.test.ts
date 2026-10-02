@@ -40,15 +40,26 @@ const schemaKeys = (): readonly string[] => {
 }
 
 /**
- * `PATH` and `PATHEXT` are the one deliberate exception: the schema reads them because
- * this module is the only one allowed to touch `process.env` at all, and the binary
- * resolver needs them as values — but they are the operating system's own `PATH`, not a
- * setting `.env` hands the process, and `.env.example` says so nowhere because there is
- * nothing to say. Documenting them as if they were configuration would tell an operator
- * to do something that does nothing: `.env` values do not reach a child process spawned
- * with the parent's own environment carried through.
+ * The operating system's own variables, which the schema reads and `.env.example` does not
+ * document: `PATH` and `PATHEXT` for the binary resolver, and `SYSTEMROOT`, `WINDIR`,
+ * `TEMP` and `TMP`, the Windows-only part of the environment whitelist a spawned ffmpeg
+ * child is given (`minimalChildEnv`). The schema reads them because that module is the only
+ * one allowed to touch `process.env` at all, and the consumers need them as values — but
+ * they describe the machine the process runs on, not a setting an operator chooses, and
+ * `.env.example` says so nowhere because there is nothing to say. Documenting them as if they
+ * were configuration would invite an operator to override the host's own `PATH`.
+ *
+ * An entry here is a claim that a key is the host's rather than the operator's. A genuine
+ * setting added to the schema and left off this list is exactly what the test below is for.
  */
-const NOT_ENV_EXAMPLE_CONFIGURATION = new Set(['PATH', 'PATHEXT'])
+const NOT_ENV_EXAMPLE_CONFIGURATION = new Set([
+  'PATH',
+  'PATHEXT',
+  'SYSTEMROOT',
+  'WINDIR',
+  'TEMP',
+  'TMP',
+])
 
 /** Every all-caps, underscore-joined token in the file, comments and values alike. */
 const tokensIn = (contents: string): ReadonlySet<string> =>
