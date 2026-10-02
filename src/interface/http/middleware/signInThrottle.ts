@@ -3,11 +3,11 @@ import type { RequestHandler } from 'express'
 import type { Clock } from '../../../application/ports/clock'
 import type { Logger } from '../../../application/ports/logger'
 import { DomainError } from '../../../domain/shared/errors'
-import { EmailAddress } from '../../../domain/users/emailAddress'
-import { SignInThrottle } from '../../../domain/users/signInThrottle'
+import { SignInThrottle, deviceSource, networkSource } from '../../../domain/users/signInThrottle'
 import { sendError } from '../presenters/send'
 import { asyncHandler } from './asyncHandler'
 import { clientKey } from './rateLimit'
+import { normalisedAddress, type TrustedDevices } from './trustedDevice'
 
 /**
  * The per-account half of the sign-in limit (free plan G3-04, paid plan P4-07).
@@ -38,6 +38,17 @@ import { clientKey } from './rateLimit'
  *   same normalisation the lookup uses, so `Camille@Example.test ` and `camille@example.test`
  *   are one budget and not two), under the session secret. A heap dump holds digests.
  *
+ * ## A trusted device (G3-04b)
+ *
+ * When `devices` is given and the request presents a valid trusted-device cookie for the
+ * address being tried, the attempt is counted under that **device** instead of under the
+ * client's network: a bucket of its own, per account and device, with the same arithmetic. A
+ * stranger on the owner's own network spends the network's bucket and no longer delays the
+ * owner's browser. Everything else is unchanged and applies to both: the per-client limit is
+ * mounted ahead of this, the account-wide hold counts every failure, and a cookie that is
+ * forged, expired, for another account or revoked by a change of credentials is just not there.
+ * The throttle never learns which of those it was.
+ *
  * ## `counts`
  *
  * - `'failures'` (sign-in): an attempt is reserved when it starts and **given back** unless it
@@ -64,6 +75,12 @@ export interface SignInThrottleOptions {
   readonly secret: string
   /** Waits `ms` before the request goes on. A seam for tests; timers by default. */
   readonly hold?: (ms: number) => Promise<void>
+  /**
+   * Which requests come from a device the account trusts. Omitted, every request is counted
+   * under its network, as before: a route that has no sign-in to remember a device from (asking
+   * for a reset link) leaves it out.
+   */
+  readonly devices?: Pick<TrustedDevices, 'recognise'>
 }
 
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -79,11 +96,10 @@ const WRONG_GUESS_STATUS = 401
  * its trimmed, lower-cased text, so a stranger typing nonsense is throttled like anyone else
  * rather than being a way to spend nothing.
  */
-const accountDigest = (secret: string, raw: string): string => {
-  const parsed = EmailAddress.create(raw)
-  const normalised = parsed.ok ? parsed.value.value : raw.trim().toLowerCase()
-  return createHmac('sha256', secret).update(`sign-in-throttle:${normalised}`).digest('hex')
-}
+const accountDigest = (secret: string, raw: string): string =>
+  createHmac('sha256', secret)
+    .update(`sign-in-throttle:${normalisedAddress(raw)}`)
+    .digest('hex')
 
 export const signInThrottle = ({
   addressOf,
@@ -93,6 +109,7 @@ export const signInThrottle = ({
   logger,
   secret,
   hold = wait,
+  devices,
 }: SignInThrottleOptions): RequestHandler => {
   // One table per route, built once: a failed sign-in must not spend the allowance for asking
   // for a reset link, the same reason `passwordResetLimiter` is one limiter per route.
@@ -106,8 +123,11 @@ export const signInThrottle = ({
     }
 
     const account = accountDigest(secret, address)
-    const client = clientKey(req)
-    const admission = ledger.begin(account, client, clock.now().getTime())
+    // A trusted device is counted as itself; everyone else, by where they are. Decided once,
+    // before the attempt is reserved, and the same source settles it below.
+    const device = devices === undefined ? undefined : await devices.recognise(req, address)
+    const source = device === undefined ? networkSource(clientKey(req)) : deviceSource(device)
+    const admission = ledger.begin(account, source, clock.now().getTime())
 
     if (admission.kind === 'wait') {
       // The same code and the same status as the per-client limit: this reveals neither which
@@ -130,8 +150,8 @@ export const signInThrottle = ({
     if (counts === 'failures') {
       res.once('finish', () => {
         if (res.statusCode === WRONG_GUESS_STATUS) return
-        if (res.statusCode >= 200 && res.statusCode < 300) ledger.succeeded(account, client)
-        else ledger.refund(account, client)
+        if (res.statusCode >= 200 && res.statusCode < 300) ledger.succeeded(account, source)
+        else ledger.refund(account, source)
       })
     }
 
