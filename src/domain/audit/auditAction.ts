@@ -74,6 +74,22 @@ export const AUDIT_ACTIONS = {
    * the log never holds an address.
    */
   'account.disabled': { subject: 'account', details: {} },
+  /**
+   * An account confirmed an authenticator (`confirmTotpEnrollment`, G2-13 / P3-15). The
+   * subject is the account itself: there is nothing else to say, and above all not the
+   * secret, the codes or the address.
+   */
+  'account.secondFactorEnrolled': { subject: 'account', details: {} },
+  /** An account removed its authenticator and its recovery codes (`disableSecondFactor`). */
+  'account.secondFactorDisabled': { subject: 'account', details: {} },
+  /** An account replaced its set of recovery codes (`regenerateRecoveryCodes`). */
+  'account.recoveryCodesRegenerated': { subject: 'account', details: {} },
+  /**
+   * A recovery code was spent, to sign in or to confirm a step (`verifySecondFactor`). It
+   * says how many are left, because a person down to their last code should be told by the
+   * log as well as by the screen: a number, never a code.
+   */
+  'account.recoveryCodeUsed': { subject: 'account', details: { remaining: detail.integer } },
 } as const satisfies Record<string, AuditActionSpec>
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS
