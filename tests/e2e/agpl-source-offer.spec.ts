@@ -1,5 +1,6 @@
-import type { APIRequestContext } from '@playwright/test'
+import { test as base, type APIRequestContext } from '@playwright/test'
 import { expect, joinAsGuest, test } from './fixtures/app'
+import { startTestApp, type TestApp } from './fixtures/startTestApp'
 import { fr } from '../../web/src/lib/i18n/fr'
 import type { About } from '../../web/src/lib/api/dto'
 
@@ -11,18 +12,22 @@ import type { About } from '../../web/src/lib/api/dto'
  * to, so the claim worth a browser is not that a component renders a link — ring 5 has
  * that — but that **on a real server and a real bundle**, the first screen a guest lands
  * on and the first screen a host lands on each carry a link whose address is the one
- * `GET /api/about` publishes. Two things only this ring can show:
+ * `GET /api/about` publishes. Three things only this ring can show:
  *
- * - **The two halves agree.** The footer paints from a build-time address Vite baked into
- *   the bundle and then takes the server's. A drift between `web/buildInfo.ts` and
- *   `resolveSourceUrl` would show as a link that flashes one address and settles on
- *   another; `toHaveAttribute` retries, so it asserts the settled one, which is the one
- *   an operator controls.
- * - **Which surfaces carry it.** The guest and host layouts do and the projected wall does
- *   not. Ring 5 asserts that in jsdom; here it is the production route table behind a real
- *   browser, which is the thing a layout edit would break.
+ * - **The link is on the right surfaces.** The guest and host layouts carry it and the
+ *   projected wall does not. Ring 5 asserts that in jsdom; here it is the production route
+ *   table behind a real browser, which is the thing a layout edit would break.
+ * - **The server's address replaces the bundle's.** The footer paints from an address
+ *   Vite baked into the bundle and then takes the one `/api/about` publishes. On a stock
+ *   server those are the same string, so the tests on the stock server cannot tell a
+ *   footer that read the response from one that never asked — the fork test at the bottom
+ *   can: it boots a server whose `SOURCE_CODE_URL` is not the default, so the only place
+ *   its address can come from is the response.
+ * - **The endpoint costs a visitor nothing.** No cookie on the response, from a real
+ *   server with the real middleware order.
  *
- * Removing the footer from `GuestLayout` or `HostLayout` turns the first three tests red.
+ * Removing the footer from `GuestLayout` or `HostLayout` turns the join, login and console
+ * tests red; making `useAbout` ignore the response turns the fork test red.
  */
 
 const SOURCE_LINK = fr.about.sourceCode
@@ -141,6 +146,55 @@ test.describe('the AGPL source offer', () => {
     await expect(page.getByRole('link', { name: about.sourceUrl })).toHaveAttribute(
       'href',
       about.sourceUrl,
+    )
+  })
+})
+
+/**
+ * A deployment of a fork: its own server, started with a `SOURCE_CODE_URL` that is not the
+ * upstream default, so the bundle's baked-in address and the server's answer differ.
+ */
+const FORK_SOURCE_URL = 'https://source.fork.example/eventslide/tree/our-release'
+
+const forkTest = base.extend<{ fork: TestApp }>({
+  // Playwright parses this parameter list to work out which fixtures the function depends
+  // on, so the first argument must be a destructuring pattern even when empty — see the
+  // note on `test` in fixtures/app.ts.
+  // eslint-disable-next-line no-empty-pattern -- Playwright's API requires it, see above.
+  fork: async ({}, use, testInfo) => {
+    const fork = await startTestApp({
+      worker: testInfo.workerIndex,
+      env: { SOURCE_CODE_URL: FORK_SOURCE_URL },
+    })
+    await use(fork)
+    await fork.dispose()
+  },
+})
+
+forkTest.describe('a deployment that sets SOURCE_CODE_URL', () => {
+  forkTest(
+    'offers that address on the join screen, not the one baked into the bundle',
+    async ({ fork, page, request }) => {
+      const about = await aboutOf(request, fork.url('/api/about'))
+      expect(about.sourceUrl).toBe(FORK_SOURCE_URL)
+
+      await page.goto(fork.url('/join'))
+
+      // `toHaveAttribute` retries, so this is the settled address: the first paint is the
+      // upstream tag from the bundle, and only the response can turn it into this one.
+      await expect(page.getByRole('link', { name: SOURCE_LINK })).toHaveAttribute(
+        'href',
+        FORK_SOURCE_URL,
+      )
+    },
+  )
+
+  forkTest('offers it on /about too', async ({ fork, page }) => {
+    await page.goto(fork.url('/about'))
+
+    await expect(page.getByRole('link', { name: FORK_SOURCE_URL })).toHaveAttribute(
+      'href',
+      FORK_SOURCE_URL,
     )
   })
 })
