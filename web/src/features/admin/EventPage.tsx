@@ -5,17 +5,25 @@ import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { useToast } from '../../design-system/components/useToast'
+import { useAbout } from '../../app/useAbout'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { EventQrCard } from './components/EventQrCard'
 import { EventStatusBadge } from './components/EventStatusBadge'
 import { StorageMeter } from './components/StorageMeter'
+import { SupportCard } from './components/SupportCard'
 import { GuestListPanel } from './GuestListPanel'
 import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
 import { ShareLinkPanel } from './ShareLinkPanel'
-import { allowsModeration, isMutable, lifecycleActions, servesWall } from './eventLifecycle'
+import {
+  allowsModeration,
+  isMutable,
+  lifecycleActions,
+  offersSupport,
+  servesWall,
+} from './eventLifecycle'
 import { useAlbumUrl, useEvent } from './hooks/useEventData'
 import { usePurgeEvent, useRotateJoinCode, useStatusChange } from './hooks/useEventActions'
 import styles from './EventPage.module.css'
@@ -32,6 +40,8 @@ export function EventPage() {
   const toast = useToast()
   const navigate = useNavigate()
   const albumUrl = useAlbumUrl(slug)
+  // Where the operator says to support the project, if they do. Empty on a self-hosted box.
+  const { links } = useAbout()
 
   const [rotating, setRotating] = useState(false)
   const [purging, setPurging] = useState(false)
@@ -176,6 +186,18 @@ export function EventPage() {
               </div>
             ) : null}
           </Card>
+
+          {/* Once the event is closed, and only where the operator set `DONATION_URL`
+              (roadmap G4-02): a card that can be closed and stays closed for this event. It
+              is in the host's console and nowhere a guest or the room can see. */}
+          {offersSupport(event.status) && links.donate !== undefined ? (
+            <SupportCard
+              key={event.id}
+              eventId={event.id}
+              donateUrl={links.donate}
+              budgetUrl={links.budget}
+            />
+          ) : null}
         </div>
 
         <div className={styles['column']}>

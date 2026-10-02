@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { EventPage } from './EventPage'
 import { ApiError } from '../../lib/http'
 import { formatBytes } from '../../lib/format'
 import { fr } from '../../lib/i18n/fr'
-import { anEventDto, fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
+import {
+  anAbout,
+  anEventDto,
+  fakeApi,
+  renderWithProviders,
+} from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
 import type { EventDto } from '../../lib/api/dto'
 
@@ -323,5 +328,156 @@ describe('EventPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.unknown)
     expect(screen.queryByText(/Cannot read properties/)).toBeNull()
+  })
+})
+
+/**
+ * The one mention of the project's funding a host meets (roadmap G4-02): a card on the page
+ * of a **closed** event, on an instance whose operator set `DONATION_URL`, that can be
+ * closed and then stays closed for that event.
+ */
+describe('EventPage, the support card', () => {
+  const DONATE_URL = 'https://opencollective.com/eventslide'
+  const BUDGET_URL = 'https://opencollective.com/eventslide/budget'
+
+  const renderFor = (
+    status: EventDto['status'],
+    links: { donate?: string; budget?: string } = { donate: DONATE_URL },
+    event: Partial<EventDto> = {},
+  ) =>
+    renderPage(
+      fakeApi({
+        getEvent: vi.fn(async () => anEventDto({ status, ...event })),
+        about: vi.fn(async () => anAbout({ links })),
+      }),
+    )
+
+  const card = () => screen.queryByText(fr.about.supportNoCounterpart)
+
+  /**
+   * Waits until `GET /api/about` has been **answered and applied**, so that "the card is
+   * absent" is a statement about the answer and not about a request still in flight. An
+   * absence asserted before then would pass on a page that was about to show the card.
+   */
+  const aboutApplied = async (api: Api) => {
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+    await act(async () => {
+      await vi.mocked(api.about).mock.results[0]?.value
+    })
+  }
+
+  it('is offered on a closed event when the operator set DONATION_URL', async () => {
+    renderFor('closed')
+
+    expect(await screen.findByText(fr.about.supportNoCounterpart)).toBeVisible()
+    expect(screen.getByRole('link', { name: new RegExp(fr.about.supportLink) })).toHaveAttribute(
+      'href',
+      DONATE_URL,
+    )
+  })
+
+  it('names the public budget when the operator publishes one', async () => {
+    renderFor('closed', { donate: DONATE_URL, budget: BUDGET_URL })
+
+    expect(
+      await screen.findByRole('link', { name: new RegExp(fr.about.budgetLink) }),
+    ).toHaveAttribute('href', BUDGET_URL)
+  })
+
+  it.each(['draft', 'live', 'archived'] as const)(
+    'is not offered on a %s event, only after it has closed',
+    async (status) => {
+      const { api } = renderFor(status)
+
+      expect(await screen.findByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+      await aboutApplied(api)
+
+      expect(card()).toBeNull()
+    },
+  )
+
+  it('is not offered on a box that set no DONATION_URL, so a self-hoster sees nothing', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ status: 'closed' })),
+      about: vi.fn(async () => anAbout({ links: {} })),
+    })
+    renderPage(api)
+
+    expect(await screen.findByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+    await aboutApplied(api)
+
+    expect(card()).toBeNull()
+    expect(screen.queryByText(fr.about.supportTitle)).toBeNull()
+  })
+
+  it('is not offered on a budget alone, because there is no donation to ask for', async () => {
+    const { api } = renderFor('closed', { budget: BUDGET_URL })
+
+    expect(await screen.findByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+    await aboutApplied(api)
+
+    expect(card()).toBeNull()
+  })
+
+  it('appears when the host closes the event from this page', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ status: 'live' })),
+      setEventStatus: vi.fn(async () => anEventDto({ status: 'closed' })),
+      about: vi.fn(async () => anAbout({ links: { donate: DONATE_URL } })),
+    })
+    renderPage(api)
+    expect(card()).toBeNull()
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(await screen.findByText(fr.about.supportNoCounterpart)).toBeVisible()
+  })
+
+  it('is offered to a moderator too, who is on this page for the same event', async () => {
+    renderFor('closed', { donate: DONATE_URL }, { role: 'moderator' })
+
+    expect(await screen.findByText(fr.about.supportNoCounterpart)).toBeVisible()
+  })
+
+  it('goes when the host closes it, and does not come back on the next visit to that event', async () => {
+    const first = renderFor('closed')
+    await userEvent.click(await screen.findByRole('button', { name: fr.about.supportDismiss }))
+    expect(card()).toBeNull()
+    first.unmount()
+
+    const { api } = renderFor('closed')
+
+    expect(await screen.findByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+    await aboutApplied(api)
+
+    expect(card()).toBeNull()
+  })
+
+  it('stays closed when the event is reopened and closed again, because it is once per event', async () => {
+    const first = renderFor('closed')
+    await userEvent.click(await screen.findByRole('button', { name: fr.about.supportDismiss }))
+    first.unmount()
+
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ status: 'live' })),
+      setEventStatus: vi.fn(async () => anEventDto({ status: 'closed' })),
+      about: vi.fn(async () => anAbout({ links: { donate: DONATE_URL } })),
+    })
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+    await screen.findByText(fr.admin.statusClosed)
+    await aboutApplied(api)
+
+    expect(card()).toBeNull()
+  })
+
+  it('is remembered per event: closing it for one event does not close it for the next', async () => {
+    const first = renderFor('closed', { donate: DONATE_URL }, { id: 'event-1' })
+    await userEvent.click(await screen.findByRole('button', { name: fr.about.supportDismiss }))
+    first.unmount()
+
+    renderFor('closed', { donate: DONATE_URL }, { id: 'event-2' })
+
+    expect(await screen.findByText(fr.about.supportNoCounterpart)).toBeVisible()
   })
 })

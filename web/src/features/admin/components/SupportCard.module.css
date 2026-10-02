@@ -1,0 +1,46 @@
+/*
+ * A quiet card in the page, the same quiet shape as the install offer: raised, bordered,
+ * nothing that moves, nothing that competes with the album download above it. No accent
+ * colour on purpose — the accent is reserved for the primary action, and this is not one.
+ */
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+/* A link in a card meets the same touch floor as every other link on this page. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+}

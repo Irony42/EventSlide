@@ -84,5 +84,17 @@ export const allowsModeration = (status: EventStatus): boolean => status !== 'ar
  */
 export const servesWall = (status: EventStatus): boolean => status === 'live' || status === 'closed'
 
+/**
+ * Whether the host's page for an event may carry the one-time mention of the project's
+ * funding (roadmap G4-02): after the event is **closed**, and at no other moment.
+ *
+ * **Presentation only, with nothing to mirror in the domain.** It is not a rule about the
+ * event; it says when a host is least likely to be mid-task. A live event is in use — the
+ * host is moderating, the wall is up — and a draft has not happened yet; asking then would
+ * be asking at the wrong moment. An archived one is a read-only record the host has already
+ * put away, so the invitation is not repeated there.
+ */
+export const offersSupport = (status: EventStatus): boolean => status === 'closed'
+
 /** Mirrors `isMutable`: settings, name and join code are frozen once archived. */
 export const isMutable = (status: EventStatus): boolean => status !== 'archived'
