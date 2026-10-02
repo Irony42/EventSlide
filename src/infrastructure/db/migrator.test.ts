@@ -2312,6 +2312,51 @@ describe('migration 010, account tokens and the credentials epoch', () => {
     closeDatabase(db)
   })
 
+  it('starts the epoch of an account switched off before it at the moment it was switched off', () => {
+    // `User.disable` raises the epoch, but it did not exist when this account was disabled.
+    // Without the backfill, re-enabling it would revive every cookie it held.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 10),
+    )
+    seedUsers(db)
+    db.prepare(`UPDATE users SET disabled_at = '2026-06-21T08:00:00.000Z' WHERE id = 'u2'`).run()
+
+    migrate(db, migrations)
+
+    expect(db.prepare(`SELECT id, credentials_changed_at FROM users ORDER BY id`).all()).toEqual([
+      { id: 'u1', credentials_changed_at: null },
+      { id: 'u2', credentials_changed_at: '2026-06-21T08:00:00.000Z' },
+    ])
+    closeDatabase(db)
+  })
+
+  it('takes an invitation to an event with the event, since a link to a purged album opens nothing', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUsers(db)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'live',
+                    '{}', 1000000000, '${AT}')`,
+    ).run()
+    insertToken(db, {
+      purpose: 'invitation',
+      user_id: null,
+      email: 'nouveau@example.test',
+      event_id: 'e1',
+      event_role: 'moderator',
+      delivery: 'link',
+    })
+
+    db.prepare(`DELETE FROM events WHERE id = 'e1'`).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM account_tokens`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
   it('keeps a box that existed before it, accounts and flags intact, with no epoch', () => {
     // The upgrade path, on somebody's wedding album: two columns added to `users` and a
     // table next to it, nothing rewritten.

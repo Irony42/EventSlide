@@ -18,6 +18,12 @@ import type { Migration } from '../migrator'
  * because an account whose credentials never changed has nothing to revoke — `NULL` reads
  * as "no epoch", never as "the beginning of time".
  *
+ * **The backfill.** An account switched off before this migration has no epoch, and
+ * `User.disable` — which raises it — did not run for it. Re-enabling such an account would
+ * bring back every cookie it held when it was switched off, for up to the seven days the
+ * absolute cap allows. So the epoch of a disabled account starts at the moment it was
+ * disabled, which is what `disable` would have written. Enabled accounts keep `NULL`.
+ *
  * ## `users.email_verified_at`
  *
  * Added here although nothing in this release writes it. Migrations are append-only, and
@@ -58,6 +64,8 @@ export const migration010: Migration = {
   sql: `
       ALTER TABLE users ADD COLUMN credentials_changed_at TEXT;
       ALTER TABLE users ADD COLUMN email_verified_at TEXT;
+
+      UPDATE users SET credentials_changed_at = disabled_at WHERE disabled_at IS NOT NULL;
 
       CREATE TABLE IF NOT EXISTS account_tokens (
         id                TEXT PRIMARY KEY,
