@@ -123,6 +123,16 @@ interface Channel {
 
 const channels = new Map<EventId, Channel>()
 
+/**
+ * Every response currently holding an SSE connection open, across every event.
+ *
+ * What {@link drainStreams} ends at shutdown. Separate from `channels`, which is keyed
+ * by event and torn down once its last connection goes — this is the flat set of
+ * sockets themselves, which `main/index.ts` has to reach without knowing which events
+ * are being watched.
+ */
+const openConnections = new Set<Response>()
+
 const acquireChannel = (eventId: EventId): Channel => {
   const existing = channels.get(eventId)
   if (existing !== undefined) {
@@ -144,6 +154,7 @@ const releaseChannel = (eventId: EventId): void => {
 /** Test-only: start from a known state. The server never calls this. */
 export const resetSignalLogs = (): void => {
   channels.clear()
+  openConnections.clear()
 }
 
 const writeSignal = (res: Response, signal: Signal): void => {
@@ -207,6 +218,9 @@ export const openStream = ({
   // Send the headers now rather than with the first frame: a client waits for them
   // before reporting the connection open, and the first photo may be minutes away.
   res.flushHeaders()
+  // From here the connection is live and holds a resource for hours by design — exactly
+  // what `drainStreams` has to find and end at shutdown.
+  openConnections.add(res)
 
   for (const missed of channel.log.since(parseLastEventId(lastEventId))) writeSignal(res, missed)
 
@@ -232,6 +246,7 @@ export const openStream = ({
     clearInterval(heartbeat)
     subscription.value()
     releaseChannel(eventId)
+    openConnections.delete(res)
   }
 
   res.on('close', cleanup)
@@ -244,6 +259,30 @@ export const openStream = ({
   })
 
   return ok(cleanup)
+}
+
+/** What a drained connection tells the client to wait before its next reconnect. */
+const DRAIN_RETRY_MS = 2000
+
+/**
+ * Ends every open SSE connection, for a graceful shutdown (docs/ARCHITECTURE.md).
+ *
+ * `server.close()`'s callback **never fires** while a connection like this stays open —
+ * an SSE response is, by design, never finished on its own (CLAUDE.md §9 trap 3 is the
+ * same stream staying open on purpose; this is the other end of that design, at
+ * shutdown). A bare `retry:` field, with no `data:`, moves the client's own reconnect
+ * timer without dispatching an event to it — so a projector mid-stream learns to come
+ * back in two seconds rather than seeing anything change on screen. `res.end()` then
+ * triggers each response's own `close` listener, which runs the ordinary `cleanup()`
+ * above, so the channel and the bus subscription are released exactly as they are on
+ * any other disconnect.
+ */
+export const drainStreams = (): void => {
+  for (const res of openConnections) {
+    if (res.writableEnded) continue
+    res.write(`retry: ${DRAIN_RETRY_MS}\n\n`)
+    res.end()
+  }
 }
 
 /**

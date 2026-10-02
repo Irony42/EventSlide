@@ -13,6 +13,7 @@ import { AT } from '../../../application/testing/builders'
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
 import { createHmacGuestTokenService } from '../../../infrastructure/crypto/hmacGuestTokenService'
 import { silentLogger } from '../../../infrastructure/logging/pinoLogger'
+import type { Logger } from '../../../application/ports/logger'
 import { errorHandler, requestContext } from '../middleware/errorHandler'
 import { attachUser, enforceSessionAge } from '../middleware/authz'
 import type { HttpConfig, HttpDeps, SessionPayload } from '../types'
@@ -65,6 +66,10 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
     galleryUnlockPerLink: 50,
     eventCreationPerHour: 20,
   },
+  // Off by default: a real `pino-http` instance would write a JSON line to stdout for
+  // every request every HTTP test in this repository makes. `accessLog.test.ts` and
+  // `logCanary.test.ts` are the two places that turn it on.
+  accessLog: { enabled: false },
   ...overrides,
 })
 
@@ -95,7 +100,10 @@ export interface Harness extends TestWorld {
 }
 
 /** The fakes and ports, with no Express app around them. */
-export const buildTestWorld = (config: Partial<HttpConfig> = {}): TestWorld => {
+export const buildTestWorld = (
+  config: Partial<HttpConfig> = {},
+  options: { readonly logger?: Logger } = {},
+): TestWorld => {
   const clock = new FakeClock(AT)
   const events = new FakeEventRepository()
   const guests = new FakeGuestRepository()
@@ -107,7 +115,10 @@ export const buildTestWorld = (config: Partial<HttpConfig> = {}): TestWorld => {
   // pass against a product that was broken.
   const memberships = new FakeMembershipRepository({ users })
   const bus = new RecordingEventBus()
-  const logger = silentLogger()
+  // Silent by default — almost every HTTP test wants no log output at all.
+  // `logCanary.test.ts` passes a real logger, because it is the one test asking what a
+  // real logger actually writes.
+  const logger = options.logger ?? silentLogger()
   const guestTokens = createHmacGuestTokenService({ secret: TEST_GUEST_SECRET })
 
   const deps: HttpDeps = {
@@ -209,7 +220,7 @@ export const buildHarness = ({
 
   routes(app, deps)
 
-  app.use(errorHandler(httpConfig.isProduction))
+  app.use(errorHandler())
 
   return { app, ...world }
 }

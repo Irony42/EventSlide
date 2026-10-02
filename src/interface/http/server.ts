@@ -2,6 +2,7 @@ import cookieParser from 'cookie-parser'
 import express, { type Express, type RequestHandler } from 'express'
 import session from 'express-session'
 import type { Store } from 'express-session'
+import { accessLog } from './middleware/accessLog'
 import { errorHandler, requestContext } from './middleware/errorHandler'
 import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
 import { attachUser, enforceSessionAge } from './middleware/authz'
@@ -74,6 +75,12 @@ export const buildServer = ({
   // and a logger. Mounted after it, the one failure nobody can correlate to a log line
   // is a malformed body — the failure a client is most likely to be arguing about.
   app.use(requestContext(deps.logger))
+
+  // One line per finished request: the route pattern, the status, the duration and the
+  // request id — never the real path, a header or a body. Right after `requestContext`
+  // (docs/ARCHITECTURE.md §4.2), so it logs every request this process answers, probes
+  // included, and so `req.context.requestId` already exists when it reads it.
+  app.use(accessLog(config.accessLog))
 
   // Liveness and readiness, before the body parser, the cookie parser and the session:
   // a probe is a machine with no cookie jar, and one that does happen to carry a stale
@@ -231,7 +238,7 @@ export const buildServer = ({
   }
 
   // Last, so everything above can throw into it.
-  app.use(errorHandler(config.isProduction))
+  app.use(errorHandler())
 
   return app
 }

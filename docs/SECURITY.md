@@ -876,7 +876,23 @@ pino uses an explicit `redact` list covering `req.headers.cookie`,
 recorded only at `debug` and only when the operator sets `LOG_IP_FULL=true`
 **(planned)**: someone chasing abuse may need it, and it should be a deliberate act.
 Responses never carry a stack trace, SQL fragment, or path; the error middleware logs
-those against a `requestId` and returns the code only.
+those against a `requestId` and returns the code only — in production too: the response
+is always the same opaque 500, so dropping the stack from the log as well, as this
+middleware used to, only costs the operator the one thing that could tell them where the
+bug is.
+
+**The access log (`src/interface/http/middleware/accessLog.ts`, `pino-http`).** One line
+per finished request: the route **pattern**, never the real path (`/api/events/:eventSlug`,
+not `/api/events/our-wedding-2026`), the status, the duration, the request id, and
+`service`/`version`/`instance`. Both the request and the response are logged through
+serializers that replace `pino-http`'s own — the defaults carry the raw URL with its
+query string and every header, `set-cookie` included, which is exactly how a fresh
+session id would otherwise leave the process in a log line nobody meant to write.
+**The log canary sweep** (`src/interface/http/testing/logCanary.ts`) is what proves this
+holds for every mounted route at once rather than for the handful a test author thought
+to try: it calls each one with a gallery token, a join code, a slug, a caption, an email,
+a password and a cookie, placed in the path, the query, the headers and the body, and
+asserts none of them appears anywhere a logger wrote. It runs in `npm run verify`.
 
 ### Data-subject flows a host can actually perform
 
@@ -976,9 +992,20 @@ request. Password rules live in `src/domain/users/`, not the controller.
 | File permissions  | run as a dedicated non-root user; DB `0600`, `MEDIA_ROOT` `0700`; both outside the web root                                                                                                                                         | the SQLite file contains session data and every hash                                                                                                                                                                                            |
 | Process hardening | systemd: `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `ReadWritePaths=` the data dir                                                                                                                            | limits what a `sharp` or Node CVE can reach                                                                                                                                                                                                     |
 | Backups           | `docker compose exec eventslide node dist/ops/scripts/backup.js` (`npm run backup` from a checkout), copy the archive off the machine, and rehearse a restore with `--dry-run`. Below.                                              | copying a live WAL database yields a corrupt backup, and an untested restore is not a backup. A wedding album has no second take                                                                                                                |
-| Shutdown          | leave `stop_grace_period: 20s` alone, or keep it above the 15 s backstop in `src/main/index.ts`                                                                                                                                     | Docker's own default is 10 s, which `SIGKILL`s the process five seconds _before_ its own backstop runs — the WAL never checkpointed and whatever was mid-upload lost                                                                            |
+| Shutdown          | leave `stop_grace_period: 20s` alone, or keep it above the 15 s backstop in `src/main/shutdown.ts`                                                                                                                                  | Docker's own default is 10 s, which `SIGKILL`s the process five seconds _before_ its own backstop runs — the WAL never checkpointed and whatever was mid-upload lost                                                                            |
 | The image itself  | `bash scripts/verify-image.sh` builds it and checks every claim on this page that is a property of the container. CI runs the same script on every push                                                                             | an image that quietly lost `ffmpeg`, shipped its devDependencies or went back to running as root is green on all six test rings — none of them runs Docker                                                                                      |
 | Updates           | pin the version, read the release notes, `npm audit` before a deploy                                                                                                                                                                | see §12: self-hosted means you own patching                                                                                                                                                                                                     |
+
+**Graceful shutdown, in order (`src/main/shutdown.ts`, P4-06).** `SIGTERM`/`SIGINT` first
+flips `GET /api/ready` to `503` unconditionally — database and media root healthy or not
+— so an orchestrator stops sending new traffic before anything else changes; then every
+open SSE connection is told `retry: 2000` and ended
+(`src/interface/http/routes/streamRoutes.ts`'s `drainStreams`), because an SSE response
+is by design never finished on its own and `server.close()`'s callback would otherwise
+never fire; only then does the process stop accepting new connections and let in-flight
+requests finish, with the 15 s backstop in the Shutdown row above as the fallback.
+Without the drain step, a single projector left open turns every deploy into a full 15 s
+wait instead of an ordinary fast exit.
 
 **The `0600` on the database is the one row the image does not keep for you.** The
 container creates `/data` and `/data/media` as `0700` owned by the unprivileged user, and

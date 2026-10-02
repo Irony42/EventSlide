@@ -78,6 +78,30 @@ describe('createContainer: SITE_ADMIN reaches the HTTP layer', () => {
   })
 })
 
+describe('createContainer: readiness reaches the real health check (P4-06)', () => {
+  /**
+   * `server.test.ts`'s own shutdown tests build a `MutableHealthChecks` through
+   * `buildServerHarness()`, a path that never calls `createContainer` — so a mistake in
+   * *this* file's wiring (the wrong field read, `isShuttingDown: () => false`, a typo in
+   * the key `buildServer` is handed) would leave every one of those green. This is the
+   * one place that boots a real container and drives `container.readiness` and
+   * `/api/ready` through the same object `main/index.ts` actually gets back.
+   */
+  it('answers /api/ready 200 until container.readiness.markShuttingDown() flips it to 503', async () => {
+    const { app, readiness } = await boot({})
+
+    const before = await request(app).get('/api/ready')
+    expect(before.status).toBe(200)
+    expect(before.body.status).toBe('ready')
+
+    readiness.markShuttingDown()
+
+    const after = await request(app).get('/api/ready')
+    expect(after.status).toBe(503)
+    expect(after.body.error.code).toBe('service.notReady')
+  })
+})
+
 describe('createContainer: SITE_ADMIN decides surface, never schema', () => {
   it.each(['off', 'on'] as const)(
     'applies every migration with SITE_ADMIN=%s, so turning it on later needs no other schema',

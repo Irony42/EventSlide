@@ -35,6 +35,14 @@ export interface HealthChecks {
    * liveness path is how a readiness probe becomes the thing that takes a box down.
    */
   readonly videoTranscoding: () => 'ok' | 'unavailable'
+  /**
+   * Flips once a shutdown signal has been received (docs/ARCHITECTURE.md "Graceful
+   * shutdown"). Checked **first** and unconditionally: an orchestrator must stop
+   * sending new traffic the moment this box starts draining, whether or not the
+   * database and the media root still answer — they are not the question once this is
+   * true.
+   */
+  readonly isShuttingDown: () => boolean
 }
 
 export const healthRoutes = (checks: HealthChecks): Router => {
@@ -51,6 +59,24 @@ export const healthRoutes = (checks: HealthChecks): Router => {
   router.get(
     '/ready',
     asyncHandler(async (_req, res) => {
+      // Checked before either dependency, and without awaiting anything: a load
+      // balancer draining this instance must be told so in one tick, not after a
+      // database round trip that a shutting-down process may be slow to answer at all.
+      if (checks.isShuttingDown()) {
+        res.status(503).json({
+          error: {
+            code: 'service.notReady',
+            message: 'The server is shutting down',
+            details: {
+              database: 'unavailable',
+              media: 'unavailable',
+              video: checks.videoTranscoding(),
+            },
+          },
+        })
+        return
+      }
+
       const [database, media] = await Promise.all([
         checks.databaseReady().catch(() => false),
         checks.mediaWritable().catch(() => false),

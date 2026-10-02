@@ -104,6 +104,14 @@ export interface Container {
    * under which not running it is the right answer.
    */
   readonly reservationReaper: ReservationReaper
+  /**
+   * The one way `/api/ready` learns a shutdown is under way (docs/ARCHITECTURE.md
+   * "Graceful shutdown"). `main/index.ts` calls `markShuttingDown()` as the very first
+   * step of its SIGTERM/SIGINT handler, before anything else changes, so an
+   * orchestrator stops sending new traffic ahead of the connections it is about to
+   * lose.
+   */
+  readonly readiness: { markShuttingDown(): void }
   dispose(): Promise<void>
 }
 
@@ -193,11 +201,18 @@ const recreateDirectory = async (path: string): Promise<void> => {
 }
 
 export const createContainer = async (config: AppConfig): Promise<Container> => {
+  // Minted once per process, never read from the environment: it exists so a log
+  // shipper aggregating several boxes can tell one instance's lines from another's, not
+  // to be chosen or repeated by an operator.
+  const instanceId = randomUUID()
+  const instanceBindings = { service: 'eventslide', version: VERSION, instance: instanceId }
+
   const logger = createPinoLogger({
     level: config.logLevel,
     // Pretty output is for a person watching a terminal; production ships JSON a log
     // shipper can index.
     pretty: !config.isProduction,
+    bindings: instanceBindings,
   })
 
   // ---------------------------------------------------------------- storage --
@@ -493,6 +508,17 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   // ------------------------------------------------------------------ http --
 
+  // The one piece of mutable state a shutdown and a readiness probe share. A plain
+  // object rather than a module-level flag, because `createContainer` can run more than
+  // once in a process (every HTTP test that builds a harness does), and a module-level
+  // flag would leak a shutdown from one container into another's readiness.
+  const shutdownState = { shuttingDown: false }
+  const readiness = {
+    markShuttingDown: (): void => {
+      shutdownState.shuttingDown = true
+    },
+  }
+
   const httpConfig: HttpConfig = {
     isProduction: config.isProduction,
     publicUrl: config.publicUrl,
@@ -501,6 +527,12 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secureCookie: config.session.secureCookie,
     e2eHooks: config.e2eHooks,
     siteAdmin: config.siteAdmin,
+    accessLog: {
+      enabled: true,
+      level: config.logLevel,
+      pretty: !config.isProduction,
+      ...instanceBindings,
+    },
     uploads: { maxBytes: config.uploads.maxBytes, maxFiles: config.uploads.maxFiles },
     clips: {
       maxBytes: config.clips.maxBytes,
@@ -568,6 +600,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       // subprocess on a readiness path is how a probe becomes the thing that takes a
       // box down.
       videoTranscoding: () => (ffmpeg === null ? 'unavailable' : 'ok'),
+      isShuttingDown: () => shutdownState.shuttingDown,
     },
     ...(hasClient ? { clientDir } : {}),
   })
@@ -582,6 +615,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     reservationReaper,
     schedule,
     clipWorker,
+    readiness,
     dispose: async () => {
       // First: a sweep that started after the database was closed would log a failure
       // for every expired event and delete none of them. An already-running one is

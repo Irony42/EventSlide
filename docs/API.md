@@ -287,6 +287,12 @@ encoder still serves a photo wall, and taking a venue out of service over a miss
 would be a far worse outage than the one it reports — clip uploads are refused by name
 instead (§3). It is decided once at boot, so this route starts no subprocess of its own.
 
+**Once a shutdown signal has been received, this always answers 503** —
+`{ "database": "unavailable", "media": "unavailable", "video": <as above> }` — whatever
+the database and the media root would otherwise say (docs/ARCHITECTURE.md "Graceful
+shutdown"). An orchestrator stops sending new traffic the moment this is true, ahead of
+the connections it is about to lose.
+
 ### `POST /api/join`
 
 The front door. Resolves a join code, creates a guest, and sets the `es_guest` cookie.

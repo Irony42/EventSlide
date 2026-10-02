@@ -45,6 +45,16 @@ export class SseSink extends EventEmitter {
   endWriting(): void {
     this.writableEnded = true
   }
+
+  /**
+   * The real `res.end()`: marks the response finished and, like the real one, emits
+   * `close` — which is what runs `openStream`'s own `cleanup()` on a drained connection.
+   */
+  end(): this {
+    this.writableEnded = true
+    this.emit('close')
+    return this
+  }
 }
 
 /**

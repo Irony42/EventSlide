@@ -63,73 +63,76 @@ const fromZodError = (error: ZodError): DomainError =>
  *
  * Two rules:
  * - A `DomainError` is the expected shape and is returned as-is, at its mapped status.
- * - Anything else is a bug. It is logged in full, with the request id, and answered
- *   with an opaque 500. A stack trace, a SQL fragment or a filesystem path must never
- *   reach a guest's phone.
+ * - Anything else is a bug. It is logged in full, with the request id and the stack
+ *   trace, and answered with an opaque 500. A stack trace, a SQL fragment or a
+ *   filesystem path must never reach a guest's phone — but it belongs in the log
+ *   whatever the environment, production included (P4-06 / docs/SECURITY.md A-36),
+ *   because that response is always the same opaque 500 and an operator reading the log
+ *   is the only reader left who can be told where the bug actually is.
  */
-export const errorHandler =
-  (isProduction: boolean): ErrorRequestHandler =>
-  (error, req, res, _next) => {
-    const logger = req.context?.logger
+export const errorHandler = (): ErrorRequestHandler => (error, req, res, _next) => {
+  const logger = req.context?.logger
 
-    if (error instanceof ZodError) {
-      sendError(res, fromZodError(error))
-      return
-    }
-
-    if (DomainError.is(error)) {
-      // A 5xx from the domain still means something went wrong internally, so it is
-      // logged at error level; a 4xx is the client's problem and only worth debug.
-      const status = statusForKind(error.kind)
-      const payload = { code: error.code, kind: error.kind, status }
-      if (status >= 500) logger?.error('request failed', payload)
-      else logger?.debug('request rejected', payload)
-
-      sendError(res, error)
-      return
-    }
-
-    // Multer's own errors arrive as plain Errors with a `code`.
-    if (isMulterError(error)) {
-      sendError(res, multerToDomain(error))
-      return
-    }
-
-    // `express.json` refuses a body before any route runs, and its failures are the
-    // client's problem: a body over the limit, or one that is not JSON at all. Left
-    // untranslated they fall through to the opaque 500 below, which tells a client with
-    // a bad body that the server is broken and files every one of them in the error log,
-    // so a burst of malformed requests reads exactly like an outage.
-    const bodyFailure = bodyParserToDomain(error)
-    if (bodyFailure !== null) {
-      logger?.debug('request body rejected', { code: bodyFailure.code, kind: bodyFailure.kind })
-      sendError(res, bodyFailure)
-      return
-    }
-
-    logger?.error('unhandled error', {
-      error: error instanceof Error ? error.message : String(error),
-      // Only in development: a stack trace in a production log is fine, but this is
-      // the structured field a log shipper would index and forward.
-      ...(isProduction ? {} : { stack: error instanceof Error ? error.stack : undefined }),
-    })
-
-    if (res.headersSent) {
-      // A failure part-way through a streamed response — a ZIP export, an SSE frame.
-      // The status is long gone; destroying the socket is the only honest signal that
-      // the body is incomplete.
-      res.destroy()
-      return
-    }
-
-    res
-      .status(500)
-      .json(
-        errorBody(
-          DomainError.unexpected('server.unexpected', { requestId: req.context?.requestId ?? '' }),
-        ),
-      )
+  if (error instanceof ZodError) {
+    sendError(res, fromZodError(error))
+    return
   }
+
+  if (DomainError.is(error)) {
+    // A 5xx from the domain still means something went wrong internally, so it is
+    // logged at error level; a 4xx is the client's problem and only worth debug.
+    const status = statusForKind(error.kind)
+    const payload = { code: error.code, kind: error.kind, status }
+    if (status >= 500) logger?.error('request failed', payload)
+    else logger?.debug('request rejected', payload)
+
+    sendError(res, error)
+    return
+  }
+
+  // Multer's own errors arrive as plain Errors with a `code`.
+  if (isMulterError(error)) {
+    sendError(res, multerToDomain(error))
+    return
+  }
+
+  // `express.json` refuses a body before any route runs, and its failures are the
+  // client's problem: a body over the limit, or one that is not JSON at all. Left
+  // untranslated they fall through to the opaque 500 below, which tells a client with
+  // a bad body that the server is broken and files every one of them in the error log,
+  // so a burst of malformed requests reads exactly like an outage.
+  const bodyFailure = bodyParserToDomain(error)
+  if (bodyFailure !== null) {
+    logger?.debug('request body rejected', { code: bodyFailure.code, kind: bodyFailure.kind })
+    sendError(res, bodyFailure)
+    return
+  }
+
+  logger?.error('unhandled error', {
+    error: error instanceof Error ? error.message : String(error),
+    // In production too (P4-06 / docs/SECURITY.md A-36): a stack trace never reaches
+    // the client — the response below is always the opaque 500 — so keeping it out of
+    // the log as well just means an operator reads a message with nowhere in the code
+    // it came from. This is the structured field a log shipper indexes and forwards.
+    stack: error instanceof Error ? error.stack : undefined,
+  })
+
+  if (res.headersSent) {
+    // A failure part-way through a streamed response — a ZIP export, an SSE frame.
+    // The status is long gone; destroying the socket is the only honest signal that
+    // the body is incomplete.
+    res.destroy()
+    return
+  }
+
+  res
+    .status(500)
+    .json(
+      errorBody(
+        DomainError.unexpected('server.unexpected', { requestId: req.context?.requestId ?? '' }),
+      ),
+    )
+}
 
 /**
  * body-parser's own refusals, recognised by the `type` it stamps on every one of them.

@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net'
 import supertest from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  drainStreams,
   openStream as openStreamFor,
   resetSignalLogs,
   streamHandler,
@@ -430,6 +431,37 @@ describe('streamRoutes', () => {
     expect(stream.statusCode).toBe(200)
     await stream.waitFor((text) => text.includes(': connected'), 'connection')
   })
+
+  it('drains an open connection at shutdown: a retry directive, then the connection ends', async () => {
+    // docs/ARCHITECTURE.md "Graceful shutdown": without this, `server.close()`'s
+    // callback never fires, because an SSE response is by design never finished on its
+    // own (CLAUDE.md §9 trap 3) — a projector holding an eight-hour stream would keep a
+    // "graceful" shutdown hanging forever.
+    const stream = await open('/api/events/mariage/stream')
+    await stream.waitFor((text) => text.includes(': connected'), 'connection')
+    expect(subject.bus.subscriberCount(asEventId(WEDDING))).toBe(1)
+
+    drainStreams()
+
+    await stream.waitFor((text) => text.includes('retry: 2000'), 'the drain retry directive')
+    // The real socket: `res.end()` finishes the response, which is what frees the bus
+    // subscription and the channel — the same teardown an ordinary disconnect runs.
+    await expect
+      .poll(() => subject.bus.subscriberCount(asEventId(WEDDING)), { timeout: 3_000 })
+      .toBe(0)
+  })
+
+  it('never dispatches the drain as a client-visible event', async () => {
+    // A bare `retry:` field carries no `data:`, so it must never reach `onmessage` — a
+    // client reconnecting silently is the point, not a visible "something changed".
+    const stream = await open('/api/events/mariage/stream')
+    await stream.waitFor((text) => text.includes(': connected'), 'connection')
+
+    drainStreams()
+
+    await stream.waitFor((text) => text.includes('retry: 2000'), 'the drain retry directive')
+    expect(stream.frames.join('')).not.toContain('event: change')
+  })
 })
 
 /**
@@ -577,6 +609,32 @@ describe('openStream', () => {
     sink.emit('error', 'the socket layer said something else')
 
     expect(world.bus.subscriberCount(asEventId(WEDDING))).toBe(0)
+  })
+
+  it('drains at shutdown: writes retry: 2000, ends the response, and runs its cleanup', () => {
+    const sink = open()
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+
+    drainStreams()
+
+    expect(sink.text).toContain('retry: 2000')
+    expect(sink.writableEnded).toBe(true)
+    // `res.end()` emits `close` on the sink exactly as a real response would, which is
+    // what must run the ordinary `cleanup()` — the heartbeat cleared, the subscription
+    // released — rather than a drain being a second, separate teardown path.
+    expect(vi.getTimerCount()).toBe(0)
+    expect(world.bus.subscriberCount(asEventId(WEDDING))).toBe(0)
+  })
+
+  it('writes nothing to a connection whose socket has already gone before the drain', () => {
+    const sink = open()
+    const framesBeforeDrain = sink.frames.length
+    sink.endWriting()
+
+    drainStreams()
+
+    // Nothing new: a drain must not write a retry frame to a socket that is already gone.
+    expect(sink.frames).toHaveLength(framesBeforeDrain)
   })
 
   it('replays at most the most recent signals, so an idle event bounds its memory', () => {

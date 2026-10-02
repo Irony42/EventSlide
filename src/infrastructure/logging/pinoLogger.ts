@@ -1,6 +1,13 @@
 import pino from 'pino'
 import type { LogContext, Logger } from '../../application/ports/logger'
 
+/** Something identifying enough that a log shipper aggregating several boxes can split them apart. */
+export interface InstanceBindings extends LogContext {
+  readonly service: string
+  readonly version: string
+  readonly instance: string
+}
+
 /**
  * Structured JSON logging.
  *
@@ -13,6 +20,12 @@ import type { LogContext, Logger } from '../../application/ports/logger'
 export interface PinoLoggerOptions {
   readonly level: pino.Level
   readonly pretty: boolean
+  /**
+   * Carried on every line this logger, and every child of it, writes — `service`,
+   * `version` and `instance` (P4-06). Optional: a handful of callers (scripts, the odd
+   * test) want a logger with nothing to say about which instance it is.
+   */
+  readonly bindings?: InstanceBindings
 }
 
 /**
@@ -41,7 +54,7 @@ const REDACTED = [
   'remoteAddress',
 ]
 
-export const createPinoLogger = ({ level, pretty }: PinoLoggerOptions): Logger => {
+export const createPinoLogger = ({ level, pretty, bindings }: PinoLoggerOptions): Logger => {
   const root = pino({
     level,
     redact: {
@@ -72,10 +85,12 @@ export const createPinoLogger = ({ level, pretty }: PinoLoggerOptions): Logger =
     info: (message: string, context?: LogContext) => instance.info(context ?? {}, message),
     warn: (message: string, context?: LogContext) => instance.warn(context ?? {}, message),
     error: (message: string, context?: LogContext) => instance.error(context ?? {}, message),
-    child: (bindings: LogContext) => wrap(instance.child(bindings)),
+    child: (childBindings: LogContext) => wrap(instance.child(childBindings)),
   })
 
-  return wrap(root)
+  // A child rather than a second `pino()` call, so `service`/`version`/`instance` sit
+  // beside pino's own default `pid`/`hostname` base instead of replacing it.
+  return wrap(bindings === undefined ? root : root.child(bindings))
 }
 
 /** For tests and for the odd script that wants the port without any output. */
