@@ -44,7 +44,11 @@ design. Companions: [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md) (rul
 
 A **self-hosted live photo wall**. Guests photograph an event from their own phones, a
 host approves each photo, approved photos reach a projector within seconds. One
-deployment, one box, one venue.
+deployment, one box, one venue by default — `SITE_ADMIN=on` is for one box serving several
+clients, each running their own venue (roadmap §10.9, partly shipped: the switch and the
+`/api/site` namespace exist; clients, invitations and the console, §10.2–§10.8, are
+planned). [ADR 0007](adr/0007-agpl-and-hosted-instance.md) is the maintainer's own
+instance of that mode.
 
 Not one application with three skins — three surfaces with conflicting constraints, and
 most decisions here are trade-offs between them.

@@ -8,6 +8,10 @@ Vendor-neutral copy: [AGENTS.md](AGENTS.md). Deeper references live in [docs/](d
 ## 1. What this product is
 
 EventSlide is a self-hosted **live photo wall for events** (weddings, parties, conferences).
+It is licensed AGPL-3.0-only (see the relicensing PR). The maintainer also runs one free,
+invitation-only hosted instance of the published image, unmodified and `SITE_ADMIN=on` — see
+[docs/adr/0007-agpl-and-hosted-instance.md](docs/adr/0007-agpl-and-hosted-instance.md);
+it is not a second product, and self-hosting stays the recommended path.
 
 Three audiences, three completely different needs:
 

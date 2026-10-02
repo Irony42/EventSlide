@@ -26,6 +26,11 @@ or that you hand a few hundred family photographs to a company you have never he
 EventSlide asks for neither. It runs on one machine — a laptop, a mini PC, a Raspberry
 Pi under the projector — and nothing leaves it.
 
+For anyone who cannot host it themselves, the maintainer is setting up a free instance of
+the same software, by invitation for now
+([ADR 0007](docs/adr/0007-agpl-and-hosted-instance.md)) — but self-hosting is what keeps
+the photos on a machine you control, and stays the recommended path.
+
 ## What it does
 
 - **Guests join by scanning.** A QR code, a six-character code, a first name if they
@@ -37,7 +42,9 @@ Pi under the projector — and nothing leaves it.
   zoom, or one of five other layouts; captions and the sender's name, a join code in the
   corner for whoever arrives late.
 - **It survives the venue.** Uploads retry, the wall keeps playing when the network
-  drops, and it runs unattended for an eight-hour evening.
+  drops, and it runs unattended for an eight-hour evening — true for a box running on
+  site; a wall served by the hosted instance still depends on the venue's own internet
+  connection.
 - **Privacy is handled, not mentioned.** Location data and device identifiers are
   stripped from every photo on arrival — a guest's camera records the coordinates of
   wherever they are standing, and that is often somebody's home.
