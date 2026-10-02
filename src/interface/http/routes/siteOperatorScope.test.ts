@@ -10,7 +10,8 @@ import { AT, anEvent, aUser } from '../../../application/testing/builders'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { err } from '../../../domain/shared/result'
-import { CSRF_HEADER } from '../middleware/csrf'
+import { CSRF_HEADER, requireCsrfToken } from '../middleware/csrf'
+import { apiNotFound } from '../server'
 import { mountedRoutes, type Route } from '../testing/routeTable'
 import { buildServerHarness, type ServerHarness } from '../testing/serverHarness'
 import { anonymousCaller, signedInAs, signInByAddress, type Caller } from '../testing/signIn'
@@ -530,7 +531,57 @@ describe('the stack walk', () => {
     },
   )
 
-  it('lets the gallery’s headers through at their paths, the one middleware named with a reason', () => {
+  it.each(['/api/site/leak', '/api/events'])(
+    'refuses to guess what a middleware mounted at %s on the app itself answers',
+    (path) => {
+      // The same refusal one level up, where it used to be missing: the walk left the
+      // app's own stack alone, so `app.use('/api/site/leak', h)` in `server.ts` answered
+      // `GET /api/site/leak` with `SITE_ADMIN=off`, through no gate and no route, while
+      // every sweep in this file stayed green.
+      const app = express()
+      app.use(path, answer)
+
+      expect(() => mountedRoutes(app)).toThrow(
+        /refuses to guess what the middleware "answer" mounted at .* on the app answers/,
+      )
+    },
+  )
+
+  it.each([
+    [
+      'on the app',
+      (app: Express, handler: express.RequestHandler) => {
+        app.use('/api/site/leak', handler)
+      },
+    ],
+    [
+      'inside a router',
+      (app: Express, handler: express.RequestHandler) => {
+        const api = express.Router()
+        api.use('/site/leak', handler)
+        app.use('/api', api)
+      },
+    ],
+  ])(
+    'reads a handler that is merely called router as the middleware it is, %s',
+    (_where, mount) => {
+      // The guard on `isRouter` asking for Express's own `Router` prototype. A layer is named
+      // after its function, so a plain handler written `const router = …` is called `router`
+      // too; read by its name it was walked as a router with nothing in it, and whatever it
+      // answered was passed over in silence. The `stack` it carries is the other shortcut a
+      // walk could take, and anything can carry one.
+      const router: express.RequestHandler & { stack?: unknown[] } = (_req, res) => {
+        res.end()
+      }
+      router.stack = []
+      const app = express()
+      mount(app, router)
+
+      expect(() => mountedRoutes(app)).toThrow('refuses to guess what the middleware "router"')
+    },
+  )
+
+  it('lets the gallery’s headers through at their paths, the one middleware named inside a router', () => {
     // The guard on the allow-list, and on its being keyed by identity: `galleryRoutes`
     // mounts `galleryHeaders` at two paths, and a walk that refused it would refuse the
     // real server in both modes.
@@ -543,6 +594,53 @@ describe('the stack walk', () => {
     expect(mountedRoutes(app)).toEqual([
       { method: 'get', path: '/api/gallery/:token', mount: '/api' },
     ])
+  })
+
+  it('lets through, on the app, the three middleware server.ts mounts at a path, each named with a reason', () => {
+    // The guard on the app's own allow-list, mounted exactly as `server.ts` mounts its
+    // entries: the gallery's headers ahead of the session, the CSRF gate on `/api`, and the
+    // API's 404 after every router. A walk that refused any of them would refuse the real
+    // server in both modes.
+    const app = express()
+    app.use(['/api/gallery', '/api/gallery-media'], galleryHeaders)
+    app.use('/api', requireCsrfToken)
+    app.use('/api', apiNotFound)
+
+    expect(mountedRoutes(app)).toEqual([])
+  })
+
+  it.each([
+    ['requireCsrfToken', requireCsrfToken],
+    ['apiNotFound', apiNotFound],
+  ])(
+    'refuses %s at a path inside a router, where only the app’s list would excuse it',
+    (name, middleware) => {
+      // The guard on the two lists staying apart. Each says where its entries may stand, and
+      // a walk that read them as one would excuse inside every router what was argued only
+      // for the app.
+      const app = express()
+      const api = express.Router()
+      api.use('/site', middleware)
+      app.use('/api', api)
+
+      expect(() => mountedRoutes(app)).toThrow(`refuses to guess what the middleware "${name}"`)
+    },
+  )
+
+  it('refuses a stranger that only shares the name of a middleware it lets through', () => {
+    // The guard on the app's list being keyed by identity. A layer carries its function's
+    // name and nothing else, so a list read by name would let any handler called
+    // `apiNotFound` answer whatever lies under its mount point.
+    // Named by the property it is defined on, which is how a function picks up a name.
+    const stranger = {
+      apiNotFound: (_req: express.Request, res: express.Response) => {
+        res.end()
+      },
+    }.apiNotFound
+    const app = express()
+    app.use('/api/site', stranger)
+
+    expect(() => mountedRoutes(app)).toThrow('refuses to guess what the middleware "apiNotFound"')
   })
 
   it('reads a middleware at the root of a router as the router’s own, as siteRoutes mounts its gate', () => {
