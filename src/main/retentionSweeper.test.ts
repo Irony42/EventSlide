@@ -527,6 +527,35 @@ describe('createRetentionSweeper', () => {
       sweeper.stop()
     })
 
+    it('keeps the overlap guard up during the prune even when the purge threw synchronously', async () => {
+      let release: (report: PruneAuditLogReport) => void = () => {}
+      let purges = 0
+      let prunes = 0
+      const { sweeper } = build({
+        purge: () => {
+          purges += 1
+          throw new Error('database is closed')
+        },
+        pruneAuditLog: () => {
+          prunes += 1
+          if (prunes > 1) return Promise.resolve(nothingPruned)
+          return new Promise<PruneAuditLogReport>((resolve) => {
+            release = resolve
+          })
+        },
+      })
+
+      const first = sweeper.runOnce()
+      await vi.advanceTimersByTimeAsync(0)
+      const second = await sweeper.runOnce()
+      release(nothingPruned)
+      await first
+
+      expect(second).toEqual({ status: 'skipped' })
+      expect(purges).toBe(1)
+      expect(prunes).toBe(1)
+    })
+
     it('keeps the overlap guard up while the prune runs, so two sweeps never prune at once', async () => {
       let release: (report: PruneAuditLogReport) => void = () => {}
       let started = 0
