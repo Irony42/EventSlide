@@ -19,6 +19,7 @@ const MINTERS: ReadonlyArray<[string, (ids: IdGenerator) => string]> = [
   ['guestId', (ids) => ids.guestId()],
   ['userId', (ids) => ids.userId()],
   ['reactionId', (ids) => ids.reactionId()],
+  ['clientId', (ids) => ids.clientId()],
 ]
 
 describe('randomIdGenerator', () => {

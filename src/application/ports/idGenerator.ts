@@ -1,4 +1,5 @@
 import type {
+  ClientId,
   ClipJobId,
   EventId,
   GuestId,
@@ -44,6 +45,12 @@ export interface IdGenerator {
    * the secret a guest holds is the link's token, which comes from `GallerySigner`.
    */
   shareLinkId(): ShareLinkId
+
+  /**
+   * A client of the box (roadmap §10.2). Opaque like the rest: the operator console of
+   * §10.4 is the first surface that puts one in a URL.
+   */
+  clientId(): ClientId
 
   /** Cryptographically strong bytes. Used for join codes and guest device tokens. */
   bytes(count: number): Uint8Array

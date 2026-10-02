@@ -60,14 +60,26 @@ describe('SequentialIdGenerator', () => {
     expect(() => new SequentialIdGenerator().bytes(count)).toThrow()
   })
 
+  it('numbers clients from one, on a counter of their own', async () => {
+    const ids = new SequentialIdGenerator()
+    ids.eventId()
+
+    expect([ids.clientId(), ids.clientId()]).toEqual(['client-1', 'client-2'])
+  })
+
   it('starts over on reset', async () => {
     const ids = new SequentialIdGenerator()
     ids.eventId()
+    ids.clientId()
     ids.bytes(6)
 
     ids.reset()
 
-    expect([ids.eventId(), [...ids.bytes(2)]]).toEqual(['event-1', [0, 1]])
+    expect([ids.eventId(), ids.clientId(), [...ids.bytes(2)]]).toEqual([
+      'event-1',
+      'client-1',
+      [0, 1],
+    ])
   })
 
   it('returns itself from reset, so a beforeEach reads in one line', async () => {

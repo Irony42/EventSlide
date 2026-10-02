@@ -53,6 +53,7 @@ describe('createSequentialIdGenerator', () => {
       ids.guestId(),
       ids.userId(),
       ids.reactionId(),
+      ids.clientId(),
     ]) {
       expect(String(id)).toMatch(uuid)
     }
