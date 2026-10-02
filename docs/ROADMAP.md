@@ -685,9 +685,9 @@ three together are what let an operator stop a relationship without a database c
 > declared allow-list of numbers, switches, instants and ids (no caption, name, address, slug or
 > token), `subject_type` already admits `photo` (§5.4 shares this storage) and `access_request`,
 > and `AUDIT_RETENTION_DAYS` (1095 by default, 365 at least) is honoured by the retention sweep
-> through `pruneAuditLog`. `setClientCeilings` is the first writer:
-> `client.ceilingsChanged {before, after}`, and `client.periodReset {before, after}` when a
-> renewal zeroes the period counter. **Not built**: any route that reads the log (the operator's
+> through `pruneAuditLog`. `setClientCeilings` is the first writer, write-ahead (the entry is
+> recorded before the client is saved): `client.ceilingsChanged {before, after}`, and
+> `client.periodReset {before, after}` when a renewal zeroes the period counter. **Not built**: any route that reads the log (the operator's
 > `/api/site` view, G2-14, and the client-readable view, G2-16), the other operator actions'
 > entries, pruning from `npm run purge`, and a transaction shared with the act being recorded.
 > See [SECURITY.md §17](SECURITY.md).

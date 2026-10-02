@@ -1199,7 +1199,7 @@ Two triggers now, for two kinds of operator:
 | In-process sweep, hourly by default                                                                                       | the application         | the ordinary single-box install — `docker compose up` honours retention with nothing else configured                 |
 | The purge command, `--dry-run` to preview: `node dist/ops/scripts/purge.js` in the image, `npm run purge` from a checkout | cron or a systemd timer | you want the schedule outside the app — then set `RETENTION_SWEEP_INTERVAL_MINUTES=off` — or you need the answer now |
 
-Both run the same use case, so the two can never disagree about what is due.
+Both run the same use case, so the two can never disagree about what is due. **The one exception is the audit log's own retention** (§17): only the in-process sweep prunes it, so with `RETENTION_SWEEP_INTERVAL_MINUTES=off` and a cron running this command, nothing does yet.
 
 **Both also run the media reconciliation sweep** (§4.1), and the second one has to: the
 switch that moves the schedule to cron is the same switch the container reads to decide
@@ -1877,33 +1877,42 @@ is future work, and nothing here claims it is done.
 
 ## 17. The audit log
 
-Roadmap §10.8. Who changed which ceiling, and when, recorded by the application in a table the
-application itself cannot rewrite. There is **no route** that reads it yet: the operator's view is
+Roadmap §10.8. Who changed which ceiling, and when, recorded by the application in a table that its
+own code cannot rewrite by accident. There is **no route** that reads it yet: the operator's view is
 G2-14 (`/api/site`) and the client's own is G2-16, and neither is described here until it exists.
 
 **What a row holds.** An instant, the actor (`operator`, `member`, `system` or `integration`, with
-an account id where there is one and a constant label where there is not), an action, a subject
-(a type and an opaque id), the client it belongs to, and `details`, a JSON object. **Never** a
-photograph, a caption, a guest's name, an address, a slug, a filename or a token. That is
-enforced, not requested: each action declares in `src/domain/audit/auditAction.ts` the exact keys
-and kinds of its `details`, the vocabulary of a kind (`integer`, `boolean`, `instant`, `id`) has
-**no free-text member**, and `AuditEntry.create` refuses an undeclared key and a value of the wrong
-kind, naming where and never what. `AuditLog.record` takes only an `AuditEntry`, so nothing
-unvalidated reaches an adapter. The named tests are in `auditEntry.test.ts` and
-`auditAction.test.ts`.
+an account id for an operator or a member, and a constant label, never both, for a process or an
+integration), an action, a subject (a type and an opaque id), the client it belongs to, and
+`details`, a JSON object. **Never** a photograph, a caption, a guest's name, an address, a slug, a
+filename or a token. That is enforced, not requested: each action declares in
+`src/domain/audit/auditAction.ts` the exact keys and kinds of its `details`, the vocabulary of a
+kind (`integer`, `boolean`, `instant`) has **no string member but an instant**, and
+`AuditEntry.create` refuses an undeclared key and a value of the wrong kind, naming where and never
+what. There is deliberately **no `id` kind**: a slug, a join code and a token are strings of the same
+alphabet as an id, so a kind that admitted "an id" would admit them while promising otherwise; the
+first action that must name a second entity adds a kind typed to it. An account is named by its id,
+never by a label, so an operator or a member may not carry one. `AuditLog.record` takes only an
+`AuditEntry`, so nothing unvalidated reaches an adapter; an entry reads each property once and
+stores a frozen copy of what it checked. The named tests are in `auditEntry.test.ts`,
+`auditDetails.test.ts` and `auditAction.test.ts`.
 
 **Append-only, in the database.** Migration 009 puts three triggers on `audit_log`:
 
-| Trigger                  | Refuses                                                                                                                  | Why it is shaped that way                                                                                                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `audit_log_no_update`    | every `UPDATE`, except `actor_user_id` going to `NULL` with the account already deleted and every other column unchanged | that one is `ON DELETE SET NULL`, the whole erasure procedure; the account-is-gone clause stops the same `UPDATE` run by hand erasing _who did it_ from a live account\'s rows |
-| `audit_log_no_delete`    | every `DELETE`, whatever the age of the row, while `audit_prune_gate.open` is not `1`                                    | retention is the only reason a row may go                                                                                                                                      |
-| `audit_log_no_overwrite` | an `INSERT` whose `seq` already exists                                                                                   | `INSERT OR REPLACE` deletes the old row without firing delete triggers (`recursive_triggers` is off), so without this it rewrites any row past the other two                   |
+| Trigger                  | Refuses                                                                                                                  | Why it is shaped that way                                                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `audit_log_no_update`    | every `UPDATE`, except `actor_user_id` going to `NULL` with the account already deleted and every other column unchanged | that one is `ON DELETE SET NULL`, the whole erasure procedure; the account-is-gone clause stops the same `UPDATE` run by hand erasing _who did it_ from a live account's rows |
+| `audit_log_no_delete`    | every `DELETE`, whatever the age of the row, while `audit_prune_gate.open` is not `1`                                    | retention is the only reason a row may go                                                                                                                                     |
+| `audit_log_no_overwrite` | an `INSERT` whose `seq` already exists                                                                                   | `INSERT OR REPLACE` deletes the old row without firing delete triggers (`recursive_triggers` is off), so without this it rewrites any row past the other two                  |
 
 What this is **not**: protection against someone who can run `DROP TRIGGER` or edit the file.
 Those are DDL and a disk, and a database cannot defend its own schema from its owner (§16 is the
 honest statement of what the operator can do). It guards against the application, and against
-mistakes, which is what the log is actually exposed to.
+mistakes, which is what the log is actually exposed to. And it is narrower than it sounds in one
+place: **the gate below is an ordinary row**, so any code on the connection that names it can open
+it and leave it open. What keeps that from happening is that nothing in this repository does,
+which `scripts/auditPruneScope.test.ts` checks on the syntax tree. It is a guard against code that
+does not know about the gate, not against code written to get round it.
 
 **Retention.** `AUDIT_RETENTION_DAYS`: 1095 by default, **never below 365**, at most 3650, refused
 at boot outside that range and naming the variable. The hosted instance runs 365, the minimum.
@@ -1921,7 +1930,10 @@ nothing prunes the audit log** (`npm run purge` does not yet).
 opaque id that becomes `NULL` when the account is deleted; there is nothing else to erase.
 `client_id` has no foreign key, so a deleted client's history outlives it.
 
-**Known gap: the write is not in the same transaction as the act it records.** `setClientCeilings`
-saves the client and then records the entry. If the second write fails the error propagates and the
-change stands without its line. Closing it needs a unit-of-work port that no use case has yet; G2-20
-asks for the same atomicity for the acceptance of the terms.
+**Write-ahead, and a known gap.** `setClientCeilings` builds and validates its entries, records them,
+and only then saves the client, so a ceiling cannot move without a line saying who moved it, and an
+entry the log refuses (an actor that is not an account) refuses the change. The two writes are not
+one transaction: if the save fails after the entry was recorded, the log holds a line for a change
+that did not happen, and the retry writes a second. That is the lesser error, and a visible one.
+Closing it needs a unit-of-work port that no use case has yet; G2-20 asks for the same atomicity for
+the acceptance of the terms.
