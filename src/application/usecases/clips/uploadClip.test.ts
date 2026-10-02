@@ -947,6 +947,14 @@ describe('uploadClip under a client’s ceilings', () => {
       expect(!past.ok && past.error.kind).toBe('quotaExceeded')
     })
 
+    it('tells the guest what the file needed and nothing about what the client’s other events hold', async () => {
+      photos.seed(aPhoto({ id: 'held', eventId: 'event-2', byteSize: 5 * MB }))
+
+      const result = await send(EVENT, 'a')
+
+      expect(!result.ok && result.error.details).toEqual({ required: 4 * MB })
+    })
+
     it('counts the other event’s photographs, so a ceiling shared by two events is shared', async () => {
       photos.seed(aPhoto({ id: 'held', eventId: 'event-2', byteSize: 5 * MB }))
 

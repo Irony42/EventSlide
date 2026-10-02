@@ -1277,6 +1277,17 @@ describe('uploadPhotos under a client’s ceilings', () => {
     expect(refusal(pastIt).kind).toBe('quotaExceeded')
   })
 
+  it('tells the guest what the file needed and nothing about what the client’s other events hold', async () => {
+    const upload = buildWith()
+    await send(EVENT, 'one', upload)
+    await send(EVENT, 'two', upload)
+
+    const result = await send(EVENT, 'three', upload)
+
+    // `remaining` is the client's headroom, which is what its other events have not spent.
+    expect(refusal(result).details).toEqual({ required: MB })
+  })
+
   it('counts the other event of the same client, so two events cannot spend what one client shares', async () => {
     photos.seed(aPhoto({ id: 'held-1', eventId: 'event-2', byteSize: MB }))
     photos.seed(aPhoto({ id: 'held-2', eventId: 'event-2', byteSize: MB }))

@@ -437,6 +437,7 @@ describe('POST /api/events/:eventSlug/clips', () => {
 
       expect(response.status).toBe(413)
       expect(response.body.error.code).toBe('client.storageFull')
+      expect(response.body.error.details).toEqual({ required: 50_000 })
       expect(response.headers['retry-after']).toBeUndefined()
       expect(subject.clips.all).toEqual([])
     })
