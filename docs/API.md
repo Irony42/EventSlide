@@ -1494,8 +1494,10 @@ The new event is attached to a client, fixed at creation:
 - a member of **one** client: that client, with nothing to send;
 - a member of **several**: the body must carry `"clientId"` (a uuid) naming one of theirs;
   without it, **404 `client.notFound`**;
-- the operator, and an account with no client under `anyAccount`: no client (`clientId` null
-  in storage, which is what every event on a box that never had clients has).
+- the operator: no client, unless they name one of their own (`clientId`) — their events are
+  never counted against anybody's ceilings by default; an account with no client under
+  `anyAccount`: no client either (`client_id` is null in storage, which is what every event
+  on a box that never had clients has).
 
 `clientId` is optional, and naming a client that is not the caller's — whether it exists or
 not — is the same **404 `client.notFound`**, so the field is not a way to enumerate clients.
@@ -1511,6 +1513,10 @@ written. The per-period counter **never decreases**: deleting an event
 (`DELETE /api/events/:slug`) frees a slot of the first ceiling and none of the second, so
 create, delete, recreate cannot walk around it. The other §10.5 ceilings are not enforced
 here yet (roadmap G2-05).
+
+Until the operator API exists (roadmap §10.2, G2-14), nothing over HTTP creates a client or
+adds a member, so on a box that sets `clientMembers` today the operator is the only account
+that can create an event; leave the policy at `anyAccount` until clients can be enrolled.
 
 **The slug (roadmap G3-05 / P4-09, decision D-14).** Three environment variables govern
 it, all backward-compatible by default:

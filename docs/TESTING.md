@@ -7,7 +7,7 @@ deep version: mechanics, rationale, and the failure it prevents.
 
 > **Status.** All six rings are in place and green. `npm run verify` passes — lint, the
 > five typecheck projects, **6 839** vitest tests, every coverage gate, and the build —
-> and `npm run test:e2e` passes **337** Playwright tests across five browser projects,
+> and `npm run test:e2e` passes **337** Playwright tests across six browser projects,
 > with the `@visual` snapshots green under `npm run test:e2e:visual`.
 >
 > Those two counts are a snapshot and go stale between the day they are written and the

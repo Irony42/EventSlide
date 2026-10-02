@@ -48,12 +48,18 @@ export interface EventRepository {
   /**
    * Insert or update. The unique indexes on slug and join code are the real guard.
    *
-   * **Last write wins, over the whole row.** There is no version column and no
-   * compare-and-set, which is safe only because the production adapter is synchronous
-   * and single-process: `applyEventSchedules` does a read-modify-write over this method
-   * and would otherwise be able to revert a concurrent rename. An adapter that is
-   * genuinely asynchronous or admits a second writer has to add optimistic concurrency
-   * and revisit that use case — the reasoning is written out there.
+   * **Last write wins, over the whole row — except `client_id`**, which is written when the
+   * row is created and by nothing else: which client an event answers to decides which
+   * ceilings bind it, so a `save` of a copy read before a handover must not undo it. And a
+   * `save` that **creates** a row inserts the `client_id` it is given with no ceiling check, no
+   * counting and no owner: creating an event is {@link EventRepository.createWithOwner},
+   * and `save` is for the aggregate's later changes (and for fixtures).
+   *
+   * There is no version column and no compare-and-set, which is safe only because the
+   * production adapter is synchronous and single-process: `applyEventSchedules` does a
+   * read-modify-write over this method and would otherwise be able to revert a concurrent
+   * rename. An adapter that is genuinely asynchronous or admits a second writer has to add
+   * optimistic concurrency and revisit that use case — the reasoning is written out there.
    */
   save(event: Event): Promise<void>
 

@@ -49,7 +49,10 @@ npm run test:e2e:update-snapshots     # after an intentional visual change
 
 Projects: `chromium-desktop` (host + projector), `chromium-mobile` (Pixel 7, guest),
 `webkit-mobile` (iPhone 14 — the browser most guests actually use), `firefox-desktop`,
-and `chromium-offline`.
+`chromium-offline`, and `chromium-client-members` — `tenant-isolation.spec.ts` alone, on a
+server started with `EVENT_CREATION=clientMembers` and `SITE_ADMIN=on` (the default projects
+run the same file under `anyAccount`, so it runs under both policies; a spec that only makes
+sense under one says so with `test.skip` on `app.eventCreation`).
 
 `chromium-offline` is the only project that runs `tests/e2e/offline/`, and the only one
 that may: those specs cut the network out from under a live page with
@@ -92,7 +95,9 @@ Non-negotiables:
 - **No network stubbing.** If you find yourself stubbing a route, the test belongs in
   another ring.
 - **Seeding through the API or a seed script**, never by writing SQL in a spec. Seeding
-  via the public surface is itself a test.
+  via the public surface is itself a test. The two exceptions are a fact no route can
+  establish yet — switching an account off, enrolling one in a client — and both are named in
+  `TestApp.databasePath`; a third needs the same argument.
 - Deterministic secrets and a fixed `E2E_CLOCK_EPOCH` so snapshots are stable.
 
 ## Three surfaces, three contexts

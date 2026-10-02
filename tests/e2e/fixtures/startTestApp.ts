@@ -70,7 +70,13 @@ export interface TestApp {
    * Reading is not the shortcut `apiSession` refuses. Writing rows would let a fixture
    * build state the application cannot, and a journey on impossible state proves nothing;
    * reading one back is what ring 6 already does to the media root when it checks that a
-   * stored file carries no EXIF. Nothing in this suite may write through it.
+   * stored file carries no EXIF.
+   *
+   * **Two narrow exceptions write**, both in `tenant-isolation.spec.ts` and both for a fact
+   * that no route can yet establish: switching an account off (`setAccountDisabled`), and
+   * enrolling an account in a client under `EVENT_CREATION=clientMembers` (`enrolInAClient`),
+   * because the operator API that creates clients is G2-14. When that ships, the second
+   * becomes a request. Nothing else may write through it.
    */
   readonly databasePath: string
   /** The policy this server was started under. A spec that depends on it says so. */
@@ -263,9 +269,10 @@ export const startTestApp = async ({
         BOOTSTRAP_OWNER_EMAIL: OWNER.email,
         BOOTSTRAP_OWNER_PASSWORD: OWNER.password,
         LOG_LEVEL: 'warn',
-        ...(eventCreation === 'clientMembers'
-          ? { EVENT_CREATION: 'clientMembers', SITE_ADMIN: 'on' }
-          : {}),
+        // Always stated, never inherited: a developer's exported `EVENT_CREATION` must not
+        // make `app.eventCreation` say one thing while the server does another.
+        EVENT_CREATION: eventCreation,
+        ...(eventCreation === 'clientMembers' ? { SITE_ADMIN: 'on' } : {}),
         ...env,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
