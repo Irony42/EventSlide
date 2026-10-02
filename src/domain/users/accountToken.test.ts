@@ -298,6 +298,19 @@ describe('invitationTargetOf', () => {
     expect(invitationTargetOf(issue())).toBeNull()
   })
 
+  it('reads nothing from a reset that a row somehow gave a target, which is not a grant', () => {
+    // Not reachable through `issueAccountToken`, which refuses it; a hand-edited row could be.
+    const reset = {
+      ...issue(),
+      eventId: asEventId('event-1'),
+      eventRole: 'moderator' as const,
+      clientId: asClientId('client-1'),
+      clientRole: 'owner' as const,
+    }
+
+    expect(invitationTargetOf(reset)).toBeNull()
+  })
+
   it('reads nothing from an invitation row that names no complete target', () => {
     // Not reachable through `issueAccountToken`; a row the database holds could be, and the
     // answer must be "nothing to grant" rather than a half-built grant.

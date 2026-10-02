@@ -22,6 +22,7 @@ import { SqliteAccountTokenRepository } from '../infrastructure/db/sqliteAccount
 import { SqliteSecondFactorRepository } from '../infrastructure/db/sqliteSecondFactorRepository'
 import { createAesGcmMfaVault } from '../infrastructure/crypto/aesGcmMfaVault'
 import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
+import { SqliteInvitationAcceptance } from '../infrastructure/db/sqliteInvitationAcceptance'
 import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
@@ -419,6 +420,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       config.mfa.encryptionKey === null
         ? null
         : createAesGcmMfaVault({ keyMaterial: config.mfa.encryptionKey }),
+    invitationAcceptance: new SqliteInvitationAcceptance(db),
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.
     gallerySigner: createHmacGallerySigner({ rootSecret: config.secrets.session }),

@@ -495,6 +495,24 @@ export const accountTokenRepositoryContract = (
         ).not.toBeNull()
       })
 
+      it('leaves a token of another purpose alone even when a row gave it the same place', async () => {
+        // Not reachable through the domain, which keeps a place off a reset; the statement
+        // must not rely on that to stay inside invitations.
+        const reset = {
+          ...anAccountToken({ id: 'tok-reset', email: 'nouveau@example.test', userId: 'user-1' }),
+          eventId: asEventId('event-1'),
+          eventRole: 'moderator' as const,
+        }
+        await repo.save(reset)
+
+        expect(
+          await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(1_000)),
+        ).toBe(0)
+        expect(
+          await repo.findUsable(digestOf('tok-reset'), 'passwordReset', atPlus(2_000)),
+        ).not.toBeNull()
+      })
+
       it('does not count an invitation that is spent, already revoked or expired', async () => {
         await repo.save(invite('tok-spent'))
         await repo.consume(asAccountTokenId('tok-spent'), atPlus(500))

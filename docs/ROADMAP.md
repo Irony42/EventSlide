@@ -636,6 +636,21 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 
 ### 10.3 Invitations that survive a box with no mail server (P1, effort M, risk: medium)
 
+> **Partly shipped**: the mailer, the tokens, and the invitation itself as use cases; the
+> routes that expose them are the next change. `Mailer` with `NullMailer` and an optional SMTP
+> adapter (G2-07 / P3-08), and the account tokens with the credentials epoch, password reset and
+> "sign out everywhere" (G2-08 / P3-09) are shipped. **Invitations** (G2-09 / P3-10) are built as
+> `issueInvitation`, `previewInvitation`, `acceptInvitation` and `provisionClientOwner`, over
+> migration 011 (`account_tokens.client_id` and `client_role`) and one new port,
+> `InvitationAcceptance`, whose adapter spends the link, creates the account and grants the role
+> in a single transaction. The rules they hold: **no `users` row exists before an invitation is
+> accepted**, so nobody can make an account for an address and choose its password; a link is
+> single-use and lives a week; an address that already has an account is never given a second
+> one and is never attached by someone who only holds the link; `email_verified_at` is set only
+> when the link came by mail; one live link per address and place; five invitations an hour to
+> one address. The existing `POST /api/events/:eventSlug/moderators` still takes a temporary
+> password until the routes land; it is the thing this replaces.
+
 Today's flow — create the account, read the password aloud — has to be replaced by a
 single-use, expiring, signed link that lets a client set their own password and lands them
 on their event.
