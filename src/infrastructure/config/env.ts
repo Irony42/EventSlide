@@ -230,7 +230,7 @@ const parseHttpsUrl = (value: string): string | null => {
  * refuses `http:` for the source link is the rule that refuses it for a donation page, and
  * a test that loosens one loosens all three and fails for all three.
  */
-const optionalHttpsLink = (variable: string) =>
+const optionalHttpsLink = (variable: string, shownTo: string) =>
   z.preprocess(
     blankAsAbsent,
     z
@@ -241,7 +241,7 @@ const optionalHttpsLink = (variable: string) =>
         if (parsed === null) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: `${variable} must be an https URL with no credentials in it: a javascript:, data: or http: address is refused, because this link is shown to every visitor`,
+            message: `${variable} must be an https URL with no credentials in it: a javascript:, data: or http: address is refused, because this link is shown to ${shownTo}`,
           })
           return z.NEVER
         }
@@ -254,7 +254,7 @@ const optionalHttpsLink = (variable: string) =>
  * `SOURCE_CODE_URL`: the complete source of this build, as the operator publishes it. It
  * wins over `SOURCE_REF` and over the default.
  */
-const sourceCodeUrl = optionalHttpsLink('SOURCE_CODE_URL')
+const sourceCodeUrl = optionalHttpsLink('SOURCE_CODE_URL', 'every visitor')
 
 /**
  * `DONATION_URL`: where a visitor can support the project (roadmap G4-02). **Empty by
@@ -263,13 +263,13 @@ const sourceCodeUrl = optionalHttpsLink('SOURCE_CODE_URL')
  * never shown to a guest or on the projected wall. A donation buys nothing, and no
  * setting adds a counterpart.
  */
-const donationUrl = optionalHttpsLink('DONATION_URL')
+const donationUrl = optionalHttpsLink('DONATION_URL', 'hosts and on the public /about page')
 
 /**
  * `BUDGET_URL`: the public ledger the donations are accounted in, when the operator keeps
  * one (roadmap G4-02). Empty by default, for the same reason as {@link donationUrl}.
  */
-const budgetUrl = optionalHttpsLink('BUDGET_URL')
+const budgetUrl = optionalHttpsLink('BUDGET_URL', 'hosts and on the public /about page')
 
 /**
  * `SOURCE_REF`: the tag or commit the image was built from, injected by the Dockerfile's

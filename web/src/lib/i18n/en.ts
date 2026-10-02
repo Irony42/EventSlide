@@ -855,7 +855,7 @@ export const en: UiText = {
 
     supportLink: 'Support the project',
     supportTitle: 'The project runs on donations',
-    supportIntro: 'EventSlide is free software, free of charge and free of advertising.',
+    supportIntro: 'EventSlide is free software, at no charge and without ads.',
     supportNoCounterpart: 'A donation unlocks nothing: same service for everyone.',
     budgetLink: 'See the public budget',
     supportDismiss: 'Hide this message',

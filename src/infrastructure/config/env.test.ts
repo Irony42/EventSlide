@@ -1221,6 +1221,16 @@ describe('loadConfig', () => {
       expect(issue).toContain('https')
     })
 
+    it('says who sees the link when it refuses: hosts and /about, not "every visitor"', () => {
+      // The message is shared with SOURCE_CODE_URL, which really is on every screen. A
+      // donation link is not, and an operator reading this should not be told it is.
+      const issues = refusalIssues({ ...DEV, [variable]: 'http://pay.example.org/eventslide' })
+
+      const issue = issues.find((candidate) => candidate.startsWith(`${variable}: `)) ?? ''
+      expect(issue).toContain('hosts and on the public /about page')
+      expect(issue).not.toContain('every visitor')
+    })
+
     it('refuses beside every other problem at once, not one boot at a time', () => {
       const issues = refusalIssues({
         ...DEV,
