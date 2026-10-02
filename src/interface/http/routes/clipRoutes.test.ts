@@ -8,8 +8,7 @@ import { clipRoutes, clipUploadTempDir, withGuestClip } from './clipRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
-import { AT, aClipJob, aGuest, anEvent } from '../../../application/testing/builders'
-import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
+import { AT, aClient, aClipJob, aGuest, anEvent } from '../../../application/testing/builders'
 import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import {
@@ -21,6 +20,7 @@ import { SequentialIdGenerator } from '../../../application/testing/sequentialId
 import { makeGetClipJob } from '../../../application/usecases/clips/getClipJob'
 import { makeUploadClip } from '../../../application/usecases/clips/uploadClip'
 import type { ContentHasher } from '../../../application/ports/contentHasher'
+import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
 import { asEventId } from '../../../domain/shared/ids'
 
@@ -81,6 +81,11 @@ interface SubjectOptions {
   readonly maxQueuedClipsPerEvent?: number
   readonly maxClipBytes?: number
   readonly quotaBytes?: number
+  /**
+   * The ceilings of a client the wedding belongs to (roadmap §10.5 / G2-05). Absent means the
+   * wedding has no client, which is every event on a box that has none.
+   */
+  readonly clientCeilings?: Partial<ClientCeilingsProps>
   /** Models a deployment with no ffmpeg on it, which the Null Object adapter is. */
   readonly transcoderUnavailable?: boolean
   readonly config?: Partial<HttpConfig>
@@ -104,7 +109,11 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
 
   const harness = buildHarness({
     ...(options.config === undefined ? {} : { config: options.config }),
-    routes: (app, deps) => {
+    routes: (app, deps, world) => {
+      // The two repositories read the clients through the world's one link, as a SQLite
+      // adapter reads `events.client_id` from one database.
+      photos.chargeClientBytesFrom(world.clients)
+      clips.chargeClientEventsFrom(world.clients)
       app.use(
         '/api',
         clipRoutes({
@@ -114,7 +123,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
           usecases: {
             uploadClip: makeUploadClip({
               events: deps.events,
-              clients: new FakeClientRepository(),
+              clients: world.clients,
               clips,
               photos,
               media,
@@ -137,11 +146,15 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
     },
   })
 
+  if (options.clientCeilings !== undefined) {
+    harness.clients.seed(aClient({ id: 'client-1', ceilings: options.clientCeilings }))
+  }
   harness.events.seed(
     anEvent({
       id: WEDDING,
       slug: 'mariage',
       joinCode: 'H7K2QM',
+      ...(options.clientCeilings === undefined ? {} : { clientId: 'client-1' }),
       ...(options.quotaBytes === undefined ? {} : { quotaBytes: options.quotaBytes }),
       ...(options.settings === undefined ? {} : { settings: options.settings }),
     }),
@@ -410,6 +423,56 @@ describe('POST /api/events/:eventSlug/clips', () => {
       expect(response.status).toBe(413)
       expect(response.body.error.code).toBe('event.quotaExceeded')
       expect(response.headers['retry-after']).toBeUndefined()
+    })
+  })
+
+  describe('a client’s ceilings', () => {
+    it('answers 413 client.storageFull when the client has no room left, without a Retry-After', async () => {
+      const subject = buildSubject({ clientCeilings: { maxTotalBytes: 1_000 } })
+
+      const response = await request(subject.app)
+        .post(`${BASE}/clips`)
+        .set('Cookie', cookie(subject.token))
+        .attach('clip', aClipBody('one', 50_000), 'IMG_4021.MOV')
+
+      expect(response.status).toBe(413)
+      expect(response.body.error.code).toBe('client.storageFull')
+      expect(response.headers['retry-after']).toBeUndefined()
+      expect(subject.clips.all).toEqual([])
+    })
+
+    it('accepts the same clip when the ceiling has room for it', async () => {
+      const subject = buildSubject({ clientCeilings: { maxTotalBytes: 10_000_000 } })
+
+      const response = await request(subject.app)
+        .post(`${BASE}/clips`)
+        .set('Cookie', cookie(subject.token))
+        .attach('clip', aClipBody('one', 50_000), 'IMG_4021.MOV')
+
+      expect(response.status).toBe(202)
+    })
+
+    it('answers 403 event.clipsNotAllowed when the client has no clips, whatever the event says', async () => {
+      const subject = buildSubject({ clientCeilings: { clipsAllowed: false } })
+
+      const response = await request(subject.app)
+        .post(`${BASE}/clips`)
+        .set('Cookie', cookie(subject.token))
+        .attach('clip', aClipBody(), 'IMG_4021.MOV')
+
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe('event.clipsNotAllowed')
+    })
+
+    it('leaves an event with no client alone', async () => {
+      const subject = buildSubject()
+
+      const response = await request(subject.app)
+        .post(`${BASE}/clips`)
+        .set('Cookie', cookie(subject.token))
+        .attach('clip', aClipBody(), 'IMG_4021.MOV')
+
+      expect(response.status).toBe(202)
     })
   })
 

@@ -41,6 +41,8 @@ import {
   asUserId,
   type EventId,
 } from '../../../domain/shared/ids'
+import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
+import { Event } from '../../../domain/events/event'
 import { Slug } from '../../../domain/shared/slug'
 import type { Password } from '../../../domain/users/password'
 import type { PasswordHash } from '../../../domain/users/user'
@@ -1555,6 +1557,221 @@ describe('the host event routes', () => {
         expect((await world.events.findBySlug(slugOf('un-mariage-en-juin')))?.clientId).toBe(
           CLIENT_ONE,
         )
+      })
+    })
+  })
+
+  // ------------------------------------------------------ a client's ceilings --
+
+  /**
+   * What a client's ceilings do over the wire (roadmap §10.5 / G2-05): the statuses and
+   * codes of `docs/API.md` §2, end to end through the real routes and use cases. The member
+   * of **client-one** creates, so the event belongs to it and every ceiling applies; the
+   * wedding (an account with no client, `world.events`) is the control that nothing changed
+   * for an event with none.
+   */
+  describe('a client’s ceilings on the host routes', () => {
+    const GB = 1_000_000_000
+
+    const withCeilings = (ceilings: Partial<ClientCeilingsProps>): void => {
+      world.clients.seed(aClient({ id: CLIENT_ONE, name: 'Atelier Camille', ceilings }))
+    }
+
+    /** The client member's own event, created through the API so it belongs to the client. */
+    const createdByTheClient = async (agent: Agent, name = 'Un soir de juin') => {
+      const response = await agent.post('/api/events').send({ name })
+      expect(response.status).toBe(201)
+      return String(response.body.slug)
+    }
+
+    describe('POST /api/events', () => {
+      it('answers 400 event.quotaAboveCeiling, naming the bound, for a quota above max_event_quota_bytes', async () => {
+        withCeilings({ maxEventQuotaBytes: 2 * GB })
+        const agent = await signedIn(world, 'client-member')
+
+        const response = await agent
+          .post('/api/events')
+          .send({ name: 'Un soir de juin', quotaBytes: 3 * GB })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('event.quotaAboveCeiling')
+        expect(response.body.error.details).toEqual({ maxBytes: 2 * GB })
+      })
+
+      it('creates the event at exactly the ceiling', async () => {
+        withCeilings({ maxEventQuotaBytes: 2 * GB })
+        const agent = await signedIn(world, 'client-member')
+
+        const response = await agent
+          .post('/api/events')
+          .send({ name: 'Un soir de juin', quotaBytes: 2 * GB })
+
+        expect(response.status).toBe(201)
+        expect((await world.events.findBySlug(slugOf('un-soir-de-juin')))?.quotaBytes).toBe(2 * GB)
+      })
+
+      it('turns the default “keep for ever” into max_retention_days, readable in the settings', async () => {
+        withCeilings({ maxRetentionDays: 30 })
+        const agent = await signedIn(world, 'client-member')
+
+        const slug = await createdByTheClient(agent)
+        const settings = await agent.get(`/api/events/${slug}`)
+
+        expect(settings.body.settings.retentionDays).toBe(30)
+      })
+
+      it('switches clips off for a client that has none, readable in the settings', async () => {
+        withCeilings({ clipsAllowed: false })
+        const agent = await signedIn(world, 'client-member')
+
+        const slug = await createdByTheClient(agent)
+        const settings = await agent.get(`/api/events/${slug}`)
+
+        expect(settings.body.settings.allowClips).toBe(false)
+      })
+
+      it('leaves an account with no client exactly as it was: default quota, kept for ever, clips on', async () => {
+        withCeilings({ maxEventQuotaBytes: GB, maxRetentionDays: 7, clipsAllowed: false })
+        const agent = await signedIn(world, 'newcomer')
+
+        const response = await agent.post('/api/events').send({ name: 'Un soir de juin' })
+
+        expect(response.status).toBe(201)
+        expect(response.body.settings.retentionDays).toBeNull()
+        expect(response.body.settings.allowClips).toBe(true)
+      })
+    })
+
+    describe('PATCH /api/events/:slug/settings', () => {
+      it('answers 400 client.retentionAboveCeiling, naming the bound, above max_retention_days', async () => {
+        withCeilings({ maxRetentionDays: 30 })
+        const agent = await signedIn(world, 'client-member')
+        const slug = await createdByTheClient(agent)
+
+        const response = await agent
+          .patch(`/api/events/${slug}/settings`)
+          .send({ retentionDays: 31 })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('client.retentionAboveCeiling')
+        expect(response.body.error.details).toEqual({ maxDays: 30 })
+      })
+
+      it('answers 400 for “keep for ever” once a ceiling exists', async () => {
+        withCeilings({ maxRetentionDays: 30 })
+        const agent = await signedIn(world, 'client-member')
+        const slug = await createdByTheClient(agent)
+
+        const response = await agent
+          .patch(`/api/events/${slug}/settings`)
+          .send({ retentionDays: null })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('client.retentionAboveCeiling')
+      })
+
+      it('accepts a retention at the ceiling', async () => {
+        withCeilings({ maxRetentionDays: 30 })
+        const agent = await signedIn(world, 'client-member')
+        const slug = await createdByTheClient(agent)
+
+        const response = await agent
+          .patch(`/api/events/${slug}/settings`)
+          .send({ retentionDays: 30 })
+
+        expect(response.status).toBe(200)
+      })
+
+      it('answers 400 client.clipsNotAllowed when switching clips on for a client that has none', async () => {
+        withCeilings({ clipsAllowed: false })
+        const agent = await signedIn(world, 'client-member')
+        const slug = await createdByTheClient(agent)
+
+        const response = await agent
+          .patch(`/api/events/${slug}/settings`)
+          .send({ allowClips: true })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('client.clipsNotAllowed')
+      })
+
+      it('imposes nothing on the wedding, which belongs to no client', async () => {
+        withCeilings({ maxRetentionDays: 1, clipsAllowed: false })
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent
+          .patch(`/api/events/${SLUG}/settings`)
+          .send({ retentionDays: 3_650, allowClips: true })
+
+        expect(response.status).toBe(200)
+      })
+    })
+
+    describe('POST /api/events/:slug/status', () => {
+      it('answers 403 client.liveNotAllowed for a client that may not go live, and the event stays a draft', async () => {
+        withCeilings({ liveAllowed: false })
+        const agent = await signedIn(world, 'client-member')
+        const slug = await createdByTheClient(agent)
+
+        const response = await agent.post(`/api/events/${slug}/status`).send({ status: 'live' })
+
+        expect(response.status).toBe(403)
+        expect(response.body.error.code).toBe('client.liveNotAllowed')
+        expect((await world.events.findBySlug(slugOf(slug)))?.status).toBe('draft')
+      })
+
+      it('opens an event inside the window and records when, which is what the window counts from', async () => {
+        withCeilings({ maxLiveDays: 3 })
+        const agent = await signedIn(world, 'client-member')
+        const slug = await createdByTheClient(agent)
+
+        const response = await agent.post(`/api/events/${slug}/status`).send({ status: 'live' })
+
+        expect(response.status).toBe(200)
+        expect((await world.events.findBySlug(slugOf(slug)))?.openedAt).toEqual(AT)
+      })
+
+      it('answers 403 client.liveWindowOver for a reopening once opened_at + max_live_days has passed', async () => {
+        withCeilings({ maxLiveDays: 3 })
+        const agent = await signedIn(world, 'client-member')
+        const slug = await createdByTheClient(agent)
+        // The event ran ten days ago and has been closed since: the harness clock is fixed,
+        // so the past is arranged rather than waited for.
+        const event = await world.events.findBySlug(slugOf(slug))
+        if (event === null) throw new Error('the event was just created')
+        await world.events.save(
+          Event.restore({
+            ...event.toProps(),
+            status: 'closed',
+            openedAt: atPlus(-10 * 86_400_000),
+            closedAt: atPlus(-9 * 86_400_000),
+          }),
+        )
+
+        const response = await agent.post(`/api/events/${slug}/status`).send({ status: 'live' })
+
+        expect(response.status).toBe(403)
+        expect(response.body.error.code).toBe('client.liveWindowOver')
+        expect((await world.events.findBySlug(slugOf(slug)))?.status).toBe('closed')
+      })
+
+      it('still reopens an event with no client, however long ago it first opened', async () => {
+        withCeilings({ maxLiveDays: 1 })
+        const wedding = await world.events.findById(WEDDING)
+        if (wedding === null) throw new Error('the wedding is seeded')
+        await world.events.save(
+          Event.restore({
+            ...wedding.toProps(),
+            status: 'closed',
+            openedAt: atPlus(-400 * 86_400_000),
+            closedAt: atPlus(-399 * 86_400_000),
+          }),
+        )
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent.post(`/api/events/${SLUG}/status`).send({ status: 'live' })
+
+        expect(response.status).toBe(200)
       })
     })
   })
