@@ -53,6 +53,7 @@ import {
 import { createReservationReaper, type ReservationReaper } from './reservationReaper'
 import { createRetentionSweeper, type RetentionSweeper } from './retentionSweeper'
 import { createScheduleSweeper, type ScheduleSweeper } from './scheduleSweeper'
+import { appVersion } from './version'
 
 /**
  * The composition root. **The only file in the codebase that constructs an adapter.**
@@ -114,8 +115,6 @@ export interface Container {
   readonly readiness: { markShuttingDown(): void }
   dispose(): Promise<void>
 }
-
-const VERSION = '2.0.0'
 
 /**
  * How often the worker looks for a clip nobody announced.
@@ -587,7 +586,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     sessionStore,
     presenter,
     health: {
-      version: VERSION,
+      version: appVersion(),
       startedAt: adapters.clock.now(),
       now: () => adapters.clock.now(),
       databaseReady: async () => {

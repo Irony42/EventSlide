@@ -16,6 +16,7 @@ import { mkdir, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { migrations } from '../src/infrastructure/db/migrations'
+import { appVersion } from '../src/main/version'
 import {
   BackupError,
   createBackup,
@@ -23,8 +24,6 @@ import {
   type VerifyReport,
 } from '../src/infrastructure/db/backupArchive'
 import { commandLine, invocationOf, type Invocation, type OperatorCommand } from './invocation'
-
-const VERSION = '2.0.0'
 
 const usage = (invocation: Invocation): string => {
   const line = (command: OperatorCommand, args: string, what: string): string =>
@@ -159,7 +158,7 @@ const runBackup = async (argv: readonly string[], invocation: Invocation): Promi
     mediaRoot,
     destination,
     now,
-    appVersion: VERSION,
+    appVersion: appVersion(),
     onProgress: (line) => console.log(line),
   })
 
