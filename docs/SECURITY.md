@@ -1750,15 +1750,15 @@ scratch path), so there is no relative lookup for an inherited `cwd` to redirect
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | Fill the disk?           | **Yes, eventually.** The quota is per event and there is **no global ceiling and no free-space check** anywhere: 5 GB default per event (`env.ts:186`) times unbounded events, and `maxPhotosPerGuest` defaults to `null` (`domain/events/eventSettings.ts:105`) | no `statfs` or `checkDiskSpace` in `src/`                                                              |
 | Exhaust the clip queue?  | **Yes, box-wide, in about two minutes.** The depth query has **no `WHERE event_id`**                                                                                                                                                                             | `sqliteClipJobRepository.ts:210-212`                                                                   |
-| Exhaust the heap?        | **Plausibly.** The limiter bounds requests per minute, not concurrency: 12 in flight against the 150 MB per-request cap (`routes/guestRoutes.ts:122`) versus `memory: 1g` (`compose.yaml:157`)                                                                   | `compose.yaml:127-132` concedes this in writing                                                        |
+| Exhaust the heap?        | **Plausibly.** The limiter bounds requests per minute, not concurrency: 12 in flight against the 150 MB per-request cap (`routes/guestRoutes.ts:122`) versus `memory: 1g` (`compose.yaml:167`)                                                                   | `compose.yaml:137-142` concedes this in writing                                                        |
 | Take the SSE wall down?  | **No.** 12 per client, 200 per event, 500 per process, all refusing cleanly before headers are written                                                                                                                                                           | `middleware/rateLimit.ts:109`, `:119`, `realtime/inMemoryEventBus.ts:42`, `routes/streamRoutes.ts:295` |
 | Spoof `X-Forwarded-For`? | **No at either default.** `trust proxy` is an explicit hop count, never a boolean                                                                                                                                                                                | `server.ts:59`, `env.ts:177`                                                                           |
 
 The quota itself is correctly built and §5's claim about it holds: an `.immediate()`
 transaction with the `SUM` inside it, spanning `photos` and staged clip sources
-(`sqlitePhotoRepository.ts:661`, `:679`; `sqliteClipJobRepository.ts:342`, `:354`). The
+(`sqlitePhotoRepository.ts:661`, `:679`; `sqliteClipJobRepository.ts:356`, `:368`). The
 clip adapter's `stage()` also now checks a second, per-event depth inside the same
-transaction, ahead of the box-wide one (`sqliteClipJobRepository.ts:325-332`) — see the
+transaction, ahead of the box-wide one (`sqliteClipJobRepository.ts:341-349`) — see the
 next row, whose box-wide exhaustion this does not close, only bound per event.
 
 #### Corrections to earlier sections of this document
