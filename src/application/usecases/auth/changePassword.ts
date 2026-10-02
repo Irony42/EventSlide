@@ -1,8 +1,7 @@
 import { DomainError } from '../../../domain/shared/errors'
 import type { UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
-import type { EmailAddress } from '../../../domain/users/emailAddress'
-import { Password, type PasswordContext } from '../../../domain/users/password'
+import { Password, passwordContextFor } from '../../../domain/users/password'
 import type { Clock } from '../../ports/clock'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import type { UserRepository } from '../../ports/userRepository'
@@ -22,10 +21,6 @@ export interface ChangePasswordDeps {
 }
 
 export type ChangePassword = (input: ChangePasswordInput) => Promise<Result<void, DomainError>>
-
-/** `exactOptionalPropertyTypes` forbids handing the context an explicit `undefined`. */
-const passwordContext = (email: EmailAddress, displayName: string | null): PasswordContext =>
-  displayName === null ? { email: email.value } : { email: email.value, displayName }
 
 /**
  * A host or moderator replaces their own password.
@@ -54,7 +49,7 @@ export const makeChangePassword =
 
     // The account is the context: a password equal to its own email or to the host's
     // name protects nothing, and only the caller knows both.
-    const parsed = Password.create(newPassword, passwordContext(user.email, user.displayName))
+    const parsed = Password.create(newPassword, passwordContextFor(user.email, user.displayName))
     if (!parsed.ok) return parsed
 
     // The policy cannot catch this — `Password` has no idea what the account already

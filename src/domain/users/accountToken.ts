@@ -54,6 +54,32 @@ export const ACCOUNT_TOKEN_LIFETIME_MS: Readonly<Record<AccountTokenPurpose, num
 }
 
 /**
+ * How many reset mails one address can be sent in an hour (G2-08 / P3-09).
+ *
+ * The request is unauthenticated and its answer is the same for every address, so a rate
+ * limit by client address bounds one attacker's speed and nothing about **whom** they write
+ * to: a hundred addresses a minute is a hundred strangers' inboxes. This is the cap on the
+ * victim's side — the fourth request inside the hour issues nothing and sends nothing, and
+ * answers exactly as the first did, so it is not an oracle either.
+ *
+ * Three, not one: a person who mistyped their address and tried again, then waited for a
+ * slow relay, is not abusing anything.
+ */
+export const PASSWORD_RESET_MAX_REQUESTS_PER_HOUR = 3
+
+/** The window {@link PASSWORD_RESET_MAX_REQUESTS_PER_HOUR} counts in. */
+export const PASSWORD_RESET_REQUEST_WINDOW_MS = HOUR_MS
+
+/**
+ * How long a token's row is kept after it can no longer be spent.
+ *
+ * A row holds an address, so it is housekeeping the moment it is dead. A day is the margin
+ * that keeps the request counter honest (it counts rows issued in the last hour, and a reset
+ * lives one) and leaves a support conversation something to look at.
+ */
+export const ACCOUNT_TOKEN_RETENTION_AFTER_EXPIRY_MS = 24 * HOUR_MS
+
+/**
  * How the link was meant to reach its owner: `mail`, or `link` — shown on screen to be
  * copied, because the box has no relay. The distinction is part of the record because
  * receiving a link by mail proves control of the mailbox, and being handed one by the person
