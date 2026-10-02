@@ -4,9 +4,11 @@ import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import type { ClientRepository } from '../../ports/clientRepository'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { clientContextOf } from '../clients/clientContextOf'
 
 /**
  * The host changes the event's policy: moderation mode, captions, reactions,
@@ -26,6 +28,11 @@ export interface UpdateEventSettingsInput {
 
 export interface UpdateEventSettingsDeps {
   readonly events: EventRepository
+  /**
+   * For the ceilings of the event's client (roadmap §10.5): `max_retention_days` and
+   * `clips_allowed`. Read only for an event that has a client — see `clientContextOf`.
+   */
+  readonly clients: ClientRepository
   readonly memberships: MembershipRepository
   readonly bus: EventBus
 }
@@ -35,7 +42,7 @@ export type UpdateEventSettings = (
 ) => Promise<Result<Event, DomainError>>
 
 export const makeUpdateEventSettings =
-  ({ events, memberships, bus }: UpdateEventSettingsDeps): UpdateEventSettings =>
+  ({ events, clients, memberships, bus }: UpdateEventSettingsDeps): UpdateEventSettings =>
   async ({ eventId, actorId, patch }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -58,6 +65,29 @@ export const makeUpdateEventSettings =
     // may have been tiered off, and it says so once for every kind of edit.
     const updated = event.withSettings(settings.value)
     if (!updated.ok) return updated
+
+    // The client's ceilings (roadmap §10.5 / G2-05), asked only of the fields the patch
+    // actually carries: an edit that does not mention retention is not refused because the
+    // stored one is above a ceiling lowered since — the purge already honours the lower
+    // number, and locking a host out of unrelated settings would punish them for it.
+    //
+    // **Refused, where creation reduces.** An event being created has no value the host
+    // chose to override; an edit does, and silently shortening what they typed would tell
+    // them they got what they asked for. Both are 400, so the form can say which field.
+    const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
+    if (ceilings !== null) {
+      const cap = ceilings.maxRetentionDays
+      if (
+        cap !== null &&
+        patch.retentionDays !== undefined &&
+        !ceilings.admitsRetention(patch.retentionDays)
+      ) {
+        return err(DomainError.invalid('client.retentionAboveCeiling', { maxDays: cap }))
+      }
+      if (patch.allowClips === true && !ceilings.clipsAllowed) {
+        return err(DomainError.invalid('client.clipsNotAllowed'))
+      }
+    }
 
     await events.save(updated.value)
     bus.publish({ type: 'event.settingsChanged', eventId: updated.value.id })
