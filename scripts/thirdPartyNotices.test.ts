@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -272,6 +272,19 @@ describe('the notices of a throwaway node_modules', () => {
       homepage: undefined,
       texts: ['A'],
     })
+  })
+})
+
+describe('the page that links the notices', () => {
+  it('links the very file name the build writes', () => {
+    // The browser bundle may not import `NOTICES_FILE`, which reads the disk, so
+    // `AboutPage.tsx` spells the address out. This is what keeps the two spellings one.
+    const page = readFileSync(
+      join(ROOT, 'web', 'src', 'features', 'about', 'AboutPage.tsx'),
+      'utf8',
+    )
+
+    expect(page).toContain(`'/${NOTICES_FILE}'`)
   })
 })
 

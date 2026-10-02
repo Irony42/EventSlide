@@ -150,6 +150,35 @@ test.describe('the AGPL source offer', () => {
       about.sourceUrl,
     )
   })
+
+  test('/about links the licence notices, and the server sends the file the build wrote', async ({
+    app,
+    page,
+    request,
+  }) => {
+    // Roadmap G1-07 / P1-09. MIT and ISC ask that their notice travel with the code, and the
+    // minified bundle carries none. Only a real build and a real static mount can show that
+    // the file exists, is not swallowed by the SPA fallback, and is plain text a phone can
+    // open: ring 5 has the link, and `scripts/thirdPartyNotices.test.ts` the build.
+    await page.goto(app.url('/about'))
+
+    const link = page.getByRole('link', { name: new RegExp(fr.about.noticesLink) })
+    await expect(link).toHaveAttribute('href', '/third-party-licenses.txt')
+    await expect(link).toHaveAttribute('rel', /noopener/)
+
+    const response = await request.get(app.url('/third-party-licenses.txt'))
+
+    expect(response.status()).toBe(200)
+    // Not `index.html`: an SPA fallback answering a missing file is the failure to catch.
+    expect(response.headers()['content-type']).toMatch(/^text\/plain/)
+    const notices = await response.text()
+    for (const name of ['react', 'react-router', 'qrcode.react']) {
+      expect(notices, `${name} is bundled, so its notice is served`).toMatch(
+        new RegExp(`^${name.replace('.', '\\.')} \\d+\\.\\d+\\.\\d+$`, 'm'),
+      )
+    }
+    expect(notices).toContain('Permission is hereby granted')
+  })
 })
 
 /**

@@ -1442,6 +1442,14 @@ export const fr = {
     sourceLabel: 'Code source',
     /** Under the link, because the version above it is the version the link points at. */
     sourceNote: 'Ce lien mène au code source de la version indiquée ci-dessus.',
+    /**
+     * The licence notices of the libraries the application is built from (roadmap G1-07):
+     * the licences of React and the others ask that their text travel with the code, and
+     * this is the page that carries it. The link opens a plain-text file the build writes.
+     */
+    noticesLabel: 'Licences tierces',
+    noticesLink: 'Notices des bibliothèques incluses',
+    noticesNote: 'Le texte des licences des bibliothèques libres que l’application contient.',
 
     /**
      * The support link (roadmap G4-02), shown only where the operator set `DONATION_URL`: in
