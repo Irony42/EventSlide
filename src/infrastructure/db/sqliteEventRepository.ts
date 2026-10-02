@@ -27,13 +27,7 @@ import {
 } from '../../domain/events/eventTheme'
 import { isEventStatus, type EventStatus } from '../../domain/events/eventStatus'
 import { DomainError } from '../../domain/shared/errors'
-import {
-  asClientId,
-  asEventId,
-  asUserId,
-  type EventId,
-  type UserId,
-} from '../../domain/shared/ids'
+import { asClientId, asEventId, asUserId, type EventId, type UserId } from '../../domain/shared/ids'
 import { JoinCode } from '../../domain/shared/joinCode'
 import { err, ok, type Result } from '../../domain/shared/result'
 import { Slug } from '../../domain/shared/slug'
