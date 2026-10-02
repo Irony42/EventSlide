@@ -1,0 +1,118 @@
+name: CLA
+
+# The contributor licence agreement gate (docs/CLA.md). A pull request from anyone who has
+# not signed gets a comment asking for one; the check below stays red until they reply
+# with the sign phrase, and signatures are recorded in this repository, on the
+# `cla-signatures` branch, so there is no outside service and no personal access token.
+#
+# It is deliberately not a required check yet. Making it one is a branch-protection
+# setting, and that is the maintainer's call (G1-03).
+#
+# --- Why this file is written the way it is -------------------------------------------
+#
+# `pull_request_target` runs the workflow from the BASE branch with the repository's write
+# token, even for a pull request from a fork. That is what lets a stranger's pull request
+# receive a comment at all, and it is also the most dangerous trigger GitHub has: any step
+# that checks out, builds or runs the pull request's code hands a stranger that token.
+# So this workflow follows four rules, each pinned by scripts/claWorkflow.test.ts and
+# argued in docs/SECURITY.md §17:
+#
+#   1. It never checks out the pull request. There is no `actions/checkout` here, and the
+#      action below reads commit authors through the GraphQL API, not through a clone.
+#   2. It never puts an expression into a shell script. The one `run:` step reads its
+#      inputs from `env:`, so a pull request title or branch name cannot become a command.
+#   3. Its permissions are written out. The repository default is read-only, and a
+#      workflow with no `permissions:` block inherits whatever that setting says on the day.
+#   4. The one third-party action is pinned by commit SHA. A tag can be moved after the
+#      fact; a SHA cannot.
+#
+# --- What each permission is for -------------------------------------------------------
+#
+# Read from the action's source at the pinned commit (src/octokit.ts, src/persistence,
+# src/pullrequest, src/pullRerunRunner.ts), not from its README, which asks for one more:
+#
+#   contents: write       commit signatures to the `cla-signatures` branch
+#   pull-requests: write  post and edit the bot comment, and lock a closed pull request
+#   actions: write        re-run the failed check after someone signs in a comment
+#
+# `statuses: write`, in the README's example, is not used: the check result is this job's
+# own conclusion, and the action never calls the commit-status API.
+#
+# --- The signatures branch ------------------------------------------------------------
+#
+# It must not be protected: the action pushes to it with the workflow token. It must also
+# exist before the action first reads it. The action does try to create a missing file,
+# but it recognises "not found" with `error.status === "404"`, a string compared with the
+# number Octokit throws, so on a fresh repository that branch of its code is dead and the
+# first run fails with "Could not retrieve repository contents. Status: 404". The first
+# step below creates the branch, and the empty signatures file on it, when they are
+# missing; the second finds both and carries on.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, closed]
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  cla:
+    name: CLA signed
+    # An `issue_comment` event fires for every comment on every issue and pull request.
+    # Only a comment on a pull request that is one of the two the action understands is
+    # worth a runner, and the job is skipped, not failed, for the rest. The phrase is the
+    # one docs/CLA.md and the bot's own comment tell people to post.
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event.issue.pull_request &&
+      (github.event.comment.body == 'recheck' ||
+      github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create the signatures branch if it does not exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGNATURES_BRANCH: cla-signatures
+          SIGNATURES_PATH: signatures/v1/cla.json
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+
+          if gh api "repos/$repo/git/ref/heads/$SIGNATURES_BRANCH" --silent 2>/dev/null; then
+            echo "$SIGNATURES_BRANCH already exists"
+            exit 0
+          fi
+
+          # A branch of its own with no parent, holding only the empty signatures file the
+          # action reads and extends. It shares no history with the code.
+          blob="$(gh api "repos/$repo/git/blobs" -f content='{"signedContributors":[]}' -f encoding=utf-8 --jq .sha)"
+          tree="$(printf '{"tree":[{"path":"%s","mode":"100644","type":"blob","sha":"%s"}]}' "$SIGNATURES_PATH" "$blob" | gh api "repos/$repo/git/trees" --input - --jq .sha)"
+          commit="$(printf '{"message":"chore: create the CLA signatures store","tree":"%s","parents":[]}' "$tree" | gh api "repos/$repo/git/commits" --input - --jq .sha)"
+
+          # Two runs can get here together on the very first pull requests. The loser's
+          # ref creation is refused because the winner's already exists, which is fine.
+          if ! gh api "repos/$repo/git/refs" -f ref="refs/heads/$SIGNATURES_BRANCH" -f sha="$commit" --silent; then
+            gh api "repos/$repo/git/ref/heads/$SIGNATURES_BRANCH" --silent
+          fi
+          echo "created $SIGNATURES_BRANCH with an empty $SIGNATURES_PATH"
+
+      - name: CLA assistant
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # A full URL, not a path: the action puts it in the bot's comment as a link.
+          path-to-document: https://github.com/Irony42/EventSlide/blob/main/docs/CLA.md
+          # Versioned, so a future CLA v2 starts a new file instead of silently counting
+          # signatures given to the old text.
+          path-to-signatures: signatures/v1/cla.json
+          branch: cla-signatures
+          # Matched against the commit author's GitHub login. See docs/SECURITY.md §17 for
+          # what that does and does not prove.
+          allowlist: Irony42,dependabot[bot]
+          lock-pullrequest-aftermerge: 'true'
