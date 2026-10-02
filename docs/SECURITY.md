@@ -801,6 +801,76 @@ behalf — is served by the composite key rather than by three tiers.
   and join-code rows with it — describes numbers and a route that were never built. See
   §14.7.
 
+### A client's ceilings, on every write path
+
+An event that belongs to a client (`events.client_id`, roadmap §10.2) is bound by that client's
+ceilings (§10.5) on **every path that writes to it**. That is the whole claim, and a ceiling that
+holds on the paths somebody remembered is not one: the cases below are the paths, and each is held at
+rings 2 to 4 and again, against the built server, in `tests/e2e/security/ceilings.spec.ts`.
+
+**Read from the data, never from the switch.** `SITE_ADMIN` decides how much surface exists, not whether
+ceilings apply: an event with a client is bound whether or not the operator console is mounted. And an
+event with **no** client — every event on a box that never had one — never reads the clients table at all
+(`clientContextOf` answers from `event.clientId`), so a self-hosted install does the same work it did
+before ceilings existed and meets none of them. `clientContextOf.test.ts` asserts it, and the upload, clip, transcode and lifecycle use-case tests repeat it for their own path.
+
+| Path                                       | Ceiling                                                                                                                                       | Decided                                                                                                                                   | Refusal                                                                                                      |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `createEvent`                              | `max_events` (every status) and `max_events_per_period` (a counter that **never decreases**, so create, delete, recreate walks round nothing) | the `.immediate()` transaction that writes the event                                                                                      | `409 client.ceilingReached {ceiling, used, max}`                                                             |
+| `createEvent`                              | `max_event_quota_bytes`, with the box's `MAX_EVENT_QUOTA_BYTES`: the smaller                                                                  | validation                                                                                                                                | `400 event.quotaAboveCeiling {maxBytes}`; a quota not asked for is **reduced** to the ceiling                |
+| `createEvent`                              | `max_retention_days`, `clips_allowed`                                                                                                         | the settings the event is created with                                                                                                    | **reduced**: retention clamped (and "for ever" becomes the ceiling), `allowClips` off                        |
+| `updateEventSettings`                      | `max_retention_days`, `clips_allowed`                                                                                                         | validation, only of the fields the patch carries                                                                                          | `400 client.retentionAboveCeiling {maxDays}`, `400 client.clipsNotAllowed`                                   |
+| `uploadPhotos`                             | `max_total_bytes` over **all the client's events**, and the event's own quota lowered to `max_event_quota_bytes`                              | **the same `.immediate()` transaction** as the event quota (`saveManyWithinLimits`), after a cheap check that costs a decode and no write | per file, `rejected` with `client.storageFull`                                                               |
+| `uploadClip`                               | `clips_allowed` — **even when the event's own setting says yes**; `max_total_bytes`                                                           | the check, then `ClipJobRepository.stage`, row-first                                                                                      | `403 event.clipsNotAllowed` (the host's own refusal, so a guest is not told which), `413 client.storageFull` |
+| `transcodeNextClip`                        | the same three, on the worker's own insert                                                                                                    | `saveManyWithinLimits` with the clip's source **credited at both levels**                                                                 | a clip queued before a downgrade is given up on, permanently: `client.clipsNotAllowed`, `client.storageFull` |
+| `changeEventStatus`, `applyEventSchedules` | `live_allowed`; `max_live_days`                                                                                                               | `Event.transitionTo`                                                                                                                      | `403 client.liveNotAllowed`, `403 client.liveWindowOver`; a scheduled opening is reported `refused`          |
+| the schedule sweep                         | `max_live_days`                                                                                                                               | `Event.expireLiveWindow`                                                                                                                  | none: a client's live event past its window is **closed**                                                    |
+| the retention purge                        | `max_retention_days`, `retention_cap_since`, `max_live_days`, `purge_after`                                                                   | `purgeDeadline` / `listDueForPurge`                                                                                                       | none: the earliest deadline wins                                                                             |
+
+**The byte ceiling is one sum, in the write transaction.** `clientHoldingBytesSum` is the per-event sum
+(photographs of every status plus the staged source of every clip still holding one) summed over the
+client's events — not a second spelling of the rule — and it is read inside the transaction that inserts,
+for the reason the event quota is (§5): two guests at two events of one client uploading at the same
+moment both pass a check made outside it. `eventBytesSum.test.ts` holds the client sum to the per-event
+sum and to a figure worked out by hand, and the shared repository contracts run the cases against the
+fakes **and** SQLite. A refusal says `required` and **not** `remaining`: the remainder is what the
+client's other events have left too, and a guest of one event is not told how full its neighbours are.
+
+**The downgrade rule: nothing is deleted, and new writes are refused.** An operator lowering a ceiling
+touches no stored byte. An event created under a larger quota is judged against the lowered one from the
+next upload on (`Event.effectiveQuotaBytes`); a retention above a lowered ceiling is not rejected on an
+unrelated edit, and the purge already honours the lower number.
+
+**The live window.** `closed → live` is legal and reopening clears `closedAt`, so a host pressing one
+button a month would keep a public wall, and the photographs behind it, for ever — the one outcome a
+ceiling on retention cannot see, because the retention clock keeps restarting. `events.opened_at` is
+stamped on the **first** time an event goes live, for every event, and never moves; for a client's event,
+once `opened_at + max_live_days <= now` going live is refused (`client.liveWindowOver`) by the click and
+by a scheduled opening, and the schedule sweep closes an event that is still live. The latest purge is
+`opened_at + max_live_days + max_retention_days`, however many reopenings there were.
+
+**The purge is safe against `NULL`.** The query it replaces required `retentionDays IS NOT NULL` and took
+a scalar `MIN` over values that can be `NULL`, which is `NULL` in SQLite: an album kept "for ever" under
+a client ceiling would never have been purged. `purgeDeadline` (domain) is the earliest of up to four
+candidates — the host's own retention, `max(closed_at + max_retention_days, retention_cap_since +
+RETENTION_CAP_NOTICE_DAYS)`, the live-window bound, and `purge_after` — and an absent one removes itself
+from the list rather than switching the others off. The SQL spells it a second time with a far-future
+sentinel in place of every `NULL`, and `eventRepositoryContract` runs one table of scenarios through the
+fake, SQLite and `purgeDeadline` together, to the millisecond. **Lowering a ceiling never purges an album
+closed long ago the same night**: `retention_cap_since` is stamped when `max_retention_days` gets smaller
+(`Client.withCeilings`), and the album is owed `RETENTION_CAP_NOTICE_DAYS` (default 30) from then —
+whatever the new number is, so a client taken from 90 days to 14 gets 30, not 14. The notice does not
+hold back what the host themselves asked for: their shorter retention was the promise before the ceiling
+moved. The guest's privacy notice carries the retention the box applies (`privacyNoticeOf`), not the
+host's "for ever".
+
+**Not covered here, and said plainly.** A suspended client (`clients.suspended_at`) is not refused
+anywhere yet — suspension and its single "same 404 as an unknown event" answer belong to the operator API
+(roadmap §10.4, G2-14). The audit entry `event.autoClosed` and the e-mail to the host when a window
+closes an event wait for the audit log and the mailer (G2-06, G2-07); the sweep already reports them as
+`autoClosed` and logs the ids. An event already live when its client's `live_allowed` becomes 0 is not
+force-closed: `max_live_days` bounds it, and quarantine is about opening.
+
 ## 6. Session security
 
 | Property                       | Value                                                                                                                                                          | Why                                                                                                 |
@@ -1218,6 +1288,13 @@ or a template that rendered blank would silently switch off a deletion the host 
 — and the only symptom would be that nothing happens. A boot log always says which
 arrangement is in force (`retention sweep scheduled`, or `automatic retention sweep is
 off`).
+
+**A client's ceilings are part of "what is due".** An event that belongs to a client is purged at the
+earliest of its host's retention and the client's `max_retention_days` (with the notice a lowered ceiling
+is owed, `RETENTION_CAP_NOTICE_DAYS`) — so an album kept "for ever" under a ceiling is not kept for ever —
+and no later than `opened_at + max_live_days + max_retention_days`, however many times it was reopened.
+`npm run purge --dry-run` lists exactly what the sweep would take, ceilings included. The argument, and
+the `NULL` trap it closes, is in §5.
 
 What the sweep guarantees, and what it does not:
 

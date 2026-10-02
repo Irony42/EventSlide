@@ -821,20 +821,32 @@ same photo twice on the wall.
 The `code` on a `rejected` entry is **per file** and never becomes the response's own
 status. These are the ones a guest can provoke:
 
-| Per-file `code`             | Why                                                     |
-| --------------------------- | ------------------------------------------------------- |
-| `image.unsupportedFormat`   | The magic bytes are not JPEG, PNG, HEIC or WebP         |
-| `image.corrupt`             | The header will not decode                              |
-| `image.animated`            | An animated image; the wall is stills                   |
-| `image.renderFailed`        | `sharp` could not re-encode it                          |
-| `image.tooManyPixels`       | Refused by the processor's own pixel ceiling            |
-| `photo.pixelBudgetExceeded` | Refused by the configured budget, from the header alone |
-| `event.quotaExceeded`       | This file would overrun the event's byte quota          |
+| Per-file `code`             | Why                                                                                                |
+| --------------------------- | -------------------------------------------------------------------------------------------------- |
+| `image.unsupportedFormat`   | The magic bytes are not JPEG, PNG, HEIC or WebP                                                    |
+| `image.corrupt`             | The header will not decode                                                                         |
+| `image.animated`            | An animated image; the wall is stills                                                              |
+| `image.renderFailed`        | `sharp` could not re-encode it                                                                     |
+| `image.tooManyPixels`       | Refused by the processor's own pixel ceiling                                                       |
+| `photo.pixelBudgetExceeded` | Refused by the configured budget, from the header alone                                            |
+| `event.quotaExceeded`       | This file would overrun the event's byte quota                                                     |
+| `client.storageFull`        | This file would take the host's events past the account's total (`max_total_bytes`, roadmap §10.5) |
 
 `event.quotaExceeded` is on that list and **not** in the whole-request list below: the
 quota is charged file by file as the batch is written, so a guest sending five photos
 into an almost-full event gets the first three accepted and the last two rejected,
 rather than one 413 for the lot.
+
+`client.storageFull` is the same refusal one level up, and it is judged in the **same
+write transaction**. An event that belongs to a client (roadmap §10.2) is held to the
+client's `max_total_bytes` across **all its events** — photographs of every status plus the
+staged source of every clip still waiting — as well as to its own quota, and is refused by
+whichever it reaches first, its own named first when both are reached. The event's own quota is
+also lowered to the client's `max_event_quota_bytes` when that is smaller, for an event created
+before an operator lowered it. The body carries the code and `required`, and **no
+`remaining`**: it is what the client's other events have left too, and a guest of one event is not
+told how full its neighbours are. An event with no client is held to its own quota only, as it
+always was.
 
 **Whole-request errors** — `401 auth.required` / `401 guestToken.*` for a missing or
 invalid token; `403 guest.wrongEvent` when the token names another event;
@@ -972,13 +984,20 @@ a setting since. `Cache-Control: no-store`.
 `src/domain/privacy/privacyNotice.ts` on every read, and the client words them in the
 guest's language, so the notice cannot promise something the configuration contradicts:
 
-| Field                | Derived from                                                        | Meaning                                                                                                                                                                                                                                                                                                                                          |
-| -------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `publication`        | `moderation`                                                        | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                                                                                                                                                                                                               |
-| `audiences`          | nothing: the same on every event                                    | `wall` (the projected wall, once published — the room, and anyone its public link reaches), `organisers` (host and moderators: everything, and the album) and `sharedGallery` (whoever the host may send the album's private link to, and whoever it is forwarded to: published only, in full resolution, until it expires or is withdrawn — §2) |
-| `retentionDays`      | `retentionDays`                                                     | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                 |
-| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation` | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                        |
-| `revision`           | all of the above                                                    | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                    |
+| Field                | Derived from                                                              | Meaning                                                                                                                                                                                                                                                                                                                                          |
+| -------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `publication`        | `moderation`                                                              | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                                                                                                                                                                                                               |
+| `audiences`          | nothing: the same on every event                                          | `wall` (the projected wall, once published — the room, and anyone its public link reaches), `organisers` (host and moderators: everything, and the album) and `sharedGallery` (whoever the host may send the album's private link to, and whoever it is forwarded to: published only, in full resolution, until it expires or is withdrawn — §2) |
+| `retentionDays`      | `retentionDays`, lowered to the client's `max_retention_days` — see below | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                 |
+| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`       | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                        |
+| `revision`           | all of the above                                                          | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                    |
+
+**The retention is the one the box applies.** For an event that belongs to a client, `retentionDays`
+is the host's setting **clamped** by the client's `max_retention_days` (roadmap §10.5): an album
+kept "for ever" under a thirty-day ceiling is told to the guest as thirty days, and so is one whose
+host asked for ninety. The join, this read and the acknowledgement all use the same number, so the
+revision a guest acknowledges is the one every read hands back. An event with no client is the notice
+of its own settings, as before.
 
 `audiences` is a list, and the shared gallery link of roadmap §4.1 was the first member
 added to it. It is on every event rather than only on one with a live link: a notice is
@@ -1058,8 +1077,8 @@ makes a dropped upload on venue Wi-Fi safe to repeat.
 | `done`     | `photoId` exists, `pending` like any other upload until a host decides                                                      |
 | `failed`   | Given up on. `failureCode` says why, the client words it in French, **and sending the same file again starts a fresh job**  |
 
-A `failed` job never blocks a re-upload. Two of its codes — `event.quotaExceeded` and
-`event.photoLimitReached` — are verdicts about the **album** rather than about the bytes,
+A `failed` job never blocks a re-upload. Its codes `event.quotaExceeded`, `event.photoLimitReached`
+and `client.storageFull` are verdicts about the **album** rather than about the bytes,
 and an album empties: the host deletes fifty photographs and the same clip now fits. The
 old row stays, so the first `clipJobId` still resolves and still says why that attempt
 ended; the new upload gets a new job. The same applies after a clip is deleted — the job
@@ -1069,8 +1088,14 @@ that produced it is retired with it.
 opens, decided from the **signature** before anything is written;
 `400 clip.sourceByteSizeInvalid` for an empty file; `400 upload.noFiles` when the request
 carries no `clip` part; `403 event.clipsNotAllowed` when the host turned video off for
-this event; `403 event.captionsNotAllowed`; `409 event.notAcceptingUploads`;
+this event **or** the event's client has no clips (`clips_allowed = 0`, roadmap §10.5) — checked
+even when the event's own setting says yes, which is the case of a client moved to a plan without
+video, and answered the same way so a guest is not told which of the two it was;
+`403 event.captionsNotAllowed`; `409 event.notAcceptingUploads`;
 `413 upload.tooLarge` past `MAX_CLIP_BYTES`; `413 event.quotaExceeded`;
+`413 client.storageFull` when the client's events together have no room for the source
+(`max_total_bytes`), decided in the same transaction as the event's own quota and before a byte
+is written;
 **`429 clip.queueFull` with `Retry-After`** when the box has more clips waiting than it
 will accept — a condition that clears in about a minute, and deliberately not the
 quota's `413`, which tells a guest the gallery is full and to go and find the organiser;
@@ -1114,7 +1139,9 @@ The `failureCode` on a `failed` job is one of `clip.unsupportedFormat`, `clip.co
 `clip.pixelBudgetExceeded`, `clip.probeUnreadable`, `clip.transcodeFailed`,
 `clip.transcodeTimedOut`, `clip.transcodeCancelled`, `clip.storageFailed`,
 `clip.sourceMissing`, `clip.transcoderUnavailable`, `clip.abandoned`,
-`event.quotaExceeded` or `event.photoLimitReached`. Each has French copy, because a clip
+`event.quotaExceeded`, `event.photoLimitReached`, `client.storageFull` (the transcoded output no longer
+fits the client's total) or `client.clipsNotAllowed` (the client's plan stopped including video while
+the clip was queued; given up on without encoding it). Each has French copy, because a clip
 that silently stays "en cours" for the rest of the evening is the failure this endpoint
 exists to prevent.
 
@@ -1417,28 +1444,32 @@ a caller with no membership of it; `403 auth.forbidden` — `details.required` n
 `owner` or `moderator` — for a moderator on an owner-only route. Beyond the
 cross-cutting codes in §1:
 
-| Code                         | Status | Where                                                                                          |
-| ---------------------------- | ------ | ---------------------------------------------------------------------------------------------- |
-| `event.slugUnavailable`      | 409    | Create, when the slug is in use — custom or derived, never echoed                              |
-| `event.customSlugNotAllowed` | 400    | Create, with a `slug` when `ALLOW_CUSTOM_SLUGS=false`                                          |
-| `event.creationRateLimited`  | 429    | Create, beyond the account's hourly allowance                                                  |
-| `event.quotaAboveCeiling`    | 400    | Create, when `quotaBytes` exceeds `MAX_EVENT_QUOTA_BYTES`                                      |
-| `event.creationNotAllowed`   | 403    | Create, under `EVENT_CREATION=clientMembers`, by an account with no client                     |
-| `client.notFound`            | 404    | Create, naming a client that is not the caller's, or not saying which of several               |
-| `client.ceilingReached`      | 409    | Create, when the client has used its events (`details.ceiling`: `events` or `eventsPerPeriod`) |
-| `event.immutable`            | 409    | Rename, settings or schedule on an `archived` event                                            |
-| `event.illegalTransition`    | 409    | A status change the lifecycle does not allow                                                   |
-| `event.scheduleInPast`       | 400    | A scheduled instant whose minute has already gone by                                           |
-| `event.scheduleOutOfOrder`   | 400    | A scheduled closing at or before the scheduled opening                                         |
-| `event.notModeratable`       | 409    | A single or bulk decision on an `archived` event                                               |
-| `photo.illegalTransition`    | 409    | A decision the photo's status machine does not allow                                           |
-| `guest.notFound`             | 404    | Revoking a guest id that is not in this event                                                  |
-| `membership.alreadyExists`   | 409    | Inviting someone who already moderates this event                                              |
-| `membership.notFound`        | 404    | Revoking a membership that is not there                                                        |
-| `membership.lastOwner`       | 409    | Revoking the only remaining owner                                                              |
-| `event.joinCodeExhausted`    | 500    | Rotation could not find a free code — a bug, not a client error                                |
-| `event.slugExhausted`        | 500    | `EVENT_SLUG_SUFFIX=random` could not find a free suffix — likewise                             |
-| `event.mediaPurgeFailed`     | 500    | A purge that could not remove the bytes; rows are left alone                                   |
+| Code                           | Status | Where                                                                                                                               |
+| ------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `event.slugUnavailable`        | 409    | Create, when the slug is in use — custom or derived, never echoed                                                                   |
+| `event.customSlugNotAllowed`   | 400    | Create, with a `slug` when `ALLOW_CUSTOM_SLUGS=false`                                                                               |
+| `event.creationRateLimited`    | 429    | Create, beyond the account's hourly allowance                                                                                       |
+| `event.quotaAboveCeiling`      | 400    | Create, when `quotaBytes` exceeds `MAX_EVENT_QUOTA_BYTES` or the client's `max_event_quota_bytes` (`details.maxBytes`: the smaller) |
+| `client.retentionAboveCeiling` | 400    | Settings, when `retentionDays` is above the client's `max_retention_days`, or `null` while one exists (`details.maxDays`)           |
+| `client.clipsNotAllowed`       | 400    | Settings, switching `allowClips` on for a client with `clips_allowed = 0`                                                           |
+| `client.liveNotAllowed`        | 403    | Status, going live for a client with `live_allowed = 0`                                                                             |
+| `client.liveWindowOver`        | 403    | Status, reopening an event once `opened_at + max_live_days` has passed                                                              |
+| `event.creationNotAllowed`     | 403    | Create, under `EVENT_CREATION=clientMembers`, by an account with no client                                                          |
+| `client.notFound`              | 404    | Create, naming a client that is not the caller's, or not saying which of several                                                    |
+| `client.ceilingReached`        | 409    | Create, when the client has used its events (`details.ceiling`: `events` or `eventsPerPeriod`)                                      |
+| `event.immutable`              | 409    | Rename, settings or schedule on an `archived` event                                                                                 |
+| `event.illegalTransition`      | 409    | A status change the lifecycle does not allow                                                                                        |
+| `event.scheduleInPast`         | 400    | A scheduled instant whose minute has already gone by                                                                                |
+| `event.scheduleOutOfOrder`     | 400    | A scheduled closing at or before the scheduled opening                                                                              |
+| `event.notModeratable`         | 409    | A single or bulk decision on an `archived` event                                                                                    |
+| `photo.illegalTransition`      | 409    | A decision the photo's status machine does not allow                                                                                |
+| `guest.notFound`               | 404    | Revoking a guest id that is not in this event                                                                                       |
+| `membership.alreadyExists`     | 409    | Inviting someone who already moderates this event                                                                                   |
+| `membership.notFound`          | 404    | Revoking a membership that is not there                                                                                             |
+| `membership.lastOwner`         | 409    | Revoking the only remaining owner                                                                                                   |
+| `event.joinCodeExhausted`      | 500    | Rotation could not find a free code — a bug, not a client error                                                                     |
+| `event.slugExhausted`          | 500    | `EVENT_SLUG_SUFFIX=random` could not find a free suffix — likewise                                                                  |
+| `event.mediaPurgeFailed`       | 500    | A purge that could not remove the bytes; rows are left alone                                                                        |
 
 ### `GET /api/events`
 
@@ -1499,7 +1530,10 @@ An explicit `quotaBytes` is bounded by `MAX_EVENT_QUOTA_BYTES` (roadmap §10.5 /
 the box-wide ceiling nobody's request may cross: above it, refused with
 **400 `event.quotaAboveCeiling {maxBytes}`**, never silently reduced to the ceiling. A
 box that never set `MAX_EVENT_QUOTA_BYTES` has none, which is every self-hosted
-install's behaviour before this existed.
+install's behaviour before this existed. For an event that belongs to a client the bound is the
+**smaller** of that and the client's `max_event_quota_bytes`, and `maxBytes` names the one that applied;
+a request that names **no** quota is given the client's ceiling when that is below the box default,
+rather than refused — an event created with no opinion has nothing for a refusal to correct.
 
 `wallLanguage` is optional, one of `"fr" | "de" | "en" | "es" | "it"`, and absent means
 French. The host console sends the language its operator is reading at that moment, which
@@ -1539,8 +1573,18 @@ this period (`max_events_per_period`). A creation they refuse is
 **409 `client.ceilingReached`** with `details: { ceiling, used, max }`, and nothing is
 written. The per-period counter **never decreases**: deleting an event
 (`DELETE /api/events/:slug`) frees a slot of the first ceiling and none of the second, so
-create, delete, recreate cannot walk around it. The other §10.5 ceilings are not enforced
-here yet (roadmap G2-05).
+create, delete, recreate cannot walk around it. The other
+§10.5 ceilings are enforced on every write path:
+
+- **What the event is made with** (roadmap §10.5 / G2-05). Reductions, never refusals, because an
+  event being created has no value the host chose to override: `settings.retentionDays` is
+  **clamped** to the client's `max_retention_days` — and "keep for ever" (`null`, the default,
+  which no template turns off) **becomes the ceiling itself** — and `settings.allowClips` is
+  switched **off** when the client has `clips_allowed = 0`. The host reads both back in the
+  event's settings. An event with no client is made exactly as before: the template's retention,
+  clips as the template says.
+- **What it may become** — `PATCH /settings` and `POST /status`, below; **what it may hold** —
+  uploads, §3; **what it keeps** — the retention purge, below.
 
 Until the operator API exists (roadmap §10.2, G2-14), nothing over HTTP creates a client or
 adds a member, so on a box that sets `clientMembers` today the operator is the only account
@@ -1578,6 +1622,8 @@ rate limit table.
 `403 event.creationNotAllowed` under `EVENT_CREATION=clientMembers`,
 `404 client.notFound`, `409 client.ceilingReached {ceiling, used, max}`,
 `400 request.invalid` for a language outside the five or a `clientId` that is not a uuid.
+A quota above a **client's** `max_event_quota_bytes` is the same `400 event.quotaAboveCeiling`, with
+`maxBytes` naming the smaller bound.
 
 #### `template` — what the settings start from
 
@@ -1735,6 +1781,19 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 | `theme`                       | object — all four keys required, see below       |
 | `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below |
 
+**A client's ceilings (roadmap §10.5 / G2-05).** For an event that belongs to a client, an edit is
+**refused** where creation reduces — shortening what a host just typed would tell them they got
+what they asked for:
+
+- `retentionDays` above the client's `max_retention_days`, or `null` ("keep for ever") while one
+  exists: **400 `client.retentionAboveCeiling {maxDays}`**;
+- `allowClips: true` while the client has `clips_allowed = 0`: **400 `client.clipsNotAllowed`**.
+
+Only the fields the patch carries are asked: an edit that does not mention retention is not refused
+because the stored one is above a ceiling lowered since (the purge already honours the lower number),
+and an archived event still answers `409 event.immutable` first. Nothing is stored or announced for
+a refused patch. An event with no client is not asked anything.
+
 `allowClips` is `true` for an event **created** after video shipped and `false` for one
 that existed before it. The two are deliberately different: an event created today is
 written with the field, while one whose settings predate it belongs to a host who was
@@ -1851,7 +1910,29 @@ nothing persists it (§2).
 `status` ∈ `draft | live | closed | archived`. Which transitions are legal is the
 aggregate's table, not a check in the handler, so the console and the projector cannot
 hold two ideas of what `archived` means. **200** with the event.
-**Errors** — `409 event.illegalTransition`.
+**Errors** — `409 event.illegalTransition`; and, for an event that belongs to a client:
+**403 `client.liveNotAllowed`** going live while the client has `live_allowed = 0` (quarantine, an
+expired Pass), and **403 `client.liveWindowOver`** reopening a closed event once
+`opened_at + max_live_days <= now`.
+
+**The live window (roadmap §10.5 / G2-05).** `closed → live` is a legal transition and reopening clears
+the closing instant, so without a bound a host pressing one button a month would keep a public wall and
+its photographs for ever. The event records `opened_at` the **first** time it goes live — for every event,
+with a client or without — and nothing moves it afterwards: a reopening inside the window does not
+restart it. For a client's event, once `opened_at + max_live_days` has passed, going live is refused as
+above, from this route **and** from a scheduled opening (reported `refused`; the schedule is discarded
+and `scheduleDiscardedAt` says so). Closing and archiving are never refused. The schedule sweep also
+**closes** a client's live event whose window has run out — closed, not archived: the album stays
+readable and the host keeps the export — and the retention clock starts at that moment. The purge happens
+at the latest at `opened_at + max_live_days + max_retention_days`, however many times the event was
+reopened. An event with no client has no window: it reopens whenever, exactly as before.
+
+**Retention under a ceiling.** For an event of a client with `max_retention_days`, the album is purged at
+the earliest of the host's own retention and `max(closed_at + max_retention_days, retention_cap_since +
+RETENTION_CAP_NOTICE_DAYS)` — so an event kept "for ever" is not kept for ever, and lowering a ceiling
+never purges an album closed long ago the same night: it is owed `RETENTION_CAP_NOTICE_DAYS` (30 by default)
+from the day the ceiling was lowered. A `NULL` anywhere (no host retention, no ceiling, an event that
+never opened) removes one candidate and never switches the others off.
 
 ### `PATCH /api/events/:slug/schedule`
 

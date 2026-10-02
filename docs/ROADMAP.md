@@ -611,10 +611,20 @@ and an install that never wanted any of this must behave exactly as it does toda
 > in one transaction, and compares the client's `max_events` (every status) and
 > `max_events_per_period` (a counter that deleting an event never decrements) inside it.
 > `EVENT_CREATION=anyAccount|clientMembers` decides who may create at all, and the host's
-> dashboard `usedBytes` is now the same sum the upload paths enforce. **Still to come**: the
-> other ceilings on every write path — quota clamp, retention, clips, going live, suspension
-> (G2-05 / P3-06). The schema carries every ceiling the product will ever charge for, used or
-> not, because a migration cannot be edited once it is on `main`.
+> dashboard `usedBytes` is now the same sum the upload paths enforce. The schema carries every
+> ceiling the product will ever charge for, used or not, because a migration cannot be edited
+> once it is on `main`.
+>
+> **The other ceilings are enforced on every write path** (G2-05 / P3-06, §10.5). The quota is
+> clamped at creation and when judging an upload; `max_total_bytes` holds across a client's events
+> in the same write transaction as the event's quota (photographs and clips alike, and the
+> transcode worker); retention is clamped at creation — "for ever" becomes the ceiling — and an edit
+> above it is refused; `clips_allowed` and `live_allowed` are enforced; `events.opened_at` is stamped on
+> the first opening and bounds `closed → live` by `max_live_days`, with the schedule sweep closing an
+> event whose window has run out; and the purge is the earliest of four deadlines with no `NULL`
+> able to switch the others off, honouring a notice when a ceiling is lowered
+> (`RETENTION_CAP_NOTICE_DAYS`). **Still to come**: suspension (§10.7 / G2-14), and the audit entry and
+> the mail when a window closes an event (§10.8, G2-06, G2-07).
 
 An event has an `ownerId`; a client is currently the pattern of one person owning several
 events, which nothing enforces and nothing can query. Make it a thing: a client has a name,
@@ -656,6 +666,12 @@ The operator sets the maximum — byte quota, how many events, the longest reten
 client may choose — and the client works inside it. The per-event quota already exists and
 is enforced on the upload path; this is the layer above it, and the honest reason for it is
 that one client's 4K video habit should not fill the disk the other four weddings are on.
+
+> **Enforced since G2-05 / P3-06**, on every path that writes to a client's event — creation,
+> settings, going live, photo and clip upload, the transcode worker, the schedule sweep and the
+> retention purge. The table, and the argument for each choice (one byte sum in the write
+> transaction, the live window counted from the first opening, a purge that no `NULL` can disable),
+> is in [SECURITY.md](SECURITY.md) §5; the wire contract is in [API.md](API.md) §2 and §3.
 
 ### 10.6 Support access, with the audit trail that makes it acceptable (P2, effort M, risk: medium)
 
