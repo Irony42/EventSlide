@@ -484,6 +484,64 @@ describe('applyEventSchedules', () => {
       })
     })
 
+    describe('a live event with no recorded opening', () => {
+      beforeEach(() => {
+        seedClient({ maxLiveDays: 3 })
+        // Made live before `opened_at` was written, and created a long time ago.
+        seedClientEvent('evt-wedding', {
+          status: 'live',
+          openedAt: null,
+          createdAt: atPlus(-400 * DAY),
+        })
+        clock.set(DEADLINE)
+      })
+
+      it('is given an opening starting now, so it has a window at all', async () => {
+        await applyEventSchedules()
+
+        expect((await events.findById(WEDDING))?.openedAt).toEqual(DEADLINE)
+      })
+
+      it('is not closed in the pass that records it, however long ago it was created', async () => {
+        const report = await applyEventSchedules()
+
+        expect(report.autoClosed).toEqual([])
+        expect((await events.findById(WEDDING))?.status).toBe('live')
+        expect(bus.published).toEqual([])
+      })
+
+      it('is closed once the window counted from that pass has run out, and not before', async () => {
+        await applyEventSchedules()
+
+        clock.advance(3 * DAY - 1)
+        const early = await applyEventSchedules()
+        clock.advance(1)
+        const due = await applyEventSchedules()
+
+        expect(early.autoClosed).toEqual([])
+        expect(due.autoClosed).toEqual([WEDDING])
+      })
+
+      it('keeps the first recording on the passes after it', async () => {
+        await applyEventSchedules()
+        clock.advance(DAY)
+
+        await applyEventSchedules()
+
+        expect((await events.findById(WEDDING))?.openedAt).toEqual(DEADLINE)
+      })
+
+      it('reports an event it could not write as failed', async () => {
+        wire(new FlakyEventRepository([WEDDING], { clients }))
+        seedClient({ maxLiveDays: 3 })
+        seedClientEvent('evt-wedding', { status: 'live', openedAt: null })
+
+        const report = await applyEventSchedules()
+
+        expect(report.failed).toEqual([WEDDING])
+      })
+    })
+
     it('leaves an event alone when its client cannot be read, rather than close a wall on a guess', async () => {
       class VanishedClients extends CountingClientRepository {
         override async contextForEvent(): Promise<null> {

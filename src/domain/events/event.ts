@@ -363,6 +363,23 @@ export class Event {
   }
 
   /**
+   * The event with its opening recorded, for a **live** event that has none; `null` when there
+   * is nothing to record.
+   *
+   * Such an event exists: `openedAt` is stamped by the transition to live, and an event made live
+   * before the column was written (a client's event between `client_id` and this rule) has
+   * none. Left as it is, it would have no window at all — {@link ClientCeilings.liveWindowOver}
+   * is `false` for an event that never opened — and would stay up for ever, which is the very
+   * outcome the window is for. So the sweep gives it one **starting now**. Not at `createdAt`:
+   * that is when a draft was made, perhaps months ago, and counting from it would close a wall
+   * during the party it was opened for.
+   */
+  recordOpening(now: Date): Event | null {
+    if (this.props.status !== 'live' || this.props.openedAt !== null) return null
+    return this.with({ openedAt: now })
+  }
+
+  /**
    * The event after the sweep took it down because its client's live window ran out, or
    * `null` when the window has not run out (or the event has no window to run out).
    *

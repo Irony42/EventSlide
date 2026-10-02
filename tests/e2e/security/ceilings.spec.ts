@@ -162,24 +162,38 @@ test.describe('on how long a client’s events are kept', () => {
 })
 
 test.describe('on whether a client may send video', () => {
-  test('clips are switched off in the settings, cannot be switched on, and a guest’s clip is refused 403', async ({
+  test('clips are switched off in the settings of a client that has none, and cannot be switched on', async ({
     app,
   }) => {
     const client = await aClientAccount(app, { clipsAllowed: false })
-    const { slug, joinCode } = await createLiveEvent(client)
+    const { slug } = await createEvent(client)
 
     const settings = await client.api.get(`/api/events/${slug}`)
     const switchOn = await client.api.patch(`/api/events/${slug}/settings`, { allowClips: true })
+
+    expect(settingsOf(settings)['allowClips']).toBe(false)
+    expect(switchOn.status).toBe(400)
+    expect(codeOf(switchOn)).toBe('client.clipsNotAllowed')
+  })
+
+  test('a guest’s clip is refused 403 once the client has no clips, though the event itself still says yes', async ({
+    app,
+  }) => {
+    // The downgrade: the event was made while the client had video, so its own switch is on.
+    // Moving the client to a plan without video must stop the clip anyway.
+    const client = await aClientAccount(app, { clipsAllowed: true })
+    const { slug, joinCode } = await createLiveEvent(client)
     const guest = await aGuestOf(app, joinCode)
+    const own = await client.api.get(`/api/events/${slug}`)
+    setCeilings(app, client.clientId, { clipsAllowed: false })
+
     const clip = await guest.upload(`/api/events/${slug}/clips`, 'clip', {
       name: 'IMG_4021.MOV',
       type: 'video/quicktime',
       bytes: Buffer.alloc(2_048, 1),
     })
 
-    expect(settingsOf(settings)['allowClips']).toBe(false)
-    expect(switchOn.status).toBe(400)
-    expect(codeOf(switchOn)).toBe('client.clipsNotAllowed')
+    expect(settingsOf(own)['allowClips']).toBe(true)
     expect(clip.status).toBe(403)
     expect(codeOf(clip)).toBe('event.clipsNotAllowed')
   })

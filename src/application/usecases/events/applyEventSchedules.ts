@@ -27,7 +27,9 @@ import { clientContextOf } from '../clients/clientContextOf'
  * reopen past it. This is the other half: an event that is **still live** when its window ends
  * is closed here, by the sweep, on the next pass. Closed rather than archived — the album stays
  * readable and the host keeps the export — and the retention clock starts at that moment. An
- * event with no client has no window and is never touched by this half.
+ * event with no client has no window and is never touched by this half. A client's live event
+ * that has no recorded opening (it went live before `opened_at` existed) gets one at the first
+ * pass, counted from that pass.
  *
  * Two properties the sweep depends on, both owned by the entity:
  *
@@ -153,18 +155,24 @@ export const makeApplyEventSchedules =
       // ever happened there would be no window to judge the event by, and closing a wall on a
       // guess is the wrong way to find out.
       if (context === null) continue
-      const expired = event.expireLiveWindow(now, context.ceilings)
-      if (expired === null) continue
+
+      // A live event with no recorded opening — made live before `opened_at` was written — is
+      // given one, **starting now**, and judged from the next pass: it would otherwise have no
+      // window at all, and never end. Never closed in the same pass it is recorded in.
+      const next = event.recordOpening(now) ?? event.expireLiveWindow(now, context.ceilings)
+      if (next === null) continue
 
       try {
-        await events.save(expired)
+        await events.save(next)
       } catch {
         failed.push(event.id)
         continue
       }
 
-      autoClosed.push(event.id)
-      bus.publish({ type: 'event.statusChanged', eventId: event.id, status: 'closed' })
+      if (next.status === 'closed') {
+        autoClosed.push(event.id)
+        bus.publish({ type: 'event.statusChanged', eventId: event.id, status: 'closed' })
+      }
     }
 
     return { opened, closed, refused, failed, autoClosed }

@@ -847,7 +847,10 @@ ceiling on retention cannot see, because the retention clock keeps restarting. `
 stamped on the **first** time an event goes live, for every event, and never moves; for a client's event,
 once `opened_at + max_live_days <= now` going live is refused (`client.liveWindowOver`) by the click and
 by a scheduled opening, and the schedule sweep closes an event that is still live. The latest purge is
-`opened_at + max_live_days + max_retention_days`, however many reopenings there were.
+`opened_at + max_live_days + max_retention_days`, however many reopenings there were. A client's live event
+that has no recorded opening — made live before the column was written — would have no window at all, so
+the first sweep gives it one, **counted from that pass** and not from `created_at`, which may be months
+ago and would close a wall during the party it was opened for.
 
 **The purge is safe against `NULL`.** The query it replaces required `retentionDays IS NOT NULL` and took
 a scalar `MIN` over values that can be `NULL`, which is `NULL` in SQLite: an album kept "for ever" under

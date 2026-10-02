@@ -1925,7 +1925,9 @@ and `scheduleDiscardedAt` says so). Closing and archiving are never refused. The
 **closes** a client's live event whose window has run out — closed, not archived: the album stays
 readable and the host keeps the export — and the retention clock starts at that moment. The purge happens
 at the latest at `opened_at + max_live_days + max_retention_days`, however many times the event was
-reopened. An event with no client has no window: it reopens whenever, exactly as before.
+reopened. A client's live event with no recorded opening (made live before `opened_at` existed) is given one
+by the first sweep, counted from that pass. An event with no client has no window: it reopens whenever,
+exactly as before.
 
 **Retention under a ceiling.** For an event of a client with `max_retention_days`, the album is purged at
 the earliest of the host's own retention and `max(closed_at + max_retention_days, retention_cap_since +

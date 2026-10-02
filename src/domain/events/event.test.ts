@@ -1036,6 +1036,36 @@ describe('Event live window', () => {
     )
   })
 
+  describe('recordOpening', () => {
+    it('stamps a live event that has no opening with the moment it is recorded', () => {
+      const live = anEvent({ status: 'live', openedAt: null, clientId: CLIENT })
+
+      expect(live.recordOpening(A_MONTH_ON)?.openedAt).toBe(A_MONTH_ON)
+    })
+
+    it('has nothing to record for a live event that already has one, and never moves it', () => {
+      const live = anEvent({ status: 'live', openedAt: OPENED_AT, clientId: CLIENT })
+
+      expect(live.recordOpening(A_MONTH_ON)).toBeNull()
+    })
+
+    it.each<EventStatus>(['draft', 'closed', 'archived'])(
+      'has nothing to record for a %s event, which is not running',
+      (status) => {
+        expect(anEvent({ status, openedAt: null }).recordOpening(A_MONTH_ON)).toBeNull()
+      },
+    )
+
+    it('leaves the status and everything else alone', () => {
+      const live = anEvent({ status: 'live', openedAt: null, clientId: CLIENT })
+
+      const recorded = live.recordOpening(A_MONTH_ON)
+
+      expect(recorded?.status).toBe('live')
+      expect(recorded?.closedAt).toBeNull()
+    })
+  })
+
   describe('expireLiveWindow', () => {
     const live = (): Event =>
       anEvent({ status: 'live', openedAt: OPENED_AT, closedAt: null, clientId: CLIENT })
