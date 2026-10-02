@@ -235,8 +235,8 @@ paragraph beneath the table).
 | Endpoint                                      | Default       | Bucket                  | Code                        |
 | --------------------------------------------- | ------------- | ----------------------- | --------------------------- |
 | `POST /api/join`                              | 20            | client IP               | `rate.limited`              |
-| `POST /api/auth/login`                        | 10            | client IP               | `rate.limited`              |
-| `POST /api/auth/password-reset/request`       | 10            | client IP, own bucket   | `rate.limited`              |
+| `POST /api/auth/login` †                      | 10            | client IP               | `rate.limited`              |
+| `POST /api/auth/password-reset/request` †     | 10            | client IP, own bucket   | `rate.limited`              |
 | `POST /api/auth/password-reset/confirm`       | 10            | client IP, own bucket   | `rate.limited`              |
 | `POST /api/events` (create)                   | 20 / **hour** | account                 | `event.creationRateLimited` |
 | `POST /api/events/:slug/photos`               | 12            | client IP **and** event | `rate.limited`              |
@@ -245,6 +245,20 @@ paragraph beneath the table).
 | `GET /api/gallery/:token`, `…/photos`, unlock | 120           | client IP               | `rate.limited`              |
 | `GET /api/gallery-media/…`                    | 3000          | client IP               | `rate.limited`              |
 | `POST /api/gallery/:token/unlock`             | 10 / 50       | IP / link, per 15 min   | `gallery.tooManyAttempts`   |
+
+† **Also throttled per account, with no lockout** (G3-04 / P4-07). The first five wrong
+passwords for an address from one network are free; from the sixth the answer is
+`429 rate.limited` with a `Retry-After` of 1 second, doubling with each further failure up
+to 15 minutes. A `429` is not a failure, so asking again during the wait does not lengthen
+it, and the right password signs in once the wait is over (it is refused while the wait runs).
+Another network, and another address from the same network, have their own count; a
+success, a malformed body and a server failure spend nothing. Beyond a hundred failures in an
+hour on one address from everywhere together, an attempt is **held two seconds** and still
+answered normally: it is never refused. The answer is the same for an address that is an
+account, one that is not, a switched-off account and a malformed one, at every step.
+`password-reset/request` counts every request the same way, in a bucket of its own, and is
+answered `202` (or `429`, or `404` on a box with no relay) identically for every address; it sits ahead of the cap of three
+mails an hour per address and does not replace it. See docs/SECURITY.md §5.
 
 The gallery unlock is the one row counted per **quarter hour** and per **failure**: a
 successful unlock spends none of that allowance, so a family opening one album on the
@@ -1393,7 +1407,11 @@ routes take none for the reason a login does: the person asking has lost the cre
 
 Regenerates the session id on success, to defeat fixation. Every failure returns the
 same `401 auth.invalidCredentials` — unknown email, wrong password and disabled account
-are indistinguishable, and an unknown email costs the same time as a known one.
+are indistinguishable, and an unknown email costs the same time as a known one. Beyond the
+per-client limit, a network that has failed five times for one address is answered
+`429 rate.limited` with a `Retry-After` for a growing wait of at most 15 minutes, the same
+for every address, real or not (§1, "Rate limits"). A `401` is the only answer that counts as a
+failure.
 
 **200**
 
@@ -1506,8 +1524,9 @@ hour** and **once**; asking again revokes the earlier link.
 **`404 feature.unavailable`** when the box can send no mail (`SMTP_URL` unset), whatever the
 address. There is no self-service reset on such a box and `features.forgotPassword` on
 `GET /api/about` is `false`. The link is never returned in a response. **Errors** — `400
-request.invalid`, `429 rate.limited` (the sign-in budget, its own bucket), and the CSRF codes
-like every write. Responses are `Cache-Control: no-store`.
+request.invalid`, `429 rate.limited` (the sign-in budget, its own bucket, and the per-address
+throttle of §1 "Rate limits", whose `Retry-After` is the wait; both answer every address alike),
+and the CSRF codes like every write. Responses are `Cache-Control: no-store`, the rate-limit refusals aside.
 
 ### `POST /api/auth/password-reset/confirm`
 

@@ -31,7 +31,7 @@ import { errorBody } from '../presenters/send'
  * express-rate-limit warns at startup (`ERR_ERL_KEY_GEN_IPV6`) when a custom key
  * generator uses `req.ip` without it — the warning is how this was caught.
  */
-const clientKey = (req: Request): string => ipKeyGenerator(req.ip ?? 'unknown')
+export const clientKey = (req: Request): string => ipKeyGenerator(req.ip ?? 'unknown')
 
 /** The bucket for a request with no event in its path — and for one whose event is not a slug. */
 const NO_EVENT = 'none'

@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express'
+import { Router, type Request, type RequestHandler, type Response } from 'express'
 import type { Session } from 'express-session'
 import { DomainError } from '../../../domain/shared/errors'
 import { DEFAULT_SITE_ROLE } from '../../../domain/users/siteRole'
@@ -6,6 +6,7 @@ import { asyncHandler } from '../middleware/asyncHandler'
 import { requireUser, resolveAuthState } from '../middleware/authz'
 import { rotateCsrfToken } from '../middleware/csrf'
 import { loginLimiter, passwordResetLimiter } from '../middleware/rateLimit'
+import { signInThrottle, type SignInThrottleOptions } from '../middleware/signInThrottle'
 import { toSessionResponseDto, toSignedInUserDto } from '../presenters/presenters'
 import { sendError, sendJson, sendNoContent, sendResultNoContent } from '../presenters/send'
 import {
@@ -147,17 +148,66 @@ export interface AuthRouteDeps {
     | 'requestPasswordReset'
     | 'resetPassword'
   >
+  /**
+   * How an attempt on an account that is being stuffed is held for two seconds. Timers unless
+   * a test brings its own, so it can see the hold without waiting for it.
+   */
+  readonly throttleHold?: (ms: number) => Promise<void>
 }
 
-export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
+/**
+ * The address a sign-in or a reset request is about, read with the schema the handler uses.
+ * `undefined` when that schema refuses the body: the handler answers it `400` and no
+ * password is ever compared, so there is no account for the throttle to count against.
+ */
+const loginAddress = (body: unknown): string | undefined => {
+  const parsed = loginBody.safeParse(body)
+  return parsed.success ? parsed.data.email : undefined
+}
+
+const resetAddress = (body: unknown): string | undefined => {
+  const parsed = passwordResetRequestBody.safeParse(body)
+  return parsed.success ? parsed.data.email : undefined
+}
+
+export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Router => {
   const router = Router()
+
+  // Per account, behind the per-client limit and ahead of the handler (G3-04 / P4-07). Built
+  // once per route, so a failed sign-in does not spend the allowance for asking for a link.
+  const accountThrottle = (
+    counts: SignInThrottleOptions['counts'],
+    addressOf: SignInThrottleOptions['addressOf'],
+    alert: string,
+  ): RequestHandler =>
+    signInThrottle({
+      addressOf,
+      counts,
+      alert,
+      clock: deps.clock,
+      logger: deps.logger,
+      secret: deps.config.sessionSecret,
+      ...(throttleHold === undefined ? {} : { hold: throttleHold }),
+    })
+  const signInAccountThrottle = accountThrottle(
+    'failures',
+    loginAddress,
+    'credential stuffing on one account: every sign-in attempt on it is being held',
+  )
+  const resetRequestAccountThrottle = accountThrottle(
+    'every',
+    resetAddress,
+    'password reset requests flooding one address: every request for it is being held',
+  )
 
   router.post(
     '/auth/login',
     // Genuinely public: this route is where a principal comes from, so there is none to
     // authorize. The limiter is the control that belongs here — with bcrypt's cost it
-    // puts online guessing out of reach, and 1.0 had neither.
+    // puts online guessing out of reach, and 1.0 had neither. The throttle behind it counts the
+    // failures per **account**, which no per-client limit can see, and never locks one out.
     loginLimiter(deps.config.rateLimits.loginPerMinute),
+    signInAccountThrottle,
     asyncHandler(async (req, res) => {
       const body = loginBody.parse(req.body)
 
@@ -297,9 +347,13 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
   router.post(
     '/auth/password-reset/request',
     // Genuinely public: the person asking has, by definition, no credential. The limiter is
-    // the per-client half of the defence; the per-address half (at most three mails an hour
-    // to any one inbox) is inside the use case, because it has to count what was issued.
+    // the per-client half of the defence. The throttle behind it slows one address from one
+    // network and counts every request, so it cannot tell an account from a stranger; the other
+    // half (at most three mails an hour to any one inbox, from anywhere) is inside the use
+    // case, because it has to count what was issued. A request the throttle refuses never gets
+    // that far, so it is never mailed and never counts toward the three.
     passwordResetLimiter(deps.config.rateLimits.loginPerMinute),
+    resetRequestAccountThrottle,
     asyncHandler(async (req, res) => {
       const body = passwordResetRequestBody.parse(req.body)
 
