@@ -1,4 +1,4 @@
-import type { User } from '../../domain/users/user'
+import type { PasswordHash, User } from '../../domain/users/user'
 import type { EmailAddress } from '../../domain/users/emailAddress'
 import type { SiteRole } from '../../domain/users/siteRole'
 import type { EventRole } from '../../domain/events/eventRole'
@@ -80,6 +80,33 @@ export interface UserRepository {
    * the HTTP layer a password hash it has no business holding.
    */
   siteRoleFor(id: UserId): Promise<SiteRole>
+
+  /**
+   * Records a successful sign-in — **and only if it is still true**.
+   *
+   * `verifiedHash` is the hash the password was just compared with. The sign-in is recorded
+   * only if the account is still enabled **and still holds that hash**; `false` means the
+   * password was changed, reset or the account switched off while the comparison ran, and the
+   * caller must refuse the sign-in as it would a wrong password.
+   *
+   * That is the point of the method and the reason a sign-in is not `save(user)`. A bcrypt
+   * comparison takes ~200 ms, and a whole-row `save` of the account read before it would, if a
+   * reset finished in between, **put the old password back** (and re-enable a switched-off
+   * account) — so a stolen password that was just reset would work again, and the sign-in that
+   * restored it would be issued a session stamped after the reset's epoch. Here it is one
+   * conditional statement: it touches `last_login_at` and, when `upgradedHash` is given, the
+   * hash — and nothing else, so the forced-change flag, the epoch and the switch stay as they
+   * are.
+   *
+   * `upgradedHash` is the same password hashed at the current cost; it replaces
+   * `verifiedHash` in the same statement.
+   */
+  recordSignIn(
+    id: UserId,
+    verifiedHash: PasswordHash,
+    at: Date,
+    upgradedHash?: PasswordHash,
+  ): Promise<boolean>
 
   /**
    * Insert or update. **The epoch only moves forward**: `credentialsChangedAt` is stored

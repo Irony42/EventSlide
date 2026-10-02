@@ -167,6 +167,91 @@ describe('authenticateUser', () => {
     expect(state.credentialsChangedAt).toBeNull()
   })
 
+  describe('while the password is being compared', () => {
+    /**
+     * bcrypt takes ~200 ms by design, and a reset can finish inside that window. These hold the
+     * comparison open, change the account underneath it, and let it finish — the one ordering
+     * the other tests cannot reach, because a fake hasher answers instantly.
+     */
+    class GatedHasher extends RecordingPasswordHasher {
+      private release: () => void = () => undefined
+      private entered: () => void = () => undefined
+      readonly insideVerify = new Promise<void>((resolve) => (this.entered = resolve))
+      private readonly gate = new Promise<void>((resolve) => (this.release = resolve))
+
+      override async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
+        const answer = await super.verify(attempt, hash)
+        this.entered()
+        await this.gate
+        return answer
+      }
+
+      open(): void {
+        this.release()
+      }
+    }
+
+    const signInDuring = async (change: () => Promise<void>) => {
+      const gated = new GatedHasher()
+      const pending = authenticate({ email: 'hote@example.test', password: PASSWORD }, gated)
+      await gated.insideVerify
+      await change()
+      gated.open()
+      return pending
+    }
+
+    it('refuses the sign-in when a reset changed the password meanwhile, and keeps the new one', async () => {
+      users.seed(aUser({ id: 'user-1' }))
+
+      const result = await signInDuring(async () => {
+        const stored = await users.findById(asUserId('user-1'))
+        const reset = stored?.changePassword(current('the-password-after-the-reset'), clock.now())
+        if (reset?.ok) await users.save(reset.value)
+      })
+
+      expect(!result.ok && result.error.code).toBe('auth.invalidCredentials')
+      const stored = await users.findById(asUserId('user-1'))
+      expect(stored?.passwordHash).toBe(current('the-password-after-the-reset'))
+      expect(stored?.lastLoginAt).toBeNull()
+    })
+
+    it('refuses the sign-in when the account was switched off meanwhile, and leaves it off', async () => {
+      users.seed(aUser({ id: 'user-1' }))
+
+      const result = await signInDuring(async () => {
+        const stored = await users.findById(asUserId('user-1'))
+        if (stored !== null) await users.save(stored.disable(clock.now()))
+      })
+
+      expect(!result.ok && result.error.code).toBe('auth.invalidCredentials')
+      expect((await users.findById(asUserId('user-1')))?.isDisabled()).toBe(true)
+    })
+
+    it('signs in normally when nothing changed meanwhile', async () => {
+      users.seed(aUser({ id: 'user-1' }))
+
+      const result = await signInDuring(async () => undefined)
+
+      expect(result.ok).toBe(true)
+      expect((await users.findById(asUserId('user-1')))?.lastLoginAt).toEqual(AT)
+    })
+
+    it('does not install an upgraded hash over a password that was reset meanwhile', async () => {
+      users.seed(aUser({ id: 'user-1', passwordHash: legacy(PASSWORD) }))
+
+      const result = await signInDuring(async () => {
+        const stored = await users.findById(asUserId('user-1'))
+        const reset = stored?.changePassword(current('the-password-after-the-reset'), clock.now())
+        if (reset?.ok) await users.save(reset.value)
+      })
+
+      expect(result.ok).toBe(false)
+      expect((await users.findById(asUserId('user-1')))?.passwordHash).toBe(
+        current('the-password-after-the-reset'),
+      )
+    })
+  })
+
   it('keeps a forced password change pending across a silent hash upgrade', async () => {
     users.seed(aUser({ id: 'user-1', passwordHash: legacy(PASSWORD), mustChangePassword: true }))
 

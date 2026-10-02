@@ -14,7 +14,7 @@ import {
 import { asUserId, type UserId } from '../../domain/shared/ids'
 import { EmailAddress } from '../../domain/users/emailAddress'
 import { DEFAULT_SITE_ROLE, isSiteRole, type SiteRole } from '../../domain/users/siteRole'
-import { User } from '../../domain/users/user'
+import { User, type PasswordHash } from '../../domain/users/user'
 
 /**
  * `UserRepository` over SQLite.
@@ -222,6 +222,26 @@ export class SqliteUserRepository implements UserRepository {
           mustChangePassword: fromSqliteBoolean(row.must_change_password),
           credentialsChangedAt: fromNullableIsoText(row.credentials_changed_at),
         }
+  }
+
+  async recordSignIn(
+    id: UserId,
+    verifiedHash: PasswordHash,
+    at: Date,
+    upgradedHash?: PasswordHash,
+  ): Promise<boolean> {
+    // One conditional statement. The WHERE clause is the whole rule: it matches only if the
+    // account still holds the hash the password was compared with and is still switched on, so
+    // a reset or a switch-off that finished during the comparison makes this a no-op instead
+    // of a rollback. Nothing but the two columns is named, so nothing else can be reverted.
+    const result = this.db
+      .prepare<[string, string, string, string]>(
+        `UPDATE users SET last_login_at = ?, password_hash = ?
+          WHERE id = ? AND password_hash = ? AND disabled_at IS NULL`,
+      )
+      .run(toIsoText(at), upgradedHash ?? verifiedHash, id, verifiedHash)
+
+    return result.changes === 1
   }
 
   async save(user: User): Promise<void> {

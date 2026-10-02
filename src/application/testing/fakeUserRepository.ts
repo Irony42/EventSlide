@@ -1,6 +1,6 @@
 import type { EmailAddress } from '../../domain/users/emailAddress'
 import { DEFAULT_SITE_ROLE, type SiteRole } from '../../domain/users/siteRole'
-import type { User } from '../../domain/users/user'
+import { User, type PasswordHash } from '../../domain/users/user'
 import type { UserId } from '../../domain/shared/ids'
 import { INACTIVE_AUTH_STATE, type AuthState, type UserRepository } from '../ports/userRepository'
 
@@ -70,6 +70,28 @@ export class FakeUserRepository implements UserRepository {
       mustChangePassword: user.mustChangePassword,
       credentialsChangedAt: user.credentialsChangedAt,
     }
+  }
+
+  async recordSignIn(
+    id: UserId,
+    verifiedHash: PasswordHash,
+    at: Date,
+    upgradedHash?: PasswordHash,
+  ): Promise<boolean> {
+    const row = this.rows.get(id)
+    // The adapter's `WHERE id = ? AND password_hash = ? AND disabled_at IS NULL`.
+    if (row === undefined || row.isDisabled() || row.passwordHash !== verifiedHash) return false
+    // `restore` and not `withPasswordHash`: that entity method clears the forced-change flag,
+    // which choosing a password is for and a silent re-hash is not.
+    this.rows.set(
+      id,
+      User.restore({
+        ...row.toProps(),
+        lastLoginAt: at,
+        passwordHash: upgradedHash ?? verifiedHash,
+      }),
+    )
+    return true
   }
 
   async save(user: User): Promise<void> {

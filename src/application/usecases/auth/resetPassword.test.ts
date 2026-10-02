@@ -272,6 +272,28 @@ describe('resetPassword', () => {
     )
   })
 
+  // ------------------------------------------------------ the epoch is read after the hash --
+
+  it('puts the epoch after the hash, so a session issued while bcrypt ran does not outlive the reset', async () => {
+    const token = await issueLink()
+    const slow: PasswordHasher = {
+      dummyHash: 'hash:factice',
+      hash: async (password) => {
+        clock.advance(250)
+        return `hash:${password.value}`
+      },
+      verify: async () => false,
+      needsRehash: () => false,
+    }
+
+    await makeResetPassword({ users, tokens, secrets, hasher: slow, clock })({
+      token,
+      newPassword: NEW_PASSWORD,
+    })
+
+    expect(await epochOf()).toBe(new Date(AT.getTime() + 250).toISOString())
+  })
+
   // ------------------------------------------------------ a hasher that repeats itself --
 
   it('changes nothing, and signs nobody out, when the hasher hands back the hash already on file', async () => {

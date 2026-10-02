@@ -78,7 +78,10 @@ export const makeResetPassword =
 
     if (!(await tokens.consume(record.id, now))) return err(invalidToken())
 
-    const changed = user.changePassword(await hasher.hash(parsed.value), now)
+    // The epoch is read **after** the hash, which takes ~200 ms: a session issued while it ran
+    // was issued under the old password and must not outlive the change. (`now` above is the
+    // moment the link was judged usable, and the epoch is not that moment.)
+    const changed = user.changePassword(await hasher.hash(parsed.value), clock.now())
     if (!changed.ok) return changed
 
     await users.save(changed.value)
