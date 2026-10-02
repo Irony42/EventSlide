@@ -258,7 +258,7 @@ describe('updateEventSettings', () => {
       })
 
       it('refuses “keep for ever” once a ceiling exists, because forever is what it is for', async () => {
-        await withCeilings({ maxRetentionDays: 30 })
+        await withCeilings({ maxRetentionDays: 30 }, { settings: { retentionDays: 30 } })
 
         const result = await update({ retentionDays: null })
 
@@ -289,6 +289,32 @@ describe('updateEventSettings', () => {
         const result = await update({ moderation: 'auto' })
 
         expect(result.ok).toBe(true)
+      })
+
+      it('does not refuse a value the form re-sends unchanged, because the form sends every field on every save', async () => {
+        // The settings page posts the whole draft. A rule that asked about every field the
+        // patch mentions would lock the host out of switching moderation at the party, because
+        // the operator lowered two ceilings since they made the event.
+        await withCeilings(
+          { maxRetentionDays: 30, clipsAllowed: false },
+          { settings: { retentionDays: 90, allowClips: true } },
+        )
+
+        const result = await update({ moderation: 'auto', retentionDays: 90, allowClips: true })
+
+        expect(result.ok && result.value.settings.moderation).toBe('auto')
+        expect(result.ok && result.value.settings.retentionDays).toBe(90)
+      })
+
+      it('still refuses the retention the host changed, when the form re-sends everything else', async () => {
+        await withCeilings(
+          { maxRetentionDays: 30, clipsAllowed: false },
+          { settings: { retentionDays: 90, allowClips: true } },
+        )
+
+        const result = await update({ moderation: 'auto', retentionDays: 60, allowClips: true })
+
+        expect(!result.ok && result.error.code).toBe('client.retentionAboveCeiling')
       })
 
       it('imposes nothing for a client with no max_retention_days', async () => {
@@ -322,6 +348,14 @@ describe('updateEventSettings', () => {
         await withCeilings({ clipsAllowed: false })
 
         expect((await update({ moderation: 'auto' })).ok).toBe(true)
+      })
+
+      it('refuses switching it on in a whole-form save, when the stored value was off', async () => {
+        await withCeilings({ clipsAllowed: false }, { settings: { allowClips: false } })
+
+        const result = await update({ moderation: 'auto', allowClips: true })
+
+        expect(!result.ok && result.error.code).toBe('client.clipsNotAllowed')
       })
 
       it('lets a client that may have clips switch them on', async () => {

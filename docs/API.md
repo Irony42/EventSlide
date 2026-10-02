@@ -1789,9 +1789,11 @@ what they asked for:
   exists: **400 `client.retentionAboveCeiling {maxDays}`**;
 - `allowClips: true` while the client has `clips_allowed = 0`: **400 `client.clipsNotAllowed`**.
 
-Only the fields the patch carries are asked: an edit that does not mention retention is not refused
-because the stored one is above a ceiling lowered since (the purge already honours the lower number),
-and an archived event still answers `409 event.immutable` first. Nothing is stored or announced for
+Only what a save **changes** is asked. The settings form sends every field on every save, so a field
+re-sent with the value the event already has is not a request: a host is not locked out of switching
+moderation at the party because the operator lowered a ceiling since they chose their retention (the
+purge already honours the lower number, and a clip is refused at upload). Going **to** a value the
+ceiling does not allow is refused. An archived event still answers `409 event.immutable` first. Nothing is stored or announced for
 a refused patch. An event with no client is not asked anything.
 
 `allowClips` is `true` for an event **created** after video shipped and `false` for one
