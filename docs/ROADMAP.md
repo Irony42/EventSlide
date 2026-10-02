@@ -667,11 +667,15 @@ on data it does not own, "what happened" stops being a question the git history 
 > `SITE_ADMIN` switch, the `/api/site` namespace gated by `requireOperator` and mounted
 > only when on, migrations applied in both modes, and the ring-4 guards — the
 > operator-scope sweep once per mode and the structural case that keeps every other
-> router out of the namespace. **Still to come**, each with the item that gives it
-> something to act on: `features.siteAdmin` on the instance-info endpoint and the SPA's
-> `/admin/site` routes; the boot warning when clients exist and the mode is off; refusing
-> operator-only settings when off; and the ring-6 half — CI running rings 4 and 6 once per
-> mode, `tenant-isolation.spec.ts` included.
+> router out of the namespace. **Also shipped since**, in G1-04 (the AGPL source offer):
+> `features.siteAdmin` now exists on the instance-info endpoint, `GET /api/about` —
+> derived from the same `config.siteAdmin` that decides whether `/api/site` is mounted, so
+> the flag cannot disagree with the mount, and read by the SPA instead of probing a path
+> that answers 401 in one mode and 404 in the other. **Still to come**, each with the item
+> that gives it something to act on: the SPA's `/admin/site` routes (which will read that
+> flag); the boot warning when clients exist and the mode is off; refusing operator-only
+> settings when off; and the ring-6 half — CI running rings 4 and 6 once per mode,
+> `tenant-isolation.spec.ts` included.
 
 Everything from 10.2 to 10.8 is for a box that serves other people. Most installs are not
 that box: the person who installed EventSlide is the person whose wedding it is, and for

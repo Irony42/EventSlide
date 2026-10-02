@@ -185,14 +185,15 @@ once a request is past that gate:
 Off, the namespace is **not mounted**, rather than mounted and refusing, so a box that never
 asked for administration exposes no operator surface at all. That does not hide the mode,
 and is not meant to: the table answers an anonymous caller `401` in one mode and `404` in
-the other, and `features.siteAdmin` (below) will state it outright. On, `requireOperator` is
+the other, and `features.siteAdmin` on `GET /api/about` (§2) states it outright. On, `requireOperator` is
 applied to the namespace as a whole, so every route that lands under it inherits the check
 without restating it. The operator is the account whose site role is `operator`, read from
 storage on every request, and the role grants nothing inside any event — docs/SECURITY.md §2.
 
-The web client does not probe this namespace to learn the mode. It will read
-`features.siteAdmin` from a public instance-information endpoint, which does not exist yet
-and is therefore not documented here.
+The web client does not probe this namespace to learn the mode. It reads
+`features.siteAdmin` from the public instance-information endpoint, `GET /api/about` (§2),
+which is derived from the very setting that decides whether the namespace is mounted, so
+the two cannot disagree.
 
 ### CSRF
 
@@ -208,7 +209,8 @@ cookie and needs a reload.
 
 `GET`, `HEAD` and `OPTIONS` are exempt. So are `/api/health` and `/api/ready`, which are
 mounted ahead of the whole cookie and session stack — a liveness probe is a machine with
-no cookie jar.
+no cookie jar. `GET /api/about` is mounted in the same position and answers with no cookie
+at all (§2).
 
 ### Rate limits
 
@@ -314,6 +316,51 @@ instead (§3). It is decided once at boot, so this route starts no subprocess of
 the database and the media root would otherwise say (docs/ARCHITECTURE.md "Graceful
 shutdown"). An orchestrator stops sending new traffic the moment this is true, ahead of
 the connections it is about to lose.
+
+### `GET /api/about`
+
+What this box is, which licence it is under, and **where its source is** — the
+machine-readable half of the offer AGPL-3.0 section 13 requires of a network service. No
+authentication, no parameters, and **no cookie**: it is mounted beside `/api/health`,
+ahead of the body parser, the cookie parser, the session and the CSRF gate, so it is
+answered with no cookie jar, sets neither `es_session` nor `es_csrf`, and is served even
+when the session store is unusable.
+
+**200**, `Cache-Control: public, max-age=300`
+
+```json
+{
+  "name": "EventSlide",
+  "version": "2.0.0",
+  "license": "AGPL-3.0-only",
+  "sourceUrl": "https://github.com/Irony42/EventSlide/tree/v2.0.0",
+  "links": {},
+  "features": { "siteAdmin": false }
+}
+```
+
+| Field                | Meaning                                                                                                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`               | The product, `EventSlide`.                                                                                                                                                                                         |
+| `version`            | The running build, from `package.json` — the same value `GET /api/health` reports and the backup manifest records.                                                                                                 |
+| `license`            | An SPDX identifier, `AGPL-3.0-only`, held to `package.json`'s `license`.                                                                                                                                           |
+| `sourceUrl`          | An **https** address of the complete source of this build. Resolved at boot, in order, from `SOURCE_CODE_URL`; from `SOURCE_REF`, as `https://github.com/Irony42/EventSlide/tree/<ref>`; else `…/tree/v<version>`. |
+| `links`              | Operator links. An empty object today; later items add named, optional entries.                                                                                                                                    |
+| `features.siteAdmin` | `true` when `SITE_ADMIN=on`, that is, when the operator's namespace `/api/site` is mounted (see above). Derived from the same setting as the mount, so it cannot disagree with it.                                 |
+
+`features` is **additive**: a client ignores a flag it does not know, and later items add
+one per capability a client would otherwise discover by trying.
+
+**The source offer has no switch.** `SOURCE_CODE_URL` changes where the link points and
+nothing hides it: every guest and host screen of the web app carries a "Code source
+(AGPL-3.0)" link built from this response (the wall, which is projected for a room, does
+not), and `/about` shows the version, the licence and the source. The default is the
+upstream tag of the running version, which is the source of exactly that build **only for
+the published image, unmodified.** A deployment of a modified build, or of a commit no tag
+names, **must** set `SOURCE_CODE_URL` to where that source is published — or bake the ref in
+with the image's `SOURCE_REF` build argument (`docker build --build-arg SOURCE_REF=<tag-or-commit>`).
+`SOURCE_CODE_URL` accepts an https URL and nothing else: `javascript:`, `data:` and `http:`
+addresses, and addresses carrying credentials, stop the boot (exit 78) naming the variable.
 
 ### `POST /api/join`
 

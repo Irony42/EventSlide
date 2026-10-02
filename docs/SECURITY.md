@@ -283,6 +283,7 @@ Everything in `src/interface/http/middleware/authz.ts`:
 | `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                                                                                                                                                   |
 | `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                                                                                                                                               |
 | _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`                                                                                                                           |
+| `GET /api/about`, no middleware  | genuinely public, mounted ahead of the cookie parser, the session and CSRF: the AGPL §13 source offer sets no cookie                                                                                                                                            |
 
 There is no `requireGuestOwnsPhoto`. Ownership is not a middleware question: the rule is
 their photo, their window, and a status still off the wall, and all three live on the
@@ -372,7 +373,7 @@ API's own 404. Off, the namespace is not mounted rather than mounted and refusin
 solo box exposes no operator surface at all: every `/api/site` path is indistinguishable
 from an unknown route. That does not make the mode a secret, and nothing relies on it
 being one: on, an anonymous request there is refused `401` where off answers `404`, and
-the planned public `features.siteAdmin` flag states it outright.
+the public `features.siteAdmin` flag of `GET /api/about` states it outright.
 
 Upgrade path: migration `004_site_role` gives the role to the **first account ever
 created** — the one `bootstrapOwner` made for whoever installed the box, since it only ever
@@ -975,6 +976,8 @@ once with zod at startup, exported as a frozen typed object.
 | `RETENTION_SWEEP_INTERVAL_MINUTES` | no                    | `60`, and `off` under `NODE_ENV=test` | how often expired events are deleted; see §11                                             |
 | `SCHEDULE_SWEEP_INTERVAL_MINUTES`  | no                    | `5`, and `off` under `NODE_ENV=test`  | how often scheduled openings and closings are applied; deletes nothing                    |
 | `SITE_ADMIN`                       | no                    | `off`                                 | `on` mounts `/api/site` behind `requireOperator` (§2); `off`/`on` only                    |
+| `SOURCE_CODE_URL`                  | no                    | upstream tag of this version          | the AGPL §13 source link: https only, no credentials, never hidden (API.md §2)            |
+| `SOURCE_REF`                       | no                    | none                                  | Docker build argument behind the same link: a git tag, branch or commit                   |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
 characters, or matches a known placeholder (`change-me`, `change-me-in-production`,
