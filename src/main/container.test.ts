@@ -776,6 +776,13 @@ describe('createContainer: the operator reaches /api/about and the guest notice'
       name: 'Camille & Sacha',
     })
     if (!created.ok) throw new Error(`fixture rejected: ${created.error.code}`)
+    // A new event is a draft, and the front door answers only for one that is live.
+    const opened = await booted.usecases.changeEventStatus({
+      eventId: created.value.id,
+      actorId: asUserId('user-host'),
+      status: 'live',
+    })
+    if (!opened.ok) throw new Error(`fixture rejected: ${opened.error.code}`)
     const row = booted.db
       .prepare<[], { readonly join_code: string }>('SELECT join_code FROM events')
       .get()
@@ -838,27 +845,32 @@ describe('createContainer: the operator reaches /api/about and the guest notice'
     })
   })
 
-  it('publishes a name with no contact address, and a link with no name', async () => {
-    const named = await boot({ OPERATOR_NAME: 'Les Photographes' })
-    expect((await request(named.app).get('/api/about')).body.operator).toEqual({
-      name: 'Les Photographes',
-    })
-    await named.dispose()
-    container = null
+  it('publishes a name with no contact address', async () => {
+    const { app } = await boot({ OPERATOR_NAME: 'Les Photographes' })
 
-    const linked = await boot({ REPORT_URL: '/legal/signaler' })
-    const body = (await request(linked.app).get('/api/about')).body
-    expect(body.operator).toBeUndefined()
-    expect(body.links).toEqual({ report: '/legal/signaler' })
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.operator).toEqual({ name: 'Les Photographes' })
   })
 
-  it('names the operator in the notice a joining guest is handed, and not on a box that names nobody', async () => {
-    const named = await boot({ OPERATOR_NAME: 'Association Les Photographes' })
-    expect(await noticeOperatorOn(named)).toBe('Association Les Photographes')
-    await named.dispose()
-    container = null
+  it('publishes a link on a box that named nobody, with no operator beside it', async () => {
+    const { app } = await boot({ REPORT_URL: '/legal/signaler' })
 
-    const bare = await boot({})
-    expect(await noticeOperatorOn(bare)).toBeNull()
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.operator).toBeUndefined()
+    expect(response.body.links).toEqual({ report: '/legal/signaler' })
+  })
+
+  it('names the operator in the notice a joining guest is handed', async () => {
+    const booted = await boot({ OPERATOR_NAME: 'Association Les Photographes' })
+
+    expect(await noticeOperatorOn(booted)).toBe('Association Les Photographes')
+  })
+
+  it('names nobody in that notice on a box whose operator said nothing', async () => {
+    const booted = await boot({})
+
+    expect(await noticeOperatorOn(booted)).toBeNull()
   })
 })
