@@ -6,8 +6,48 @@ hard way — live in [CLAUDE.md](CLAUDE.md) (and its vendor-neutral twin,
 [AGENTS.md](AGENTS.md), for any AI agent working here). Read one of those before your
 first pull request; this file does not repeat them.
 
+## Licence and the CLA
+
+EventSlide is licensed under **AGPL-3.0-only** ([LICENSE](LICENSE)). Contributions are
+welcome, and every one comes in under that licence.
+
+**The CLA must be signed before a pull request can be merged.** The
+[Contributor Licence Agreement](docs/CLA.md) is a licence grant, not a copyright
+assignment: you keep your copyright, and you let the maintainer use your contribution and
+relicense it on any terms, proprietary ones included, so that the project is never stuck
+for want of one contributor's signature. A `Signed-off-by` line is welcome but does not
+replace it, because it grants nothing beyond the AGPL. Read the CLA itself before you
+sign; this paragraph is a summary, not the agreement.
+
+How it works:
+
+1. Open your pull request. The CLA bot, a GitHub Actions workflow
+   ([`.github/workflows/cla.yml`](.github/workflows/cla.yml)), comments on it and the
+   `CLA signed` check stays red.
+2. Reply on the pull request with the sentence the bot gives you. It is also at the end of
+   [docs/CLA.md](docs/CLA.md). The check goes green and your signature is recorded.
+3. That is all, once: later pull requests from you pass without another signature, until
+   the CLA text changes.
+
+The maintainer and Dependabot do not sign. If you are contributing as part of your job, or
+with help from an AI tool, read sections 5.3 and 5.4 of the CLA first.
+
+## On hold: external pull requests
+
+External pull requests are paused until the CLA workflow is live. The pause lifts as soon
+as the CLA workflow is live on `main`, and this section goes in the same change. Issues
+and discussions are welcome in the meantime.
+
+## Code of conduct
+
+Take part kindly. The short rules are in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and
+they apply to issues, reviews and discussions as much as to code.
+
 ## Before you open a pull request
 
+- Say which audience the change serves: the **guest** (`/join`, `/e/:slug/upload`), the
+  **host or moderator** (`/admin`) or **the room** (`/e/:slug/display`). The pull request
+  template asks, and [CLAUDE.md](CLAUDE.md) §1 is why.
 - `npm run verify` is green: lint, typecheck, coverage, build. Report the real output —
   a failing check reported as passing is the worst outcome this project can produce.
 - Every rule your change states has a mutation that was run and went red, named in the
