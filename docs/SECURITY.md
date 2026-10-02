@@ -254,7 +254,7 @@ stamp is compared with this epoch: a cookie issued before the account's credenti
 not trusted, for the same reason a session issued before it is not. A password change, a reset,
 "sign out everywhere" and switching the account off all end it. The browser falls back to the
 network bucket, where it stood before the cookie existed, until its next successful sign-in sets a
-new one; nothing is refused.
+new one (a password change sets one at once, having just proved the password); nothing is refused.
 
 **Costs and limits, stated.**
 
@@ -1019,12 +1019,18 @@ because anyone who knows an owner's address can type wrong passwords into it.
   it off that network with one guess every fifteen minutes. The wait is a function of the
   failures that network caused itself, never of the attempts it was refused, so it stops within
   fifteen minutes of the stranger's last guess; the owner's other networks (a phone's mobile
-  data) and their known browsers are untouched, and one successful sign-in from anywhere sets
-  the cookie. A bucket that followed the owner across networks without such a cookie would be a
-  lockout, which is why there is none.
-- **The trusted-device cookie (G3-04b).** `es_device` is set by every successful password
-  sign-in and read by the next one. It is a key for a throttle bucket and **nothing else**: it
-  authenticates nobody, skips no step of the sign-in and opens no session.
+  data) and their known browsers are untouched **by this throttle**, and one successful sign-in
+  from anywhere sets the cookie. A bucket that followed the owner across networks without such a
+  cookie would be a lockout, which is why there is none. **Not touched by this either:** the
+  per-client limit (ten requests a minute, any address) is shared by everyone behind one address
+  and needs no knowledge of the owner's address to spend, so a stranger who keeps sending ten
+  requests a minute can keep every browser on that network, trusted or not, from signing in for
+  as long as they keep sending (§12).
+- **The trusted-device cookie (G3-04b).** `es_device` is set by every completed sign-in and
+  read by the next one. It is a key for a throttle bucket and **nothing else**: it
+  authenticates nobody, skips no step of the sign-in and opens no session. A box that asks an
+  operator for a second factor (§19) asks a trusted browser for it exactly as it asks any other,
+  and the cookie touches none of that flow's limits.
   - _What it holds._ `v1.<payload>.<mac>`, the payload being an opaque 128-bit device id, the
     account id and the instant of the sign-in. **No e-mail address and nothing of the account's
     credentials**, in the clear or hashed: the normalised address enters the MAC and not the
@@ -1039,7 +1045,7 @@ because anyone who knows an owner's address can type wrong passwords into it.
     replayed as a device cookie or the other way round (the choice `hmacGallerySigner.ts`
     makes, for the same reasons). Rotating `SESSION_SECRET` ends every device's trust, which
     is the safe side: they fall back to the network bucket and the next sign-in sets a new
-    cookie. The MAC is compared in constant time **before** the payload is decoded, and the
+    cookie. The MAC is compared with `timingSafeEqual` before the payload is decoded, and the
     payload is then parsed with a strict schema.
   - _Attributes._ `HttpOnly`; `SameSite=Strict`, because it is read by one same-origin `fetch`
     from the sign-in form and never by a navigation, so nothing is lost, and a request another
@@ -1047,15 +1053,19 @@ because anyone who knows an owner's address can type wrong passwords into it.
     an attempt the owner did not make belongs (`Lax` would only widen the set of requests that
     carry it); `Secure` whenever the site is https; `Path=/api/auth`; host-only; `Max-Age` 90
     days. The server judges the age from the signed stamp, not from the browser's expiry.
-  - _When it is set._ By a successful **password** sign-in, after the session exists (a sign-in
-    that fails on the server leaves none), and by nothing else: not a password change, not
-    "sign out everywhere", because a stolen session must not be able to mint a device. It is
-    renewed at every successful sign-in, and **survives a sign-out** (it says "this browser has
-    signed in to this account", which stays true).
+  - _When it is set._ By a request that has **just proved the password**, after its session
+    exists (a sign-in that fails on the server leaves none): a completed sign-in, which for an
+    account with a second factor is the second step that finishes it and never the password
+    alone; and a password change that proved the current one, so the owner who rotates a
+    password because somebody is guessing it keeps their own browser out of that somebody's
+    bucket. By nothing else: not "sign out everywhere", which needs no password, because a
+    stolen session must not be able to mint a device. It is renewed at every sign-in, and
+    **survives a sign-out** (it says "this browser has signed in to this account", which stays
+    true).
   - _What is ignored._ A cookie that is missing, malformed, forged, signed with another key,
     issued for another address, expired, dated in the future, or whose account has since
-    changed its credentials or been switched off is **one outcome**: ignored, with no log
-    line, counted in the network bucket, and answered exactly as a request with no cookie
+    changed its credentials or been switched off is **one outcome**: ignored, counted in the
+    network bucket, and answered exactly as a request with no cookie
     (status, body, `Retry-After` and cookies; a ring-4 test compares the whole sequence). The
     account is read from storage only for a cookie whose signature is valid for the address
     being tried, which nobody can produce without a successful sign-in, so a forged cookie
@@ -1066,17 +1076,23 @@ because anyone who knows an owner's address can type wrong passwords into it.
     doubling wait, not twenty buckets. It is one more bucket in addition to the thief's own
     network, never an unlimited number. The per-client limit (ten a minute) is mounted ahead of
     it and applies to every request, and the account-wide hold counts a device's failures with
-    the networks' and holds a trusted device two seconds like anyone else's.
+    the networks' and holds a trusted device two seconds like anyone else's. An attempt that was
+    not a wrong guess (a server failure after the right password) is given back to the bucket it
+    was reserved in, and a success clears that bucket's wait and no other's.
   - _The credentials epoch._ A cookie issued before the account's credentials last changed is
     not trusted (§2): a password change, a reset, "sign out everywhere" and switching the
     account off all end it. The browser falls back to the network bucket until its next
-    successful sign-in, which sets a cookie stamped after the change.
+    sign-in, which sets a cookie stamped after the change (a password change sets one at once).
   - _Limits, stated._ One cookie holds one account, so signing in to a second account in the
     same browser profile replaces the first's, which falls back to the network bucket: a
-    degradation, never a lockout. A cookie is as stealable as the browser profile it sits in;
-    that is the "extra bucket" above and nothing more. Asking for a reset link is throttled by
-    its own mechanism and **does not** use the cookie (not in this change). The tables are in
-    memory and a restart forgets every wait, while a cookie outlives the restart.
+    degradation, never a lockout. A cookie is as stealable as the browser profile it sits in,
+    and whoever holds a copy shares that device's bucket: they get the one extra bucket of tries
+    above, and they can keep **that browser** in the bucket's wait with one guess every fifteen
+    minutes from any network, because the cookie travels with the browser and not with the
+    network. The owner's other browsers and a private window are in the network bucket and are
+    not affected, and the thief needs the browser profile and the address first. Asking for a
+    reset link keeps its own throttle, unchanged. The tables are in memory and a restart forgets
+    every wait, while a cookie outlives the restart.
 - **The right password is refused while a wait runs, and accepted when it is over.** A wait
   that checked the password first would not slow a guess. After the wait the next attempt is
   an ordinary one, and a success clears the wait of the network (or the trusted device) it came
@@ -1123,7 +1139,9 @@ counts), `middleware/trustedDevice.test.ts` (the cookie's format and what it is 
 `routes/authRoutes.trustedDevice.test.ts` (ring 4: a stranger on the same network no longer
 delays a trusted browser; the device bucket still throttles; a forged, expired, other-account or
 revoked cookie is answered exactly as no cookie; the epoch ends the trust; the cookie's
-attributes, contents and lifecycle). The rules are in `domain/users/signInThrottle.ts` and
+attributes, contents and lifecycle) and by `routes/secondFactorRoutes.test.ts` (the cookie is
+set at the end of the second step and skips nothing). The rules are in
+`domain/users/signInThrottle.ts` and
 `domain/users/trustedDevice.ts`, the HTTP side in `middleware/signInThrottle.ts` and
 `middleware/trustedDevice.ts`, and it is mounted in `routes/authRoutes.ts` behind `loginLimiter`.
 
@@ -1920,6 +1938,7 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 | Guest identity is a device cookie, not a person                          | anonymity is a feature; a cleared cookie means a new guest, and a shared phone means a shared identity. This is also the ceiling on revocation (§11): it refuses the revoked **device**, so clearing cookies or borrowing a phone is a new guest with the same code                                         | grace-window deletion is deliberately short, so a mis-attributed identity has a narrow blast radius; revocation stops the re-scan, and a join-code rotation is what stops the evader    |
 | Captions and display names are guest-supplied text on a 3 m screen       | pre-moderating text as well as photos would slow the wall to uselessness                                                                                                                                                                                                                                    | length-bounded, control characters stripped in the domain, rendered as text (React escapes; no `dangerouslySetInnerHTML` anywhere), and the host can hide any photo instantly           |
 | A stranger on the owner's network can keep a new browser off it          | the stranger's failures spend only their network's bucket; one that followed the owner everywhere with no credential would be a lockout, which is worse (§5). It takes one wrong guess every fifteen minutes, from a network shared with the owner, against a browser with no `es_device` cookie yet        | a browser that has signed in before is counted apart by a signed cookie (§5, G3-04b); other networks and open sessions are untouched; the wait ends 15 minutes after the last guess     |
+| A stranger on the owner's network can use up its login allowance         | the per-client limit counts requests per address, and everyone behind one address (a venue's guest Wi-Fi, a carrier-grade NAT) shares it: ten requests a minute for any addresses keep the others out for as long as the stranger keeps sending. Anything finer would need an identity before the sign-in   | it lasts only as long as the stranger keeps sending, and clears within a minute of their stopping; open sessions and other networks are untouched                                       |
 | Rate-limit state is in-process in the first cut                          | a restart resets buckets                                                                                                                                                                                                                                                                                    | quota is transactional and survives restarts; SQLite-backed limiter store is **(planned)**                                                                                              |
 | An event's byte quota can be held by clips that never become photographs | the staged source is charged from the moment it lands, because it is on the disk the quota protects, and released only when the job reaches `done` or `failed`. Both the depth and the byte total are decided inside `ClipJobRepository.stage`'s own transaction, so two uploads in flight cannot both pass | bounded by the event's own queue at `MAX_QUEUED_CLIPS x MAX_CLIP_BYTES`, and released as each clip finishes or fails (§4.1)                                                             |
 | One event can fill the clip queue for every event on the box             | backpressure is process-wide because the worker is: one encoder at concurrency 1 serves the whole machine, and the wait a guest experiences is the global one. A per-event cap would admit a clip and then make it queue behind another event's backlog anyway — the same wait, reported as a success       | the deployment target is one venue with one live event; per-event fairness is carried by the byte quota and by the upload limiter, which is keyed by event                              |
