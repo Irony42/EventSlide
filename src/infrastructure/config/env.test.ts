@@ -1635,6 +1635,15 @@ describe('loadConfig', () => {
       expect(issues[0]).toMatch(/^MAIL_FROM: MAIL_FROM must be one address/)
     })
 
+    it('names both problems when the URL is malformed and there is no sender, since fixing the URL alone would not boot', () => {
+      // A refused URL leaves zod's aborted marker in its place, which is not `undefined`, so
+      // the "sender required" refinement still runs. The second line stays true after the
+      // first is fixed, which is why it is kept rather than suppressed.
+      const issues = refusalIssues({ ...DEV, SMTP_URL: 'ftp://mail.example.com' })
+
+      expect(issues.map((issue) => issue.split(':')[0])).toEqual(['SMTP_URL', 'MAIL_FROM'])
+    })
+
     it('lists a bad SMTP_URL beside every other problem, like every other variable', () => {
       const issues = refusalIssues({
         ...DEV,

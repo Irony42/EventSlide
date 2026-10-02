@@ -504,6 +504,24 @@ describe('createContainer: outgoing mail', () => {
     expect(relay.logins).toEqual([{ user: 'camille', pass: 'p@ss' }])
   })
 
+  it('opens no connection at boot: the relay is dialled by the first send and by nothing before it', async () => {
+    // Counted at the relay rather than inferred from a login, because a relay that wants
+    // none would never notice a connection made for a `verify()` at start-up — and a boot
+    // that waits on a mail server is a photo wall that does not start when the server is slow.
+    const relay = await startSmtpSink()
+    relays.push(relay)
+    const { mailer } = await boot({
+      SMTP_URL: `smtp://127.0.0.1:${relay.port}`,
+      MAIL_FROM: 'no-reply@photos.example.org',
+    })
+
+    expect(relay.connections).toBe(0)
+
+    await mailer.send(aMail())
+
+    expect(relay.connections).toBe(1)
+  })
+
   it('boots when the relay is down, because a photo wall must serve a room whatever the mail server is doing', async () => {
     const relay = await startSmtpSink()
     const { port } = relay

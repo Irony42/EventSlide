@@ -221,6 +221,11 @@ export default tseslint.config(
               message:
                 'The HTTP layer receives its dependencies from src/main/container.ts. Import the port type, never the adapter.',
             },
+            {
+              group: ['nodemailer*'],
+              message:
+                'The HTTP layer never talks to a mail library. Take the Mailer port from the use case that needs it.',
+            },
           ],
         },
       ],

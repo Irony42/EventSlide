@@ -60,6 +60,20 @@ describe('isSingleMailbox', () => {
     ['a space', 'cam ille@example.org'],
     ['a line feed', `camille@example.org${LF}`],
     ['a NUL', `camille@example.org${NUL}`],
+    // One case per character class and per half of the pattern: each was found by deleting
+    // a class and watching nothing go red. `nodemailer` rewrites several of these into a
+    // different, quoted mailbox (`a<NUL>b@c.example` becomes `"a b"@c.example`), so without
+    // this check the mail goes somewhere nobody chose instead of failing.
+    ['a NUL in the local part', `a${NUL}b@example.org`],
+    ['an opening angle bracket in the local part', 'a<b@example.org'],
+    ['a closing angle bracket in the local part', 'a>b@example.org'],
+    ['a quote in the local part', 'a"b@example.org'],
+    ['a backslash in the domain', 'a@exam\\ple.org'],
+    ['an opening parenthesis in the domain', 'a@exam(ple.org'],
+    ['a closing parenthesis in the domain', 'a@exam)ple.org'],
+    ['a quote in the domain', 'a@exam"ple.org'],
+    ['an angle bracket in the domain', 'a@exam<ple.org'],
+    ['a NUL in the domain', `a@exam${NUL}ple.org`],
     ['no at sign', 'camille.example.org'],
     ['no local part', '@example.org'],
     ['no domain', 'camille@'],
