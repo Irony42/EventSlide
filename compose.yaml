@@ -113,7 +113,7 @@ services:
       AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-1095}
       # Optional support links, **empty unless you set them**: a self-hosted box shows nothing
       # about money. Set, they appear in the host footer, on /about and in a card a host can
-      # close once their event has closed — never to a guest and never on the wall. A donation
+      # close once their event has closed — never on a guest screen and never on the wall. A donation
       # unlocks nothing. https URLs only; see .env.example.
       DONATION_URL: ${DONATION_URL:-}
       BUDGET_URL: ${BUDGET_URL:-}

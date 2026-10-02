@@ -435,8 +435,8 @@ app shows them, when set: a "Soutenir le projet" link in the footer of the **hos
 (`/login`, `/admin/**`), a section on `/about`, and **one** card, which the host can close, on
 the page of an event after it is closed — closing it is remembered by the browser (`localStorage`,
 per event) and nowhere else. They are **never** shown on the projected wall, on the guest screens
-(`/join`, `/e/:slug/upload`, `/g/:token`) or in e-mails, and there is no modal, countdown or
-repeated prompt. **A donation unlocks nothing:** no tier, badge, priority or other counterpart
+(`/join`, `/e/:slug/upload`, `/g/:token`) or in e-mails; `/about`, which anyone may open, is the
+one public page that carries them. There is no modal, countdown or repeated prompt. **A donation unlocks nothing:** no tier, badge, priority or other counterpart
 exists, nothing in this API says who gave, and the screens that carry the link say it is the same
 service for everyone.
 
