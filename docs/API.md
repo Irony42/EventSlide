@@ -396,14 +396,34 @@ An instance whose operator set `DONATION_URL` and `BUDGET_URL` answers, for exam
 }
 ```
 
-| Field                | Meaning                                                                                                                                                                                                                                                                             |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`               | The product, `EventSlide`.                                                                                                                                                                                                                                                          |
-| `version`            | The running build, from `package.json` — the same value `GET /api/health` reports and the backup manifest records.                                                                                                                                                                  |
-| `license`            | An SPDX identifier, `AGPL-3.0-only`, held to `package.json`'s `license`.                                                                                                                                                                                                            |
-| `sourceUrl`          | An **https** address of the complete source of this build. Resolved at boot, in order, from `SOURCE_CODE_URL`; from `SOURCE_REF`, as `https://github.com/Irony42/EventSlide/tree/<ref>`; else `…/tree/v<version>`.                                                                  |
-| `links`              | Operator links, each **present only when the operator set it** — a box that set nothing answers `{}`, never a key with `null` or an empty string. Today: `donate` (`DONATION_URL`) and `budget` (`BUDGET_URL`), each an **https** address. Later items add named, optional entries. |
-| `features.siteAdmin` | `true` when `SITE_ADMIN=on`, that is, when the operator's namespace `/api/site` is mounted (see above). Derived from the same setting as the mount, so it cannot disagree with it.                                                                                                  |
+An instance run for other people, whose operator named themselves and set their pages, answers
+for example (the other fields are as above):
+
+```json
+{
+  "operator": {
+    "name": "Association Les Photographes",
+    "contactEmail": "contact@example.org"
+  },
+  "links": {
+    "terms": "https://example.org/legal/terms",
+    "privacy": "https://example.org/legal/privacy",
+    "legalNotice": "/legal/notice",
+    "support": "/legal/help",
+    "report": "/legal/report"
+  }
+}
+```
+
+| Field                | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`               | The product, `EventSlide`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `version`            | The running build, from `package.json` — the same value `GET /api/health` reports and the backup manifest records.                                                                                                                                                                                                                                                                                                                                                                                             |
+| `license`            | An SPDX identifier, `AGPL-3.0-only`, held to `package.json`'s `license`.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `sourceUrl`          | An **https** address of the complete source of this build. Resolved at boot, in order, from `SOURCE_CODE_URL`; from `SOURCE_REF`, as `https://github.com/Irony42/EventSlide/tree/<ref>`; else `…/tree/v<version>`.                                                                                                                                                                                                                                                                                             |
+| `operator`           | Who runs the instance (roadmap G2-17 / P3-18): `name` (`OPERATOR_NAME`) and, when set, `contactEmail` (`OPERATOR_CONTACT_EMAIL`). **The key is absent** on a box that named nobody, which is every self-hosted box; the address never appears without a name. Plain text, never markup.                                                                                                                                                                                                                        |
+| `links`              | Operator links, each **present only when the operator set it** — a box that set nothing answers `{}`, never a key with `null` or an empty string. `terms` (`LEGAL_TERMS_URL`), `privacy` (`LEGAL_PRIVACY_URL`), `legalNotice` (`LEGAL_NOTICE_URL`), `support` (`SUPPORT_URL`: help for a host) and `report` (`REPORT_URL`: where to report a content), each an **https** address or a **path on this site** (see below); and `donate` (`DONATION_URL`) and `budget` (`BUDGET_URL`), each an **https** address. |
+| `features.siteAdmin` | `true` when `SITE_ADMIN=on`, that is, when the operator's namespace `/api/site` is mounted (see above). Derived from the same setting as the mount, so it cannot disagree with it.                                                                                                                                                                                                                                                                                                                             |
 
 `features` is **additive**: a client ignores a flag it does not know, and later items add
 one per capability a client would otherwise discover by trying.
@@ -439,6 +459,25 @@ per event) and nowhere else. They are **never** shown on the projected wall, on 
 one public page that carries them. There is no modal, countdown or repeated prompt. **A donation unlocks nothing:** no tier, badge, priority or other counterpart
 exists, nothing in this API says who gave, and the screens that carry the link say it is the same
 service for everyone.
+
+**The operator's identity and pages (roadmap G2-17 / P3-18).** `OPERATOR_NAME`,
+`OPERATOR_CONTACT_EMAIL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`,
+`SUPPORT_URL` and `REPORT_URL` are optional and **empty by default**: a self-hosted box that sets
+none of them answers exactly what it answered before, and its screens and its guests' privacy
+notice are unchanged. The name is at most 100 characters with no control character, line break
+or bidirectional override; the address is one plain e-mail address and **needs a name beside it**
+(the boot refuses an address on its own). Each of the five links accepts an **https URL with no
+credentials, or a path on this site** that starts with one `/` (as in `/legal/report`), for pages
+the instance's reverse proxy serves itself; `javascript:`, `data:` and `http:` addresses,
+protocol-relative addresses (`//host`), backslashes and relative paths stop the boot (exit 78)
+naming the variable, and the web app checks the same rule again where an address becomes an
+`href`. A path is published as the path, never expanded to an origin. Where the web app shows
+them, when set: the terms, the privacy policy and the legal notice in the footer of **every**
+screen that has one and on `/about`; `support` in the footer of the host screens (`/login`,
+`/admin/**`) and on `/about`; `report` as "Signaler un contenu" in the footer of the **guest**
+screens (`/join`, `/e/:slug/upload`, `/g/:token`) — the DSA article 16 entry point. None is shown
+on the projected wall or printed with the QR card. The name is also said in the guest's privacy
+notice (§3), and `links.privacy` is linked from it.
 
 ### `POST /api/join`
 
@@ -991,6 +1030,7 @@ guest's language, so the notice cannot promise something the configuration contr
 | `audiences`          | nothing: the same on every event                                          | `wall` (the projected wall, once published — the room, and anyone its public link reaches), `organisers` (host and moderators: everything, and the album) and `sharedGallery` (whoever the host may send the album's private link to, and whoever it is forwarded to: published only, in full resolution, until it expires or is withdrawn — §2) |
 | `retentionDays`      | `retentionDays`, lowered to the client's `max_retention_days` — see below | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                 |
 | `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`       | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                        |
+| `operator`           | `OPERATOR_NAME` (not the event)                                           | who hosts the photograph, said as "Hébergé par <name>" (roadmap G2-17). **Absent** — the key is not there, and the revision is unchanged — on a box whose operator set none, which is every self-hosted box                                                                                                                                      |
 | `revision`           | all of the above                                                          | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                    |
 
 **The retention is the one the box applies.** For an event that belongs to a client, `retentionDays`
@@ -1007,6 +1047,14 @@ again once the event has closed — so the true statement at the moment of readi
 the host _may_ share the album. A client must treat an audience it has no
 sentence for as a notice it cannot show, not as a shorter one — this one shows no notice and
 keeps the picker, as for a tab older than the feature, until a newer bundle loads.
+
+**The operator is the last clause of `revision`, and only when there is one**
+(`…;selfRemoval=900;operator=<name>`). A box that sets no `OPERATOR_NAME` produces the revision
+it always produced, character for character, so installing a version with this field asks no
+guest to read the notice again; a box that starts naming an operator, changes the name or stops
+does ask them, once, because the notice then reads differently. The name is at most 100
+characters, which keeps the longest revision well under the 512 the acknowledgement route
+accepts.
 
 `acknowledgement` is `none` (never read one here), `current` (read exactly this one) or
 `outdated` (read one the host has since changed). **`outdated` is shown again before the

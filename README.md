@@ -487,6 +487,8 @@ setting that hides it.
 
 An instance that asks for support can set `DONATION_URL` and `BUDGET_URL`, empty by default, and a donation unlocks nothing: same service for everyone.
 
+An instance run for other people can name its operator and link its legal pages with `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SUPPORT_URL` and `REPORT_URL`, all empty by default: a self-hosted box that sets none of them looks and behaves exactly as before.
+
 **Everything published before this change remains under GPL-3.0, permanently** — a
 licence grant cannot be revoked after the fact. [.github/gpl-boundary](.github/gpl-boundary)
 names the last commit that carries the GPL text, and the `licenseHistory` CI job
