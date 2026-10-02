@@ -3,7 +3,8 @@
 What changed in each tagged release, newest first. This file is written by hand until
 releases are automated: the pull request that prepares a release writes its entry, and the
 pull requests before it do not touch this file. The entries of 2.0.0 and 2.1.0 were written
-after those releases were published, from their release notes.
+after those releases were published, from their release notes, and are dated by the commit
+each release was cut on.
 
 Versions are tagged `vX.Y.Z` and mean what [docs/UPGRADING.md](docs/UPGRADING.md) says they
 mean: a patch fixes, a minor adds, and only a major breaks something. The tag `gpl-final` is
@@ -77,7 +78,7 @@ Read these before you upgrade, and back up with the version you run now.
 - **New settings are checked at boot, and a value that does not fit stops it** (exit 78,
   naming the variable) (#114, #117, #118, #119, #120, #123). If your environment or `.env`
   already sets one of these names for another purpose, change or remove it before you
-  upgrade. A blank value counts as not set.
+  upgrade. An empty value counts as not set.
   - `SUPPORT_URL`, `REPORT_URL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL` and
     `LEGAL_NOTICE_URL` take an `https` URL without credentials, or a path starting with one
     `/`.
@@ -87,29 +88,38 @@ Read these before you upgrade, and back up with the version you run now.
     `OPERATOR_CONTACT_EMAIL`, `SMTP_URL` and `MAIL_FROM` take the form `.env.example` shows;
     `EVENT_CREATION` takes `anyAccount` or `clientMembers`; `AUDIT_RETENTION_DAYS` takes a
     number from 365 to 3650.
+  - The new limits take positive whole numbers: `MIN_FREE_DISK_BYTES`,
+    `MAX_CONCURRENT_UPLOAD_REQUESTS`, `MAX_QUEUED_CLIPS_PER_EVENT`, `MAX_STREAMS_PER_CLIENT`,
+    `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT` and `RETENTION_CAP_NOTICE_DAYS`.
+    `SQLITE_SHUTDOWN_CHECKPOINT` takes `truncate`, `passive` or `none`.
   - Three combinations are refused too: `SMTP_URL` without `MAIL_FROM`,
     `EVENT_CREATION=clientMembers` without `SITE_ADMIN=on`, and `OPERATOR_CONTACT_EMAIL`
     without `OPERATOR_NAME`.
 - **An account that must change its password is stopped by the server** (#108), with
   `403 auth.passwordChangeRequired` on every `/api` route except `GET /api/auth/me`,
-  `POST /api/auth/password` and `POST /api/auth/logout`. Only the web app stopped it before,
-  so a script that signed in as such an account and went straight to its work is refused
-  until it has changed the password.
+  `POST /api/auth/password` and `POST /api/auth/logout` (and the health and readiness
+  probes, which take no account). Only the web app stopped it before, so a script that signed
+  in as such an account and went straight to its work is refused until it has changed the
+  password.
 - **Changing a password ends the account's other sessions** (#125). `POST /api/auth/password`
   signs out every other session of the account and replaces the caller's own `es_session` and
   `es_csrf` cookies. A client that keeps the CSRF value it read at sign-in sends a stale
   `X-CSRF-Token` and gets `403 request.csrfMismatch`: read the cookie again.
 - **Uploads can be refused for two new reasons** (#105). With less than 1 GB free
-  (`MIN_FREE_DISK_BYTES`) on the database or media volume, an upload gets
-  `413 storage.boxFull`. With more than four uploads in flight at once
+  (`MIN_FREE_DISK_BYTES`) on the database or media volume, or when the free space cannot be
+  read, an upload gets `413 storage.boxFull`. With more than four uploads in flight at once
   (`MAX_CONCURRENT_UPLOAD_REQUESTS`), the next gets `429 upload.busy` and a `Retry-After`.
+- **A video clip queue has a cap per event as well** (#109). `MAX_QUEUED_CLIPS_PER_EVENT`
+  defaults to 20 whatever `MAX_QUEUED_CLIPS` is. If you raised `MAX_QUEUED_CLIPS` above 20,
+  one event can no longer queue more than 20 clips: the next gets `429 clip.queueFull`
+  while the box-wide limit is far off. Raise `MAX_QUEUED_CLIPS_PER_EVENT` to match.
 - **Signing in is throttled per account** (#128). After five failed sign-ins for one address
   from one network, the next attempt gets `429 rate.limited` with a `Retry-After` that starts
   at one second, doubles with each further failure and stops at 15 minutes; the right
-  password is refused during that wait too. Nobody is locked out: the owner of the address
-  signs in from another network with no wait. Beyond 100 failures an hour across every
-  network, each attempt is held for two seconds and never refused. A script that retries a
-  wrong password must back off.
+  password is refused during that wait too. No account is locked: the wait belongs to one
+  network, and the owner of the address signs in from another with no wait. Beyond 100
+  failures an hour across every network, each attempt is held for two seconds and never
+  refused. A script that retries a wrong password must back off.
 
 ### Behaviour changes to check before upgrading
 
@@ -160,10 +170,9 @@ Read these before you upgrade, and back up with the version you run now.
   sets none of them looks as before.
 - **Support links, optional** (#119). `DONATION_URL` and `BUDGET_URL`, empty by default: a
   link in the host footer and on `/about`, and a closable card on the page of a closed event.
-- **Settings whose default is today's behaviour**: `MAX_QUEUED_CLIPS_PER_EVENT`,
-  `MAX_STREAMS_PER_CLIENT`, `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT` and
-  `SQLITE_SHUTDOWN_CHECKPOINT` (#109); `RETENTION_CAP_NOTICE_DAYS`, which only matters to a box
-  with clients (#121). A test now fails when `env.ts` reads a key that `.env.example` does
+- **Settings whose default is today's behaviour**: `MAX_STREAMS_PER_CLIENT`,
+  `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT` and `SQLITE_SHUTDOWN_CHECKPOINT` (#109);
+  `RETENTION_CAP_NOTICE_DAYS`, which only matters to a box with clients (#121). A test now fails when `env.ts` reads a key that `.env.example` does
   not document; its first run found `LOGIN_RATE_LIMIT_PER_MINUTE` and
   `REACTION_RATE_LIMIT_PER_MINUTE`.
 
@@ -209,6 +218,9 @@ short. `package.json` at this tag still reads `2.0.0`, so a build of it reports 
 
 2.1.0 was cut before the upgrade policy: these are changes a major would have carried.
 
+- **New migrations run at the first boot**: 002 to 007, on a database that holds only 001.
+  Migrations are not reversed, and 2.0.0 refuses a database that holds them, so back up
+  first.
 - **`NODE_ENV` defaults to `production`**, and the server refuses to boot without real
   secrets. A disabled account loses access on its next request (#57).
 - **A taken slug answers `409 event.slugUnavailable`** and no longer echoes the slug;

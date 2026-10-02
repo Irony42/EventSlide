@@ -102,9 +102,10 @@ You may. A fork is a modified version, so everything above applies, and in addit
 | After it on the main line (`v3.0.0` is the first release) and everything beyond | **AGPL-3.0-only** |
 
 That commit is the one [`.github/gpl-boundary`](../.github/gpl-boundary) names, and the tag
-`gpl-final` is cut on it. The tag is deliberately not a version number, so that nothing mistakes
-it for a release. A CI job (`licenseHistory`) checks that every commit after the boundary on the
-first-parent line of `main` carries the AGPL text in `LICENSE`.
+`gpl-final` is cut on it, and so is the last GPL-3.0 release, `v2.1.0`. The tag is deliberately
+not a version number, so that nothing mistakes it for a release. A CI job (`licenseHistory`)
+checks that every commit after the boundary on the first-parent line of `main` carries the AGPL
+text in `LICENSE`.
 
 **Nothing published before the boundary is relicensed.** It stays available under GPL-3.0. The
 GPL makes its grant irrevocable (GPL-3.0 section 2) for as long as its terms are followed:
