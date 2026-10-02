@@ -10,6 +10,7 @@ import {
   collectNotices,
   packageOfModule,
   readNotice,
+  type PackageNotice,
   renderNotices,
 } from '../web/thirdPartyNotices'
 
@@ -252,6 +253,28 @@ describe('the notices of a throwaway node_modules', () => {
     expect(text).toContain('MIT TEXT')
     expect(text).not.toContain('SOMEONE ELSE')
     expect(text).toContain('KEPT, IT IS BUNDLED IN FULL')
+  })
+
+  it('orders notices by name, then version, whatever order it is handed them in', () => {
+    const notice = (name: string, version: string): PackageNotice => ({
+      name,
+      version,
+      license: 'MIT',
+      homepage: undefined,
+      texts: [`${name} ${version} text`],
+    })
+
+    const text = renderNotices([
+      notice('beta', '1.0.0'),
+      notice('alpha', '2.0.0'),
+      notice('alpha', '1.0.0'),
+    ])
+
+    const order = ['alpha 1.0.0\n', 'alpha 2.0.0\n', 'beta 1.0.0\n'].map((heading) =>
+      text.indexOf(heading),
+    )
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    expect(order.every((at) => at > 0)).toBe(true)
   })
 
   it('renders nothing but the header and a rule for no packages, never throwing', () => {
