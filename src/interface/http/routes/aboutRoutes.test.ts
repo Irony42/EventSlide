@@ -1,7 +1,9 @@
+import { createHmac } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
+import { TEST_SESSION_SECRET } from '../testing/middlewareHarness'
 import { anUnusableSessionStore, buildServerHarness } from '../testing/serverHarness'
 
 /**
@@ -36,6 +38,23 @@ const setCookies = (headers: Readonly<Record<string, string>>): string[] => {
   return typeof raw === 'string' ? [raw] : []
 }
 
+/**
+ * An `es_session` cookie the session middleware will accept as its own.
+ *
+ * Signed with the harness's secret exactly as `express-session` signs one (`s:` and the
+ * id, a dot, and the unpadded base64 HMAC-SHA256). **It has to be valid to prove anything.**
+ * A cookie whose signature does not verify is discarded before the store is asked, so a
+ * made-up one would make the store irrelevant and every ordering test built on it vacuous
+ * — it would pass wherever the route was mounted.
+ */
+const signedSessionCookie = (sid: string): string => {
+  const mac = createHmac('sha256', TEST_SESSION_SECRET)
+    .update(sid)
+    .digest('base64')
+    .replace(/=+$/, '')
+  return `es_session=${encodeURIComponent(`s:${sid}.${mac}`)}`
+}
+
 describe('GET /api/about', () => {
   it('answers 200 to a caller with no session, no cookie and no CSRF token', async () => {
     const response = await request(buildServerHarness({ about }).app).get('/api/about')
@@ -65,7 +84,7 @@ describe('GET /api/about', () => {
 
     const response = await request(subject.app)
       .get('/api/about')
-      .set('Cookie', 'es_session=s%3Aa-stale-session-id.signature')
+      .set('Cookie', signedSessionCookie('a-session-id-the-store-would-have-to-read'))
 
     expect(response.status).toBe(200)
   })
@@ -128,7 +147,7 @@ describe('GET /api/about', () => {
     const anonymous = await request(subject.app).get('/api/about')
     const stale = await request(subject.app)
       .get('/api/about')
-      .set('Cookie', 'es_session=s%3Aa-stale-session-id.signature; es_csrf=anything')
+      .set('Cookie', `${signedSessionCookie('some-session')}; es_csrf=anything`)
 
     expect(stale.body).toEqual(anonymous.body)
   })

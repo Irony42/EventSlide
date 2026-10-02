@@ -78,6 +78,28 @@ describe('SiteFooter', () => {
     expect(sourceLink()).toHaveAttribute('href', BUILD_SOURCE_URL)
   })
 
+  it.each([
+    ['a box with site administration on', anAbout({ features: { siteAdmin: true } })],
+    ['a box with site administration off', anAbout({ features: { siteAdmin: false } })],
+    [
+      'a box that publishes operator links',
+      anAbout({ links: { terms: 'https://example.org/terms' } }),
+    ],
+  ])(
+    'is offered on %s, because nothing the server reports can switch it off',
+    async (_name, answer) => {
+      // The one rule this footer has: no setting, no flag and no capability hides the link.
+      // A feature flag added later that "tidies" the footer away would be a licence breach
+      // wearing a UI preference, so every shape of answer the server can give is asked.
+      const about = vi.fn(async () => answer)
+      renderWithProviders(<SiteFooter />, { api: fakeApi({ about }) })
+
+      await waitFor(() => expect(about).toHaveBeenCalled())
+
+      await waitFor(() => expect(sourceLink()).toHaveAttribute('href', answer.sourceUrl))
+    },
+  )
+
   it('opens the source in a tab of its own, with rel="noopener noreferrer"', () => {
     renderWithProviders(<SiteFooter />, { api: silentServer() })
 
