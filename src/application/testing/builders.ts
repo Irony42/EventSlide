@@ -1,3 +1,7 @@
+import type { AuditAction } from '../../domain/audit/auditAction'
+import type { AuditActorInput } from '../../domain/audit/auditActor'
+import type { AuditDetails } from '../../domain/audit/auditDetails'
+import { AuditEntry, type AuditSubject } from '../../domain/audit/auditEntry'
 import { Client, type ClientProps } from '../../domain/clients/client'
 import { ClientCeilings, type ClientCeilingsProps } from '../../domain/clients/clientCeilings'
 import { ClipJob } from '../../domain/clips/clipJob'
@@ -623,4 +627,55 @@ export const aClient = (input: ClientInput = {}): Client => {
     retentionCapSince: pick(input.retentionCapSince, null),
     eventsCreatedInPeriod: pick(input.eventsCreatedInPeriod, 0),
   })
+}
+
+// ---------------------------------------------------------------------- audit --
+
+/** A snapshot of every ceiling, unlimited unless a test says otherwise. */
+export const aCeilingsSnapshot = (
+  overrides: Partial<Record<keyof ClientCeilingsProps, number | boolean | string | null>> = {},
+): AuditDetails => ({
+  maxEvents: null,
+  maxTotalBytes: null,
+  maxEventQuotaBytes: null,
+  maxRetentionDays: null,
+  clipsAllowed: true,
+  liveAllowed: true,
+  maxLiveDays: null,
+  maxEventsPerPeriod: null,
+  periodStartedAt: null,
+  ...overrides,
+})
+
+export interface AuditEntryInput {
+  readonly at?: Date
+  readonly actor?: AuditActorInput
+  readonly action?: AuditAction
+  /** For a client entry this is also the subject's id, which the domain requires. */
+  readonly clientId?: string
+  readonly subject?: AuditSubject
+  readonly details?: AuditDetails
+}
+
+/**
+ * An audit entry, by default an operator raising a client's event ceiling from 5 to 6.
+ * It goes through `AuditEntry.create` like production, so a fixture the allow-list
+ * refuses is a broken test and not a state the product could not reach.
+ */
+export const anAuditEntry = (input: AuditEntryInput = {}): AuditEntry => {
+  const clientId = pick(input.clientId, 'client-1')
+  return must(
+    AuditEntry.create({
+      at: pick(input.at, AT),
+      actor: pick(input.actor, { kind: 'operator', userId: asUserId('user-operator') }),
+      action: pick(input.action, 'client.ceilingsChanged'),
+      subject: pick(input.subject, { type: 'client', id: clientId }),
+      clientId: asClientId(clientId),
+      details: pick(input.details, {
+        before: aCeilingsSnapshot({ maxEvents: 5 }),
+        after: aCeilingsSnapshot({ maxEvents: 6 }),
+      }),
+    }),
+    'anAuditEntry',
+  )
 }
