@@ -353,8 +353,9 @@ const optionalSiteLink = (variable: string, shownTo: string) =>
  *
  * Plain text, shown on `/about` and in the guest's privacy notice, and part of the notice's
  * revision. No control character, line break or bidirectional override: the first two would
- * break a sentence apart, and the last can make a name read as another. React escapes the
- * rest.
+ * break a sentence apart, and the last can make a name read as another. At least one letter
+ * or digit, so a name of zero-width characters (which `trim()` leaves alone) cannot print a
+ * blank "Hébergé par" line. React escapes the rest.
  */
 const operatorName = z.preprocess(
   blankAsAbsent,
@@ -369,6 +370,10 @@ const operatorName = z.preprocess(
     .refine((value) => !/[\p{Cc}\p{Zl}\p{Zp}\p{Bidi_Control}]/u.test(value), {
       message:
         'OPERATOR_NAME must not contain a control character, a line break or a bidirectional override',
+    })
+    .refine((value) => /[\p{L}\p{N}]/u.test(value), {
+      message:
+        'OPERATOR_NAME must contain at least one letter or digit: a name made only of invisible characters or punctuation would print as a blank line and still ask every guest to read the notice again',
     })
     .optional(),
 )

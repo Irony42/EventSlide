@@ -1381,6 +1381,12 @@ describe('loadConfig', () => {
         )
       })
 
+      it('accepts a name with a zero-width joiner between its letters, as some scripts spell', () => {
+        const name = 'Kar' + String.fromCharCode(0x200c) + 'im'
+
+        expect(loadConfig({ ...DEV, OPERATOR_NAME: name }).operator.name).toBe(name)
+      })
+
       it('accepts a name of exactly the longest length', () => {
         const longest = 'N'.repeat(OPERATOR_NAME_MAX_LENGTH)
 
@@ -1398,6 +1404,11 @@ describe('loadConfig', () => {
           'Les ' + String.fromCharCode(0x202e) + 'segmatsoN',
         ],
         ['a line separator', 'Les' + String.fromCharCode(0x2028) + 'Photographes'],
+        [
+          'only zero-width characters, which print as nothing and which trim leaves alone',
+          String.fromCharCode(0x200b, 0x2060, 0xfeff),
+        ],
+        ['only punctuation', '. . .'],
       ])('refuses a name with %s, naming the variable', (_why, value) => {
         const issues = refusalIssues({ ...DEV, OPERATOR_NAME: value })
 
@@ -1414,6 +1425,18 @@ describe('loadConfig', () => {
         }).operator
 
         expect(operator.contactEmail).toBe('contact@hosted.example.org')
+      })
+
+      it('refuses an address longer than any mailbox can be', () => {
+        const long = 'a'.repeat(250) + '@hosted.example.org'
+
+        const issues = refusalIssues({
+          ...DEV,
+          OPERATOR_NAME: 'Les Photographes',
+          OPERATOR_CONTACT_EMAIL: long,
+        })
+
+        expect(issues.some((issue) => issue.startsWith('OPERATOR_CONTACT_EMAIL: '))).toBe(true)
       })
 
       it.each([
@@ -1468,6 +1491,13 @@ describe('loadConfig', () => {
       it('carries a path on this site as a path, because the hosted instance serves /legal/* itself', () => {
         expect(configured('/legal/signaler')).toBe('/legal/signaler')
         expect(configured('  /legal/signaler?lang=fr#form ')).toBe('/legal/signaler?lang=fr#form')
+      })
+
+      it('publishes a path in its canonical form, never as typed', () => {
+        // Dot segments are resolved and a non-ASCII character is percent-encoded, exactly as
+        // the browser would send them: what is published is what was parsed.
+        expect(configured('/a/./b/../c')).toBe('/a/c')
+        expect(configured('/café')).toBe('/caf%C3%A9')
       })
 
       it.each([
