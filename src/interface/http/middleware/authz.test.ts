@@ -49,6 +49,17 @@ const buildSubject = (): Harness =>
     routes: (app, deps) => {
       app.post('/sign-in/host', signInAs({ userId: HOST, email: 'host@example.com' }))
       app.post('/sign-in/other', signInAs({ userId: OTHER_HOST, email: 'other@example.com' }))
+      // A session whose id was renewed by a credentials change: the person signed in three
+      // days before the harness clock's start, and the id was minted at the clock's start.
+      app.post(
+        '/sign-in/renewed',
+        signInAs({
+          userId: HOST,
+          email: 'host@example.com',
+          issuedAt: AT.getTime() - 3 * 24 * 60 * 60 * 1000,
+          renewedAt: AT.getTime(),
+        }),
+      )
       // A session shaped the way every session on a running box is shaped today: an
       // identity and no `issuedAt`, because the field did not exist when it was written.
       // `signInAs` stamps one, so this is written by hand rather than by opting out of it.
@@ -116,7 +127,7 @@ const seedWedding = (subject: Harness): void => {
 }
 
 /** A supertest agent that keeps the session cookie across requests. */
-const signedIn = async (subject: Harness, who: 'host' | 'other' | 'undated') => {
+const signedIn = async (subject: Harness, who: 'host' | 'other' | 'undated' | 'renewed') => {
   const agent = request.agent(subject.app)
   await agent.post(`/sign-in/${who}`).expect(204)
   return agent
@@ -357,6 +368,39 @@ describe('enforceSessionAge: the credentials epoch (G2-08 / P3-09)', () => {
 
     expect(response.status).toBe(200)
     expect(response.body).toEqual({ hasSession: true, userId: null })
+  })
+
+  it('compares the epoch with the age of the id when the session was renewed, not with the sign-in', async () => {
+    // The person signed in three days ago and a password change gave them this id a moment
+    // ago. The credentials changed at that moment, so the id survives it — while the cap,
+    // which is about the sign-in, keeps counting from three days ago.
+    const subject = harness()
+    const agent = await signedIn(subject, 'renewed')
+
+    epochAt(subject, 0)
+
+    expect((await agent.get('/me')).status).toBe(200)
+  })
+
+  it('refuses a renewed id once the credentials have changed again after it was minted', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'renewed')
+    subject.clock.advance(5_000)
+
+    epochAt(subject, 1_000)
+
+    expect((await agent.get('/me')).status).toBe(401)
+  })
+
+  it('still ends a renewed session when the sign-in behind it is past the cap', async () => {
+    // Renewal resets the id's age, never the person's: three days into the harness clock plus
+    // four more is a week since the sign-in.
+    const subject = harness()
+    const agent = await signedIn(subject, 'renewed')
+
+    subject.clock.advance(4 * 24 * 60 * 60 * 1000)
+
+    expect((await agent.get('/me')).status).toBe(401)
   })
 
   it('reads the account once for a request that passes, so the gates behind it do not ask again', async () => {

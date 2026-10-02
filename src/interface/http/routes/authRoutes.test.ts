@@ -899,6 +899,60 @@ describe('the account’s other sessions', () => {
     })
   })
 
+  describe('the seven-day cap', () => {
+    const DAY = 24 * 60 * 60 * 1000
+
+    it('is not restarted by pressing "sign out everywhere", however often', async () => {
+      // The person signed in once. A stolen cookie that presses the button every six days
+      // must still end a week after that sign-in; if a renewal made the session younger, the
+      // week would become "until the victim notices".
+      const subject = harness()
+      seedHost(subject)
+      const thief = await signedIn(subject)
+
+      subject.clock.advance(3 * DAY)
+      await thief.post('/api/auth/sessions/revoke-others').expect(204)
+      subject.clock.advance(3 * DAY)
+      await thief.post('/api/auth/sessions/revoke-others').expect(204)
+      expect(await isSignedIn(thief)).toBe(true)
+
+      subject.clock.advance(2 * DAY)
+
+      expect(await isSignedIn(thief)).toBe(false)
+    })
+
+    it('is not restarted by a password change either', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const laptop = await signedIn(subject)
+      subject.clock.advance(6 * DAY)
+      await laptop
+        .post('/api/auth/password')
+        .send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD })
+        .expect(204)
+      expect(await isSignedIn(laptop)).toBe(true)
+
+      subject.clock.advance(2 * DAY)
+
+      expect(await isSignedIn(laptop)).toBe(false)
+    })
+
+    it('still counts from the sign-in after a login, which is what starts it', async () => {
+      const subject = harness()
+      seedHost(subject)
+      subject.clock.advance(6 * DAY)
+      const agent = request.agent(subject.app)
+      await agent
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: PASSWORD })
+        .expect(200)
+
+      subject.clock.advance(6 * DAY)
+
+      expect(await isSignedIn(agent)).toBe(true)
+    })
+  })
+
   describe('POST /api/auth/sessions/revoke-others', () => {
     it('answers 204 and signs the account out of every other device', async () => {
       const subject = harness()

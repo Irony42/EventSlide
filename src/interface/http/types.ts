@@ -226,17 +226,33 @@ export interface SessionPayload {
   userId?: string
   email?: string
   /**
-   * When this session was established, in epoch milliseconds, written once at login and
-   * never refreshed.
+   * When the person **signed in**, in epoch milliseconds, written once at login and carried
+   * unchanged across every renewal of the session id.
    *
    * The one thing `rolling: true` cannot tell you. The cookie's `maxAge` is an *idle*
-   * timeout, and the store pushes `expires_at` forward on every request, so a session
-   * that keeps being used never expires — which is what made "a disabled host's session
-   * lasts 12 hours" wrong in the reassuring direction. `enforceSessionAge` compares this
-   * against the clock and ends the session once, whatever the idle timer says.
+   * timeout, and the store pushes `expires_at` forward on every request, so a session that
+   * keeps being used never expires — which is what made "a disabled host's session lasts 12
+   * hours" wrong in the reassuring direction. `enforceSessionAge` compares this against the
+   * clock and ends the session once, whatever the idle timer says.
+   *
+   * **Never refreshed by a renewal.** A password change and "sign out everywhere" put a new
+   * session id in place of the caller's, and if that restarted this clock then a stolen
+   * cookie could call `revoke-others` once every six days and never reach the cap. They
+   * renew {@link SessionPayload.renewedAt} instead.
    *
    * Written at login rather than derived from the row because the row's `expires_at` is
    * the idle deadline: the two are different questions and one column cannot answer both.
    */
   issuedAt?: number
+  /**
+   * When this session **id** was minted, in epoch milliseconds: the login, or the last time a
+   * credentials change replaced the id and kept the person signed in.
+   *
+   * This — not {@link SessionPayload.issuedAt} — is what the credentials epoch is compared
+   * against (`users.credentials_changed_at`), because the epoch asks "was this id minted
+   * before the credentials changed?" and the answer for the session a password change
+   * replaces itself with has to be no. Absent on a session written before the epoch existed,
+   * which falls back to `issuedAt`: for that session the two were always the same instant.
+   */
+  renewedAt?: number
 }

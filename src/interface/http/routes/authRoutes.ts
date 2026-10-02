@@ -78,10 +78,14 @@ const destroySession = (session: Session): Promise<void> =>
  *   Leaving it would mean one `es_csrf` spanning the old identity and the new one — the
  *   defect F9 names — so anything that learnt the value before still holds a valid half of
  *   the pair after it.
- * - `issuedAt` is what the credentials epoch is compared against (`enforceSessionAge`). A
+ * - `renewedAt` is what the credentials epoch is compared against (`enforceSessionAge`). A
  *   password change raises the epoch to the instant it happened and then calls this, whose
  *   stamp is not earlier: the session the person ends up with survives the change they
  *   just made, and every other one does not.
+ * - `issuedAt` is the person's sign-in, which the absolute cap measures. **A login writes it
+ *   and a renewal carries it over** (`carryIssuedAt`): if a renewal restarted it, a stolen
+ *   cookie could call `revoke-others` once every six days and never reach the cap, and a
+ *   week-long ceiling would quietly become "until the victim notices".
  *
  * The regeneration comes first and the rotation after it, never before: a regeneration
  * that fails must leave the response with no `Set-Cookie` at all, which is what the
@@ -92,24 +96,37 @@ const destroySession = (session: Session): Promise<void> =>
  * Deliberately not `mustChangePassword`: `SessionPayload`'s own doc comment says why, and
  * `requirePasswordCurrent` reads the flag from storage on every request.
  *
- * `issuedAt` is written here and nowhere else: refreshing it anywhere would turn the
- * absolute cap back into the idle timeout it exists to sit behind.
+ * Both stamps are written here and nowhere else: refreshing `issuedAt` anywhere would turn
+ * the absolute cap back into the idle timeout it exists to sit behind.
  */
 const startSession = async (
   req: Request,
   res: Response,
   deps: HttpDeps,
   who: { readonly userId: string; readonly email: string },
+  /**
+   * The sign-in instant to keep, for a renewal; omitted by a login, which is the sign-in.
+   * Read from the session **before** it is regenerated, because regenerating empties it.
+   */
+  carryIssuedAt?: number,
 ): Promise<void> => {
   await regenerateSession(req.session)
   rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
 
+  const now = deps.clock.now().getTime()
   const payload: SessionPayload = {
     userId: who.userId,
     email: who.email,
-    issuedAt: deps.clock.now().getTime(),
+    issuedAt: carryIssuedAt ?? now,
+    renewedAt: now,
   }
   Object.assign(req.session, payload)
+}
+
+/** The sign-in instant of the session this request arrived with, to hand to a renewal. */
+const signedInAtOf = (req: Request): number | undefined => {
+  const issuedAt = (req.session as unknown as SessionPayload).issuedAt
+  return typeof issuedAt === 'number' ? issuedAt : undefined
 }
 
 /**
@@ -261,12 +278,13 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
 
       // `changePassword` raised the credentials epoch to now, which ends *every* session
       // of this account, this one included. Renew this one — a new id, a new CSRF token, an
-      // `issuedAt` that is not before the epoch — so the person who chose the password stays
-      // signed in on the device they chose it on, and on no other.
+      // `renewedAt` that is not before the epoch — so the person who chose the password stays
+      // signed in on the device they chose it on, and on no other. Their sign-in instant is
+      // carried over: choosing a password does not make the session any younger.
       //
       // The `mustChangePassword` flag needs no session write: `changePassword` cleared it
       // in storage and `resolveAuthState` reads it from there on the next request.
-      await startSession(req, res, deps, user)
+      await startSession(req, res, deps, user, signedInAtOf(req))
       sendNoContent(res)
     }),
   )
@@ -348,8 +366,9 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
 
       // "Everywhere" includes this device's own cookie, because the epoch is a point in
       // time and not a list of ids to spare. Put a fresh session in its place before
-      // answering, or the button would sign out the person who pressed it.
-      await startSession(req, res, deps, user)
+      // answering, or the button would sign out the person who pressed it. Their sign-in
+      // instant is kept: pressing the button does not make the session any younger.
+      await startSession(req, res, deps, user, signedInAtOf(req))
       sendNoContent(res)
     }),
   )

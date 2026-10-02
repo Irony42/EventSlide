@@ -146,9 +146,11 @@ export const passwordResetMail = ({
  *
  * A path because the places a URL ends up — an access log, a proxy's log, a browser's
  * history, a `Referer` — treat a query string as data to keep and a path as a route to
- * summarise: the access log writes the route *pattern* (`/password/reset/:token`), never the
- * path, and the edge's log filter rewrites `/password/*` the same way (docs/SECURITY.md §9).
- * It is the same decision the shared gallery's `/g/:token` made.
+ * summarise: this box's own access log writes the route *pattern* and its request logger
+ * writes the path with the token replaced by `:token` (`loggablePath`), and `helmet` sends
+ * `Referrer-Policy: no-referrer`. A reverse proxy in front of the box is the operator's own
+ * and logs what it is configured to; docs/SECURITY.md §2 says to treat this path as secret
+ * there. It is the same decision the shared gallery's `/g/:token` made.
  *
  * `publicUrl` is the configured origin without a trailing slash (`env.ts` strips it), so
  * this only joins.

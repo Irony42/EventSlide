@@ -46,9 +46,10 @@ import type { GuestPrincipal, HttpDeps, SessionPayload, UserPrincipal } from '..
  * middle of Saturday evening. A wedding weekend is the longest thing this product is
  * used for; a week clears it and still makes "indefinitely" false.
  *
- * Because it is written into the session at login and never refreshed, it is also the
- * only backstop that does not depend on anybody remembering to check something: a
- * session nothing else refuses still ends.
+ * Because it is written into the session at login and never refreshed — not by a password
+ * change or "sign out everywhere" either, which renew `renewedAt` and carry this one over —
+ * it is also the only backstop that does not depend on anybody remembering to check
+ * something: a session nothing else refuses still ends.
  */
 export const ABSOLUTE_SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -65,8 +66,10 @@ export const ABSOLUTE_SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
  * **The epoch** (G2-08 / P3-09). The `sessions` table has no `user_id`, so "every session of
  * this account" is not something the store can end. The account says instead *when* its
  * credentials last changed (`users.credentials_changed_at`: a new password, a reset,
- * "sign out everywhere", a switch-off) and a session issued **before** that instant is
- * refused here, exactly as one past the cap is. `<` and not `<=`: the session a password
+ * "sign out everywhere", a switch-off) and a session whose id was minted **before** that
+ * instant is refused here, exactly as one past the cap is. "Minted" is `renewedAt` when the
+ * session has one and `issuedAt` when it does not: the cap is about the *person's* sign-in
+ * and the epoch about the *id*, which are the same instant until a renewal separates them. `<` and not `<=`: the session a password
  * change replaces itself with is stamped with the very instant of the change, and must
  * survive it.
  *
@@ -108,7 +111,13 @@ export const enforceSessionAge =
 
       if (
         withinCap &&
-        !(await issuedBeforeCredentialsChanged(deps, req, session.userId, issuedAt))
+        !(await issuedBeforeCredentialsChanged(
+          deps,
+          req,
+          session.userId,
+          // The id's own age, which a renewal resets and the cap above deliberately does not.
+          typeof session.renewedAt === 'number' ? session.renewedAt : issuedAt,
+        ))
       ) {
         next()
         return
