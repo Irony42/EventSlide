@@ -5,7 +5,7 @@ import type { DiskSpaceStatus } from '../../../domain/shared/diskSpaceGuard'
 import { buildServer } from '../server'
 import type { AboutFacts } from '../presenters/aboutPresenter'
 import { buildTestWorld, type TestWorld } from './middlewareHarness'
-import type { HttpConfig } from '../types'
+import type { HttpConfig, HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
 import type { Logger } from '../../../application/ports/logger'
 
@@ -43,6 +43,9 @@ const notWired = (name: string) => async (): Promise<never> => {
 export const notWiredUseCases = (): HttpUseCases => ({
   authenticateUser: notWired('authenticateUser'),
   changePassword: notWired('changePassword'),
+  revokeOtherSessions: notWired('revokeOtherSessions'),
+  requestPasswordReset: notWired('requestPasswordReset'),
+  resetPassword: notWired('resetPassword'),
   registerModerator: notWired('registerModerator'),
 
   createEvent: notWired('createEvent'),
@@ -129,6 +132,8 @@ export interface ServerHarnessOptions {
   /** What `GET /api/about` answers from. A fixed, recognisable build by default. */
   readonly about?: Partial<AboutFacts>
   readonly usecases?: Partial<HttpUseCases>
+  /** Whether the box can mail. Defaults to no relay, like a box that never set SMTP_URL. */
+  readonly mailer?: HttpDeps['mailer']
   /** Where a built web app lives. Omitted means "API only", as in most tests. */
   readonly clientDir?: string
   /**
@@ -165,11 +170,15 @@ export const buildServerHarness = ({
   config = {},
   about = {},
   usecases = {},
+  mailer,
   clientDir,
   sessionStore = new session.MemoryStore(),
   logger,
 }: ServerHarnessOptions = {}): ServerHarness => {
-  const world = buildTestWorld(config, { ...(logger === undefined ? {} : { logger }) })
+  const world = buildTestWorld(config, {
+    ...(logger === undefined ? {} : { logger }),
+    ...(mailer === undefined ? {} : { mailer }),
+  })
   const { deps } = world
 
   const health: MutableHealthChecks = {

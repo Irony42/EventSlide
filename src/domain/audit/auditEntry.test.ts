@@ -252,7 +252,10 @@ describe('what an audit entry may never carry (roadmap 10.8: no photo content, c
           ]),
         )
 
-        for (const details of [atTop, nested]) {
+        // An action with no details has no snapshot to put a key inside: its nested form is
+        // just `{}`, which is exactly what it declares, so only the top level is a violation.
+        const forms = Object.keys(base).length === 0 ? [atTop] : [atTop, nested]
+        for (const details of forms) {
           const result = AuditEntry.create(
             entryInput({
               action,

@@ -1,5 +1,5 @@
 import request from 'supertest'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   ABSOLUTE_SESSION_LIFETIME_MS,
   GUEST_COOKIE,
@@ -49,6 +49,17 @@ const buildSubject = (): Harness =>
     routes: (app, deps) => {
       app.post('/sign-in/host', signInAs({ userId: HOST, email: 'host@example.com' }))
       app.post('/sign-in/other', signInAs({ userId: OTHER_HOST, email: 'other@example.com' }))
+      // A session whose id was renewed by a credentials change: the person signed in three
+      // days before the harness clock's start, and the id was minted at the clock's start.
+      app.post(
+        '/sign-in/renewed',
+        signInAs({
+          userId: HOST,
+          email: 'host@example.com',
+          issuedAt: AT.getTime() - 3 * 24 * 60 * 60 * 1000,
+          renewedAt: AT.getTime(),
+        }),
+      )
       // A session shaped the way every session on a running box is shaped today: an
       // identity and no `issuedAt`, because the field did not exist when it was written.
       // `signInAs` stamps one, so this is written by hand rather than by opting out of it.
@@ -116,7 +127,7 @@ const seedWedding = (subject: Harness): void => {
 }
 
 /** A supertest agent that keeps the session cookie across requests. */
-const signedIn = async (subject: Harness, who: 'host' | 'other' | 'undated') => {
+const signedIn = async (subject: Harness, who: 'host' | 'other' | 'undated' | 'renewed') => {
   const agent = request.agent(subject.app)
   await agent.post(`/sign-in/${who}`).expect(204)
   return agent
@@ -288,6 +299,139 @@ describe('enforceSessionAge', () => {
     const response = await request(subject.app).get('/events/mariage/wall')
 
     expect(response.status).toBe(200)
+  })
+})
+
+describe('enforceSessionAge: the credentials epoch (G2-08 / P3-09)', () => {
+  /**
+   * The `sessions` table has no `user_id`, so a password change cannot end the account's
+   * other sessions by deleting rows. The account carries `credentialsChangedAt` instead and
+   * a session issued before it is refused — which is what these cases hold, one rule each.
+   */
+  const epochAt = (subject: Harness, offsetMs: number): void => {
+    subject.users.seed(
+      aUser({
+        id: HOST,
+        email: 'host@example.com',
+        credentialsChangedAt: new Date(AT.getTime() + offsetMs),
+      }),
+    )
+  }
+
+  it('ends a session that was issued before the account changed its credentials', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+    subject.clock.advance(5_000)
+
+    epochAt(subject, 1_000)
+
+    const response = await agent.get('/me')
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+
+  it('keeps a session issued at the very instant the credentials changed', async () => {
+    // The session a password change replaces itself with is stamped with the change's own
+    // instant. Refusing it (`<=`) would sign the person who just chose a password out.
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+
+    epochAt(subject, 0)
+
+    expect((await agent.get('/me')).status).toBe(200)
+  })
+
+  it('keeps a session issued after the credentials changed', async () => {
+    const subject = harness()
+    epochAt(subject, -60_000)
+    const agent = await signedIn(subject, 'host')
+
+    expect((await agent.get('/me')).status).toBe(200)
+  })
+
+  it('leaves another account untouched when this one changed its credentials', async () => {
+    const subject = harness()
+    const other = await signedIn(subject, 'other')
+    epochAt(subject, 1_000)
+    subject.clock.advance(5_000)
+
+    expect((await other.get('/me')).status).toBe(200)
+  })
+
+  it('ends the session for the request that found it stale, not only for the next one', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+    subject.clock.advance(5_000)
+    epochAt(subject, 1_000)
+
+    const response = await agent.post('/session/touch')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ hasSession: true, userId: null })
+  })
+
+  it('compares the epoch with the age of the id when the session was renewed, not with the sign-in', async () => {
+    // The person signed in three days ago and a password change gave them this id a moment
+    // ago. The credentials changed at that moment, so the id survives it — while the cap,
+    // which is about the sign-in, keeps counting from three days ago.
+    const subject = harness()
+    const agent = await signedIn(subject, 'renewed')
+
+    epochAt(subject, 0)
+
+    expect((await agent.get('/me')).status).toBe(200)
+  })
+
+  it('refuses a renewed id once the credentials have changed again after it was minted', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'renewed')
+    subject.clock.advance(5_000)
+
+    epochAt(subject, 1_000)
+
+    expect((await agent.get('/me')).status).toBe(401)
+  })
+
+  it('still ends a renewed session when the sign-in behind it is past the cap', async () => {
+    // Renewal resets the id's age, never the person's: three days into the harness clock plus
+    // four more is a week since the sign-in.
+    const subject = harness()
+    const agent = await signedIn(subject, 'renewed')
+
+    subject.clock.advance(4 * 24 * 60 * 60 * 1000)
+
+    expect((await agent.get('/me')).status).toBe(401)
+  })
+
+  it('reads the account once for a request that passes, so the gates behind it do not ask again', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+    const reads = vi.spyOn(subject.users, 'authStateFor')
+
+    await agent.get('/me').expect(200)
+
+    expect(reads).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not read the account for an anonymous request', async () => {
+    const subject = harness()
+    seedWedding(subject)
+    const reads = vi.spyOn(subject.users, 'authStateFor')
+
+    await request(subject.app).get('/events/mariage/wall').expect(200)
+
+    expect(reads).not.toHaveBeenCalled()
+  })
+
+  it('does not look at the epoch of a session the cap already ended', async () => {
+    const subject = harness()
+    const agent = await signedIn(subject, 'host')
+    subject.clock.advance(ABSOLUTE_SESSION_LIFETIME_MS)
+    const reads = vi.spyOn(subject.users, 'authStateFor')
+
+    await agent.get('/me').expect(401)
+
+    expect(reads).not.toHaveBeenCalled()
   })
 })
 

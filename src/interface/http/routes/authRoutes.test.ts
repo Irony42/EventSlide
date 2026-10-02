@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express'
 import request from 'supertest'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { SESSION_COOKIE, authRoutes } from './authRoutes'
 import { ABSOLUTE_SESSION_LIFETIME_MS, GUEST_COOKIE } from '../middleware/authz'
 import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken, requireCsrfToken } from '../middleware/csrf'
@@ -11,12 +11,23 @@ import { FakeUserRepository } from '../../../application/testing/fakeUserReposit
 import type { PasswordHasher } from '../../../application/ports/passwordHasher'
 import { makeAuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
 import { makeChangePassword } from '../../../application/usecases/auth/changePassword'
+import { makeRequestPasswordReset } from '../../../application/usecases/auth/requestPasswordReset'
+import { makeResetPassword } from '../../../application/usecases/auth/resetPassword'
+import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
+import { FakeAccountTokenRepository } from '../../../application/testing/fakeAccountTokenRepository'
+import { FakeMailer } from '../../../application/testing/fakeMailer'
+import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
+import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
+import type { Mailer } from '../../../application/ports/mailer'
+import { asUserId } from '../../../domain/shared/ids'
 import type { Password } from '../../../domain/users/password'
 import type { PasswordHash } from '../../../domain/users/user'
 
 const HOST_ID = 'host-id'
 const HOST_EMAIL = 'camille@example.test'
 const FORMER_EMAIL = 'ancienne@example.test'
+const OTHER_ID = 'other-id'
+const OTHER_EMAIL = 'sacha@example.test'
 
 /** The plaintext behind `builders.aUser`'s default hash. */
 const PASSWORD = 'un-mot-de-passe-solide'
@@ -65,6 +76,10 @@ const passThrough: RequestHandler = (_req, _res, next) => {
 
 interface AuthHarness extends Harness {
   readonly users: FakeUserRepository
+  /** What the box mailed, and the means to make it fail. */
+  readonly mailer: FakeMailer
+  readonly tokens: FakeAccountTokenRepository
+  readonly secrets: FakeSecretTokens
 }
 
 interface AuthHarnessOptions {
@@ -81,18 +96,40 @@ interface AuthHarnessOptions {
    * next request, which is the failure the second half of each of those tests names.
    */
   readonly csrf?: boolean
+  /**
+   * The mailer the box has. Defaults to a working relay (`FakeMailer`), because most of this
+   * file is about what a reset *does*; `none` is a box that never set `SMTP_URL`, and a test
+   * may bring its own to control when a send finishes.
+   */
+  readonly mail?: 'relay' | 'none' | Mailer
 }
 
 const harness = ({
   config = {},
   before = passThrough,
   csrf = false,
+  mail = 'relay',
 }: AuthHarnessOptions = {}): AuthHarness => {
   const users = new FakeUserRepository()
   const hasher = new FakePasswordHasher()
+  const mailer = new FakeMailer()
+  const tokens = new FakeAccountTokenRepository().withAccounts(
+    asUserId(HOST_ID),
+    asUserId(OTHER_ID),
+  )
+  const secrets = new FakeSecretTokens()
+  const ids = new SequentialIdGenerator()
+  const boxMailer: Mailer =
+    mail === 'relay'
+      ? mailer
+      : mail === 'none'
+        ? { canDeliver: false, send: mailer.send.bind(mailer) }
+        : mail
 
   const built = buildHarness({
     config,
+    users,
+    mailer: boxMailer,
     routes: (app, deps) => {
       // One sign-in route, so a test can establish a session without driving a real
       // login. Outside `/api`, so it stays reachable when the gate below is mounted.
@@ -100,6 +137,7 @@ const harness = ({
       // session; P3-03 moved the source of that flag to storage, so a test that needs an
       // invited account seeds one into `subject.users` instead (`FakeUserRepository`).
       app.post('/test/sign-in', signInAs({ userId: HOST_ID, email: HOST_EMAIL }))
+      app.post('/test/sign-in/other', signInAs({ userId: OTHER_ID, email: OTHER_EMAIL }))
 
       if (csrf) {
         app.use(issueCsrfToken({ secureCookie: deps.config.secureCookie }))
@@ -119,14 +157,32 @@ const harness = ({
           // cases itself.
           usecases: {
             authenticateUser: makeAuthenticateUser({ users, hasher, clock: deps.clock }),
-            changePassword: makeChangePassword({ users, hasher }),
+            changePassword: makeChangePassword({ users, hasher, clock: deps.clock }),
+            revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
+            requestPasswordReset: makeRequestPasswordReset({
+              users,
+              tokens,
+              secrets,
+              mailer: boxMailer,
+              ids,
+              clock: deps.clock,
+              logger: deps.logger,
+              publicUrl: deps.config.publicUrl,
+            }),
+            resetPassword: makeResetPassword({
+              users,
+              tokens,
+              secrets,
+              hasher,
+              clock: deps.clock,
+            }),
           },
         }),
       )
     },
   })
 
-  return { ...built, users }
+  return { ...built, users, mailer, tokens, secrets }
 }
 
 /** supertest types `headers` loosely, so the shape read here is narrowed explicitly. */
@@ -738,6 +794,634 @@ describe('POST /api/auth/password', () => {
  * request still goes through. A rotation that locked the client out would be worse than
  * no rotation, because it would fail on the screen the host just reached.
  */
+/**
+ * "Sign out everywhere" and the password change both work through the credentials epoch
+ * (G2-08 / P3-09): the account says when its credentials last changed and every session
+ * issued before that instant is refused. Two agents stand for two devices, and what they
+ * observe is the contract — the answer of `GET /api/auth/me`, which is what the admin
+ * shell routes on.
+ */
+describe('the account’s other sessions', () => {
+  /** Two devices of one host, signed in a minute apart from the moment anything changes. */
+  const twoDevices = async (subject: AuthHarness) => {
+    const phone = await signedIn(subject)
+    const laptop = await signedIn(subject)
+    subject.clock.advance(60_000)
+    return { phone, laptop }
+  }
+
+  const isSignedIn = async (agent: ReturnType<typeof request.agent>): Promise<boolean> =>
+    (await agent.get('/api/auth/me')).body.authenticated === true
+
+  describe('after POST /api/auth/password', () => {
+    const change = { currentPassword: PASSWORD, newPassword: NEW_PASSWORD }
+
+    it('signs the account out of every other device', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { phone, laptop } = await twoDevices(subject)
+
+      await laptop.post('/api/auth/password').send(change).expect(204)
+
+      expect(await isSignedIn(phone)).toBe(false)
+    })
+
+    it('keeps the device that chose the password signed in', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { laptop } = await twoDevices(subject)
+
+      await laptop.post('/api/auth/password').send(change).expect(204)
+
+      expect(await isSignedIn(laptop)).toBe(true)
+    })
+
+    it('gives that device a new session id, so a cookie copied before the change is a different one', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { laptop } = await twoDevices(subject)
+      const before = cookieValue((await laptop.get('/api/auth/me')).headers, HARNESS_SESSION_COOKIE)
+
+      const response = await laptop.post('/api/auth/password').send(change).expect(204)
+
+      const after = cookieValue(response.headers, HARNESS_SESSION_COOKIE)
+      expect(after).toBeTruthy()
+      expect(after).not.toBe(before)
+    })
+
+    it('leaves every other device signed in when the change is refused', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { phone, laptop } = await twoDevices(subject)
+
+      await laptop
+        .post('/api/auth/password')
+        .send({ currentPassword: 'pas-le-bon', newPassword: NEW_PASSWORD })
+        .expect(401)
+
+      expect(await isSignedIn(phone)).toBe(true)
+    })
+
+    it('does not sign anybody else out', async () => {
+      const subject = harness()
+      seedHost(subject)
+      subject.users.seed(aUser({ id: OTHER_ID, email: OTHER_EMAIL }))
+      const other = request.agent(subject.app)
+      await other.post('/test/sign-in/other').expect(204)
+      const { laptop } = await twoDevices(subject)
+
+      await laptop.post('/api/auth/password').send(change).expect(204)
+
+      expect(await isSignedIn(other)).toBe(true)
+    })
+
+    it('replaces the CSRF token with the session, so the device keeps writing under the new pair', async () => {
+      const subject = harness({ csrf: true })
+      seedHost(subject)
+      const agent = request.agent(subject.app)
+      const token = cookieValue((await agent.get('/api/auth/me')).headers, CSRF_COOKIE)
+      if (token === undefined) throw new Error('the server issued no CSRF cookie')
+      await agent.post('/test/sign-in').expect(204)
+
+      const changed = await agent
+        .post('/api/auth/password')
+        .set(CSRF_HEADER, token)
+        .send(change)
+        .expect(204)
+
+      const rotated = cookieValue(changed.headers, CSRF_COOKIE)
+      expect(rotated).toBeTruthy()
+      expect(rotated).not.toBe(token)
+      await agent
+        .post('/api/auth/sessions/revoke-others')
+        .set(CSRF_HEADER, rotated ?? '')
+        .expect(204)
+    })
+  })
+
+  describe('the seven-day cap', () => {
+    const DAY = 24 * 60 * 60 * 1000
+
+    it('is not restarted by pressing "sign out everywhere", however often', async () => {
+      // The person signed in once. A stolen cookie that presses the button every six days
+      // must still end a week after that sign-in; if a renewal made the session younger, the
+      // week would become "until the victim notices".
+      const subject = harness()
+      seedHost(subject)
+      const thief = await signedIn(subject)
+
+      subject.clock.advance(3 * DAY)
+      await thief.post('/api/auth/sessions/revoke-others').expect(204)
+      subject.clock.advance(3 * DAY)
+      await thief.post('/api/auth/sessions/revoke-others').expect(204)
+      expect(await isSignedIn(thief)).toBe(true)
+
+      subject.clock.advance(2 * DAY)
+
+      expect(await isSignedIn(thief)).toBe(false)
+    })
+
+    it('is not restarted by a password change either', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const laptop = await signedIn(subject)
+      subject.clock.advance(6 * DAY)
+      await laptop
+        .post('/api/auth/password')
+        .send({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD })
+        .expect(204)
+      expect(await isSignedIn(laptop)).toBe(true)
+
+      subject.clock.advance(2 * DAY)
+
+      expect(await isSignedIn(laptop)).toBe(false)
+    })
+
+    it('still counts from the sign-in after a login, which is what starts it', async () => {
+      const subject = harness()
+      seedHost(subject)
+      subject.clock.advance(6 * DAY)
+      const agent = request.agent(subject.app)
+      await agent
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: PASSWORD })
+        .expect(200)
+
+      subject.clock.advance(6 * DAY)
+
+      expect(await isSignedIn(agent)).toBe(true)
+    })
+  })
+
+  describe('POST /api/auth/sessions/revoke-others', () => {
+    it('answers 204 and signs the account out of every other device', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { phone, laptop } = await twoDevices(subject)
+
+      const response = await laptop.post('/api/auth/sessions/revoke-others')
+
+      expect(response.status).toBe(204)
+      expect(await isSignedIn(phone)).toBe(false)
+    })
+
+    it('keeps the device that asked signed in, with a session of its own', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { laptop } = await twoDevices(subject)
+      const before = cookieValue((await laptop.get('/api/auth/me')).headers, HARNESS_SESSION_COOKIE)
+
+      const response = await laptop.post('/api/auth/sessions/revoke-others').expect(204)
+
+      expect(await isSignedIn(laptop)).toBe(true)
+      const after = cookieValue(response.headers, HARNESS_SESSION_COOKIE)
+      expect(after).toBeTruthy()
+      expect(after).not.toBe(before)
+    })
+
+    it('does not touch the password', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { laptop } = await twoDevices(subject)
+      await laptop.post('/api/auth/sessions/revoke-others').expect(204)
+
+      const response = await request(subject.app)
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: PASSWORD })
+
+      expect(response.status).toBe(200)
+    })
+
+    it('signs out the caller’s own account and nobody else’s', async () => {
+      const subject = harness()
+      seedHost(subject)
+      subject.users.seed(aUser({ id: OTHER_ID, email: OTHER_EMAIL }))
+      const other = request.agent(subject.app)
+      await other.post('/test/sign-in/other').expect(204)
+      const { laptop } = await twoDevices(subject)
+
+      await laptop.post('/api/auth/sessions/revoke-others').expect(204)
+
+      expect(await isSignedIn(other)).toBe(true)
+    })
+
+    it('lets the device sign in again on the other side of it, the way a person who got back to their desk would', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const { phone, laptop } = await twoDevices(subject)
+      await laptop.post('/api/auth/sessions/revoke-others').expect(204)
+      subject.clock.advance(1_000)
+
+      await phone
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: PASSWORD })
+        .expect(200)
+
+      expect(await isSignedIn(phone)).toBe(true)
+    })
+
+    it('answers 401 without a session', async () => {
+      const subject = harness()
+
+      const response = await request(subject.app).post('/api/auth/sessions/revoke-others')
+
+      expect(response.status).toBe(401)
+      expect(response.body.error.code).toBe('auth.required')
+    })
+
+    it('answers 401 to an account that has been switched off', async () => {
+      const subject = harness()
+      subject.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL, disabledAt: AT }))
+      const agent = await signedIn(subject)
+
+      const response = await agent.post('/api/auth/sessions/revoke-others')
+
+      expect(response.status).toBe(401)
+    })
+
+    it('refuses a state-changing call without the CSRF token like every other write', async () => {
+      const subject = harness({ csrf: true })
+      seedHost(subject)
+      const agent = await signedIn(subject)
+
+      const response = await agent.post('/api/auth/sessions/revoke-others')
+
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe('request.csrfMissing')
+    })
+  })
+})
+
+/**
+ * The two unauthenticated halves of a password reset: asking for a link, and spending one.
+ * What these hold is that the *answer* reveals nothing — the same status, body and headers
+ * for an address that is an account and for one that is not — and that a link works once,
+ * ends every session, and never signs anybody in.
+ */
+describe('password reset', () => {
+  const NEW = 'une-phrase-de-passe-neuve'
+  const TOKEN = /\/password\/reset\/([A-Za-z0-9_-]+)/
+
+  const ask = (subject: AuthHarness, email: string, extra: Record<string, unknown> = {}) =>
+    request(subject.app)
+      .post('/api/auth/password-reset/request')
+      .send({ email, ...extra })
+
+  const confirm = (subject: AuthHarness, token: string, password = NEW) =>
+    request(subject.app).post('/api/auth/password-reset/confirm').send({ token, password })
+
+  /** Waits for the work behind a 202, which the response itself deliberately does not. */
+  const mailed = async (subject: AuthHarness, count = 1) => {
+    await vi.waitFor(() => expect(subject.mailer.sent).toHaveLength(count))
+    return subject.mailer.sent
+  }
+
+  /** The token the last mail carried, read the way a person would: out of the link. */
+  const tokenInLastMail = (subject: AuthHarness): string => {
+    const mail = subject.mailer.sent.at(-1)
+    const token = mail === undefined ? undefined : TOKEN.exec(mail.text)?.[1]
+    if (token === undefined) throw new Error('no reset link in the last mail')
+    return token
+  }
+
+  describe('POST /api/auth/password-reset/request', () => {
+    it('answers 202 with an empty body and mails the account a link', async () => {
+      const subject = harness()
+      seedHost(subject)
+
+      const response = await ask(subject, HOST_EMAIL)
+
+      expect(response.status).toBe(202)
+      expect(response.body).toEqual({})
+      const [mail] = await mailed(subject)
+      expect(mail?.to).toBe(HOST_EMAIL)
+      expect(mail?.text).toMatch(TOKEN)
+    })
+
+    it('answers exactly the same for an address that is not an account', async () => {
+      const subject = harness()
+      seedHost(subject)
+
+      const known = await ask(subject, HOST_EMAIL)
+      const unknown = await ask(subject, 'personne@example.test')
+
+      expect(unknown.status).toBe(known.status)
+      expect(unknown.body).toEqual(known.body)
+      expect(unknown.headers['cache-control']).toBe(known.headers['cache-control'])
+      expect(unknown.headers['content-type']).toBe(known.headers['content-type'])
+      expect(unknown.headers['content-length']).toBe(known.headers['content-length'])
+      await mailed(subject)
+      expect(subject.mailer.sent).toHaveLength(1)
+    })
+
+    it('answers the same for a malformed address, a disabled account and one over its cap', async () => {
+      const subject = harness()
+      subject.users.seed(aUser({ id: HOST_ID, email: HOST_EMAIL }))
+      subject.users.seed(aUser({ id: OTHER_ID, email: OTHER_EMAIL, disabledAt: AT }))
+      const reference = await ask(subject, HOST_EMAIL)
+
+      const answers = await Promise.all([
+        ask(subject, 'pas une adresse'),
+        ask(subject, OTHER_EMAIL),
+        ask(subject, HOST_EMAIL),
+        ask(subject, HOST_EMAIL),
+        ask(subject, HOST_EMAIL),
+      ])
+
+      for (const answer of answers) {
+        expect(answer.status).toBe(reference.status)
+        expect(answer.body).toEqual(reference.body)
+      }
+    })
+
+    it('does not wait for the mail: it answers while the relay is still thinking', async () => {
+      // How long a relay takes to say yes is a way to tell an address that exists from one
+      // that does not. A send that never finishes must not hold the response.
+      let release: () => void = () => undefined
+      const slow: Mailer = {
+        canDeliver: true,
+        send: () =>
+          new Promise((resolve) => (release = () => resolve({ ok: true, value: undefined }))),
+      }
+      const subject = harness({ mail: slow })
+      seedHost(subject)
+
+      const response = await ask(subject, HOST_EMAIL)
+
+      expect(response.status).toBe(202)
+      release()
+    })
+
+    it('mails an address at most three times an hour, and says nothing different the fourth time', async () => {
+      const subject = harness({
+        config: { rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 50 } },
+      })
+      seedHost(subject)
+
+      const statuses: number[] = []
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        statuses.push((await ask(subject, HOST_EMAIL)).status)
+        subject.clock.advance(1_000)
+      }
+
+      expect(statuses).toEqual([202, 202, 202, 202, 202])
+      await mailed(subject, 3)
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(subject.mailer.sent).toHaveLength(3)
+    })
+
+    it('writes the mail in the language of the page that asked', async () => {
+      const subject = harness()
+      seedHost(subject)
+
+      await ask(subject, HOST_EMAIL, { locale: 'it' })
+
+      expect((await mailed(subject))[0]?.text).toContain('Buongiorno')
+    })
+
+    it('answers 404 feature.unavailable on a box with no mail relay, whatever the address', async () => {
+      const subject = harness({ mail: 'none' })
+      seedHost(subject)
+
+      for (const email of [HOST_EMAIL, 'personne@example.test']) {
+        const response = await ask(subject, email)
+
+        expect(response.status).toBe(404)
+        expect(response.body.error.code).toBe('feature.unavailable')
+      }
+    })
+
+    it('never shows the link to the person who asked, relay or not', async () => {
+      for (const mail of ['relay', 'none'] as const) {
+        const subject = harness({ mail })
+        seedHost(subject)
+
+        const response = await ask(subject, HOST_EMAIL)
+
+        expect(JSON.stringify(response.body)).not.toMatch(/password\/reset|secret-\d/)
+        expect(JSON.stringify(response.headers)).not.toMatch(/password\/reset|secret-\d/)
+      }
+    })
+
+    it('issues no link at all on a box with no relay', async () => {
+      const subject = harness({ mail: 'none' })
+      seedHost(subject)
+
+      await ask(subject, HOST_EMAIL)
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(subject.tokens.all).toEqual([])
+      expect(subject.mailer.sent).toEqual([])
+    })
+
+    it('forbids any cache from storing the answer', async () => {
+      const subject = harness()
+
+      expect((await ask(subject, HOST_EMAIL)).headers['cache-control']).toBe('no-store')
+    })
+
+    it.each([
+      ['no body', {}],
+      ['an empty address', { email: '' }],
+      ['an address a kilobyte long', { email: 'a'.repeat(1_000) }],
+      ['an unknown key', { email: HOST_EMAIL, userId: HOST_ID }],
+      ['a language the product does not speak', { email: HOST_EMAIL, locale: 'pt' }],
+      ['an address that is not a string', { email: ['a@b.example'] }],
+    ])('answers 400 request.invalid for %s', async (_label, body) => {
+      const subject = harness()
+
+      const response = await request(subject.app)
+        .post('/api/auth/password-reset/request')
+        .send(body)
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+    })
+
+    it('answers 429 once the per-minute limit is spent, whoever the address is', async () => {
+      const subject = harness({
+        config: { rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 2 } },
+      })
+
+      await ask(subject, 'un@example.test')
+      await ask(subject, 'deux@example.test')
+      const third = await ask(subject, 'trois@example.test')
+
+      expect(third.status).toBe(429)
+      expect(third.body.error.code).toBe('rate.limited')
+    })
+
+    it('refuses a state-changing call without the CSRF token like every other write', async () => {
+      const subject = harness({ csrf: true })
+
+      const response = await ask(subject, HOST_EMAIL)
+
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe('request.csrfMissing')
+    })
+  })
+
+  describe('POST /api/auth/password-reset/confirm', () => {
+    const askAndRead = async (subject: AuthHarness): Promise<string> => {
+      await ask(subject, HOST_EMAIL).expect(202)
+      await mailed(subject)
+      return tokenInLastMail(subject)
+    }
+
+    it('answers 204 and the new password signs in, the old one no longer does', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const token = await askAndRead(subject)
+
+      await confirm(subject, token).expect(204)
+
+      const fresh = await request(subject.app)
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: NEW })
+      const old = await request(subject.app)
+        .post('/api/auth/login')
+        .send({ email: HOST_EMAIL, password: PASSWORD })
+      expect(fresh.status).toBe(200)
+      expect(old.status).toBe(401)
+    })
+
+    it('signs the account out of every device it was signed in on', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const phone = await signedIn(subject)
+      const token = await askAndRead(subject)
+      subject.clock.advance(60_000)
+
+      await confirm(subject, token).expect(204)
+
+      const me = await phone.get('/api/auth/me')
+      expect(me.body.authenticated).toBe(false)
+    })
+
+    it('starts no session: a reset proves a mailbox, not a sign-in', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const token = await askAndRead(subject)
+
+      const response = await confirm(subject, token)
+
+      expect(
+        setCookies(response.headers).filter((c) => c.startsWith(HARNESS_SESSION_COOKIE)),
+      ).toEqual([])
+    })
+
+    it('refuses the same link the second time, with 400 auth.invalidToken', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const token = await askAndRead(subject)
+      await confirm(subject, token).expect(204)
+
+      const again = await confirm(subject, token, 'une-autre-phrase-de-passe')
+
+      expect(again.status).toBe(400)
+      expect(again.body.error.code).toBe('auth.invalidToken')
+    })
+
+    it('refuses a link after the hour, and a link replaced by a newer one', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const old = await askAndRead(subject)
+      subject.clock.advance(1_000)
+      await ask(subject, HOST_EMAIL).expect(202)
+      await mailed(subject, 2)
+
+      const replaced = await confirm(subject, old)
+      subject.clock.advance(60 * 60 * 1000)
+      const expired = await confirm(subject, tokenInLastMail(subject))
+
+      expect(replaced.body.error.code).toBe('auth.invalidToken')
+      expect(expired.body.error.code).toBe('auth.invalidToken')
+    })
+
+    it('answers the same 400 for a token nobody issued, one spent and one expired', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const spent = await askAndRead(subject)
+      await confirm(subject, spent).expect(204)
+
+      const answers = [await confirm(subject, spent), await confirm(subject, 'x'.repeat(43))]
+
+      expect(answers[0]?.body).toEqual(answers[1]?.body)
+      expect(answers[0]?.status).toBe(answers[1]?.status)
+    })
+
+    it('does not spend the link on a password the policy refuses', async () => {
+      const subject = harness()
+      seedHost(subject)
+      const token = await askAndRead(subject)
+
+      const weak = await confirm(subject, token, 'court')
+      const good = await confirm(subject, token)
+
+      expect(weak.status).toBe(400)
+      expect(weak.body.error.code).toBe('password.tooShort')
+      expect(good.status).toBe(204)
+    })
+
+    it('forbids any cache from storing the answer', async () => {
+      const subject = harness()
+
+      expect((await confirm(subject, 'x'.repeat(43))).headers['cache-control']).toBe('no-store')
+    })
+
+    it.each([
+      ['no body', {}],
+      ['no password', { token: 'abc' }],
+      ['no token', { password: NEW }],
+      ['an empty token', { token: '', password: NEW }],
+      ['a token far longer than any real one', { token: 'a'.repeat(300), password: NEW }],
+      ['an unknown key', { token: 'abc', password: NEW, email: HOST_EMAIL }],
+    ])('answers 400 request.invalid for %s', async (_label, body) => {
+      const subject = harness()
+
+      const response = await request(subject.app)
+        .post('/api/auth/password-reset/confirm')
+        .send(body)
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+    })
+
+    it('answers 429 once the per-minute limit is spent', async () => {
+      const subject = harness({
+        config: { rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 2 } },
+      })
+
+      await confirm(subject, 'a'.repeat(43))
+      await confirm(subject, 'b'.repeat(43))
+      const third = await confirm(subject, 'c'.repeat(43))
+
+      expect(third.status).toBe(429)
+    })
+
+    it('keeps the two limits apart: asking for a link does not spend the allowance for using one', async () => {
+      const subject = harness({
+        config: { rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 2 } },
+      })
+      await ask(subject, 'un@example.test')
+      await ask(subject, 'deux@example.test')
+
+      const response = await confirm(subject, 'a'.repeat(43))
+
+      expect(response.status).toBe(400)
+    })
+
+    it('refuses a state-changing call without the CSRF token like every other write', async () => {
+      const subject = harness({ csrf: true })
+
+      const response = await confirm(subject, 'a'.repeat(43))
+
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe('request.csrfMissing')
+    })
+  })
+})
+
 describe('the CSRF token across a change of identity', () => {
   const csrfToken = (headers: Record<string, unknown>): string | undefined =>
     cookieValue(headers, CSRF_COOKIE)

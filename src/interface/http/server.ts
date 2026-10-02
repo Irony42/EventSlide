@@ -107,7 +107,10 @@ export const buildServer = ({
   //
   // `siteAdmin` is read from the same `config` that decides whether `/api/site` is mounted
   // below, so the flag the SPA reads cannot disagree with the mount it stands for.
-  app.use('/api', aboutRoutes(about, { siteAdmin: config.siteAdmin }))
+  app.use(
+    '/api',
+    aboutRoutes(about, { siteAdmin: config.siteAdmin, forgotPassword: deps.mailer.canDeliver }),
+  )
 
   // The shared gallery's headers, ahead of everything that can refuse a request before
   // its router is reached — the body parser, the session, the CSRF gate. The token is in

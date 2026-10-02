@@ -1,4 +1,5 @@
 import type {
+  AccountTokenId,
   ClientId,
   ClipJobId,
   EventId,
@@ -51,6 +52,9 @@ export interface IdGenerator {
    * §10.4 is the first surface that puts one in a URL.
    */
   clientId(): ClientId
+
+  /** The row of an account token. The secret in the link comes from `SecretTokens`, not here. */
+  accountTokenId(): AccountTokenId
 
   /** Cryptographically strong bytes. Used for join codes and guest device tokens. */
   bytes(count: number): Uint8Array

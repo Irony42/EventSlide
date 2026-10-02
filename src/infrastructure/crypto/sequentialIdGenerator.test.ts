@@ -52,6 +52,7 @@ describe('createSequentialIdGenerator', () => {
       ids.missionId(),
       ids.shareLinkId(),
       ids.clientId(),
+      ids.accountTokenId(),
     ].map(String)
 
     // Every counter is at one, so the ids can only differ by their prefix.
@@ -73,6 +74,7 @@ describe('createSequentialIdGenerator', () => {
       ids.userId(),
       ids.reactionId(),
       ids.clientId(),
+      ids.accountTokenId(),
     ]) {
       expect(String(id)).toMatch(uuid)
     }

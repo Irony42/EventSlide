@@ -5,6 +5,16 @@ import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { TEST_SESSION_SECRET } from '../testing/middlewareHarness'
 import { anUnusableSessionStore, buildServerHarness } from '../testing/serverHarness'
+import { AT, aUser } from '../../../application/testing/builders'
+import { FakeAccountTokenRepository } from '../../../application/testing/fakeAccountTokenRepository'
+import { FakeClock } from '../../../application/testing/fakeClock'
+import { FakeMailer } from '../../../application/testing/fakeMailer'
+import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
+import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
+import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
+import { makeRequestPasswordReset } from '../../../application/usecases/auth/requestPasswordReset'
+import { asUserId } from '../../../domain/shared/ids'
+import type { Logger } from '../../../application/ports/logger'
 
 /**
  * Ring 4. `GET /api/about`: what this box is, which licence it is under, and **where its
@@ -70,6 +80,14 @@ const signedSessionCookie = (sid: string): string => {
   return `es_session=${encodeURIComponent(`s:${sid}.${mac}`)}`
 }
 
+const silent: Logger = {
+  debug: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+  child: () => silent,
+}
+
 describe('GET /api/about', () => {
   it('answers 200 to a caller with no session, no cookie and no CSRF token', async () => {
     const response = await request(buildServerHarness({ about }).app).get('/api/about')
@@ -113,7 +131,7 @@ describe('GET /api/about', () => {
       license: 'AGPL-3.0-only',
       sourceUrl: SOURCE_URL,
       links: {},
-      features: { siteAdmin: false },
+      features: { siteAdmin: false, forgotPassword: false },
     })
   })
 
@@ -325,11 +343,75 @@ describe('GET /api/about', () => {
     })
   })
 
+  /**
+   * "Forgot your password?" is offered only where it can work (G2-08 / P3-09). A reset link
+   * has to travel through the mailbox it proves control of, so a box with no relay has no
+   * self-service reset and the sign-in page must not offer one. The flag is worth having only
+   * if it cannot disagree with the route it stands for.
+   */
+  describe('features.forgotPassword', () => {
+    const aboutWith = async (canDeliver: boolean) =>
+      (await request(buildServerHarness({ about, mailer: { canDeliver } }).app).get('/api/about'))
+        .body.features.forgotPassword
+
+    it('is false on a box with no mail relay, which is what every self-hoster starts with', async () => {
+      expect(await aboutWith(false)).toBe(false)
+    })
+
+    it('is true on a box that can mail', async () => {
+      expect(await aboutWith(true)).toBe(true)
+    })
+
+    it.each([
+      [true, 202],
+      [false, 404],
+    ])(
+      'says forgotPassword=%s exactly when asking for a reset is answered %s',
+      async (canDeliver, expected) => {
+        const mailer = new FakeMailer()
+        const users = new FakeUserRepository().seed(aUser({ id: 'user-1' }))
+        const subject = buildServerHarness({
+          about,
+          mailer: { canDeliver },
+          usecases: {
+            requestPasswordReset: makeRequestPasswordReset({
+              users,
+              tokens: new FakeAccountTokenRepository().withAccounts(asUserId('user-1')),
+              secrets: new FakeSecretTokens(),
+              mailer: canDeliver ? mailer : { canDeliver: false, send: mailer.send.bind(mailer) },
+              ids: new SequentialIdGenerator(),
+              clock: new FakeClock(AT),
+              logger: silent,
+              publicUrl: 'https://photos.example.test',
+            }),
+          },
+        })
+        const agent = request.agent(subject.app)
+        const first = await agent.get('/api/auth/me')
+        const cookie = (first.headers['set-cookie'] as unknown as string[] | undefined)?.find(
+          (value) => value.startsWith('es_csrf='),
+        )
+        const csrf = cookie?.slice('es_csrf='.length).split(';')[0] ?? ''
+
+        const [about_, asked] = await Promise.all([
+          agent.get('/api/about'),
+          agent
+            .post('/api/auth/password-reset/request')
+            .set('x-csrf-token', csrf)
+            .send({ email: 'hote@example.test' }),
+        ])
+
+        expect(about_.body.features.forgotPassword).toBe(canDeliver)
+        expect(asked.status).toBe(expected)
+      },
+    )
+  })
+
   describe('features.siteAdmin', () => {
     it('is false on a box that never set SITE_ADMIN', async () => {
       const response = await request(buildServerHarness({ about }).app).get('/api/about')
 
-      expect(response.body.features).toEqual({ siteAdmin: false })
+      expect(response.body.features).toEqual({ siteAdmin: false, forgotPassword: false })
     })
 
     it('is true when SITE_ADMIN is on', async () => {
@@ -337,7 +419,7 @@ describe('GET /api/about', () => {
         buildServerHarness({ about, config: { siteAdmin: true } }).app,
       ).get('/api/about')
 
-      expect(response.body.features).toEqual({ siteAdmin: true })
+      expect(response.body.features).toEqual({ siteAdmin: true, forgotPassword: false })
     })
 
     it.each([

@@ -132,6 +132,8 @@ const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
   'post /api/auth/logout': 'ending that session',
   'get /api/auth/me': 'who the caller is — the answer names no event',
   'post /api/auth/password': 'an account’s own password, which no event owns',
+  'post /api/auth/sessions/revoke-others':
+    'ending the caller’s own other sessions — an account-wide act that no event owns',
   'get /api/events':
     'the caller’s **own** dashboard: the membership table answers it, so an ' +
     'operator with no membership is shown nothing, which `tenant-isolation.spec.ts` asserts',

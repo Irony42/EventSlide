@@ -1,4 +1,4 @@
-import type { User } from '../../domain/users/user'
+import type { PasswordHash, User } from '../../domain/users/user'
 import type { EmailAddress } from '../../domain/users/emailAddress'
 import type { SiteRole } from '../../domain/users/siteRole'
 import type { EventRole } from '../../domain/events/eventRole'
@@ -11,7 +11,12 @@ import type { EventId, UserId } from '../../domain/shared/ids'
 export interface AuthState {
   readonly active: boolean
   readonly mustChangePassword: boolean
-  /** `null` until P3-09 (roadmap §10 jetons) ships the column this will be read from. */
+  /**
+   * The credentials epoch (G2-08 / P3-09): a session issued before this instant is no
+   * longer valid. `null` when the account's credentials never changed, which revokes
+   * nothing. Always `null` for an inactive account: nothing asks an epoch of an account
+   * that may not act.
+   */
   readonly credentialsChangedAt: Date | null
 }
 
@@ -53,9 +58,10 @@ export interface UserRepository {
    * need to agree on what a disabled account's flag means, because nothing downstream
    * ever asks the flag before asking whether the account may act at all.
    *
-   * `credentialsChangedAt` is `null` until roadmap §10's account-tokens epoch
-   * (P3-09) ships the column it will be read from; nothing in this port or its callers
-   * compares against it yet.
+   * `credentialsChangedAt` is the epoch `enforceSessionAge` compares a session's `issuedAt`
+   * against. It rides this read rather than a third one for the reason the other two
+   * already do: a request pays one query for everything authorization knows about the
+   * account behind its cookie.
    */
   authStateFor(id: UserId): Promise<AuthState>
 
@@ -75,6 +81,40 @@ export interface UserRepository {
    */
   siteRoleFor(id: UserId): Promise<SiteRole>
 
+  /**
+   * Records a successful sign-in — **and only if it is still true**.
+   *
+   * `verifiedHash` is the hash the password was just compared with. The sign-in is recorded
+   * only if the account is still enabled **and still holds that hash**; `false` means the
+   * password was changed, reset or the account switched off while the comparison ran, and the
+   * caller must refuse the sign-in as it would a wrong password.
+   *
+   * That is the point of the method and the reason a sign-in is not `save(user)`. A bcrypt
+   * comparison takes ~200 ms, and a whole-row `save` of the account read before it would, if a
+   * reset finished in between, **put the old password back** (and re-enable a switched-off
+   * account) — so a stolen password that was just reset would work again, and the sign-in that
+   * restored it would be issued a session stamped after the reset's epoch. Here it is one
+   * conditional statement: it touches `last_login_at` and, when `upgradedHash` is given, the
+   * hash — and nothing else, so the forced-change flag, the epoch and the switch stay as they
+   * are.
+   *
+   * `upgradedHash` is the same password hashed at the current cost; it replaces
+   * `verifiedHash` in the same statement.
+   */
+  recordSignIn(
+    id: UserId,
+    verifiedHash: PasswordHash,
+    at: Date,
+    upgradedHash?: PasswordHash,
+  ): Promise<boolean>
+
+  /**
+   * Insert or update. **The epoch only moves forward**: `credentialsChangedAt` is stored
+   * as the later of what the row holds and what `user` carries, so a copy of the account
+   * read before a password change and saved after it (a sign-in's `lastLoginAt` write
+   * racing a reset, say) cannot bring revoked sessions back. Every other field is
+   * overwritten, as it always was.
+   */
   save(user: User): Promise<void>
 
   delete(id: UserId): Promise<void>

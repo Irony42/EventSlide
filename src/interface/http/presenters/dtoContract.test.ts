@@ -133,6 +133,10 @@ const UNREAD_BY_CLIENT: Readonly<Record<string, readonly string[]>> = {
   // deliberately. It stays on the server's gallery row (`ModerationPhotoDto`) because
   // `GET /events/:slug/photos` has no client consumer at all today.
   ModerationPhotoDto: ['byteSize'],
+  // `features.forgotPassword` is for the sign-in page's "forgot your password?" link, which
+  // is G2-10 / P3-11. The flag ships with the route it stands for so that the page can read it
+  // with `false` as its default, as the plan says, the day it lands.
+  AboutFeaturesDto: ['forgotPassword'],
   // The clip facet and the host's switch over video were exempted here while only the
   // server spine of roadmap 1.4 existed. The web surfaces have since landed and read
   // every one of those fields, so the entries are gone rather than kept as a habit — an

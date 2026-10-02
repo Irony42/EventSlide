@@ -192,7 +192,7 @@ export const userRepositoryContract = (
       expect((await repo.authStateFor(asUserId('user-host'))).active).toBe(true)
     })
 
-    it('stays null for credentialsChangedAt on every account, until P3-09 ships the column', async () => {
+    it('reports no epoch for an account whose credentials never changed, and for an inactive one', async () => {
       await repo.save(
         aUser({ id: 'user-host', email: 'hote@example.test', mustChangePassword: true }),
       )
@@ -202,6 +202,164 @@ export const userRepositoryContract = (
 
       expect((await repo.authStateFor(asUserId('user-host'))).credentialsChangedAt).toBeNull()
       expect((await repo.authStateFor(asUserId('user-other'))).credentialsChangedAt).toBeNull()
+    })
+
+    // ----------------------------------------------------- credentials epoch --
+
+    /**
+     * The epoch is what stands in for `sessions.user_id`: `enforceSessionAge` refuses a
+     * session older than it. Both halves have to be read back exactly — the entity, for the
+     * use cases, and `authStateFor`, for the one query a request makes.
+     */
+    it('reads the epoch back through both the entity and the authorization read', async () => {
+      await repo.save(aUser({ id: 'user-host' }).revokeSessionsBefore(atPlus(9_000)))
+
+      const stored = await repo.findById(asUserId('user-host'))
+      expect(stored?.credentialsChangedAt?.toISOString()).toBe(atPlus(9_000).toISOString())
+      const state = await repo.authStateFor(asUserId('user-host'))
+      expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(9_000).toISOString())
+    })
+
+    it('moves the epoch forward when the account is saved with a later one', async () => {
+      const user = aUser({ id: 'user-host' })
+      await repo.save(user.revokeSessionsBefore(atPlus(1_000)))
+
+      await repo.save(user.revokeSessionsBefore(atPlus(2_000)))
+
+      const state = await repo.authStateFor(asUserId('user-host'))
+      expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(2_000).toISOString())
+    })
+
+    /**
+     * A sign-in reads the account, spends ~200 ms in bcrypt, and saves it back; a reset can
+     * finish in between. The repository must not let that stale copy undo the revocation.
+     */
+    it('never moves the epoch backwards when a copy read before the change is saved after it', async () => {
+      const staleCopy = aUser({ id: 'user-host' })
+      await repo.save(staleCopy)
+      await repo.save(staleCopy.revokeSessionsBefore(atPlus(5_000)))
+
+      await repo.save(staleCopy.recordLogin(atPlus(6_000)))
+
+      const state = await repo.authStateFor(asUserId('user-host'))
+      expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(5_000).toISOString())
+      const stored = await repo.findById(asUserId('user-host'))
+      expect(stored?.lastLoginAt?.toISOString()).toBe(atPlus(6_000).toISOString())
+    })
+
+    it('never moves the epoch backwards when it is saved with an earlier one', async () => {
+      const user = aUser({ id: 'user-host' })
+      await repo.save(user.revokeSessionsBefore(atPlus(5_000)))
+
+      await repo.save(aUser({ id: 'user-host', credentialsChangedAt: atPlus(1_000) }))
+
+      const state = await repo.authStateFor(asUserId('user-host'))
+      expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(5_000).toISOString())
+    })
+
+    it('keeps the epoch of an account that is switched off and on again', async () => {
+      const user = aUser({ id: 'user-host' })
+      await repo.save(user.disable(atPlus(3_000)))
+      await repo.save(user.disable(atPlus(3_000)).enable())
+
+      const state = await repo.authStateFor(asUserId('user-host'))
+      expect(state.active).toBe(true)
+      expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(3_000).toISOString())
+    })
+
+    // ------------------------------------------------------------ recordSignIn --
+
+    /**
+     * A sign-in compares a password for ~200 ms and then commits. Whatever finished in that
+     * window — a reset, a password change, a switch-off — must win, which is why the commit
+     * is one conditional statement and not a `save` of the account read before the comparison.
+     */
+    describe('recordSignIn', () => {
+      const HOST = asUserId('user-host')
+
+      it('records the sign-in and says so', async () => {
+        await repo.save(aUser({ id: 'user-host', passwordHash: 'hash:verified' }))
+
+        expect(await repo.recordSignIn(HOST, 'hash:verified', atPlus(5_000))).toBe(true)
+
+        const stored = await repo.findById(HOST)
+        expect(stored?.lastLoginAt?.toISOString()).toBe(atPlus(5_000).toISOString())
+        expect(stored?.passwordHash).toBe('hash:verified')
+      })
+
+      it('refuses, and records nothing, once the account holds a different hash', async () => {
+        // A reset finished while the password was being compared.
+        await repo.save(aUser({ id: 'user-host', passwordHash: 'hash:after-the-reset' }))
+
+        expect(await repo.recordSignIn(HOST, 'hash:verified', atPlus(5_000))).toBe(false)
+
+        const stored = await repo.findById(HOST)
+        expect(stored?.lastLoginAt).toBeNull()
+        expect(stored?.passwordHash).toBe('hash:after-the-reset')
+      })
+
+      it('refuses an account that was switched off during the comparison, and leaves it off', async () => {
+        await repo.save(
+          aUser({ id: 'user-host', passwordHash: 'hash:verified', disabledAt: atPlus(1_000) }),
+        )
+
+        expect(await repo.recordSignIn(HOST, 'hash:verified', atPlus(5_000))).toBe(false)
+
+        const stored = await repo.findById(HOST)
+        expect(stored?.isDisabled()).toBe(true)
+        expect(stored?.lastLoginAt).toBeNull()
+      })
+
+      it('refuses an account that does not exist, and creates nothing', async () => {
+        expect(await repo.recordSignIn(asUserId('nobody'), 'hash:verified', atPlus(5_000))).toBe(
+          false,
+        )
+
+        expect(await repo.findById(asUserId('nobody'))).toBeNull()
+        expect(await repo.isEmpty()).toBe(true)
+      })
+
+      it('replaces the hash with the upgraded one in the same statement', async () => {
+        await repo.save(aUser({ id: 'user-host', passwordHash: 'hash:cost-10' }))
+
+        expect(await repo.recordSignIn(HOST, 'hash:cost-10', atPlus(5_000), 'hash:cost-12')).toBe(
+          true,
+        )
+
+        expect((await repo.findById(HOST))?.passwordHash).toBe('hash:cost-12')
+      })
+
+      it('does not install an upgraded hash over a hash that changed meanwhile', async () => {
+        await repo.save(aUser({ id: 'user-host', passwordHash: 'hash:after-the-reset' }))
+
+        expect(await repo.recordSignIn(HOST, 'hash:cost-10', atPlus(5_000), 'hash:cost-12')).toBe(
+          false,
+        )
+
+        expect((await repo.findById(HOST))?.passwordHash).toBe('hash:after-the-reset')
+      })
+
+      it('touches the last sign-in and the hash and nothing else, whatever else the account carries', async () => {
+        await repo.save(
+          aUser({
+            id: 'user-host',
+            displayName: 'Camille',
+            passwordHash: 'hash:cost-10',
+            mustChangePassword: true,
+            siteRole: 'operator',
+            credentialsChangedAt: atPlus(2_000),
+          }),
+        )
+
+        await repo.recordSignIn(HOST, 'hash:cost-10', atPlus(5_000), 'hash:cost-12')
+
+        const stored = await repo.findById(HOST)
+        expect(stored?.displayName).toBe('Camille')
+        expect(stored?.mustChangePassword).toBe(true)
+        expect(stored?.siteRole).toBe('operator')
+        expect(stored?.credentialsChangedAt?.toISOString()).toBe(atPlus(2_000).toISOString())
+        expect(stored?.disabledAt).toBeNull()
+      })
     })
 
     it('replaces the stored row when the same account is saved again', async () => {

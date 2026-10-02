@@ -160,6 +160,12 @@ describe('the path a request is logged under', () => {
 
   it.each([
     ['the gallery page', `/g/${TOKEN}`, '/g/:token'],
+    ['the page a password-reset link opens', `/password/reset/${TOKEN}`, '/password/reset/:token'],
+    [
+      'that page in another case, which Express routes the same',
+      `/Password/Reset/${TOKEN}`,
+      '/Password/Reset/:token',
+    ],
     ['the album', `/api/gallery/${TOKEN}`, '/api/gallery/:token'],
     ['a page of it', `/api/gallery/${TOKEN}/photos`, '/api/gallery/:token/photos'],
     ['the unlock', `/api/gallery/${TOKEN}/unlock`, '/api/gallery/:token/unlock'],
@@ -180,6 +186,8 @@ describe('the path a request is logged under', () => {
     ['a signed media URL, which carries no token', '/api/gallery-media/aaaa/bbbb/thumb'],
     ['a guest route', '/api/events/camille-et-sacha/photos'],
     ['a client route that only starts like the gallery', '/gala/2026'],
+    ['the page that asks for a reset, which carries no token', '/password/forgot'],
+    ['a route that only starts like the reset page', '/password/reset-help'],
   ])('logs %s as it is', (_label, path) => {
     expect(loggablePath(path)).toBe(path)
   })

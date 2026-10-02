@@ -247,6 +247,8 @@ export const es: UiText = {
     'auth.required': 'Inicie sesión para continuar.',
     'auth.forbidden': 'No tiene permisos para esta acción.',
     'auth.passwordChangeRequired': 'Elija una nueva contraseña antes de continuar.',
+    'auth.invalidToken': 'Este enlace ya no es válido. Solicite uno nuevo.',
+    'feature.unavailable': 'Esta función no está disponible en este servidor.',
 
     'event.notFound': 'Este código no corresponde a ninguna galería abierta.',
     'event.notAcceptingUploads': 'Esta galería ya no acepta fotos.',

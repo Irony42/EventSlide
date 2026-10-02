@@ -1,3 +1,4 @@
+import type { EmailAddress } from './emailAddress'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 
@@ -82,6 +83,20 @@ export interface PasswordContext {
   /** The event or host name, for the same reason. */
   readonly displayName?: string
 }
+
+/**
+ * The account a password is being chosen for, as the policy's context: its own address and
+ * its display name, the two strings a password equal to protects nothing.
+ *
+ * `exactOptionalPropertyTypes` forbids handing the context an explicit `undefined`, so an
+ * account with no display name simply omits the key. Shared by changing a password and by
+ * resetting one, which are the same decision about the same account.
+ */
+export const passwordContextFor = (
+  email: EmailAddress,
+  displayName: string | null,
+): PasswordContext =>
+  displayName === null ? { email: email.value } : { email: email.value, displayName }
 
 export class Password {
   private constructor(readonly value: string) {}

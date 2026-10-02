@@ -1,6 +1,6 @@
 import type { EmailAddress } from '../../domain/users/emailAddress'
 import { DEFAULT_SITE_ROLE, type SiteRole } from '../../domain/users/siteRole'
-import type { User } from '../../domain/users/user'
+import { User, type PasswordHash } from '../../domain/users/user'
 import type { UserId } from '../../domain/shared/ids'
 import { INACTIVE_AUTH_STATE, type AuthState, type UserRepository } from '../ports/userRepository'
 
@@ -30,7 +30,10 @@ export class FakeUserRepository implements UserRepository {
         throw new Error(`UNIQUE constraint failed: users.email (${user.email.value})`)
       }
     }
-    this.rows.set(user.id, user)
+    // The adapter's `MAX(stored, incoming)` on the epoch: a save never moves it backwards.
+    // `revokeSessionsBefore` on the incoming copy is the same rule in the domain's words.
+    const stored = this.rows.get(user.id)?.credentialsChangedAt ?? null
+    this.rows.set(user.id, stored === null ? user : user.revokeSessionsBefore(stored))
   }
 
   async findById(id: UserId): Promise<User | null> {
@@ -56,9 +59,8 @@ export class FakeUserRepository implements UserRepository {
   /**
    * The same narrowing as the adapter's `WHERE id = ? AND disabled_at IS NULL`: an
    * account that is gone and one that was switched off are one answer, because a session
-   * that outlived its account names nobody either. `credentialsChangedAt` is always
-   * `null` here, exactly as it is on the adapter, since neither reads a column that does
-   * not exist yet (P3-09).
+   * that outlived its account names nobody either. `credentialsChangedAt` is the stored
+   * epoch, as the adapter reads it from `users.credentials_changed_at`.
    */
   async authStateFor(id: UserId): Promise<AuthState> {
     const user = this.rows.get(id)
@@ -66,8 +68,30 @@ export class FakeUserRepository implements UserRepository {
     return {
       active: true,
       mustChangePassword: user.mustChangePassword,
-      credentialsChangedAt: null,
+      credentialsChangedAt: user.credentialsChangedAt,
     }
+  }
+
+  async recordSignIn(
+    id: UserId,
+    verifiedHash: PasswordHash,
+    at: Date,
+    upgradedHash?: PasswordHash,
+  ): Promise<boolean> {
+    const row = this.rows.get(id)
+    // The adapter's `WHERE id = ? AND password_hash = ? AND disabled_at IS NULL`.
+    if (row === undefined || row.isDisabled() || row.passwordHash !== verifiedHash) return false
+    // `restore` and not `withPasswordHash`: that entity method clears the forced-change flag,
+    // which choosing a password is for and a silent re-hash is not.
+    this.rows.set(
+      id,
+      User.restore({
+        ...row.toProps(),
+        lastLoginAt: at,
+        passwordHash: upgradedHash ?? verifiedHash,
+      }),
+    )
+    return true
   }
 
   async save(user: User): Promise<void> {

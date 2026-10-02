@@ -19,12 +19,19 @@ import type { GuestTokenService } from '../application/ports/guestTokenService'
 import type { ShareLinkRepository } from '../application/ports/shareLinkRepository'
 import type { ClientRepository } from '../application/ports/clientRepository'
 import type { AuditLog } from '../application/ports/auditLog'
+import type { AccountTokenRepository } from '../application/ports/accountTokenRepository'
+import type { Mailer } from '../application/ports/mailer'
+import type { SecretTokens } from '../application/ports/secretTokens'
 import type { GallerySigner } from '../application/ports/gallerySigner'
 
 import { makeAuthenticateUser } from '../application/usecases/auth/authenticateUser'
 import { makeBootstrapOwner } from '../application/usecases/auth/bootstrapOwner'
 import { makeChangePassword } from '../application/usecases/auth/changePassword'
+import { makeDisableAccount } from '../application/usecases/auth/disableAccount'
 import { makeRegisterModerator } from '../application/usecases/auth/registerModerator'
+import { makeRequestPasswordReset } from '../application/usecases/auth/requestPasswordReset'
+import { makeResetPassword } from '../application/usecases/auth/resetPassword'
+import { makeRevokeOtherSessions } from '../application/usecases/auth/revokeOtherSessions'
 
 import { makeApplyEventSchedules } from '../application/usecases/events/applyEventSchedules'
 import { makeChangeEventStatus } from '../application/usecases/events/changeEventStatus'
@@ -132,10 +139,18 @@ export interface Adapters {
   readonly gallerySigner: GallerySigner
   /** The append-only audit log (roadmap §10.8). Empty on a box nobody operates. */
   readonly audit: AuditLog
+  /** One-use links that prove control of a mailbox (roadmap §10.3). Digests only. */
+  readonly accountTokens: AccountTokenRepository
+  /** The secrets that go in those links, and the digests they are stored as. */
+  readonly secretTokens: SecretTokens
+  /** `NullMailer` unless `SMTP_URL` is set (roadmap §10.3). */
+  readonly mailer: Mailer
 }
 
 /** The policy values a use case needs, drawn from validated configuration. */
 export interface UseCasePolicy {
+  /** `PUBLIC_URL`, without a trailing slash: the origin a mailed link points at. */
+  readonly publicUrl: string
   readonly defaultEventQuotaBytes: number
   /** `uploads.maxEventQuotaBytes`: the box-wide ceiling (G3-02), `null` meaning none. */
   readonly maxEventQuotaBytes: number | null
@@ -210,6 +225,38 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   changePassword: makeChangePassword({
     users: adapters.users,
     hasher: adapters.passwordHasher,
+    clock: adapters.clock,
+  }),
+  revokeOtherSessions: makeRevokeOtherSessions({
+    users: adapters.users,
+    clock: adapters.clock,
+  }),
+  requestPasswordReset: makeRequestPasswordReset({
+    users: adapters.users,
+    tokens: adapters.accountTokens,
+    secrets: adapters.secretTokens,
+    mailer: adapters.mailer,
+    ids: adapters.ids,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    publicUrl: policy.publicUrl,
+  }),
+  resetPassword: makeResetPassword({
+    users: adapters.users,
+    tokens: adapters.accountTokens,
+    secrets: adapters.secretTokens,
+    hasher: adapters.passwordHasher,
+    clock: adapters.clock,
+  }),
+  /**
+   * Built, and called by nothing yet: the operator API that puts its authorization in front
+   * of it is its own item. Constructed here rather than there so the dependencies it needs —
+   * the audit log among them — are wired once, with the rest of the auth use cases.
+   */
+  disableAccount: makeDisableAccount({
+    users: adapters.users,
+    audit: adapters.audit,
+    clock: adapters.clock,
   }),
   registerModerator: makeRegisterModerator({
     events: adapters.events,

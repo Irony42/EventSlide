@@ -84,6 +84,22 @@ export const loginLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'rate.limited')
 
 /**
+ * The two unauthenticated endpoints of a password reset: asking for a link and spending one.
+ *
+ * The sign-in budget (`LOGIN_RATE_LIMIT_PER_MINUTE`) on purpose and not a number of its own:
+ * all three are doors an anonymous stranger can knock on, they are guarded by the same
+ * client address, and an operator who tuned one for their venue meant them all. **One
+ * limiter per route**, each built by its own call — `express-rate-limit` gives every call
+ * its own store, so asking for a link cannot spend the allowance for using one.
+ *
+ * What this does not bound is *whom* a stranger asks about: a hundred addresses a minute from
+ * a hundred networks. That is the per-address cap inside `requestPasswordReset`, which counts
+ * what was actually issued rather than what was attempted.
+ */
+export const passwordResetLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited')
+
+/**
  * Uploads, keyed by IP **and** event.
  *
  * A whole table of guests at a wedding shares one access point and therefore one

@@ -93,8 +93,8 @@ describe('AUDIT_ACTIONS', () => {
 
   it('declares the same snapshot before and after, so the two sides are always comparable', () => {
     for (const action of ACTIONS) {
-      const { before, after } = AUDIT_ACTIONS[action].details
-      expect(before, action).toEqual(after)
+      const details: DetailFields = AUDIT_ACTIONS[action].details
+      expect(details['before'], action).toEqual(details['after'])
     }
   })
 })

@@ -67,17 +67,29 @@ describe('SequentialIdGenerator', () => {
     expect([ids.clientId(), ids.clientId()]).toEqual(['client-1', 'client-2'])
   })
 
+  it('numbers account tokens from one, on a counter of their own', async () => {
+    const ids = new SequentialIdGenerator()
+    ids.clientId()
+
+    expect([ids.accountTokenId(), ids.accountTokenId()]).toEqual([
+      'account-token-1',
+      'account-token-2',
+    ])
+  })
+
   it('starts over on reset', async () => {
     const ids = new SequentialIdGenerator()
     ids.eventId()
     ids.clientId()
+    ids.accountTokenId()
     ids.bytes(6)
 
     ids.reset()
 
-    expect([ids.eventId(), ids.clientId(), [...ids.bytes(2)]]).toEqual([
+    expect([ids.eventId(), ids.clientId(), ids.accountTokenId(), [...ids.bytes(2)]]).toEqual([
       'event-1',
       'client-1',
+      'account-token-1',
       [0, 1],
     ])
   })

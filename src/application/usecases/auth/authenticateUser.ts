@@ -3,7 +3,7 @@ import type { UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import { EmailAddress } from '../../../domain/users/emailAddress'
 import { Password } from '../../../domain/users/password'
-import type { User } from '../../../domain/users/user'
+import type { PasswordHash, User } from '../../../domain/users/user'
 import type { Clock } from '../../ports/clock'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import type { UserRepository } from '../../ports/userRepository'
@@ -49,32 +49,37 @@ export type AuthenticateUser = (
 const invalidCredentials = (): DomainError => DomainError.unauthenticated('auth.invalidCredentials')
 
 /**
- * Transparently move a stored hash up to the current cost.
+ * The same password hashed at the current cost, when the stored hash is behind it.
  *
  * A successful sign-in is the only moment the server holds the plaintext, so it is the
  * only moment the upgrade is possible. 1.0 hashed at bcrypt cost 10; 2.0 uses 12, and
  * without this every account created before the change would keep the weaker hash for
  * its whole life.
+ *
+ * Not a policy check. The credentials are already proven, and refusing the sign-in now
+ * because the password predates the current rules would lock out exactly the accounts this
+ * upgrade exists for. `Password` is only the way to hand plaintext to the hasher, so a
+ * password the policy would reject simply keeps its old hash. Likewise a hasher that hands
+ * back the hash already on file (a salted algorithm never does): there is nothing to store,
+ * and losing an opportunistic upgrade must not fail a login.
+ *
+ * It replaces the hash and nothing else — in particular **not** the forced-change flag,
+ * which choosing a password clears and a silent re-hash must not: an invited moderator
+ * would otherwise keep the password their host typed for them. That is why the write is
+ * `recordSignIn` and not `save`, which could not have said so.
  */
-const rehashed = async (user: User, plaintext: string, hasher: PasswordHasher): Promise<User> => {
-  if (!hasher.needsRehash(user.passwordHash)) return user
+const upgradedHashFor = async (
+  user: User,
+  plaintext: string,
+  hasher: PasswordHasher,
+): Promise<PasswordHash | undefined> => {
+  if (!hasher.needsRehash(user.passwordHash)) return undefined
 
-  // Not a policy check. The credentials are already proven, and refusing the sign-in
-  // now because the password predates the current rules would lock out exactly the
-  // accounts this upgrade exists for. `Password` is only the way to hand plaintext to
-  // the hasher, so a password the policy would reject simply keeps its old hash.
   const parsed = Password.create(plaintext)
-  if (!parsed.ok) return user
+  if (!parsed.ok) return undefined
 
-  const rotated = user.withPasswordHash(await hasher.hash(parsed.value))
-  // Refused only when the hasher handed back the hash already on file, which a salted
-  // algorithm never does. Losing an opportunistic upgrade must not fail a login.
-  if (!rotated.ok) return user
-
-  // `withPasswordHash` clears the forced-change flag, because choosing a password is
-  // what that flag asks for. A rehash nobody asked for must not satisfy it — that would
-  // let an invited moderator keep the password their host typed for them.
-  return user.mustChangePassword ? rotated.value.requirePasswordChange() : rotated.value
+  const upgraded = await hasher.hash(parsed.value)
+  return upgraded === user.passwordHash ? undefined : upgraded
 }
 
 export const makeAuthenticateUser =
@@ -100,13 +105,19 @@ export const makeAuthenticateUser =
     // that must stay unobservable.
     if (!user.canSignIn()) return err(invalidCredentials())
 
-    const signedIn = await rehashed(user.recordLogin(clock.now()), password, hasher)
-    await users.save(signedIn)
+    const upgraded = await upgradedHashFor(user, password, hasher)
+
+    // The sign-in is committed only if the account still holds the hash this password was
+    // just compared with. The comparison above takes ~200 ms, and a reset, a password change
+    // or a switch-off may have finished during it: then the password that was right a moment
+    // ago is not the password any more, and the answer is the one a wrong password gets.
+    const recorded = await users.recordSignIn(user.id, user.passwordHash, clock.now(), upgraded)
+    if (!recorded) return err(invalidCredentials())
 
     return ok({
-      userId: signedIn.id,
-      email: signedIn.email.value,
-      displayName: signedIn.displayName,
-      mustChangePassword: signedIn.mustChangePassword,
+      userId: user.id,
+      email: user.email.value,
+      displayName: user.displayName,
+      mustChangePassword: user.mustChangePassword,
     })
   }

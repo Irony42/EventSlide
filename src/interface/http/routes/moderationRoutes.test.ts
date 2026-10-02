@@ -136,6 +136,9 @@ const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): Ht
   return {
     authenticateUser: notWired,
     changePassword: notWired,
+    revokeOtherSessions: notWired,
+    requestPasswordReset: notWired,
+    resetPassword: notWired,
     registerModerator: notWired,
     createEvent: notWired,
     getEventBySlug: notWired,

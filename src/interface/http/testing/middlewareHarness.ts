@@ -121,7 +121,12 @@ export interface Harness extends TestWorld {
 /** The fakes and ports, with no Express app around them. */
 export const buildTestWorld = (
   config: Partial<HttpConfig> = {},
-  options: { readonly logger?: Logger } = {},
+  options: {
+    readonly logger?: Logger
+    readonly users?: FakeUserRepository
+    /** Defaults to a box with no relay, like one that never set SMTP_URL. */
+    readonly mailer?: HttpDeps['mailer']
+  } = {},
 ): TestWorld => {
   const clock = new FakeClock(AT)
   // Linked: an event seeded with a `clientId` names a client that has to exist, exactly as the
@@ -129,7 +134,10 @@ export const buildTestWorld = (
   const clients = new FakeClientRepository()
   const events = new FakeEventRepository({ clients })
   const guests = new FakeGuestRepository()
-  const users = new FakeUserRepository()
+  // A test that brings its own accounts passes them in, so the session middleware that
+  // `buildHarness` mounts ahead of its routes asks the same repository the routes do: the
+  // credentials epoch is read there, and two worlds would answer for two sets of people.
+  const users = options.users ?? new FakeUserRepository()
   // Linked, because `roleFor` is a join over `users` in SQLite in both directions that
   // matter: the identity columns a moderator list shows, and `disabled_at`, which is what
   // ends an account's authority inside an event. An unlinked fake would answer `owner`
@@ -153,6 +161,7 @@ export const buildTestWorld = (
     memberships,
     users,
     guestTokens,
+    mailer: options.mailer ?? { canDeliver: false },
     diskSpaceChecker,
     config: testHttpConfig(config),
   }
@@ -197,6 +206,14 @@ export interface HarnessOptions {
    * is worth one test rather than one `?.`.
    */
   readonly withSession?: boolean
+  /**
+   * The accounts of the world, when the test builds its own. Omitted, the harness makes an
+   * empty set. Passing them is what keeps `enforceSessionAge`, which reads the credentials
+   * epoch from the account, and the routes behind it looking at the same people.
+   */
+  readonly users?: FakeUserRepository
+  /** Whether the box can mail. Defaults to no relay, like a box that never set SMTP_URL. */
+  readonly mailer?: HttpDeps['mailer']
 }
 
 /**
@@ -219,8 +236,13 @@ export const buildHarness = ({
   config = {},
   routes,
   withSession = true,
+  users,
+  mailer,
 }: HarnessOptions): Harness => {
-  const world = buildTestWorld(config)
+  const world = buildTestWorld(config, {
+    ...(users === undefined ? {} : { users }),
+    ...(mailer === undefined ? {} : { mailer }),
+  })
   const { deps } = world
   const httpConfig = deps.config
   const logger = deps.logger

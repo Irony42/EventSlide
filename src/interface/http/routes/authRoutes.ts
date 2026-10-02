@@ -1,18 +1,23 @@
-import { Router } from 'express'
+import { Router, type Request, type Response } from 'express'
 import type { Session } from 'express-session'
 import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireUser, resolveAuthState } from '../middleware/authz'
 import { rotateCsrfToken } from '../middleware/csrf'
-import { loginLimiter } from '../middleware/rateLimit'
+import { loginLimiter, passwordResetLimiter } from '../middleware/rateLimit'
 import { toSessionResponseDto, toSignedInUserDto } from '../presenters/presenters'
 import { sendError, sendJson, sendNoContent, sendResultNoContent } from '../presenters/send'
-import { changePasswordBody, loginBody } from '../schemas/requestSchemas'
+import {
+  changePasswordBody,
+  loginBody,
+  passwordResetConfirmBody,
+  passwordResetRequestBody,
+} from '../schemas/requestSchemas'
 import type { HttpDeps, SessionPayload } from '../types'
 import type { HttpUseCases } from '../useCases'
 
 /**
- * Sign in, sign out, who am I, change my password.
+ * Sign in, sign out, who am I, change my password, sign out everywhere.
  *
  * These are the only routes in the API that are not scoped to an event, so they are
  * also the only ones where "is there a principal at all" is the whole question. Three
@@ -59,15 +64,88 @@ const destroySession = (session: Session): Promise<void> =>
   promisify((done) => session.destroy(done), 'session destruction failed')
 
 /**
+ * Gives the caller a brand-new session: a new id, a new CSRF token, and an identity stamped
+ * with *now*. The login uses it, and so does every change of credentials that must leave the
+ * person who made it signed in.
+ *
+ * **Why those three belong together.**
+ *
+ * - The regeneration replaces the id that says *who* the caller is. Someone who planted a
+ *   session id — via a subdomain, a proxy, or a link carrying it — must not still hold a
+ *   valid session once the victim signs in or changes their password. 1.0 never
+ *   regenerated, so a planted id survived the login and took the account with it.
+ * - The CSRF rotation replaces the token that says *which page* may act on their behalf.
+ *   Leaving it would mean one `es_csrf` spanning the old identity and the new one — the
+ *   defect F9 names — so anything that learnt the value before still holds a valid half of
+ *   the pair after it.
+ * - `renewedAt` is what the credentials epoch is compared against (`enforceSessionAge`). A
+ *   password change raises the epoch to the instant it happened and then calls this, whose
+ *   stamp is not earlier: the session the person ends up with survives the change they
+ *   just made, and every other one does not.
+ * - `issuedAt` is the person's sign-in, which the absolute cap measures. **A login writes it
+ *   and a renewal carries it over** (`carryIssuedAt`): if a renewal restarted it, a stolen
+ *   cookie could call `revoke-others` once every six days and never reach the cap, and a
+ *   week-long ceiling would quietly become "until the victim notices".
+ *
+ * The regeneration comes first and the rotation after it, never before: a regeneration
+ * that fails must leave the response with no `Set-Cookie` at all, which is what the
+ * failure tests assert. The gate already ran and passed on this request, so the client
+ * needs the new CSRF value only from the next one.
+ *
+ * The session holds an identity, nothing worth stealing, and nothing that goes stale.
+ * Deliberately not `mustChangePassword`: `SessionPayload`'s own doc comment says why, and
+ * `requirePasswordCurrent` reads the flag from storage on every request.
+ *
+ * Both stamps are written here and nowhere else: refreshing `issuedAt` anywhere would turn
+ * the absolute cap back into the idle timeout it exists to sit behind.
+ */
+const startSession = async (
+  req: Request,
+  res: Response,
+  deps: HttpDeps,
+  who: { readonly userId: string; readonly email: string },
+  /**
+   * The sign-in instant to keep, for a renewal; omitted by a login, which is the sign-in.
+   * Read from the session **before** it is regenerated, because regenerating empties it.
+   */
+  carryIssuedAt?: number,
+): Promise<void> => {
+  await regenerateSession(req.session)
+  rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
+
+  const now = deps.clock.now().getTime()
+  const payload: SessionPayload = {
+    userId: who.userId,
+    email: who.email,
+    issuedAt: carryIssuedAt ?? now,
+    renewedAt: now,
+  }
+  Object.assign(req.session, payload)
+}
+
+/** The sign-in instant of the session this request arrived with, to hand to a renewal. */
+const signedInAtOf = (req: Request): number | undefined => {
+  const issuedAt = (req.session as unknown as SessionPayload).issuedAt
+  return typeof issuedAt === 'number' ? issuedAt : undefined
+}
+
+/**
  * Narrower than `RouteDeps` on purpose.
  *
- * The module names the two use cases it calls, so a third cannot quietly be reached
+ * The module names the use cases it calls, so another cannot quietly be reached
  * for here and a test can build exactly this bag from fakes instead of standing up the
  * whole application. `server.ts` passes its wider bag unchanged.
  */
 export interface AuthRouteDeps {
   readonly deps: HttpDeps
-  readonly usecases: Pick<HttpUseCases, 'authenticateUser' | 'changePassword'>
+  readonly usecases: Pick<
+    HttpUseCases,
+    | 'authenticateUser'
+    | 'changePassword'
+    | 'revokeOtherSessions'
+    | 'requestPasswordReset'
+    | 'resetPassword'
+  >
 }
 
 export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
@@ -97,41 +175,7 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
         return
       }
 
-      // Before a single field is written into it. Someone who plants a session id — via
-      // a subdomain, a proxy, or a link carrying it — must not still hold a valid
-      // session once the victim signs in. 1.0 never regenerated, so a planted id
-      // survived the login and took the account with it.
-      await regenerateSession(req.session)
-
-      // In the same gesture, and for the same reason. Regeneration replaces the id that
-      // says *who* the caller is; this replaces the token that says *which page* may act
-      // on their behalf. Leaving it would mean one `es_csrf` spanning the anonymous
-      // visitor and the host they just became — the defect F9 names — so anything that
-      // learnt the value before the login still holds a valid half of the pair after it.
-      //
-      // After the regeneration, never before: a regeneration that fails must leave the
-      // response with no `Set-Cookie` at all, which is what the login-failure tests
-      // assert. The gate already ran and passed on this request, so the client needs
-      // the new value only from the next one.
-      rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
-
-      const payload: SessionPayload = {
-        userId: result.value.userId,
-        email: result.value.email,
-        // Deliberately not `mustChangePassword`: `SessionPayload`'s own doc comment says
-        // why, and `requirePasswordCurrent` reads the flag from storage on every request
-        // rather than trusting a copy minted at this exact moment.
-        //
-        // Written here and nowhere else. `enforceSessionAge` reads it to end a session
-        // that has been alive too long however busy it has been, which the rolling idle
-        // timeout cannot do — and refreshing it anywhere would turn the absolute cap
-        // back into the idle one it exists to sit behind.
-        issuedAt: deps.clock.now().getTime(),
-      }
-      // The entire session: an identity, nothing worth stealing, and nothing that goes
-      // stale. 1.0's `deserializeUser` did a `SELECT *` and hung the whole user row,
-      // bcrypt hash included, off every authenticated request.
-      Object.assign(req.session, payload)
+      await startSession(req, res, deps, result.value)
 
       sendJson(res, toSignedInUserDto(result.value))
     }),
@@ -227,12 +271,105 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
         newPassword: body.newPassword,
       })
 
-      // No session write on success, unlike before P3-03: `changePassword` already
-      // cleared `mustChangePassword` in storage (`User.withPasswordHash`), and
-      // `resolveAuthState` reads that on the very next request. A session-side clear
-      // used to exist because the flag lived in the cookie; now that it does not, writing
-      // one here would be dead code pretending to be the fix.
+      if (!result.ok) {
+        sendError(res, result.error)
+        return
+      }
+
+      // `changePassword` raised the credentials epoch to now, which ends *every* session
+      // of this account, this one included. Renew this one — a new id, a new CSRF token, an
+      // `renewedAt` that is not before the epoch — so the person who chose the password stays
+      // signed in on the device they chose it on, and on no other. Their sign-in instant is
+      // carried over: choosing a password does not make the session any younger.
+      //
+      // The `mustChangePassword` flag needs no session write: `changePassword` cleared it
+      // in storage and `resolveAuthState` reads it from there on the next request.
+      await startSession(req, res, deps, user, signedInAtOf(req))
+      sendNoContent(res)
+    }),
+  )
+
+  router.post(
+    '/auth/password-reset/request',
+    // Genuinely public: the person asking has, by definition, no credential. The limiter is
+    // the per-client half of the defence; the per-address half (at most three mails an hour
+    // to any one inbox) is inside the use case, because it has to count what was issued.
+    passwordResetLimiter(deps.config.rateLimits.loginPerMinute),
+    asyncHandler(async (req, res) => {
+      const body = passwordResetRequestBody.parse(req.body)
+
+      const result = await usecases.requestPasswordReset({
+        email: body.email,
+        locale: body.locale,
+      })
+
+      // Whatever the answer, it is a function of this request and nobody else's.
+      res.setHeader('Cache-Control', 'no-store')
+
+      if (!result.ok) {
+        // The one refusal, and it depends on the box rather than on the address: with no
+        // mail relay there is no self-service reset (`404 feature.unavailable`).
+        sendError(res, result.error)
+        return
+      }
+
+      // Accepted, and nothing more is said: not whether the address is an account, not
+      // whether it was mailed, not whether it was over its cap. The work is already running
+      // behind `result.value.completion`, and this response deliberately does not wait for
+      // it — how long a mail relay takes to say yes is a way of telling an address that
+      // exists from one that does not, and the body would be the same either way.
+      res.status(202).json({})
+    }),
+  )
+
+  router.post(
+    '/auth/password-reset/confirm',
+    // Genuinely public, for the same reason: the link is the credential, and it is spent by
+    // whoever holds it. The token is 256 random bits, so the limiter is about cost — hashing
+    // and a lookup per attempt — and not about guessing.
+    passwordResetLimiter(deps.config.rateLimits.loginPerMinute),
+    asyncHandler(async (req, res) => {
+      const body = passwordResetConfirmBody.parse(req.body)
+
+      const result = await usecases.resetPassword({
+        token: body.token,
+        newPassword: body.password,
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+
+      // No session is started: the person has proved a mailbox, not signed in. The use case
+      // raised the credentials epoch, so a session that was open anywhere — here included —
+      // is refused on its next request.
       sendResultNoContent(res, result)
+    }),
+  )
+
+  router.post(
+    '/auth/sessions/revoke-others',
+    // Any signed-in account, for itself and nobody else: the account comes from the
+    // session, never from the request. No body is read, so there is nothing to parse and
+    // nothing a caller could point at another account.
+    requireUser(deps),
+    asyncHandler(async (req, res) => {
+      const user = req.context.user
+      if (!user) {
+        sendError(res, DomainError.unauthenticated('auth.required'))
+        return
+      }
+
+      const result = await usecases.revokeOtherSessions({ userId: user.userId })
+      if (!result.ok) {
+        sendError(res, result.error)
+        return
+      }
+
+      // "Everywhere" includes this device's own cookie, because the epoch is a point in
+      // time and not a list of ids to spare. Put a fresh session in its place before
+      // answering, or the button would sign out the person who pressed it. Their sign-in
+      // instant is kept: pressing the button does not make the session any younger.
+      await startSession(req, res, deps, user, signedInAtOf(req))
+      sendNoContent(res)
     }),
   )
 

@@ -6,19 +6,23 @@ import type { Logger } from '../../../application/ports/logger'
 import { errorBody, sendError, statusForKind } from '../presenters/send'
 
 /**
- * Where a shared gallery's token sits in a path: `/g/<token>` and `/api/gallery/<token>/…`.
+ * Where a link's token sits in a path: a shared gallery's `/g/<token>` and
+ * `/api/gallery/<token>/…`, and a password-reset link's `/password/reset/<token>` (G2-08 /
+ * P3-09 — the page the mailed link opens, served by the SPA fallback, so the path is
+ * exactly what `requestContext` stamps on every line written while it is served).
  * Case-insensitive, as Express's routing is — `/API/Gallery/<token>` reaches the same
  * route. `/api/gallery-media/…` does not match: it carries a link's id and a signature,
  * neither of which opens anything alone.
  */
-const TOKEN_IN_PATH = /^(\/api\/gallery|\/g)\/[^/]+/i
+const TOKEN_IN_PATH = /^(\/api\/gallery|\/g|\/password\/reset)\/[^/]+/i
 
 /**
- * The request path as it may be logged: a gallery's token written as `:token`.
+ * The request path as it may be logged: a link's token written as `:token`.
  *
- * That token is the credential itself — whoever reads it reads the album — and a log line
- * is read by whoever operates the box and by whatever ships its logs, long after the link
- * was sent. Every other path is logged as it is.
+ * That token is the credential itself — whoever reads a gallery's reads the album, whoever
+ * reads a reset link's chooses the account's password — and a log line is read by whoever
+ * operates the box and by whatever ships its logs, long after the link was sent. Every
+ * other path is logged as it is.
  */
 export const loggablePath = (path: string): string => path.replace(TOKEN_IN_PATH, '$1/:token')
 

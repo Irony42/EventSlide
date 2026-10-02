@@ -1,5 +1,6 @@
 import type { IdGenerator } from '../../application/ports/idGenerator'
 import {
+  asAccountTokenId,
   asClientId,
   asClipJobId,
   asEventId,
@@ -9,6 +10,7 @@ import {
   asReactionId,
   asShareLinkId,
   asUserId,
+  type AccountTokenId,
   type ClientId,
   type ClipJobId,
   type EventId,
@@ -64,7 +66,16 @@ const JOIN_CODE_ALPHABET_SIZE = 32
 
 /** One counter per kind, so a photo and a guest do not share a sequence. */
 type Kind =
-  'event' | 'photo' | 'guest' | 'user' | 'reaction' | 'clipJob' | 'mission' | 'shareLink' | 'client'
+  | 'event'
+  | 'photo'
+  | 'guest'
+  | 'user'
+  | 'reaction'
+  | 'clipJob'
+  | 'mission'
+  | 'shareLink'
+  | 'client'
+  | 'accountToken'
 
 const PREFIX: Record<Kind, string> = {
   event: 'e0000000',
@@ -76,6 +87,7 @@ const PREFIX: Record<Kind, string> = {
   mission: '50000000',
   shareLink: '60000000',
   client: '70000000',
+  accountToken: '80000000',
 }
 
 export const createSequentialIdGenerator = (): IdGenerator => {
@@ -104,6 +116,7 @@ export const createSequentialIdGenerator = (): IdGenerator => {
     missionId: (): MissionId => asMissionId(next('mission')),
     shareLinkId: (): ShareLinkId => asShareLinkId(next('shareLink')),
     clientId: (): ClientId => asClientId(next('client')),
+    accountTokenId: (): AccountTokenId => asAccountTokenId(next('accountToken')),
 
     bytes: (count: number): Uint8Array => {
       if (!Number.isInteger(count) || count < 1) {

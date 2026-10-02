@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto'
 import type { IdGenerator } from '../../application/ports/idGenerator'
 import {
+  asAccountTokenId,
   asClientId,
   asClipJobId,
   asEventId,
@@ -10,6 +11,7 @@ import {
   asReactionId,
   asShareLinkId,
   asUserId,
+  type AccountTokenId,
   type ClientId,
   type ClipJobId,
   type EventId,
@@ -44,6 +46,7 @@ export const randomIdGenerator: IdGenerator = {
   missionId: (): MissionId => asMissionId(randomUUID()),
   shareLinkId: (): ShareLinkId => asShareLinkId(randomUUID()),
   clientId: (): ClientId => asClientId(randomUUID()),
+  accountTokenId: (): AccountTokenId => asAccountTokenId(randomUUID()),
 
   bytes: (count: number): Uint8Array => {
     if (!Number.isInteger(count) || count < 1) {

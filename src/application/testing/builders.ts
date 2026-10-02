@@ -31,6 +31,7 @@ import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import { Reaction } from '../../domain/reactions/reaction'
 import type { DomainError } from '../../domain/shared/errors'
 import {
+  asAccountTokenId,
   asClientId,
   asClipJobId,
   asEventId,
@@ -45,6 +46,13 @@ import {
 import { JoinCode } from '../../domain/shared/joinCode'
 import type { Result } from '../../domain/shared/result'
 import { Slug } from '../../domain/shared/slug'
+import {
+  issueAccountToken,
+  type AccountToken,
+  type AccountTokenDelivery,
+  type AccountTokenEventRole,
+  type AccountTokenPurpose,
+} from '../../domain/users/accountToken'
 import { EmailAddress } from '../../domain/users/emailAddress'
 import { DEFAULT_SITE_ROLE, type SiteRole } from '../../domain/users/siteRole'
 import { User } from '../../domain/users/user'
@@ -528,6 +536,8 @@ export interface UserInput {
   readonly lastLoginAt?: Date | null
   readonly mustChangePassword?: boolean
   readonly disabledAt?: Date | null
+  /** Omitted means the account's credentials never changed: no epoch, nothing revoked. */
+  readonly credentialsChangedAt?: Date | null
   /** Omitted means an ordinary account: authority on the box is never a default. */
   readonly siteRole?: SiteRole
 }
@@ -556,7 +566,84 @@ export const aUser = (input: UserInput = {}): User => {
     ...created.toProps(),
     lastLoginAt: pick(input.lastLoginAt, null),
     disabledAt: pick(input.disabledAt, null),
+    credentialsChangedAt: pick(input.credentialsChangedAt, null),
   })
+}
+
+// ------------------------------------------------------------- account token --
+
+export interface AccountTokenInput {
+  readonly id?: string
+  readonly purpose?: AccountTokenPurpose
+  readonly tokenDigest?: string
+  readonly email?: string
+  /** Omitted means the default host. Pass `null` for an invitation: no account yet. */
+  readonly userId?: string | null
+  readonly eventId?: string | null
+  readonly eventRole?: AccountTokenEventRole | null
+  readonly delivery?: AccountTokenDelivery
+  readonly requiresApproval?: boolean
+  readonly createdBy?: string | null
+  readonly createdAt?: Date
+  /** Overrides the purpose's lifetime, to build a token that is already dead. */
+  readonly expiresAt?: Date
+  readonly approvedBy?: string | null
+  readonly approvedAt?: Date | null
+  readonly consumedAt?: Date | null
+  readonly revokedAt?: Date | null
+}
+
+/** A distinct, valid digest per id (64 lower-case hex), so two fixtures never collide. */
+const digestFor = (id: string): string =>
+  [...id]
+    .map((character) => character.charCodeAt(0).toString(16).padStart(2, '0'))
+    .join('')
+    .padEnd(64, '0')
+    .slice(0, 64)
+
+const orNull = <T>(value: string | null, cast: (raw: string) => T): T | null =>
+  value === null ? null : cast(value)
+
+/**
+ * A password-reset token for the default host, issued at {@link AT}.
+ *
+ * Built by the domain's own `issueAccountToken`, so a fixture cannot be a token the rules
+ * would refuse; the overrides then put it in the state a test is about (spent, revoked,
+ * expired), which is a state the repository reaches by conditional updates and a builder
+ * reaches by writing the fields.
+ */
+export const anAccountToken = (input: AccountTokenInput = {}): AccountToken => {
+  const id = pick(input.id, 'account-token-1')
+  const issued = must(
+    issueAccountToken(
+      {
+        purpose: pick(input.purpose, 'passwordReset'),
+        tokenDigest: pick(input.tokenDigest, digestFor(id)),
+        email: must(
+          EmailAddress.create(pick(input.email, 'hote@example.test')),
+          'anAccountToken.email',
+        ),
+        userId: orNull(pick(input.userId, 'user-1'), asUserId),
+        eventId: orNull(pick(input.eventId, null), asEventId),
+        eventRole: pick(input.eventRole, null),
+        delivery: pick(input.delivery, 'mail'),
+        requiresApproval: pick(input.requiresApproval, false),
+        createdBy: orNull(pick(input.createdBy, null), asUserId),
+      },
+      asAccountTokenId(id),
+      pick(input.createdAt, AT),
+    ),
+    'anAccountToken',
+  )
+
+  return {
+    ...issued,
+    expiresAt: pick(input.expiresAt, issued.expiresAt),
+    approvedBy: orNull(pick(input.approvedBy, null), asUserId),
+    approvedAt: pick(input.approvedAt, null),
+    consumedAt: pick(input.consumedAt, null),
+    revokedAt: pick(input.revokedAt, null),
+  }
 }
 
 // ------------------------------------------------------------------- reaction --
