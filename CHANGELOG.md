@@ -131,7 +131,8 @@ Read these before you upgrade, and back up with the version you run now.
 - **New migrations run at the first boot**, with any earlier one your database has not seen:
   008 (clients, and `events.client_id` and `events.opened_at`), 009 (the audit log), 010
   (account tokens, and the `credentials_changed_at` and `email_verified_at` columns of
-  `users`) and 011 (an operator's second factor: `user_totp` and `user_recovery_codes`).
+  `users`), 011 (an operator's second factor: `user_totp` and `user_recovery_codes`) and 012
+  (`account_tokens.client_id` and `client_role`).
   Migrations are not reversed, and 2.1.0 refuses a database that holds them
   ("downgrading is not supported"), so back up first.
 - **The container's memory limit in `compose.yaml` goes from 1 GB to 2 GB** (#105), because
