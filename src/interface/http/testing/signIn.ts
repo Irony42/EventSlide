@@ -93,3 +93,29 @@ export const signedInAs = async (app: Express, email: string): Promise<Caller> =
     .expect(200)
   return { agent, csrf: csrfTokenFrom(login.headers) }
 }
+
+/**
+ * The second-factor use cases, for a suite whose subject is something else (the password, the
+ * throttle): each fails loudly if a route under test reaches it. The second factor has its own
+ * suite, `secondFactorRoutes.test.ts`, which wires the real ones.
+ */
+export const unusedSecondFactorUseCases = {
+  verifySecondFactor: async (): Promise<never> => {
+    throw new Error('verifySecondFactor is not what this suite is about')
+  },
+  enrollTotp: async (): Promise<never> => {
+    throw new Error('enrollTotp is not what this suite is about')
+  },
+  confirmTotpEnrollment: async (): Promise<never> => {
+    throw new Error('confirmTotpEnrollment is not what this suite is about')
+  },
+  stepUp: async (): Promise<never> => {
+    throw new Error('stepUp is not what this suite is about')
+  },
+  regenerateRecoveryCodes: async (): Promise<never> => {
+    throw new Error('regenerateRecoveryCodes is not what this suite is about')
+  },
+  disableSecondFactor: async (): Promise<never> => {
+    throw new Error('disableSecondFactor is not what this suite is about')
+  },
+}

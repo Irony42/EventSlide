@@ -9,9 +9,11 @@ import {
   testHttpConfig,
   type Harness,
 } from '../testing/middlewareHarness'
+import { unusedSecondFactorUseCases } from '../testing/signIn'
 import { aUser } from '../../../application/testing/builders'
 import { FakeAccountTokenRepository } from '../../../application/testing/fakeAccountTokenRepository'
 import { FakeMailer } from '../../../application/testing/fakeMailer'
+import { FakeSecondFactorRepository } from '../../../application/testing/fakeSecondFactorRepository'
 import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
@@ -163,7 +165,12 @@ const subjectOf = ({
         authRoutes({
           deps: { ...deps, users, logger },
           usecases: {
-            authenticateUser: makeAuthenticateUser({ users, hasher, clock: deps.clock }),
+            authenticateUser: makeAuthenticateUser({
+              users,
+              factors: new FakeSecondFactorRepository(),
+              hasher,
+              clock: deps.clock,
+            }),
             changePassword: makeChangePassword({ users, hasher, clock: deps.clock }),
             revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
             requestPasswordReset: makeRequestPasswordReset({
@@ -177,6 +184,7 @@ const subjectOf = ({
               publicUrl: deps.config.publicUrl,
             }),
             resetPassword: makeResetPassword({ users, tokens, secrets, hasher, clock: deps.clock }),
+            ...unusedSecondFactorUseCases,
           },
           throttleHold: async (ms) => {
             holds.push(ms)

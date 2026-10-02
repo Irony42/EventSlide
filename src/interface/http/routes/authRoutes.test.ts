@@ -5,6 +5,7 @@ import { SESSION_COOKIE, authRoutes } from './authRoutes'
 import { ABSOLUTE_SESSION_LIFETIME_MS, GUEST_COOKIE } from '../middleware/authz'
 import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken, requireCsrfToken } from '../middleware/csrf'
 import { buildHarness, signInAs, testHttpConfig, type Harness } from '../testing/middlewareHarness'
+import { unusedSecondFactorUseCases } from '../testing/signIn'
 import type { HttpConfig } from '../types'
 import { AT, aUser } from '../../../application/testing/builders'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
@@ -195,27 +196,6 @@ const harness = ({
 }
 
 /** supertest types `headers` loosely, so the shape read here is narrowed explicitly. */
-const unusedSecondFactorUseCases = {
-  verifySecondFactor: async (): Promise<never> => {
-    throw new Error('verifySecondFactor is not what this suite is about')
-  },
-  enrollTotp: async (): Promise<never> => {
-    throw new Error('enrollTotp is not what this suite is about')
-  },
-  confirmTotpEnrollment: async (): Promise<never> => {
-    throw new Error('confirmTotpEnrollment is not what this suite is about')
-  },
-  stepUp: async (): Promise<never> => {
-    throw new Error('stepUp is not what this suite is about')
-  },
-  regenerateRecoveryCodes: async (): Promise<never> => {
-    throw new Error('regenerateRecoveryCodes is not what this suite is about')
-  },
-  disableSecondFactor: async (): Promise<never> => {
-    throw new Error('disableSecondFactor is not what this suite is about')
-  },
-}
-
 const setCookies = (headers: Record<string, unknown>): readonly string[] => {
   const raw = headers['set-cookie']
   if (typeof raw === 'string') return [raw]
