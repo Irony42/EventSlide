@@ -1676,9 +1676,10 @@ A recovery code is **single use**, decided by one conditional statement, and spe
 
 `code` may be `recoveryCode` instead; **at most one**, and neither for an account with no
 authenticator, which proves itself with the password alone. Stamps the session, for **five minutes**,
-as having confirmed the person at the keyboard; the actions that cannot be taken back — offboarding
-a client, suspending or resuming one, changing a ceiling, removing a second factor — answer
-**403 `auth.stepUpRequired`** without a fresh stamp. **204**. The code must be of a step **later than
+as having confirmed the person at the keyboard. Two routes ask for it today — `2fa/recovery-codes` and
+`2fa/disable`, below — and answer **403 `auth.stepUpRequired`** without a fresh stamp; the operator
+routes that cannot be taken back (offboarding a client, suspending or resuming one, changing a
+ceiling, G2-14) will carry the same gate, `requireStepUp`, when they are mounted. **204**. The code must be of a step **later than
 the last one spent**, so the code that signed in cannot be reused here: the person waits for the
 app's next one. The stamp is not carried across a renewal of the session id (a password change).
 

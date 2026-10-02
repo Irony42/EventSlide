@@ -9,8 +9,10 @@
  * ## What the adapter promises
  *
  * - **Authenticated encryption** (AES-256-GCM). A sealed text that was altered, truncated,
- *   cut from another row, or sealed under a different key opens to `null`, because the
- *   authentication tag is checked before anything is returned.
+ *   or sealed under a different key or key version opens to `null`, because the
+ *   authentication tag is checked before anything is returned. It is **not bound to a row**:
+ *   a text copied from one account's row into another's opens, which takes write access to
+ *   the database and gains nothing that deleting the row would not.
  * - **A fresh random IV per seal.** Sealing the same secret twice gives two different texts.
  * - **The key version travels with the text** so a rotation can tell which key sealed what.
  *   `open` answers `null` for a version the vault holds no key for, which is how a row sealed

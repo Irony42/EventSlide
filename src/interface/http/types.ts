@@ -85,8 +85,9 @@ export interface HttpDeps {
   readonly users: Pick<UserRepository, 'siteRoleFor' | 'authStateFor'>
   /**
    * One fact about an account's second factor: whether it has a confirmed one (`GET /api/auth/me`
-   * says so, and the console routes on it). Nothing in the HTTP layer reads a sealed secret or a
-   * recovery digest, and the type is what says so.
+   * says so, and the console routes on it). `find` returns the sealed secret too, so the type
+   * narrows the *methods* and not the fields: `secondFactorStatusOf` in `authRoutes.ts` is the one
+   * reader, it reads `confirmedAt` and nothing else, and a second reader is a review blocker.
    */
   readonly secondFactors: Pick<SecondFactorRepository, 'find'>
   readonly guestTokens: GuestTokenService

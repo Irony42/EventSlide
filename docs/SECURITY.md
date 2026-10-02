@@ -448,10 +448,12 @@ Everything in `src/interface/http/middleware/authz.ts`:
 | `requireUser(deps)`              | any authenticated user **whose account is still enabled**, for the routes that are not event-scoped                                                                                                                                                             |
 | `requireRole('owner', deps)`     | event owner only, and only while that account is enabled                                                                                                                                                                                                        |
 | `requireRole('moderator', deps)` | owner or moderator of **that** event, same condition                                                                                                                                                                                                            |
+| `requireSecondFactor(deps)`      | nothing. Mounted by `siteRoutes` **after** `requireOperator`: with `REQUIRE_OPERATOR_2FA=true`, a session whose `secondFactorAt` is not a stamp the server wrote refuses with `403 auth.secondFactorRequired` (§19); off, it does nothing                       |
+| `requireStepUp(deps)`            | nothing. Declared per route, behind `requireUser`: refuses with `403 auth.stepUpRequired` unless the session confirmed a password and a code within five minutes (§19)                                                                                          |
 | `requireOperator(deps)`          | the account that operates the **box**, nothing inside any event. Gates `/api/site` and `/api/site/*` when `SITE_ADMIN=on`; see the site role below                                                                                                              |
 | `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                                                                                                                                                   |
 | `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                                                                                                                                               |
-| _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`                                                                                                                           |
+| _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/login/2fa` (the half-finished sign-in is the credential), `POST /api/auth/logout`, `GET /api/auth/me`                                                 |
 | `GET /api/about`, no middleware  | genuinely public, mounted ahead of the cookie parser, the session and CSRF: the AGPL §13 source offer sets no cookie                                                                                                                                            |
 
 There is no `requireGuestOwnsPhoto`. Ownership is not a middleware question: the rule is
@@ -2440,8 +2442,12 @@ G2-14's to design.
 Roadmap §10.1; free plan G2-13, paid plan P3-15 and D-20. The operator is the most valuable account on
 a box run for other people, and the cell's operator can offboard a client — purge its albums. So the
 hosted instance sets `REQUIRE_OPERATOR_2FA=true` and a dedicated `MFA_ENCRYPTION_KEY`, and a
-self-hosted box keeps exactly the sign-in it had: with neither variable set nothing in this section
-exists on the wire except a `secondFactor` object in `GET /api/auth/me` that says "not available".
+self-hosted box keeps exactly the sign-in it had: with neither variable set the routes below are
+still mounted (they answer `401`, `404 feature.unavailable` or `409` rather than the unknown-route
+`404`), but no account is asked for a second factor, no gate is applied, and `GET /api/auth/me`
+reports `secondFactor.available: false`. `POST /api/auth/step-up` is the one route that does
+something on such a box — it stamps the session once the password is confirmed again — and
+nothing reads the stamp yet.
 The routes are in docs/API.md §5; this is the argument and the tests that hold it.
 
 **What it is.** TOTP, RFC 6238: HMAC-SHA1, thirty seconds, six digits, one step of drift either way,
@@ -2497,6 +2503,19 @@ and the vault refuses a version it holds no key for, but there is one key and on
 
 **Accepted.**
 
+- _Whoever enrols first holds the factor._ On a box that requires one, an operator who has not
+  enrolled yet has a password-only session, and anyone who holds that password can enrol their own
+  phone first; the epoch bump then ends the real operator's sessions and they are locked out until
+  the reset by another operator or the break-glass command of the paragraph above. The hosted
+  instance closes this by enrolling its operators at provisioning, before the first password is
+  shared, and by the bootstrap password being a one-time rotation (`mustChangePassword`).
+- _Ten wrong codes per quarter of an hour is a rate, not a proof:_ about 960 guesses a day against a
+  six-digit code with three valid values in the window is roughly 0.3 % a day for someone who holds
+  the password and is not noticed. The budget bounds it; the audit line and the 429s are what show it.
+- _The operator's other acts are outside the gate._ `requireSecondFactor` guards `/api/site`. An
+  operator is also exempt from `EVENT_CREATION=clientMembers` and from a client's ceilings
+  (`createEvent`), and that exemption is reached with a session that has not passed the factor
+  during the window before it enrols. No operator route exists yet to widen it, and G2-14 decides.
 - _Phishing:_ a six-digit code typed into a look-alike site is relayed. TOTP is not phishing-resistant;
   WebAuthn is the plan's P9-06 and the second factor an operator can be made to hold.
 - _A budget is a small denial of service:_ someone who knows an operator's password can spend the
