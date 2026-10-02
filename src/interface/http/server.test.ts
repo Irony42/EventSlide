@@ -1,10 +1,12 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import http from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import request from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { anEvent } from '../../application/testing/builders'
+import { aGuest, anEvent } from '../../application/testing/builders'
 import { DomainError } from '../../domain/shared/errors'
+import { GUEST_COOKIE } from './middleware/authz'
 import { CSRF_COOKIE, CSRF_HEADER } from './middleware/csrf'
 import {
   anUnusableSessionStore,
@@ -149,9 +151,16 @@ describe('buildServer: liveness and readiness', () => {
     expect(response.status).toBe(200)
     expect(response.body).toEqual({
       status: 'ready',
-      // `video` is reported and never acted on: a photo wall with no encoder still serves
-      // the room, so a missing codec must not take a venue's wall out of service.
-      checks: { database: 'ok', media: 'ok', video: 'ok' },
+      // `video` and `disk` are reported and never acted on: a photo wall with no
+      // encoder still serves the room, and a tight disk margin is already a refusal at
+      // the upload itself (G3-06 / P4-10) — neither must take a venue's wall out of
+      // service.
+      checks: {
+        database: 'ok',
+        media: 'ok',
+        video: 'ok',
+        disk: { sufficient: true, freeBytes: 10_000_000_000 },
+      },
     })
   })
 
@@ -168,6 +177,7 @@ describe('buildServer: liveness and readiness', () => {
       database: 'unavailable',
       media: 'ok',
       video: 'ok',
+      disk: { sufficient: true, freeBytes: 10_000_000_000 },
     })
   })
 
@@ -184,7 +194,32 @@ describe('buildServer: liveness and readiness', () => {
       database: 'ok',
       media: 'unavailable',
       video: 'ok',
+      disk: { sufficient: true, freeBytes: 10_000_000_000 },
     })
+  })
+
+  it('answers 200 with disk reported insufficient, never 503, because an upload refusal is not a service state', async () => {
+    // The point of G3-06 / P4-10: a tight disk margin is a client-facing 413 at the
+    // upload itself, never a reason to take the whole box out of service.
+    const subject = buildServerHarness()
+    subject.health.diskSpace = async () => ({ sufficient: false, freeBytes: 1_000 })
+
+    const response = await request(subject.app).get('/api/ready')
+
+    expect(response.status).toBe(200)
+    expect(response.body.checks.disk).toEqual({ sufficient: false, freeBytes: 1_000 })
+  })
+
+  it('answers disk unreadable rather than throwing when the probe itself rejects', async () => {
+    const subject = buildServerHarness()
+    subject.health.diskSpace = async () => {
+      throw new Error('ENOENT')
+    }
+
+    const response = await request(subject.app).get('/api/ready')
+
+    expect(response.status).toBe(200)
+    expect(response.body.checks.disk).toEqual({ sufficient: false, freeBytes: null })
   })
 
   it('answers with service.notReady rather than a 500 when a dependency is down', async () => {
@@ -378,6 +413,79 @@ describe('buildServer: which client a rate limit is counting', () => {
 
     expect(clip.status).toBe(429)
     expect(clip.body.error.code).toBe('rate.limited')
+  })
+
+  it('shares one upload concurrency slot across photos and clips, not one each (G3-06)', async () => {
+    // The same defect shape as the rate-limiter test above, one layer down: a
+    // `uploadConcurrencyLimiter(...)` call inside each router would be two independent
+    // counters wearing one configuration name. `buildServer` is the only place that can
+    // hold the one instance, so this is the only ring that can see it.
+    //
+    // Proving it needs a request genuinely held open — unlike a per-minute bucket, a
+    // concurrency slot releases the moment a request finishes, so two sequential,
+    // fully-awaited calls would prove nothing. `uploadPhotos` is stubbed to hang until
+    // this test releases it, which is what keeps the first request's slot spent while
+    // the second arrives.
+    let releaseUpload: (() => void) | undefined
+    const subject = buildServerHarness({
+      config: {
+        uploads: { maxBytes: 25_000_000, maxFiles: 20, maxConcurrentRequests: 1 },
+      },
+      usecases: {
+        uploadPhotos: () =>
+          new Promise((resolve) => {
+            releaseUpload = () => resolve({ ok: false, error: DomainError.invalid('test.cleanup') })
+          }),
+      },
+    })
+    subject.events.seed(anEvent({ slug: 'mariage' }))
+    subject.guests.seed(aGuest({ id: 'guest-1', eventId: 'event-1' }))
+    const guestToken = subject.issueGuestToken('event-1', 'guest-1')
+
+    // A real listener this test owns and closes itself, rather than one of the
+    // ephemeral servers `request(app)` spins up per call: the first request below is
+    // deliberately held open past the end of the second, and an ephemeral server
+    // supertest never closes would leak a bound port into every test that runs after
+    // this one — measured: it did, as `EADDRINUSE` several tests later.
+    const server = http.createServer(subject.app)
+    try {
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+
+      const probe = await request(server).get(ANY_GET)
+      const csrfToken = csrfTokenFrom(probe.headers)
+      const csrfCookie = setCookies(probe.headers).find((value) =>
+        value.startsWith(`${CSRF_COOKIE}=`),
+      )
+      if (csrfCookie === undefined) throw new Error('the server issued no CSRF cookie')
+      const cookieHeader = `${csrfCookie.split(';')[0]}; ${GUEST_COOKIE}=${guestToken}`
+
+      // Fired with `.end()`, not awaited: a bare `request(server).post(...)` never
+      // reaches the server at all unless something has already called `.end()` on it,
+      // and this one is never going to resolve until `releaseUpload` runs below.
+      const first = new Promise<request.Response>((resolve, reject) => {
+        request(server)
+          .post('/api/events/mariage/photos')
+          .set('Cookie', cookieHeader)
+          .set(CSRF_HEADER, csrfToken)
+          .attach('photos', Buffer.from('one'), 'one.jpg')
+          .end((error, response) => (error ? reject(error) : resolve(response)))
+      })
+      await expect.poll(() => releaseUpload !== undefined).toBe(true)
+
+      const second = await request(server)
+        .post('/api/events/mariage/clips')
+        .set('Cookie', cookieHeader)
+        .set(CSRF_HEADER, csrfToken)
+        .attach('clip', Buffer.from('clip-bytes'), 'clip.mp4')
+
+      expect(second.status).toBe(429)
+      expect(second.body.error.code).toBe('upload.busy')
+
+      releaseUpload?.()
+      await first
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 
   it('counts two clients behind the proxy apart, so one guest cannot lock out the venue', async () => {

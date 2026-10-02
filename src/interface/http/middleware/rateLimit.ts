@@ -312,3 +312,64 @@ export const streamConnectionLimiter = ({
     next()
   }
 }
+
+// ------------------------------------------------------- upload concurrency --
+
+/**
+ * How long a `429 upload.busy` tells the client to wait (G3-06 / P4-10).
+ *
+ * Short on purpose, and nothing like the clip queue's `Retry-After`: a slot held by this
+ * limiter is freed the moment one of the requests ahead of it finishes buffering, which
+ * is seconds, not the queue's "about a minute". A longer value would have a guest's
+ * client wait out time nobody needed.
+ */
+const UPLOAD_BUSY_RETRY_AFTER_SECONDS = 2
+
+/**
+ * How many upload requests — photos and clips together — may be buffering at once,
+ * **process-wide** (G3-06 / P4-10).
+ *
+ * `MAX_UPLOAD_BYTES_PER_REQUEST` in `guestRoutes.ts` bounds what **one** request may
+ * hold at 150 MB; nothing before this bounded how many of those could be in flight
+ * together, and the product of the two is the real ceiling on heap a deployment's memory
+ * limit has to cover. Four in flight at the default is 600 MB of buffers, which is a
+ * number an operator can reason about; twelve — the rate limiter's own per-minute
+ * allowance — would have been 1.8 GB.
+ *
+ * One bucket, shared by both upload routes, for the same reason `uploadLimiter` is one
+ * bucket: a guest sending a photo and a clip is one guest, and two independent ceilings
+ * would silently double the real one. Counted rather than rate-limited for the same
+ * reason {@link streamConnectionLimiter} is — what this bounds is concurrent memory
+ * held, not a count per minute — and a slot is released when the response closes,
+ * whichever way the request ended: accepted, refused downstream, or failed.
+ */
+export const uploadConcurrencyLimiter = (max: number): RequestHandler => {
+  let inFlight = 0
+
+  return (_req, res, next) => {
+    if (inFlight >= max) {
+      res.setHeader('Retry-After', String(UPLOAD_BUSY_RETRY_AFTER_SECONDS))
+      res.status(429).json(errorBody(DomainError.rateLimited('upload.busy')))
+      return
+    }
+
+    inFlight += 1
+    let released = false
+    const release = (): void => {
+      // `close` is the only event wired below, and today's Express/Node fires it once
+      // per response — so this guard is not live against today's wiring. It is here for
+      // the same reason `streamConnectionLimiter` carries it: a second call to
+      // `release` (`close` firing again, or a future change that also wires `finish`)
+      // must free the slot once, not twice, or the ceiling drifts upwards over a
+      // long-running process and silently admits more than `max` at once. Proven
+      // directly by the "never double-releases" test below, which emits `close` twice
+      // on a fake response rather than relying on a real socket to do it.
+      if (released) return
+      released = true
+      inFlight -= 1
+    }
+
+    res.on('close', release)
+    next()
+  }
+}

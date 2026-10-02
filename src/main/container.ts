@@ -1,4 +1,4 @@
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { access, constants, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -38,6 +38,8 @@ import { sha256ContentHasher } from '../infrastructure/crypto/sha256ContentHashe
 import { createInMemoryEventBus } from '../infrastructure/realtime/inMemoryEventBus'
 import { createPinoLogger } from '../infrastructure/logging/pinoLogger'
 import { systemClock } from '../infrastructure/time/systemClock'
+import { statfsDiskSpaceChecker } from '../infrastructure/system/statfsDiskSpaceChecker'
+import { evaluateDiskSpace } from '../domain/shared/diskSpaceGuard'
 import type { Logger } from '../application/ports/logger'
 import { buildServer } from '../interface/http/server'
 import type { HttpConfig, HttpDeps } from '../interface/http/types'
@@ -220,6 +222,18 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   const mediaRoot = resolve(config.storage.mediaRoot)
   await mkdir(mediaRoot, { recursive: true })
+
+  /**
+   * The free-disk-space guard's two paths (G3-06 / P4-10). `openDatabase` below
+   * creates the first with `mkdirSync`, same as `mediaRoot` just above — both exist by
+   * the time a request can reach either guard.
+   *
+   * **G3-06's delta from P4-10**: without a separate `SCRATCH_ROOT` (P4-04),
+   * `mediaRoot` is also where a clip stages while it uploads (`clipUploadTempDir`,
+   * `.scratch` above), so checking it already covers that scratch directory too —
+   * there is no third path to add once P4-04 lands.
+   */
+  const diskSpacePaths = [dirname(resolve(config.storage.databasePath)), mediaRoot]
   // multer writes a clip here before it is staged, and the encoder writes its scratch
   // files beside it. Both are under MEDIA_ROOT rather than os.tmpdir(), because the
   // container runs read-only with a tmpfs charged to the same memory cgroup.
@@ -535,7 +549,12 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       pretty: !config.isProduction,
       ...instanceBindings,
     },
-    uploads: { maxBytes: config.uploads.maxBytes, maxFiles: config.uploads.maxFiles },
+    storage: { minFreeDiskBytes: config.storage.minFreeDiskBytes, diskSpacePaths },
+    uploads: {
+      maxBytes: config.uploads.maxBytes,
+      maxFiles: config.uploads.maxFiles,
+      maxConcurrentRequests: config.uploads.maxConcurrentRequests,
+    },
     clips: {
       maxBytes: config.clips.maxBytes,
       maxSeconds: Math.floor(config.clips.maxDurationMs / 1000),
@@ -558,6 +577,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // rename or a delete.
     users: adapters.users,
     guestTokens: adapters.guestTokens,
+    diskSpaceChecker: statfsDiskSpaceChecker,
     config: httpConfig,
   }
 
@@ -604,6 +624,18 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       // box down.
       videoTranscoding: () => (ffmpeg === null ? 'unavailable' : 'ok'),
       isShuttingDown: () => shutdownState.shuttingDown,
+      // **Reported, never acted on** (G3-06 / P4-10) — the same posture as
+      // `videoTranscoding` just above, and for the matching reason: an upload refused
+      // for lack of disk space is a refusal of that request, not a state of the
+      // service, so a tight margin must never flip `/api/ready` to 503 and take a whole
+      // venue's wall out of service over headroom one guest's upload already answers
+      // for on its own.
+      diskSpace: async () => {
+        const freeBytesByPath = await Promise.all(
+          diskSpacePaths.map((path) => statfsDiskSpaceChecker.freeBytes(path)),
+        )
+        return evaluateDiskSpace(freeBytesByPath, config.storage.minFreeDiskBytes)
+      },
     },
     ...(hasClient ? { clientDir } : {}),
   })

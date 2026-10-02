@@ -6,7 +6,11 @@ import { accessLog } from './middleware/accessLog'
 import { errorHandler, requestContext } from './middleware/errorHandler'
 import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
 import { attachUser, enforceSessionAge, requirePasswordCurrent } from './middleware/authz'
-import { eventCreationLimiter, uploadLimiter } from './middleware/rateLimit'
+import {
+  eventCreationLimiter,
+  uploadConcurrencyLimiter,
+  uploadLimiter,
+} from './middleware/rateLimit'
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
 import { authRoutes } from './routes/authRoutes'
 import { clipRoutes } from './routes/clipRoutes'
@@ -195,7 +199,26 @@ export const buildServer = ({
    */
   const uploadRateLimiter = uploadLimiter(config.rateLimits.uploadPerMinute)
 
-  app.use('/api', guestRoutes({ ...routeDeps, uploadRateLimiter }))
+  /**
+   * **The upload concurrency semaphore (G3-06 / P4-10), same reason, same arrangement.**
+   *
+   * A counter closed over by the middleware function itself, so calling
+   * `uploadConcurrencyLimiter(...)` inside each router would have been two independent
+   * counters under one configuration name — exactly the defect `uploadRateLimiter`
+   * above already exists to avoid, for the same two routes.
+   */
+  const sharedUploadConcurrencyLimiter = uploadConcurrencyLimiter(
+    config.uploads.maxConcurrentRequests,
+  )
+
+  app.use(
+    '/api',
+    guestRoutes({
+      ...routeDeps,
+      uploadRateLimiter,
+      uploadConcurrencyLimiter: sharedUploadConcurrencyLimiter,
+    }),
+  )
   // Its own router, its own multer, its own byte limit — see `clipRoutes.ts`. Mounted
   // beside the guest routes rather than inside them so that neither upload path can
   // inherit the other's parser by accident.
@@ -207,6 +230,7 @@ export const buildServer = ({
       uploadTempDir: config.clips.uploadTempDir,
       maxClipBytes: config.clips.maxBytes,
       uploadRateLimiter,
+      uploadConcurrencyLimiter: sharedUploadConcurrencyLimiter,
     }),
   )
   // The privacy notice a guest reads before their first upload (roadmap §5.1). Its own

@@ -353,6 +353,22 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        */
       BACKUP_DIR: z.string().min(1).default('./backups'),
 
+      /**
+       * The floor `statfs` must find on the directory holding `DATABASE_PATH` and on
+       * `MEDIA_ROOT` before another upload is admitted (G3-06 / P4-10). Below it:
+       * **413** `storage.boxFull`.
+       *
+       * **Without a separate `SCRATCH_ROOT` (P4-04)**, `MEDIA_ROOT` is where a clip
+       * also stages while it uploads, so checking it already covers that scratch
+       * directory too — there is no third path to add once P4-04 lands, only a
+       * narrower reason the second one matters.
+       *
+       * The default is a floor for a single small box, not a sizing recommendation —
+       * an operator with real traffic sets this from a load test, the way
+       * `docs/capacity.md` is meant to.
+       */
+      MIN_FREE_DISK_BYTES: positiveInt(1_000_000_000),
+
       MAX_UPLOAD_BYTES: positiveInt(25_000_000),
       MAX_FILES_PER_UPLOAD: positiveInt(20, 100),
       /** Checked against the header before decoding — the decompression-bomb control. */
@@ -411,6 +427,17 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * (7680x4320, 33 MP) and refuses the 16000x16000 container that is 380 MB a frame.
        */
       MAX_CLIP_PIXELS: positiveInt(33_177_600),
+
+      /**
+       * How many upload requests — photos and clips together — may be in flight at
+       * once, process-wide (G3-06 / P4-10). Past it: `429 upload.busy` with
+       * `Retry-After`. A slot is held from admission to response, which spans both the
+       * buffering (`guestRoutes.ts`'s 150 MB per-request ceiling) and the `sharp` decode
+       * after it (~200 MB) — so four in flight at the default is ~1.4 GB, not 600 MB of
+       * buffers alone, and that full figure is what an operator's memory limit actually
+       * has to cover. See `compose.yaml`'s own budget comment for the rest of it.
+       */
+      MAX_CONCURRENT_UPLOAD_REQUESTS: positiveInt(4, 1_000),
 
       /**
        * Where the encoder is, when it is not simply on `PATH`.
@@ -645,6 +672,8 @@ export interface AppConfig {
     readonly mediaRoot: string
     /** The default parent of a backup archive. Read by the backup command only. */
     readonly backupDir: string
+    /** See {@link RawConfig} field `MIN_FREE_DISK_BYTES`. */
+    readonly minFreeDiskBytes: number
   }
 
   readonly uploads: {
@@ -657,6 +686,8 @@ export interface AppConfig {
      * what every self-hosted box that never set the variable gets — see the schema.
      */
     readonly maxEventQuotaBytes: number | null
+    /** See {@link RawConfig} field `MAX_CONCURRENT_UPLOAD_REQUESTS`. */
+    readonly maxConcurrentRequests: number
   }
 
   readonly clips: {
@@ -843,6 +874,7 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       databasePath: raw.DATABASE_PATH,
       mediaRoot: raw.MEDIA_ROOT,
       backupDir: raw.BACKUP_DIR,
+      minFreeDiskBytes: raw.MIN_FREE_DISK_BYTES,
     },
 
     uploads: {
@@ -851,6 +883,7 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       maxPixels: raw.MAX_IMAGE_PIXELS,
       defaultEventQuotaBytes: raw.DEFAULT_EVENT_QUOTA_BYTES,
       maxEventQuotaBytes: raw.MAX_EVENT_QUOTA_BYTES ?? null,
+      maxConcurrentRequests: raw.MAX_CONCURRENT_UPLOAD_REQUESTS,
     },
 
     clips: {

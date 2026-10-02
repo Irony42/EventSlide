@@ -1,8 +1,15 @@
+import { EventEmitter } from 'node:events'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import express, { type Express, type RequestHandler, type Response } from 'express'
+import express, {
+  type Express,
+  type NextFunction,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from 'express'
 import request from 'supertest'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { Logger } from '../../../application/ports/logger'
 import type { UserId } from '../../../domain/shared/ids'
 import { asUserId } from '../../../domain/shared/ids'
@@ -11,6 +18,7 @@ import {
   eventCreationLimiter,
   reactionLimiter,
   streamConnectionLimiter,
+  uploadConcurrencyLimiter,
   uploadLimiter,
 } from './rateLimit'
 
@@ -410,5 +418,182 @@ describe('the stream connection limiter', () => {
     expect(refused.status).toBe(503)
     expect(refused.body).toContain('service.notReady')
     expect(refused.headers['retry-after']).toBe('30')
+  })
+})
+
+/**
+ * Concurrency, exactly the reason `streamConnectionLimiter` above gets its own real
+ * listener rather than supertest: a request held aside while the test polls for
+ * something else never actually reaches the server unless something has already called
+ * `.end()` on it, which bare `request(app).get(...)` does not do on its own. Real
+ * sockets against a real listener sidestep that entirely.
+ */
+describe('uploadConcurrencyLimiter', () => {
+  // One real listener for the whole block, each test mounting its own route at a path
+  // nobody else uses — rebinding a fresh ephemeral port per test, on this machine,
+  // raced a slow-to-release previous one closing (`EADDRINUSE` on a `connect`, of all
+  // things) often enough to make the suite flaky. A single long-lived server sidesteps
+  // the rebind entirely; what is under test is the counter in the middleware's own
+  // closure, which a fresh `uploadConcurrencyLimiter(max)` per route already isolates
+  // per test.
+  let server: http.Server
+  let app: Express
+  let port: number
+  let routeCount = 0
+
+  beforeAll(async () => {
+    app = express()
+    server = http.createServer(app)
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    port = (server.address() as AddressInfo).port
+  })
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  })
+
+  interface HeldRoute {
+    readonly path: string
+    pending(): number
+    releaseOne(): void
+  }
+
+  /** A route that waits for the test to let it finish, so several requests can be held "buffering" at once. */
+  const heldRoute = (max: number): HeldRoute => {
+    routeCount += 1
+    const path = `/upload-${routeCount}`
+    const held: Array<() => void> = []
+    app.get(path, uploadConcurrencyLimiter(max), (_req, res) => {
+      new Promise<void>((resolve) => held.push(resolve)).then(() => res.status(204).end())
+    })
+    return { path, pending: () => held.length, releaseOne: () => held.shift()?.() }
+  }
+
+  /**
+   * One request against the shared listener, resolved once the whole response has
+   * arrived. `host` is explicit — the default `'localhost'` resolves to both `::1` and
+   * `127.0.0.1`, and Node's Happy-Eyeballs race between them produced a spurious
+   * `EADDRINUSE` on this machine, which a fixed destination address sidesteps entirely.
+   */
+  const fetch = (
+    path: string,
+  ): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> =>
+    new Promise((resolve, reject) => {
+      http
+        .get({ host: '127.0.0.1', port, path }, (incoming) => {
+          incoming.setEncoding('utf8')
+          let body = ''
+          incoming.on('data', (chunk: string) => {
+            body += chunk
+          })
+          incoming.on('end', () => {
+            resolve({ status: incoming.statusCode ?? 0, headers: incoming.headers, body })
+          })
+        })
+        .on('error', reject)
+    })
+
+  it('admits requests up to the limit and refuses the next with 429 upload.busy', async () => {
+    const route = heldRoute(2)
+
+    const first = fetch(route.path)
+    const second = fetch(route.path)
+    await expect.poll(() => route.pending()).toBe(2)
+
+    const third = await fetch(route.path)
+    expect(third.status).toBe(429)
+    expect(JSON.parse(third.body).error.code).toBe('upload.busy')
+    // Short on purpose: a slot frees as soon as a request already buffering finishes,
+    // seconds away, never the clip queue's "about a minute".
+    expect(third.headers['retry-after']).toBe('2')
+
+    route.releaseOne()
+    route.releaseOne()
+    expect((await first).status).toBe(204)
+    expect((await second).status).toBe(204)
+  })
+
+  it('frees a slot as soon as one held request finishes, admitting the next', async () => {
+    // What is counted is what is held, not what has ever arrived — the same property
+    // streamConnectionLimiter's own "gives the slot back" test pins.
+    const route = heldRoute(1)
+
+    const first = fetch(route.path)
+    await expect.poll(() => route.pending()).toBe(1)
+
+    const refused = await fetch(route.path)
+    expect(refused.status).toBe(429)
+
+    route.releaseOne()
+    expect((await first).status).toBe(204)
+
+    // Admitted, not refused — proven by reaching the handler and being held there, not
+    // by letting it complete; nothing but this test's own `releaseOne` ever finishes it.
+    const afterward = fetch(route.path)
+    await expect.poll(() => route.pending()).toBe(1)
+
+    route.releaseOne()
+    expect((await afterward).status).toBe(204)
+  })
+
+  /**
+   * A fake response good enough to drive `uploadConcurrencyLimiter` directly: it is an
+   * `EventEmitter` (so `res.on('close', …)` and a manual `emit('close')` work) and
+   * records the status/body a refusal would set, without a real socket.
+   *
+   * Real HTTP cannot be made to fire `close` twice for one response on demand — in
+   * today's Node that event fires exactly once per response — so this is the only way
+   * to exercise the hazard the guard names: `close` firing again regardless.
+   */
+  class FakeUploadResponse extends EventEmitter {
+    statusCode = 200
+    body: unknown
+
+    setHeader(): this {
+      return this
+    }
+
+    status(code: number): this {
+      this.statusCode = code
+      return this
+    }
+
+    json(payload: unknown): this {
+      this.body = payload
+      return this
+    }
+  }
+
+  const callLimiter = (limiter: RequestHandler, res: FakeUploadResponse): { admitted: boolean } => {
+    const result = { admitted: false }
+    const next: NextFunction = () => {
+      result.admitted = true
+    }
+    limiter({} as unknown as Request, res as unknown as Response, next)
+    return result
+  }
+
+  it('never double-releases a slot when the same response fires close twice', () => {
+    // One instance, one slot: everything below shares it, the same way one middleware
+    // instance is shared by every request to a mounted route.
+    const limiter = uploadConcurrencyLimiter(1)
+
+    const held = new FakeUploadResponse()
+    expect(callLimiter(limiter, held).admitted).toBe(true)
+
+    // The hazard itself: the same response's `close` firing a second time. If `release`
+    // were not idempotent, this would free the slot twice.
+    held.emit('close')
+    held.emit('close')
+
+    // One slot was freed, not two: the next request is admitted and takes it...
+    const first = new FakeUploadResponse()
+    expect(callLimiter(limiter, first).admitted).toBe(true)
+
+    // ...and a second, concurrent one is refused — exactly `max` in flight, not `max`
+    // plus whatever the double release handed out for free.
+    const second = new FakeUploadResponse()
+    expect(callLimiter(limiter, second).admitted).toBe(false)
+    expect(second.statusCode).toBe(429)
   })
 })

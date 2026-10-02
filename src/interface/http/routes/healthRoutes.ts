@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import type { DiskSpaceStatus } from '../../../domain/shared/diskSpaceGuard'
 import { asyncHandler } from '../middleware/asyncHandler'
 
 /**
@@ -43,6 +44,15 @@ export interface HealthChecks {
    * true.
    */
   readonly isShuttingDown: () => boolean
+  /**
+   * The free-disk-space guard's own margin (G3-06 / P4-10).
+   *
+   * **Reported, never acted on** — the same posture as {@link videoTranscoding} and for
+   * the matching reason: the guard already refuses the one request that would have
+   * minded, so a tight margin must never flip this route's status and take a whole
+   * venue's wall out of service over headroom no request currently needs.
+   */
+  readonly diskSpace: () => Promise<DiskSpaceStatus>
 }
 
 export const healthRoutes = (checks: HealthChecks): Router => {
@@ -82,11 +92,15 @@ export const healthRoutes = (checks: HealthChecks): Router => {
         checks.mediaWritable().catch(() => false),
       ])
 
-      // Not in the conjunction below, on purpose: see `videoTranscoding`.
+      // Neither is in the conjunction below, on purpose: see `videoTranscoding` and
+      // `diskSpace`.
       const video = checks.videoTranscoding()
+      const disk = await checks
+        .diskSpace()
+        .catch((): DiskSpaceStatus => ({ sufficient: false, freeBytes: null }))
 
       if (database && media) {
-        res.json({ status: 'ready', checks: { database: 'ok', media: 'ok', video } })
+        res.json({ status: 'ready', checks: { database: 'ok', media: 'ok', video, disk } })
         return
       }
 
@@ -100,6 +114,7 @@ export const healthRoutes = (checks: HealthChecks): Router => {
             database: database ? 'ok' : 'unavailable',
             media: media ? 'ok' : 'unavailable',
             video,
+            disk,
           },
         },
       })
