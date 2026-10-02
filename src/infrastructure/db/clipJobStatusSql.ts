@@ -87,10 +87,7 @@ export const eventHoldingBytesSum = (eventIdExpr: string, creditedClipJobExpr?: 
  *
  * Returns a parenthesised expression, not a statement: it goes inside a `SELECT` list.
  */
-export const clientHoldingBytesSum = (
-  clientIdExpr: string,
-  creditedClipJobExpr?: string,
-): string =>
+export const clientHoldingBytesSum = (clientIdExpr: string, creditedClipJobExpr?: string): string =>
   `(SELECT COALESCE(SUM(${eventHoldingBytesSum('ce.id', creditedClipJobExpr)}), 0)
       FROM events ce
      WHERE ce.client_id = ${clientIdExpr})`

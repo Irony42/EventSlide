@@ -53,15 +53,18 @@ const OTHER_CLIENT = asClientId('client-2')
  */
 const JOIN_CODES = ['AAAAAA', 'BBBBBB', 'CCCCCC', 'DDDDDD'] as const
 
+/** What {@link nthEvent} is built from, for a test that wants to say one more thing. */
+const nthEventInput = (n: number, clientId: string | null = null) => ({
+  id: `evt-${n}`,
+  slug: `evt-${n}`,
+  joinCode: JOIN_CODES[n - 1] ?? 'ZZZZZZ',
+  ownerId: HOST,
+  clientId,
+})
+
 /** The nth event of a test, optionally attached to a client. */
 const nthEvent = (n: number, clientId: string | null = null): Event =>
-  anEvent({
-    id: `evt-${n}`,
-    slug: `evt-${n}`,
-    joinCode: JOIN_CODES[n - 1] ?? 'ZZZZZZ',
-    ownerId: HOST,
-    clientId,
-  })
+  anEvent(nthEventInput(n, clientId))
 
 /**
  * What a subject is built from: the repository under test, plus the two neighbours its
@@ -1186,6 +1189,60 @@ export const eventRepositoryContract = (
       await repo.save(anEvent({ id: 'evt-1', status: 'draft' }))
 
       expect(await repo.listDueForSchedule(atPlus(DAY * 3_650))).toEqual([])
+    })
+
+    // ------------------------------------------- live events of clients (the sweep) --
+
+    /**
+     * The candidates of the live-window sweep (roadmap §10.5 / G2-05): events that are live
+     * **and** belong to a client. A narrowing, not the decision — the rule is
+     * `ClientCeilings.liveWindowOver`, applied by the use case — so this asserts nothing
+     * about any deadline, only which rows are worth looking at.
+     */
+    describe('listLiveOfClients', () => {
+      beforeEach(async () => {
+        await clients.save(aClient({ id: CLIENT }))
+        await clients.save(aClient({ id: OTHER_CLIENT, name: 'Un autre client' }))
+      })
+
+      const ids = async (): Promise<readonly string[]> =>
+        (await repo.listLiveOfClients()).map((event) => event.id)
+
+      it('lists a live event of a client', async () => {
+        await repo.save(nthEvent(1, CLIENT))
+
+        expect(await ids()).toEqual(['evt-1'])
+      })
+
+      it('lists live events of every client, newest first', async () => {
+        await repo.save(anEvent({ ...nthEventInput(1, CLIENT), createdAt: atPlus(1_000) }))
+        await repo.save(anEvent({ ...nthEventInput(2, OTHER_CLIENT), createdAt: atPlus(2_000) }))
+
+        expect(await ids()).toEqual(['evt-2', 'evt-1'])
+      })
+
+      it('never lists a live event with no client, which has no window to run out', async () => {
+        await repo.save(nthEvent(1))
+
+        expect(await ids()).toEqual([])
+      })
+
+      it.each(['draft', 'closed', 'archived'] as const)(
+        'never lists a %s event of a client, because only a live one has a wall to take down',
+        async (status) => {
+          await repo.save(anEvent({ ...nthEventInput(1, CLIENT), status }))
+
+          expect(await ids()).toEqual([])
+        },
+      )
+
+      it('hands back the opening instant, which is what the window is counted from', async () => {
+        await repo.save(anEvent({ ...nthEventInput(1, CLIENT), openedAt: atPlus(3_000) }))
+
+        const [event] = await repo.listLiveOfClients()
+
+        expect(event?.openedAt?.toISOString()).toBe(atPlus(3_000).toISOString())
+      })
     })
   })
 }

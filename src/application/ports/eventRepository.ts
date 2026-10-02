@@ -145,6 +145,19 @@ export interface EventRepository {
   listDueForPurge(now: Date, policy: PurgePolicy): Promise<readonly Event[]>
 
   /**
+   * Live events that belong to a client: the candidates for closing an event whose client's
+   * live window has run out (`max_live_days`, roadmap §10.5 / G2-05).
+   *
+   * A **narrowing**, in the way {@link EventRepository.listDueForSchedule} is: which rows are
+   * worth looking at, not whether any of them is due. The deadline is
+   * `ClientCeilings.liveWindowOver`, applied by the caller, so it has one spelling; the cost
+   * is reading every live event of a client each sweep, which is the events a box is serving
+   * right now and not an archive. An event with no client has no window and is never listed.
+   * Newest first, like every listing here.
+   */
+  listLiveOfClients(): Promise<readonly Event[]>
+
+  /**
    * Events carrying a scheduled opening or closing whose instant has passed.
    *
    * `<=`, never `=`: the sweep that should have run at 18:00 may not have run at all,

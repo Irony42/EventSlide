@@ -239,6 +239,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   resolveJoinCode: makeResolveJoinCode({ events: adapters.events }),
   updateEventSettings: makeUpdateEventSettings({
     events: adapters.events,
+    clients: adapters.clients,
     memberships: adapters.memberships,
     bus: adapters.bus,
   }),
@@ -251,6 +252,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   }),
   changeEventStatus: makeChangeEventStatus({
     events: adapters.events,
+    clients: adapters.clients,
     memberships: adapters.memberships,
     bus: adapters.bus,
     clock: adapters.clock,
@@ -291,6 +293,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   /** The sweep behind the two scheduled instants. No actor: `src/main` drives it. */
   applyEventSchedules: makeApplyEventSchedules({
     events: adapters.events,
+    clients: adapters.clients,
     bus: adapters.bus,
     clock: adapters.clock,
   }),

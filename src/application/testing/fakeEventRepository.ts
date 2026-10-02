@@ -298,6 +298,13 @@ export class FakeEventRepository implements EventRepository {
     return due.sort(newestFirst)
   }
 
+  /** Live, and with a client: the adapter's `WHERE status = 'live' AND client_id IS NOT NULL`. */
+  async listLiveOfClients(): Promise<readonly Event[]> {
+    return [...this.rows.values()]
+      .filter((event) => event.status === 'live' && event.clientId !== null)
+      .sort(newestFirst)
+  }
+
   /**
    * Unlike `listDueForPurge`, this one *is* expressible as a SQL predicate — the two
    * instants are their own columns — so the adapter narrows in the database and this

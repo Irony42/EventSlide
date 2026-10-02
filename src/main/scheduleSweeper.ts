@@ -98,6 +98,16 @@ export const createScheduleSweeper = ({
           durationMs,
         })
       }
+      if (report.autoClosed.length > 0) {
+        // Info, and with the ids, for the same reason as above and a different cause: the
+        // wall went dark because a client's live window ran out, not because a host asked.
+        // The audit entry and the e-mail to the host (roadmap §10.8) hang off this list.
+        logger.info('schedule sweep closed events whose client live window ran out', {
+          autoClosed: report.autoClosed.length,
+          autoClosedIds: report.autoClosed.join(' '),
+          durationMs,
+        })
+      }
       if (report.refused.length > 0) {
         // A warning rather than an error: the lifecycle did its job — an archived event
         // did not reopen — but a host configured something that will now never happen,
@@ -118,6 +128,7 @@ export const createScheduleSweeper = ({
       if (
         report.opened.length === 0 &&
         report.closed.length === 0 &&
+        report.autoClosed.length === 0 &&
         report.refused.length === 0 &&
         report.failed.length === 0
       ) {

@@ -24,7 +24,13 @@ const AT = new Date('2026-06-20T17:55:00.000Z')
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
 
-const nothingDue: ApplyEventSchedulesReport = { opened: [], closed: [], refused: [], failed: [] }
+const nothingDue: ApplyEventSchedulesReport = {
+  opened: [],
+  closed: [],
+  refused: [],
+  failed: [],
+  autoClosed: [],
+}
 
 interface LoggedLine {
   readonly level: 'debug' | 'info' | 'warn' | 'error'
@@ -233,7 +239,11 @@ describe('createScheduleSweeper', () => {
   describe('the report reaches the operator', () => {
     it('logs what it opened and closed, which is why the wall changed', async () => {
       const { sweeper, lines } = build({
-        apply: async () => ({ opened: [WEDDING], closed: [GALA], refused: [], failed: [] }),
+        apply: async () => ({
+          ...nothingDue,
+          opened: [WEDDING],
+          closed: [GALA],
+        }),
       })
 
       await sweeper.runOnce()
@@ -245,9 +255,35 @@ describe('createScheduleSweeper', () => {
       })
     })
 
+    it('logs the events a client’s live window closed, which is why a wall went dark with no host asking', async () => {
+      const { sweeper, lines } = build({
+        apply: async () => ({ ...nothingDue, autoClosed: [WEDDING, GALA] }),
+      })
+
+      await sweeper.runOnce()
+
+      expect(at(lines, 'info')[0]?.message).toBe(
+        'schedule sweep closed events whose client live window ran out',
+      )
+      expect(at(lines, 'info')[0]?.context).toMatchObject({
+        autoClosed: 2,
+        autoClosedIds: 'evt-wedding evt-gala',
+      })
+    })
+
+    it('does not log "found nothing due" for a sweep that only auto-closed events', async () => {
+      const { sweeper, lines } = build({
+        apply: async () => ({ ...nothingDue, autoClosed: [WEDDING] }),
+      })
+
+      await sweeper.runOnce()
+
+      expect(at(lines, 'debug')).toEqual([])
+    })
+
     it('warns about a transition the lifecycle refused, the only record it existed', async () => {
       const { sweeper, lines } = build({
-        apply: async () => ({ opened: [], closed: [], refused: [WEDDING], failed: [] }),
+        apply: async () => ({ ...nothingDue, refused: [WEDDING] }),
       })
 
       await sweeper.runOnce()
@@ -259,7 +295,7 @@ describe('createScheduleSweeper', () => {
 
     it('logs an unwritable event at error level: a promised opening did not happen', async () => {
       const { sweeper, lines } = build({
-        apply: async () => ({ opened: [], closed: [], refused: [], failed: [WEDDING] }),
+        apply: async () => ({ ...nothingDue, failed: [WEDDING] }),
       })
 
       await sweeper.runOnce()

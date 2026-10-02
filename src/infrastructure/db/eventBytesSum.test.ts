@@ -310,7 +310,9 @@ describe('the event byte sum', () => {
 
     it('is the sum of what each of the client’s events reports for itself, as the dashboard shows it', async () => {
       const dashboard = await events.listForUser(HOST)
-      const perEvent = [WEDDING, GALA].map((id) => dashboard.find((row) => row.id === id)?.usedBytes)
+      const perEvent = [WEDDING, GALA].map(
+        (id) => dashboard.find((row) => row.id === id)?.usedBytes,
+      )
 
       expect(perEvent).toEqual([WEDDING_USED, GALA_USED])
       expect(await photos.clientTotalBytes(ATELIER)).toBe(WEDDING_USED + GALA_USED)
@@ -356,9 +358,9 @@ describe('the event byte sum', () => {
         },
       )
 
-      expect(verdict?.refusal?.reason === 'clientStorageFull' && QUOTA - verdict.refusal.remaining).toBe(
-        WEDDING_USED + GALA_USED - CLIP_BYTES.running,
-      )
+      expect(
+        verdict?.refusal?.reason === 'clientStorageFull' && QUOTA - verdict.refusal.remaining,
+      ).toBe(WEDDING_USED + GALA_USED - CLIP_BYTES.running)
     })
   })
 })

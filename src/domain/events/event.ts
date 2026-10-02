@@ -362,6 +362,27 @@ export class Event {
     return this.props.closedAt
   }
 
+  /**
+   * The event after the sweep took it down because its client's live window ran out, or
+   * `null` when the window has not run out (or the event has no window to run out).
+   *
+   * Closed, not archived: the album stays readable and the host keeps the export, and the
+   * retention clock starts here exactly as it does for any other closing. It goes straight to
+   * the `closed` state instead of through {@link Event.transitionTo} because the only way to
+   * get past {@link Event.isLiveWindowOver} is to be live, and `live → closed` is a row of
+   * the lifecycle table that no ceiling can refuse — taking a wall down is what every
+   * ceiling wants.
+   *
+   * `closedAt` is `now`, the moment the sweep acted, not the deadline: the box may have been
+   * down, and the retention clock starts when the event actually stopped. The latest purge
+   * date does not move with it — `purgeDeadline` counts the live-window bound from
+   * `openedAt`, which this leaves alone.
+   */
+  expireLiveWindow(now: Date, ceilings: ClientCeilings | null): Event | null {
+    if (!this.isLiveWindowOver(now, ceilings)) return null
+    return this.with({ status: 'closed', closedAt: this.closedAtAfter('closed', now) })
+  }
+
   // ------------------------------------------------------------------- schedule --
 
   /**

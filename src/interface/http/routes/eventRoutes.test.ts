@@ -252,7 +252,12 @@ const buildWorld = ({
         getEventBySlug: makeGetEventBySlug({ events }),
         listEventsForHost: makeListEventsForHost({ events }),
         resolveJoinCode: absent('resolveJoinCode'),
-        updateEventSettings: makeUpdateEventSettings({ events, memberships, bus: deps.bus }),
+        updateEventSettings: makeUpdateEventSettings({
+          events,
+          clients,
+          memberships,
+          bus: deps.bus,
+        }),
         rotateJoinCode: makeRotateJoinCode({
           events,
           memberships,
@@ -262,6 +267,7 @@ const buildWorld = ({
         }),
         changeEventStatus: makeChangeEventStatus({
           events,
+          clients,
           memberships,
           bus: deps.bus,
           clock: deps.clock,

@@ -712,7 +712,10 @@ export class SqlitePhotoRepository implements PhotoRepository {
 
           // The client's ceiling after the event's own: an event is refused by whichever it
           // reaches first, and the event's is the one a host can act on.
-          if (clientBytes !== null && !fitsInQuota(clientBytes.maxBytes, clientUsedBytes, photo.byteSize)) {
+          if (
+            clientBytes !== null &&
+            !fitsInQuota(clientBytes.maxBytes, clientUsedBytes, photo.byteSize)
+          ) {
             verdicts.push({
               photoId: photo.id,
               refusal: {

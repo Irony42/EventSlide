@@ -1036,6 +1036,51 @@ describe('Event live window', () => {
     )
   })
 
+  describe('expireLiveWindow', () => {
+    const live = (): Event =>
+      anEvent({ status: 'live', openedAt: OPENED_AT, closedAt: null, clientId: CLIENT })
+
+    it('closes a live event at exactly opened_at + max_live_days, stamping closedAt with the moment it acted', () => {
+      const closed = live().expireLiveWindow(DEADLINE, MAX_THREE_DAYS)
+
+      expect(closed?.status).toBe('closed')
+      expect(closed?.closedAt).toBe(DEADLINE)
+    })
+
+    it('closes it late as well, and starts the retention clock at the moment it acted, not at the deadline', () => {
+      const closed = live().expireLiveWindow(A_MONTH_ON, MAX_THREE_DAYS)
+
+      expect(closed?.closedAt).toBe(A_MONTH_ON)
+    })
+
+    it('does nothing one millisecond before the deadline', () => {
+      expect(live().expireLiveWindow(JUST_BEFORE_DEADLINE, MAX_THREE_DAYS)).toBeNull()
+    })
+
+    it('does nothing for an event with no client or a client with no max_live_days', () => {
+      expect(live().expireLiveWindow(A_MONTH_ON, null)).toBeNull()
+      expect(live().expireLiveWindow(A_MONTH_ON, ClientCeilings.unlimited())).toBeNull()
+    })
+
+    it('does nothing for an event that is not live', () => {
+      const closed = anEvent({ status: 'closed', openedAt: OPENED_AT, closedAt: ENDED_AT })
+
+      expect(closed.expireLiveWindow(A_MONTH_ON, MAX_THREE_DAYS)).toBeNull()
+    })
+
+    it('leaves opened_at alone, so the latest purge date does not move', () => {
+      expect(live().expireLiveWindow(A_MONTH_ON, MAX_THREE_DAYS)?.openedAt).toBe(OPENED_AT)
+    })
+
+    it('leaves the original untouched', () => {
+      const original = live()
+
+      original.expireLiveWindow(DEADLINE, MAX_THREE_DAYS)
+
+      expect(original.status).toBe('live')
+    })
+  })
+
   describe('a scheduled opening', () => {
     const QUARANTINED = unwrap(ClientCeilings.create({ liveAllowed: false }))
 

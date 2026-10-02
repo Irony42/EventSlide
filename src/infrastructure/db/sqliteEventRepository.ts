@@ -474,6 +474,7 @@ export class SqliteEventRepository implements EventRepository {
   private readonly selectSummaries: Database.Statement<[string, string], SummaryRow>
   private readonly selectDueForPurge: Database.Statement<PurgeParams, EventRow>
   private readonly selectDueForSchedule: Database.Statement<[string, string], EventRow>
+  private readonly selectLiveOfClients: Database.Statement<[], EventRow>
   private readonly selectSlug: Database.Statement<[string], PresenceRow>
   private readonly selectJoinCode: Database.Statement<[string], PresenceRow>
   private readonly insertEvent: Database.Statement<EventParams>
@@ -550,6 +551,16 @@ export class SqliteEventRepository implements EventRepository {
          FROM events
         WHERE (scheduled_open_at  IS NOT NULL AND scheduled_open_at  <= ?)
            OR (scheduled_close_at IS NOT NULL AND scheduled_close_at <= ?)
+        ORDER BY created_at DESC, id`,
+    )
+
+    // The live-window sweep's candidates: live, and with a client. Narrowing only — the
+    // deadline is `ClientCeilings.liveWindowOver`, applied by the use case, so it is spelled
+    // once. `idx_events_client` serves the `client_id IS NOT NULL` half.
+    this.selectLiveOfClients = db.prepare<[], EventRow>(
+      `SELECT ${EVENT_COLUMNS}
+         FROM events
+        WHERE status = 'live' AND client_id IS NOT NULL
         ORDER BY created_at DESC, id`,
     )
 
@@ -728,6 +739,10 @@ export class SqliteEventRepository implements EventRepository {
     return this.selectDueForPurge
       .all({ now: toIsoText(now), noticeDays: policy.capNoticeDays, never: NEVER })
       .map(toEvent)
+  }
+
+  async listLiveOfClients(): Promise<readonly Event[]> {
+    return this.selectLiveOfClients.all().map(toEvent)
   }
 
   async listDueForSchedule(now: Date): Promise<readonly Event[]> {
