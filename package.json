@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "description": "Self-hosted live photo wall for events. Guests upload from their phone with no account, a host moderates, approved photos appear on the projector in real time.",
-  "license": "GPL-3.0",
+  "license": "AGPL-3.0-only",
   "author": "Irony42",
   "repository": {
     "type": "git",

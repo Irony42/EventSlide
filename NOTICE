@@ -1,0 +1,19 @@
+EventSlide
+Copyright (C) 2023-2026 Pierre Tijou
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, version 3 of the License only (AGPL-3.0-only). See the
+LICENSE file for the full text, unmodified from the Free Software Foundation.
+
+EventSlide also relies on third-party components that stay under their own
+licences. Notably:
+
+  - sharp (Apache-2.0), for image processing. It loads libvips as shipped in
+    the @img/sharp-libvips-* packages (LGPL-3.0-or-later).
+  - ffmpeg (GPL; Debian's build enables libx264), for short video clips. It is
+    installed with apt in the runtime stage of the Dockerfile and run as a
+    separate process, never linked into EventSlide.
+
+This list is not exhaustive: every other dependency is declared in
+package-lock.json together with its own licence.

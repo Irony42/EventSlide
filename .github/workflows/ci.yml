@@ -337,3 +337,87 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  licenseHistory:
+    # The relicence guard. `.github/gpl-boundary` holds the SHA of the last commit
+    # published under GPL-3.0, and every commit after it on the first-parent chain must
+    # carry the canonical AGPL-3.0-only LICENSE.
+    #
+    # It reads the boundary from that committed file and deliberately not from a
+    # `gpl-final` tag: the maintainer pushes that tag himself, later, and a job that
+    # needed it could not run until then.
+    #
+    # It is not a required check; whether to make it one is the maintainer's call.
+    name: License history (AGPL boundary)
+    runs-on: ubuntu-latest
+    steps:
+      # Left on actions/checkout's default ref on purpose. On a pull_request that is the
+      # merge commit, whose first-parent chain is exactly what main will look like once
+      # the pull request lands. A pull request's own commits sit on the second parent
+      # there and never appear on main's first-parent chain, so pinning the head instead
+      # would check history main never sees, and would turn every branch cut before the
+      # relicence red — they predate the boundary file — for a state main will never be in.
+      - uses: actions/checkout@v4
+        with:
+          # `git merge-base --is-ancestor` and `git rev-list <boundary>..HEAD` need the
+          # boundary commit, which can be arbitrarily far back. A shallow checkout would
+          # fail with an unknown revision rather than a clean pass or fail.
+          fetch-depth: 0
+
+      - name: Every commit since the GPL boundary carries the AGPL LICENSE
+        run: |
+          boundary_file=.github/gpl-boundary
+          if [ ! -f "$boundary_file" ]; then
+            echo "::error::$boundary_file is missing. It names the last GPL commit, and this job cannot run without it."
+            exit 1
+          fi
+          boundary="$(tr -d '[:space:]' < "$boundary_file")"
+
+          # The git blob SHA-1 of the canonical, unmodified AGPL-3.0 text served by
+          # https://www.gnu.org/licenses/agpl-3.0.txt. scripts/licenseMetadata.test.ts pins
+          # the same value for LICENSE itself and asserts the two copies agree. GitHub's
+          # own licence API serves a variant with one line of the optional appendix
+          # wrapped differently (blob 0ad25db4bd1d86c452db3f9602ccdbe172438f52); it is not
+          # what this repository ships.
+          agpl_blob="be3f7b28e564e7dd05eaf59d64adba1a4065ac0e"
+
+          echo "boundary (last GPL commit): $boundary"
+          echo "expected LICENSE blob (AGPL-3.0-only): $agpl_blob"
+
+          if ! git merge-base --is-ancestor "$boundary" HEAD 2>/dev/null; then
+            echo "::error::$boundary (from $boundary_file) is not an ancestor of HEAD. Either the boundary is wrong, or the checkout is shallow and fetch-depth: 0 did not run."
+            exit 1
+          fi
+
+          # --first-parent on purpose: main merges pull requests with merge commits, and a
+          # branch cut before the relicence is merged later with its own commits still
+          # carrying the old LICENSE. Those sit on a second parent; the merge commit on
+          # main's own line is what the relicence governs. The limit of that choice: a
+          # commit with a GPL LICENSE brought in through a second parent is not seen here,
+          # so keeping the licence out of merged history is a matter of rebasing, not of
+          # this job.
+          commits="$(git rev-list --first-parent "$boundary"..HEAD)"
+
+          if [ -z "$commits" ]; then
+            echo "::error::No commits between the boundary $boundary and HEAD on the first-parent chain, so there is nothing to check. If this is a real branch, the boundary or the checkout ref is wrong."
+            exit 1
+          fi
+
+          failed=0
+          while IFS= read -r sha; do
+            blob="$(git rev-parse --verify -q "$sha:LICENSE" || true)"
+            if [ -z "$blob" ]; then
+              echo "::error::$sha has no LICENSE file at all."
+              failed=1
+            elif [ "$blob" != "$agpl_blob" ]; then
+              echo "::error::$sha carries LICENSE blob $blob, not the AGPL-3.0-only text ($agpl_blob). Either a commit on this chain restored another LICENSE, or main moved past the boundary after it was pinned: those commits really are GPL, and the fix is to set $boundary_file to main's current tip."
+              failed=1
+            fi
+          done <<< "$commits"
+
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+
+          count="$(echo "$commits" | wc -l)"
+          echo "All $count first-parent commit(s) since the boundary carry the AGPL-3.0-only LICENSE."
