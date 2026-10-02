@@ -1,4 +1,4 @@
-import type { IncomingMessage } from 'node:http'
+import { createServer, type IncomingMessage, type Server } from 'node:http'
 import express, { type Express } from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
@@ -373,18 +373,50 @@ const AUTHORIZATION_REFUSALS: ReadonlySet<number> = new Set([401, 403])
  * the whole question here — "was this caller refused for want of a credential" — so the
  * request is abandoned the moment it arrives, which also means no test leaves an SSE
  * socket and a heartbeat interval behind it.
+ *
+ * It reads `req`, which supertest does not publish, straight after `end()`. That holds only
+ * for a request aimed at a server that is **already listening** — see {@link served}.
  */
 const statusFor = (test: request.Test): Promise<number> =>
   new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('the server sent no status line')), 5_000)
     test.end(() => {})
-    const underlying = (test as unknown as { readonly req: NodeJS.EventEmitter }).req
+    const underlying = (test as unknown as { readonly req?: NodeJS.EventEmitter }).req
+    if (underlying === undefined) {
+      clearTimeout(timer)
+      reject(new Error('the request was not dispatched by `end()`: aim it at a listening server'))
+      return
+    }
     underlying.on('response', (incoming: IncomingMessage) => {
       clearTimeout(timer)
       resolve(incoming.statusCode ?? 0)
       test.abort()
     })
   })
+
+/**
+ * Runs `body` against `app` served on a socket this suite opened, and closes it afterwards.
+ *
+ * supertest listens on its own for an app it is handed unstarted, and since 7.3.0 it defers
+ * `end()` until that server is listening, so the underlying request does not exist yet when
+ * `end()` returns and {@link statusFor} has nothing to watch. A server that is already
+ * listening is the caller's own to supertest, and a request aimed at it is dispatched at
+ * once, as it was before 7.3.0. `closeAllConnections` is there for the one request this
+ * suite abandons mid-stream: nothing here may keep the server, or the run, alive.
+ */
+const served = async <T>(app: Express, body: (server: Server) => Promise<T>): Promise<T> => {
+  const server = createServer(app)
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  try {
+    return await body(server)
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+}
 
 /**
  * The mounted route an exemption names, or a loud failure.
@@ -766,9 +798,10 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
         const route = routeNamed(siteAdmin, name)
         const subject = operatorHarness()
         seedClientEvent(subject)
-        const stranger = await anonymousCaller(subject.app)
-
-        const status = await statusFor(send(stranger.agent, route, stranger.csrf))
+        const status = await served(subject.app, async (server) => {
+          const stranger = await anonymousCaller(server)
+          return statusFor(send(stranger.agent, route, stranger.csrf))
+        })
 
         expect(AUTHORIZATION_REFUSALS.has(status)).toBe(false)
       },

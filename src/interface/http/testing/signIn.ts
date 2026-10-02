@@ -1,3 +1,4 @@
+import type { Server } from 'node:http'
 import type { Express } from 'express'
 import request from 'supertest'
 import type { AuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
@@ -53,8 +54,14 @@ export interface Caller {
   readonly csrf: string
 }
 
-/** No session, but holding the CSRF cookie already, so no later response sets a fresh one. */
-export const anonymousCaller = async (app: Express): Promise<Caller> => {
+/**
+ * No session, but holding the CSRF cookie already, so no later response sets a fresh one.
+ *
+ * Takes an already-listening `Server` as well as the app, for a test that must see a request
+ * dispatched the moment `end()` returns: supertest 7.3.0 starts an unstarted app on its own
+ * and defers `end()` until it is listening.
+ */
+export const anonymousCaller = async (app: Express | Server): Promise<Caller> => {
   const agent = request.agent(app)
   const csrf = csrfTokenFrom((await agent.get(A_PATH_NOBODY_WROTE)).headers)
   return { agent, csrf }
