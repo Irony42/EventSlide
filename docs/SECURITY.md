@@ -1300,7 +1300,7 @@ off`).
 earliest of its host's retention and the client's `max_retention_days` (with the notice a lowered ceiling
 is owed, `RETENTION_CAP_NOTICE_DAYS`) — so an album kept "for ever" under a ceiling is not kept for ever —
 and no later than `opened_at + max_live_days + max_retention_days`, however many times it was reopened.
-`npm run purge --dry-run` lists exactly what the sweep would take, ceilings included. The argument, and
+`npm run purge:dry-run` lists exactly what the sweep would take, ceilings included. The argument, and
 the `NULL` trap it closes, is in §5.
 
 What the sweep guarantees, and what it does not:

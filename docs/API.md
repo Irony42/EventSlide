@@ -843,9 +843,10 @@ client's `max_total_bytes` across **all its events** — photographs of every st
 staged source of every clip still waiting — as well as to its own quota, and is refused by
 whichever it reaches first, its own named first when both are reached. The event's own quota is
 also lowered to the client's `max_event_quota_bytes` when that is smaller, for an event created
-before an operator lowered it. The body carries the code and `required`, and **no
-`remaining`**: it is what the client's other events have left too, and a guest of one event is not
-told how full its neighbours are. An event with no client is held to its own quota only, as it
+before an operator lowered it. The refusal carries **no `remaining`**: it is what the client's other events have left too, and a
+guest of one event is not told how full its neighbours are. A photograph refused file by file is an
+entry in `rejected` with the code alone; a clip, which is one file, answers a whole-request
+`413 client.storageFull` whose `details` are `{ required }`. An event with no client is held to its own quota only, as it
 always was.
 
 **Whole-request errors** — `401 auth.required` / `401 guestToken.*` for a missing or
