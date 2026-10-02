@@ -85,7 +85,13 @@ export interface SecondFactorLoginState {
   readonly error: string | null
 }
 
-const OVER_FOR_GOOD = new Set(['auth.secondFactorExpired', 'auth.tooManySecondFactorAttempts'])
+/**
+ * The one code that means the half-finished sign-in is gone. The account-wide
+ * `auth.tooManySecondFactorAttempts` is deliberately not here: it leaves the sign-in alive, and
+ * sending the person back to retype a password would only cost a hash and bring them back to the
+ * same refusal until the quarter of an hour passes.
+ */
+const OVER_FOR_GOOD = new Set(['auth.secondFactorExpired'])
 
 export const useSecondFactorLogin = (): SecondFactorLoginState => {
   const api = useApi()

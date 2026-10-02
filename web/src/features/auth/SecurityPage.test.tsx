@@ -259,5 +259,45 @@ describe('SecurityPage', () => {
 
       expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['auth.stepUpRequired'])
     })
+
+    it('brings the confirmation form back when it ran out, so the person is not left on a page that refuses everything', async () => {
+      const api = enrolled({
+        regenerateRecoveryCodes: vi
+          .fn()
+          .mockRejectedValueOnce(new ApiError(403, 'auth.stepUpRequired')),
+      })
+      render(api)
+      await stepUp()
+
+      await userEvent.click(
+        await screen.findByRole('button', { name: fr.auth.recoveryCodesRegenerate }),
+      )
+
+      expect(await screen.findByLabelText(fr.auth.password)).toBeVisible()
+      expect(screen.getByRole('alert')).toHaveTextContent(fr.errors['auth.stepUpRequired'])
+      expect(screen.queryByRole('button', { name: fr.auth.secondFactorDisable })).toBeNull()
+    })
+
+    it('forgets the lapse once the person has confirmed again', async () => {
+      const api = enrolled({
+        regenerateRecoveryCodes: vi
+          .fn()
+          .mockRejectedValueOnce(new ApiError(403, 'auth.stepUpRequired')),
+      })
+      render(api)
+      await stepUp()
+      await userEvent.click(
+        await screen.findByRole('button', { name: fr.auth.recoveryCodesRegenerate }),
+      )
+      await screen.findByRole('alert')
+
+      await userEvent.clear(screen.getByLabelText(fr.auth.password))
+      await stepUp()
+
+      expect(
+        await screen.findByRole('button', { name: fr.auth.recoveryCodesRegenerate }),
+      ).toBeVisible()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
   })
 })

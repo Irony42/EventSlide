@@ -95,25 +95,40 @@ describe('SecondFactorPage', () => {
     expect(onRestart).not.toHaveBeenCalled()
   })
 
-  it.each(['auth.secondFactorExpired', 'auth.tooManySecondFactorAttempts'])(
-    'sends the person back to the password with the sentence for %s',
-    async (code) => {
-      const api = fakeApi({
-        loginSecondFactor: vi.fn(async () => {
-          throw new ApiError(401, code)
-        }),
-      })
-      const onRestart = vi.fn()
-      render(api, { onRestart })
+  it('sends the person back to the password with the sentence when the sign-in is over', async () => {
+    const api = fakeApi({
+      loginSecondFactor: vi.fn(async () => {
+        throw new ApiError(401, 'auth.secondFactorExpired')
+      }),
+    })
+    const onRestart = vi.fn()
+    render(api, { onRestart })
 
-      await userEvent.type(screen.getByLabelText(fr.auth.secondFactorCode), '000000')
-      await submit()
+    await userEvent.type(screen.getByLabelText(fr.auth.secondFactorCode), '000000')
+    await submit()
 
-      await waitFor(() =>
-        expect(onRestart).toHaveBeenCalledWith(fr.errors[code as 'auth.secondFactorExpired']),
-      )
-    },
-  )
+    await waitFor(() =>
+      expect(onRestart).toHaveBeenCalledWith(fr.errors['auth.secondFactorExpired']),
+    )
+  })
+
+  it('stays on the step when the account has spent its budget: the sign-in is not over, and retyping the password would only cost a hash', async () => {
+    const api = fakeApi({
+      loginSecondFactor: vi.fn(async () => {
+        throw new ApiError(429, 'auth.tooManySecondFactorAttempts')
+      }),
+    })
+    const onRestart = vi.fn()
+    render(api, { onRestart })
+
+    await userEvent.type(screen.getByLabelText(fr.auth.secondFactorCode), '000000')
+    await submit()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      fr.errors['auth.tooManySecondFactorAttempts'],
+    )
+    expect(onRestart).not.toHaveBeenCalled()
+  })
 
   it('lets the person start again from the password on purpose, with no reason given', async () => {
     const onRestart = vi.fn()

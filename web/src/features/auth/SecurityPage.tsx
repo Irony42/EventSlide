@@ -8,6 +8,7 @@ import { Spinner } from '../../design-system/components/Spinner'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import type { SecondFactorProof, TotpEnrolmentDto } from '../../lib/api/dto'
+import { ApiError } from '../../lib/http'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AuthForm } from './components/AuthForm'
 import { errorMessage } from './errorMessage'
@@ -15,7 +16,8 @@ import styles from './SecurityPage.module.css'
 
 /**
  * An action the page takes against the server, as view-state: the busy flag, the sentence
- * for a refusal, and a runner that resolves with the answer or `null` when it failed.
+ * for a refusal, and a runner that resolves with the answer or `null` when it failed. A
+ * caller that must react to *which* refusal it was passes `onRefused`, handed the server's code.
  */
 const useAction = () => {
   const t = useTranslations()
@@ -23,13 +25,17 @@ const useAction = () => {
   const [error, setError] = useState<string | null>(null)
 
   const run = useCallback(
-    async <T,>(action: () => Promise<T>): Promise<{ readonly value: T } | null> => {
+    async <T,>(
+      action: () => Promise<T>,
+      onRefused?: (code: string | undefined) => void,
+    ): Promise<{ readonly value: T } | null> => {
       setBusy(true)
       setError(null)
       try {
         return { value: await action() }
       } catch (cause) {
         setError(errorMessage(cause, t))
+        onRefused?.(cause instanceof ApiError ? cause.code : undefined)
         return null
       } finally {
         setBusy(false)
@@ -38,7 +44,10 @@ const useAction = () => {
     [t],
   )
 
-  return { busy, error, run }
+  /** Forgets a refusal that is no longer the page's news, such as one a new confirmation answered. */
+  const reset = useCallback(() => setError(null), [])
+
+  return { busy, error, run, reset }
 }
 
 /** The ten codes, once: copy them, write them down, and say so. */
@@ -186,6 +195,16 @@ function Manage({
   const [mode, setMode] = useState<'code' | 'recovery'>('code')
   const [value, setValue] = useState('')
   const [confirmed, setConfirmed] = useState(false)
+  // The server said the confirmation ran out (five minutes) when an action was asked for. The
+  // form comes back with that sentence, instead of leaving the person on a page that refuses
+  // everything and offers no way to confirm again.
+  const [lapsed, setLapsed] = useState(false)
+
+  const whenRefused = (code: string | undefined): void => {
+    if (code !== 'auth.stepUpRequired') return
+    setLapsed(true)
+    setConfirmed(false)
+  }
 
   const proof = (): SecondFactorProof =>
     mode === 'code' ? { code: value.trim() } : { recoveryCode: value.trim() }
@@ -195,7 +214,7 @@ function Manage({
       <AuthForm
         title={t.auth.securityTitle}
         intro={`${t.auth.securityEnabled} ${t.auth.securityManageIntro}`}
-        error={stepUp.error}
+        error={stepUp.error ?? (lapsed ? t.errors['auth.stepUpRequired'] : null)}
         submitting={stepUp.busy}
         submitLabel={t.auth.stepUpSubmit}
         onSubmit={() => {
@@ -203,6 +222,8 @@ function Manage({
             .run(() => api.stepUp(password, proof()))
             .then((answer) => {
               if (answer === null) return
+              setLapsed(false)
+              act.reset()
               setConfirmed(true)
               toast.show(t.auth.stepUpDone, { tone: 'success' })
             })
@@ -261,7 +282,7 @@ function Manage({
           loading={act.busy}
           onClick={() => {
             void act
-              .run(() => api.regenerateRecoveryCodes())
+              .run(() => api.regenerateRecoveryCodes(), whenRefused)
               .then((answer) => {
                 if (answer !== null) onCodes(answer.value.recoveryCodes)
               })
@@ -274,7 +295,7 @@ function Manage({
           loading={act.busy}
           onClick={() => {
             void act
-              .run(() => api.disableSecondFactor())
+              .run(() => api.disableSecondFactor(), whenRefused)
               .then((answer) => {
                 if (answer === null) return
                 toast.show(t.auth.secondFactorDisabled, { tone: 'success' })
