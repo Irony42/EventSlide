@@ -158,6 +158,12 @@ export interface PrivacyNoticeDto {
   readonly retentionDays: number | null
   /** How long a guest may take a photo back themselves. `null`: they cannot. */
   readonly selfRemovalSeconds: number | null
+  /**
+   * Who hosts the photo (`OPERATOR_NAME`, roadmap G2-17). Present only when the operator
+   * named themselves; part of `revision`, so a guest who read a notice without it is asked
+   * to read this one.
+   */
+  readonly operator?: string
 }
 
 /** A notice and where this device stands with it: the answer of every notice route. */
@@ -590,10 +596,31 @@ export interface AboutFeatures {
  * nothing here says who gave or what they get.
  */
 export interface AboutLinks {
+  /** `LEGAL_TERMS_URL`: the terms of use. An https address or a path on this site. */
+  readonly terms?: string
+  /** `LEGAL_PRIVACY_URL`: the privacy policy. An https address or a path on this site. */
+  readonly privacy?: string
+  /** `LEGAL_NOTICE_URL`: the legal notice. An https address or a path on this site. */
+  readonly legalNotice?: string
+  /** `SUPPORT_URL`: help for a host. An https address or a path on this site. */
+  readonly support?: string
+  /** `REPORT_URL`: where to report a piece of content (DSA art. 16). Same kinds of address. */
+  readonly report?: string
   /** `DONATION_URL`: where to support the project. */
   readonly donate?: string
   /** `BUDGET_URL`: the public ledger the donations are accounted in. */
   readonly budget?: string
+}
+
+/**
+ * Who runs this box (roadmap G2-17 / P3-18), present only when the operator named
+ * themselves. Mirrors `AboutOperatorDto` on the server.
+ */
+export interface AboutOperator {
+  /** `OPERATOR_NAME`. Plain text. */
+  readonly name: string
+  /** `OPERATOR_CONTACT_EMAIL`. Present only when set. */
+  readonly contactEmail?: string
 }
 
 /**
@@ -605,6 +632,8 @@ export interface About {
   readonly version: string
   readonly license: 'AGPL-3.0-only'
   readonly sourceUrl: string
+  /** Who runs the box. Absent until the operator names themselves; see {@link AboutOperator}. */
+  readonly operator?: AboutOperator
   /** Operator links. Empty until the box has any to offer; see {@link AboutLinks}. */
   readonly links: AboutLinks
   readonly features: AboutFeatures

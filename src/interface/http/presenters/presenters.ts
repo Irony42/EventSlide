@@ -210,6 +210,8 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   audiences: [...notice.audiences],
   retentionDays: notice.retentionDays,
   selfRemovalSeconds: notice.selfRemovalSeconds,
+  // Absent, not `null`, on a box that named nobody: the answer stays what it always was.
+  ...(notice.operator === null ? {} : { operator: notice.operator }),
 })
 
 export const toPrivacyNoticeStateDto = ({

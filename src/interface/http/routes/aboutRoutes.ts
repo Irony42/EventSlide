@@ -18,8 +18,11 @@ import type { AboutFeaturesDto } from '../presenters/dto'
  * `sourceUrl` points (`SOURCE_CODE_URL`) and nothing can make the endpoint, or the link
  * built from it, go away.
  *
- * `links` carries the operator's optional support links (`DONATION_URL`, `BUDGET_URL`; roadmap
- * G4-02) and **only those that are set**: a box that configured nothing answers `{}`.
+ * `links` carries the operator's optional links and **only those that are set**: the support
+ * links (`DONATION_URL`, `BUDGET_URL`; roadmap G4-02) and the legal ones (`LEGAL_TERMS_URL`,
+ * `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SUPPORT_URL`, `REPORT_URL`; roadmap G2-17). A box
+ * that configured nothing answers `{}`. `operator` is the same rule for the one record: the
+ * name and contact address of whoever runs the box, absent on a box that named nobody.
  *
  * Cacheable by anyone for five minutes: the body is the same for every caller and changes
  * only when the box is redeployed, and the SPA asks for it on its first paint.

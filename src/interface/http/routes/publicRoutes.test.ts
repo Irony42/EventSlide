@@ -94,6 +94,7 @@ const world = (
               ids,
               clock: deps.clock,
               bus: deps.bus,
+              operatorName: null,
             }),
             getWallPlaylist: makeGetWallPlaylist({
               events: deps.events,

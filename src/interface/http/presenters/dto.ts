@@ -122,6 +122,13 @@ export interface PrivacyNoticeDto {
   readonly retentionDays: number | null
   /** How long a guest may take a photo back themselves. `null`: they cannot. */
   readonly selfRemovalSeconds: number | null
+  /**
+   * Who hosts the photo: `OPERATOR_NAME` (roadmap G2-17). **Present only when the operator
+   * named themselves**, so a self-hosted box answers the notice it always answered and a
+   * client has no key to render. It is part of `revision`: a guest who read a notice with no
+   * operator is asked to read this one.
+   */
+  readonly operator?: string
 }
 
 /** A notice and where this device stands with it: every read of the notice answers this. */
@@ -638,10 +645,31 @@ export interface AboutFeaturesDto {
  * badge, no priority — so there is no field here that could say who gave.
  */
 export interface AboutLinksDto {
+  /** `LEGAL_TERMS_URL`: the terms of use. An https address or a path on this site. */
+  readonly terms?: string
+  /** `LEGAL_PRIVACY_URL`: the privacy policy. An https address or a path on this site. */
+  readonly privacy?: string
+  /** `LEGAL_NOTICE_URL`: the legal notice. An https address or a path on this site. */
+  readonly legalNotice?: string
+  /** `SUPPORT_URL`: help for a host. An https address or a path on this site. */
+  readonly support?: string
+  /** `REPORT_URL`: where to report a piece of content (DSA art. 16). Same kinds of address. */
+  readonly report?: string
   /** `DONATION_URL`: where to support the project. An https address. */
   readonly donate?: string
   /** `BUDGET_URL`: the public ledger the donations are accounted in. An https address. */
   readonly budget?: string
+}
+
+/**
+ * Who runs this box (roadmap G2-17 / P3-18), present **only when the operator named
+ * themselves**: a self-hosted box has no one to name and answers without the key.
+ */
+export interface AboutOperatorDto {
+  /** `OPERATOR_NAME`. Plain text, never markup. */
+  readonly name: string
+  /** `OPERATOR_CONTACT_EMAIL`. Present only when set, and never without a `name`. */
+  readonly contactEmail?: string
 }
 
 /**
@@ -657,6 +685,8 @@ export interface AboutDto {
   readonly version: string
   readonly license: 'AGPL-3.0-only'
   readonly sourceUrl: string
+  /** Who runs the box. Absent until the operator names themselves; see {@link AboutOperatorDto}. */
+  readonly operator?: AboutOperatorDto
   /** Operator links. Empty until the box has any to offer; see {@link AboutLinksDto}. */
   readonly links: AboutLinksDto
   readonly features: AboutFeaturesDto

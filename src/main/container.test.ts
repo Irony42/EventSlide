@@ -750,3 +750,115 @@ describe('createContainer: outgoing mail', () => {
     expect(output).not.toContain('camille')
   })
 })
+
+/**
+ * The same gap, for the operator's identity (roadmap G2-17 / P3-18): `env.test.ts` proves the
+ * seven variables parse, `aboutRoutes.test.ts` proves the route leaves an unset one out, and
+ * `getPrivacyNotice.test.ts` proves a use case names the operator it was given. Only this boot
+ * shows the composition root handing the parsed values to **both** the route and the three use
+ * cases — and that a box which sets none of them says nothing, to anyone.
+ */
+describe('createContainer: the operator reaches /api/about and the guest notice', () => {
+  /**
+   * What the notice handed to a guest who joins a freshly created event says about its
+   * operator, through the real use cases over the real SQLite file: the owner is a row, the
+   * event is created by `createEvent`, and the join is `joinEvent` with the code it minted.
+   */
+  const noticeOperatorOn = async (booted: Container): Promise<string | null> => {
+    booted.db
+      .prepare(
+        `INSERT INTO users (id, email, password_hash, created_at, site_role)
+         VALUES ('user-host', 'user-host@example.test', 'hash:x', ?, 'none')`,
+      )
+      .run(new Date().toISOString())
+    const created = await booted.usecases.createEvent({
+      ownerId: asUserId('user-host'),
+      name: 'Camille & Sacha',
+    })
+    if (!created.ok) throw new Error(`fixture rejected: ${created.error.code}`)
+    const row = booted.db
+      .prepare<[], { readonly join_code: string }>('SELECT join_code FROM events')
+      .get()
+    if (row === undefined) throw new Error('fixture: no event row')
+
+    const joined = await booted.usecases.joinEvent({ joinCode: row.join_code })
+    if (!joined.ok) throw new Error(`fixture rejected: ${joined.error.code}`)
+    return joined.value.privacyNotice.notice.operator
+  }
+
+  it('publishes no operator and no legal link on a box that configures nothing', async () => {
+    const { app } = await boot({})
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.operator).toBeUndefined()
+    expect(response.body.links).toEqual({})
+  })
+
+  it('publishes none when compose renders the unset variables as empty strings', async () => {
+    const { app } = await boot({
+      OPERATOR_NAME: '',
+      OPERATOR_CONTACT_EMAIL: '',
+      LEGAL_TERMS_URL: '',
+      LEGAL_PRIVACY_URL: '',
+      LEGAL_NOTICE_URL: '',
+      SUPPORT_URL: '',
+      REPORT_URL: '',
+    })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.operator).toBeUndefined()
+    expect(response.body.links).toEqual({})
+  })
+
+  it('publishes the operator, and each link under the name the plan gives it', async () => {
+    const { app } = await boot({
+      OPERATOR_NAME: 'Association Les Photographes',
+      OPERATOR_CONTACT_EMAIL: 'contact@hosted.example.org',
+      LEGAL_TERMS_URL: 'https://hosted.example.org/legal/cgu',
+      LEGAL_PRIVACY_URL: 'https://hosted.example.org/legal/confidentialite',
+      LEGAL_NOTICE_URL: '/legal/mentions',
+      SUPPORT_URL: '/legal/avant-evenement',
+      REPORT_URL: '/legal/signaler',
+    })
+
+    const response = await request(app).get('/api/about')
+
+    expect(response.body.operator).toEqual({
+      name: 'Association Les Photographes',
+      contactEmail: 'contact@hosted.example.org',
+    })
+    expect(response.body.links).toEqual({
+      terms: 'https://hosted.example.org/legal/cgu',
+      privacy: 'https://hosted.example.org/legal/confidentialite',
+      legalNotice: '/legal/mentions',
+      support: '/legal/avant-evenement',
+      report: '/legal/signaler',
+    })
+  })
+
+  it('publishes a name with no contact address, and a link with no name', async () => {
+    const named = await boot({ OPERATOR_NAME: 'Les Photographes' })
+    expect((await request(named.app).get('/api/about')).body.operator).toEqual({
+      name: 'Les Photographes',
+    })
+    await named.dispose()
+    container = null
+
+    const linked = await boot({ REPORT_URL: '/legal/signaler' })
+    const body = (await request(linked.app).get('/api/about')).body
+    expect(body.operator).toBeUndefined()
+    expect(body.links).toEqual({ report: '/legal/signaler' })
+  })
+
+  it('names the operator in the notice a joining guest is handed, and not on a box that names nobody', async () => {
+    const named = await boot({ OPERATOR_NAME: 'Association Les Photographes' })
+    expect(await noticeOperatorOn(named)).toBe('Association Les Photographes')
+    await named.dispose()
+    container = null
+
+    const bare = await boot({})
+    expect(await noticeOperatorOn(bare)).toBeNull()
+  })
+})

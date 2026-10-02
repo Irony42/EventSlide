@@ -417,6 +417,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     mediaSweepMinimumAgeMs: MEDIA_SWEEP_MIN_AGE_MS,
     mediaSweepMaxDigestsPerPass: MEDIA_SWEEP_MAX_DIGESTS,
     auditRetentionDays: config.audit.retentionDays,
+    operatorName: config.operator.name,
     clips: {
       maxQueuedClips: config.clips.maxQueuedClips,
       maxQueuedClipsPerEvent: config.clips.maxQueuedClipsPerEvent,
@@ -691,9 +692,22 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     about: {
       version: appVersion(),
       sourceUrl: resolveSourceUrl(appVersion(), config.source),
-      // Both `null` on a box that set nothing, which `/api/about` then leaves out
-      // altogether: a self-hosted instance says nothing about money (roadmap G4-02).
-      links: { donate: config.support.donationUrl, budget: config.support.budgetUrl },
+      // Every one `null` on a box that set nothing, which `/api/about` then leaves out
+      // altogether: a self-hosted instance says nothing about money (roadmap G4-02), and
+      // names nobody and links to nothing (roadmap G2-17).
+      operator:
+        config.operator.name === null
+          ? null
+          : { name: config.operator.name, contactEmail: config.operator.contactEmail },
+      links: {
+        donate: config.support.donationUrl,
+        budget: config.support.budgetUrl,
+        terms: config.operator.termsUrl,
+        privacy: config.operator.privacyUrl,
+        legalNotice: config.operator.legalNoticeUrl,
+        support: config.operator.supportUrl,
+        report: config.operator.reportUrl,
+      },
     },
     ...(hasClient ? { clientDir } : {}),
   })

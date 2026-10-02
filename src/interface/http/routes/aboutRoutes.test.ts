@@ -30,6 +30,18 @@ const about = { version: '2.0.0-test', sourceUrl: SOURCE_URL }
 const DONATE_URL = 'https://opencollective.com/eventslide'
 const BUDGET_URL = 'https://opencollective.com/eventslide/budget'
 
+/** Every link unset, as on a box whose operator configured none. */
+const NO_LINKS = {
+  donate: null,
+  budget: null,
+  terms: null,
+  privacy: null,
+  legalNotice: null,
+  support: null,
+  report: null,
+} as const
+type LinkFacts = { -readonly [K in keyof typeof NO_LINKS]: string | null }
+
 /**
  * `set-cookie` is the one header that can legitimately repeat, so Node gives it as an
  * array while supertest's types declare every header as a string. Narrowing through
@@ -161,9 +173,12 @@ describe('GET /api/about', () => {
    * so a self-hosted box has no key a client could render, and none that says `null`.
    */
   describe('links', () => {
-    const linksOf = async (links: { donate: string | null; budget: string | null }) =>
-      (await request(buildServerHarness({ about: { ...about, links } }).app).get('/api/about')).body
-        .links as Record<string, unknown>
+    const linksOf = async (links: Partial<LinkFacts>) =>
+      (
+        await request(
+          buildServerHarness({ about: { ...about, links: { ...NO_LINKS, ...links } } }).app,
+        ).get('/api/about')
+      ).body.links as Record<string, unknown>
 
     it('is an empty object when the operator set neither link', async () => {
       expect(await linksOf({ donate: null, budget: null })).toEqual({})
@@ -201,7 +216,7 @@ describe('GET /api/about', () => {
 
     it('is the same for every caller, so a donation link is not a per-visitor decision', async () => {
       const subject = buildServerHarness({
-        about: { ...about, links: { donate: DONATE_URL, budget: null } },
+        about: { ...about, links: { ...NO_LINKS, donate: DONATE_URL } },
       })
 
       const anonymous = await request(subject.app).get('/api/about')
@@ -211,6 +226,102 @@ describe('GET /api/about', () => {
 
       expect(stale.body.links).toEqual(anonymous.body.links)
       expect(setCookies(stale.headers)).toEqual([])
+    })
+  })
+
+  /**
+   * The operator's identity and the links they owe a visitor (roadmap G2-17 / P3-18): their
+   * name and contact address, their terms, privacy policy and legal notice, a help page and
+   * the place to report a piece of content. The same rule as the support links, applied
+   * seven more times: **on the wire only when the operator set it**, so a self-hosted box
+   * answers exactly what it always did.
+   */
+  describe('the operator (roadmap G2-17)', () => {
+    const operatorOf = async (operator: { name: string; contactEmail: string | null } | null) =>
+      (await request(buildServerHarness({ about: { ...about, operator } }).app).get('/api/about'))
+        .body as Record<string, unknown>
+
+    it('has no operator key at all on a box that named nobody', async () => {
+      const body = await operatorOf(null)
+
+      expect(Object.keys(body)).not.toContain('operator')
+      expect(JSON.stringify(body)).not.toContain('null')
+    })
+
+    it('carries the name alone when the operator gave no address', async () => {
+      const body = await operatorOf({ name: 'Les Photographes', contactEmail: null })
+
+      expect(body['operator']).toEqual({ name: 'Les Photographes' })
+    })
+
+    it('carries the name and the address when both were given', async () => {
+      const body = await operatorOf({
+        name: 'Les Photographes',
+        contactEmail: 'contact@hosted.example.org',
+      })
+
+      expect(body['operator']).toEqual({
+        name: 'Les Photographes',
+        contactEmail: 'contact@hosted.example.org',
+      })
+    })
+
+    it('is the same for every caller', async () => {
+      const subject = buildServerHarness({
+        about: { ...about, operator: { name: 'Les Photographes', contactEmail: null } },
+      })
+
+      const anonymous = await request(subject.app).get('/api/about')
+      const stale = await request(subject.app)
+        .get('/api/about')
+        .set('Cookie', `${signedSessionCookie('some-session')}; es_csrf=anything`)
+
+      expect(stale.body.operator).toEqual(anonymous.body.operator)
+      expect(setCookies(stale.headers)).toEqual([])
+    })
+  })
+
+  describe('the legal and report links (roadmap G2-17)', () => {
+    const LEGAL = {
+      terms: 'https://hosted.example.org/legal/cgu',
+      privacy: 'https://hosted.example.org/legal/confidentialite',
+      legalNotice: '/legal/mentions',
+      support: '/legal/avant-evenement',
+      report: '/legal/signaler',
+    } as const
+
+    const linksOf = async (links: Partial<LinkFacts>) =>
+      (
+        await request(
+          buildServerHarness({ about: { ...about, links: { ...NO_LINKS, ...links } } }).app,
+        ).get('/api/about')
+      ).body.links as Record<string, unknown>
+
+    it.each(Object.entries(LEGAL))(
+      'carries links.%s when it is set, and only that key',
+      async (key, value) => {
+        const links = await linksOf({ [key]: value })
+
+        expect(links).toEqual({ [key]: value })
+      },
+    )
+
+    it('carries every one of them next to the donation links when all are set', async () => {
+      expect(await linksOf({ ...LEGAL, donate: DONATE_URL, budget: BUDGET_URL })).toEqual({
+        ...LEGAL,
+        donate: DONATE_URL,
+        budget: BUDGET_URL,
+      })
+    })
+
+    it('says nothing for a link left unset, which is every link on a stock box', async () => {
+      expect(await linksOf({})).toEqual({})
+    })
+
+    it('publishes a path on this site as the path it is, not as an absolute address', async () => {
+      // The hosted instance sets REPORT_URL=/legal/signaler. Expanding it to an origin here
+      // would bake in whichever host the request happened to name.
+      expect((await linksOf({ report: '/legal/signaler' }))['report']).toBe('/legal/signaler')
     })
   })
 
