@@ -456,10 +456,22 @@ npm run verify:full    # the above plus the Playwright journeys
 
 ## Licence
 
-GNU General Public License v3.0. The full text is in [LICENSE](LICENSE), and
-`package.json` declares the same `GPL-3.0`, so the declaration and the grant now agree —
-for a self-hosted product whose whole argument is that the operator owns their own
-machine and their guests' photos, that is not administrative tidying.
+GNU Affero General Public License, version 3 only — **AGPL-3.0-only**, no "or later"
+clause. The full text is in [LICENSE](LICENSE), unmodified from the Free Software
+Foundation, and `package.json` declares the same `AGPL-3.0-only`, so the declaration
+and the grant agree. [NOTICE](NOTICE) carries the copyright line and names the main
+third-party components that stay under their own licences.
 
-In short: run it, read it, change it, and pass it on — and if you distribute a modified
-version, ship the source under the same licence.
+The AGPL adds one obligation to the GPL, its section 13: if you modify EventSlide and
+let other people interact with your modified version over a network, you must offer
+those users the Corresponding Source of your version. Running an unmodified copy
+triggers nothing beyond what the GPL already asked, and handing a copy to someone
+else still means passing on the licence and the source, exactly as before.
+
+**Everything published before this change remains under GPL-3.0, permanently** — a
+licence grant cannot be revoked after the fact. [.github/gpl-boundary](.github/gpl-boundary)
+names the last commit that carries the GPL text, and the `licenseHistory` CI job
+checks that every commit after it carries the AGPL one.
+
+In short: run it, read it, change it, and pass it on — and if you let others use a
+modified version over a network, ship them its source under the same licence.
