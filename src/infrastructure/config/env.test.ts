@@ -163,6 +163,7 @@ describe('loadConfig', () => {
         },
         // A development boot never gets a warning: every case below is production-only.
         warnings: [],
+        audit: { retentionDays: 1095 },
       })
     })
 
@@ -1319,6 +1320,48 @@ describe('loadConfig', () => {
           expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
         },
       )
+    })
+
+    describe('AUDIT_RETENTION_DAYS', () => {
+      const NAME = 'AUDIT_RETENTION_DAYS'
+
+      it('is three years on a box that never mentions it', () => {
+        expect(loadConfig({ ...DEV }).audit.retentionDays).toBe(1095)
+        expect(loadConfig(aProductionEnv()).audit.retentionDays).toBe(1095)
+      })
+
+      it('reads a blank value as absent, so a dangling compose variable keeps the default rather than becoming zero', () => {
+        expect(loadConfig(aProductionEnv({ [NAME]: '' })).audit.retentionDays).toBe(1095)
+      })
+
+      it('accepts 365, the floor the hosted instance runs at', () => {
+        expect(loadConfig(aProductionEnv({ [NAME]: '365' })).audit.retentionDays).toBe(365)
+      })
+
+      it('accepts ten years, the ceiling', () => {
+        expect(loadConfig(aProductionEnv({ [NAME]: '3650' })).audit.retentionDays).toBe(3650)
+      })
+
+      it.each(['364', '30', '0', '-1', '3651', '400.5', 'three years'])(
+        'refuses AUDIT_RETENTION_DAYS=%s, naming the variable',
+        (value) => {
+          const issues = refusalIssues(aProductionEnv({ [NAME]: value }))
+
+          expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+        },
+      )
+
+      it('names the floor in the refusal, so the operator learns the number and not only that it failed', () => {
+        const issues = refusalIssues(aProductionEnv({ [NAME]: '30' }))
+
+        expect(issues.find((issue) => issue.startsWith(`${NAME}: `))).toContain('365')
+      })
+
+      it('is read by a maintenance command too, since npm run purge loads the same configuration', () => {
+        expect(
+          loadMaintenanceConfig({ NODE_ENV: 'production', [NAME]: '400' }).audit.retentionDays,
+        ).toBe(400)
+      })
     })
 
     describe('EVENT_CREATION_RATE_LIMIT_PER_HOUR', () => {

@@ -7,6 +7,10 @@ import type {
   PurgeExpiredEvents,
   PurgeExpiredEventsReport,
 } from '../application/usecases/events/purgeExpiredEvents'
+import type {
+  PruneAuditLog,
+  PruneAuditLogReport,
+} from '../application/usecases/audit/pruneAuditLog'
 
 /**
  * The scheduling half of retention, driven from a test.
@@ -30,6 +34,7 @@ const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
 
 const nothingPurged: PurgeExpiredEventsReport = { purged: [], failed: [] }
+const nothingPruned: PruneAuditLogReport = { pruned: 0, cutoff: AT }
 
 interface LoggedLine {
   readonly level: 'debug' | 'info' | 'warn' | 'error'
@@ -88,6 +93,7 @@ const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
   const clock = new FakeClock(AT)
   const sweeper = createRetentionSweeper({
     purge: async () => nothingPurged,
+    pruneAuditLog: async () => nothingPruned,
     logger,
     clock,
     intervalMs: INTERVAL_MS,
@@ -378,6 +384,204 @@ describe('createRetentionSweeper', () => {
     })
   })
 
+  describe('the audit log, pruned on the same dial', () => {
+    const pruningTo = (report: PruneAuditLogReport) => {
+      const state = { ran: 0, prune: null as unknown as PruneAuditLog }
+      state.prune = async () => {
+        state.ran += 1
+        return report
+      }
+      return state
+    }
+
+    it('prunes once per sweep, so the one setting that honours retention honours the audit log’s too', async () => {
+      const audit = pruningTo(nothingPruned)
+      const { sweeper } = build({ pruneAuditLog: audit.prune })
+
+      sweeper.start()
+      await vi.advanceTimersByTimeAsync(INTERVAL_MS * 3)
+
+      expect(audit.ran).toBe(3)
+      sweeper.stop()
+    })
+
+    it('does not prune at startup, any more than it purges', async () => {
+      const audit = pruningTo(nothingPruned)
+      const { sweeper } = build({ pruneAuditLog: audit.prune })
+
+      sweeper.start()
+      await vi.advanceTimersByTimeAsync(INTERVAL_MS - 1)
+
+      expect(audit.ran).toBe(0)
+      sweeper.stop()
+    })
+
+    it('prunes after the events are purged, not before', async () => {
+      const order: string[] = []
+      const { sweeper } = build({
+        purge: async () => {
+          order.push('purge')
+          return nothingPurged
+        },
+        pruneAuditLog: async () => {
+          order.push('prune')
+          return nothingPruned
+        },
+      })
+
+      await sweeper.runOnce()
+
+      expect(order).toEqual(['purge', 'prune'])
+    })
+
+    it('logs how many rows went and the cutoff, at info, when some did', async () => {
+      const cutoff = new Date('2025-09-11T20:00:00.000Z')
+      const { sweeper, lines } = build({ pruneAuditLog: pruningTo({ pruned: 7, cutoff }).prune })
+
+      await sweeper.runOnce()
+
+      expect(at(lines, 'info')).toEqual([
+        expect.objectContaining({
+          message: 'audit log pruned',
+          context: { pruned: 7, olderThan: '2025-09-11T20:00:00.000Z' },
+        }),
+      ])
+    })
+
+    it('says nothing when nothing was old enough, so an hourly timer does not become the log file', async () => {
+      const { sweeper, lines } = build({ pruneAuditLog: pruningTo(nothingPruned).prune })
+
+      await sweeper.runOnce()
+
+      expect(lines.filter((line) => line.message.startsWith('audit log'))).toEqual([])
+    })
+
+    it('does not turn a failed prune into a failed event purge: the outcome is still the purge’s own', async () => {
+      const report: PurgeExpiredEventsReport = { purged: [WEDDING], failed: [] }
+      const { sweeper } = build({
+        purge: async () => report,
+        pruneAuditLog: async () => {
+          throw new Error('database is locked')
+        },
+      })
+
+      expect(await sweeper.runOnce()).toEqual({ status: 'completed', report })
+    })
+
+    it('logs a failed prune at error level, with why, and never rejects', async () => {
+      const { sweeper, lines } = build({
+        pruneAuditLog: async () => {
+          throw new Error('database is locked')
+        },
+      })
+
+      await expect(sweeper.runOnce()).resolves.toBeDefined()
+
+      expect(at(lines, 'error')).toEqual([
+        expect.objectContaining({
+          message: 'audit log prune failed',
+          context: { error: 'database is locked' },
+        }),
+      ])
+    })
+
+    it('catches a synchronous throw from the prune too, since a timer callback must never reject', async () => {
+      const { sweeper, lines } = build({
+        pruneAuditLog: () => {
+          throw new Error('boom')
+        },
+      })
+
+      await expect(sweeper.runOnce()).resolves.toBeDefined()
+
+      expect(at(lines, 'error')[0]?.message).toBe('audit log prune failed')
+    })
+
+    it('still prunes when the event purge itself threw, because the two are independent', async () => {
+      const audit = pruningTo(nothingPruned)
+      const { sweeper } = build({
+        purge: async () => {
+          throw new Error('database is closed')
+        },
+        pruneAuditLog: audit.prune,
+      })
+
+      const outcome = await sweeper.runOnce()
+
+      expect(outcome.status).toBe('failed')
+      expect(audit.ran).toBe(1)
+    })
+
+    it('does not prune on a tick that is skipped because the previous sweep is still running', async () => {
+      const sweep = controllableSweep()
+      const audit = pruningTo(nothingPruned)
+      const { sweeper } = build({ purge: sweep.purge, pruneAuditLog: audit.prune })
+
+      sweeper.start()
+      await vi.advanceTimersByTimeAsync(INTERVAL_MS * 3)
+      expect(audit.ran).toBe(0)
+
+      await sweep.finish()
+
+      expect(audit.ran).toBe(1)
+      sweeper.stop()
+    })
+
+    it('keeps the overlap guard up during the prune even when the purge threw synchronously', async () => {
+      let release: (report: PruneAuditLogReport) => void = () => {}
+      let purges = 0
+      let prunes = 0
+      const { sweeper } = build({
+        purge: () => {
+          purges += 1
+          throw new Error('database is closed')
+        },
+        pruneAuditLog: () => {
+          prunes += 1
+          if (prunes > 1) return Promise.resolve(nothingPruned)
+          return new Promise<PruneAuditLogReport>((resolve) => {
+            release = resolve
+          })
+        },
+      })
+
+      const first = sweeper.runOnce()
+      await vi.advanceTimersByTimeAsync(0)
+      const second = await sweeper.runOnce()
+      release(nothingPruned)
+      await first
+
+      expect(second).toEqual({ status: 'skipped' })
+      expect(purges).toBe(1)
+      expect(prunes).toBe(1)
+    })
+
+    it('keeps the overlap guard up while the prune runs, so two sweeps never prune at once', async () => {
+      let release: (report: PruneAuditLogReport) => void = () => {}
+      let started = 0
+      const { sweeper } = build({
+        pruneAuditLog: () => {
+          started += 1
+          // Only the first prune hangs: a second one, which is the failure under test, must
+          // end the test red and quickly, not by timing out.
+          if (started > 1) return Promise.resolve(nothingPruned)
+          return new Promise<PruneAuditLogReport>((resolve) => {
+            release = resolve
+          })
+        },
+      })
+
+      const first = sweeper.runOnce()
+      await vi.advanceTimersByTimeAsync(0)
+      const second = await sweeper.runOnce()
+      release(nothingPruned)
+      await first
+
+      expect(second).toEqual({ status: 'skipped' })
+      expect(started).toBe(1)
+    })
+  })
+
   describe('shutdown', () => {
     it('returns immediately rather than waiting out an in-flight sweep', async () => {
       // `docker stop` gives ten seconds. Forty recursive deletions do not fit in it, and
@@ -416,6 +620,7 @@ describe('createRetentionSweeper, against real timers', () => {
     const { logger } = recordingLogger()
     const sweeper = createRetentionSweeper({
       purge: async () => nothingPurged,
+      pruneAuditLog: async () => nothingPruned,
       logger,
       clock: new FakeClock(AT),
       intervalMs: INTERVAL_MS,

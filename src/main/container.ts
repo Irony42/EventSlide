@@ -18,6 +18,7 @@ import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepos
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
 import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
 import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
+import { SqliteAuditLog } from '../infrastructure/db/sqliteAuditLog'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
 import { probeFfmpegCapability } from '../infrastructure/media/ffmpegBinaries'
@@ -366,6 +367,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     guestTokens: createHmacGuestTokenService({ secret: config.secrets.guestToken }),
     shareLinks: new SqliteShareLinkRepository(db),
     clients: new SqliteClientRepository(db),
+    audit: new SqliteAuditLog(db),
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.
     gallerySigner: createHmacGallerySigner({ rootSecret: config.secrets.session }),
@@ -379,6 +381,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     reactionBudget: { windowMs: REACTION_WINDOW_MS, maxPerWindow: REACTION_MAX_PER_WINDOW },
     mediaSweepMinimumAgeMs: MEDIA_SWEEP_MIN_AGE_MS,
     mediaSweepMaxDigestsPerPass: MEDIA_SWEEP_MAX_DIGESTS,
+    auditRetentionDays: config.audit.retentionDays,
     clips: {
       maxQueuedClips: config.clips.maxQueuedClips,
       maxQueuedClipsPerEvent: config.clips.maxQueuedClipsPerEvent,
@@ -406,6 +409,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       ? null
       : createRetentionSweeper({
           purge: usecases.purgeExpiredEvents,
+          pruneAuditLog: usecases.pruneAuditLog,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,
@@ -418,7 +422,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     logger.info('automatic retention sweep is off', {
       detail:
         'retention settings are honoured only when the purge command is run: ' +
-        '`npm run purge`, or `node dist/ops/scripts/purge.js` in the image',
+        '`npm run purge`, or `node dist/ops/scripts/purge.js` in the image. ' +
+        'The audit log is pruned only by this sweep, so with it off nothing prunes the audit log',
     })
   }
 

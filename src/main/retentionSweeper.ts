@@ -4,6 +4,7 @@ import type {
   PurgeExpiredEvents,
   PurgeExpiredEventsReport,
 } from '../application/usecases/events/purgeExpiredEvents'
+import type { PruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 
 /**
  * The trigger the retention setting never had.
@@ -23,11 +24,21 @@ import type {
  * What it deliberately does **not** do is decide anything about retention. Which events
  * are due, what order they are deleted in, and what a failure means are the use case's
  * and the entity's business. This schedules, guards and reports.
+ *
+ * **The audit log's retention (roadmap §10.8) rides this same tick.** Pruning it is a
+ * second step after the events, with its own failure handling: an audit prune that fails
+ * is logged and never changes the outcome of the purge it follows, and an event purge that
+ * throws never stops the audit prune, because neither depends on the other. Which rows are
+ * old enough is `pruneAuditLog`'s business; this only calls it. The consequence an
+ * operator has to know: with `RETENTION_SWEEP_INTERVAL_MINUTES=off` this timer never runs,
+ * and so nothing prunes the audit log — `npm run purge` does not yet.
  */
 
 export interface RetentionSweeperDeps {
   /** The use case. Injected as a function so a test needs no repository at all. */
   readonly purge: PurgeExpiredEvents
+  /** The audit log's own retention (roadmap §10.8). Required, so the wiring cannot forget it. */
+  readonly pruneAuditLog: PruneAuditLog
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
   readonly clock: Clock
@@ -52,6 +63,7 @@ export interface RetentionSweeper {
 
 export const createRetentionSweeper = ({
   purge,
+  pruneAuditLog,
   logger,
   clock,
   intervalMs,
@@ -67,29 +79,51 @@ export const createRetentionSweeper = ({
    * an operator reading two `failed` lists for an event that is in fact half gone. A
    * slow sweep is the normal case, not the exceptional one: forty albums on a spinning
    * disk on a machine that is also serving a live event can easily outlast an hour.
+   *
+   * Raised synchronously, before the first thing that can throw or await, and lowered only
+   * once the audit prune that follows the purge has finished: a guard set from the purge's
+   * own return value is down for the whole of that prune whenever the purge throws.
    */
-  let inFlight: Promise<PurgeExpiredEventsReport> | null = null
+  let sweeping = false
+
+  /**
+   * The audit log's half of a sweep. Never throws: it runs in a `finally`, where a throw
+   * would replace the purge's own outcome, and from a timer callback an unhandled rejection
+   * is fatal in `index.ts`.
+   */
+  const pruneAudit = async (): Promise<void> => {
+    try {
+      const { pruned, cutoff } = await pruneAuditLog()
+      // Silent when nothing was old enough: at an hourly interval that is nearly every
+      // tick, and "nothing to do" is not news. The purge's own debug line is the heartbeat.
+      if (pruned > 0) {
+        logger.info('audit log pruned', { pruned, olderThan: cutoff.toISOString() })
+      }
+    } catch (error) {
+      logger.error('audit log prune failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
 
   const runOnce = async (): Promise<SweepOutcome> => {
-    if (inFlight !== null) {
+    if (sweeping) {
       // Worth a warning rather than silence: it means the sweep no longer fits in its
       // interval, which an operator can fix by lengthening it.
       logger.warn('retention sweep skipped, the previous one is still running')
       return { status: 'skipped' }
     }
 
-    const startedAt = clock.now()
+    sweeping = true
 
     try {
+      const startedAt = clock.now()
+
       // Called inside the try, not before it: a `purge` that threw synchronously rather
       // than returning a rejected promise would otherwise skip this catch entirely and
       // leave the timer's `void runOnce()` as an unhandled rejection, which `index.ts`
-      // treats as fatal. The assignment stays ahead of the first `await`, which is what
-      // makes the overlap guard above see it.
-      const run = purge()
-      inFlight = run
-
-      const report = await run
+      // treats as fatal.
+      const report = await purge()
       const durationMs = clock.now().getTime() - startedAt.getTime()
 
       // Three independent lines, because the mixed case is real: a run that purged
@@ -131,7 +165,10 @@ export const createRetentionSweeper = ({
       })
       return { status: 'failed', error }
     } finally {
-      inFlight = null
+      // After the events, whatever became of them, and still inside the overlap guard: a
+      // second tick must not start a sweep while this one is still pruning.
+      await pruneAudit()
+      sweeping = false
     }
   }
 
@@ -180,7 +217,7 @@ export const createRetentionSweeper = ({
        * choice is not "finish or abandon", it is "abandon now, in a controlled place, or
        * abandon later at an arbitrary one".
        */
-      if (inFlight !== null) {
+      if (sweeping) {
         logger.warn('shutting down during a retention sweep, the rest is left to the next run')
       }
     },

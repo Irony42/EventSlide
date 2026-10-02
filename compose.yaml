@@ -108,6 +108,9 @@ services:
       # `clientMembers` (only members of a client, and the operator). `clientMembers` needs
       # SITE_ADMIN=on and the boot refuses it otherwise. See .env.example.
       EVENT_CREATION: ${EVENT_CREATION:-anyAccount}
+      # How long the audit log keeps a row: 365 to 3650 days, refused at boot outside that.
+      # Only a box run for other people (SITE_ADMIN=on) ever writes one. See .env.example.
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-1095}
     volumes:
       # The database, every photo, and under /data/backups the archives the backup
       # command writes (BACKUP_DIR, set in the Dockerfile). Everything is here, but do not

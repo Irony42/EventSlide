@@ -18,6 +18,7 @@ import type { PasswordHasher } from '../application/ports/passwordHasher'
 import type { GuestTokenService } from '../application/ports/guestTokenService'
 import type { ShareLinkRepository } from '../application/ports/shareLinkRepository'
 import type { ClientRepository } from '../application/ports/clientRepository'
+import type { AuditLog } from '../application/ports/auditLog'
 import type { GallerySigner } from '../application/ports/gallerySigner'
 
 import { makeAuthenticateUser } from '../application/usecases/auth/authenticateUser'
@@ -93,6 +94,7 @@ import { makeDeleteEmptyClient } from '../application/usecases/clients/deleteEmp
 import { makeListClients } from '../application/usecases/clients/listClients'
 import { makeRenameClient } from '../application/usecases/clients/renameClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
+import { makePruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import { makeUnlockGallery } from '../application/usecases/gallery/unlockGallery'
 
 /**
@@ -128,6 +130,8 @@ export interface Adapters {
   readonly clients: ClientRepository
   /** Tokens, their digests, and the MAC behind every signed gallery URL. */
   readonly gallerySigner: GallerySigner
+  /** The append-only audit log (roadmap §10.8). Empty on a box nobody operates. */
+  readonly audit: AuditLog
 }
 
 /** The policy values a use case needs, drawn from validated configuration. */
@@ -155,6 +159,8 @@ export interface UseCasePolicy {
   readonly mediaSweepMinimumAgeMs: number
   /** The most digests one reconciliation pass will consider, across every event. */
   readonly mediaSweepMaxDigestsPerPass: number
+  /** `audit.retentionDays`: how long a row of the audit log is kept. 365 at the least. */
+  readonly auditRetentionDays: number
   readonly clips: {
     readonly maxQueuedClips: number
     /** The same backpressure, scoped to one event. */
@@ -536,17 +542,33 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   //
   // Built whatever `SITE_ADMIN` says, like every use case: the mode decides which routes
   // are mounted (roadmap §10.9), never which use cases exist. **No route calls these yet**
-  // — the operator API is G2-14, behind `SITE_ADMIN` and `requireOperator` — so none of
-  // them takes an actor: the gate is the HTTP layer's, as for every operator route.
+  // — the operator API is G2-14, behind `SITE_ADMIN` and `requireOperator`. The gate is the
+  // HTTP layer's, as for every operator route, so only `setClientCeilings` takes an actor:
+  // it is the one that writes the audit log (§10.8), and an entry must say who did it.
   createClient: makeCreateClient({
     clients: adapters.clients,
     ids: adapters.ids,
     clock: adapters.clock,
   }),
   renameClient: makeRenameClient({ clients: adapters.clients }),
-  setClientCeilings: makeSetClientCeilings({ clients: adapters.clients }),
+  setClientCeilings: makeSetClientCeilings({
+    clients: adapters.clients,
+    audit: adapters.audit,
+    clock: adapters.clock,
+  }),
   listClients: makeListClients({ clients: adapters.clients }),
   deleteEmptyClient: makeDeleteEmptyClient({ clients: adapters.clients }),
+
+  // ------------------------------------------------------------------ audit --
+  //
+  // **The only way a row ever leaves the audit log**, and so deliberately not reachable
+  // from any route: `src/main/retentionSweeper.ts` is its one caller. No actor, because
+  // nothing about it is a request.
+  pruneAuditLog: makePruneAuditLog({
+    audit: adapters.audit,
+    clock: adapters.clock,
+    retentionDays: policy.auditRetentionDays,
+  }),
 
   // -------------------------------------------------------------- reactions --
   reactToPhoto: makeReactToPhoto({

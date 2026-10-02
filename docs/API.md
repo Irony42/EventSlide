@@ -203,6 +203,10 @@ operator API that calls them is a later item (G2-14) and will be mounted under `
 behind `SITE_ADMIN` and `requireOperator`, like everything else in that namespace. Until it
 lands the use cases are built and unreachable from the wire.
 
+**No audit route exists yet either.** The append-only audit log (roadmap §10.8) is written by
+`setClientCeilings` and pruned by the retention sweep, and nothing reads it over the wire: the
+operator's view is G2-14 and the client-readable view is G2-16, both behind their own gates.
+
 ### CSRF
 
 Every state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) must echo the readable

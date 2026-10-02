@@ -114,6 +114,7 @@ src/
     slideshow/     Playlist building, layouts, transitions (pure)
     reactions/     Reaction rules
     clients/       Client entity, ceilings, roles (roadmap §10.2; no route yet)
+    audit/         Audit entries, their allow-listed details, retention (roadmap §10.8; no route yet)
   application/
     ports/         Interfaces. One file per port. No implementations.
     usecases/      One file, one exported factory, one responsibility.

@@ -4,6 +4,8 @@ import { MigrationError, migrate, status, type Migration } from './migrator'
 import { migrations } from './migrations'
 import { BLOCKING_REUPLOAD_SQL, HOLDING_BYTES_SQL } from './clipJobStatusSql'
 import { CLIP_JOB_STATUSES } from '../../domain/clips/clipJobStatus'
+import { AUDIT_ACTOR_KINDS } from '../../domain/audit/auditActor'
+import { AUDIT_SUBJECT_TYPES } from '../../domain/audit/auditSubjectType'
 
 const freshDb = (): Db => openDatabase({ path: ':memory:' })
 
@@ -164,6 +166,8 @@ describe('the real schema', () => {
     migrate(db, migrations)
 
     expect(tableNames(db)).toEqual([
+      'audit_log',
+      'audit_prune_gate',
       'client_members',
       'clients',
       'clip_jobs',
@@ -176,6 +180,7 @@ describe('the real schema', () => {
       'schema_migrations',
       'sessions',
       'share_links',
+      'sqlite_sequence',
       'users',
     ])
     closeDatabase(db)
@@ -187,6 +192,7 @@ describe('the real schema', () => {
 
     expect(indexNames(db)).toEqual(
       expect.arrayContaining([
+        'idx_audit_client',
         'idx_client_members_user',
         'idx_event_missions_event',
         'idx_event_missions_event_prompt',
@@ -1529,6 +1535,586 @@ describe('migration 008, clients', () => {
       opened_at: null,
     })
     expect(db.prepare(`SELECT COUNT(*) AS n FROM clients`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+})
+
+describe('migration 009, the append-only audit log', () => {
+  const AT = '2026-06-20T21:00:00.000Z'
+  const LONG_AGO = '2001-01-01T00:00:00.000Z'
+
+  const columnNames = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
+
+  /** A box as 008 alone could hold it: two accounts, an event, one client. */
+  const seedBeforeAudit = (db: Db): void => {
+    const insertUser = db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES (?, ?, 'hash:x', '${AT}')`,
+    )
+    insertUser.run('u1', 'operateur@example.test')
+    insertUser.run('u2', 'hote@example.test')
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e1', 'u2', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'live',
+                    '{"moderation":"manual"}', 1000, '${AT}')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO clients (id, name, created_at) VALUES ('c1', 'Atelier Photo Camille', '${AT}')`,
+    ).run()
+  }
+
+  interface EntryRow {
+    at?: string
+    actorUserId?: string | null
+    actorKind?: string
+    actorLabel?: string | null
+    action?: string
+    subjectType?: string
+    subjectId?: string
+    clientId?: string | null
+    details?: string
+  }
+
+  /** Inserts one row, defaulting everything the test is not about. Returns its seq. */
+  const insertEntry = (db: Db, row: EntryRow = {}): number =>
+    Number(
+      db
+        .prepare(
+          `INSERT INTO audit_log (at, actor_user_id, actor_kind, actor_label, action, subject_type,
+                                  subject_id, client_id, details)
+                VALUES (@at, @actorUserId, @actorKind, @actorLabel, @action, @subjectType,
+                        @subjectId, @clientId, @details)`,
+        )
+        .run({
+          at: row.at ?? AT,
+          actorUserId: row.actorUserId === undefined ? 'u1' : row.actorUserId,
+          actorKind: row.actorKind ?? 'operator',
+          actorLabel: row.actorLabel ?? null,
+          action: row.action ?? 'client.ceilingsChanged',
+          subjectType: row.subjectType ?? 'client',
+          subjectId: row.subjectId ?? 'c1',
+          clientId: row.clientId === undefined ? 'c1' : row.clientId,
+          details: row.details ?? '{"before":{},"after":{}}',
+        }).lastInsertRowid,
+    )
+
+  const migrated = (): Db => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedBeforeAudit(db)
+    return db
+  }
+
+  const gate = (db: Db): { id: number; open: number }[] =>
+    db.prepare(`SELECT id, open FROM audit_prune_gate`).all() as { id: number; open: number }[]
+
+  const count = (db: Db): number =>
+    (db.prepare(`SELECT COUNT(*) AS n FROM audit_log`).get() as { n: number }).n
+
+  const refusalOf = (action: () => unknown): string => {
+    try {
+      action()
+    } catch (thrown) {
+      return thrown instanceof Error ? thrown.message : String(thrown)
+    }
+    return 'it did not throw'
+  }
+
+  /** The sweep's own three steps, as one transaction. */
+  const pruneAll = (db: Db, where = ''): number =>
+    db.transaction(() => {
+      db.prepare(`UPDATE audit_prune_gate SET open = 1 WHERE id = 1`).run()
+      const deleted = db.prepare(`DELETE FROM audit_log ${where}`).run().changes
+      db.prepare(`UPDATE audit_prune_gate SET open = 0 WHERE id = 1`).run()
+      return deleted
+    })()
+
+  // ---------------------------------------------------------------------- shape --
+
+  it('creates the log with its columns in the order the plan gives them', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'audit_log')).toEqual([
+      'seq',
+      'at',
+      'actor_user_id',
+      'actor_kind',
+      'actor_label',
+      'action',
+      'subject_type',
+      'subject_id',
+      'client_id',
+      'details',
+    ])
+    closeDatabase(db)
+  })
+
+  it('creates the retention gate shut, as exactly one permanent row', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(gate(db)).toEqual([{ id: 1, open: 0 }])
+    closeDatabase(db)
+  })
+
+  it('answers "this client’s trail, newest first" from its own index', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    const plan = (
+      db
+        .prepare(
+          `EXPLAIN QUERY PLAN SELECT * FROM audit_log WHERE client_id = 'c1' ORDER BY seq DESC`,
+        )
+        .all() as { detail: string }[]
+    )
+      .map((row) => row.detail)
+      .join('; ')
+
+    expect(plan).toContain('idx_audit_client')
+    closeDatabase(db)
+  })
+
+  // ---------------------------------------------------------------- the CHECKs --
+
+  it.each(AUDIT_SUBJECT_TYPES)(
+    'admits the subject type %s, every one the domain declares',
+    (subjectType) => {
+      const db = migrated()
+
+      expect(() => insertEntry(db, { subjectType })).not.toThrow()
+      closeDatabase(db)
+    },
+  )
+
+  it('admits access_request from the first row, because widening this CHECK later means rebuilding the table', () => {
+    const db = migrated()
+
+    expect(() =>
+      insertEntry(db, { subjectType: 'access_request', subjectId: 'req-1', clientId: null }),
+    ).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('refuses a subject type the domain does not declare, in the database rather than only in code', () => {
+    const db = migrated()
+
+    expect(refusalOf(() => insertEntry(db, { subjectType: 'guest' }))).toMatch(/CHECK/)
+    closeDatabase(db)
+  })
+
+  it.each(AUDIT_ACTOR_KINDS)('admits the actor kind %s', (actorKind) => {
+    const db = migrated()
+
+    expect(() => insertEntry(db, { actorKind, actorUserId: null })).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('refuses an actor kind the domain does not declare', () => {
+    const db = migrated()
+
+    expect(refusalOf(() => insertEntry(db, { actorKind: 'guest' }))).toMatch(/CHECK/)
+    closeDatabase(db)
+  })
+
+  it('accepts an actor label of 80 characters and refuses one of 81', () => {
+    const db = migrated()
+
+    expect(() =>
+      insertEntry(db, { actorKind: 'integration', actorUserId: null, actorLabel: 'a'.repeat(80) }),
+    ).not.toThrow()
+    expect(
+      refusalOf(() =>
+        insertEntry(db, {
+          actorKind: 'integration',
+          actorUserId: null,
+          actorLabel: 'a'.repeat(81),
+        }),
+      ),
+    ).toMatch(/CHECK/)
+    closeDatabase(db)
+  })
+
+  it('refuses a subject id of 65 characters, one past the longest id the domain admits', () => {
+    const db = migrated()
+
+    expect(() => insertEntry(db, { subjectId: 'a'.repeat(64) })).not.toThrow()
+    expect(refusalOf(() => insertEntry(db, { subjectId: 'a'.repeat(65) }))).toMatch(/CHECK/)
+    closeDatabase(db)
+  })
+
+  it('accepts an action of 80 characters and refuses one of 81', () => {
+    const db = migrated()
+
+    expect(() => insertEntry(db, { action: 'a'.repeat(80) })).not.toThrow()
+    expect(refusalOf(() => insertEntry(db, { action: 'a'.repeat(81) }))).toMatch(/CHECK/)
+    closeDatabase(db)
+  })
+
+  it('refuses an empty action and an empty subject id', () => {
+    const db = migrated()
+
+    expect(refusalOf(() => insertEntry(db, { action: '' }))).toMatch(/CHECK/)
+    expect(refusalOf(() => insertEntry(db, { subjectId: '' }))).toMatch(/CHECK/)
+    closeDatabase(db)
+  })
+
+  it('keeps details a JSON object whatever wrote it: not prose, and not an array', () => {
+    const db = migrated()
+
+    expect(refusalOf(() => insertEntry(db, { details: 'Une belle photo' }))).toMatch(/CHECK/)
+    expect(refusalOf(() => insertEntry(db, { details: '[1,2]' }))).toMatch(/CHECK/)
+    expect(() => insertEntry(db, { details: '{}' })).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('defaults details to an empty object', () => {
+    const db = migrated()
+
+    db.prepare(
+      `INSERT INTO audit_log (at, actor_kind, action, subject_type, subject_id)
+            VALUES ('${AT}', 'system', 'client.ceilingsChanged', 'client', 'c1')`,
+    ).run()
+
+    expect(db.prepare(`SELECT details FROM audit_log`).get()).toEqual({ details: '{}' })
+    closeDatabase(db)
+  })
+
+  it('refuses an actor account that does not exist, while a client that does not exist is fine', () => {
+    const db = migrated()
+
+    expect(refusalOf(() => insertEntry(db, { actorUserId: 'ghost' }))).toMatch(/FOREIGN KEY/)
+    expect(() => insertEntry(db, { clientId: 'a-client-that-was-never-here' })).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('keeps the history of a client after the client is deleted: there is no foreign key to cascade', () => {
+    const db = migrated()
+    insertEntry(db)
+
+    db.prepare(`DELETE FROM clients WHERE id = 'c1'`).run()
+
+    expect(db.prepare(`SELECT client_id FROM audit_log`).all()).toEqual([{ client_id: 'c1' }])
+    closeDatabase(db)
+  })
+
+  // ----------------------------------------------------------- append-only --
+
+  it.each([
+    ['at', `at = '2030-01-01T00:00:00.000Z'`],
+    ['actor_kind', `actor_kind = 'system'`],
+    ['actor_label', `actor_label = 'rewritten'`],
+    ['action', `action = 'client.nothingHappened'`],
+    ['subject_type', `subject_type = 'event'`],
+    ['subject_id', `subject_id = 'c2'`],
+    ['client_id', `client_id = 'c2'`],
+    ['details', `details = '{}'`],
+    ['seq', `seq = 99`],
+    ['actor_user_id, pointing at another account', `actor_user_id = 'u2'`],
+  ])('refuses an UPDATE of %s', (_column, assignment) => {
+    const db = migrated()
+    insertEntry(db)
+
+    expect(refusalOf(() => db.prepare(`UPDATE audit_log SET ${assignment}`).run())).toMatch(
+      /append-only/,
+    )
+    closeDatabase(db)
+  })
+
+  it('refuses to erase who did it from a row whose account still exists, though a deleted account does it legitimately', () => {
+    const db = migrated()
+    insertEntry(db, { actorUserId: 'u1' })
+
+    expect(refusalOf(() => db.prepare(`UPDATE audit_log SET actor_user_id = NULL`).run())).toMatch(
+      /append-only/,
+    )
+    expect(db.prepare(`SELECT actor_user_id FROM audit_log`).get()).toEqual({
+      actor_user_id: 'u1',
+    })
+    closeDatabase(db)
+  })
+
+  it('lets an account be deleted: its entries lose the pointer to it and nothing else', () => {
+    const db = migrated()
+    insertEntry(db, { actorUserId: 'u1', actorLabel: 'console', details: '{"a":1}' })
+    const before = db.prepare(`SELECT * FROM audit_log`).get() as Record<string, unknown>
+
+    db.prepare(`DELETE FROM users WHERE id = 'u1'`).run()
+
+    expect(db.prepare(`SELECT * FROM audit_log`).get()).toEqual({ ...before, actor_user_id: null })
+    closeDatabase(db)
+  })
+
+  it('leaves the entries of every other account untouched when one account is deleted', () => {
+    const db = migrated()
+    insertEntry(db, { actorUserId: 'u1' })
+    insertEntry(db, { actorUserId: 'u2' })
+
+    db.prepare(`DELETE FROM users WHERE id = 'u1'`).run()
+
+    expect(db.prepare(`SELECT actor_user_id FROM audit_log ORDER BY seq`).all()).toEqual([
+      { actor_user_id: null },
+      { actor_user_id: 'u2' },
+    ])
+    closeDatabase(db)
+  })
+
+  it.each([
+    ['at', `at = '2030-01-01T00:00:00.000Z'`],
+    ['actor_kind', `actor_kind = 'system'`],
+    ['actor_label', `actor_label = 'rewritten'`],
+    ['action', `action = 'client.nothingHappened'`],
+    ['subject_type', `subject_type = 'event'`],
+    ['subject_id', `subject_id = 'c2'`],
+    ['client_id', `client_id = 'c2'`],
+    ['details', `details = '{"forged":true}'`],
+    ['seq', `seq = 99`],
+  ])(
+    'refuses to rewrite %s even in the same statement that erases the actor of an account that is already gone',
+    (_column, assignment) => {
+      // The one situation in which the equality clauses of the trigger decide anything:
+      // the pointer dangles because the account went with foreign keys off, so the
+      // "account is gone" clause is satisfied and only the other columns stand in the way.
+      const db = migrated()
+      db.pragma('foreign_keys = OFF')
+      insertEntry(db, { actorUserId: 'u1', actorLabel: 'console' })
+      db.prepare(`DELETE FROM users WHERE id = 'u1'`).run()
+
+      expect(
+        refusalOf(() =>
+          db.prepare(`UPDATE audit_log SET actor_user_id = NULL, ${assignment}`).run(),
+        ),
+      ).toMatch(/append-only/)
+      expect(db.prepare(`SELECT actor_user_id FROM audit_log`).get()).toEqual({
+        actor_user_id: 'u1',
+      })
+      closeDatabase(db)
+    },
+  )
+
+  it('lets only the erasure through when the account is gone: nothing else changes with it', () => {
+    const db = migrated()
+    db.pragma('foreign_keys = OFF')
+    insertEntry(db, { actorUserId: 'u1', actorLabel: 'console', details: '{"a":1}' })
+    const before = db.prepare(`SELECT * FROM audit_log`).get() as Record<string, unknown>
+    db.prepare(`DELETE FROM users WHERE id = 'u1'`).run()
+
+    db.prepare(`UPDATE audit_log SET actor_user_id = NULL`).run()
+
+    expect(db.prepare(`SELECT * FROM audit_log`).get()).toEqual({ ...before, actor_user_id: null })
+    closeDatabase(db)
+  })
+
+  it('refuses any UPDATE of a row whose actor is already gone, even one that changes nothing', () => {
+    const db = migrated()
+    insertEntry(db, { actorKind: 'system', actorUserId: null })
+
+    expect(refusalOf(() => db.prepare(`UPDATE audit_log SET actor_user_id = NULL`).run())).toMatch(
+      /append-only/,
+    )
+    closeDatabase(db)
+  })
+
+  it('refuses a sequence number that is not positive, which would make every later append look like an overwrite', () => {
+    const db = migrated()
+    const insertAt = (seq: number): void => {
+      db.prepare(
+        `INSERT INTO audit_log (seq, at, actor_kind, action, subject_type, subject_id)
+              VALUES (?, '${AT}', 'system', 'x', 'client', 'c1')`,
+      ).run(seq)
+    }
+
+    expect(refusalOf(() => insertAt(-1))).toMatch(/CHECK/)
+    expect(refusalOf(() => insertAt(0))).toMatch(/CHECK/)
+    expect(() => insertEntry(db)).not.toThrow()
+    closeDatabase(db)
+  })
+
+  it('refuses a DELETE whatever the age of the row', () => {
+    const db = migrated()
+    insertEntry(db, { at: LONG_AGO })
+
+    expect(
+      refusalOf(() => db.prepare(`DELETE FROM audit_log WHERE at < '2100-01-01'`).run()),
+    ).toMatch(/deleted only by the retention sweep/)
+    expect(count(db)).toBe(1)
+    closeDatabase(db)
+  })
+
+  it('refuses a DELETE with no WHERE, which SQLite would otherwise truncate without visiting a row', () => {
+    const db = migrated()
+    insertEntry(db)
+    insertEntry(db)
+
+    expect(refusalOf(() => db.prepare(`DELETE FROM audit_log`).run())).toMatch(
+      /deleted only by the retention sweep/,
+    )
+    expect(count(db)).toBe(2)
+    closeDatabase(db)
+  })
+
+  it('refuses INSERT OR REPLACE over an existing seq, which would otherwise rewrite a row past both other triggers', () => {
+    const db = migrated()
+    const seq = insertEntry(db, { action: 'client.ceilingsChanged' })
+
+    expect(
+      refusalOf(() =>
+        db
+          .prepare(
+            `INSERT OR REPLACE INTO audit_log (seq, at, actor_kind, action, subject_type, subject_id)
+                  VALUES (?, '2030-01-01T00:00:00.000Z', 'system', 'client.periodReset', 'client', 'c9')`,
+          )
+          .run(seq),
+      ),
+    ).toMatch(/never overwritten/)
+    expect(db.prepare(`SELECT action FROM audit_log WHERE seq = ?`).get(seq)).toEqual({
+      action: 'client.ceilingsChanged',
+    })
+    closeDatabase(db)
+  })
+
+  it('refuses an upsert onto an existing seq', () => {
+    const db = migrated()
+    const seq = insertEntry(db)
+
+    expect(
+      refusalOf(() =>
+        db
+          .prepare(
+            `INSERT INTO audit_log (seq, at, actor_kind, action, subject_type, subject_id)
+                  VALUES (?, '${AT}', 'system', 'x', 'client', 'c1')
+             ON CONFLICT (seq) DO UPDATE SET action = 'rewritten'`,
+          )
+          .run(seq),
+      ),
+    ).toMatch(/never overwritten/)
+    closeDatabase(db)
+  })
+
+  it('still accepts an ordinary insert after all of that: the log can be appended to', () => {
+    const db = migrated()
+
+    const first = insertEntry(db)
+    const second = insertEntry(db)
+
+    expect(second).toBeGreaterThan(first)
+    closeDatabase(db)
+  })
+
+  // ----------------------------------------------------------- the prune gate --
+
+  it('lets the retention sweep delete: open the gate, delete, close it, in one transaction', () => {
+    const db = migrated()
+    insertEntry(db, { at: LONG_AGO })
+    insertEntry(db, { at: AT })
+
+    expect(pruneAll(db, `WHERE at < '2020-01-01'`)).toBe(1)
+
+    expect(db.prepare(`SELECT at FROM audit_log`).all()).toEqual([{ at: AT }])
+    expect(gate(db)).toEqual([{ id: 1, open: 0 }])
+    closeDatabase(db)
+  })
+
+  it('shuts the gate again after a prune: a raw DELETE is refused once more', () => {
+    const db = migrated()
+    insertEntry(db, { at: LONG_AGO })
+    insertEntry(db, { at: AT })
+    pruneAll(db, `WHERE at < '2020-01-01'`)
+
+    expect(refusalOf(() => db.prepare(`DELETE FROM audit_log`).run())).toMatch(
+      /deleted only by the retention sweep/,
+    )
+    closeDatabase(db)
+  })
+
+  it('leaves the gate shut when a prune fails part way, because the gate and the delete roll back together', () => {
+    const db = migrated()
+    insertEntry(db, { at: LONG_AGO })
+
+    // A trigger of this connection's own, which makes the DELETE fail after the gate opened.
+    db.exec(
+      `CREATE TEMP TRIGGER poison BEFORE DELETE ON audit_log
+         BEGIN SELECT RAISE(ABORT, 'poisoned'); END`,
+    )
+
+    expect(refusalOf(() => pruneAll(db))).toMatch(/poisoned/)
+    expect(gate(db)).toEqual([{ id: 1, open: 0 }])
+    expect(count(db)).toBe(1)
+    closeDatabase(db)
+  })
+
+  it('refuses to delete the gate row, because without it the log could never be pruned again', () => {
+    const db = migrated()
+
+    expect(refusalOf(() => db.prepare(`DELETE FROM audit_prune_gate`).run())).toMatch(/permanent/)
+    expect(gate(db)).toEqual([{ id: 1, open: 0 }])
+    closeDatabase(db)
+  })
+
+  it('holds the gate to one row that is either shut or open', () => {
+    const db = migrated()
+
+    expect(
+      refusalOf(() => db.prepare(`INSERT INTO audit_prune_gate (id, open) VALUES (2, 0)`).run()),
+    ).toMatch(/CHECK/)
+    expect(refusalOf(() => db.prepare(`UPDATE audit_prune_gate SET open = 2`).run())).toMatch(
+      /CHECK/,
+    )
+    closeDatabase(db)
+  })
+
+  it('never reuses a sequence number after the newest rows are pruned, so a held cursor cannot meet a different row', () => {
+    const db = migrated()
+    const last = insertEntry(db, { at: LONG_AGO })
+    pruneAll(db)
+
+    expect(insertEntry(db)).toBeGreaterThan(last)
+    closeDatabase(db)
+  })
+
+  // -------------------------------------------------------------- upgrade path --
+
+  it('is safe to run twice: the gate stays one shut row and an entry already written stays written', () => {
+    const db = migrated()
+    insertEntry(db)
+
+    db.exec(migrations.find((migration) => migration.id === 9)?.sql ?? '')
+
+    expect(gate(db)).toEqual([{ id: 1, open: 0 }])
+    expect(count(db)).toBe(1)
+    closeDatabase(db)
+  })
+
+  it('keeps a box that existed before the audit log did, and gives it an empty one', () => {
+    // The upgrade path, on somebody's wedding album: two new tables and nothing else
+    // touched — the accounts, the client and the event all read back as they were.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 9),
+    )
+    seedBeforeAudit(db)
+
+    migrate(db, migrations)
+
+    expect(db.prepare(`SELECT email FROM users ORDER BY id`).all()).toEqual([
+      { email: 'operateur@example.test' },
+      { email: 'hote@example.test' },
+    ])
+    expect(db.prepare(`SELECT name, status, client_id FROM events WHERE id = 'e1'`).get()).toEqual({
+      name: 'Camille & Sacha',
+      status: 'live',
+      client_id: null,
+    })
+    expect(db.prepare(`SELECT name FROM clients WHERE id = 'c1'`).get()).toEqual({
+      name: 'Atelier Photo Camille',
+    })
+    expect(count(db)).toBe(0)
+    expect(gate(db)).toEqual([{ id: 1, open: 0 }])
+    expect(() => insertEntry(db)).not.toThrow()
     closeDatabase(db)
   })
 })

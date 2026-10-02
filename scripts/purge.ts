@@ -6,6 +6,13 @@
  * (`src/main/retentionSweeper.ts`), so the two can never drift apart: this is a
  * different trigger, not a second implementation.
  *
+ * **One thing the timer does that this command does not: it prunes the audit log**
+ * (`pruneAuditLog`, roadmap §10.8). Calling it from here is a few lines, but this file runs
+ * `main()` on import, so nothing can drive it from a test, and the coverage ratchet in
+ * `vitest.config.ts` forbids adding untested lines to `scripts/`. Making it testable first,
+ * the way `backup.ts` exports `run`, is the follow-up; until then an operator who sets
+ * `RETENTION_SWEEP_INTERVAL_MINUTES=off` has nothing pruning the audit log.
+ *
  * Two operators want this. The one whose schedule belongs to cron or a systemd timer
  * rather than to the application — they set `RETENTION_SWEEP_INTERVAL_MINUTES=off` and
  * call this — and the one who has just been asked "did that album actually get
