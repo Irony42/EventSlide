@@ -46,6 +46,9 @@ const newestEntry = (): { heading: string; body: string } => {
   return entryFrom(lines, start)
 }
 
+/** Running text: Prettier wraps lines, and a phrase can break across one. */
+const flat = (text: string): string => text.replace(/\s+/g, ' ')
+
 /** The entry of one release, wherever it stands in the file. */
 const entryOf = (version: string): { heading: string; body: string } => {
   const lines = read('CHANGELOG.md').split('\n')
@@ -114,7 +117,7 @@ describe('the CHANGELOG entry of 3.0.0, the release that changed the licence', (
   })
 
   it('names the last GPL release and says that it is this one that starts the AGPL', () => {
-    const licence = entryOf('3.0.0').body.split('\n### ')[1] ?? ''
+    const licence = flat(entryOf('3.0.0').body.split('\n### ')[1] ?? '')
 
     expect(licence).toContain('2.1.0')
     expect(licence).toMatch(/3\.0\.0 is the first release under it/)
@@ -125,7 +128,7 @@ describe('the CHANGELOG entry of 3.0.0, the release that changed the licence', (
 // the record of what the published release is, so it is held to saying so.
 describe('the CHANGELOG entry of 2.1.0, the last release under the GPL', () => {
   it('says it is GPL-3.0 and that the AGPL is the next release', () => {
-    const entry = entryOf('2.1.0').body
+    const entry = flat(entryOf('2.1.0').body)
 
     expect(entry).toMatch(/(?<!A)GPL-3\.0/)
     expect(entry).toMatch(/last release under the GPL-3\.0/)
@@ -147,5 +150,29 @@ describe('the CHANGELOG entries of the releases already published', () => {
     expect(entryOf(version).body).toContain(
       `https://github.com/Irony42/EventSlide/releases/tag/v${version}`,
     )
+  })
+})
+
+// What separates the two entries is a pull request number. #103 is the last pull request the
+// GPL-3.0 release carries (the merge that `gpl-final` and `v2.1.0` name), and #104 the first
+// one after it. A pull request cited on the wrong side of that is a change attributed to the
+// wrong licence and the wrong version, and nothing else in the toolchain reads those numbers.
+describe('the pull requests each CHANGELOG entry cites', () => {
+  const LAST_PULL_REQUEST_OF_2_1_0 = 103
+  const pullRequests = (version: string): readonly number[] =>
+    [...entryOf(version).body.matchAll(/(?<![\w&])#(\d+)\b/g)].map((match) => Number(match[1]))
+
+  it('stop at #103 in the entry of 2.1.0, which is the release cut on that merge', () => {
+    const cited = pullRequests('2.1.0')
+
+    expect(cited.length, 'pull requests cited by 2.1.0').toBeGreaterThan(0)
+    expect(Math.max(...cited)).toBe(LAST_PULL_REQUEST_OF_2_1_0)
+  })
+
+  it('start after #103 in the entry of 3.0.0', () => {
+    const cited = pullRequests('3.0.0')
+
+    expect(cited.length, 'pull requests cited by 3.0.0').toBeGreaterThan(0)
+    expect(Math.min(...cited)).toBeGreaterThan(LAST_PULL_REQUEST_OF_2_1_0)
   })
 })

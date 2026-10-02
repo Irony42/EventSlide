@@ -133,6 +133,28 @@ describe('where the AGPL starts, said in the places a self-hoster reads', () => 
       expect(text).toContain('`gpl-final`')
     },
   )
+
+  it.each([
+    ['the FAQ', FAQ],
+    ['the README', 'README.md'],
+  ])(
+    'never ties v2.1.0 to the AGPL in %s: each sentence or table row that names it says GPL-3.0',
+    (_name, file) => {
+      // 2.1.0 was prepared as the first AGPL release and published as the last GPL one, so the
+      // mistake to catch is a sentence from the first plan that survived the second.
+      const units = read(file)
+        .split(/\n\s*\n/)
+        .flatMap((block) =>
+          block.startsWith('|')
+            ? block.split('\n')
+            : block.replace(/\s+/g, ' ').split(/(?<=[.;]) /),
+        )
+      const naming = units.filter((unit) => unit.includes('2.1.0'))
+
+      expect(naming.length, `sentences naming 2.1.0 in ${file}`).toBeGreaterThan(0)
+      for (const unit of naming) expect(unit).toMatch(GPL)
+    },
+  )
 })
 
 describe('the CHANGELOG entry of 3.0.0', () => {
