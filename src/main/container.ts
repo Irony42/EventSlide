@@ -281,7 +281,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // Held as the concrete type, not the port: shutdown needs `close()`, which is the
   // adapter's own affordance and deliberately absent from `EventBus` — a use case has
   // no business tearing the bus down.
-  const bus = createInMemoryEventBus({ logger })
+  const bus = createInMemoryEventBus({
+    logger,
+    maxSubscribersPerEvent: config.realtime.maxSubscribersPerEvent,
+  })
 
   // ------------------------------------------------------------------- video --
 
@@ -378,6 +381,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     mediaSweepMaxDigestsPerPass: MEDIA_SWEEP_MAX_DIGESTS,
     clips: {
       maxQueuedClips: config.clips.maxQueuedClips,
+      maxQueuedClipsPerEvent: config.clips.maxQueuedClipsPerEvent,
       reservationTimeoutMs: CLIP_RESERVATION_TIMEOUT_MS,
       maxHeight: config.clips.maxHeight,
       maxDurationMs: config.clips.maxDurationMs,
@@ -561,6 +565,10 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       uploadTempDir: clipUploadTempDir(mediaRoot),
     },
     rateLimits: config.rateLimits,
+    realtime: {
+      maxStreamsPerClient: config.realtime.maxStreamsPerClient,
+      maxStreamsTotal: config.realtime.maxStreamsTotal,
+    },
   }
 
   const httpDeps: HttpDeps = {
@@ -674,7 +682,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       // Last, and synchronous: it checkpoints the WAL so the `.sqlite` file is
       // self-contained. A host who copies it to a USB stick after the party should get
       // the whole album, not a file missing everything still in `-wal`.
-      closeDatabase(db)
+      closeDatabase(db, config.storage.sqliteShutdownCheckpoint)
     },
   }
 }

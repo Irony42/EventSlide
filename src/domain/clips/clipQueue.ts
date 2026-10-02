@@ -16,12 +16,22 @@ import { DomainError } from '../shared/errors'
  * wedding over nothing. A `429` with `Retry-After` says "not now, in a minute", which is
  * what is actually true, and the client can retry it on its own.
  *
- * The depth is **process-wide rather than per event**, and that is a trade: one event
- * can fill the queue and make another event's guests wait. The deployment target is one
- * box at one venue, usually with one live event, and what a guest experiences is the
- * global wait — a per-event cap would admit a clip and then make it queue behind another
- * event's backlog anyway, which is the same wait reported as a success. Per-event
- * fairness is already carried by the byte quota and by the per-event upload limiter.
+ * The depth is checked **twice**: once process-wide, and once scoped to the event doing
+ * the staging (`MAX_QUEUED_CLIPS` and `MAX_QUEUED_CLIPS_PER_EVENT`, both read by
+ * `ClipJobRepository.stage` inside the one transaction that decides admission). The
+ * box-wide cap alone has a real cost for anything but the deployment this product ships
+ * for — one box, one venue, usually one live event: a second event sharing the process
+ * can fill every slot and make the first event's guests wait behind its backlog, which a
+ * single live event never notices and a multi-event cell cannot avoid. The per-event cap
+ * is what bounds that without touching the single-event case at all — defaulted to the
+ * same number as the box-wide one, so a solo box reaches both together and the wait a
+ * guest experiences is still the global one, exactly as before.
+ *
+ * Admitting a clip never means it transcodes immediately either way: one worker drains
+ * the queue at concurrency 1, so a clip under both caps still queues behind whatever this
+ * event — or, if the box-wide cap is the looser of the two, another event — already has
+ * waiting. The per-event cap's job is narrower than "no wait": it is "no event can make
+ * every *other* event's guests wait on its behalf".
  */
 
 /** Roughly what one clip costs the worker, used only to word the retry advice. */

@@ -70,16 +70,33 @@ export interface ClipAdmissionLimits {
   readonly quotaBytes: number
   /** How many clips may be waiting or running across the whole box. Process-wide. */
   readonly maxQueuedClips: number
+  /**
+   * The same backpressure, scoped to **this** event alone, and checked in the same
+   * transaction as the box-wide count above.
+   *
+   * `src/domain/clips/clipQueue.ts` writes out the cost of the box-wide cap alone: one
+   * event can fill every slot and make another event's guests wait behind its backlog.
+   * This is the per-event ceiling that bounds that — a wedding over its own limit is
+   * refused without ever touching a gala's room on the same box. Defaulted, by every
+   * caller that builds this from configuration, to the same number as `maxQueuedClips`,
+   * so a box running one event at a time reaches both together and nothing changes.
+   */
+  readonly maxQueuedClipsPerEvent: number
 }
 
 /**
  * Why a staged clip was not admitted, with the numbers observed at the moment of the
  * decision — so the guest is told about the state that actually refused it rather than
  * the one the request read a moment earlier.
+ *
+ * `queueFull` carries `maxDepth` alongside `depth`, because which of the two caps was
+ * the one that actually refused is the repository's to know and the caller's to repeat
+ * back rather than to reconstruct: `src/domain/clips/clipQueue.clipQueueFull` ends up
+ * naming the right ceiling only because this type does.
  */
 export type ClipRefusal =
   | { readonly reason: 'quotaExceeded'; readonly remaining: number }
-  | { readonly reason: 'queueFull'; readonly depth: number }
+  | { readonly reason: 'queueFull'; readonly depth: number; readonly maxDepth: number }
 
 export interface ClipAdmission {
   /** `null` when the row was inserted. */
@@ -190,8 +207,11 @@ export interface ClipJobRepository extends StagedByteSource {
    *
    * 1. a charge against the event's quota, for bytes that may not exist — and the quota
    *    spans `photos`, so the album's own room shrinks with it;
-   * 2. one of `MAX_QUEUED_CLIPS` **global** slots, which is the one that wedges a box:
-   *    twenty of these and every clip upload on the machine is a `429` that never clears;
+   * 2. one of `MAX_QUEUED_CLIPS` **global** slots, and one of this event's own
+   *    `MAX_QUEUED_CLIPS_PER_EVENT` slots — either is enough to wedge an upload path:
+   *    twenty of these against the global cap and every clip upload on the machine is a
+   *    `429` that never clears, and far fewer against the per-event one wedges just the
+   *    event that is leaking them;
    * 3. that digest, through the partial unique index, so the guest's own retry is deduped
    *    onto a job that will never move.
    *

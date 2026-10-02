@@ -345,7 +345,10 @@ export const streamRoutes = (deps: HttpDeps): Router => {
    * requests-per-minute limiter would let one client hold two hundred connections
    * forever as long as it opened them slowly.
    */
-  const connections = streamConnectionLimiter()
+  const connections = streamConnectionLimiter({
+    perClient: deps.config.realtime.maxStreamsPerClient,
+    total: deps.config.realtime.maxStreamsTotal,
+  })
 
   /** The wall's channel. Public, for an event that serves its wall. */
   router.get(

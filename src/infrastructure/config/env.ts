@@ -501,6 +501,24 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * for every event and the wait a guest experiences is the global one.
        */
       MAX_QUEUED_CLIPS: positiveInt(20, 500),
+      /**
+       * The same backpressure, scoped to **one** event, and checked inside the same
+       * `stage` transaction as the box-wide count above.
+       *
+       * `MAX_QUEUED_CLIPS` alone has a known cost, written on `src/domain/clips/clipQueue.ts`:
+       * one event can fill every slot and make another event's guests wait behind its
+       * backlog, which is the one trade that is wrong for a box running more than one
+       * event at a time (roadmap R-10, "noisy neighbours"). This does not replace the
+       * box-wide cap — a single event still cannot out-queue what one worker can chew
+       * through — it adds a second, per-event ceiling so a wedding running over
+       * capacity cannot also starve a gala on the same machine.
+       *
+       * Defaulted to the same number as `MAX_QUEUED_CLIPS`: on a box that only ever
+       * runs one event at a time — the deployment this product ships for — the two
+       * caps are reached together and nothing observable changes. Lowering this one is
+       * what a multi-event cell asks for.
+       */
+      MAX_QUEUED_CLIPS_PER_EVENT: positiveInt(20, 500),
       /** The projected height of a clip. 720p reads well at 3 m and encodes quickly. */
       CLIP_MAX_HEIGHT: positiveInt(720, 2_160),
       /**
@@ -605,6 +623,45 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: positiveInt(3_000, 30_000),
       GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT: positiveInt(10, 600),
       GALLERY_UNLOCK_ATTEMPTS_PER_LINK: positiveInt(50, 6_000),
+
+      /**
+       * How many event streams one client key may hold **open at the same time**, and
+       * how many the process serves at once across every client and event.
+       *
+       * Concurrency, not a rate — see `streamConnectionLimiter`, which carried these as
+       * constants until now. The defaults are unchanged (12, 500): a single-event box
+       * never reaches either, and what becomes configurable is the backstop a busier,
+       * multi-event cell needs to raise or lower.
+       */
+      MAX_STREAMS_PER_CLIENT: positiveInt(12, 10_000),
+      MAX_STREAMS_TOTAL: positiveInt(500, 100_000),
+      /**
+       * The event bus's own cap, independent of the two above: how many SSE
+       * subscriptions `createInMemoryEventBus` holds for a single event before it
+       * refuses a fresh one with `503`. Guards the same box against the same shape of
+       * leak or abuse, one level down from the HTTP connection limiter.
+       */
+      MAX_SUBSCRIBERS_PER_EVENT: positiveInt(200, 10_000),
+
+      /**
+       * What `closeDatabase` runs at shutdown: `truncate` (the default, unchanged),
+       * `passive`, or `none`.
+       *
+       * Carried for Litestream, which replicates the WAL and is sensitive to how a
+       * clean shutdown leaves it — `passive` checkpoints without ever blocking on a
+       * reader, where `truncate` can be partial when one is attached. **Unused on a
+       * self-hosted instance**, which has no Litestream adapter: `truncate` keeps
+       * closing exactly as it always has, and this variable exists so the paid plan's
+       * cell can override it without a second code path.
+       *
+       * Blank is absent, for the reason written on {@link siteAdmin}: a dangling
+       * `SQLITE_SHUTDOWN_CHECKPOINT=` lands on the unconditional behaviour every boot
+       * before this had, not on a guess at which mode was meant.
+       */
+      SQLITE_SHUTDOWN_CHECKPOINT: z.preprocess(
+        blankAsAbsent,
+        z.enum(['truncate', 'passive', 'none']).default('truncate'),
+      ),
 
       /**
        * Bounded at both ends. `createBcryptPasswordHasher` refuses anything outside
@@ -764,6 +821,8 @@ export interface AppConfig {
     readonly backupDir: string
     /** See {@link RawConfig} field `MIN_FREE_DISK_BYTES`. */
     readonly minFreeDiskBytes: number
+    /** What `closeDatabase` runs at shutdown. See {@link RawConfig} for the reasoning. */
+    readonly sqliteShutdownCheckpoint: 'truncate' | 'passive' | 'none'
   }
 
   readonly uploads: {
@@ -784,6 +843,8 @@ export interface AppConfig {
     readonly maxBytes: number
     readonly maxDurationMs: number
     readonly maxQueuedClips: number
+    /** The same backpressure, scoped to one event. See `MAX_QUEUED_CLIPS_PER_EVENT`. */
+    readonly maxQueuedClipsPerEvent: number
     readonly maxHeight: number
     readonly maxPixels: number
     readonly ffmpegPath: string | null
@@ -806,6 +867,20 @@ export interface AppConfig {
       readonly temp: string
       readonly tmp: string
     }
+  }
+
+  /**
+   * The server-sent-events channel's own backpressure, separate from `rateLimits`
+   * because what it bounds is held, not spent: a connection lives for hours rather
+   * than milliseconds, so the right unit is "open at once", not "per minute".
+   */
+  readonly realtime: {
+    /** `streamConnectionLimiter`'s per-client concurrency ceiling. */
+    readonly maxStreamsPerClient: number
+    /** `streamConnectionLimiter`'s process-wide concurrency ceiling. */
+    readonly maxStreamsTotal: number
+    /** `createInMemoryEventBus`'s per-event subscriber ceiling. */
+    readonly maxSubscribersPerEvent: number
   }
 
   readonly guests: {
@@ -894,6 +969,16 @@ export interface AppConfig {
     /** `JOIN_CODE_LENGTH`. See {@link joinCodeLength}. */
     readonly joinCodeLength: number
   }
+
+  /**
+   * Problems worth telling an operator about that are not worth refusing the boot
+   * over — see {@link computeWarnings}. Empty outside production, and usually empty
+   * inside it too; `src/main/index.ts` logs each one once, after the container
+   * exists. These start as warnings and stay warnings in a minor release: turning one
+   * into a boot refusal is a breaking change for an existing self-hosted install, and
+   * belongs in a major version with its own CHANGELOG entry, not a silent tightening.
+   */
+  readonly warnings: readonly string[]
 }
 
 /**
@@ -921,6 +1006,60 @@ export class ConfigError extends Error {
 }
 
 type Source = Record<string, string | undefined>
+
+interface WarningInputs {
+  readonly isProduction: boolean
+  /** The unparsed source, because a default and an explicit value parse identically. */
+  readonly source: Source
+  readonly secureCookie: boolean
+  readonly trustProxyHops: number
+}
+
+/**
+ * Boot-time problems that are real but not worth a refusal — see `AppConfig.warnings`
+ * and R-16 (roadmap: "self-hosters go silent on a changed default"). Both cases here are
+ * a production boot that looks configured and is not, and both were a boot refusal in an
+ * earlier draft; **`loadConfig` never throws for either**, because the configurations
+ * they describe already run in the wild and a new refusal in a minor release would be
+ * the rupture R-16 exists to name.
+ */
+const computeWarnings = ({
+  isProduction,
+  source,
+  secureCookie,
+  trustProxyHops,
+}: WarningInputs): readonly string[] => {
+  if (!isProduction) return []
+
+  const warnings: string[] = []
+
+  // Parsed, `raw.PUBLIC_URL` already carries its default and cannot say whether an
+  // operator set it — only the unparsed source can. `PUBLIC_URL` has no `blankAsAbsent`
+  // preprocessing, so a dangling `PUBLIC_URL=` never gets here: it fails `.url()` and the
+  // boot is refused before this runs. Only an absent variable reaches this check; the
+  // blank branch is a belt-and-braces guard, not a state a boot can observe today.
+  const rawPublicUrl = source['PUBLIC_URL']
+  const publicUrlConfigured = rawPublicUrl !== undefined && rawPublicUrl.trim() !== ''
+  if (!publicUrlConfigured) {
+    warnings.push(
+      'PUBLIC_URL is not set: production is falling back to http://localhost:5173, which is ' +
+        'not an address a guest’s phone can reach. Set PUBLIC_URL to the address guests will ' +
+        'actually use.',
+    )
+  }
+
+  if (secureCookie && trustProxyHops === 0) {
+    warnings.push(
+      'TRUST_PROXY_HOPS is 0 with a Secure session cookie in production. If a reverse proxy ' +
+        'sits in front of this box, as docs/SECURITY.md §11 expects, this is the same ' +
+        'misconfiguration that silently breaks per-IP rate limiting, and a host can find a ' +
+        'session stops working with no visible cause. Set TRUST_PROXY_HOPS to the number of ' +
+        'reverse proxies in front of this box, or leave it at 0 only when nothing does.',
+    )
+  }
+
+  return warnings
+}
 
 const load = (schema: typeof serverSchema, source: Source): AppConfig => {
   const parsed = schema.safeParse(source)
@@ -994,6 +1133,7 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       mediaRoot: raw.MEDIA_ROOT,
       backupDir: raw.BACKUP_DIR,
       minFreeDiskBytes: raw.MIN_FREE_DISK_BYTES,
+      sqliteShutdownCheckpoint: raw.SQLITE_SHUTDOWN_CHECKPOINT,
     },
 
     uploads: {
@@ -1009,6 +1149,7 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       maxBytes: raw.MAX_CLIP_BYTES,
       maxDurationMs: raw.MAX_CLIP_SECONDS * 1000,
       maxQueuedClips: raw.MAX_QUEUED_CLIPS,
+      maxQueuedClipsPerEvent: raw.MAX_QUEUED_CLIPS_PER_EVENT,
       maxHeight: raw.CLIP_MAX_HEIGHT,
       maxPixels: raw.MAX_CLIP_PIXELS,
       ffmpegPath: raw.FFMPEG_PATH ?? null,
@@ -1022,6 +1163,12 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
         temp: raw.TEMP,
         tmp: raw.TMP,
       },
+    },
+
+    realtime: {
+      maxStreamsPerClient: raw.MAX_STREAMS_PER_CLIENT,
+      maxStreamsTotal: raw.MAX_STREAMS_TOTAL,
+      maxSubscribersPerEvent: raw.MAX_SUBSCRIBERS_PER_EVENT,
     },
 
     guests: {
@@ -1071,6 +1218,13 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       allowCustomSlugs: raw.ALLOW_CUSTOM_SLUGS,
       joinCodeLength: raw.JOIN_CODE_LENGTH,
     },
+
+    warnings: computeWarnings({
+      isProduction,
+      source,
+      secureCookie: raw.SESSION_COOKIE_SECURE ?? isProduction,
+      trustProxyHops: raw.TRUST_PROXY_HOPS,
+    }),
   }
 }
 

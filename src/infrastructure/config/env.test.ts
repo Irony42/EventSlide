@@ -93,6 +93,7 @@ describe('loadConfig', () => {
           mediaRoot: './media',
           backupDir: './backups',
           minFreeDiskBytes: 1_000_000_000,
+          sqliteShutdownCheckpoint: 'truncate',
         },
         uploads: {
           maxBytes: 25_000_000,
@@ -106,6 +107,7 @@ describe('loadConfig', () => {
           maxBytes: 80_000_000,
           maxDurationMs: 15_000,
           maxQueuedClips: 20,
+          maxQueuedClipsPerEvent: 20,
           maxHeight: 720,
           maxPixels: 33_177_600,
           ffmpegPath: null,
@@ -128,6 +130,11 @@ describe('loadConfig', () => {
             temp: '',
             tmp: '',
           },
+        },
+        realtime: {
+          maxStreamsPerClient: 12,
+          maxStreamsTotal: 500,
+          maxSubscribersPerEvent: 200,
         },
         guests: { selfDeleteGraceMs: 900_000 },
         retention: { sweepIntervalMs: 3_600_000 },
@@ -153,6 +160,8 @@ describe('loadConfig', () => {
           allowCustomSlugs: true,
           joinCodeLength: 6,
         },
+        // A development boot never gets a warning: every case below is production-only.
+        warnings: [],
       })
     })
 
@@ -282,6 +291,11 @@ describe('loadConfig', () => {
         EVENT_CREATION_RATE_LIMIT_PER_HOUR: '109',
         BCRYPT_COST: '14',
         JOIN_CODE_LENGTH: '9',
+        MAX_QUEUED_CLIPS: '112',
+        MAX_QUEUED_CLIPS_PER_EVENT: '15',
+        MAX_STREAMS_PER_CLIENT: '16',
+        MAX_STREAMS_TOTAL: '110',
+        MAX_SUBSCRIBERS_PER_EVENT: '111',
       })
 
       expect(config).toMatchObject({
@@ -295,6 +309,15 @@ describe('loadConfig', () => {
           maxConcurrentRequests: 8,
         },
         storage: { minFreeDiskBytes: 4444 },
+        clips: {
+          maxQueuedClips: 112,
+          maxQueuedClipsPerEvent: 15,
+        },
+        realtime: {
+          maxStreamsPerClient: 16,
+          maxStreamsTotal: 110,
+          maxSubscribersPerEvent: 111,
+        },
         guests: { selfDeleteGraceMs: 61_000 },
         rateLimits: {
           uploadPerMinute: 101,
@@ -630,6 +653,11 @@ describe('loadConfig', () => {
       ['LOGIN_RATE_LIMIT_PER_MINUTE', '601'],
       ['REACTION_RATE_LIMIT_PER_MINUTE', '601'],
       ['MAX_CONCURRENT_UPLOAD_REQUESTS', '1001'],
+      ['MAX_QUEUED_CLIPS', '501'],
+      ['MAX_QUEUED_CLIPS_PER_EVENT', '501'],
+      ['MAX_STREAMS_PER_CLIENT', '10001'],
+      ['MAX_STREAMS_TOTAL', '100001'],
+      ['MAX_SUBSCRIBERS_PER_EVENT', '10001'],
     ])('refuses %s=%s for exceeding its ceiling', (name, value) => {
       const issues = refusalIssues({ [name]: value })
 
@@ -655,10 +683,29 @@ describe('loadConfig', () => {
       'MAX_FILES_PER_UPLOAD',
       'MAX_CONCURRENT_UPLOAD_REQUESTS',
       'MIN_FREE_DISK_BYTES',
+      'MAX_QUEUED_CLIPS_PER_EVENT',
+      'MAX_STREAMS_PER_CLIENT',
+      'MAX_STREAMS_TOTAL',
+      'MAX_SUBSCRIBERS_PER_EVENT',
     ])('refuses %s=0, because a zero limit would refuse every upload silently', (name) => {
       const issues = refusalIssues({ [name]: '0' })
 
       expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
+    })
+
+    it.each(['TRUNCATE', 'Passive', 'wal'])(
+      'refuses SQLITE_SHUTDOWN_CHECKPOINT=%s rather than guessing the intended mode',
+      (value) => {
+        const issues = refusalIssues({ SQLITE_SHUTDOWN_CHECKPOINT: value })
+
+        expect(issues.some((issue) => issue.startsWith('SQLITE_SHUTDOWN_CHECKPOINT: '))).toBe(true)
+      },
+    )
+
+    it('reads a blank SQLITE_SHUTDOWN_CHECKPOINT as absent, landing on the unconditional default', () => {
+      const config = loadConfig({ ...DEV, SQLITE_SHUTDOWN_CHECKPOINT: '' })
+
+      expect(config.storage.sqliteShutdownCheckpoint).toBe('truncate')
     })
   })
 
@@ -1210,6 +1257,75 @@ describe('loadConfig', () => {
 
         expect(config.rateLimits.eventCreationPerHour).toBe(42)
       })
+    })
+  })
+
+  /**
+   * R-16 (roadmap: self-hosters rupture on a changed default). Both of these were a
+   * refusal in an earlier draft of this module; neither throws now, because the
+   * configurations they describe already run on boxes in the wild, and turning either
+   * into a boot refusal in a minor release is exactly the rupture R-16 names. They are
+   * warnings so an operator reading the boot log learns about them without anything
+   * breaking.
+   */
+  describe('config warnings', () => {
+    it('warns when production has no configured PUBLIC_URL, which is silently unreachable', () => {
+      const config = loadConfig({
+        NODE_ENV: 'production',
+        SESSION_SECRET: A_REAL_SECRET,
+        GUEST_TOKEN_SECRET: ANOTHER_REAL_SECRET,
+      })
+
+      expect(config.warnings.some((warning) => warning.includes('PUBLIC_URL'))).toBe(true)
+    })
+
+    it('is silent about PUBLIC_URL once it is configured, localhost included', () => {
+      // TRUST_PROXY_HOPS named explicitly so only PUBLIC_URL is under test here — its
+      // own warning has a case below.
+      expect(loadConfig(aProductionEnv({ TRUST_PROXY_HOPS: '1' })).warnings).toEqual([])
+      expect(
+        loadConfig(aProductionEnv({ PUBLIC_URL: 'http://localhost:4300', TRUST_PROXY_HOPS: '1' }))
+          .warnings,
+      ).toEqual([])
+    })
+
+    it('never warns about PUBLIC_URL outside production, where the default is the point', () => {
+      expect(loadConfig({ ...DEV }).warnings).toEqual([])
+    })
+
+    it('warns about TRUST_PROXY_HOPS=0 behind a Secure cookie in production', () => {
+      const config = loadConfig(aProductionEnv({ TRUST_PROXY_HOPS: '0' }))
+
+      expect(
+        config.warnings.some(
+          (warning) => warning.includes('TRUST_PROXY_HOPS') && warning.includes('Secure'),
+        ),
+      ).toBe(true)
+    })
+
+    it('is silent once TRUST_PROXY_HOPS names an actual proxy count', () => {
+      expect(loadConfig(aProductionEnv({ TRUST_PROXY_HOPS: '1' })).warnings).toEqual([])
+    })
+
+    it('is silent about TRUST_PROXY_HOPS=0 when the cookie is not Secure either', () => {
+      // The combination is what is risky, not the hop count alone: a box with no TLS in
+      // front of it, whatever reason it has for one, is not missing a trusted proxy.
+      const config = loadConfig(
+        aProductionEnv({ TRUST_PROXY_HOPS: '0', SESSION_COOKIE_SECURE: 'false' }),
+      )
+
+      expect(config.warnings.some((warning) => warning.includes('TRUST_PROXY_HOPS'))).toBe(false)
+    })
+
+    it('reports every warning at once, the same way a refusal names every problem at once', () => {
+      const config = loadConfig({
+        NODE_ENV: 'production',
+        SESSION_SECRET: A_REAL_SECRET,
+        GUEST_TOKEN_SECRET: ANOTHER_REAL_SECRET,
+        TRUST_PROXY_HOPS: '0',
+      })
+
+      expect(config.warnings).toHaveLength(2)
     })
   })
 })

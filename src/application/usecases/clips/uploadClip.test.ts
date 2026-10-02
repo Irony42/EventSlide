@@ -87,7 +87,7 @@ describe('uploadClip', () => {
     events.seed(anEvent({ id: 'event-1', ...input }))
   }
 
-  const build = (maxQueuedClips = 20): void => {
+  const build = (maxQueuedClips = 20, maxQueuedClipsPerEvent = maxQueuedClips): void => {
     uploadClip = makeUploadClip({
       events,
       clips,
@@ -99,7 +99,7 @@ describe('uploadClip', () => {
       clock,
       ids,
       logger,
-      limits: { maxQueuedClips },
+      limits: { maxQueuedClips, maxQueuedClipsPerEvent },
     })
   }
 
@@ -301,7 +301,7 @@ describe('uploadClip', () => {
         clock,
         ids,
         logger,
-        limits: { maxQueuedClips: 20 },
+        limits: { maxQueuedClips: 20, maxQueuedClipsPerEvent: 20 },
       })
 
       const result = await upload(new Uint8Array(0))
@@ -502,6 +502,39 @@ describe('uploadClip', () => {
       const second = await upload(aClipFile('two'))
 
       expect(second.ok).toBe(true)
+    })
+  })
+
+  describe('the per-event cap', () => {
+    const OTHER_EVENT = asEventId('event-2')
+
+    const uploadTo = (eventId = EVENT, bytes = aClipFile()) =>
+      uploadClip({ eventId, author: GUEST, file: { bytes, declaredName: 'IMG_4021.MOV' } })
+
+    it('refuses the event at its own cap with the same rate-limited rule as the box-wide one', async () => {
+      seedEvent()
+      build(10, 1)
+      await uploadTo(EVENT, aClipFile('one'))
+
+      const result = await uploadTo(EVENT, aClipFile('two'))
+
+      expect(!result.ok && result.error.kind).toBe('rateLimited')
+      expect(!result.ok && result.error.code).toBe('clip.queueFull')
+    })
+
+    it('never makes a second event wait behind the first event’s own cap', async () => {
+      // The contract the per-event cap exists for: a wedding stuck at its own ceiling
+      // must not spend any of a gala's room on the same box. `build(10, 1)` keeps the
+      // box-wide cap generous, so only the per-event one can be the reason either
+      // upload is refused.
+      seedEvent()
+      events.seed(anEvent({ id: 'event-2', slug: 'gala', joinCode: 'B4N9PT' }))
+      build(10, 1)
+      await uploadTo(EVENT, aClipFile('one'))
+
+      const result = await uploadTo(OTHER_EVENT, aClipFile('two'))
+
+      expect(result.ok).toBe(true)
     })
   })
 
@@ -734,7 +767,7 @@ describe('uploadClip', () => {
         clock,
         ids,
         logger,
-        limits: { maxQueuedClips: 20 },
+        limits: { maxQueuedClips: 20, maxQueuedClipsPerEvent: 20 },
       })
 
       const result = await upload()

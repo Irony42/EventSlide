@@ -1,3 +1,5 @@
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,6 +10,7 @@ import { migrations } from '../infrastructure/db/migrations'
 import { status } from '../infrastructure/db/migrator'
 import { createContainer, type Container } from './container'
 import { appVersion } from './version'
+import { anEventSettings } from '../application/testing/builders'
 
 /**
  * The one line of `SITE_ADMIN` that no other test reaches: the composition root handing
@@ -100,6 +103,65 @@ describe('createContainer: readiness reaches the real health check (P4-06)', () 
     const after = await request(app).get('/api/ready')
     expect(after.status).toBe(503)
     expect(after.body.error.code).toBe('service.notReady')
+  })
+})
+
+/**
+ * The same shape of gap `SITE_ADMIN` above exists for: `config.realtime.maxSubscribersPerEvent`
+ * reaching `createInMemoryEventBus` is one line in `container.ts`
+ * (`createInMemoryEventBus({ logger, maxSubscribersPerEvent: ... })`), and nothing elsewhere
+ * proves that line is still there. `env.test.ts` only proves the variable parses;
+ * `inMemoryEventBus.test.ts` hands the adapter its cap directly, bypassing the container
+ * entirely; and `streamRoutes.test.ts` covers the two *HTTP* concurrency ceilings
+ * (`MAX_STREAMS_PER_CLIENT`/`MAX_STREAMS_TOTAL`) through a real container but never this
+ * one, which lives one level lower, in the bus itself. A real socket is unavoidable here:
+ * the bus's own refusal is what the SSE route answers before a single header is written,
+ * and that can only be observed by actually holding a connection open.
+ */
+describe('createContainer: MAX_SUBSCRIBERS_PER_EVENT reaches the event bus', () => {
+  const openRaw = (port: number, path: string): Promise<http.IncomingMessage> =>
+    new Promise((resolve, reject) => {
+      const req = http.get({ port, path }, resolve)
+      req.on('error', reject)
+    })
+
+  it('refuses a second subscriber to the same event once the configured cap is reached', async () => {
+    const { app, db } = await boot({ MAX_SUBSCRIBERS_PER_EVENT: '1' })
+
+    const now = new Date().toISOString()
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('user-host', 'host@example.test', 'hash:x', ?)`,
+    ).run(now)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+            VALUES ('event-1', 'user-host', 'Test', 'mariage', 'H7K2QM', 'live', ?, 1000000000, ?)`,
+    ).run(JSON.stringify(anEventSettings().toProps()), now)
+
+    const server = http.createServer(app)
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const port = (server.address() as AddressInfo).port
+
+    try {
+      const first = await openRaw(port, '/api/events/mariage/stream')
+      expect(first.statusCode).toBe(200)
+
+      const second = await openRaw(port, '/api/events/mariage/stream')
+      const body: Buffer[] = []
+      await new Promise<void>((resolve) => {
+        second.on('data', (chunk: Buffer) => body.push(chunk))
+        second.on('end', resolve)
+      })
+
+      expect(second.statusCode).toBe(503)
+      expect(JSON.parse(Buffer.concat(body).toString('utf8'))).toMatchObject({
+        error: { code: 'service.notReady' },
+      })
+
+      first.destroy()
+      second.destroy()
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 })
 

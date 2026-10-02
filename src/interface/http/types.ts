@@ -177,6 +177,14 @@ export interface HttpConfig {
   }
   /** `middleware/accessLog.ts` (docs/SECURITY.md, P4-06): route pattern, status, duration. */
   readonly accessLog: AccessLogOptions
+  /**
+   * The SSE channel's own backpressure: concurrency, not a rate. See
+   * `streamConnectionLimiter` and `AppConfig.realtime`.
+   */
+  readonly realtime: {
+    readonly maxStreamsPerClient: number
+    readonly maxStreamsTotal: number
+  }
 }
 
 declare global {

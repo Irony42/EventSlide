@@ -211,6 +211,11 @@ const COUNT_ACTIVE_CLIPS = `
   SELECT COUNT(*) AS value FROM clip_jobs WHERE status IN (${HOLDING_BYTES_SQL})
 `
 
+/** The same count, scoped to one event — `stage`'s other admission check. */
+const COUNT_ACTIVE_CLIPS_FOR_EVENT = `
+  SELECT COUNT(*) AS value FROM clip_jobs WHERE event_id = :eventId AND status IN (${HOLDING_BYTES_SQL})
+`
+
 export class SqliteClipJobRepository implements ClipJobRepository {
   constructor(private readonly db: Db) {}
 
@@ -297,19 +302,54 @@ export class SqliteClipJobRepository implements ClipJobRepository {
    * Depth before bytes, because a full queue is the cheaper and the more temporary of
    * the two refusals: a guest told `429, come back in ninety seconds` has somewhere to
    * go, and one told the gallery is full does not.
+   *
+   * **Depth is checked twice**: this event's own count against
+   * `maxQueuedClipsPerEvent`, then the box-wide count against `maxQueuedClips`. The
+   * per-event check goes first because it is the one a single over-eager event can
+   * actually trip on its own — an event at its own cap is refused **naming that cap**
+   * (`maxDepth: limits.maxQueuedClipsPerEvent`) rather than the box-wide one, which is
+   * what keeps a second, well-behaved event's uploads from being judged against a
+   * number its own guests had no part in reaching.
+   *
+   * **Both counts are read before either is compared**, even though the per-event one
+   * is checked first. One worker drains the queue at concurrency 1 **across every
+   * event on the box** (`src/domain/clips/clipQueue.ts`), so the real wait behind a
+   * per-event refusal is never shorter than the box-wide depth: an event capped at 2
+   * of its own slots on a box where another event has pushed the total to 40 is not
+   * looking at a ten-second wait. `clipQueueFull`'s `Retry-After` is derived from
+   * whichever `depth` this method reports, so under-reporting it here is how a cap
+   * meant to prevent a retry storm would recreate one. Reporting
+   * `Math.max(eventDepth, depth)` keeps `maxDepth` naming the cap that actually
+   * refused while keeping the wait estimate honest about the queue it is really
+   * behind.
    */
   async stage(job: ClipJob, limits: ClipAdmissionLimits): Promise<ClipAdmission> {
+    const activeForEvent = this.db.prepare<{ readonly eventId: string }, CountRow>(
+      COUNT_ACTIVE_CLIPS_FOR_EVENT,
+    )
     const active = this.db.prepare<[], CountRow>(COUNT_ACTIVE_CLIPS)
     const used = this.db.prepare<{ readonly eventId: string }, CountRow>(SUM_EVENT_BYTES)
     const insert = this.db.prepare<ClipJobBindings>(INSERT_CLIP_JOB)
 
     return this.db
       .transaction((): ClipAdmission => {
-        const depth = active.get()?.value ?? 0
         // The domain owns the comparison, so the repository cannot drift from the rule
         // the guest is told about in `clipQueueFull`.
+        const eventDepth = activeForEvent.get({ eventId: job.eventId })?.value ?? 0
+        const depth = active.get()?.value ?? 0
+
+        if (!admitsAnotherClip(eventDepth, limits.maxQueuedClipsPerEvent)) {
+          return {
+            refusal: {
+              reason: 'queueFull',
+              depth: Math.max(eventDepth, depth),
+              maxDepth: limits.maxQueuedClipsPerEvent,
+            },
+          }
+        }
+
         if (!admitsAnotherClip(depth, limits.maxQueuedClips)) {
-          return { refusal: { reason: 'queueFull', depth } }
+          return { refusal: { reason: 'queueFull', depth, maxDepth: limits.maxQueuedClips } }
         }
 
         const usedBytes = used.get({ eventId: job.eventId })?.value ?? 0

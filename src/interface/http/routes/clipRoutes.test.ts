@@ -38,6 +38,7 @@ const WEDDING = 'wedding-id'
 const GALA = 'gala-id'
 const GUEST = 'guest-1'
 const OTHER_GUEST = 'guest-2'
+const GALA_GUEST = 'guest-3'
 
 const BASE = '/api/events/mariage'
 
@@ -76,6 +77,7 @@ interface Subject {
 interface SubjectOptions {
   readonly settings?: EventSettingsPatch
   readonly maxQueuedClips?: number
+  readonly maxQueuedClipsPerEvent?: number
   readonly maxClipBytes?: number
   readonly quotaBytes?: number
   /** Models a deployment with no ffmpeg on it, which the Null Object adapter is. */
@@ -120,7 +122,11 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               clock: deps.clock,
               ids,
               logger: deps.logger,
-              limits: { maxQueuedClips: options.maxQueuedClips ?? 20 },
+              limits: {
+                maxQueuedClips: options.maxQueuedClips ?? 20,
+                maxQueuedClipsPerEvent:
+                  options.maxQueuedClipsPerEvent ?? options.maxQueuedClips ?? 20,
+              },
             }),
             getClipJob: makeGetClipJob({ clips }),
           },
@@ -142,6 +148,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
   harness.guests.seed(
     aGuest({ id: GUEST, eventId: WEDDING, displayName: 'Léa' }),
     aGuest({ id: OTHER_GUEST, eventId: WEDDING, displayName: 'Sacha' }),
+    aGuest({ id: GALA_GUEST, eventId: GALA, displayName: 'Sam' }),
   )
 
   return {
@@ -152,7 +159,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
     media,
     tempDir,
     token: harness.issueGuestToken(WEDDING, GUEST),
-    galaToken: harness.issueGuestToken(GALA, GUEST),
+    galaToken: harness.issueGuestToken(GALA, GALA_GUEST),
   }
 }
 
@@ -362,6 +369,30 @@ describe('POST /api/events/:eventSlug/clips', () => {
 
       expect(subject.media.objectCount).toBe(staged)
       expect(await readdir(subject.tempDir)).toEqual([])
+    })
+
+    it('refuses one event at its own cap without making another event wait behind it', async () => {
+      // The per-event cap's whole point: a wedding stuck at its own ceiling must not
+      // spend any of a gala's room on the same box. `maxQueuedClips` stays generous, so
+      // only `maxQueuedClipsPerEvent` can be the reason either response is what it is.
+      const subject = buildSubject({ maxQueuedClips: 10, maxQueuedClipsPerEvent: 1 })
+      await request(subject.app)
+        .post(`${BASE}/clips`)
+        .set('Cookie', cookie(subject.token))
+        .attach('clip', aClipBody('one'), 'one.mov')
+
+      const refused = await request(subject.app)
+        .post(`${BASE}/clips`)
+        .set('Cookie', cookie(subject.token))
+        .attach('clip', aClipBody('two'), 'two.mov')
+
+      const otherEvent = await request(subject.app)
+        .post(`/api/events/gala/clips`)
+        .set('Cookie', cookie(subject.galaToken))
+        .attach('clip', aClipBody('three'), 'three.mov')
+
+      expect(refused.status).toBe(429)
+      expect(otherEvent.status).toBe(202)
     })
   })
 

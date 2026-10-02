@@ -71,6 +71,7 @@ clipJobRepositoryContract('sqlite', async () => {
       await repo.stage(job, {
         quotaBytes: Number.MAX_SAFE_INTEGER,
         maxQueuedClips: Number.MAX_SAFE_INTEGER,
+        maxQueuedClipsPerEvent: Number.MAX_SAFE_INTEGER,
       })
     },
     /**
@@ -98,6 +99,7 @@ const insertOne = async (repo: SqliteClipJobRepository, job: ClipJob): Promise<v
   await repo.stage(job, {
     quotaBytes: Number.MAX_SAFE_INTEGER,
     maxQueuedClips: Number.MAX_SAFE_INTEGER,
+    maxQueuedClipsPerEvent: Number.MAX_SAFE_INTEGER,
   })
 }
 

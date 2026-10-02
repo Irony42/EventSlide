@@ -464,7 +464,11 @@ export const clipJobRepositoryContract = (
     })
 
     describe('stage', () => {
-      const ROOM = { quotaBytes: 1_000, maxQueuedClips: 2 } as const
+      // `maxQueuedClipsPerEvent` is generous here on purpose: these cases are about the
+      // box-wide cap and the byte quota, and the per-event cap has its own describe
+      // block below. A tight per-event cap here would make this whole block about two
+      // rules at once, and a case that broke could be either.
+      const ROOM = { quotaBytes: 1_000, maxQueuedClips: 2, maxQueuedClipsPerEvent: 10 } as const
 
       it('admits a clip the event has room for, and the row is then readable', async () => {
         const admission = await repo.stage(
@@ -613,7 +617,7 @@ export const clipJobRepositoryContract = (
           ROOM,
         )
 
-        expect(admission.refusal).toEqual({ reason: 'queueFull', depth: 2 })
+        expect(admission.refusal).toEqual({ reason: 'queueFull', depth: 2, maxDepth: 2 })
       })
 
       it('counts the depth across every event, because there is one worker', async () => {
@@ -636,7 +640,118 @@ export const clipJobRepositoryContract = (
           ROOM,
         )
 
-        expect(admission.refusal).toEqual({ reason: 'queueFull', depth: 2 })
+        expect(admission.refusal).toEqual({ reason: 'queueFull', depth: 2, maxDepth: 2 })
+      })
+
+      describe('the per-event cap', () => {
+        // Tight per-event, generous box-wide: the opposite of `ROOM` above, so these
+        // cases are about `maxQueuedClipsPerEvent` and nothing else can be the reason
+        // one of them fails.
+        const FAIR = { quotaBytes: 1_000, maxQueuedClips: 10, maxQueuedClipsPerEvent: 1 } as const
+
+        it('refuses the event at its own cap, naming that cap rather than the box-wide one', async () => {
+          await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 10 }),
+            FAIR,
+          )
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-2', eventId: 'evt-wedding', sourceByteSize: 10 }),
+            FAIR,
+          )
+
+          expect(admission.refusal).toEqual({ reason: 'queueFull', depth: 1, maxDepth: 1 })
+        })
+
+        it('admits another event at its own cap, which the box-wide count alone could not have', async () => {
+          // The contract this whole cap exists for: event A is at its own ceiling, and
+          // that refusal must not spend any of event B's room. Under the box-wide cap
+          // alone (`ROOM`'s test above), a second event's guest is told to wait behind
+          // the first event's backlog; here, the two never share a number.
+          await repo.stage(
+            aClipJob({
+              id: 'job-1',
+              eventId: 'evt-wedding',
+              author: { kind: 'guest', id: 'guest-sam' },
+              sourceByteSize: 10,
+            }),
+            FAIR,
+          )
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-2', eventId: 'evt-gala', sourceByteSize: 10 }),
+            FAIR,
+          )
+
+          expect(admission.refusal).toBeNull()
+        })
+
+        it('lets a finished job give its per-event slot back, exactly as it does the box-wide one', async () => {
+          await repo.stage(
+            aClipJob({
+              id: 'job-1',
+              eventId: 'evt-wedding',
+              sourceByteSize: 10,
+              status: 'queued',
+            }),
+            FAIR,
+          )
+          await repo.save(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 10, status: 'done' }),
+          )
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-2', eventId: 'evt-wedding', sourceByteSize: 10 }),
+            FAIR,
+          )
+
+          expect(admission.refusal).toBeNull()
+        })
+
+        it('names the per-event cap even when the box-wide cap is also full at that moment, and reports the larger wait', async () => {
+          // Constructed so BOTH caps would refuse this call, with different numbers:
+          // evt-wedding is at its own cap of 2, and the box-wide total (2 + 1 from
+          // evt-gala) is also at its cap of 3. A check in the wrong order — box-wide
+          // before per-event — would answer with maxDepth 3 instead of 2, and nothing
+          // in the simpler cases above would catch that: each of them leaves one cap
+          // generous enough that it is never actually in play.
+          //
+          // `depth` is asserted as the larger of the two numbers on purpose. One
+          // worker drains every event's queue together, so the real wait behind this
+          // refusal is the box-wide one (3), not evt-wedding's own, smaller count (2) —
+          // under-reporting it would tell a guest to retry sooner than the queue
+          // actually allows, which is the retry storm this mechanism exists to avoid.
+          const TIGHT = {
+            quotaBytes: 1_000_000,
+            maxQueuedClips: 3,
+            maxQueuedClipsPerEvent: 2,
+          } as const
+
+          await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 10 }),
+            TIGHT,
+          )
+          await repo.stage(
+            aClipJob({ id: 'job-2', eventId: 'evt-wedding', sourceByteSize: 10 }),
+            TIGHT,
+          )
+          await repo.stage(
+            aClipJob({
+              id: 'job-3',
+              eventId: 'evt-gala',
+              author: { kind: 'guest', id: 'guest-sam' },
+              sourceByteSize: 10,
+            }),
+            TIGHT,
+          )
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-4', eventId: 'evt-wedding', sourceByteSize: 10 }),
+            TIGHT,
+          )
+
+          expect(admission.refusal).toEqual({ reason: 'queueFull', depth: 3, maxDepth: 2 })
+        })
       })
 
       it('lets a finished job give its slot and its bytes back', async () => {
