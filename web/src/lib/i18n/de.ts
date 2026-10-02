@@ -268,6 +268,12 @@ export const de: UiText = {
       'Mit Ihrem Konto können auf diesem Server keine Veranstaltungen erstellt werden.',
     'client.notFound': 'Dieses Kundenkonto wurde nicht gefunden.',
     'client.ceilingReached': 'Ihr Konto hat die zulässige Anzahl an Veranstaltungen erreicht.',
+    'client.storageFull': 'Die Galerie ist voll. Sagen Sie dem Veranstalter Bescheid.',
+    'client.liveNotAllowed': 'Ihr Konto kann derzeit keine Veranstaltung öffnen.',
+    'client.liveWindowOver':
+      'Der Öffnungszeitraum dieser Veranstaltung ist abgelaufen: Sie kann nicht mehr erneut geöffnet werden.',
+    'client.retentionAboveCeiling': 'Diese Aufbewahrungsdauer ist länger, als Ihr Konto erlaubt.',
+    'client.clipsNotAllowed': 'Ihr Konto erlaubt keine Videos.',
     'event.immutable': 'Diese Veranstaltung ist archiviert und kann nicht mehr geändert werden.',
     'event.illegalTransition': 'Dieser Statuswechsel ist nicht möglich.',
 

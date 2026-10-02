@@ -158,6 +158,12 @@ describe('isTerminal', () => {
     expect(isTerminal('event.quotaExceeded')).toBe(false)
   })
 
+  it('does not give up because the host’s whole account is full either', () => {
+    // The client's ceiling over all its events (G2-05) is raised by the operator exactly as
+    // an event's own quota is raised by the host, so the same reasoning keeps the photo.
+    expect(isTerminal('client.storageFull')).toBe(false)
+  })
+
   it('does not give up because the mission tag names a prompt that is gone', () => {
     // A host correcting a typo on the mission list deletes and re-adds a prompt in two
     // clicks. The photographs a phone is holding for that prompt are perfectly acceptable

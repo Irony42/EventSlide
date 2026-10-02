@@ -118,6 +118,14 @@ const DOCUMENTED_CODES: readonly string[] = [
   'client.notFound',
   // The client's total or per-period event ceiling stopped a creation (P3-05 / P3-06).
   'client.ceilingReached',
+  // The client's ceilings on a write (P3-06 / G2-05): its total bytes (a guest meets this one on
+  // an upload, or as the failureCode of a clip), whether it may be live at all, the window it
+  // may stay live in, the retention an edit may ask for, and whether it may have video.
+  'client.storageFull',
+  'client.liveNotAllowed',
+  'client.liveWindowOver',
+  'client.retentionAboveCeiling',
+  'client.clipsNotAllowed',
   'event.immutable',
   'event.illegalTransition',
   'event.captionsNotAllowed',
