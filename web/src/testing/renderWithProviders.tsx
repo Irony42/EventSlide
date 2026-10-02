@@ -12,6 +12,7 @@ import type { Locale } from '../lib/i18n/locale'
 import type {
   About,
   ClipJobDto,
+  CurrentUserDto,
   EventDto,
   EventSettingsDto,
   GalleryDto,
@@ -25,7 +26,6 @@ import type {
   PrivacyNoticeState,
   PublicEventDto,
   SessionResponse,
-  SessionUserDto,
   ShareLinkDto,
   WallItemDto,
   WallMissionDto,
@@ -368,11 +368,12 @@ export const aClipJob = (overrides: Partial<ClipJobDto> = {}): ClipJobDto => ({
   ...overrides,
 })
 
-export const aSessionUser = (overrides: Partial<SessionUserDto> = {}): SessionUserDto => ({
+export const aSessionUser = (overrides: Partial<CurrentUserDto> = {}): CurrentUserDto => ({
   userId: 'user-1',
   email: 'organisation@example.com',
   displayName: 'Camille',
   mustChangePassword: false,
+  canOperateSite: false,
   ...overrides,
 })
 

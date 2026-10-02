@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express'
 import type { Session } from 'express-session'
 import { DomainError } from '../../../domain/shared/errors'
+import { DEFAULT_SITE_ROLE } from '../../../domain/users/siteRole'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireUser, resolveAuthState } from '../middleware/authz'
 import { rotateCsrfToken } from '../middleware/csrf'
@@ -237,14 +238,18 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
       // not, as in a test that drives this router on its own.
       const user = req.context.user
       const state = user === undefined ? undefined : await resolveAuthState(deps, req)
+      const principal = user !== undefined && state?.active === true ? user : undefined
 
-      sendJson(
-        res,
-        toSessionResponseDto(
-          user !== undefined && state?.active === true ? user : undefined,
-          state?.mustChangePassword ?? false,
-        ),
-      )
+      // The authority over the box, from storage on this request like everything else this
+      // handler reports — and asked only for an account that may act at all: a disabled
+      // operator is told it is not signed in and learns nothing else, and an anonymous
+      // caller costs no query. A second narrow read on purpose; folding the role into
+      // `AuthState` would make this one read and is left to the item that already
+      // changes that query (the credential epoch, P3-09).
+      const siteRole =
+        principal === undefined ? DEFAULT_SITE_ROLE : await deps.users.siteRoleFor(principal.userId)
+
+      sendJson(res, toSessionResponseDto(principal, state?.mustChangePassword ?? false, siteRole))
     }),
   )
 

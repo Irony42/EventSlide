@@ -404,8 +404,22 @@ export interface SessionUserDto {
   readonly mustChangePassword: boolean
 }
 
+/**
+ * Who `GET /api/auth/me` says is signed in: the identity the login answered with, plus the
+ * one fact the account menu needs and a login cannot know it will need.
+ *
+ * `canOperateSite` is the account's **authority over the box** (`siteRole === 'operator'`,
+ * read from storage on this request) — not whether the operator's console exists on this
+ * instance. That is `features.siteAdmin` on `GET /api/about`, and the SPA shows the console
+ * entry only when both are true. It grants nothing: `/api/site` is behind `requireOperator`
+ * whatever this says.
+ */
+export interface CurrentUserDto extends SessionUserDto {
+  readonly canOperateSite: boolean
+}
+
 export type SessionResponseDto =
-  | { readonly authenticated: true; readonly user: SessionUserDto }
+  | { readonly authenticated: true; readonly user: CurrentUserDto }
   | { readonly authenticated: false }
 
 export interface ReactionsResponseDto {

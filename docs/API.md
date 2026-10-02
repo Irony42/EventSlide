@@ -1419,7 +1419,8 @@ Destroys the session and clears the cookie. **204**. Idempotent.
     "userId": "…",
     "email": "…",
     "displayName": null,
-    "mustChangePassword": false
+    "mustChangePassword": false,
+    "canOperateSite": false
   }
 }
 ```
@@ -1441,6 +1442,20 @@ request (`UserRepository.authStateFor`, P3-03) — the same single read
 twice. A value copied into the cookie at login would still say `false` for an account
 flagged afterwards, and would still say `true` for one that cleared the flag from a
 different tab.
+
+**`canOperateSite` is the account's authority over the box**: `true` when its site role is
+`operator` (docs/ROADMAP.md §10.1), `false` for everyone else, read from storage on this
+request like the two fields above — an account demoted after it signed in stops saying
+`true` on its next call. It is the same question `requireOperator` asks of `/api/site/*`
+(one predicate, `canOperateSite` in `domain/users/siteRole.ts`), and it grants nothing
+by itself: a request to `/api/site/*` is judged by the gate, not by what this reported.
+
+It is **not** whether the operator's console exists on this instance. That is
+`features.siteAdmin` on [`GET /api/about`](#get-apiabout) (`SITE_ADMIN`), and this field does
+not change with it: an operator on a box with `SITE_ADMIN=off` still reads `true`, and a
+client that offers the console must require both. A disabled account is told
+`{ "authenticated": false }` and nothing else, so this is never reported for one. The login
+response (`POST /api/auth/login`) does not carry it.
 
 `Cache-Control: no-store`, always. The body is an identity and a rolling session
 re-sends its cookie alongside it, so a shared cache holding this response would hand
