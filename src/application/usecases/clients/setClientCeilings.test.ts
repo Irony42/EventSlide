@@ -25,7 +25,7 @@ describe('setClientCeilings', () => {
         eventsCreatedInPeriod: 4,
       }),
     )
-    audit = new FakeAuditLog()
+    audit = new FakeAuditLog().withAccounts(OPERATOR.userId)
     clock = new FakeClock(LATER)
     setClientCeilings = makeSetClientCeilings({ clients, audit, clock })
   })
@@ -216,6 +216,43 @@ describe('setClientCeilings', () => {
       await expect(
         failing({ clientId: CLIENT, ceilings: { maxEvents: 6 }, actor: OPERATOR }),
       ).rejects.toThrow('disk full')
+    })
+
+    it('records before it saves: a failure to write the entry leaves the ceilings as they were', async () => {
+      const broken: AuditRecorder = {
+        record: async () => {
+          throw new Error('disk full')
+        },
+      }
+      const failing = makeSetClientCeilings({ clients, audit: broken, clock })
+
+      await expect(
+        failing({ clientId: CLIENT, ceilings: { maxEvents: 6 }, actor: OPERATOR }),
+      ).rejects.toThrow('disk full')
+
+      expect((await clients.findById(CLIENT))?.ceilings.maxEvents).toBe(5)
+    })
+
+    it('refuses an actor that is not an account, and changes nothing, so the retry is not a patch that changes nothing', async () => {
+      const ghost = { kind: 'operator', userId: asUserId('ghost') } as const
+
+      await expect(
+        setClientCeilings({ clientId: CLIENT, ceilings: { maxEvents: 7 }, actor: ghost }),
+      ).rejects.toThrow()
+
+      expect((await clients.findById(CLIENT))?.ceilings.maxEvents).toBe(5)
+      const retried = await change({ maxEvents: 7 })
+      expect(retried.ok).toBe(true)
+      expect(audit.all().map((record) => record.action)).toEqual(['client.ceilingsChanged'])
+    })
+
+    it('lets a ceiling above 2^53 be lowered, because the entry that records the old value must be writable', async () => {
+      await clients.save(aClient({ id: 'client-1', ceilings: { maxTotalBytes: 2 ** 60 } }))
+
+      const result = await change({ maxTotalBytes: 1_000 })
+
+      expect(result.ok).toBe(true)
+      expect(audit.all()[0]?.details).toMatchObject({ before: { maxTotalBytes: 2 ** 60 } })
     })
 
     it('never calls a recorder for a change that is refused before it is applied', async () => {

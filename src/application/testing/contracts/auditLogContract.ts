@@ -139,6 +139,29 @@ export const auditLogContract = (
       })
     })
 
+    it('refuses an entry whose actor is an account that does not exist, like the foreign key it stands for', async () => {
+      await expect(
+        log.record(anAuditEntry({ actor: { kind: 'operator', userId: asUserId('ghost') } })),
+      ).rejects.toThrow()
+
+      expect((await log.list({ limit: 10 })).items).toEqual([])
+    })
+
+    it('does not let a caller edit the log through a record it was handed', async () => {
+      await log.record(anAuditEntry({ at: AT }))
+      const [handed] = (await log.list({ limit: 1 })).items
+      if (handed === undefined) throw new Error('nothing was listed')
+
+      handed.at.setUTCFullYear(1999)
+      ;(handed.details['before'] as { maxEvents: number | null }).maxEvents = 999
+      ;(handed.actor as { kind: string }).kind = 'system'
+
+      const [again] = (await log.list({ limit: 1 })).items
+      expect(again?.at).toEqual(AT)
+      expect(again?.details['before']).toMatchObject({ maxEvents: 5 })
+      expect(again?.actor.kind).toBe('operator')
+    })
+
     // ------------------------------------------------------------------ listing --
 
     it('lists an empty log as an empty page with no next one', async () => {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { AUDIT_RETENTION_MIN_DAYS } from '../../../domain/audit/auditRetention'
+import { asUserId } from '../../../domain/shared/ids'
 import { anAuditEntry } from '../../testing/builders'
 import { FakeAuditLog } from '../../testing/fakeAuditLog'
 import { FakeClock } from '../../testing/fakeClock'
@@ -19,7 +20,7 @@ describe('pruneAuditLog', () => {
   let clock: FakeClock
 
   beforeEach(() => {
-    audit = new FakeAuditLog()
+    audit = new FakeAuditLog().withAccounts(asUserId('user-operator'))
     clock = new FakeClock(new Date(WRITTEN.getTime() + 100 * DAY))
   })
 

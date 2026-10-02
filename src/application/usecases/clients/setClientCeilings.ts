@@ -32,15 +32,21 @@ import type { Clock } from '../../ports/clock'
  * `createClient` and `renameClient` have none because they are not yet audited, and this
  * one cannot be called without.
  *
- * **Every entry is built, and so validated, before anything is saved.** An entry the
- * allow-list refuses (an actor with no account, a snapshot that has drifted from the
- * ceilings) refuses the *change*, rather than saving it and failing to say so.
+ * **Write-ahead: the entry is written before the change is.** Every entry is built, and so
+ * validated, first; then the entries are recorded; then the client is saved. A ceiling
+ * therefore cannot move without a line saying who moved it, and a line the log refuses (an
+ * actor that is not an account, a snapshot that has drifted from the ceilings) refuses the
+ * *change*, instead of saving it and failing to say so — which, the other way round, leaves
+ * a change nobody can ever audit, since the retry is a patch that no longer changes
+ * anything.
  *
- * **Known gap: the save and the audit are two writes, not one transaction.** If the audit
- * write fails after the client was saved, the failure propagates (never swallowed) and the
- * change stands without its line. Closing that needs a unit-of-work port that no use case
- * has yet; G2-20 asks for the same atomicity for `acceptInvitation`, and the two should
- * share one answer.
+ * **Known gap: the two writes are not one transaction.** If the save fails after the entry
+ * was recorded (the disk, a locked file), the failure propagates and the log holds a line
+ * for a change that did not happen; the operator's retry writes a second line with the same
+ * `before` and `after`. A line for an intent that failed is the lesser of the two errors,
+ * and it is visible; a change with no line is not. Closing it needs a unit-of-work port that
+ * no use case has yet, and G2-20 asks for the same atomicity for the acceptance of the
+ * terms, so the two should share one answer.
  */
 
 export interface SetClientCeilingsInput {
@@ -87,7 +93,7 @@ export const makeSetClientCeilings =
       entries.push(entry.value)
     }
 
-    await clients.save(updated)
     for (const entry of entries) await audit.record(entry)
+    await clients.save(updated)
     return ok(updated)
   }
