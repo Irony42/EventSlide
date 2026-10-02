@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AUDIT_ID_PATTERN, detail, validateDetails, type AuditDetails } from './auditDetails'
+import { detail, validateDetails, type AuditDetails } from './auditDetails'
 
 /**
  * The allow-list, exercised on shapes of its own rather than on a real action, so that
@@ -11,7 +11,6 @@ const FIELDS = {
   count: detail.integer,
   enabled: detail.boolean,
   when: detail.instant,
-  ref: detail.id,
   maybe: detail.nullable(detail.integer),
   nested: detail.object({ n: detail.integer }),
 }
@@ -20,7 +19,6 @@ const valid = (): AuditDetails => ({
   count: 3,
   enabled: true,
   when: '2026-06-20T21:00:00.000Z',
-  ref: 'b1946ac9-2be0-4c40-9f33-0123456789ab',
   maybe: null,
   nested: { n: 1 },
 })
@@ -41,6 +39,10 @@ describe('validateDetails', () => {
     expect(validateDetails(FIELDS, { ...valid(), maybe: 12 }).ok).toBe(true)
   })
 
+  it('accepts an integer as large as the domain’s own ceilings may be, so a ceiling can always be lowered', () => {
+    expect(validateDetails(FIELDS, { ...valid(), count: 2 ** 60 }).ok).toBe(true)
+  })
+
   it('hands back a copy, so editing the original afterwards cannot change what was vouched for', () => {
     const original = valid()
 
@@ -48,6 +50,43 @@ describe('validateDetails', () => {
     ;(original['nested'] as { n: number }).n = 99
 
     expect(result.ok && result.value).toEqual(valid())
+  })
+
+  it('hands back a frozen copy, nested objects included', () => {
+    const result = validateDetails(FIELDS, valid())
+
+    expect(result.ok && Object.isFrozen(result.value)).toBe(true)
+    expect(result.ok && Object.isFrozen(result.value['nested'])).toBe(true)
+  })
+
+  it('stores what it checked: a getter that answers differently the second time cannot pass as a number and be stored as an address', () => {
+    let reads = 0
+    const shifty = {
+      ...valid(),
+      get count(): unknown {
+        reads += 1
+        return reads === 1 ? 5 : 'mariage-dupont@example.com'
+      },
+    }
+
+    const result = validateDetails(FIELDS, shifty as unknown as AuditDetails)
+
+    expect(result.ok && result.value['count']).toBe(5)
+    expect(reads).toBe(1)
+  })
+
+  it('stores what it checked inside a nested object too', () => {
+    let reads = 0
+    const nested = {
+      get n(): unknown {
+        reads += 1
+        return reads === 1 ? 5 : 'Camille Dupont'
+      },
+    }
+
+    const result = validateDetails(FIELDS, { ...valid(), nested } as unknown as AuditDetails)
+
+    expect(result.ok && result.value['nested']).toEqual({ n: 5 })
   })
 
   // --------------------------------------------------- the content-free rule --
@@ -83,21 +122,13 @@ describe('validateDetails', () => {
   it('refuses a fractional or non-finite number, which is not a count of anything', () => {
     expect(refusalOf({ ...valid(), count: 1.5 })).toMatchObject({ path: 'count' })
     expect(refusalOf({ ...valid(), count: Number.NaN })).toMatchObject({ path: 'count' })
-  })
-
-  it('refuses an e-mail address where an id is declared, because an id has no @', () => {
-    expect(refusalOf({ ...valid(), ref: 'camille@example.com' })).toEqual({
-      path: 'ref',
-      problem: 'wrongType',
+    expect(refusalOf({ ...valid(), count: Number.POSITIVE_INFINITY })).toMatchObject({
+      path: 'count',
     })
   })
 
-  it('refuses a sentence where an id is declared', () => {
-    expect(refusalOf({ ...valid(), ref: 'a caption with spaces' })).toMatchObject({ path: 'ref' })
-  })
-
-  it('refuses an id longer than any id the system generates', () => {
-    expect(refusalOf({ ...valid(), ref: 'a'.repeat(65) })).toMatchObject({ path: 'ref' })
+  it('refuses a numeric string where a number is declared', () => {
+    expect(refusalOf({ ...valid(), count: '3' })).toMatchObject({ path: 'count' })
   })
 
   it('refuses prose where an instant is declared', () => {
@@ -131,7 +162,8 @@ describe('validateDetails', () => {
   })
 
   it('refuses a missing key, so every entry of an action has the same shape', () => {
-    const { count: _count, ...withoutCount } = valid()
+    const withoutCount: Record<string, unknown> = { ...valid() }
+    delete withoutCount['count']
 
     expect(refusalOf(withoutCount)).toEqual({ path: 'count', problem: 'missingKey' })
   })
@@ -163,19 +195,18 @@ describe('validateDetails', () => {
   })
 
   it('never puts the offending value in the error, only where it was', () => {
-    const result = validateDetails(FIELDS, { ...valid(), ref: 'camille@example.com' })
+    const result = validateDetails(FIELDS, { ...valid(), count: 'camille@example.com' })
 
     expect(!result.ok && JSON.stringify(result.error.details)).not.toContain('camille')
   })
-})
 
-describe('AUDIT_ID_PATTERN', () => {
-  it('accepts a UUID and the sequential ids the tests use', () => {
-    expect(AUDIT_ID_PATTERN.test('b1946ac9-2be0-4c40-9f33-0123456789ab')).toBe(true)
-    expect(AUDIT_ID_PATTERN.test('client-1')).toBe(true)
-  })
-
-  it('refuses the empty string', () => {
-    expect(AUDIT_ID_PATTERN.test('')).toBe(false)
+  it('has no kind for an id, because a slug and a token are strings of the same alphabet', () => {
+    expect(Object.keys(detail).sort()).toEqual([
+      'boolean',
+      'instant',
+      'integer',
+      'nullable',
+      'object',
+    ])
   })
 })

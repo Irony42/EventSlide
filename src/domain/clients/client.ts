@@ -147,10 +147,10 @@ export class Client {
    * Replace the ceilings, resetting the per-period counter exactly when `periodStartedAt`
    * itself changes — a renewal — and never on an ordinary edit of some other ceiling.
    *
-   * The audit entry `client.periodReset {before, after}` the paid plan's design calls for
-   * belongs to the use case, once `AuditLog` exists (roadmap §10.8 / G2-06): this method
-   * only carries the counter reset itself, which the schema needs regardless of whether
-   * anything is there yet to read the audit trail.
+   * The audit entries (`client.ceilingsChanged`, and `client.periodReset` when this resets the
+   * counter) belong to the use case: `setClientCeilings` asks `describeCeilingsChange` which
+   * ones a change is worth and writes them (roadmap §10.8). This method only carries the
+   * counter reset itself.
    */
   withCeilings(ceilings: ClientCeilings): Client {
     const periodChanged = !sameInstant(

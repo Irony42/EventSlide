@@ -15,12 +15,18 @@ import { err, ok, type Result } from '../shared/result'
  * - `integration`: another program talking to this one, the cloud's Stripe webhook being
  *   the case the paid plan names. It carries a label because it has no account to point at.
  *
- * **The `userId` is a pseudonym that outlives its owner.** The column is `ON DELETE SET
- * NULL`, so a deleted account leaves the entry and loses the pointer, which is the whole
- * erasure procedure (there is nothing else about a person in a row). A record read back can
- * therefore carry `kind: 'operator'` with a `null` `userId`; an entry being **written** may
- * not, because "an operator did this, nobody knows who" is not something a use case can
- * truthfully say at the moment it happens.
+ * **The `userId` is an opaque pointer that the account's deletion removes.** The column is
+ * `ON DELETE SET NULL`, so a deleted account leaves the entry and loses the pointer, which
+ * is the whole erasure procedure (there is nothing else about a person in a row). A record
+ * read back can therefore carry `kind: 'operator'` with a `null` `userId`; an entry being
+ * **written** may not, because "an operator did this, nobody knows who" is not something a
+ * use case can truthfully say at the moment it happens.
+ *
+ * **An account is named by its id, never by a label.** A label exists for the actors that
+ * have no account to point at, so `operator` and `member` may not carry one: the alphabet
+ * below cannot tell `retention-sweeper` from `Jean-Dupont`, and the only thing that keeps a
+ * person's name out of a label is that nobody who acts as a person is given a place to put
+ * one.
  */
 
 export const AUDIT_ACTOR_KINDS = ['operator', 'member', 'system', 'integration'] as const
@@ -56,23 +62,24 @@ const LABEL_PATTERN = new RegExp(`^[A-Za-z0-9:._-]{1,${AUDIT_LABEL_MAX_LENGTH}}$
 const ACTS_AS_AN_ACCOUNT: ReadonlySet<AuditActorKind> = new Set(['operator', 'member'])
 
 export const parseAuditActor = (input: AuditActorInput): Result<AuditActor, DomainError> => {
-  if (!isAuditActorKind(input.kind)) return err(DomainError.invalid('audit.actorKindInvalid'))
-
+  // Each property is read once, so what is checked is what is kept: a getter that answers
+  // differently the second time cannot pass the check and be stored as something else.
+  const kind = input.kind
   const userId = input.userId ?? null
   const label = input.label ?? null
 
-  if (ACTS_AS_AN_ACCOUNT.has(input.kind) && userId === null) {
-    return err(DomainError.invalid('audit.actorUserRequired'))
-  }
-  if (!ACTS_AS_AN_ACCOUNT.has(input.kind) && userId !== null) {
-    return err(DomainError.invalid('audit.actorUserForbidden'))
-  }
+  if (!isAuditActorKind(kind)) return err(DomainError.invalid('audit.actorKindInvalid'))
+
+  const isAccount = ACTS_AS_AN_ACCOUNT.has(kind)
+  if (isAccount && userId === null) return err(DomainError.invalid('audit.actorUserRequired'))
+  if (!isAccount && userId !== null) return err(DomainError.invalid('audit.actorUserForbidden'))
+  if (isAccount && label !== null) return err(DomainError.invalid('audit.actorLabelForbidden'))
   if (label !== null && !LABEL_PATTERN.test(label)) {
     return err(DomainError.invalid('audit.actorLabelInvalid', { max: AUDIT_LABEL_MAX_LENGTH }))
   }
-  if (input.kind === 'integration' && label === null) {
+  if (kind === 'integration' && label === null) {
     return err(DomainError.invalid('audit.actorLabelRequired'))
   }
 
-  return ok({ kind: input.kind, userId, label })
+  return ok(Object.freeze({ kind, userId, label }))
 }

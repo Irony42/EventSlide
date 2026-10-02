@@ -43,8 +43,8 @@ describe('AUDIT_ACTIONS', () => {
 
   // ---------------------------------------------------- the content-free rule --
 
-  it('declares no detail that can carry text a person typed: only numbers, switches, instants and ids', () => {
-    const allowed = new Set(['integer', 'boolean', 'instant', 'id'])
+  it('declares no detail that can carry text a person typed: only numbers, switches and instants', () => {
+    const allowed = new Set(['integer', 'boolean', 'instant'])
 
     for (const action of ACTIONS) {
       const kinds = Object.values(AUDIT_ACTIONS[action].details).flatMap(leafKinds)

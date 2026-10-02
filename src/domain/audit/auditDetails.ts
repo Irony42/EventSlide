@@ -8,12 +8,20 @@ import { err, ok, type Result } from '../shared/result'
  * **An audit row is read by people who may not read the thing it is about.** The client's
  * own owner reads every operator action taken on their account (G2-16), and an operator
  * reads a client's trail without ever being allowed to see a photograph. So the details of
- * an entry are numbers, booleans, instants and random ids, and nothing a person typed:
- * never a caption, a guest's name, an e-mail address, a slug, a filename or a token. That
- * is not a convention reviewers are asked to remember. Each action declares the exact
- * shape of its details in `auditAction.ts`, in a vocabulary with **no free-text kind at
- * all**, and {@link validateDetails} refuses a key the declaration does not name and a
- * value that is not the declared kind.
+ * an entry are numbers, switches and instants, and nothing a person typed: never a caption,
+ * a guest's name, an e-mail address, a slug, a filename or a token. That is not a
+ * convention reviewers are asked to remember. Each action declares the exact shape of its
+ * details in `auditAction.ts`, in a vocabulary with **no string kind but an instant**, and
+ * {@link validateDetails} refuses a key the declaration does not name and a value that is
+ * not the declared kind.
+ *
+ * **There is deliberately no `id` kind.** The plan's "ids and numbers" is the right
+ * ambition and the wrong thing to *enforce* by shape: a slug, a join code and a token are
+ * all strings made of letters, digits and dashes, so a kind that admitted "an opaque id"
+ * would admit every one of them and promise otherwise. What an entry is *about* travels in
+ * its subject and its client id, which the use case takes from the entity it holds. The
+ * first action that must name a second entity inside its details adds a kind for it, typed
+ * to that entity and with its own test, rather than being handed a string.
  *
  * Why shapes rather than a deny-list of words like `caption` and `email`: a deny-list
  * refuses the leak somebody thought of, and the one that happens is the one somebody did
@@ -32,20 +40,19 @@ export interface AuditDetails {
 /**
  * The only things a detail may be.
  *
- * - `integer`: a safe integer. A counter, a byte count, a number of days.
+ * - `integer`: an integer. A counter, a byte count, a number of days. Exactly the domain's
+ *   own notion (`Number.isInteger`), because a ceiling the domain accepts must never be one
+ *   the audit refuses: an operator who cannot lower a ceiling because writing down the old
+ *   value fails has been locked out by the log. It survives JSON exactly.
  * - `boolean`: a switch.
  * - `instant`: an ISO-8601 UTC timestamp with milliseconds, exactly what `toISOString`
  *   writes, so it cannot smuggle prose either.
- * - `id`: an opaque identifier — letters, digits, `_` and `-`, 1 to 64 characters. The
- *   shape alone would let a slug through, which is why a key is only ever declared `id`
- *   when the value really is one the system generated.
  * - `nullable` and `object`: composition, so a snapshot can say "this ceiling was unset".
  */
 export type DetailKind =
   | { readonly type: 'integer' }
   | { readonly type: 'boolean' }
   | { readonly type: 'instant' }
-  | { readonly type: 'id' }
   | { readonly type: 'nullable'; readonly of: DetailKind }
   | { readonly type: 'object'; readonly fields: DetailFields }
 
@@ -57,13 +64,9 @@ export const detail = {
   integer: { type: 'integer' } satisfies DetailKind,
   boolean: { type: 'boolean' } satisfies DetailKind,
   instant: { type: 'instant' } satisfies DetailKind,
-  id: { type: 'id' } satisfies DetailKind,
   nullable: (of: DetailKind): DetailKind => ({ type: 'nullable', of }),
   object: (fields: DetailFields): DetailKind => ({ type: 'object', fields }),
 }
-
-/** An opaque id's shape: also what a `subject_id` must look like. */
-export const AUDIT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 type Problem = 'notAnObject' | 'unexpectedKey' | 'missingKey' | 'wrongType'
 
@@ -71,6 +74,17 @@ interface Violation {
   readonly path: string
   readonly problem: Problem
 }
+
+/** What checking one value yields: the value as it will be stored, or where it went wrong. */
+type Checked =
+  | { readonly ok: true; readonly value: AuditDetailValue }
+  | { readonly ok: false; readonly violation: Violation }
+
+const pass = (value: AuditDetailValue): Checked => ({ ok: true, value })
+const fail = (path: string, problem: Problem): Checked => ({
+  ok: false,
+  violation: { path, problem },
+})
 
 const hasOwn = (object: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(object, key)
@@ -87,67 +101,77 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
  * moment it names. That also refuses `2026-02-30T00:00:00.000Z`, which `Date.parse`
  * quietly rolls over to March.
  */
-const isInstantText = (value: unknown): boolean => {
-  if (typeof value !== 'string') return false
+const isInstantText = (value: string): boolean => {
   const parsed = new Date(value)
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value
 }
 
 const joinPath = (parent: string, key: string): string => (parent === '' ? key : `${parent}.${key}`)
 
-const violationOf = (kind: DetailKind, value: unknown, path: string): Violation | null => {
+const check = (kind: DetailKind, value: unknown, path: string): Checked => {
   switch (kind.type) {
     case 'integer':
-      return Number.isSafeInteger(value) ? null : { path, problem: 'wrongType' }
+      return typeof value === 'number' && Number.isInteger(value)
+        ? pass(value)
+        : fail(path, 'wrongType')
     case 'boolean':
-      return typeof value === 'boolean' ? null : { path, problem: 'wrongType' }
+      return typeof value === 'boolean' ? pass(value) : fail(path, 'wrongType')
     case 'instant':
-      return isInstantText(value) ? null : { path, problem: 'wrongType' }
-    case 'id':
-      return typeof value === 'string' && AUDIT_ID_PATTERN.test(value)
-        ? null
-        : { path, problem: 'wrongType' }
+      return typeof value === 'string' && isInstantText(value)
+        ? pass(value)
+        : fail(path, 'wrongType')
     case 'nullable':
-      return value === null ? null : violationOf(kind.of, value, path)
+      return value === null ? pass(null) : check(kind.of, value, path)
     case 'object':
-      return objectViolation(kind.fields, value, path)
+      return checkObject(kind.fields, value, path)
   }
-}
-
-const objectViolation = (fields: DetailFields, value: unknown, path: string): Violation | null => {
-  if (!isPlainObject(value)) return { path, problem: 'notAnObject' }
-
-  for (const key of Object.keys(value)) {
-    if (!hasOwn(fields, key)) return { path: joinPath(path, key), problem: 'unexpectedKey' }
-  }
-  for (const [key, kind] of Object.entries(fields)) {
-    if (!hasOwn(value, key)) return { path: joinPath(path, key), problem: 'missingKey' }
-    const nested = violationOf(kind, value[key], joinPath(path, key))
-    if (nested !== null) return nested
-  }
-  return null
 }
 
 /**
- * Checks `details` against an action's declared fields and hands back a **copy**.
+ * Checks an object against its declared fields **and builds the copy as it goes**.
+ *
+ * Every property is read exactly once, and what is stored is what that one read returned.
+ * That is the point of building the copy here instead of validating and then cloning the
+ * original: a getter or a `Proxy` that answers `5` to the check and an address to the
+ * second read would have been validated as a number and stored as the address. A primitive
+ * read once cannot change afterwards, and the copy is frozen.
+ */
+const checkObject = (fields: DetailFields, value: unknown, path: string): Checked => {
+  if (!isPlainObject(value)) return fail(path, 'notAnObject')
+
+  for (const key of Object.keys(value)) {
+    if (!hasOwn(fields, key)) return fail(joinPath(path, key), 'unexpectedKey')
+  }
+
+  const copy: Record<string, AuditDetailValue> = {}
+  for (const [key, kind] of Object.entries(fields)) {
+    if (!hasOwn(value, key)) return fail(joinPath(path, key), 'missingKey')
+    const nested = check(kind, value[key], joinPath(path, key))
+    if (!nested.ok) return nested
+    copy[key] = nested.value
+  }
+  return pass(Object.freeze(copy))
+}
+
+/**
+ * Checks `details` against an action's declared fields and hands back a frozen **copy**.
  *
  * The copy is what makes the check mean something after it returns: an entry that kept the
  * caller's own object could be edited between validation and the write, and the allow-list
- * would have vouched for a payload that is no longer the one stored. Everything that passes
- * is plain JSON, so the round trip is exact.
+ * would have vouched for a payload that is no longer the one stored.
  */
 export const validateDetails = (
   fields: DetailFields,
   details: AuditDetails,
 ): Result<AuditDetails, DomainError> => {
-  const violation = objectViolation(fields, details, '')
-  if (violation !== null) {
+  const checked = checkObject(fields, details, '')
+  if (!checked.ok) {
     return err(
       DomainError.invalid('audit.detailsInvalid', {
-        path: violation.path,
-        problem: violation.problem,
+        path: checked.violation.path,
+        problem: checked.violation.problem,
       }),
     )
   }
-  return ok(JSON.parse(JSON.stringify(details)) as AuditDetails)
+  return ok(checked.value as AuditDetails)
 }

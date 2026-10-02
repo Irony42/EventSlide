@@ -106,4 +106,108 @@ describe('describeCeilingsChange', () => {
       'client.ceilingsChanged',
     ])
   })
+
+  // ------------------------------- every ceiling lands under its own name in the entry --
+
+  /**
+   * Nine ceilings, every one distinct and none at its default, so a snapshot that dropped a
+   * key, hard-coded one, or put one ceiling's value under another's name cannot be equal to
+   * what a client's owner is told.
+   */
+  const BEFORE: ClientCeilingsInput = {
+    maxEvents: 1,
+    maxTotalBytes: 2,
+    maxEventQuotaBytes: 3,
+    maxRetentionDays: 4,
+    clipsAllowed: true,
+    liveAllowed: true,
+    maxLiveDays: 6,
+    maxEventsPerPeriod: 7,
+    periodStartedAt: AT,
+  }
+
+  const AFTER: ClientCeilingsInput = {
+    maxEvents: 11,
+    maxTotalBytes: 12,
+    maxEventQuotaBytes: 13,
+    maxRetentionDays: 14,
+    clipsAllowed: false,
+    liveAllowed: false,
+    maxLiveDays: 16,
+    maxEventsPerPeriod: 17,
+    periodStartedAt: NEXT_DAY,
+  }
+
+  it('writes all nine ceilings, each under its own name, on both sides', () => {
+    const planned = describeCeilingsChange(aClientWith(BEFORE), aClientWith(AFTER))
+
+    expect(planned[0]?.details).toEqual({
+      before: {
+        maxEvents: 1,
+        maxTotalBytes: 2,
+        maxEventQuotaBytes: 3,
+        maxRetentionDays: 4,
+        clipsAllowed: true,
+        liveAllowed: true,
+        maxLiveDays: 6,
+        maxEventsPerPeriod: 7,
+        periodStartedAt: '2026-06-20T21:00:00.000Z',
+      },
+      after: {
+        maxEvents: 11,
+        maxTotalBytes: 12,
+        maxEventQuotaBytes: 13,
+        maxRetentionDays: 14,
+        clipsAllowed: false,
+        liveAllowed: false,
+        maxLiveDays: 16,
+        maxEventsPerPeriod: 17,
+        periodStartedAt: '2026-06-21T21:00:00.000Z',
+      },
+    })
+  })
+
+  it.each(Object.keys(BEFORE))(
+    'writes a change to %s alone as a difference in that one key and no other',
+    (key) => {
+      const changed = aClientWith({ ...BEFORE, [key]: (AFTER as Record<string, unknown>)[key] })
+
+      const details = describeCeilingsChange(aClientWith(BEFORE), changed)[0]?.details as {
+        before: Record<string, unknown>
+        after: Record<string, unknown>
+      }
+
+      const differing = Object.keys(details.before).filter(
+        (name) => details.before[name] !== details.after[name],
+      )
+      expect(differing).toEqual([key])
+    },
+  )
+
+  it('writes client.periodReset when the period moves while the counter was already zero', () => {
+    const before = aClientWith({ periodStartedAt: AT }, 0)
+    const after = aClientWith({ periodStartedAt: NEXT_DAY }, 0)
+
+    expect(describeCeilingsChange(before, after).map((entry) => entry.action)).toEqual([
+      'client.ceilingsChanged',
+      'client.periodReset',
+    ])
+  })
+
+  it('writes client.periodReset when a period is set for the first time, and when it is cleared', () => {
+    const none = aClientWith({ periodStartedAt: null }, 0)
+    const some = aClientWith({ periodStartedAt: AT }, 3)
+
+    const started = describeCeilingsChange(none, some)[1]?.details
+    const cleared = describeCeilingsChange(some, none)[1]?.details
+
+    expect(started).toEqual({
+      before: { periodStartedAt: null, eventsCreatedInPeriod: 0 },
+      after: { periodStartedAt: '2026-06-20T21:00:00.000Z', eventsCreatedInPeriod: 3 },
+    })
+    expect(cleared).toEqual({
+      before: { periodStartedAt: '2026-06-20T21:00:00.000Z', eventsCreatedInPeriod: 3 },
+      after: { periodStartedAt: null, eventsCreatedInPeriod: 0 },
+    })
+  })
 })

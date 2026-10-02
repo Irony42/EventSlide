@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { asClientId, asUserId } from '../shared/ids'
 import { AUDIT_ACTIONS, type AuditAction } from './auditAction'
 import type { AuditDetailValue, AuditDetails, DetailKind } from './auditDetails'
-import { AuditEntry, type NewAuditEntry } from './auditEntry'
+import { AUDIT_ID_PATTERN, AuditEntry, type NewAuditEntry } from './auditEntry'
 
 const AT = new Date('2026-06-20T21:00:00.000Z')
 const CLIENT = asClientId('client-1')
@@ -43,8 +43,6 @@ const sampleOf = (kind: DetailKind): AuditDetailValue => {
       return true
     case 'instant':
       return '2026-06-20T21:00:00.000Z'
-    case 'id':
-      return 'id-1'
     case 'nullable':
       return sampleOf(kind.of)
     case 'object':
@@ -94,6 +92,59 @@ describe('AuditEntry.create', () => {
     })
   })
 
+  it('hands out frozen actor, subject and details, and a fresh date each time', () => {
+    const result = AuditEntry.create(entryInput())
+    if (!result.ok) throw new Error('fixture rejected')
+
+    const first = result.value.toProps()
+    first.at.setUTCFullYear(1999)
+
+    expect(Object.isFrozen(first.actor)).toBe(true)
+    expect(Object.isFrozen(first.subject)).toBe(true)
+    expect(Object.isFrozen(first.details)).toBe(true)
+    expect(result.value.toProps().at.getTime()).toBe(AT.getTime())
+  })
+
+  it('keeps its own copy of the subject, so editing the caller’s object cannot redirect the entry', () => {
+    const subject = { type: 'client' as const, id: 'client-1' }
+
+    const result = AuditEntry.create(entryInput({ subject }))
+    subject.id = 'client-2'
+
+    expect(result.ok && result.value.toProps().subject.id).toBe('client-1')
+  })
+
+  it('stores what it checked: an input whose properties answer differently the second time is read once', () => {
+    let reads = 0
+    const shifty = {
+      ...entryInput(),
+      get action(): unknown {
+        reads += 1
+        return reads === 1 ? 'client.ceilingsChanged' : 'client.periodReset'
+      },
+    }
+
+    const result = AuditEntry.create(shifty as unknown as NewAuditEntry)
+
+    expect(result.ok && result.value.toProps().action).toBe('client.ceilingsChanged')
+    expect(reads).toBe(1)
+  })
+
+  it('reads the subject once as well, so a subject that changes under the check cannot slip a wrong type past it', () => {
+    let reads = 0
+    const subject = {
+      get type(): unknown {
+        reads += 1
+        return reads === 1 ? 'client' : 'event'
+      },
+      id: 'client-1',
+    }
+
+    const result = AuditEntry.create(entryInput({ subject } as unknown as Partial<NewAuditEntry>))
+
+    expect(result.ok && result.value.toProps().subject.type).toBe('client')
+  })
+
   it('refuses an instant that is not a real date', () => {
     expect(codeOf(entryInput({ at: new Date(Number.NaN) }))).toBe('audit.atInvalid')
   })
@@ -120,6 +171,14 @@ describe('AuditEntry.create', () => {
         entryInput({ subject: { type: 'client', id: 'camille@example.com' }, clientId: CLIENT }),
       ),
     ).toBe('audit.subjectIdInvalid')
+  })
+
+  it('refuses a client id that is an address or a sentence, on any subject', () => {
+    expect(
+      codeOf(
+        entryInput({ clientId: 'camille@example.com' as unknown as NewAuditEntry['clientId'] }),
+      ),
+    ).toBe('audit.clientIdInvalid')
   })
 
   it('refuses an entry about a client that does not carry that client’s id, which would hide it from the client', () => {
@@ -225,5 +284,19 @@ describe('what an audit entry may never carry (roadmap 10.8: no photo content, c
     )
 
     expect(!result.ok && result.error.details['path']).toBe('after.periodStartedAt')
+  })
+})
+
+describe('AUDIT_ID_PATTERN', () => {
+  it('accepts a UUID and the counted ids the test hooks mint', () => {
+    expect(AUDIT_ID_PATTERN.test('b1946ac9-2be0-4c40-9f33-0123456789ab')).toBe(true)
+    expect(AUDIT_ID_PATTERN.test('client-1')).toBe(true)
+  })
+
+  it('refuses the empty string, an address, a sentence, and anything longer than an id', () => {
+    expect(AUDIT_ID_PATTERN.test('')).toBe(false)
+    expect(AUDIT_ID_PATTERN.test('camille@example.com')).toBe(false)
+    expect(AUDIT_ID_PATTERN.test('a caption with spaces')).toBe(false)
+    expect(AUDIT_ID_PATTERN.test('a'.repeat(65))).toBe(false)
   })
 })

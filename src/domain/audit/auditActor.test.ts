@@ -71,6 +71,36 @@ describe('parseAuditActor', () => {
     expect(codeOf({ kind: 'integration' })).toBe('audit.actorLabelRequired')
   })
 
+  it('refuses a label on an operator or a member, who are named by their account and not by a string', () => {
+    expect(codeOf({ kind: 'operator', userId: USER, label: 'Jean-Dupont' })).toBe(
+      'audit.actorLabelForbidden',
+    )
+    expect(codeOf({ kind: 'member', userId: USER, label: 'console' })).toBe(
+      'audit.actorLabelForbidden',
+    )
+  })
+
+  it('reads each property once, so an actor that changes under the check is stored as what was checked', () => {
+    let reads = 0
+    const shifty = {
+      userId: USER,
+      get kind(): unknown {
+        reads += 1
+        return reads === 1 ? 'operator' : 'system'
+      },
+    }
+
+    const result = parseAuditActor(shifty as unknown as AuditActorInput)
+
+    expect(result.ok && result.value.kind).toBe('operator')
+  })
+
+  it('hands back a frozen actor', () => {
+    const result = parseAuditActor({ kind: 'operator', userId: USER })
+
+    expect(result.ok && Object.isFrozen(result.value)).toBe(true)
+  })
+
   it('refuses a label that could hold a name or an address', () => {
     expect(codeOf({ kind: 'system', label: 'Camille Dupont' })).toBe('audit.actorLabelInvalid')
     expect(codeOf({ kind: 'system', label: 'camille@example.com' })).toBe('audit.actorLabelInvalid')

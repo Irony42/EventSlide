@@ -3,7 +3,7 @@ import type { ClientId } from '../shared/ids'
 import { err, ok, type Result } from '../shared/result'
 import { AUDIT_ACTIONS, isAuditAction, type AuditAction } from './auditAction'
 import { parseAuditActor, type AuditActor, type AuditActorInput } from './auditActor'
-import { AUDIT_ID_PATTERN, validateDetails, type AuditDetails } from './auditDetails'
+import { validateDetails, type AuditDetails } from './auditDetails'
 import type { AuditSubjectType } from './auditSubjectType'
 
 /**
@@ -20,6 +20,16 @@ import type { AuditSubjectType } from './auditSubjectType'
  * sequence number the database assigned, and it does not re-run any of this, because a row
  * written under an older version of the allow-list must stay readable by a newer one.
  */
+
+/**
+ * What an id in a subject or a client column looks like: letters, digits, `_` and `-`, 1 to
+ * 64 characters, which is every id this system mints (a UUID, or a counted one under the
+ * test hooks). It refuses an address, a sentence and anything longer than an id. It does
+ * **not** prove a value is an id and not a slug, which no shape can: what keeps a slug out
+ * of a subject is that a use case takes the id from the entity it holds
+ * (`subject: { type: 'client', id: client.id }`) rather than from a field.
+ */
+export const AUDIT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 export interface AuditSubject {
   readonly type: AuditSubjectType
@@ -54,26 +64,37 @@ export class AuditEntry {
   private constructor(private readonly props: AuditEntryProps) {}
 
   static create(input: NewAuditEntry): Result<AuditEntry, DomainError> {
-    if (!(input.at instanceof Date) || !Number.isFinite(input.at.getTime())) {
+    // Every property is read exactly once, here. What is validated below is what is kept: a
+    // getter, a Proxy or a later edit of the caller's own object cannot make the stored
+    // entry something the checks did not see.
+    const { at, action, clientId } = input
+    const subject = input.subject
+    const subjectType = subject.type
+    const subjectId = subject.id
+
+    if (!(at instanceof Date) || !Number.isFinite(at.getTime())) {
       return err(DomainError.invalid('audit.atInvalid'))
     }
 
     // The types forbid an unknown action, so this is for the caller the types cannot see:
     // a string that arrived through a cast or a JSON body.
-    if (!isAuditAction(input.action)) return err(DomainError.invalid('audit.actionUnknown'))
-    const spec = AUDIT_ACTIONS[input.action]
+    if (!isAuditAction(action)) return err(DomainError.invalid('audit.actionUnknown'))
+    const spec = AUDIT_ACTIONS[action]
 
-    if (input.subject.type !== spec.subject) {
+    if (subjectType !== spec.subject) {
       return err(DomainError.invalid('audit.subjectTypeMismatch', { expected: spec.subject }))
     }
-    if (!AUDIT_ID_PATTERN.test(input.subject.id)) {
+    if (!AUDIT_ID_PATTERN.test(subjectId)) {
       return err(DomainError.invalid('audit.subjectIdInvalid'))
+    }
+    if (clientId !== null && !AUDIT_ID_PATTERN.test(clientId)) {
+      return err(DomainError.invalid('audit.clientIdInvalid'))
     }
 
     // An entry about a client that does not carry that client's id would be written
     // happily and then never shown to the one person entitled to read it: the
     // client-readable view filters on `client_id`.
-    if (input.subject.type === 'client' && input.clientId !== input.subject.id) {
+    if (subjectType === 'client' && clientId !== subjectId) {
       return err(DomainError.invalid('audit.clientIdMismatch'))
     }
 
@@ -85,17 +106,22 @@ export class AuditEntry {
 
     return ok(
       new AuditEntry({
-        at: new Date(input.at.getTime()),
+        at: new Date(at.getTime()),
         actor: actor.value,
-        action: input.action,
-        subject: { type: input.subject.type, id: input.subject.id },
-        clientId: input.clientId,
+        action,
+        subject: Object.freeze({ type: subjectType, id: subjectId }),
+        clientId,
         details: details.value,
       }),
     )
   }
 
+  /**
+   * Everything the entry carries. `actor`, `subject` and `details` are frozen and shared;
+   * `at` is a fresh `Date` each time, because a `Date` cannot be frozen and a caller that
+   * moved it would move what the adapter writes.
+   */
   toProps(): AuditEntryProps {
-    return this.props
+    return { ...this.props, at: new Date(this.props.at.getTime()) }
   }
 }
