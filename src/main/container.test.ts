@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import request from 'supertest'
 import { afterEach, describe, expect, it } from 'vitest'
-import { asUserId } from '../domain/shared/ids'
+import { asEventId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
 import { migrations } from '../infrastructure/db/migrations'
 import { status } from '../infrastructure/db/migrator'
@@ -436,5 +436,164 @@ describe('createContainer: the support links reach /api/about', () => {
     const response = await request(app).get('/api/about')
 
     expect(response.body.links).toEqual({ budget: 'https://ledger.example.org/' })
+  })
+})
+
+/**
+ * A client's ceilings reaching every write path, over the real adapters the container wires
+ * (roadmap §10.5 / G2-05).
+ *
+ * The use-case tests prove each rule over fakes; what only the composition root can get wrong
+ * is the plumbing — a use case handed no `clients`, the notice days read from the wrong field,
+ * a repository answering `contextForEvent` for the wrong row. So the client, its event and the
+ * ceilings are rows, and the answers come from `SqliteClientRepository` and
+ * `SqliteEventRepository` themselves.
+ */
+describe('createContainer: a client’s ceilings reach every write path', () => {
+  const DAY = 86_400_000
+  const OWNER = asUserId('user-owner')
+
+  const isoDaysAgo = (days: number): string => new Date(Date.now() - days * DAY).toISOString()
+
+  const seedClientEvent = (
+    container: Container,
+    input: {
+      readonly status: string
+      readonly ceilings?: string
+      readonly clientSets?: string
+      readonly openedDaysAgo?: number
+      readonly closedDaysAgo?: number
+      readonly settings?: string
+    },
+  ): void => {
+    const at = new Date().toISOString()
+    container.db
+      .prepare(
+        `INSERT INTO users (id, email, password_hash, created_at) VALUES (?, 'owner@example.test', 'hash:x', ?)`,
+      )
+      .run(OWNER, at)
+    container.db
+      .prepare(`INSERT INTO clients (id, name, created_at) VALUES ('client-1', 'Atelier', ?)`)
+      .run(at)
+    if (input.ceilings !== undefined) {
+      container.db.prepare(`UPDATE clients SET ${input.ceilings} WHERE id = 'client-1'`).run()
+    }
+    container.db
+      .prepare(
+        `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes,
+                             created_at, client_id, opened_at, closed_at)
+         VALUES ('event-1', ?, 'Soirée', 'soiree', 'H7K2QM', ?, ?, 1000000000, ?, 'client-1', ?, ?)`,
+      )
+      .run(
+        OWNER,
+        input.status,
+        input.settings ?? JSON.stringify(anEventSettings().toProps()),
+        at,
+        input.openedDaysAgo === undefined ? null : isoDaysAgo(input.openedDaysAgo),
+        input.closedDaysAgo === undefined ? null : isoDaysAgo(input.closedDaysAgo),
+      )
+    container.db
+      .prepare(
+        `INSERT INTO event_memberships (event_id, user_id, role, granted_at)
+         VALUES ('event-1', ?, 'owner', ?)`,
+      )
+      .run(OWNER, at)
+  }
+
+  const rowOfEvent = (container: Container) =>
+    container.db
+      .prepare<[], { readonly status: string; readonly closed_at: string | null }>(
+        `SELECT status, closed_at FROM events WHERE id = 'event-1'`,
+      )
+      .get()
+
+  it('refuses opening an event for a client with live_allowed = 0, as 403 client.liveNotAllowed', async () => {
+    const container = await boot({})
+    seedClientEvent(container, { status: 'draft', ceilings: 'live_allowed = 0' })
+
+    const result = await container.usecases.changeEventStatus({
+      eventId: asEventId('event-1'),
+      actorId: OWNER,
+      status: 'live',
+    })
+
+    expect(!result.ok && result.error.code).toBe('client.liveNotAllowed')
+    expect(rowOfEvent(container)?.status).toBe('draft')
+  })
+
+  it('refuses a reopening after the live window, as 403 client.liveWindowOver', async () => {
+    const container = await boot({})
+    seedClientEvent(container, {
+      status: 'closed',
+      ceilings: 'max_live_days = 3',
+      openedDaysAgo: 10,
+      closedDaysAgo: 9,
+    })
+
+    const result = await container.usecases.changeEventStatus({
+      eventId: asEventId('event-1'),
+      actorId: OWNER,
+      status: 'live',
+    })
+
+    expect(!result.ok && result.error.code).toBe('client.liveWindowOver')
+  })
+
+  it('refuses a retention above max_retention_days, as 400 client.retentionAboveCeiling', async () => {
+    const container = await boot({})
+    seedClientEvent(container, { status: 'draft', ceilings: 'max_retention_days = 30' })
+
+    const result = await container.usecases.updateEventSettings({
+      eventId: asEventId('event-1'),
+      actorId: OWNER,
+      patch: { retentionDays: 90 },
+    })
+
+    expect(!result.ok && result.error.code).toBe('client.retentionAboveCeiling')
+  })
+
+  it('closes a live event whose client’s window has run out, on the schedule sweep', async () => {
+    const container = await boot({})
+    seedClientEvent(container, {
+      status: 'live',
+      ceilings: 'max_live_days = 3',
+      openedDaysAgo: 4,
+    })
+
+    const report = await container.usecases.applyEventSchedules()
+
+    expect(report.autoClosed).toEqual(['event-1'])
+    expect(rowOfEvent(container)?.status).toBe('closed')
+    expect(rowOfEvent(container)?.closed_at).not.toBeNull()
+  })
+
+  describe('RETENTION_CAP_NOTICE_DAYS reaches the purge', () => {
+    /** Closed 60 days ago, kept for ever, under a ceiling lowered 11 days ago to 14. */
+    const lowered = (container: Container): void =>
+      seedClientEvent(container, {
+        status: 'closed',
+        ceilings: `max_retention_days = 14, retention_cap_since = '${isoDaysAgo(11)}'`,
+        openedDaysAgo: 61,
+        closedDaysAgo: 60,
+        settings: JSON.stringify(anEventSettings({ retentionDays: null }).toProps()),
+      })
+
+    it('spares it for the default thirty days after the ceiling was lowered', async () => {
+      const container = await boot({})
+      lowered(container)
+
+      const report = await container.usecases.purgeExpiredEvents()
+
+      expect(report.purged).toEqual([])
+    })
+
+    it('purges it once the configured, shorter notice has run', async () => {
+      const container = await boot({ RETENTION_CAP_NOTICE_DAYS: '10' })
+      lowered(container)
+
+      const report = await container.usecases.purgeExpiredEvents()
+
+      expect(report.purged).toEqual(['event-1'])
+    })
   })
 })
