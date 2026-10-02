@@ -55,8 +55,18 @@ services:
     # MAX_QUEUED_CLIPS_PER_EVENT edited a file the container never read. `environment:`
     # still wins on the few keys both set, which is why the explicit `${VAR:?...}`
     # refusals below keep working unchanged.
+    #
+    # `required: false`, deliberately: the short-form `env_file: [.env]` makes the file
+    # a hard precondition of `docker compose up` itself — a config-time refusal, before
+    # a container even starts, with none of this project's own "name every problem at
+    # once" posture. An operator who supplies PUBLIC_URL and the two secrets another
+    # way — a real exported shell environment, a systemd `EnvironmentFile=`, a secrets
+    # manager — and keeps no `.env` on disk was booting cleanly before this line
+    # existed; `required: false` keeps that working, falling back to the `environment:`
+    # substitutions alone exactly as before.
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       NODE_ENV: production
       PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL to the address guests will reach, e.g. https://photos.example.com}
