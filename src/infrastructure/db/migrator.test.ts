@@ -86,6 +86,22 @@ describe('migrator', () => {
     closeDatabase(db)
   })
 
+  it('keeps the migrations that ran before the one that failed, which an older build then refuses', () => {
+    const db = freshDb()
+    const fine: Migration = { id: 1, name: 'fine', sql: marks(1) }
+    const breaks: Migration = { id: 2, name: 'breaks', sql: `CREATE TABLE (` }
+
+    expect(() => migrate(db, [fine, breaks])).toThrow(/Migration 2 \(breaks\)/)
+
+    // Each migration commits in a transaction of its own, so a failed upgrade is not a
+    // clean rollback: migration 1 stays applied. docs/UPGRADING.md tells a host to go
+    // back through the backup after one, and not by starting the old version, because a
+    // build that does not know migration 1 refuses a ledger that holds it.
+    expect(status(db, [fine, breaks]).applied.map((row) => row.id)).toEqual([1])
+    expect(() => migrate(db, [])).toThrow(/newer version/)
+    closeDatabase(db)
+  })
+
   it('names the migration in the failure, and says what SQLite objected to', () => {
     const db = freshDb()
     const failing: Migration[] = [
