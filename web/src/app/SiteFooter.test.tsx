@@ -100,6 +100,30 @@ describe('SiteFooter', () => {
     },
   )
 
+  it('hands the browser the parsed address, never the string as written', async () => {
+    // `https:x.example` is a valid https URL to the parser and a relative reference to a
+    // browser: as an `href` on an https page it resolves under the page's own path.
+    const about = vi.fn(async () => anAbout({ sourceUrl: 'https:x.example/our/fork' }))
+    renderWithProviders(<SiteFooter />, { api: fakeApi({ about }) })
+
+    await waitFor(() => expect(sourceLink()).toHaveAttribute('href', 'https://x.example/our/fork'))
+  })
+
+  it.each([
+    ['null, as a proxy’s error page might parse', null],
+    ['an empty object, as another version of the server might send', {}],
+    ['a body of the wrong kind', 'Bad Gateway'],
+  ])('keeps the build’s answer when the response is %s', async (_name, answer) => {
+    // A promise callback that throws is an unhandled rejection, and a footer that blanks
+    // its own link because a proxy answered badly has made the offer worse than not asking.
+    const about = vi.fn(async () => answer as never)
+    renderWithProviders(<SiteFooter />, { api: fakeApi({ about }) })
+
+    await waitFor(() => expect(about).toHaveBeenCalled())
+
+    expect(sourceLink()).toHaveAttribute('href', BUILD_SOURCE_URL)
+  })
+
   it('opens the source in a tab of its own, with rel="noopener noreferrer"', () => {
     renderWithProviders(<SiteFooter />, { api: silentServer() })
 

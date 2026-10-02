@@ -24,18 +24,50 @@ const BUILD_ABOUT: About = {
 }
 
 /**
- * An https address, or `null`.
+ * An https address in its canonical form, or `null`.
  *
  * The server refuses anything else at boot (`SOURCE_CODE_URL` in `env.ts`), so this is the
  * same rule applied a second time at the point the string becomes an `href`: a response
  * rewritten by a proxy, or a server older than that check, must not be able to put a
  * `javascript:` URI behind a link every visitor is invited to press.
+ *
+ * The **parsed** form is what is returned, never the input. `https:x.example` parses as
+ * `https://x.example/` but, left as written, is a relative reference to a browser and
+ * resolves against whatever address the page is on.
  */
 const httpsOnly = (value: string): string | null => {
   try {
-    return new URL(value).protocol === 'https:' ? value : null
+    const url = new URL(value)
+    return url.protocol === 'https:' ? url.href : null
   } catch {
     return null
+  }
+}
+
+/**
+ * The part of a response worth trusting, laid over the build's own answer.
+ *
+ * A footer must survive whatever the network hands it: a `200 null` from a proxy's error
+ * page, a `{}` from a server of another version. So each field is taken only if it is the
+ * right kind of thing, and what is not stays what the build knew — never a blank
+ * `version` on `/about` and never an exception thrown from inside a promise callback.
+ */
+const laidOver = (answer: unknown): About => {
+  if (typeof answer !== 'object' || answer === null) return BUILD_ABOUT
+
+  const version: unknown = Reflect.get(answer, 'version')
+  const sourceUrl: unknown = Reflect.get(answer, 'sourceUrl')
+  const features: unknown = Reflect.get(answer, 'features')
+  const siteAdmin: unknown =
+    typeof features === 'object' && features !== null ? Reflect.get(features, 'siteAdmin') : null
+
+  return {
+    ...BUILD_ABOUT,
+    ...(typeof version === 'string' && version !== '' ? { version } : {}),
+    ...(typeof sourceUrl === 'string'
+      ? { sourceUrl: httpsOnly(sourceUrl) ?? BUILD_ABOUT.sourceUrl }
+      : {}),
+    features: { siteAdmin: siteAdmin === true },
   }
 }
 
@@ -56,11 +88,9 @@ export const useAbout = (): About => {
     const controller = new AbortController()
 
     api.about(controller.signal).then(
-      (answer) => {
+      (answer: unknown) => {
         if (controller.signal.aborted) return
-        // The server's address when it is usable, the build's when it is not — never the
-        // unusable one, and never nothing.
-        setAbout({ ...answer, sourceUrl: httpsOnly(answer.sourceUrl) ?? BUILD_ABOUT.sourceUrl })
+        setAbout(laidOver(answer))
       },
       () => undefined,
     )

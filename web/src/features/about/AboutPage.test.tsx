@@ -61,6 +61,15 @@ describe('AboutPage', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('keeps the build’s version when the response carries none', async () => {
+    const about = vi.fn(async () => ({}) as never)
+    renderWithProviders(<AboutPage />, { api: fakeApi({ about }) })
+
+    await waitFor(() => expect(about).toHaveBeenCalled())
+
+    expect(screen.getByText(BUILD_VERSION)).toBeVisible()
+  })
+
   it('opens the source in a tab of its own, with rel="noopener noreferrer"', () => {
     renderWithProviders(<AboutPage />, { api: silentServer() })
 
