@@ -1095,6 +1095,7 @@ export const fr = {
     'auth.invalidCredentials': 'Adresse e-mail ou mot de passe incorrect.',
     'auth.required': 'Connectez-vous pour continuer.',
     'auth.forbidden': 'Vous n’avez pas les droits pour cette action.',
+    'auth.passwordChangeRequired': 'Choisissez un nouveau mot de passe avant de continuer.',
 
     'event.notFound': 'Ce code ne correspond à aucune galerie ouverte.',
     'event.notAcceptingUploads': 'Cette galerie n’accepte plus de photos.',

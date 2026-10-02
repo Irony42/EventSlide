@@ -246,6 +246,7 @@ export const es: UiText = {
     'auth.invalidCredentials': 'La dirección de correo o la contraseña no son correctas.',
     'auth.required': 'Inicie sesión para continuar.',
     'auth.forbidden': 'No tiene permisos para esta acción.',
+    'auth.passwordChangeRequired': 'Elija una nueva contraseña antes de continuar.',
 
     'event.notFound': 'Este código no corresponde a ninguna galería abierta.',
     'event.notAcceptingUploads': 'Esta galería ya no acepta fotos.',

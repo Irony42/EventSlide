@@ -1568,7 +1568,6 @@ describe('the guards in front of every handler', () => {
         kind: 'user',
         userId: asUserId(OWNER),
         email: 'hote@example.test',
-        mustChangePassword: false,
       },
     }
 

@@ -4,6 +4,28 @@ import type { SiteRole } from '../../domain/users/siteRole'
 import type { EventRole } from '../../domain/events/eventRole'
 import type { EventId, UserId } from '../../domain/shared/ids'
 
+/**
+ * What `UserRepository.authStateFor` answers — see its doc comment for why it is one
+ * read rather than two.
+ */
+export interface AuthState {
+  readonly active: boolean
+  readonly mustChangePassword: boolean
+  /** `null` until P3-09 (roadmap §10 jetons) ships the column this will be read from. */
+  readonly credentialsChangedAt: Date | null
+}
+
+/**
+ * What every implementation answers for an account that cannot act: one gone entirely,
+ * and one somebody disabled. Exported so both adapters collapse to the exact same
+ * value rather than two object literals that happen to compare equal today.
+ */
+export const INACTIVE_AUTH_STATE: AuthState = {
+  active: false,
+  mustChangePassword: false,
+  credentialsChangedAt: null,
+}
+
 export interface UserRepository {
   findById(id: UserId): Promise<User | null>
 
@@ -11,23 +33,31 @@ export interface UserRepository {
   findByEmail(email: EmailAddress): Promise<User | null>
 
   /**
-   * Whether this account may act at all, right now.
+   * Everything authorization reads about an account's credentials, in the one query a
+   * request needs — never two.
    *
-   * The smallest of the three authorization reads on this port, and the one the routes
-   * that are **not** event-scoped need: `GET /api/events`, `POST /api/events` and
-   * `POST /api/auth/password` ask nothing about an event, so there is no role to fetch
-   * and nothing else would notice that the account behind the session has been switched
-   * off. Before it existed, `disabled_at` was read on exactly one line in the whole
-   * product — inside `authenticateUser` — so a host who was disabled at 19:00 kept
-   * creating events from the tab they already had open.
+   * It supersedes two reads a request used to make separately: whether the account may
+   * act at all (`GET`/`POST /api/events`, `POST /api/auth/password` ask nothing about an
+   * event, so there is no role to fetch and nothing else would notice an account the
+   * session's owner switched off), and `mustChangePassword`, which a session cookie used
+   * to carry from the moment of login. The second one is the point of the merge, not a
+   * convenience: a capability copied into a cookie survives whatever happens to the row
+   * behind it, which is exactly backwards for a flag whose whole job is to be true until
+   * somebody chooses a password. Reading it fresh from storage on every request is the
+   * same argument `siteRoleFor` already makes for the site role, applied to this flag.
    *
-   * Total, like {@link siteRoleFor}, and false for the same two cases: an account that
-   * does not exist and one that has been disabled are one answer, because a session
-   * outliving its account names nobody. It reads one column rather than hydrating the
-   * `User`, so a gate on a request that has no use for a password hash never puts one on
-   * the heap.
+   * `active` is total, and false for the same two cases `siteRoleFor` collapses: an
+   * account that does not exist and one that has been disabled are one answer, because a
+   * session outliving its account names nobody. `mustChangePassword` is only meaningful
+   * when `active` is true — the two aggregates (`UserRepository`, `authz.ts`) do not
+   * need to agree on what a disabled account's flag means, because nothing downstream
+   * ever asks the flag before asking whether the account may act at all.
+   *
+   * `credentialsChangedAt` is `null` until roadmap §10's account-tokens epoch
+   * (P3-09) ships the column it will be read from; nothing in this port or its callers
+   * compares against it yet.
    */
-  isActive(id: UserId): Promise<boolean>
+  authStateFor(id: UserId): Promise<AuthState>
 
   /**
    * The authority this account has **over the box**, right now.

@@ -2,11 +2,11 @@ import { Router } from 'express'
 import type { Session } from 'express-session'
 import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
-import { requireUser } from '../middleware/authz'
+import { requireUser, resolveAuthState } from '../middleware/authz'
 import { rotateCsrfToken } from '../middleware/csrf'
 import { loginLimiter } from '../middleware/rateLimit'
 import { toSessionResponseDto, toSignedInUserDto } from '../presenters/presenters'
-import { sendError, sendJson, sendNoContent, sendResult } from '../presenters/send'
+import { sendError, sendJson, sendNoContent, sendResultNoContent } from '../presenters/send'
 import { changePasswordBody, loginBody } from '../schemas/requestSchemas'
 import type { HttpDeps, SessionPayload } from '../types'
 import type { HttpUseCases } from '../useCases'
@@ -118,7 +118,10 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
       const payload: SessionPayload = {
         userId: result.value.userId,
         email: result.value.email,
-        mustChangePassword: result.value.mustChangePassword,
+        // Deliberately not `mustChangePassword`: `SessionPayload`'s own doc comment says
+        // why, and `requirePasswordCurrent` reads the flag from storage on every request
+        // rather than trusting a copy minted at this exact moment.
+        //
         // Written here and nowhere else. `enforceSessionAge` reads it to end a session
         // that has been alive too long however busy it has been, which the rolling idle
         // timeout cannot do — and refreshing it anywhere would turn the absolute cap
@@ -184,12 +187,20 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
       // The account, not only the session. This is the answer the admin shell routes
       // on, so a disabled host who is told `authenticated: true` is let into a console
       // where every request then fails — the shape of the defect rather than a cosmetic
-      // wart. One read, on the one route whose whole job is to say whether the caller
-      // has a session worth having.
+      // wart. `resolveAuthState` is the same single read `requirePasswordCurrent` already
+      // made ahead of this handler on a real server (`server.ts`'s mount order); asking
+      // again here costs nothing when it did and is still exactly one read when it did
+      // not, as in a test that drives this router on its own.
       const user = req.context.user
-      const usable = user !== undefined && (await deps.users.isActive(user.userId))
+      const state = user === undefined ? undefined : await resolveAuthState(deps, req)
 
-      sendJson(res, toSessionResponseDto(usable ? user : undefined))
+      sendJson(
+        res,
+        toSessionResponseDto(
+          user !== undefined && state?.active === true ? user : undefined,
+          state?.mustChangePassword ?? false,
+        ),
+      )
     }),
   )
 
@@ -216,15 +227,12 @@ export const authRoutes = ({ deps, usecases }: AuthRouteDeps): Router => {
         newPassword: body.newPassword,
       })
 
-      sendResult(res, result, (response) => {
-        // The invitation gate closes here rather than at the next sign-in: the "choose
-        // your password" screen is what called this, and it has to be able to move on
-        // without a reload.
-        const cleared: SessionPayload = { mustChangePassword: false }
-        Object.assign(req.session, cleared)
-
-        sendNoContent(response)
-      })
+      // No session write on success, unlike before P3-03: `changePassword` already
+      // cleared `mustChangePassword` in storage (`User.withPasswordHash`), and
+      // `resolveAuthState` reads that on the very next request. A session-side clear
+      // used to exist because the flag lived in the cookie; now that it does not, writing
+      // one here would be dead code pretending to be the fix.
+      sendResultNoContent(res, result)
     }),
   )
 

@@ -1,9 +1,10 @@
-import type { RequestHandler } from 'express'
+import type { Request, RequestHandler } from 'express'
 import { canModerate, canManageEvent, type EventRole } from '../../../domain/events/eventRole'
 import { canOperateSite } from '../../../domain/users/siteRole'
 import { DomainError } from '../../../domain/shared/errors'
 import { Slug } from '../../../domain/shared/slug'
 import { asUserId } from '../../../domain/shared/ids'
+import { INACTIVE_AUTH_STATE, type AuthState } from '../../../application/ports/userRepository'
 import { sendError } from '../presenters/send'
 import type { GuestPrincipal, HttpDeps, SessionPayload, UserPrincipal } from '../types'
 
@@ -124,7 +125,14 @@ export const enforceSessionAge =
     })
   }
 
-/** Reads the session cookie into a principal. Establishes identity, not permission. */
+/**
+ * Reads the session cookie into a principal. Establishes identity, not permission —
+ * and not the account's credential state either, which is what {@link resolveAuthState}
+ * is for. A principal here says only *who*; `mustChangePassword` used to live on it,
+ * read from the session the login wrote, and that was the bug P3-03 closes: a cookie is
+ * exactly the wrong place to ask whether a password is still provisional; it was true
+ * once, when the login happened, and a request needs the truth right now.
+ */
 export const attachUser = (): RequestHandler => (req, _res, next) => {
   const session = (req.session ?? {}) as SessionPayload
   if (typeof session.userId === 'string' && typeof session.email === 'string') {
@@ -132,11 +140,39 @@ export const attachUser = (): RequestHandler => (req, _res, next) => {
       kind: 'user',
       userId: asUserId(session.userId),
       email: session.email,
-      mustChangePassword: session.mustChangePassword === true,
     }
     req.context.user = user
   }
   next()
+}
+
+/**
+ * The signed-in principal's credential state, read from storage once and cached on the
+ * request — never from the session.
+ *
+ * Every caller of this file that needs to know whether an account may act, or whether it
+ * must change its password, goes through here rather than calling
+ * `UserRepository.authStateFor` on its own: `requirePasswordCurrent` resolves it first on
+ * every `/api` request carrying a principal, and `requireUser` and `GET /api/auth/me`
+ * reuse the same answer. Memoized on `req.context.authState` rather than on a module-level
+ * map, which would leak across requests and serve one caller's answer to the next.
+ *
+ * Exported so `routes/authRoutes.ts`'s `GET /api/auth/me` — the one handler outside this
+ * file that needs the fact rather than the refusal — can ask the same question the same
+ * way, instead of growing its own second read of `authStateFor`.
+ */
+export const resolveAuthState = async (
+  deps: Pick<HttpDeps, 'users'>,
+  req: Request,
+): Promise<AuthState> => {
+  if (req.context.authState !== undefined) return req.context.authState
+
+  const user = req.context.user
+  if (user === undefined) return INACTIVE_AUTH_STATE
+
+  const state = await deps.users.authStateFor(user.userId)
+  req.context.authState = state
+  return state
 }
 
 /**
@@ -167,8 +203,122 @@ export const requireUser =
         return
       }
 
-      if (!(await deps.users.isActive(user.userId))) {
+      const state = await resolveAuthState(deps, req)
+      if (!state.active) {
         sendError(res, DomainError.unauthenticated('auth.required'))
+        return
+      }
+
+      next()
+    })().catch(next)
+  }
+
+/** The code {@link requirePasswordCurrent} refuses with. Exported so the sweep in
+ * `authz.test.ts` can assert against the same literal rather than a copy of it. */
+export const PASSWORD_CHANGE_REQUIRED_CODE = 'auth.passwordChangeRequired'
+
+/**
+ * The three routes a signed-in account may still reach while it must change its
+ * password, each with the reason it is safe to let through. Every other `/api` route is
+ * refused by {@link requirePasswordCurrent} — see its own doc comment.
+ *
+ * Exported so `authz.test.ts`'s sweep reads the production list rather than a second copy
+ * of it: the two drifting apart is exactly how an exemption rots, which is the failure
+ * every list like this one in `routes/siteOperatorScope.test.ts` is built to resist.
+ *
+ * Written against the path a request actually carries once Express has stripped this
+ * middleware's own `/api` mount (`req.path`), reassembled with `req.baseUrl` so the key
+ * reads the same way `siteOperatorScope.test.ts`'s own exemption lists do: the full path,
+ * lower-cased, with slashes collapsed — the same case- and double-slash normalisation
+ * that file's `inSiteNamespace` applies, **and** a trailing slash besides, which that
+ * file does not need to collapse and this one does ({@link normalizedApiPath}'s own
+ * comment says why). A request that reached this far already matches whatever a
+ * downstream router will match — case, double slashes and a trailing one included
+ * (`strict routing` is off) — so refusing to normalise any of them here would make the
+ * exemption narrower than the route it names.
+ */
+export const PASSWORD_CHANGE_EXEMPT: Readonly<Record<string, string>> = {
+  'get /api/auth/me':
+    'the one read that tells the client there is a flag to act on at all — ' +
+    'refusing it would leave a stuck session with no way to learn why',
+  'post /api/auth/password':
+    'the only door out: choosing a password is what clears the flag, and a route that ' +
+    'cannot be reached while the flag is set could never clear it',
+  'post /api/auth/logout':
+    'leaving is never refused, whatever state the account is in — the gate exists to ' +
+    'narrow what a stuck session can do, not to trap it signed in',
+}
+
+/**
+ * Collapses repeated slashes and case the way the sibling exemption lists in
+ * `routes/siteOperatorScope.test.ts` do, **and** a trailing slash on top of that —
+ * which those lists do not need to, because they place a route by its mount rather
+ * than by a literal key a request's own path has to match byte for byte.
+ *
+ * `server.ts` sets `strict routing: false` ("two events differing only by a trailing
+ * slash would otherwise be two cache entries"), so `GET /api/auth/me/` reaches the exact
+ * same handler `GET /api/auth/me` does. A lookup that did not collapse the slash would
+ * refuse the trailing-slash spelling of an exempt route with `auth.passwordChangeRequired`
+ * — trapping a flagged account out of the one screen that lets it stop being flagged,
+ * on a request shape the server answers identically otherwise.
+ */
+const normalizedApiPath = (req: Request): string => {
+  const collapsed = `${req.baseUrl}${req.path}`.replace(/\/{2,}/g, '/').toLowerCase()
+  return collapsed.length > 1 ? collapsed.replace(/\/+$/, '') : collapsed
+}
+
+const isExemptFromPasswordGate = (req: Request): boolean =>
+  PASSWORD_CHANGE_EXEMPT[`${req.method.toLowerCase()} ${normalizedApiPath(req)}`] !== undefined
+
+/**
+ * The server-side half of `mustChangePassword` (roadmap, P3-03). Until this existed, the
+ * flag was enforced only by `web/src/features/auth/MustChangePasswordGate.tsx` — a
+ * client-side redirect, which is a courtesy to a browser that is already cooperating and
+ * not a refusal to one that is not. An invited moderator holding the session a host just
+ * read out to them could call any event-scoped route directly, the gate's redirect
+ * notwithstanding.
+ *
+ * Mounted on `/api`, directly ahead of `requireCsrfToken` (`server.ts`): after identity
+ * is resolved, so there is a principal to ask about, and before every router, so no route
+ * can be reached without the question being asked first — the same position
+ * `requireCsrfToken` itself holds for the same reason.
+ *
+ * Three things keep this from becoming the fourth authorization decision a route has to
+ * agree with:
+ *
+ * 1. **An anonymous or guest request is untouched.** `mustChangePassword` is a fact about
+ *    a signed-in account; a request carrying no `req.context.user` has nothing this gate
+ *    is about, and passes straight through to whatever `requireGuest` or
+ *    `resolvePublicEvent` decides.
+ * 2. **An inactive account is untouched too**, and deliberately so: refusing it here
+ *    with `auth.passwordChangeRequired` would be a second, inconsistent answer to the
+ *    question `requireUser`, `requireRole` and `requireOperator` already answer for a
+ *    disabled or deleted account — 401 or 404, never this code. Letting it through to
+ *    them is what keeps "the account may not act at all" one answer instead of two.
+ * 3. **The flag itself is read from storage on every request** (`resolveAuthState`,
+ *    which this is the first thing on the request to call, so it is also what decides
+ *    the one query every other caller this request makes reuses) — never from the
+ *    session, which is the source-of-truth rule P3-03 exists to state. A session copy
+ *    would still say `false` for an account flagged after it signed in, and would still
+ *    say `true` for one that cleared the flag from a different tab.
+ */
+export const requirePasswordCurrent =
+  (deps: HttpDeps): RequestHandler =>
+  (req, res, next) => {
+    void (async () => {
+      if (req.context.user === undefined) {
+        next()
+        return
+      }
+
+      const state = await resolveAuthState(deps, req)
+      if (!state.active) {
+        next()
+        return
+      }
+
+      if (state.mustChangePassword && !isExemptFromPasswordGate(req)) {
+        sendError(res, DomainError.forbidden(PASSWORD_CHANGE_REQUIRED_CODE))
         return
       }
 

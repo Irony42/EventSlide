@@ -100,6 +100,27 @@ used to discover which events exist; a session with no membership of that event 
 `403 auth.forbidden` with `details.required`. The use cases repeat the same three
 answers, so the rule holds even when one of them is called from somewhere else.
 
+### `mustChangePassword` — enforced server-side
+
+A signed-in account whose `mustChangePassword` is set gets `403
+auth.passwordChangeRequired` on **every** mounted `/api` route except three:
+
+- `GET /api/auth/me` — so the client can still learn the flag is set at all
+- `POST /api/auth/password` — the only way to clear it
+- `POST /api/auth/logout` — leaving is never refused
+
+`GET /api/health` and `GET /api/ready` are mounted ahead of the whole session stack and
+carry no principal to ask about, so this does not apply to them either — not an
+exemption, since there is nothing here for it to exempt. Every other route, including
+ones that would otherwise be reachable by anyone (the wall, `POST /api/join`), is refused
+the moment the caller is signed in with the flag set: the flag is about the account, not
+about the route. `middleware/authz.ts`'s `requirePasswordCurrent` is the gate, mounted on
+`/api` ahead of every router; `docs/SECURITY.md` §2 has the fuller argument, including why
+the flag is read from storage on every request rather than carried in the session cookie.
+Today only `web/src/features/auth/MustChangePasswordGate.tsx` — a client-side redirect —
+enforced this; the gate above is what makes it authoritative rather than a courtesy to a
+cooperating browser.
+
 ### Cross-cutting error codes
 
 These are not attached to one endpoint and every client must handle them. Each has copy
@@ -107,19 +128,20 @@ in `web/src/lib/i18n/fr.ts` — and, because `errors` is one of the translated s
 in the other four tables too, which the build enforces. A code with none renders the
 generic fallback sentence to a guest, which is why the lists are kept in step.
 
-| Code                      | Status | When                                                            |
-| ------------------------- | ------ | --------------------------------------------------------------- |
-| `request.invalid`         | 400    | Any zod failure: wrong type, out of bounds, unexpected field    |
-| `request.tooLarge`        | 413    | A JSON body over 64 KB                                          |
-| `request.csrfMissing`     | 403    | No `es_csrf` cookie, or no `X-CSRF-Token` header                |
-| `request.csrfMismatch`    | 403    | The header does not equal the cookie                            |
-| `auth.required`           | 401    | A route needs a principal and there is none                     |
-| `auth.forbidden`          | 403    | In scope for the event, role too weak; or not the site operator |
-| `guestToken.expired`      | 401    | The device token is past its 36 hours                           |
-| `guestToken.badSignature` | 401    | The device token does not verify                                |
-| `guestToken.malformed`    | 401    | The token is unreadable, or its guest row no longer exists      |
-| `route.notFound`          | 404    | No such `/api` endpoint — answered in the API's own error shape |
-| `server.unexpected`       | 500    | A bug. `details.requestId` matches the `X-Request-Id` header    |
+| Code                          | Status | When                                                                             |
+| ----------------------------- | ------ | -------------------------------------------------------------------------------- |
+| `request.invalid`             | 400    | Any zod failure: wrong type, out of bounds, unexpected field                     |
+| `request.tooLarge`            | 413    | A JSON body over 64 KB                                                           |
+| `request.csrfMissing`         | 403    | No `es_csrf` cookie, or no `X-CSRF-Token` header                                 |
+| `request.csrfMismatch`        | 403    | The header does not equal the cookie                                             |
+| `auth.required`               | 401    | A route needs a principal and there is none                                      |
+| `auth.forbidden`              | 403    | In scope for the event, role too weak; or not the site operator                  |
+| `auth.passwordChangeRequired` | 403    | Signed in, `mustChangePassword` set, and the route is not one of the three below |
+| `guestToken.expired`          | 401    | The device token is past its 36 hours                                            |
+| `guestToken.badSignature`     | 401    | The device token does not verify                                                 |
+| `guestToken.malformed`        | 401    | The token is unreadable, or its guest row no longer exists                       |
+| `route.notFound`              | 404    | No such `/api` endpoint — answered in the API's own error shape                  |
+| `server.unexpected`           | 500    | A bug. `details.requestId` matches the `X-Request-Id` header                     |
 
 ### Principals
 
@@ -1188,12 +1210,19 @@ Destroys the session and clears the cookie. **204**. Idempotent.
 this on every page load, and a 401 in the console on first visit is noise.
 
 **`displayName` is always `null` here**, and that is the contract rather than a gap. The
-response is built from the session principal alone, which holds a user id, an address and
-the password flag and nothing else: a name in the session would be a copy that goes stale
-the moment the account is renamed, and reading the row would make a controller touch a
-repository. The fresh name comes from the login response; this endpoint answers the
-question it is actually asked, which is whether the caller is signed in. A client that
-needs a name on a page load has to keep the one `POST /api/auth/login` returned.
+response is built from the session principal, which holds only a user id and an address: a
+name in the session would be a copy that goes stale the moment the account is renamed, and
+reading the row would make a controller touch a repository. The fresh name comes from the
+login response; this endpoint answers the question it is actually asked, which is whether
+the caller is signed in. A client that needs a name on a page load has to keep the one
+`POST /api/auth/login` returned.
+
+**`mustChangePassword` is not from the session either.** It is read from storage on this
+request (`UserRepository.authStateFor`, P3-03) — the same single read
+`requirePasswordCurrent` already made before this handler ran, reused rather than asked
+twice. A value copied into the cookie at login would still say `false` for an account
+flagged afterwards, and would still say `true` for one that cleared the flag from a
+different tab.
 
 `Cache-Control: no-store`, always. The body is an identity and a rolling session
 re-sends its cookie alongside it, so a shared cache holding this response would hand

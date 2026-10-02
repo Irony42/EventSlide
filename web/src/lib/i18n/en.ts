@@ -240,6 +240,7 @@ export const en: UiText = {
     'auth.invalidCredentials': 'Wrong email address or password.',
     'auth.required': 'Sign in to continue.',
     'auth.forbidden': 'You do not have the rights for this action.',
+    'auth.passwordChangeRequired': 'Choose a new password before you continue.',
 
     'event.notFound': 'This code does not match any open gallery.',
     'event.notAcceptingUploads': 'This gallery is no longer accepting photos.',

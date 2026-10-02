@@ -5,7 +5,7 @@ import type { Store } from 'express-session'
 import { accessLog } from './middleware/accessLog'
 import { errorHandler, requestContext } from './middleware/errorHandler'
 import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
-import { attachUser, enforceSessionAge } from './middleware/authz'
+import { attachUser, enforceSessionAge, requirePasswordCurrent } from './middleware/authz'
 import { eventCreationLimiter, uploadLimiter } from './middleware/rateLimit'
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
 import { authRoutes } from './routes/authRoutes'
@@ -134,6 +134,13 @@ export const buildServer = ({
   // being used has no end at all.
   app.use(enforceSessionAge(deps))
   app.use(attachUser())
+
+  // The server-side half of `mustChangePassword` (P3-03): a signed-in account that must
+  // choose a password meets `403 auth.passwordChangeRequired` on every `/api` route but
+  // three (`authz.ts`'s own doc comment names them and why). After identity is resolved,
+  // so there is a principal to ask about, and ahead of every router — including the CSRF
+  // gate below, so a stuck session is told why before it is told its token is stale.
+  app.use('/api', requirePasswordCurrent(deps))
 
   // Every state-changing request from here on must echo the CSRF cookie. Mounted ahead
   // of every router, which is what lets the client retry a `request.csrfMismatch` once

@@ -6,7 +6,11 @@ import {
   toIsoText,
   toSqliteBoolean,
 } from './rowMapping'
-import type { UserRepository } from '../../application/ports/userRepository'
+import {
+  INACTIVE_AUTH_STATE,
+  type AuthState,
+  type UserRepository,
+} from '../../application/ports/userRepository'
 import { asUserId, type UserId } from '../../domain/shared/ids'
 import { EmailAddress } from '../../domain/users/emailAddress'
 import { DEFAULT_SITE_ROLE, isSiteRole, type SiteRole } from '../../domain/users/siteRole'
@@ -172,21 +176,30 @@ export class SqliteUserRepository implements UserRepository {
   }
 
   /**
-   * The narrowest authorization read on this adapter, and the same `WHERE` clause as
-   * `siteRoleFor` for the same reason.
+   * The one query a request needs for both authorization facts: whether the account may
+   * act, and whether it must choose a password before anything else. The same `WHERE`
+   * clause as `siteRoleFor`, for the same reason — and one statement rather than two,
+   * which is the whole point of the port method: a request used to read `isActive` here
+   * and trust a value copied into the session cookie for the other, and the second of
+   * those survived the row changing underneath it.
    *
-   * `SELECT 1` rather than the row: the question is whether the account may act, and the
-   * two routes that ask it are not event-scoped, so there is nothing else about the
-   * account they need — least of all its password hash.
+   * Reads one small column beside the flag rather than hydrating the row, so a gate on a
+   * request that has no use for a password hash never puts one on the heap.
    */
-  async isActive(id: UserId): Promise<boolean> {
+  async authStateFor(id: UserId): Promise<AuthState> {
     const row = this.db
-      .prepare<[string], { readonly present: number }>(
-        `SELECT 1 AS present FROM users WHERE id = ? AND disabled_at IS NULL`,
+      .prepare<[string], { readonly must_change_password: number }>(
+        `SELECT must_change_password FROM users WHERE id = ? AND disabled_at IS NULL`,
       )
       .get(id)
 
-    return row !== undefined
+    return row === undefined
+      ? INACTIVE_AUTH_STATE
+      : {
+          active: true,
+          mustChangePassword: fromSqliteBoolean(row.must_change_password),
+          credentialsChangedAt: null,
+        }
   }
 
   async save(user: User): Promise<void> {

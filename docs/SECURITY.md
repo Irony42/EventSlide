@@ -76,11 +76,11 @@ and grants nothing any row in this table does not.
 
 Three things bound a host session, and they answer different questions.
 
-| Bound                                                   | Where                                                     | What it is for                                                                                                                                                       |
-| ------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Idle, 12 h**, `rolling: true`                         | `server.ts` cookie `maxAge`, `sqliteSessionStore.touch`   | a laptop nobody comes back to                                                                                                                                        |
-| **Absolute, 7 days** from the login that established it | `enforceSessionAge` in `middleware/authz.ts`              | a session that keeps being used. Rolling alone never ends one, so without this the window had no end at all rather than the twelve hours this document used to claim |
-| **The account, on every request**                       | `MembershipRepository.roleFor`, `UserRepository.isActive` | the host you switched off five minutes ago. A capability answered from the session is a capability nobody can take back — see "Disabling an account", below          |
+| Bound                                                   | Where                                                         | What it is for                                                                                                                                                                                                                           |
+| ------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Idle, 12 h**, `rolling: true`                         | `server.ts` cookie `maxAge`, `sqliteSessionStore.touch`       | a laptop nobody comes back to                                                                                                                                                                                                            |
+| **Absolute, 7 days** from the login that established it | `enforceSessionAge` in `middleware/authz.ts`                  | a session that keeps being used. Rolling alone never ends one, so without this the window had no end at all rather than the twelve hours this document used to claim                                                                     |
+| **The account, on every request**                       | `MembershipRepository.roleFor`, `UserRepository.authStateFor` | the host you switched off five minutes ago, or the one who still must change a password. A capability answered from the session is a capability nobody can take back — see "Disabling an account" and "Forcing a password change", below |
 
 The absolute cap is a week and not a day on purpose: the control that acts on the
 unlocked laptop is the idle timeout, and a tighter absolute cap would buy little against
@@ -97,14 +97,14 @@ next login**. Until roadmap §10 ships a console for it, setting the column is t
 operation (`UPDATE users SET disabled_at = ...`); this branch built the enforcement, not
 the administration of it.
 
-| On the next **request**                             | What answers, and how                                                                                                                                                              |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| every event-scoped route                            | `roleFor` answers `null`, so `requireRole` gives the **404** a non-member gets. Byte for byte the same body, so the refusal reveals nothing                                        |
-| every use case that checks an actor for itself      | the same answer, because the nineteen of them ask the same port method — including `registerModerator`, which is how a disabled owner used to mint a fresh **enabled** account     |
-| `GET`/`POST /api/events`, `POST /api/auth/password` | `requireUser` reads `UserRepository.isActive` and answers **401 `auth.required`**, the same as no session at all. These routes name no event, so no role lookup would have noticed |
-| the operator's own surface                          | `siteRoleFor` already answered `none`; unchanged                                                                                                                                   |
-| the login form                                      | `authenticateUser` refuses with `auth.invalidCredentials`, after the hash comparison so a switched-off account stays unobservable                                                  |
-| an SSE stream **already open**                      | nothing — it was authorized when the socket opened and is not asked again. It reads; it decides nothing. See the residual below                                                    |
+| On the next **request**                             | What answers, and how                                                                                                                                                                  |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| every event-scoped route                            | `roleFor` answers `null`, so `requireRole` gives the **404** a non-member gets. Byte for byte the same body, so the refusal reveals nothing                                            |
+| every use case that checks an actor for itself      | the same answer, because the nineteen of them ask the same port method — including `registerModerator`, which is how a disabled owner used to mint a fresh **enabled** account         |
+| `GET`/`POST /api/events`, `POST /api/auth/password` | `requireUser` reads `UserRepository.authStateFor` and answers **401 `auth.required`**, the same as no session at all. These routes name no event, so no role lookup would have noticed |
+| the operator's own surface                          | `siteRoleFor` already answered `none`; unchanged                                                                                                                                       |
+| the login form                                      | `authenticateUser` refuses with `auth.invalidCredentials`, after the hash comparison so a switched-off account stays unobservable                                                      |
+| an SSE stream **already open**                      | nothing — it was authorized when the socket opened and is not asked again. It reads; it decides nothing. See the residual below                                                        |
 
 Two deliberate non-changes. The membership row is **kept**, and `listForEvent` and
 `countByRole` still report it: the owner looking at their moderator list needs to see who
@@ -140,6 +140,46 @@ Named tests at ring 2 (`registerModerator.test.ts`), ring 3 (the shared
 SQLite), ring 4 (`authz.test.ts`, `authRoutes.test.ts`) and ring 6
 (`tests/e2e/security/tenant-isolation.spec.ts`, which switches the account off in the
 running server's own database and then asks).
+
+### Forcing a password change
+
+`users.must_change_password` is set when somebody else chose the account's password — a
+host inviting a moderator (`registerModerator`) — so the invitee has to replace it before
+doing anything else. Until this branch (P3-03), only
+`web/src/features/auth/MustChangePasswordGate.tsx` enforced it: a client-side redirect,
+which is a courtesy to a browser that is already cooperating and does nothing for one that
+calls an endpoint directly while holding the session a host just read out to them.
+
+`middleware/authz.ts`'s `requirePasswordCurrent` is the server-side gate. Mounted on `/api`
+ahead of every router — the same position `requireCsrfToken` holds, and for the same
+reason: no route may be reached without the question being asked first. A signed-in,
+enabled account with the flag set meets `403 auth.passwordChangeRequired` everywhere
+except `GET /api/auth/me`, `POST /api/auth/password` and `POST /api/auth/logout`
+(docs/API.md's own section has the full list and why each one is safe). That "everywhere"
+is deliberate and wider than an event-scoped rule: it reaches routes that are otherwise
+public to anyone, because the flag is a fact about the account making the request, not
+about the route it is calling.
+
+**The flag is read from storage on every request, never carried in the session** — the
+same argument the site role already makes, applied here for the same reason. A value
+copied into the cookie at login is a value that survives whatever happens to the account
+afterwards: it would still say `false` for a host flagged after their session started, and
+would still say `true` in a second tab after the first tab's `POST /api/auth/password`
+cleared it in storage. `UserRepository.authStateFor` is the one query that answers this
+alongside whether the account may act at all (`isActive`'s old job), so a request that used
+to make two reads — one trusted, one not — now makes one, cached on the request
+(`resolveAuthState`) so `requirePasswordCurrent`, `requireUser` and `GET /api/auth/me` do
+not each ask storage again.
+
+`credentialsChangedAt` on the same read is `null` until roadmap §10's account-tokens epoch
+(P3-09) ships the column; nothing reads it yet.
+
+Named tests at ring 3 (`userRepositoryContract`'s `authStateFor` cases, fake **and**
+SQLite) and ring 4 (`authz.test.ts`'s sweep over every mounted `/api` route, built the way
+`siteOperatorScope.test.ts` sweeps the operator's own invariant). `tests/e2e/journeys/
+moderator-invitation.spec.ts` is the ring-6 case that was already there and stays green:
+an invited moderator signs in on the temporary password, is sent to the rotation screen,
+and only reaches the moderation queue after choosing their own.
 
 ### Guest token format
 
@@ -231,17 +271,18 @@ and the entity do.
 
 Everything in `src/interface/http/middleware/authz.ts`:
 
-| Middleware                       | Grants                                                                                                                                             |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enforceSessionAge(deps)`        | nothing. Ends a session older than the absolute cap, ahead of identity resolution                                                                  |
-| `attachUser()`                   | nothing. Reads the session into a principal — identity, never permission                                                                           |
-| `requireUser(deps)`              | any authenticated user **whose account is still enabled**, for the routes that are not event-scoped                                                |
-| `requireRole('owner', deps)`     | event owner only, and only while that account is enabled                                                                                           |
-| `requireRole('moderator', deps)` | owner or moderator of **that** event, same condition                                                                                               |
-| `requireOperator(deps)`          | the account that operates the **box**, nothing inside any event. Gates `/api/site` and `/api/site/*` when `SITE_ADMIN=on`; see the site role below |
-| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                                      |
-| `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                                  |
-| _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`              |
+| Middleware                       | Grants                                                                                                                                                                                                                                                          |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enforceSessionAge(deps)`        | nothing. Ends a session older than the absolute cap, ahead of identity resolution                                                                                                                                                                               |
+| `attachUser()`                   | nothing. Reads the session into a principal — identity, never permission                                                                                                                                                                                        |
+| `requirePasswordCurrent(deps)`   | nothing. Mounted on `/api` ahead of every router (P3-03): refuses a signed-in, enabled account with `mustChangePassword` set — `403 auth.passwordChangeRequired` — on every route but `GET /api/auth/me`, `POST /api/auth/password` and `POST /api/auth/logout` |
+| `requireUser(deps)`              | any authenticated user **whose account is still enabled**, for the routes that are not event-scoped                                                                                                                                                             |
+| `requireRole('owner', deps)`     | event owner only, and only while that account is enabled                                                                                                                                                                                                        |
+| `requireRole('moderator', deps)` | owner or moderator of **that** event, same condition                                                                                                                                                                                                            |
+| `requireOperator(deps)`          | the account that operates the **box**, nothing inside any event. Gates `/api/site` and `/api/site/*` when `SITE_ADMIN=on`; see the site role below                                                                                                              |
+| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                                                                                                                                                   |
+| `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                                                                                                                                               |
+| _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`                                                                                                                           |
 
 There is no `requireGuestOwnsPhoto`. Ownership is not a middleware question: the rule is
 their photo, their window, and a status still off the wall, and all three live on the
