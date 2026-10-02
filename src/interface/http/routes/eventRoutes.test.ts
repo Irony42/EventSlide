@@ -1439,6 +1439,17 @@ describe('the host event routes', () => {
         expect((await world.events.findBySlug(slugOf('un-mariage-en-juin')))?.clientId).toBeNull()
       })
 
+      it('refuses a client the operator does not belong to, as 404 client.notFound', async () => {
+        const agent = await signedIn(world, 'operator')
+
+        const response = await agent
+          .post('/api/events')
+          .send({ name: 'Un mariage en juin', clientId: CLIENT_ONE })
+
+        expect(response.status).toBe(404)
+        expect(response.body.error.code).toBe('client.notFound')
+      })
+
       it('asks a member of two clients which one, as 404 client.notFound when they do not say', async () => {
         const agent = await signedIn(world, 'two-clients-member')
 

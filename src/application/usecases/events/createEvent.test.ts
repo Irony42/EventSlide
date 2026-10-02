@@ -815,6 +815,52 @@ describe('createEvent', () => {
           expect(created.clientId).toBe(CLIENT_2)
         })
 
+        it('refuses a client the operator does not belong to, because the box they run is not that client', async () => {
+          // The exemption from ceilings is not a licence to attach to somebody else's: an
+          // event named for a client eats that client's slots and counts against its period.
+          const result = await create({
+            ownerId: OPERATOR,
+            clientId: CLIENT_1,
+            name: 'Camille & Sacha',
+          })
+
+          expect(!result.ok && result.error.code).toBe('client.notFound')
+          expect((await clients.findById(CLIENT_1))?.eventsCreatedInPeriod).toBe(0)
+        })
+
+        it('attaches the operator’s own event to no client even when they also belong to one, unless they name it', async () => {
+          await grant(CLIENT_1, OPERATOR)
+
+          const unnamed = unwrap(
+            await create({ ownerId: OPERATOR, name: 'Le soir de l’opérateur' }),
+          )
+          const named = unwrap(
+            await create({ ownerId: OPERATOR, clientId: CLIENT_1, name: 'Le soir de la cliente' }),
+          )
+
+          expect(unnamed.clientId).toBeNull()
+          expect(named.clientId).toBe(CLIENT_1)
+        })
+
+        it('holds a member of several clients to the ceilings of the one they name, not of another', async () => {
+          clients.seed(aClient({ id: CLIENT_1, ceilings: { maxEvents: 1 } }))
+          await create({ ownerId: TWO_CLIENTS, clientId: CLIENT_1, name: 'Un premier soir' })
+
+          const overTheLimit = await create({
+            ownerId: TWO_CLIENTS,
+            clientId: CLIENT_1,
+            name: 'Un second soir',
+          })
+          const otherClient = await create({
+            ownerId: TWO_CLIENTS,
+            clientId: CLIENT_2,
+            name: 'Un soir ailleurs',
+          })
+
+          expect(!overTheLimit.ok && overTheLimit.error.code).toBe('client.ceilingReached')
+          expect(otherClient.ok).toBe(true)
+        })
+
         it('lets a member of several clients name the one the event is for', async () => {
           const created = unwrap(
             await create({ ownerId: TWO_CLIENTS, clientId: CLIENT_2, name: 'Camille & Sacha' }),
