@@ -85,7 +85,7 @@ interface Warning {
 
 /**
  * Every subject listens on one port of its own for the whole test, instead of `supertest`
- * opening and closing a server per request: this file makes a couple of thousand requests, and
+ * opening and closing a server per request: this file makes several hundred requests, and
  * a port per request exhausts a Windows machine's ephemeral range (every closed socket sits in
  * TIME_WAIT for minutes), which then fails unrelated tests in the same run.
  */
