@@ -806,7 +806,9 @@ behalf — is served by the composite key rather than by three tiers.
 An event that belongs to a client (`events.client_id`, roadmap §10.2) is bound by that client's
 ceilings (§10.5) on **every path that writes to it**. That is the whole claim, and a ceiling that
 holds on the paths somebody remembered is not one: the cases below are the paths, and each is held at
-rings 2 to 4 and again, against the built server, in `tests/e2e/security/ceilings.spec.ts`.
+rings 2 to 4. The ones a request or the box's own sweep can reach are held again, against the built server, in
+`tests/e2e/security/ceilings.spec.ts`; the transcode worker's re-check, a scheduled opening refused and the
+`413 client.storageFull` of a clip are held at rings 2 to 4 only.
 
 **Read from the data, never from the switch.** `SITE_ADMIN` decides how much surface exists, not whether
 ceilings apply: an event with a client is bound whether or not the operator console is mounted. And an
