@@ -161,7 +161,7 @@ const swap = (
 }
 
 const allowlistOf = (workflow: string): string[] =>
-  (actionInputs(workflow).allowlist ?? '')
+  (actionInputs(workflow)['allowlist'] ?? '')
     .split(',')
     .map((entry) => entry.trim())
     .filter((entry) => entry !== '')
@@ -292,7 +292,7 @@ const RULES: readonly Rule[] = [
     check: (workflow) => {
       const inputs = actionInputs(workflow)
       const problems: string[] = []
-      const branch = inputs.branch ?? ''
+      const branch = inputs['branch'] ?? ''
       if (branch === '' || ['main', 'master'].includes(branch)) {
         problems.push(`signatures branch is "${branch}", not a dedicated branch`)
       }
