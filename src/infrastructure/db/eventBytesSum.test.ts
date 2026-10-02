@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AT, aClipJob, aPhoto, anEvent } from '../../application/testing/builders'
 import type { ClipJobStatus } from '../../domain/clips/clipJobStatus'
-import { asEventId, asUserId } from '../../domain/shared/ids'
+import { asClientId, asClipJobId, asEventId, asUserId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrations } from './migrations'
 import { migrate } from './migrator'
@@ -30,6 +30,11 @@ import { SqlitePhotoRepository } from './sqlitePhotoRepository'
 const HOST = asUserId('user-host')
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
+const BRUNCH = asEventId('evt-brunch')
+const SOLO = asEventId('evt-solo')
+/** The wedding and the gala are one client's; the brunch is another's; the solo event nobody's. */
+const ATELIER = asClientId('client-atelier')
+const OTHER_ATELIER = asClientId('client-other')
 const UNLIMITED_QUEUE = Number.MAX_SAFE_INTEGER
 
 /** Bytes per row, chosen so that no two subsets of them sum to the same number. */
@@ -44,6 +49,9 @@ const CLIP_BYTES: Readonly<Record<ClipJobStatus, number>> = {
 
 /** Photographs (all statuses) plus the three states in which a source is still on disk. */
 const WEDDING_USED = 2_000 + 1_000 + 500 + (100_000 + 200_000 + 400_000)
+
+/** What the gala holds: a published photograph and a queued clip source. */
+const GALA_USED = 7_000_000 + 3_000_000
 
 /** Far above anything the fixtures hold, so a probe is refused for its own size alone. */
 const QUOTA = 50_000_000
@@ -140,6 +148,29 @@ describe('the event byte sum', () => {
     // Another event's bytes, in both tables, that no reader may fold in.
     insertPhoto('g-published', GALA, 'published', 7_000_000)
     await stageClip(GALA, 'queued', 3_000_000)
+
+    // The client sum: the wedding and the gala are one client's. The brunch belongs to
+    // another client and the solo event to none, and both hold a great deal, so a sum that
+    // reaches across either boundary is wrong by a figure nobody could mistake.
+    const insertClient = db.prepare<[string, string, string]>(
+      `INSERT INTO clients (id, name, created_at) VALUES (?, ?, ?)`,
+    )
+    insertClient.run(ATELIER, 'Atelier', AT.toISOString())
+    insertClient.run(OTHER_ATELIER, 'Un autre atelier', AT.toISOString())
+    await events.save(
+      anEvent({ id: BRUNCH, ownerId: HOST, slug: 'brunch', joinCode: 'CCCCCC', quotaBytes: QUOTA }),
+    )
+    await events.save(
+      anEvent({ id: SOLO, ownerId: HOST, slug: 'solo', joinCode: 'DDDDDD', quotaBytes: QUOTA }),
+    )
+    const attach = db.prepare<[string, string]>(`UPDATE events SET client_id = ? WHERE id = ?`)
+    attach.run(ATELIER, WEDDING)
+    attach.run(ATELIER, GALA)
+    attach.run(OTHER_ATELIER, BRUNCH)
+    insertGuest(`guest-${BRUNCH}`, BRUNCH)
+    insertGuest(`guest-${SOLO}`, SOLO)
+    insertPhoto('b-published', BRUNCH, 'published', 40_000_000)
+    insertPhoto('s-published', SOLO, 'published', 50_000_000)
   })
 
   afterEach(() => {
@@ -227,5 +258,109 @@ describe('the event byte sum', () => {
 
     expect(gala).toBe(7_000_000 + 3_000_000)
     expect(await photos.totalBytes(GALA)).toBe(gala)
+  })
+
+  // ----------------------------------------------------------------- the client --
+
+  describe('summed over a client’s events', () => {
+    /**
+     * What a photo admission works out the client has used, read the way the event's is: a
+     * photograph too big for any ceiling is refused, and the sum is `maxBytes − remaining`.
+     */
+    const photoAdmissionClientBytes = async (): Promise<number | undefined> => {
+      const [verdict] = await photos.saveManyWithinLimits(
+        WEDDING,
+        [
+          aPhoto({
+            id: 'probe-photo',
+            eventId: WEDDING,
+            author: { kind: 'host', id: HOST },
+            byteSize: TOO_BIG,
+          }),
+        ],
+        {
+          quotaBytes: Number.MAX_SAFE_INTEGER,
+          maxPhotosPerGuest: null,
+          clientBytes: { clientId: ATELIER, maxBytes: QUOTA },
+        },
+      )
+      return verdict?.refusal?.reason === 'clientStorageFull'
+        ? QUOTA - verdict.refusal.remaining
+        : undefined
+    }
+
+    /** The same, as a clip's admission works it out. */
+    const clipAdmissionClientBytes = async (): Promise<number | undefined> => {
+      const { refusal } = await clips.stage(
+        aClipJob({
+          id: 'probe-clip',
+          eventId: WEDDING,
+          author: { kind: 'host', id: HOST },
+          sourceByteSize: TOO_BIG,
+        }),
+        {
+          quotaBytes: Number.MAX_SAFE_INTEGER,
+          maxQueuedClips: UNLIMITED_QUEUE,
+          maxQueuedClipsPerEvent: UNLIMITED_QUEUE,
+          clientBytes: { clientId: ATELIER, maxBytes: QUOTA },
+        },
+      )
+      return refusal?.reason === 'clientStorageFull' ? QUOTA - refusal.remaining : undefined
+    }
+
+    it('is the sum of what each of the client’s events reports for itself, as the dashboard shows it', async () => {
+      const dashboard = await events.listForUser(HOST)
+      const perEvent = [WEDDING, GALA].map(
+        (id) => dashboard.find((row) => row.id === id)?.usedBytes,
+      )
+
+      expect(perEvent).toEqual([WEDDING_USED, GALA_USED])
+      expect(await photos.clientTotalBytes(ATELIER)).toBe(WEDDING_USED + GALA_USED)
+    })
+
+    it('is the same number from the photo admission, the clip admission and clientTotalBytes', async () => {
+      expect([
+        await photoAdmissionClientBytes(),
+        await clipAdmissionClientBytes(),
+        await photos.clientTotalBytes(ATELIER),
+      ]).toEqual([WEDDING_USED + GALA_USED, WEDDING_USED + GALA_USED, WEDDING_USED + GALA_USED])
+    })
+
+    it('counts a clip still waiting to be transcoded in any of the client’s events, and not one that is finished', async () => {
+      // The gala's queued source is in; the wedding's done and failed ones are not. The hand
+      // figure is WEDDING_USED (reserved + queued + running + photographs) + GALA_USED.
+      expect(await photos.clientTotalBytes(ATELIER)).toBe(
+        2_000 + 1_000 + 500 + 100_000 + 200_000 + 400_000 + 7_000_000 + 3_000_000,
+      )
+    })
+
+    it('never folds in another client’s bytes, nor those of an event with no client', async () => {
+      expect(await photos.clientTotalBytes(OTHER_ATELIER)).toBe(40_000_000)
+      expect(await photos.clientTotalBytes(ATELIER)).toBeLessThan(40_000_000)
+    })
+
+    it('credits the one job a batch replaces, in the one event that holds it', async () => {
+      const [verdict] = await photos.saveManyWithinLimits(
+        WEDDING,
+        [
+          aPhoto({
+            id: 'probe-credited',
+            eventId: WEDDING,
+            author: { kind: 'host', id: HOST },
+            byteSize: TOO_BIG,
+          }),
+        ],
+        {
+          quotaBytes: Number.MAX_SAFE_INTEGER,
+          maxPhotosPerGuest: null,
+          replacesStagedClip: asClipJobId(`clip-${WEDDING}-running`),
+          clientBytes: { clientId: ATELIER, maxBytes: QUOTA },
+        },
+      )
+
+      expect(
+        verdict?.refusal?.reason === 'clientStorageFull' && QUOTA - verdict.refusal.remaining,
+      ).toBe(WEDDING_USED + GALA_USED - CLIP_BYTES.running)
+    })
   })
 })

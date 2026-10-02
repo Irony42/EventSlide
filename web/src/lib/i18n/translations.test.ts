@@ -163,6 +163,21 @@ describe('messageForCode', () => {
   })
 })
 
+describe('the codes a guest can meet from a client’s ceilings', () => {
+  // A guest has no account and no organiser's contract to read. `client.clipsNotAllowed` reaches
+  // them as the failure of a clip the box's transcoder turned away, and `client.storageFull`
+  // on an upload: both have to say what happened to *their* gallery, not to "your account".
+  const ACCOUNT_WORDS = /(account|compte|konto|cuenta)/i
+
+  it.each(SUPPORTED_LOCALES)('does not speak of an account in %s', (locale) => {
+    const text = TRANSLATIONS[locale]
+
+    for (const code of ['client.storageFull', 'client.clipsNotAllowed']) {
+      expect(messageForCode(code, text), `${locale} ${code}`).not.toMatch(ACCOUNT_WORDS)
+    }
+  })
+})
+
 /**
  * The compiler is the guard, and these four cases are the proof of it.
  *

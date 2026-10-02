@@ -2,12 +2,14 @@ import type { ClipJob } from '../../domain/clips/clipJob'
 import { blocksReupload, holdsStagedBytes } from '../../domain/clips/clipJobStatus'
 import { admitsAnotherClip } from '../../domain/clips/clipQueue'
 import type { ContentHash } from '../../domain/photos/contentHash'
+import { fitsInQuota, remainingQuota } from '../../domain/events/quota'
 import type { ClipJobId, EventId, PhotoId } from '../../domain/shared/ids'
 import type {
   ClipAdmission,
   ClipAdmissionLimits,
   ClipJobRepository,
 } from '../ports/clipJobRepository'
+import type { ClientEventSource } from './fakeClientRepository'
 
 /**
  * The other half of an event's byte total, seen from the queue's side.
@@ -143,6 +145,19 @@ export class FakeClipJobRepository implements ClipJobRepository {
     return this
   }
 
+  /**
+   * Which events belong to a client, which this fake cannot see on its own: the stand-in
+   * for `events.client_id`. Handed the clients fake by a test that asks a client's byte
+   * ceiling of `stage`; a ceiling asked without it **throws** rather than pass against a
+   * client with no events.
+   */
+  private clientEvents: ClientEventSource | null = null
+
+  chargeClientEventsFrom(source: ClientEventSource): this {
+    this.clientEvents = source
+    return this
+  }
+
   /** The sum the adapter takes in SQL, taken here with no suspension point in it. */
   private stagedBytesNow(eventId: EventId): number {
     return [...this.rows.values()]
@@ -176,6 +191,24 @@ export class FakeClipJobRepository implements ClipJobRepository {
   async stage(job: ClipJob, limits: ClipAdmissionLimits): Promise<ClipAdmission> {
     const photoBytes = (await this.photos?.photoBytes(job.eventId)) ?? 0
 
+    // The client's photographs, likewise fetched up front: they are the half no clip upload
+    // changes. Its queue is read below with no `await` in front of it.
+    const clientBytes = limits.clientBytes ?? null
+    let clientEvents: readonly EventId[] = []
+    let clientPhotoBytes = 0
+    if (clientBytes !== null) {
+      if (this.clientEvents === null) {
+        throw new Error(
+          'FakeClipJobRepository: a client byte ceiling needs chargeClientEventsFrom(clients), or it would be judged against a client with no events',
+        )
+      }
+      clientEvents = this.clientEvents.eventsOf(clientBytes.clientId)
+      const perEvent = await Promise.all(
+        clientEvents.map(async (eventId) => (await this.photos?.photoBytes(eventId)) ?? 0),
+      )
+      clientPhotoBytes = perEvent.reduce((total, bytes) => total + bytes, 0)
+    }
+
     // Per event first, then box-wide — the same order and the same reasoning as the
     // SQLite adapter: an event at its own cap is refused naming that cap, without ever
     // being judged against a count another event's guests built up. Both counts are
@@ -203,6 +236,22 @@ export class FakeClipJobRepository implements ClipJobRepository {
     if (used + job.sourceByteSize > limits.quotaBytes) {
       return {
         refusal: { reason: 'quotaExceeded', remaining: Math.max(0, limits.quotaBytes - used) },
+      }
+    }
+
+    // After the event's own quota, as in the adapter: its own ceiling is the one a host can
+    // act on, so it is named first when both are reached.
+    if (clientBytes !== null) {
+      const clientUsedBytes =
+        clientPhotoBytes +
+        clientEvents.reduce((total, eventId) => total + this.stagedBytesNow(eventId), 0)
+      if (!fitsInQuota(clientBytes.maxBytes, clientUsedBytes, job.sourceByteSize)) {
+        return {
+          refusal: {
+            reason: 'clientStorageFull',
+            remaining: remainingQuota(clientBytes.maxBytes, clientUsedBytes),
+          },
+        }
       }
     }
 

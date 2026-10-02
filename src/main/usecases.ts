@@ -151,6 +151,8 @@ export interface UseCasePolicy {
     /** `EVENT_CREATION`: who may create an event (P3-05 / G2-04). */
     readonly creation: EventCreationPolicy
   }
+  /** `RETENTION_CAP_NOTICE_DAYS`, read by the purge. */
+  readonly retention: { readonly capNoticeDays: number }
   readonly reactionBudget: {
     readonly windowMs: number
     readonly maxPerWindow: number
@@ -237,6 +239,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   resolveJoinCode: makeResolveJoinCode({ events: adapters.events }),
   updateEventSettings: makeUpdateEventSettings({
     events: adapters.events,
+    clients: adapters.clients,
     memberships: adapters.memberships,
     bus: adapters.bus,
   }),
@@ -249,6 +252,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   }),
   changeEventStatus: makeChangeEventStatus({
     events: adapters.events,
+    clients: adapters.clients,
     memberships: adapters.memberships,
     bus: adapters.bus,
     clock: adapters.clock,
@@ -262,6 +266,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     events: adapters.events,
     media: adapters.media,
     clock: adapters.clock,
+    capNoticeDays: policy.retention.capNoticeDays,
   }),
   /**
    * The collector the clip upload, the losing staging attempt and `recoverClipJobs` all
@@ -288,6 +293,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   /** The sweep behind the two scheduled instants. No actor: `src/main` drives it. */
   applyEventSchedules: makeApplyEventSchedules({
     events: adapters.events,
+    clients: adapters.clients,
     bus: adapters.bus,
     clock: adapters.clock,
   }),
@@ -295,6 +301,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   // ----------------------------------------------------------------- guests --
   joinEvent: makeJoinEvent({
     events: adapters.events,
+    clients: adapters.clients,
     guests: adapters.guests,
     tokens: adapters.guestTokens,
     ids: adapters.ids,
@@ -318,9 +325,14 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     memberships: adapters.memberships,
     clock: adapters.clock,
   }),
-  getPrivacyNotice: makeGetPrivacyNotice({ events: adapters.events, guests: adapters.guests }),
+  getPrivacyNotice: makeGetPrivacyNotice({
+    events: adapters.events,
+    clients: adapters.clients,
+    guests: adapters.guests,
+  }),
   acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
     events: adapters.events,
+    clients: adapters.clients,
     guests: adapters.guests,
     clock: adapters.clock,
   }),
@@ -328,6 +340,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   // ----------------------------------------------------------------- photos --
   uploadPhotos: makeUploadPhotos({
     events: adapters.events,
+    clients: adapters.clients,
     photos: adapters.photos,
     missions: adapters.missions,
     media: adapters.media,
@@ -367,6 +380,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   // ------------------------------------------------------------------ clips --
   uploadClip: makeUploadClip({
     events: adapters.events,
+    clients: adapters.clients,
     clips: adapters.clips,
     photos: adapters.photos,
     media: adapters.media,
@@ -391,6 +405,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
    */
   transcodeNextClip: makeTranscodeNextClip({
     events: adapters.events,
+    clients: adapters.clients,
     clips: adapters.clips,
     photos: adapters.photos,
     media: adapters.media,

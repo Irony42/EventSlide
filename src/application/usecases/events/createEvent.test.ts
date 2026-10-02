@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import type { Event } from '../../../domain/events/event'
 import { EventSettings } from '../../../domain/events/eventSettings'
 import { eventTemplateSettings } from '../../../domain/events/eventTemplate'
@@ -1129,6 +1130,187 @@ describe('createEvent', () => {
         })
 
         expect(other.ok).toBe(true)
+      })
+    })
+
+    // ------------------------------------- what the ceilings do to the event itself --
+
+    /**
+     * Not whether an event may be created (that is the block above) but **what it is**
+     * once created under a client's ceilings (roadmap §10.5 / G2-05): its quota, its
+     * retention and whether it takes clips. The member of **client-1** creates; the
+     * account with no client does not, and is held to nothing.
+     */
+    describe('what the client’s ceilings make of the event', () => {
+      const GB = 1_000_000_000
+
+      const createWith = (maxQuotaBytes: number | null = null): CreateEvent =>
+        makeCreateEvent({
+          events,
+          clients,
+          users,
+          eventCreation: 'anyAccount',
+          ids,
+          clock,
+          defaultQuotaBytes: DEFAULT_QUOTA,
+          maxQuotaBytes,
+          ...CORE_DEFAULTS,
+        })
+
+      const withCeilings = (ceilings: Partial<ClientCeilingsProps>): void => {
+        clients.seed(aClient({ id: CLIENT_1, name: 'Atelier Camille', ceilings }))
+      }
+
+      const createdFor = async (
+        input: Partial<Parameters<CreateEvent>[0]> = {},
+        create: CreateEvent = createWith(),
+      ): Promise<Result<Event, DomainError>> =>
+        create({ ownerId: MEMBER, name: 'Camille & Sacha', ...input })
+
+      describe('the quota', () => {
+        it('accepts a quota exactly at the client’s max_event_quota_bytes', async () => {
+          withCeilings({ maxEventQuotaBytes: 2 * GB })
+
+          expect(unwrap(await createdFor({ quotaBytes: 2 * GB })).quotaBytes).toBe(2 * GB)
+        })
+
+        it('refuses a quota one byte over it with 400 event.quotaAboveCeiling, naming the client’s bound', async () => {
+          withCeilings({ maxEventQuotaBytes: 2 * GB })
+
+          const result = await createdFor({ quotaBytes: 2 * GB + 1 })
+
+          expect(!result.ok && result.error.code).toBe('event.quotaAboveCeiling')
+          expect(!result.ok && result.error.kind).toBe('invalid')
+          expect(!result.ok && result.error.details).toEqual({ maxBytes: 2 * GB })
+        })
+
+        it('names the box’s number when that is the smaller of the two bounds', async () => {
+          withCeilings({ maxEventQuotaBytes: 8 * GB })
+
+          const result = await createdFor({ quotaBytes: 4 * GB }, createWith(3 * GB))
+
+          expect(!result.ok && result.error.details).toEqual({ maxBytes: 3 * GB })
+        })
+
+        it('names the client’s number when that is the smaller of the two bounds', async () => {
+          withCeilings({ maxEventQuotaBytes: 2 * GB })
+
+          const result = await createdFor({ quotaBytes: 4 * GB }, createWith(3 * GB))
+
+          expect(!result.ok && result.error.details).toEqual({ maxBytes: 2 * GB })
+        })
+
+        it('saves nothing and counts nothing for a quota the ceiling refuses', async () => {
+          withCeilings({ maxEventQuotaBytes: 2 * GB })
+
+          await createdFor({ quotaBytes: 2 * GB + 1 })
+
+          expect(await events.listForUser(MEMBER)).toEqual([])
+          expect((await clients.findById(CLIENT_1))?.eventsCreatedInPeriod).toBe(0)
+        })
+
+        it('reduces the default quota to the client’s ceiling when none was asked for, rather than refusing', async () => {
+          withCeilings({ maxEventQuotaBytes: 2 * GB })
+
+          expect(unwrap(await createdFor()).quotaBytes).toBe(2 * GB)
+        })
+
+        it('leaves the default alone when it is already under the ceiling', async () => {
+          withCeilings({ maxEventQuotaBytes: 10 * GB })
+
+          expect(unwrap(await createdFor()).quotaBytes).toBe(DEFAULT_QUOTA)
+        })
+
+        it('leaves the default alone for a client with no ceiling on quota', async () => {
+          withCeilings({ maxTotalBytes: 100 * GB })
+
+          expect(unwrap(await createdFor()).quotaBytes).toBe(DEFAULT_QUOTA)
+        })
+      })
+
+      describe('the retention', () => {
+        it('turns “keep for ever”, which is the default, into max_retention_days', async () => {
+          withCeilings({ maxRetentionDays: 30 })
+
+          expect(unwrap(await createdFor()).settings.retentionDays).toBe(30)
+        })
+
+        it('shortens a template’s retention that is above the ceiling', async () => {
+          withCeilings({ maxRetentionDays: 30 })
+
+          const wedding = unwrap(await createdFor({ template: 'wedding' }))
+
+          expect(wedding.settings.retentionDays).toBe(30)
+        })
+
+        it('keeps a template’s retention that is already under the ceiling', async () => {
+          withCeilings({ maxRetentionDays: 60 })
+
+          const party = unwrap(await createdFor({ template: 'party' }))
+
+          expect(party.settings.retentionDays).toBe(30)
+        })
+
+        it('persists the reduced retention, not only the one on the returned event', async () => {
+          withCeilings({ maxRetentionDays: 30 })
+          await createdFor({ template: 'wedding' })
+
+          expect((await events.findBySlug(slug('camille-sacha')))?.settings.retentionDays).toBe(30)
+        })
+
+        it('leaves retention alone for a client with no max_retention_days', async () => {
+          withCeilings({ maxTotalBytes: 100 * GB })
+
+          expect(unwrap(await createdFor()).settings.retentionDays).toBeNull()
+          expect(
+            unwrap(await createdFor({ name: 'Autre', template: 'wedding' })).settings.retentionDays,
+          ).toBe(365)
+        })
+      })
+
+      describe('clips', () => {
+        it('switches allowClips off for a client that has none, which the host can read back in the settings', async () => {
+          withCeilings({ clipsAllowed: false })
+
+          expect(unwrap(await createdFor()).settings.allowClips).toBe(false)
+        })
+
+        it('leaves allowClips as the settings had it for a client that may', async () => {
+          withCeilings({ clipsAllowed: true })
+
+          expect(unwrap(await createdFor()).settings.allowClips).toBe(true)
+        })
+
+        it('does not switch allowClips back on for a template that turned it off', async () => {
+          withCeilings({ clipsAllowed: true })
+
+          expect(unwrap(await createdFor({ template: 'conference' })).settings.allowClips).toBe(
+            false,
+          )
+        })
+      })
+
+      describe('an event with no client', () => {
+        it('is made exactly as before: default quota, kept for ever, clips on, whatever any client is held to', async () => {
+          withCeilings({
+            maxEventQuotaBytes: GB,
+            maxRetentionDays: 7,
+            clipsAllowed: false,
+          })
+
+          const created = unwrap(await createdFor({ ownerId: OWNER }))
+
+          expect(created.clientId).toBeNull()
+          expect(created.quotaBytes).toBe(DEFAULT_QUOTA)
+          expect(created.settings.retentionDays).toBeNull()
+          expect(created.settings.allowClips).toBe(true)
+        })
+
+        it('keeps the template retention it was given', async () => {
+          const created = unwrap(await createdFor({ ownerId: OWNER, template: 'wedding' }))
+
+          expect(created.settings.retentionDays).toBe(365)
+        })
       })
     })
   })

@@ -259,6 +259,12 @@ export const es: UiText = {
     'event.creationNotAllowed': 'Su cuenta no puede crear eventos en este servidor.',
     'client.notFound': 'No se encuentra esta cuenta de cliente.',
     'client.ceilingReached': 'Su cuenta ha alcanzado el número de eventos permitido.',
+    'client.storageFull': 'La galería ha alcanzado su capacidad. Avise al organizador.',
+    'client.liveNotAllowed': 'Su cuenta no puede abrir un evento por ahora.',
+    'client.liveWindowOver':
+      'El periodo de apertura de este evento ha terminado: ya no se puede reabrir.',
+    'client.retentionAboveCeiling': 'Este periodo de conservación supera el que permite su cuenta.',
+    'client.clipsNotAllowed': 'Los vídeos no están disponibles en esta galería.',
     'event.immutable': 'Este evento está archivado y ya no se puede modificar.',
     'event.illegalTransition': 'Este cambio de estado no es posible.',
 

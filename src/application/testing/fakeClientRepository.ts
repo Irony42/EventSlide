@@ -30,7 +30,18 @@ const newestFirst = (left: Client, right: Client): number =>
 
 const key = (clientId: ClientId, userId: UserId): string => `${clientId}:${userId}`
 
-export class FakeClientRepository implements ClientRepository {
+/**
+ * Which events belong to a client, as `events.client_id` says it in SQLite.
+ *
+ * What the photo and clip fakes are handed to answer a client's byte ceiling — a sum over
+ * **its events**, which neither of them can see on its own, exactly as neither can see
+ * `photos` from `clip_jobs`. `FakeClientRepository` is the one that keeps the link.
+ */
+export interface ClientEventSource {
+  eventsOf(clientId: ClientId): readonly EventId[]
+}
+
+export class FakeClientRepository implements ClientRepository, ClientEventSource {
   private readonly clients = new Map<ClientId, Client>()
   private readonly memberships = new Map<string, ClientMembership>()
   private readonly eventClientLinks = new Map<EventId, ClientId>()
@@ -44,6 +55,13 @@ export class FakeClientRepository implements ClientRepository {
   linkEvent(eventId: EventId, clientId: ClientId): this {
     this.eventClientLinks.set(eventId, clientId)
     return this
+  }
+
+  /** Every event linked to this client, in no particular order. See {@link ClientEventSource}. */
+  eventsOf(clientId: ClientId): readonly EventId[] {
+    return [...this.eventClientLinks.entries()]
+      .filter(([, linked]) => linked === clientId)
+      .map(([eventId]) => eventId)
   }
 
   /** The other half of {@link FakeClientRepository.linkEvent}: the event row is gone. */

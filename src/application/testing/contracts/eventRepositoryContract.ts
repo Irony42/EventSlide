@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ClientCeilings } from '../../../domain/clients/clientCeilings'
+import { ClientCeilings, type ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
+import { purgeDeadline } from '../../../domain/clients/purgeDeadline'
 import type { Event } from '../../../domain/events/event'
 import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
 import { Slug } from '../../../domain/shared/slug'
 import type { ClientRepository } from '../../ports/clientRepository'
-import type { EventRepository } from '../../ports/eventRepository'
+import type { EventRepository, PurgePolicy } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { AT, aClient, aClientCeilings, anEvent, atPlus } from '../builders'
@@ -32,6 +33,13 @@ export const EVENT_CONTRACT_FIXTURES = {
   userIds: ['user-host', 'user-other'],
 } as const
 
+/**
+ * The notice a lowered retention ceiling is owed, as the policy the purge is given. Thirty
+ * days is the configured default (`RETENTION_CAP_NOTICE_DAYS`), and the cases below are
+ * written in those days.
+ */
+export const PURGE_POLICY: PurgePolicy = { capNoticeDays: 30 }
+
 const HOST = asUserId('user-host')
 const OTHER = asUserId('user-other')
 const DAY = 86_400_000
@@ -45,15 +53,18 @@ const OTHER_CLIENT = asClientId('client-2')
  */
 const JOIN_CODES = ['AAAAAA', 'BBBBBB', 'CCCCCC', 'DDDDDD'] as const
 
+/** What {@link nthEvent} is built from, for a test that wants to say one more thing. */
+const nthEventInput = (n: number, clientId: string | null = null) => ({
+  id: `evt-${n}`,
+  slug: `evt-${n}`,
+  joinCode: JOIN_CODES[n - 1] ?? 'ZZZZZZ',
+  ownerId: HOST,
+  clientId,
+})
+
 /** The nth event of a test, optionally attached to a client. */
 const nthEvent = (n: number, clientId: string | null = null): Event =>
-  anEvent({
-    id: `evt-${n}`,
-    slug: `evt-${n}`,
-    joinCode: JOIN_CODES[n - 1] ?? 'ZZZZZZ',
-    ownerId: HOST,
-    clientId,
-  })
+  anEvent(nthEventInput(n, clientId))
 
 /**
  * What a subject is built from: the repository under test, plus the two neighbours its
@@ -116,6 +127,7 @@ export const eventRepositoryContract = (
           quotaBytes: 12_345,
           createdAt: atPlus(1_000),
           startsAt: atPlus(2_000),
+          openedAt: atPlus(2_500),
           closedAt: atPlus(3_000),
         }),
       )
@@ -131,6 +143,7 @@ export const eventRepositoryContract = (
       expect(stored?.createdAt.toISOString()).toBe(atPlus(1_000).toISOString())
       expect(stored?.startsAt?.toISOString()).toBe(atPlus(2_000).toISOString())
       expect(stored?.closedAt?.toISOString()).toBe(atPlus(3_000).toISOString())
+      expect(stored?.openedAt?.toISOString()).toBe(atPlus(2_500).toISOString())
     })
 
     it('round-trips every setting, so a host policy survives a restart', async () => {
@@ -183,6 +196,26 @@ export const eventRepositoryContract = (
 
       expect(stored?.startsAt).toBeNull()
       expect(stored?.closedAt).toBeNull()
+      expect(stored?.openedAt).toBeNull()
+    })
+
+    it('stores opened_at when a saved event goes live and keeps it through a close and a reopening', async () => {
+      await repo.save(anEvent({ id: 'evt-1', status: 'draft' }))
+      const draft = await repo.findById(asEventId('evt-1'))
+      if (draft === null) throw new Error('the event was just saved')
+
+      const live = draft.goLive(atPlus(DAY))
+      if (!live.ok) throw new Error(live.error.code)
+      await repo.save(live.value)
+      const closed = live.value.close(atPlus(2 * DAY))
+      if (!closed.ok) throw new Error(closed.error.code)
+      await repo.save(closed.value)
+      const reopened = closed.value.goLive(atPlus(3 * DAY))
+      if (!reopened.ok) throw new Error(reopened.error.code)
+      await repo.save(reopened.value)
+
+      const stored = await repo.findById(asEventId('evt-1'))
+      expect(stored?.openedAt?.toISOString()).toBe(atPlus(DAY).toISOString())
     })
 
     it('replaces the stored row when the same event is saved again', async () => {
@@ -703,6 +736,7 @@ export const eventRepositoryContract = (
         await clients.save(
           before.withCeilings(
             aClientCeilings({ maxEventsPerPeriod: 1, periodStartedAt: atPlus(DAY) }),
+            atPlus(DAY),
           ),
         )
 
@@ -757,7 +791,7 @@ export const eventRepositoryContract = (
     it('lists a closed event whose retention deadline has passed', async () => {
       await repo.save(closedEvent(1))
 
-      const due = await repo.listDueForPurge(atPlus(DAY * 3))
+      const due = await repo.listDueForPurge(atPlus(DAY * 3), PURGE_POLICY)
 
       expect(due.map((event) => event.id)).toEqual(['evt-1'])
     })
@@ -765,19 +799,357 @@ export const eventRepositoryContract = (
     it('excludes a closed event whose deadline is still ahead', async () => {
       await repo.save(closedEvent(30))
 
-      expect(await repo.listDueForPurge(atPlus(DAY * 3))).toEqual([])
+      expect(await repo.listDueForPurge(atPlus(DAY * 3), PURGE_POLICY)).toEqual([])
     })
 
     it('excludes an event the host asked to keep forever', async () => {
       await repo.save(closedEvent(null))
 
-      expect(await repo.listDueForPurge(atPlus(DAY * 3_650))).toEqual([])
+      expect(await repo.listDueForPurge(atPlus(DAY * 3_650), PURGE_POLICY)).toEqual([])
     })
 
     it('excludes a live event, however old, because the clock starts at closing', async () => {
       await repo.save(anEvent({ id: 'evt-1', status: 'live', settings: { retentionDays: 1 } }))
 
-      expect(await repo.listDueForPurge(atPlus(DAY * 3_650))).toEqual([])
+      expect(await repo.listDueForPurge(atPlus(DAY * 3_650), PURGE_POLICY)).toEqual([])
+    })
+
+    it('excludes a live event even with a closing instant left on its row, because the status says it is running', async () => {
+      // A reopening clears `closed_at`, so a live row with one is a hand-edited database.
+      // The purge must not trust it: deleting the album of an event a room is watching is the
+      // one mistake this query cannot be allowed to make.
+      await repo.save(
+        anEvent({
+          id: 'evt-1',
+          status: 'live',
+          closedAt: atPlus(DAY),
+          settings: { retentionDays: 1 },
+        }),
+      )
+
+      expect(await repo.listDueForPurge(atPlus(DAY * 3_650), PURGE_POLICY)).toEqual([])
+    })
+
+    // ------------------------------------------ retention under a client ceiling --
+
+    /**
+     * What `listDueForPurge` does for an event that belongs to a client (roadmap §10.5 /
+     * P3-06's "contrat purge").
+     *
+     * The rule is `purgeDeadline` in the domain; the adapter computes it again in SQL, so
+     * the table at the bottom of this block runs every scenario through **both** and
+     * requires the repository to list the event exactly from the instant the function names.
+     * That equality, not any single case above it, is what keeps two spellings one rule.
+     */
+    describe('listDueForPurge under a client ceiling', () => {
+      const NOON = new Date('2026-09-01T12:00:00.000Z')
+      const at = (days: number, ms = 0): Date => new Date(NOON.getTime() + days * DAY + ms)
+
+      interface Scenario {
+        readonly name: string
+        readonly event: {
+          readonly status?: 'closed' | 'archived'
+          readonly closedAt: Date
+          readonly openedAt?: Date | null
+          readonly retentionDays: number | null
+        }
+        readonly client: {
+          readonly ceilings?: Partial<ClientCeilingsProps>
+          readonly retentionCapSince?: Date | null
+          readonly purgeAfter?: Date | null
+        } | null
+      }
+
+      const seed = async (scenario: Scenario): Promise<Event> => {
+        if (scenario.client !== null) {
+          await clients.save(
+            aClient({
+              id: CLIENT,
+              ceilings: scenario.client.ceilings ?? {},
+              retentionCapSince: scenario.client.retentionCapSince ?? null,
+              purgeAfter: scenario.client.purgeAfter ?? null,
+            }),
+          )
+        }
+        const event = anEvent({
+          id: 'evt-1',
+          slug: 'evt-1',
+          joinCode: 'AAAAAA',
+          ownerId: HOST,
+          status: scenario.event.status ?? 'closed',
+          createdAt: at(-400),
+          openedAt: scenario.event.openedAt ?? null,
+          closedAt: scenario.event.closedAt,
+          settings: { retentionDays: scenario.event.retentionDays },
+          clientId: scenario.client === null ? null : CLIENT,
+        })
+        await repo.save(event)
+        return event
+      }
+
+      const dueIds = async (now: Date): Promise<readonly string[]> =>
+        (await repo.listDueForPurge(now, PURGE_POLICY)).map((event) => event.id)
+
+      it('purges an event kept for ever once closed_at + max_retention_days has passed, which is the NULL trap closed', async () => {
+        await seed({
+          name: 'forever under a ceiling',
+          event: { closedAt: at(-10), retentionDays: null },
+          client: { ceilings: { maxRetentionDays: 30 } },
+        })
+
+        expect(await dueIds(at(20, -1))).toEqual([])
+        expect(await dueIds(at(20))).toEqual(['evt-1'])
+      })
+
+      it('still never purges an event kept for ever under a client with no retention ceiling', async () => {
+        await seed({
+          name: 'forever, no ceiling',
+          event: { closedAt: at(-10), retentionDays: null },
+          client: { ceilings: { maxLiveDays: 3 } },
+        })
+
+        expect(await dueIds(at(36_500))).toEqual([])
+      })
+
+      it('purges at the earlier of the host’s retention and the ceiling', async () => {
+        await seed({
+          name: 'host shorter',
+          event: { closedAt: at(-10), retentionDays: 7 },
+          client: { ceilings: { maxRetentionDays: 30 } },
+        })
+
+        expect(await dueIds(at(-3, -1))).toEqual([])
+        expect(await dueIds(at(-3))).toEqual(['evt-1'])
+      })
+
+      it('purges an event closed 60 days ago only in 30 days, under a ceiling set today to 30', async () => {
+        await seed({
+          name: 'lowered to 30',
+          event: { closedAt: at(-60), retentionDays: null },
+          client: { ceilings: { maxRetentionDays: 30 }, retentionCapSince: NOON },
+        })
+
+        expect(await dueIds(NOON)).toEqual([])
+        expect(await dueIds(at(30, -1))).toEqual([])
+        expect(await dueIds(at(30))).toEqual(['evt-1'])
+      })
+
+      it('purges it in 30 days under a ceiling set today to 14 as well, because the notice is not the ceiling', async () => {
+        await seed({
+          name: 'lowered to 14',
+          event: { closedAt: at(-60), retentionDays: null },
+          client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: NOON },
+        })
+
+        expect(await dueIds(at(14))).toEqual([])
+        expect(await dueIds(at(30, -1))).toEqual([])
+        expect(await dueIds(at(30))).toEqual(['evt-1'])
+      })
+
+      it('owes no notice to an event closed after the ceiling was lowered: it is due at closed_at + the ceiling', async () => {
+        await seed({
+          name: 'closed after',
+          event: { closedAt: at(-5), retentionDays: null },
+          client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: at(-10) },
+        })
+
+        expect(await dueIds(at(9, -1))).toEqual([])
+        expect(await dueIds(at(9))).toEqual(['evt-1'])
+      })
+
+      it('does not push the purge back when an event was reopened: it is due at opened_at + max_live_days + max_retention_days', async () => {
+        // Opened on day -40, closed for good on day -20 — past its window, as an event
+        // reopened and closed again late would be. closed_at + 30 would only say day 10.
+        await seed({
+          name: 'reopened',
+          event: { openedAt: at(-40), closedAt: at(-20), retentionDays: null },
+          client: { ceilings: { maxRetentionDays: 30, maxLiveDays: 3 } },
+        })
+
+        expect(await dueIds(at(-7, -1))).toEqual([])
+        expect(await dueIds(at(-7))).toEqual(['evt-1'])
+      })
+
+      it('purges at purge_after when an offboarded client has set one earlier than the retention', async () => {
+        await seed({
+          name: 'offboarded',
+          event: { closedAt: at(-1), retentionDays: null },
+          client: { purgeAfter: at(5) },
+        })
+
+        expect(await dueIds(at(5, -1))).toEqual([])
+        expect(await dueIds(at(5))).toEqual(['evt-1'])
+      })
+
+      it('lets another client’s ceiling bring nothing forward', async () => {
+        await clients.save(aClient({ id: OTHER_CLIENT, ceilings: { maxRetentionDays: 1 } }))
+        await seed({
+          name: 'neighbour',
+          event: { closedAt: at(-10), retentionDays: null },
+          client: { ceilings: { maxRetentionDays: 3_650 } },
+        })
+
+        expect(await dueIds(at(30))).toEqual([])
+      })
+
+      it('lists a client’s archived event as well as its closed one', async () => {
+        await seed({
+          name: 'archived',
+          event: { status: 'archived', closedAt: at(-10), retentionDays: null },
+          client: { ceilings: { maxRetentionDays: 30 } },
+        })
+
+        expect(await dueIds(at(20))).toEqual(['evt-1'])
+      })
+
+      it('never lists a live event of a client, however old it is, because the clock starts at closing', async () => {
+        await clients.save(aClient({ id: CLIENT, ceilings: { maxRetentionDays: 1 } }))
+        await repo.save(
+          anEvent({
+            id: 'evt-1',
+            slug: 'evt-1',
+            joinCode: 'AAAAAA',
+            status: 'live',
+            openedAt: at(-400),
+            clientId: CLIENT,
+            settings: { retentionDays: null },
+          }),
+        )
+
+        expect(await dueIds(at(36_500))).toEqual([])
+      })
+
+      it('counts the notice in the days the policy gives, not a constant', async () => {
+        await seed({
+          name: 'notice',
+          event: { closedAt: at(-60), retentionDays: null },
+          client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: NOON },
+        })
+
+        expect((await repo.listDueForPurge(at(44), { capNoticeDays: 45 })).length).toBe(0)
+        expect((await repo.listDueForPurge(at(45), { capNoticeDays: 45 })).length).toBe(1)
+      })
+
+      /**
+       * The same rule, twice: every scenario is listed from exactly the instant
+       * `purgeDeadline` names, and not a millisecond before; and one the function says is
+       * never due is not listed at the end of the century.
+       */
+      describe('agrees with purgeDeadline, to the millisecond', () => {
+        const SCENARIOS: readonly Scenario[] = [
+          {
+            name: 'no client, host retention 30',
+            event: { closedAt: at(-10), retentionDays: 30 },
+            client: null,
+          },
+          {
+            name: 'no client, kept for ever',
+            event: { closedAt: at(-10), retentionDays: null },
+            client: null,
+          },
+          {
+            name: 'client without ceilings, host retention 30',
+            event: { closedAt: at(-10), retentionDays: 30 },
+            client: {},
+          },
+          {
+            name: 'ceiling 30, kept for ever',
+            event: { closedAt: at(-10), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 30 } },
+          },
+          {
+            name: 'ceiling 30, host retention 90',
+            event: { closedAt: at(-10), retentionDays: 90 },
+            client: { ceilings: { maxRetentionDays: 30 } },
+          },
+          {
+            name: 'ceiling 30, host retention 7',
+            event: { closedAt: at(-10), retentionDays: 7 },
+            client: { ceilings: { maxRetentionDays: 30 } },
+          },
+          {
+            name: 'ceiling lowered to 14 today, closed 60 days ago',
+            event: { closedAt: at(-60), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: NOON },
+          },
+          {
+            name: 'closed after the ceiling was lowered: no notice owed',
+            event: { closedAt: at(-5), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: at(-10) },
+          },
+          {
+            name: 'closed at the instant the ceiling was lowered: no notice owed',
+            event: { closedAt: at(-10), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: at(-10) },
+          },
+          {
+            name: 'closed one millisecond before the ceiling was lowered: the notice is owed',
+            event: { closedAt: at(-10, -1), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: at(-10) },
+          },
+          {
+            name: 'ceiling lowered to 30 ten days ago, closed today',
+            event: { closedAt: NOON, retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 60 }, retentionCapSince: at(-10) },
+          },
+          {
+            name: 'host retention shorter than the notice',
+            event: { closedAt: at(-5), retentionDays: 7 },
+            client: { ceilings: { maxRetentionDays: 14 }, retentionCapSince: NOON },
+          },
+          {
+            name: 'live window bound binds',
+            event: { openedAt: at(-40), closedAt: at(-20), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 30, maxLiveDays: 3 } },
+          },
+          {
+            name: 'live window bound does not bind',
+            event: { openedAt: at(-5), closedAt: at(-4), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 30, maxLiveDays: 3 } },
+          },
+          {
+            name: 'live window bound behind a notice',
+            event: { openedAt: at(-40), closedAt: at(-20), retentionDays: null },
+            client: {
+              ceilings: { maxRetentionDays: 30, maxLiveDays: 3 },
+              retentionCapSince: NOON,
+            },
+          },
+          {
+            name: 'archived without ever opening, live window set',
+            event: { status: 'archived', closedAt: at(-20), retentionDays: null },
+            client: { ceilings: { maxRetentionDays: 30, maxLiveDays: 3 } },
+          },
+          {
+            name: 'live window without a retention ceiling',
+            event: { openedAt: at(-40), closedAt: at(-20), retentionDays: null },
+            client: { ceilings: { maxLiveDays: 3 } },
+          },
+          {
+            name: 'offboarded, purge_after before the retention',
+            event: { closedAt: at(-1), retentionDays: null },
+            client: { purgeAfter: at(5) },
+          },
+          {
+            name: 'offboarded, retention before purge_after',
+            event: { closedAt: at(-10), retentionDays: 15 },
+            client: { purgeAfter: at(60) },
+          },
+        ]
+
+        it.each(SCENARIOS)('$name', async (scenario) => {
+          const event = await seed(scenario)
+          const client = scenario.client === null ? null : await clients.findById(CLIENT)
+          const deadline = purgeDeadline(event, client, PURGE_POLICY.capNoticeDays)
+
+          if (deadline === null) {
+            expect(await dueIds(at(36_500))).toEqual([])
+            return
+          }
+          expect(await dueIds(new Date(deadline.getTime() - 1))).toEqual([])
+          expect(await dueIds(deadline)).toEqual(['evt-1'])
+        })
+      })
     })
 
     // -------------------------------------------------------------- scheduling --
@@ -859,6 +1231,60 @@ export const eventRepositoryContract = (
       await repo.save(anEvent({ id: 'evt-1', status: 'draft' }))
 
       expect(await repo.listDueForSchedule(atPlus(DAY * 3_650))).toEqual([])
+    })
+
+    // ------------------------------------------- live events of clients (the sweep) --
+
+    /**
+     * The candidates of the live-window sweep (roadmap §10.5 / G2-05): events that are live
+     * **and** belong to a client. A narrowing, not the decision — the rule is
+     * `ClientCeilings.liveWindowOver`, applied by the use case — so this asserts nothing
+     * about any deadline, only which rows are worth looking at.
+     */
+    describe('listLiveOfClients', () => {
+      beforeEach(async () => {
+        await clients.save(aClient({ id: CLIENT }))
+        await clients.save(aClient({ id: OTHER_CLIENT, name: 'Un autre client' }))
+      })
+
+      const ids = async (): Promise<readonly string[]> =>
+        (await repo.listLiveOfClients()).map((event) => event.id)
+
+      it('lists a live event of a client', async () => {
+        await repo.save(nthEvent(1, CLIENT))
+
+        expect(await ids()).toEqual(['evt-1'])
+      })
+
+      it('lists live events of every client, newest first', async () => {
+        await repo.save(anEvent({ ...nthEventInput(1, CLIENT), createdAt: atPlus(1_000) }))
+        await repo.save(anEvent({ ...nthEventInput(2, OTHER_CLIENT), createdAt: atPlus(2_000) }))
+
+        expect(await ids()).toEqual(['evt-2', 'evt-1'])
+      })
+
+      it('never lists a live event with no client, which has no window to run out', async () => {
+        await repo.save(nthEvent(1))
+
+        expect(await ids()).toEqual([])
+      })
+
+      it.each(['draft', 'closed', 'archived'] as const)(
+        'never lists a %s event of a client, because only a live one has a wall to take down',
+        async (status) => {
+          await repo.save(anEvent({ ...nthEventInput(1, CLIENT), status }))
+
+          expect(await ids()).toEqual([])
+        },
+      )
+
+      it('hands back the opening instant, which is what the window is counted from', async () => {
+        await repo.save(anEvent({ ...nthEventInput(1, CLIENT), openedAt: atPlus(3_000) }))
+
+        const [event] = await repo.listLiveOfClients()
+
+        expect(event?.openedAt?.toISOString()).toBe(atPlus(3_000).toISOString())
+      })
     })
   })
 }

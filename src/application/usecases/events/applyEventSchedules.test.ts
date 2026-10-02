@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import type { Event } from '../../../domain/events/event'
 import { asEventId, type EventId } from '../../../domain/shared/ids'
-import { anEvent, atPlus, type EventInput } from '../../testing/builders'
+import { aClient, anEvent, atPlus, type EventInput } from '../../testing/builders'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
@@ -26,10 +28,25 @@ const CLOSE_AT = atPlus(9 * HOUR)
 /** The sweep that should have run at the opening instant, seven minutes late. */
 const SEVEN_MINUTES_LATE = atPlus(HOUR + 7 * 60_000)
 
+/** Counts the reads, so "an event with no client never asks" is a number. */
+class CountingClientRepository extends FakeClientRepository {
+  contextReads = 0
+
+  override async contextForEvent(
+    ...args: Parameters<FakeClientRepository['contextForEvent']>
+  ): ReturnType<FakeClientRepository['contextForEvent']> {
+    this.contextReads += 1
+    return super.contextForEvent(...args)
+  }
+}
+
 /** A repository whose `save` fails for named events, as a locked database would. */
 class FlakyEventRepository extends FakeEventRepository {
-  constructor(private readonly failing: readonly EventId[] = []) {
-    super()
+  constructor(
+    private readonly failing: readonly EventId[] = [],
+    links: ConstructorParameters<typeof FakeEventRepository>[0] = {},
+  ) {
+    super(links)
   }
 
   override async save(event: Event): Promise<void> {
@@ -40,19 +57,21 @@ class FlakyEventRepository extends FakeEventRepository {
 
 describe('applyEventSchedules', () => {
   let events: FakeEventRepository
+  let clients: CountingClientRepository
   let bus: RecordingEventBus
   let clock: FakeClock
   let applyEventSchedules: ApplyEventSchedules
 
   const wire = (repository: FakeEventRepository): void => {
     events = repository
-    applyEventSchedules = makeApplyEventSchedules({ events, bus, clock })
+    applyEventSchedules = makeApplyEventSchedules({ events, clients, bus, clock })
   }
 
   beforeEach(() => {
     bus = new RecordingEventBus()
     clock = new FakeClock(OPEN_AT)
-    wire(new FakeEventRepository())
+    clients = new CountingClientRepository()
+    wire(new FakeEventRepository({ clients }))
   })
 
   const seedWedding = (overrides: EventInput = {}): void => {
@@ -114,7 +133,7 @@ describe('applyEventSchedules', () => {
 
     const report = await applyEventSchedules()
 
-    expect(report).toEqual({ opened: [], closed: [], refused: [], failed: [] })
+    expect(report).toEqual({ opened: [], closed: [], refused: [], failed: [], autoClosed: [] })
     expect((await stored(WEDDING)).status).toBe('draft')
     expect(bus.published).toEqual([])
   })
@@ -209,7 +228,7 @@ describe('applyEventSchedules', () => {
 
     const report = await applyEventSchedules()
 
-    expect(report).toEqual({ opened: [], closed: [], refused: [], failed: [] })
+    expect(report).toEqual({ opened: [], closed: [], refused: [], failed: [], autoClosed: [] })
     expect((await stored(WEDDING)).toProps()).toEqual(afterFirst)
     expect(bus.published).toEqual(publishedAfterFirst)
   })
@@ -254,6 +273,316 @@ describe('applyEventSchedules', () => {
 
     const report = await applyEventSchedules()
 
-    expect(report).toEqual({ opened: [], closed: [], refused: [], failed: [] })
+    expect(report).toEqual({ opened: [], closed: [], refused: [], failed: [], autoClosed: [] })
+  })
+
+  // ------------------------------------------------------- a client’s ceilings --
+
+  /**
+   * What the sweep does for an event of a client (roadmap §10.5 / G2-05): a scheduled opening
+   * is judged by the same ceilings a manual one is, and a live event whose client's window has
+   * run out is closed. `client-1` owns the wedding and the gala; the solo event owns nothing.
+   */
+  describe('an event of a client', () => {
+    const DAY = 86_400_000
+    /** The wedding opened at the fixture instant, so its window of three days ends here. */
+    const DEADLINE = atPlus(3 * DAY)
+
+    const seedClient = (ceilings: Partial<ClientCeilingsProps>): void => {
+      clients.seed(aClient({ id: 'client-1', ceilings }))
+    }
+
+    const seedClientEvent = (id: string, overrides: EventInput = {}): void => {
+      events.seed(
+        anEvent({
+          id,
+          slug: id,
+          joinCode: id === 'evt-wedding' ? 'H7K2QM' : 'Z3N9PT',
+          clientId: 'client-1',
+          ...overrides,
+        }),
+      )
+    }
+
+    describe('a scheduled opening', () => {
+      it('is refused and reported when the client may not go live, and the draft stays a draft', async () => {
+        seedClient({ liveAllowed: false })
+        seedClientEvent('evt-wedding', {
+          status: 'draft',
+          openedAt: null,
+          scheduledOpenAt: OPEN_AT,
+        })
+
+        const report = await applyEventSchedules()
+
+        expect(report.refused).toEqual([WEDDING])
+        expect(report.opened).toEqual([])
+        expect((await events.findById(WEDDING))?.status).toBe('draft')
+        expect(bus.published).toEqual([])
+      })
+
+      it('leaves the host the notice that the schedule was thrown away', async () => {
+        seedClient({ liveAllowed: false })
+        seedClientEvent('evt-wedding', {
+          status: 'draft',
+          openedAt: null,
+          scheduledOpenAt: OPEN_AT,
+        })
+
+        await applyEventSchedules()
+
+        const stored = await events.findById(WEDDING)
+        expect(stored?.scheduleDiscardedAt).toEqual(OPEN_AT)
+        expect(stored?.scheduledOpenAt).toBeNull()
+      })
+
+      it('opens a draft inside the window and records opened_at, as the manual path does', async () => {
+        seedClient({ maxLiveDays: 3 })
+        seedClientEvent('evt-wedding', {
+          status: 'draft',
+          openedAt: null,
+          scheduledOpenAt: OPEN_AT,
+        })
+
+        const report = await applyEventSchedules()
+
+        expect(report.opened).toEqual([WEDDING])
+        expect((await events.findById(WEDDING))?.openedAt).toEqual(OPEN_AT)
+      })
+
+      it('records opened_at for an event with no client as well', async () => {
+        seedWedding()
+
+        await applyEventSchedules()
+
+        expect((await events.findById(WEDDING))?.openedAt).toEqual(OPEN_AT)
+      })
+
+      it('cannot reopen a closed event after the window, so a schedule is no way round it', async () => {
+        seedClient({ maxLiveDays: 3 })
+        seedClientEvent('evt-wedding', {
+          status: 'closed',
+          openedAt: atPlus(0),
+          closedAt: atPlus(DAY),
+          scheduledOpenAt: DEADLINE,
+        })
+        clock.set(DEADLINE)
+
+        const report = await applyEventSchedules()
+
+        expect(report.refused).toEqual([WEDDING])
+        expect((await events.findById(WEDDING))?.status).toBe('closed')
+      })
+
+      it('closes on schedule whatever the ceilings say', async () => {
+        seedClient({ liveAllowed: false, maxLiveDays: 1 })
+        seedClientEvent('evt-wedding', {
+          status: 'live',
+          openedAt: atPlus(0),
+          scheduledCloseAt: OPEN_AT,
+        })
+        clock.set(OPEN_AT)
+
+        const report = await applyEventSchedules()
+
+        expect(report.closed).toEqual([WEDDING])
+      })
+    })
+
+    describe('a live window that has run out', () => {
+      beforeEach(() => {
+        seedClient({ maxLiveDays: 3 })
+        clock.set(DEADLINE)
+      })
+
+      it('closes the live event, and reports it as auto-closed and not as a scheduled close', async () => {
+        seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+
+        const report = await applyEventSchedules()
+
+        expect(report.autoClosed).toEqual([WEDDING])
+        expect(report.closed).toEqual([])
+        expect((await events.findById(WEDDING))?.status).toBe('closed')
+      })
+
+      it('stamps the closing instant with the moment of the sweep, which starts the retention clock', async () => {
+        seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+
+        await applyEventSchedules()
+
+        expect((await events.findById(WEDDING))?.closedAt).toEqual(DEADLINE)
+      })
+
+      it('keeps opened_at, so a reopening cannot buy a new window and the latest purge date does not move', async () => {
+        seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+
+        await applyEventSchedules()
+
+        expect((await events.findById(WEDDING))?.openedAt).toEqual(atPlus(0))
+      })
+
+      it('announces the closing, which is how a projector left running learns the wall is down', async () => {
+        seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+
+        await applyEventSchedules()
+
+        expect(bus.published).toEqual([
+          { type: 'event.statusChanged', eventId: WEDDING, status: 'closed' },
+        ])
+      })
+
+      it('leaves an event one millisecond inside its window alone', async () => {
+        seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+        clock.set(new Date(DEADLINE.getTime() - 1))
+
+        const report = await applyEventSchedules()
+
+        expect(report.autoClosed).toEqual([])
+        expect((await events.findById(WEDDING))?.status).toBe('live')
+      })
+
+      it('closes one event of a client and leaves another that opened later', async () => {
+        seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+        seedClientEvent('evt-gala', { status: 'live', openedAt: atPlus(2 * DAY) })
+
+        const report = await applyEventSchedules()
+
+        expect(report.autoClosed).toEqual([WEDDING])
+        expect((await events.findById(GALA))?.status).toBe('live')
+      })
+
+      it('does nothing the second time it runs', async () => {
+        seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+        await applyEventSchedules()
+        bus.published.length = 0
+
+        const again = await applyEventSchedules()
+
+        expect(again.autoClosed).toEqual([])
+        expect(bus.published).toEqual([])
+      })
+
+      it('ignores events that are not live: a draft, a closed one and an archived one', async () => {
+        seedClientEvent('evt-wedding', { status: 'draft', openedAt: null })
+        seedClientEvent('evt-gala', { status: 'closed', openedAt: atPlus(0) })
+
+        const report = await applyEventSchedules()
+
+        expect(report.autoClosed).toEqual([])
+      })
+
+      it('reports an event it could not write as failed, and carries on to the next', async () => {
+        wire(new FlakyEventRepository([WEDDING], { clients }))
+        seedClient({ maxLiveDays: 3 })
+        seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+        seedClientEvent('evt-gala', { status: 'live', openedAt: atPlus(0) })
+
+        const report = await applyEventSchedules()
+
+        expect(report.failed).toEqual([WEDDING])
+        expect(report.autoClosed).toEqual([GALA])
+      })
+    })
+
+    describe('a live event with no recorded opening', () => {
+      beforeEach(() => {
+        seedClient({ maxLiveDays: 3 })
+        // Made live before `opened_at` was written, and created a long time ago.
+        seedClientEvent('evt-wedding', {
+          status: 'live',
+          openedAt: null,
+          createdAt: atPlus(-400 * DAY),
+        })
+        clock.set(DEADLINE)
+      })
+
+      it('is given an opening starting now, so it has a window at all', async () => {
+        await applyEventSchedules()
+
+        expect((await events.findById(WEDDING))?.openedAt).toEqual(DEADLINE)
+      })
+
+      it('is not closed in the pass that records it, however long ago it was created', async () => {
+        const report = await applyEventSchedules()
+
+        expect(report.autoClosed).toEqual([])
+        expect((await events.findById(WEDDING))?.status).toBe('live')
+        expect(bus.published).toEqual([])
+      })
+
+      it('is closed once the window counted from that pass has run out, and not before', async () => {
+        await applyEventSchedules()
+
+        clock.advance(3 * DAY - 1)
+        const early = await applyEventSchedules()
+        clock.advance(1)
+        const due = await applyEventSchedules()
+
+        expect(early.autoClosed).toEqual([])
+        expect(due.autoClosed).toEqual([WEDDING])
+      })
+
+      it('keeps the first recording on the passes after it', async () => {
+        await applyEventSchedules()
+        clock.advance(DAY)
+
+        await applyEventSchedules()
+
+        expect((await events.findById(WEDDING))?.openedAt).toEqual(DEADLINE)
+      })
+
+      it('reports an event it could not write as failed', async () => {
+        wire(new FlakyEventRepository([WEDDING], { clients }))
+        seedClient({ maxLiveDays: 3 })
+        seedClientEvent('evt-wedding', { status: 'live', openedAt: null })
+
+        const report = await applyEventSchedules()
+
+        expect(report.failed).toEqual([WEDDING])
+      })
+    })
+
+    it('leaves an event alone when its client cannot be read, rather than close a wall on a guess', async () => {
+      class VanishedClients extends CountingClientRepository {
+        override async contextForEvent(): Promise<null> {
+          return null
+        }
+      }
+      clients = new VanishedClients()
+      wire(new FakeEventRepository({ clients }))
+      seedClient({ maxLiveDays: 3 })
+      seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+      clock.set(DEADLINE)
+
+      const report = await applyEventSchedules()
+
+      expect(report.autoClosed).toEqual([])
+      expect((await events.findById(WEDDING))?.status).toBe('live')
+    })
+
+    it('never closes an event of a client with no max_live_days, however long it has been live', async () => {
+      seedClient({ maxLiveDays: null })
+      seedClientEvent('evt-wedding', { status: 'live', openedAt: atPlus(0) })
+      clock.set(atPlus(3_650 * DAY))
+
+      const report = await applyEventSchedules()
+
+      expect(report.autoClosed).toEqual([])
+    })
+  })
+
+  describe('an event with no client', () => {
+    it('is never closed for being live too long, and the clients are never read for it', async () => {
+      events.seed(
+        anEvent({ id: WEDDING, slug: 'camille-et-sacha', joinCode: 'H7K2QM', status: 'live' }),
+      )
+      clock.set(atPlus(3_650 * 86_400_000))
+
+      const report = await applyEventSchedules()
+
+      expect(report.autoClosed).toEqual([])
+      expect((await events.findById(WEDDING))?.status).toBe('live')
+      expect(clients.contextReads).toBe(0)
+    })
   })
 })

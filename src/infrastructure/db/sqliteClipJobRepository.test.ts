@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { describe, expect, it, vi } from 'vitest'
 import {
   CLIP_JOB_CONTRACT_FIXTURES,
   clipJobRepositoryContract,
 } from '../../application/testing/contracts/clipJobRepositoryContract'
 import { AT, aClipJob, atPlus } from '../../application/testing/builders'
-import { asClipJobId, asEventId } from '../../domain/shared/ids'
+import type { ClipAdmissionLimits } from '../../application/ports/clipJobRepository'
+import { asClientId, asClipJobId, asEventId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrate } from './migrator'
 import { migrations } from './migrations'
@@ -86,6 +90,17 @@ clipJobRepositoryContract('sqlite', async () => {
                              width, height, byte_size, created_at)
               VALUES (?, ?, 'user-host', 'published', ?, 1200, 800, ?, ?)`,
       ).run(`photo-${saved}`, eventId, String(saved).padStart(64, 'd'), byteSize, ISO_AT)
+    },
+    /**
+     * A `clients` row and `events.client_id`, in raw SQL for the reason the photograph
+     * fixture above is: the clip contract must not depend on other repositories.
+     */
+    placeEventsInClient: async (clientId, eventIds): Promise<void> => {
+      db.prepare<[string, string, string]>(
+        `INSERT OR IGNORE INTO clients (id, name, created_at) VALUES (?, ?, ?)`,
+      ).run(clientId, clientId, ISO_AT)
+      const attach = db.prepare<[string, string]>(`UPDATE events SET client_id = ? WHERE id = ?`)
+      for (const eventId of eventIds) attach.run(clientId, eventId)
     },
     dispose: async () => closeDatabase(db),
   }
@@ -183,5 +198,84 @@ describe('SqliteClipJobRepository schema behaviour', () => {
 
     expect(row?.not_before).toBe(atPlus(5_000).toISOString())
     closeDatabase(db)
+  })
+})
+
+// ------------------------------------------------------- two connections, one file --
+
+/** better-sqlite3 exposes a stable `code`; the message is not part of the contract. */
+const sqliteCodeOf = (thrown: unknown): string =>
+  thrown instanceof Error && 'code' in thrown && typeof thrown.code === 'string'
+    ? thrown.code
+    : `not a SqliteError: ${String(thrown)}`
+
+describe('SqliteClipJobRepository over two connections', () => {
+  it('holds the write lock from the first read, so a second event of the client cannot spend what the first is reading', async () => {
+    // The same argument as for photographs, on the clip door: `stage` reads the event's
+    // bytes and the client's, compares, and inserts, and two stagings for two events of one
+    // client that read a sum under the ceiling would both write. The second connection
+    // stages its clip at the instant between the first one's reads and its write — where
+    // `stage` reads `job.sourceByteSize` — which a deferred transaction lets in and then
+    // fails its own insert against a stale snapshot.
+    const directory = mkdtempSync(join(tmpdir(), 'eventslide-clips-'))
+    const path = join(directory, 'eventslide.sqlite')
+    const first = openDatabase({ path })
+    const second = openDatabase({ path })
+
+    try {
+      migrate(first, migrations)
+      seedForeignRows(first)
+      first
+        .prepare<[string]>(`INSERT INTO clients (id, name, created_at) VALUES ('client-1', 'c', ?)`)
+        .run(ISO_AT)
+      first
+        .prepare(`UPDATE events SET client_id = 'client-1' WHERE id IN ('evt-wedding', 'evt-gala')`)
+        .run()
+      // No waiting: the intruder must be refused on the spot, not queued behind the lock.
+      second.pragma('busy_timeout = 0')
+
+      const limits: ClipAdmissionLimits = {
+        quotaBytes: Number.MAX_SAFE_INTEGER,
+        maxQueuedClips: Number.MAX_SAFE_INTEGER,
+        maxQueuedClipsPerEvent: Number.MAX_SAFE_INTEGER,
+        clientBytes: { clientId: asClientId('client-1'), maxBytes: 2_000_000 },
+      }
+      const mine = aClipJob({ id: 'job-mine', eventId: 'evt-wedding', sourceByteSize: 1_500_000 })
+      const theirs = aClipJob({
+        id: 'job-theirs',
+        eventId: 'evt-gala',
+        author: { kind: 'guest', id: 'guest-sam' },
+        sourceByteSize: 1_500_000,
+      })
+
+      let intrusion: Promise<unknown> | null = null
+      const size = mine.sourceByteSize
+      vi.spyOn(mine, 'sourceByteSize', 'get').mockImplementation(() => {
+        intrusion ??= new SqliteClipJobRepository(second).stage(theirs, limits).then(
+          () => null,
+          (thrown: unknown) => thrown,
+        )
+        return size
+      })
+
+      const admission = await new SqliteClipJobRepository(first).stage(mine, limits)
+
+      expect(admission.refusal).toBeNull()
+      expect(sqliteCodeOf(await (intrusion ?? Promise.resolve('the intruder never ran')))).toBe(
+        'SQLITE_BUSY',
+      )
+      expect(
+        first
+          .prepare<[], { readonly total: number }>(
+            `SELECT COALESCE(SUM(source_byte_size), 0) AS total FROM clip_jobs`,
+          )
+          .get()?.total,
+      ).toBe(1_500_000)
+    } finally {
+      vi.restoreAllMocks()
+      closeDatabase(first)
+      closeDatabase(second)
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 })

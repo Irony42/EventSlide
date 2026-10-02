@@ -1,17 +1,19 @@
 import type { Event } from '../../../domain/events/event'
 import { DisplayName } from '../../../domain/guests/displayName'
 import { Guest } from '../../../domain/guests/guest'
-import { privacyNoticeFor, type NoticeForGuest } from '../../../domain/privacy/privacyNotice'
+import type { NoticeForGuest } from '../../../domain/privacy/privacyNotice'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
 import { err, flatMap, ok, type Result } from '../../../domain/shared/result'
+import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { GuestTokenService } from '../../ports/guestTokenService'
 import type { IdGenerator } from '../../ports/idGenerator'
+import { privacyNoticeOf } from './privacyNoticeOf'
 
 /**
  * The front door: a guest scans the QR code, lands on `/join/:code`, and walks out with
@@ -102,6 +104,8 @@ export interface JoinEventOutput {
 
 export interface JoinEventDeps {
   readonly events: EventRepository
+  /** For the retention a client's ceiling makes of the notice. See `privacyNoticeOf`. */
+  readonly clients: ClientRepository
   readonly guests: GuestRepository
   readonly tokens: GuestTokenService
   readonly ids: IdGenerator
@@ -130,6 +134,7 @@ type PresentedDevice =
 
 export const makeJoinEvent = ({
   events,
+  clients,
   guests,
   tokens,
   ids,
@@ -226,7 +231,7 @@ export const makeJoinEvent = ({
     // guest list right now.
     bus.publish({ type: 'guest.joined', eventId: event.id, guestId: guest.id })
 
-    const notice = privacyNoticeFor(event.settings)
+    const notice = await privacyNoticeOf(clients, event)
     return ok({
       token,
       guestId: guest.id,

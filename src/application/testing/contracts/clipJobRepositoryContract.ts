@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ContentHash } from '../../../domain/photos/contentHash'
-import { asClipJobId, asEventId, asPhotoId, type EventId } from '../../../domain/shared/ids'
+import {
+  asClientId,
+  asClipJobId,
+  asEventId,
+  asPhotoId,
+  type ClientId,
+  type EventId,
+} from '../../../domain/shared/ids'
 import type { ClipJob } from '../../../domain/clips/clipJob'
 import type { ClipJobRepository } from '../../ports/clipJobRepository'
 import { AT, aClipJob, atPlus } from '../builders'
@@ -23,7 +30,8 @@ import { AT, aClipJob, atPlus } from '../builders'
  * `guests`. The `:memory:` harness seeds these; the fake needs nothing.
  */
 export const CLIP_JOB_CONTRACT_FIXTURES = {
-  eventIds: ['evt-wedding', 'evt-gala'],
+  /** The brunch is only ever a *different client's* event, in the byte-ceiling cases. */
+  eventIds: ['evt-wedding', 'evt-gala', 'evt-brunch'],
   guestIds: ['guest-lea', 'guest-sam'],
 } as const
 
@@ -66,6 +74,13 @@ export interface ClipJobRepositorySubject {
    * clip the guest deleted.
    */
   insertJob: (job: ClipJob) => Promise<void>
+  /**
+   * Make these the events of one client, by whatever route the implementation has: a
+   * `clients` row and `events.client_id` in SQLite, the link the clients fake keeps. A
+   * client's byte ceiling is judged over **its events**, so a case about it has to be able
+   * to say which those are.
+   */
+  placeEventsInClient: (clientId: ClientId, eventIds: readonly EventId[]) => Promise<void>
   readonly dispose?: () => Promise<void>
 }
 
@@ -77,6 +92,7 @@ export const clipJobRepositoryContract = (
     let repo: ClipJobRepository
     let savePhotoBytes: (eventId: EventId, byteSize: number) => Promise<void>
     let insertJob: (job: ClipJob) => Promise<void>
+    let placeEventsInClient: (clientId: ClientId, eventIds: readonly EventId[]) => Promise<void>
     let dispose: (() => Promise<void>) | undefined
 
     beforeEach(async () => {
@@ -84,6 +100,7 @@ export const clipJobRepositoryContract = (
       repo = subject.repo
       savePhotoBytes = subject.savePhotoBytes
       insertJob = subject.insertJob
+      placeEventsInClient = subject.placeEventsInClient
       dispose = subject.dispose
     })
 
@@ -541,6 +558,136 @@ export const clipJobRepositoryContract = (
         )
 
         expect(admission.refusal).toBeNull()
+      })
+
+      // ------------------------------------------------ a client's byte ceiling --
+
+      /**
+       * `clients.max_total_bytes` (roadmap §10.5), judged over **every event of the client**
+       * in the same transaction as the event's own quota — the clip door's half of what
+       * `saveManyWithinLimits` does for photographs. The wedding and the gala are one
+       * client's; the brunch is another's and holds a great deal.
+       */
+      describe('a client’s byte ceiling', () => {
+        const CLIENT = asClientId('client-1')
+        const OTHER_CLIENT = asClientId('client-2')
+        const BRUNCH = asEventId('evt-brunch')
+
+        beforeEach(async () => {
+          await placeEventsInClient(CLIENT, [WEDDING, GALA])
+          await placeEventsInClient(OTHER_CLIENT, [BRUNCH])
+        })
+
+        const limits = (maxBytes: number | null, quotaBytes = 1_000_000) => ({
+          quotaBytes,
+          maxQueuedClips: 10,
+          maxQueuedClipsPerEvent: 10,
+          clientBytes: maxBytes === null ? null : { clientId: CLIENT, maxBytes },
+        })
+
+        const galaClip = (id: string, sourceByteSize: number): ClipJob =>
+          aClipJob({
+            id,
+            eventId: 'evt-gala',
+            author: { kind: 'guest', id: 'guest-sam' },
+            sourceByteSize,
+          })
+
+        it('admits a clip that exactly reaches the ceiling across the client’s two events', async () => {
+          await savePhotoBytes(GALA, 600)
+          await repo.stage(galaClip('job-g', 300), limits(null))
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 100 }),
+            limits(1_000),
+          )
+
+          expect(admission.refusal).toBeNull()
+        })
+
+        it('refuses a clip one byte past it, naming what was left, and writes nothing', async () => {
+          await savePhotoBytes(GALA, 600)
+          await repo.stage(galaClip('job-g', 300), limits(null))
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 101 }),
+            limits(1_000),
+          )
+
+          expect(admission.refusal).toEqual({ reason: 'clientStorageFull', remaining: 100 })
+          expect(await repo.findById(WEDDING, asClipJobId('job-1'))).toBeNull()
+        })
+
+        it('counts the photographs of the client’s other event', async () => {
+          await savePhotoBytes(GALA, 950)
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 100 }),
+            limits(1_000),
+          )
+
+          expect(admission.refusal?.reason).toBe('clientStorageFull')
+        })
+
+        it('counts the clips already queued in the client’s other event', async () => {
+          await repo.stage(galaClip('job-g', 950), limits(null))
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 100 }),
+            limits(1_000),
+          )
+
+          expect(admission.refusal?.reason).toBe('clientStorageFull')
+        })
+
+        it('does not charge another client’s bytes to this one', async () => {
+          await savePhotoBytes(BRUNCH, 9_000_000)
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 900 }),
+            limits(1_000),
+          )
+
+          expect(admission.refusal).toBeNull()
+        })
+
+        it('applies no client ceiling when there is none to apply', async () => {
+          await savePhotoBytes(GALA, 900)
+
+          const withNull = await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 5_000 }),
+            limits(null),
+          )
+          const withNone = await repo.stage(
+            aClipJob({ id: 'job-2', eventId: 'evt-wedding', sourceByteSize: 5_000 }),
+            { quotaBytes: 1_000_000, maxQueuedClips: 10, maxQueuedClipsPerEvent: 10 },
+          )
+
+          expect(withNull.refusal).toBeNull()
+          expect(withNone.refusal).toBeNull()
+        })
+
+        it('names the event’s own quota first when both ceilings are reached', async () => {
+          await savePhotoBytes(GALA, 600)
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 500 }),
+            limits(1_000, 400),
+          )
+
+          expect(admission.refusal?.reason).toBe('quotaExceeded')
+        })
+
+        it('answers a full queue before it answers a full client, as it does for a full event', async () => {
+          await savePhotoBytes(GALA, 1_000)
+
+          const admission = await repo.stage(
+            aClipJob({ id: 'job-1', eventId: 'evt-wedding', sourceByteSize: 100 }),
+            { ...limits(1_000), maxQueuedClips: 0 },
+          )
+
+          expect(admission.refusal?.reason).toBe('queueFull')
+        })
       })
 
       it('raises rather than admitting a second job for bytes this event already holds', async () => {

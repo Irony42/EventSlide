@@ -7,7 +7,8 @@ import type { PhotoAuthor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import type { ClipJobId, EventId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
-import type { ClipJobRepository } from '../../ports/clipJobRepository'
+import type { ClientRepository } from '../../ports/clientRepository'
+import type { ClipJobRepository, ClipRefusal } from '../../ports/clipJobRepository'
 import type { Clock } from '../../ports/clock'
 import type { ContentHasher } from '../../ports/contentHasher'
 import type { EventBus } from '../../ports/eventBus'
@@ -17,6 +18,7 @@ import type { Logger } from '../../ports/logger'
 import { STAGED_SOURCE, type MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { VideoTranscoder } from '../../ports/videoTranscoder'
+import { clientBytesOf, clientContextOf } from '../clients/clientContextOf'
 
 /**
  * Staging a clip: everything that has to happen while the guest is still holding the
@@ -66,6 +68,12 @@ export interface UploadClipLimits {
 
 export interface UploadClipDeps {
   readonly events: EventRepository
+  /**
+   * For the ceilings of the event's client (roadmap §10.5): `clips_allowed`,
+   * `max_total_bytes` across its events and `max_event_quota_bytes`. Read only for an event
+   * that has a client — see `clientContextOf`.
+   */
+  readonly clients: ClientRepository
   readonly clips: ClipJobRepository
   readonly photos: PhotoRepository
   readonly media: MediaStore
@@ -97,8 +105,28 @@ export interface UploadClipResult {
 
 export type UploadClip = (input: UploadClipInput) => Promise<Result<UploadClipResult, DomainError>>
 
+/** What a refusal at the door is answered with. One place, so the three reasons cannot drift. */
+const refusalError = (refusal: ClipRefusal, byteSize: number): DomainError => {
+  switch (refusal.reason) {
+    case 'queueFull':
+      // `refusal.maxDepth` names whichever cap actually refused this — the box-wide one or
+      // this event's own — rather than assuming it was the former.
+      return clipQueueFull(refusal.depth, refusal.maxDepth)
+    case 'quotaExceeded':
+      return DomainError.quotaExceeded('event.quotaExceeded', {
+        remaining: refusal.remaining,
+        required: byteSize,
+      })
+    case 'clientStorageFull':
+      // No `remaining`: it is what the client's other events have left too, and a guest of
+      // one event has no business reading how full its neighbours are.
+      return DomainError.quotaExceeded('client.storageFull', { required: byteSize })
+  }
+}
+
 export const makeUploadClip = ({
   events,
+  clients,
   clips,
   photos,
   media,
@@ -119,9 +147,18 @@ export const makeUploadClip = ({
     }
 
     const settings = event.settings
-    if (!settings.allowClips) {
-      // A host's switch, not a capability question: a wedding that does not want video
-      // on the wall says so, and the guest is told which it was.
+
+    // The client's ceilings, for an event that has one. `clips_allowed` is judged here and the
+    // two byte ceilings in the transaction below.
+    const context = await clientContextOf(clients, event)
+    const ceilings = context?.ceilings ?? null
+
+    // A host's switch **or** the client's plan. `clips_allowed` is checked even when the
+    // event's own setting says yes, because that is exactly the downgrade case: a client
+    // moved to a plan without video keeps events created with it switched on. The guest is
+    // told the same thing either way — video is not available here — and not which of the
+    // two it was, which is not theirs to know.
+    if (!settings.allowClips || (ceilings !== null && !ceilings.clipsAllowed)) {
       return err(DomainError.forbidden('event.clipsNotAllowed'))
     }
 
@@ -234,9 +271,10 @@ export const makeUploadClip = ({
     let admission
     try {
       admission = await clips.stage(job.value, {
-        quotaBytes: event.quotaBytes,
+        quotaBytes: event.effectiveQuotaBytes(ceilings),
         maxQueuedClips: limits.maxQueuedClips,
         maxQueuedClipsPerEvent: limits.maxQueuedClipsPerEvent,
+        clientBytes: clientBytesOf(context),
       })
     } catch (cause) {
       // **A raise here is not necessarily a failure.** The port says `stage` raises on a
@@ -265,16 +303,7 @@ export const makeUploadClip = ({
     if (refusal !== null) {
       // Refused against committed state, and **nothing has been written**: that is the
       // point of reserving first.
-      return err(
-        refusal.reason === 'queueFull'
-          ? // `refusal.maxDepth` names whichever cap actually refused this — the
-            // box-wide one or this event's own — rather than assuming it was the former.
-            clipQueueFull(refusal.depth, refusal.maxDepth)
-          : DomainError.quotaExceeded('event.quotaExceeded', {
-              remaining: refusal.remaining,
-              required: byteSize,
-            }),
-      )
+      return err(refusalError(refusal, byteSize))
     }
 
     /**

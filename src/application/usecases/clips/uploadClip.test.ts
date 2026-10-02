@@ -5,8 +5,10 @@ import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import type { ContentHasher } from '../../ports/contentHasher'
 import type { LogContext, Logger } from '../../ports/logger'
 import type { TranscodeSpec } from '../../ports/videoTranscoder'
-import { anEvent, aPhoto, type EventInput } from '../../testing/builders'
+import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
+import { aClient, anEvent, aPhoto, type EventInput } from '../../testing/builders'
 import { CallLog } from '../../testing/callLog'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -73,6 +75,7 @@ const aClipFile = (seed = 'one', byteSize = 4_000_000): Uint8Array =>
 
 describe('uploadClip', () => {
   let events: FakeEventRepository
+  let clients: FakeClientRepository
   let clips: FakeClipJobRepository
   let photos: FakePhotoRepository
   let media: InMemoryMediaStore
@@ -90,6 +93,7 @@ describe('uploadClip', () => {
   const build = (maxQueuedClips = 20, maxQueuedClipsPerEvent = maxQueuedClips): void => {
     uploadClip = makeUploadClip({
       events,
+      clients,
       clips,
       photos,
       media,
@@ -105,6 +109,7 @@ describe('uploadClip', () => {
 
   beforeEach(() => {
     events = new FakeEventRepository()
+    clients = new FakeClientRepository()
     clips = new FakeClipJobRepository()
 
     // The quota is "bytes on this event's disk", and a staged clip is on the disk. The
@@ -287,6 +292,7 @@ describe('uploadClip', () => {
       seedEvent()
       uploadClip = makeUploadClip({
         events,
+        clients,
         clips,
         photos,
         media,
@@ -758,6 +764,7 @@ describe('uploadClip', () => {
       seedEvent()
       uploadClip = makeUploadClip({
         events,
+        clients,
         clips,
         photos,
         media,
@@ -814,6 +821,216 @@ describe('uploadClip', () => {
       // The spent row stays: it is what the guest's first job id still resolves to, and
       // the only record of why that attempt ended.
       expect(clips.all).toHaveLength(2)
+    })
+  })
+})
+
+/**
+ * The client's ceilings on the clip door (roadmap §10.5 / G2-05): `clips_allowed`,
+ * `max_total_bytes` across the client's events and `max_event_quota_bytes`.
+ *
+ * Two events of **client-1** (`event-1`, `event-2`), one of **client-2** (`event-3`) and one
+ * with **no client** (`event-4`). A clip is 4 MB of source unless a test says otherwise.
+ */
+describe('uploadClip under a client’s ceilings', () => {
+  const MB = 1_000_000
+  const EVENT_2_ID = asEventId('event-2')
+  const EVENT_3 = asEventId('event-3')
+  const EVENT_4 = asEventId('event-4')
+
+  /** Counts the reads, so "an event with no client never asks" is a number. */
+  class CountingClientRepository extends FakeClientRepository {
+    contextReads = 0
+
+    override async contextForEvent(
+      ...args: Parameters<FakeClientRepository['contextForEvent']>
+    ): ReturnType<FakeClientRepository['contextForEvent']> {
+      this.contextReads += 1
+      return super.contextForEvent(...args)
+    }
+  }
+
+  let clients: CountingClientRepository
+  let events: FakeEventRepository
+  let clips: FakeClipJobRepository
+  let photos: FakePhotoRepository
+  let media: InMemoryMediaStore
+  let uploadClip: UploadClip
+
+  const seedClient = (id: string, ceilings: Partial<ClientCeilingsProps>): void => {
+    clients.seed(aClient({ id, ceilings }))
+  }
+
+  beforeEach(() => {
+    clients = new CountingClientRepository()
+    events = new FakeEventRepository({ clients })
+    clips = new FakeClipJobRepository()
+    photos = new FakePhotoRepository().chargeStagedBytesFrom(clips).chargeClientBytesFrom(clients)
+    clips.chargePhotoBytesFrom(photos).chargeClientEventsFrom(clients)
+    media = new InMemoryMediaStore()
+
+    uploadClip = makeUploadClip({
+      events,
+      clients,
+      clips,
+      photos,
+      media,
+      transcoder: new FakeVideoTranscoder(),
+      hasher,
+      bus: new RecordingEventBus(),
+      clock: new FakeClock(new Date('2026-06-20T21:00:00.000Z')),
+      ids: new SequentialIdGenerator(),
+      logger: new CapturingLogger(),
+      limits: { maxQueuedClips: 20, maxQueuedClipsPerEvent: 20 },
+    })
+
+    seedClient('client-1', {})
+    seedClient('client-2', {})
+    events.seed(
+      anEvent({ id: 'event-1', slug: 'mariage', joinCode: 'AAAAAA', clientId: 'client-1' }),
+      anEvent({ id: 'event-2', slug: 'brunch', joinCode: 'BBBBBB', clientId: 'client-1' }),
+      anEvent({ id: 'event-3', slug: 'gala', joinCode: 'CCCCCC', clientId: 'client-2' }),
+      anEvent({ id: 'event-4', slug: 'solo', joinCode: 'DDDDDD' }),
+    )
+  })
+
+  const send = (eventId = EVENT, seed = 'a', byteSize = 4 * MB) =>
+    uploadClip({
+      eventId,
+      author: GUEST,
+      file: { bytes: aClipFile(seed, byteSize), declaredName: 'IMG_4021.MOV' },
+    })
+
+  describe('clips_allowed = 0', () => {
+    beforeEach(() => seedClient('client-1', { clipsAllowed: false }))
+
+    it('refuses with the same 403 event.clipsNotAllowed a host’s own switch gives, whatever the event says', async () => {
+      // The event's own setting is **on** — the default. This is the downgrade case: a
+      // client moved to a plan without video keeps events that were created with it.
+      const result = await send()
+
+      expect(!result.ok && result.error.code).toBe('event.clipsNotAllowed')
+      expect(!result.ok && result.error.kind).toBe('forbidden')
+    })
+
+    it('stages nothing and writes nothing', async () => {
+      await send()
+
+      expect(clips.all).toEqual([])
+      expect(media.objectCount).toBe(0)
+    })
+
+    it('still lets another client’s events send clips', async () => {
+      const result = await send(EVENT_3)
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('does not touch an event with no client', async () => {
+      const result = await send(EVENT_4)
+
+      expect(result.ok).toBe(true)
+    })
+  })
+
+  describe('max_total_bytes', () => {
+    beforeEach(() => seedClient('client-1', { maxTotalBytes: 8 * MB }))
+
+    it('accepts the clip that exactly reaches the ceiling and refuses the next with client.storageFull', async () => {
+      const first = await send(EVENT, 'a')
+      const reaches = await send(EVENT, 'b')
+      const past = await send(EVENT, 'c')
+
+      expect(first.ok).toBe(true)
+      expect(reaches.ok).toBe(true)
+      expect(!past.ok && past.error.code).toBe('client.storageFull')
+      expect(!past.ok && past.error.kind).toBe('quotaExceeded')
+    })
+
+    it('tells the guest what the file needed and nothing about what the client’s other events hold', async () => {
+      photos.seed(aPhoto({ id: 'held', eventId: 'event-2', byteSize: 5 * MB }))
+
+      const result = await send(EVENT, 'a')
+
+      expect(!result.ok && result.error.details).toEqual({ required: 4 * MB })
+    })
+
+    it('counts the other event’s photographs, so a ceiling shared by two events is shared', async () => {
+      photos.seed(aPhoto({ id: 'held', eventId: 'event-2', byteSize: 5 * MB }))
+
+      const result = await send(EVENT, 'a')
+
+      expect(!result.ok && result.error.code).toBe('client.storageFull')
+    })
+
+    it('counts the other event’s queued clips', async () => {
+      await send(EVENT_2_ID, 'a')
+      await send(EVENT_2_ID, 'b')
+
+      const result = await send(EVENT, 'c')
+
+      expect(!result.ok && result.error.code).toBe('client.storageFull')
+    })
+
+    it('writes nothing when it refuses, because the row is reserved before the bytes', async () => {
+      photos.seed(aPhoto({ id: 'held', eventId: 'event-2', byteSize: 8 * MB }))
+
+      await send(EVENT, 'a')
+
+      expect(media.objectCount).toBe(0)
+      expect(clips.all).toEqual([])
+    })
+
+    it('leaves another client’s events alone', async () => {
+      photos.seed(aPhoto({ id: 'held', eventId: 'event-1', byteSize: 8 * MB }))
+
+      const result = await send(EVENT_3, 'a')
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('names the event’s own quota first when both ceilings are reached', async () => {
+      events.seed(
+        anEvent({
+          id: 'event-1',
+          slug: 'mariage',
+          joinCode: 'AAAAAA',
+          clientId: 'client-1',
+          quotaBytes: 2 * MB,
+        }),
+      )
+
+      const result = await send(EVENT, 'a')
+
+      expect(!result.ok && result.error.code).toBe('event.quotaExceeded')
+    })
+  })
+
+  describe('max_event_quota_bytes', () => {
+    it('judges an event against its client’s ceiling even when the event was created with more', async () => {
+      seedClient('client-1', { maxEventQuotaBytes: 3 * MB })
+
+      const result = await send(EVENT, 'a', 4 * MB)
+
+      expect(!result.ok && result.error.code).toBe('event.quotaExceeded')
+    })
+  })
+
+  describe('an event with no client', () => {
+    it('never reads the clients, so a box with no clients asks nothing new', async () => {
+      const result = await send(EVENT_4)
+
+      expect(result.ok).toBe(true)
+      expect(clients.contextReads).toBe(0)
+    })
+
+    it('is not limited by what any client holds', async () => {
+      seedClient('client-1', { maxTotalBytes: MB })
+      photos.seed(aPhoto({ id: 'held', eventId: 'event-1', byteSize: 50 * MB }))
+
+      const result = await send(EVENT_4)
+
+      expect(result.ok).toBe(true)
     })
   })
 })

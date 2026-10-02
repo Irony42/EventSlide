@@ -1,3 +1,4 @@
+import { fitsInQuota } from '../../../domain/events/quota'
 import { Caption } from '../../../domain/photos/caption'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { Dimensions } from '../../../domain/photos/dimensions'
@@ -5,6 +6,7 @@ import { Photo, type PhotoAuthor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, MissionId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { ContentHasher } from '../../ports/contentHasher'
 import type { EventBus } from '../../ports/eventBus'
@@ -19,6 +21,7 @@ import type {
   PhotoRefusal,
   PhotoRepository,
 } from '../../ports/photoRepository'
+import { clientBytesOf, clientContextOf } from '../clients/clientContextOf'
 
 /**
  * Guest photo ingest: the request this product exists for, and the one place where a
@@ -72,6 +75,12 @@ export interface UploadLimits {
 
 export interface UploadPhotosDeps {
   readonly events: EventRepository
+  /**
+   * For the ceilings of the event's client (roadmap §10.5): `max_total_bytes` across its
+   * events, and `max_event_quota_bytes` over the event's own. Read only for an event that
+   * has a client — see `clientContextOf`.
+   */
+  readonly clients: ClientRepository
   readonly photos: PhotoRepository
   readonly missions: MissionRepository
   readonly media: MediaStore
@@ -158,13 +167,21 @@ const renderVariants = async (
  * against the state that was actually committed rather than the one this request read
  * before it started rendering.
  */
-const refusalError = (refusal: PhotoRefusal, requiredBytes: number): DomainError =>
-  refusal.reason === 'quotaExceeded'
-    ? DomainError.quotaExceeded('event.quotaExceeded', {
+const refusalError = (refusal: PhotoRefusal, requiredBytes: number): DomainError => {
+  switch (refusal.reason) {
+    case 'quotaExceeded':
+      return DomainError.quotaExceeded('event.quotaExceeded', {
         remaining: refusal.remaining,
         required: requiredBytes,
       })
-    : DomainError.quotaExceeded('event.photoLimitReached', { already: refusal.already })
+    case 'clientStorageFull':
+      // No `remaining`: it is what the client's **other** events have left too, and the
+      // guest of one event has no business reading how full its neighbours are.
+      return DomainError.quotaExceeded('client.storageFull', { required: requiredBytes })
+    case 'photoLimitReached':
+      return DomainError.quotaExceeded('event.photoLimitReached', { already: refusal.already })
+  }
+}
 
 /**
  * Restates the outcomes of the photos the write transaction turned away.
@@ -187,6 +204,7 @@ const settle = (
 
 export const makeUploadPhotos = ({
   events,
+  clients,
   photos,
   missions,
   media,
@@ -210,6 +228,15 @@ export const makeUploadPhotos = ({
     }
 
     const settings = event.settings
+
+    // The client's ceilings, for an event that has one. Read once, up front, and used three
+    // ways below: the quota this event is judged against (its own, lowered to the client's
+    // `max_event_quota_bytes`), the cheap check on the client's total, and the limit handed
+    // to the write transaction that actually enforces both.
+    const context = await clientContextOf(clients, event)
+    const ceilings = context?.ceilings ?? null
+    const quotaBytes = event.effectiveQuotaBytes(ceilings)
+    const clientBytes = clientBytesOf(context)
 
     // Parsed before the policy check so that "blank means no caption" is decided in one
     // place — an untouched form field must not trip a captions-off event.
@@ -277,6 +304,9 @@ export const makeUploadPhotos = ({
 
     const now = clock.now()
     const usedBytes = await photos.totalBytes(eventId)
+    // Advisory, like `usedBytes`: it is only read when there is a ceiling to read it against.
+    const clientUsedBytes =
+      clientBytes === null ? 0 : await photos.clientTotalBytes(clientBytes.clientId)
 
     const outcomes: UploadOutcome[] = []
     const created: Photo[] = []
@@ -359,14 +389,25 @@ export const makeUploadPhotos = ({
       // one renders. Its job is to stop a full event from decoding and writing three
       // variants per file only to have them removed again — which is the path a scanner
       // that found the endpoint would hammer. The repository decides for real.
-      if (!event.hasQuotaFor(addedBytes + byteSize, usedBytes)) {
+      if (!event.hasQuotaFor(addedBytes + byteSize, usedBytes, ceilings)) {
         outcomes.push({
           ...at,
           kind: 'refused',
           error: DomainError.quotaExceeded('event.quotaExceeded', {
-            remaining: event.remainingQuota(usedBytes + addedBytes),
+            remaining: event.remainingQuota(usedBytes + addedBytes, ceilings),
             required: byteSize,
           }),
+        })
+        continue
+      }
+
+      // The client's total, after the event's own and for the same reason: refused here, a
+      // full client costs a decode and no writes; the transaction below is what decides.
+      if (clientBytes !== null && !fitsInQuota(clientBytes.maxBytes, clientUsedBytes, addedBytes + byteSize)) {
+        outcomes.push({
+          ...at,
+          kind: 'refused',
+          error: DomainError.quotaExceeded('client.storageFull', { required: byteSize }),
         })
         continue
       }
@@ -426,8 +467,9 @@ export const makeUploadPhotos = ({
     if (created.length > 0) {
       try {
         admissions = await photos.saveManyWithinLimits(eventId, created, {
-          quotaBytes: event.quotaBytes,
+          quotaBytes,
           maxPhotosPerGuest: maxPerGuest,
+          clientBytes,
         })
       } catch (cause) {
         logger.error('photo insert failed; removing the media this upload wrote', {

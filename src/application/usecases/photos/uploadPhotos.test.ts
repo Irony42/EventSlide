@@ -15,6 +15,7 @@ import { ok, type Result } from '../../../domain/shared/result'
 import type { ContentHasher } from '../../ports/contentHasher'
 import type { ImageProbe, ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
 import type { LogContext, Logger } from '../../ports/logger'
+import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import type { PhotoAdmission, PhotoRefusal } from '../../ports/photoRepository'
 import {
   MEDIA_VARIANTS,
@@ -24,7 +25,8 @@ import {
   type StoredObject,
   type PhotoVariant,
 } from '../../ports/mediaStore'
-import { aMission, anEvent, aPhoto, type EventInput } from '../../testing/builders'
+import { aClient, aMission, anEvent, aPhoto, type EventInput } from '../../testing/builders'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
@@ -397,6 +399,7 @@ describe('uploadPhotos', () => {
   const build = (overrides: Partial<UploadPhotosDeps> = {}): UploadPhotos =>
     makeUploadPhotos({
       events,
+      clients: new FakeClientRepository(),
       photos,
       missions,
       media,
@@ -1083,6 +1086,7 @@ describe('uploadPhotos and the mission tag', () => {
     logger = new CapturingLogger()
     uploadPhotos = makeUploadPhotos({
       events,
+      clients: new FakeClientRepository(),
       photos,
       missions,
       media,
@@ -1183,5 +1187,247 @@ describe('uploadPhotos and the mission tag', () => {
       level: 'warn',
       message: 'an upload named a mission this event does not have; storing it untagged',
     })
+  })
+})
+
+/**
+ * The client's ceilings on the one public write (roadmap §10.5 / G2-05). Every photograph
+ * the doubles above produce is exactly 1 MB, so a total is arithmetic a reader can do.
+ *
+ * Two events of **client-1** (`event-1`, `event-2`), one of **client-2** (`event-3`), and one
+ * with **no client** (`event-4`).
+ */
+describe('uploadPhotos under a client’s ceilings', () => {
+  const MB = 1_000_000
+  const EVENT_3 = asEventId('event-3')
+  const EVENT_4 = asEventId('event-4')
+
+  let clients: CountingClientRepository
+  let events: FakeEventRepository
+  let photos: FakePhotoRepository
+  let media: InMemoryMediaStore
+  let images: FakeImageProcessor
+  let logger: CapturingLogger
+
+  /** Counts the reads, so "an event with no client never asks" is a number. */
+  class CountingClientRepository extends FakeClientRepository {
+    contextReads = 0
+
+    override async contextForEvent(
+      ...args: Parameters<FakeClientRepository['contextForEvent']>
+    ): ReturnType<FakeClientRepository['contextForEvent']> {
+      this.contextReads += 1
+      return super.contextForEvent(...args)
+    }
+  }
+
+  const buildWith = (photoRepo: FakePhotoRepository = photos): UploadPhotos =>
+    makeUploadPhotos({
+      events,
+      clients,
+      photos: photoRepo,
+      missions: new FakeMissionRepository(photoRepo),
+      media,
+      imageProcessor: images,
+      hasher: new FakeContentHasher(),
+      bus: new RecordingEventBus(),
+      clock: new FakeClock(),
+      ids: new SequentialIdGenerator(),
+      logger,
+      limits: { maxPixels: MAX_PIXELS },
+    })
+
+  /** What one client has, in the shape a test states it. */
+  const seedClient = (id: string, ceilings: Partial<ClientCeilingsProps>): void => {
+    clients.seed(aClient({ id, ceilings }))
+  }
+
+  beforeEach(() => {
+    clients = new CountingClientRepository()
+    events = new FakeEventRepository({ clients })
+    photos = new FakePhotoRepository().chargeClientBytesFrom(clients)
+    media = new InMemoryMediaStore()
+    images = new FakeImageProcessor()
+    logger = new CapturingLogger()
+
+    seedClient('client-1', { maxTotalBytes: 2 * MB })
+    seedClient('client-2', {})
+    events.seed(
+      anEvent({ id: 'event-1', slug: 'mariage', joinCode: 'AAAAAA', clientId: 'client-1' }),
+      anEvent({ id: 'event-2', slug: 'brunch', joinCode: 'BBBBBB', clientId: 'client-1' }),
+      anEvent({ id: 'event-3', slug: 'gala', joinCode: 'CCCCCC', clientId: 'client-2' }),
+      anEvent({ id: 'event-4', slug: 'solo', joinCode: 'DDDDDD' }),
+    )
+  })
+
+  const send = (eventId: EventId, tag: string, upload: UploadPhotos = buildWith()) =>
+    upload({ eventId, author: GUEST, files: [aFile(tag)] })
+
+  it('accepts the photograph that exactly reaches max_total_bytes, and refuses the next with client.storageFull', async () => {
+    const upload = buildWith()
+
+    const first = await send(EVENT, 'one', upload)
+    // 1 MB held after the first: the second fills the client to its 2 MB exactly.
+    const reachesTheCeiling = await send(EVENT, 'two', upload)
+    const pastIt = await send(EVENT, 'three', upload)
+
+    expect(kinds(first)).toEqual(['stored'])
+    expect(kinds(reachesTheCeiling)).toEqual(['stored'])
+    expect(refusal(pastIt).code).toBe('client.storageFull')
+    expect(refusal(pastIt).kind).toBe('quotaExceeded')
+  })
+
+  it('tells the guest what the file needed and nothing about what the client’s other events hold', async () => {
+    const upload = buildWith()
+    await send(EVENT, 'one', upload)
+    await send(EVENT, 'two', upload)
+
+    const result = await send(EVENT, 'three', upload)
+
+    // `remaining` is the client's headroom, which is what its other events have not spent.
+    expect(refusal(result).details).toEqual({ required: MB })
+  })
+
+  it('counts the other event of the same client, so two events cannot spend what one client shares', async () => {
+    photos.seed(aPhoto({ id: 'held-1', eventId: 'event-2', byteSize: MB }))
+    photos.seed(aPhoto({ id: 'held-2', eventId: 'event-2', byteSize: MB }))
+
+    const result = await send(EVENT, 'sunset')
+
+    expect(refusal(result).code).toBe('client.storageFull')
+  })
+
+  it('does not carry the client’s bytes to another client’s event', async () => {
+    photos.seed(aPhoto({ id: 'held-1', eventId: 'event-2', byteSize: 2 * MB }))
+
+    const result = await send(EVENT_3, 'sunset')
+
+    expect(kinds(result)).toEqual(['stored'])
+  })
+
+  it('does not limit a client that has no max_total_bytes', async () => {
+    photos.seed(aPhoto({ id: 'held-1', eventId: 'event-3', byteSize: 50 * MB }))
+
+    const result = await send(EVENT_3, 'sunset')
+
+    expect(kinds(result)).toEqual(['stored'])
+  })
+
+  it('refuses before it writes anything to the disk when the client is already full', async () => {
+    photos.seed(aPhoto({ id: 'held-1', eventId: 'event-2', byteSize: 2 * MB }))
+    // A disk that fails on its first write: a request that tried to store the photograph
+    // would answer `photo.mediaWriteFailed`, not a named refusal.
+    media.failAfter(0)
+
+    const result = await send(EVENT, 'sunset')
+
+    expect(refusal(result).code).toBe('client.storageFull')
+    expect(media.objectCount).toBe(0)
+  })
+
+  it('is enforced again where it is written: a sibling event that fills the client in between turns the photograph away', async () => {
+    // The advisory check passed; then another guest, at the client's other event, committed.
+    // The ceiling is only a ceiling because the repository decides it in its own transaction.
+    class SiblingFillsFirst extends FakePhotoRepository {
+      override async saveManyWithinLimits(
+        eventId: EventId,
+        batch: readonly Photo[],
+        limits: Parameters<FakePhotoRepository['saveManyWithinLimits']>[2],
+      ): Promise<readonly PhotoAdmission[]> {
+        await this.save(aPhoto({ id: 'sibling', eventId: 'event-2', byteSize: 2 * MB }))
+        return super.saveManyWithinLimits(eventId, batch, limits)
+      }
+    }
+    const racing = new SiblingFillsFirst().chargeClientBytesFrom(clients)
+
+    const result = await send(EVENT, 'sunset', buildWith(racing))
+
+    expect(refusal(result).code).toBe('client.storageFull')
+    expect(media.objectCount).toBe(0)
+  })
+
+  it('names the event’s own quota first when both ceilings are reached', async () => {
+    events.seed(
+      anEvent({
+        id: 'event-1',
+        slug: 'mariage',
+        joinCode: 'AAAAAA',
+        clientId: 'client-1',
+        quotaBytes: MB,
+      }),
+    )
+    const upload = buildWith()
+    await send(EVENT, 'one', upload)
+
+    const result = await send(EVENT, 'two', upload)
+
+    expect(refusal(result).code).toBe('event.quotaExceeded')
+  })
+
+  it('judges an event against its client’s max_event_quota_bytes even when the event was created with more', async () => {
+    seedClient('client-1', { maxTotalBytes: 100 * MB, maxEventQuotaBytes: MB })
+    const upload = buildWith()
+    await send(EVENT, 'one', upload)
+
+    const result = await send(EVENT, 'two', upload)
+
+    expect(refusal(result).code).toBe('event.quotaExceeded')
+  })
+
+  it('hands the write transaction the clamped quota too, so a sibling upload that fills the event in between is still refused by it', async () => {
+    // The advisory check passed (nothing was stored when it looked); then another guest of the
+    // same event committed a megabyte. Only the transaction can notice, and it can only notice
+    // against the quota it is given — the stored 1 GB would admit this photograph.
+    seedClient('client-1', { maxEventQuotaBytes: MB })
+    class FillsTheEventFirst extends FakePhotoRepository {
+      override async saveManyWithinLimits(
+        eventId: EventId,
+        batch: readonly Photo[],
+        limits: Parameters<FakePhotoRepository['saveManyWithinLimits']>[2],
+      ): Promise<readonly PhotoAdmission[]> {
+        await this.save(aPhoto({ id: 'sibling', eventId, byteSize: MB }))
+        return super.saveManyWithinLimits(eventId, batch, limits)
+      }
+    }
+    const racing = new FillsTheEventFirst().chargeClientBytesFrom(clients)
+
+    const result = await send(EVENT, 'sunset', buildWith(racing))
+
+    expect(refusal(result).code).toBe('event.quotaExceeded')
+    expect(media.objectCount).toBe(0)
+  })
+
+  it('does not raise an event’s own smaller quota up to the client’s ceiling', async () => {
+    seedClient('client-1', { maxEventQuotaBytes: 100 * MB })
+    events.seed(
+      anEvent({
+        id: 'event-1',
+        slug: 'mariage',
+        joinCode: 'AAAAAA',
+        clientId: 'client-1',
+        quotaBytes: MB,
+      }),
+    )
+    const upload = buildWith()
+    await send(EVENT, 'one', upload)
+
+    const result = await send(EVENT, 'two', upload)
+
+    expect(refusal(result).code).toBe('event.quotaExceeded')
+  })
+
+  it('never reads the clients for an event that has none, so a box with no clients asks nothing new', async () => {
+    const result = await send(EVENT_4, 'sunset')
+
+    expect(kinds(result)).toEqual(['stored'])
+    expect(clients.contextReads).toBe(0)
+  })
+
+  it('stores a photograph for an event with no client under no ceiling at all, however much the clients hold', async () => {
+    photos.seed(aPhoto({ id: 'held-1', eventId: 'event-2', byteSize: 50 * MB }))
+
+    const result = await send(EVENT_4, 'sunset')
+
+    expect(kinds(result)).toEqual(['stored'])
   })
 })

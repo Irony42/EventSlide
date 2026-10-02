@@ -10,9 +10,11 @@ import type { MediaStore } from '../../ports/mediaStore'
  * why it is a separate use case from `purgeEvent` rather than a loop over it — an
  * owner check would have to be faked with an owner who never asked.
  *
- * The deadline itself is the entity's arithmetic (`Event.isDueForPurge`), reached
- * through the repository, so "keep the album forever" — the default — is honoured in
- * one place.
+ * The deadline itself is `purgeDeadline`, reached through the repository, so "keep the
+ * album forever" — the default — is honoured in one place. For an event that belongs to a
+ * client it also answers to that client's ceilings: an album kept "for ever" under a
+ * retention ceiling is purged at the ceiling, and a ceiling lowered recently is given
+ * {@link PurgeExpiredEventsDeps.capNoticeDays} days' notice first.
  */
 
 export interface PurgeExpiredEventsReport {
@@ -25,6 +27,11 @@ export interface PurgeExpiredEventsDeps {
   readonly events: EventRepository
   readonly media: MediaStore
   readonly clock: Clock
+  /**
+   * `RETENTION_CAP_NOTICE_DAYS`. Meaningful only for an event that belongs to a client whose
+   * retention ceiling was lowered; on a box with no clients it is read and changes nothing.
+   */
+  readonly capNoticeDays: number
 }
 
 /**
@@ -36,9 +43,9 @@ export interface PurgeExpiredEventsDeps {
 export type PurgeExpiredEvents = () => Promise<PurgeExpiredEventsReport>
 
 export const makePurgeExpiredEvents =
-  ({ events, media, clock }: PurgeExpiredEventsDeps): PurgeExpiredEvents =>
+  ({ events, media, clock, capNoticeDays }: PurgeExpiredEventsDeps): PurgeExpiredEvents =>
   async () => {
-    const due = await events.listDueForPurge(clock.now())
+    const due = await events.listDueForPurge(clock.now(), { capNoticeDays })
 
     const purged: EventId[] = []
     const failed: EventId[] = []

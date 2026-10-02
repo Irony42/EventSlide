@@ -1107,6 +1107,13 @@ export const fr = {
     'event.creationNotAllowed': 'Votre compte ne peut pas créer d’évènement sur ce serveur.',
     'client.notFound': 'Ce compte client est introuvable.',
     'client.ceilingReached': 'Votre compte a atteint le nombre d’évènements autorisé.',
+    'client.storageFull': 'La galerie a atteint sa capacité. Prévenez l’organisateur.',
+    'client.liveNotAllowed': 'Votre compte ne peut pas ouvrir d’évènement pour le moment.',
+    'client.liveWindowOver':
+      'La durée d’ouverture de cet évènement est écoulée : il ne peut plus être rouvert.',
+    'client.retentionAboveCeiling':
+      'Cette durée de conservation dépasse celle que votre compte autorise.',
+    'client.clipsNotAllowed': 'Les vidéos ne sont pas disponibles pour cette galerie.',
     'event.immutable': 'Cet évènement est archivé et ne peut plus être modifié.',
     'event.illegalTransition': 'Ce changement d’état n’est pas possible.',
 

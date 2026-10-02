@@ -2,8 +2,10 @@ import type { EventStatus } from '../../../domain/events/eventStatus'
 import type { ScheduledTransition } from '../../../domain/events/event'
 import type { EventId } from '../../../domain/shared/ids'
 import type { Clock } from '../../ports/clock'
+import type { ClientRepository } from '../../ports/clientRepository'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
+import { clientContextOf } from '../clients/clientContextOf'
 
 /**
  * The scheduling job: open the events that were due to open, close the ones that were
@@ -17,6 +19,17 @@ import type { EventRepository } from '../../ports/eventRepository'
  * Every decision is the aggregate's: which instants have come due, whether the
  * lifecycle accepts the transition, and what happens to an instant that has been acted
  * on (`Event.applySchedule`). This orchestrates, persists and announces.
+ *
+ * **It also takes down a client's live event whose window has run out** (roadmap §10.5 /
+ * G2-05). `closed → live` is a legal transition, so without a bound a host pressing one button
+ * a month would keep a public wall for ever; the bound is `max_live_days`, counted from the
+ * event's first opening, and `changeEventStatus` and the scheduled opening both refuse to
+ * reopen past it. This is the other half: an event that is **still live** when its window ends
+ * is closed here, by the sweep, on the next pass. Closed rather than archived — the album stays
+ * readable and the host keeps the export — and the retention clock starts at that moment. An
+ * event with no client has no window and is never touched by this half. A client's live event
+ * that has no recorded opening (it went live before `opened_at` existed) gets one at the first
+ * pass, counted from that pass.
  *
  * Two properties the sweep depends on, both owned by the entity:
  *
@@ -51,10 +64,23 @@ export interface ApplyEventSchedulesReport {
   readonly refused: readonly EventId[]
   /** Could not be written. The row keeps its schedule, so the next run retries it. */
   readonly failed: readonly EventId[]
+  /**
+   * Live events of a client closed because the client's live window ran out
+   * (`opened_at + max_live_days <= now`). Not in `closed`, which is the host's own schedule:
+   * the two answer different questions — "why did the wall go dark at 02:00" — and the audit
+   * entry and the e-mail to the host (roadmap §10.8) hang off this list, not that one.
+   */
+  readonly autoClosed: readonly EventId[]
 }
 
 export interface ApplyEventSchedulesDeps {
   readonly events: EventRepository
+  /**
+   * For the ceilings of an event's client (roadmap §10.5): `live_allowed` and
+   * `max_live_days`, for a scheduled opening and for the window sweep. Read only for an event
+   * that has a client — see `clientContextOf`.
+   */
+  readonly clients: ClientRepository
   readonly bus: EventBus
   readonly clock: Clock
 }
@@ -74,7 +100,7 @@ const STATUS_AFTER: Readonly<Record<ScheduledTransition, EventStatus>> = {
 }
 
 export const makeApplyEventSchedules =
-  ({ events, bus, clock }: ApplyEventSchedulesDeps): ApplyEventSchedules =>
+  ({ events, clients, bus, clock }: ApplyEventSchedulesDeps): ApplyEventSchedules =>
   async () => {
     // Read once, so every event in one pass is judged against the same instant. Two
     // events a millisecond apart being treated differently would be invisible and
@@ -86,11 +112,15 @@ export const makeApplyEventSchedules =
     const closed: EventId[] = []
     const refused: EventId[] = []
     const failed: EventId[] = []
+    const autoClosed: EventId[] = []
 
     // Sequentially, like the retention sweep: this runs on the same box that may be
     // serving a live event, and the work is tiny — one row each.
     for (const event of due) {
-      const outcome = event.applySchedule(now)
+      // The client's ceilings go into the schedule exactly as they go into a manual
+      // transition, so a scheduled opening is refused for the reasons a manual one is.
+      const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
+      const outcome = event.applySchedule(now, ceilings)
 
       try {
         // Persist first. A projector told an event is live before the row says so would
@@ -115,5 +145,35 @@ export const makeApplyEventSchedules =
       if (outcome.refused.length > 0) refused.push(event.id)
     }
 
-    return { opened, closed, refused, failed }
+    // The window sweep, **after** the schedule above so it reads what that just wrote: an
+    // event the schedule closed a moment ago is not live any more and is not closed twice.
+    // The same `now`, so one pass judges every event against one instant.
+    for (const event of await events.listLiveOfClients()) {
+      const context = await clientContextOf(clients, event)
+      // The listing is of events that have a client, so a missing context is a client deleted
+      // between the two reads — which `ON DELETE RESTRICT` forbids while it owns an event. If it
+      // ever happened there would be no window to judge the event by, and closing a wall on a
+      // guess is the wrong way to find out.
+      if (context === null) continue
+
+      // A live event with no recorded opening — made live before `opened_at` was written — is
+      // given one, **starting now**, and judged from the next pass: it would otherwise have no
+      // window at all, and never end. Never closed in the same pass it is recorded in.
+      const next = event.recordOpening(now) ?? event.expireLiveWindow(now, context.ceilings)
+      if (next === null) continue
+
+      try {
+        await events.save(next)
+      } catch {
+        failed.push(event.id)
+        continue
+      }
+
+      if (next.status === 'closed') {
+        autoClosed.push(event.id)
+        bus.publish({ type: 'event.statusChanged', eventId: event.id, status: 'closed' })
+      }
+    }
+
+    return { opened, closed, refused, failed, autoClosed }
   }

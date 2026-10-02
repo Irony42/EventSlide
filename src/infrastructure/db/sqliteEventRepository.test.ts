@@ -12,6 +12,7 @@ import {
 } from '../../application/testing/builders'
 import {
   EVENT_CONTRACT_FIXTURES,
+  PURGE_POLICY,
   eventRepositoryContract,
 } from '../../application/testing/contracts/eventRepositoryContract'
 import { DEFAULT_EVENT_THEME } from '../../domain/events/eventTheme'
@@ -433,14 +434,14 @@ describe('SqliteEventRepository', () => {
   /**
    * The deadline is computed in SQL — `closed_at + retentionDays`, with `retentionDays`
    * read out of the JSON column — so these two cases hold that arithmetic to what
-   * `Event.isDueForPurge` decides. The contract cannot: it only ever sees a repository
+   * `purgeDeadline` decides. The contract cannot: it only ever sees a repository
    * that agrees with itself.
    */
   describe('the purge deadline computed in SQL', () => {
     const DAY = 86_400_000
 
     it('treats the deadline instant itself as due, to the millisecond', async () => {
-      // `Event.isDueForPurge` is `now >= deadline`, and `closed_at` carries
+      // `purgeDeadline` is due at `now >= deadline`, and `closed_at` carries
       // milliseconds. A deadline formatted to whole seconds compares as later than the
       // instant it should match, and the last album of the night is never collected.
       await repo.save(
@@ -453,7 +454,7 @@ describe('SqliteEventRepository', () => {
         }),
       )
 
-      const due = await repo.listDueForPurge(new Date('2026-06-21T21:00:00.500Z'))
+      const due = await repo.listDueForPurge(new Date('2026-06-21T21:00:00.500Z'), PURGE_POLICY)
 
       expect(due.map((event) => event.id)).toEqual(['evt-1'])
     })
@@ -469,7 +470,7 @@ describe('SqliteEventRepository', () => {
         }),
       )
 
-      const due = await repo.listDueForPurge(new Date('2026-06-21T21:00:00.499Z'))
+      const due = await repo.listDueForPurge(new Date('2026-06-21T21:00:00.499Z'), PURGE_POLICY)
 
       expect(due).toEqual([])
     })
@@ -488,7 +489,7 @@ describe('SqliteEventRepository', () => {
         }),
       )
 
-      const due = await repo.listDueForPurge(new Date(AT.getTime() + DAY * 3))
+      const due = await repo.listDueForPurge(new Date(AT.getTime() + DAY * 3), PURGE_POLICY)
 
       expect(due.map((event) => event.id)).toEqual(['evt-1'])
     })

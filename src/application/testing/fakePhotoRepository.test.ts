@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { asEventId, asPhotoId, type ClipJobId, type EventId } from '../../domain/shared/ids'
 import { photoRepositoryContract } from './contracts/photoRepositoryContract'
 import { aClipJob, aPhoto, atPlus } from './builders'
+import { FakeClientRepository } from './fakeClientRepository'
 import { FakeClipJobRepository } from './fakeClipJobRepository'
 import { FakePhotoRepository } from './fakePhotoRepository'
 
@@ -11,7 +12,10 @@ photoRepositoryContract('fake', async () => {
   // and the two must then answer the same number the SQLite adapter's single statement
   // does.
   const clips = new FakeClipJobRepository()
-  const repo = new FakePhotoRepository().chargeStagedBytesFrom(clips)
+  // The client link is `events.client_id`, which the fake photo repository cannot see on
+  // its own either: it is handed the clients fake, as it is handed the queue.
+  const clients = new FakeClientRepository()
+  const repo = new FakePhotoRepository().chargeStagedBytesFrom(clips).chargeClientBytesFrom(clients)
   let staged = 0
 
   return {
@@ -26,6 +30,9 @@ photoRepositoryContract('fake', async () => {
       })
       clips.seed(job)
       return job.id
+    },
+    placeEventsInClient: async (clientId, eventIds): Promise<void> => {
+      for (const eventId of eventIds) clients.linkEvent(eventId, clientId)
     },
   }
 })

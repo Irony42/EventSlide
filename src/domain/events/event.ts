@@ -1,3 +1,4 @@
+import type { ClientCeilings } from '../clients/clientCeilings'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 import type { ClientId, EventId, UserId } from '../shared/ids'
@@ -44,6 +45,18 @@ export interface EventProps {
   readonly clientId: ClientId | null
   /** When the event stopped running. Starts the retention clock; `null` while it runs. */
   readonly closedAt: Date | null
+  /**
+   * When the event **first** went live, or `null` if it never has.
+   *
+   * Recorded for every event, with a client or without, because it is a fact about the
+   * event; only an event that belongs to a client has a rule hung on it (`max_live_days`,
+   * roadmap §10.5 / G2-05). It is set once and **never moves**: a reopening does not restamp
+   * it, and that is the whole point. The live window and the latest purge date are both
+   * counted from here, so a host who closes and reopens an event cannot buy a fresh window,
+   * and `closedAt` — which a reopening clears — cannot be what decides how long a public
+   * wall stays up.
+   */
+  readonly openedAt: Date | null
   /**
    * When the doors should open by themselves, or `null` for "I will open them".
    *
@@ -170,6 +183,7 @@ export class Event {
         startsAt: input.startsAt,
         clientId: input.clientId,
         closedAt: null,
+        openedAt: null,
         // Not part of `NewEvent`: a schedule is a decision the host makes on the event
         // they are looking at, not one more field on a form that asks for a name.
         scheduledOpenAt: null,
@@ -237,6 +251,11 @@ export class Event {
     return this.props.closedAt
   }
 
+  /** See {@link EventProps.openedAt}. */
+  get openedAt(): Date | null {
+    return this.props.openedAt
+  }
+
   get scheduledOpenAt(): Date | null {
     return this.props.scheduledOpenAt
   }
@@ -251,23 +270,46 @@ export class Event {
 
   // ----------------------------------------------------------------- lifecycle --
 
-  goLive(at: Date): Result<Event, DomainError> {
-    return this.transitionTo('live', at)
+  goLive(at: Date, ceilings: ClientCeilings | null = null): Result<Event, DomainError> {
+    return this.transitionTo('live', at, ceilings)
   }
 
-  close(at: Date): Result<Event, DomainError> {
-    return this.transitionTo('closed', at)
+  close(at: Date, ceilings: ClientCeilings | null = null): Result<Event, DomainError> {
+    return this.transitionTo('closed', at, ceilings)
   }
 
-  archive(at: Date): Result<Event, DomainError> {
-    return this.transitionTo('archived', at)
+  archive(at: Date, ceilings: ClientCeilings | null = null): Result<Event, DomainError> {
+    return this.transitionTo('archived', at, ceilings)
   }
 
   /**
    * The single gate for every status change. A no-op transition succeeds, so a host
    * who clicks the close button twice gets a success rather than a confusing conflict.
+   *
+   * `ceilings` is the client's, for an event that has one, and `null` for an event with
+   * none — which is **every event on a box that has no clients, and then nothing below runs
+   * at all**: the same legality table, the same `closedAt`, the same result as before
+   * there were ceilings. What it adds is one more way to say no, and only to going **live**:
+   *
+   * - `403 client.liveNotAllowed` — the client may not be live (`live_allowed = 0`);
+   * - `403 client.liveWindowOver` — `opened_at + max_live_days <= at`. This is what closes
+   *   the hole `closed → live` leaves: reopening clears `closedAt`, so a host pressing one
+   *   button a month would otherwise keep a public wall, and the photographs behind it, for
+   *   ever. `openedAt` is stamped once and a reopening does not move it, so the window
+   *   cannot be renewed from here.
+   *
+   * It is asked **after** the lifecycle table, so an archived event is still the
+   * `409 event.illegalTransition` it has always been, and **only for a real change of
+   * state**: an event already live that is told to go live succeeds unchanged, because
+   * refusing a double click would answer an idempotent request with an error about a
+   * window it did not touch. Closing and archiving are never refused here — taking a wall
+   * down is what every ceiling wants.
    */
-  transitionTo(next: EventStatus, at: Date): Result<Event, DomainError> {
+  transitionTo(
+    next: EventStatus,
+    at: Date,
+    ceilings: ClientCeilings | null = null,
+  ): Result<Event, DomainError> {
     if (!canTransition(this.props.status, next)) {
       return err(
         DomainError.conflict('event.illegalTransition', {
@@ -276,7 +318,34 @@ export class Event {
         }),
       )
     }
-    return ok(this.with({ status: next, closedAt: this.closedAtAfter(next, at) }))
+
+    const opening = next === 'live' && this.props.status !== 'live'
+    if (opening && ceilings !== null) {
+      const refusal = ceilings.openingRefusal(this.props.openedAt, at)
+      if (refusal !== null) return err(DomainError.forbidden(`client.${refusal}`))
+    }
+
+    return ok(
+      this.with({
+        status: next,
+        closedAt: this.closedAtAfter(next, at),
+        openedAt: opening ? (this.props.openedAt ?? at) : this.props.openedAt,
+      }),
+    )
+  }
+
+  /**
+   * Whether this event is live past its client's live window, and so is due to be closed
+   * by the sweep. `false` for an event with no client (`ceilings` is `null`) — no window,
+   * so nothing to take down — and for any status but `live`, because only a live event has a
+   * wall to take down and a closed one is already on the retention clock.
+   */
+  isLiveWindowOver(now: Date, ceilings: ClientCeilings | null): boolean {
+    return (
+      this.props.status === 'live' &&
+      ceilings !== null &&
+      ceilings.liveWindowOver(this.props.openedAt, now)
+    )
   }
 
   /**
@@ -291,6 +360,44 @@ export class Event {
     if (next === 'live') return null
     if (retentionApplies(next)) return this.props.closedAt ?? at
     return this.props.closedAt
+  }
+
+  /**
+   * The event with its opening recorded, for a **live** event that has none; `null` when there
+   * is nothing to record.
+   *
+   * Such an event exists: `openedAt` is stamped by the transition to live, and an event made live
+   * before the column was written (a client's event between `client_id` and this rule) has
+   * none. Left as it is, it would have no window at all — {@link ClientCeilings.liveWindowOver}
+   * is `false` for an event that never opened — and would stay up for ever, which is the very
+   * outcome the window is for. So the sweep gives it one **starting now**. Not at `createdAt`:
+   * that is when a draft was made, perhaps months ago, and counting from it would close a wall
+   * during the party it was opened for.
+   */
+  recordOpening(now: Date): Event | null {
+    if (this.props.status !== 'live' || this.props.openedAt !== null) return null
+    return this.with({ openedAt: now })
+  }
+
+  /**
+   * The event after the sweep took it down because its client's live window ran out, or
+   * `null` when the window has not run out (or the event has no window to run out).
+   *
+   * Closed, not archived: the album stays readable and the host keeps the export, and the
+   * retention clock starts here exactly as it does for any other closing. It goes straight to
+   * the `closed` state instead of through {@link Event.transitionTo} because the only way to
+   * get past {@link Event.isLiveWindowOver} is to be live, and `live → closed` is a row of
+   * the lifecycle table that no ceiling can refuse — taking a wall down is what every
+   * ceiling wants.
+   *
+   * `closedAt` is `now`, the moment the sweep acted, not the deadline: the box may have been
+   * down, and the retention clock starts when the event actually stopped. The latest purge
+   * date does not move with it — `purgeDeadline` counts the live-window bound from
+   * `openedAt`, which this leaves alone.
+   */
+  expireLiveWindow(now: Date, ceilings: ClientCeilings | null): Event | null {
+    if (!this.isLiveWindowOver(now, ceilings)) return null
+    return this.with({ status: 'closed', closedAt: this.closedAtAfter('closed', now) })
   }
 
   // ------------------------------------------------------------------- schedule --
@@ -378,7 +485,9 @@ export class Event {
    *
    * Every transition goes through {@link transitionTo}, so a scheduled open is refused
    * for exactly the reasons a manual one is. An archived event does not quietly reopen
-   * because a timestamp passed.
+   * because a timestamp passed — and neither does one whose client may not be live, or
+   * whose live window is over: that opening is reported `refused`, the instant is spent, and
+   * the host is left the notice below.
    *
    * **A due instant is spent whether or not it was honoured.** Clearing it is what makes
    * the sweep idempotent — the second run finds nothing due and changes nothing — and it
@@ -387,7 +496,7 @@ export class Event {
    * `scheduleDiscardedAt` rather than only in the server's log, because the thing that
    * was thrown away is something the host typed and they are not watching the screen.
    */
-  applySchedule(now: Date): ScheduleApplication {
+  applySchedule(now: Date, ceilings: ClientCeilings | null = null): ScheduleApplication {
     const outcome: { applied: ScheduledTransition[]; refused: ScheduledTransition[] } = {
       applied: [],
       refused: [],
@@ -396,11 +505,18 @@ export class Event {
     const afterOpen = this.isDueToOpen(now)
       ? // A no-op when the event is already live: the transition table allows it, and
         // reporting the schedule as honoured is truer than silently dropping it.
-        this.runScheduled('open', 'live', now, outcome, { scheduledOpenAt: null })
+        this.runScheduled('open', 'live', now, outcome, { scheduledOpenAt: null }, ceilings)
       : this
 
     const afterClose = afterOpen.isDueToClose(now)
-      ? afterOpen.runScheduled('close', 'closed', now, outcome, { scheduledCloseAt: null })
+      ? afterOpen.runScheduled(
+          'close',
+          'closed',
+          now,
+          outcome,
+          { scheduledCloseAt: null },
+          ceilings,
+        )
       : afterOpen
 
     const event =
@@ -416,8 +532,9 @@ export class Event {
     now: Date,
     outcome: { applied: ScheduledTransition[]; refused: ScheduledTransition[] },
     spent: Partial<EventProps>,
+    ceilings: ClientCeilings | null,
   ): Event {
-    const moved = this.transitionTo(to, now)
+    const moved = this.transitionTo(to, now, ceilings)
     if (moved.ok) outcome.applied.push(transition)
     else outcome.refused.push(transition)
     return (moved.ok ? moved.value : this).with(spent)
@@ -493,14 +610,37 @@ export class Event {
    * the one the repository takes inside the write transaction. Both call the same
    * arithmetic in `./quota` so the answer a guest is given and the answer the database
    * acts on cannot differ.
+   *
+   * `ceilings` is the event's client's, when it has one: the quota is then the
+   * {@link Event.effectiveQuotaBytes}, not the stored number. Left out, it is the stored number.
    */
-  hasQuotaFor(additionalBytes: number, usedBytes: number): boolean {
-    return fitsInQuota(this.props.quotaBytes, usedBytes, additionalBytes)
+  hasQuotaFor(
+    additionalBytes: number,
+    usedBytes: number,
+    ceilings: ClientCeilings | null = null,
+  ): boolean {
+    return fitsInQuota(this.effectiveQuotaBytes(ceilings), usedBytes, additionalBytes)
   }
 
-  /** What is left of the quota, never negative. See `./quota`. */
-  remainingQuota(usedBytes: number): number {
-    return remainingQuota(this.props.quotaBytes, usedBytes)
+  /**
+   * The quota an upload is judged against: the event's own, **lowered** to its client's
+   * `max_event_quota_bytes` when that is smaller, and never raised.
+   *
+   * `createEvent` refuses a quota above the ceiling, so for an event created under it this
+   * is the event's own number. It is not redundant: an operator can lower the ceiling later,
+   * and an event created before that keeps the larger number it was given. The downgrade rule
+   * is that **new writes** are refused past the ceiling, so every write path asks this
+   * instead of reading `quotaBytes`, and nothing already stored is touched.
+   *
+   * `null` is no client, and no client is no ceiling: the answer is `quotaBytes` itself.
+   */
+  effectiveQuotaBytes(ceilings: ClientCeilings | null): number {
+    return ceilings === null ? this.props.quotaBytes : ceilings.clampQuota(this.props.quotaBytes)
+  }
+
+  /** What is left of the quota, never negative. See `./quota`, and `hasQuotaFor` for `ceilings`. */
+  remainingQuota(usedBytes: number, ceilings: ClientCeilings | null = null): number {
+    return remainingQuota(this.effectiveQuotaBytes(ceilings), usedBytes)
   }
 
   // ------------------------------------------------------------------ retention --
@@ -521,11 +661,6 @@ export class Event {
     const closedAt = this.props.closedAt
     if (closedAt === null) return null
     return new Date(closedAt.getTime() + retentionDays * MS_PER_DAY)
-  }
-
-  isDueForPurge(now: Date): boolean {
-    const deadline = this.retentionDeadline()
-    return deadline !== null && now.getTime() >= deadline.getTime()
   }
 
   // -------------------------------------------------------------------- helpers --

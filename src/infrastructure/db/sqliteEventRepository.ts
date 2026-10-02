@@ -3,6 +3,7 @@ import type {
   EventOwnerGrant,
   EventRepository,
   EventSummary,
+  PurgePolicy,
 } from '../../application/ports/eventRepository'
 import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { Event } from '../../domain/events/event'
@@ -58,12 +59,13 @@ interface EventRow {
   readonly starts_at: string | null
   readonly client_id: string | null
   readonly closed_at: string | null
+  readonly opened_at: string | null
   readonly scheduled_open_at: string | null
   readonly scheduled_close_at: string | null
   readonly schedule_discarded_at: string | null
 }
 
-/** Named rather than positional: fifteen columns in the right order by luck is no plan. */
+/** Named rather than positional: sixteen columns in the right order by luck is no plan. */
 interface EventParams {
   readonly id: string
   readonly ownerId: string
@@ -77,6 +79,7 @@ interface EventParams {
   readonly startsAt: string | null
   readonly clientId: string | null
   readonly closedAt: string | null
+  readonly openedAt: string | null
   readonly scheduledOpenAt: string | null
   readonly scheduledCloseAt: string | null
   readonly scheduleDiscardedAt: string | null
@@ -103,8 +106,94 @@ interface CountRow {
 }
 
 const EVENT_COLUMNS = `id, owner_id, name, slug, join_code, status, settings, quota_bytes,
-                       created_at, starts_at, client_id, closed_at, scheduled_open_at,
-                       scheduled_close_at, schedule_discarded_at`
+                       created_at, starts_at, client_id, closed_at, opened_at,
+                       scheduled_open_at, scheduled_close_at, schedule_discarded_at`
+
+/**
+ * `strftime`'s format for every instant this query builds, so each one is ISO-8601 to the
+ * millisecond and compares lexicographically against `now` and against the stored columns.
+ * `%f` is `SS.sss`: a deadline formatted to whole seconds would compare as later than the
+ * instant it should match, and the last album of the night would never be collected.
+ */
+const ISO = `'%Y-%m-%dT%H:%M:%fZ'`
+
+/**
+ * `events.settings` is JSON, and the host's own retention lives in it, so the deadline stays
+ * in one query: hydrating every closed event to ask the entity would make the nightly purge
+ * scale with the size of the archive rather than with what is actually due.
+ */
+const HOST_RETENTION_DAYS = `json_extract(e.settings, '$.retentionDays')`
+
+/**
+ * `retention_cap_since + :noticeDays` for an album that was **already closed** when the ceiling
+ * was lowered, and the beginning of time otherwise — nobody lowered anything, or the album was
+ * closed after, under the lower ceiling from its first day. `closed_at` and
+ * `retention_cap_since` are both ISO-8601 text to the millisecond, so `<` is the instant order.
+ */
+const NOTICE_FLOOR = `COALESCE(
+    CASE WHEN e.closed_at < c.retention_cap_since
+         THEN strftime(${ISO}, c.retention_cap_since, '+' || :noticeDays || ' days') END,
+    '0000')`
+
+/**
+ * **The purge deadline, in SQL — `purgeDeadline` in the domain, spelled a second time.**
+ * `eventRepositoryContract` runs one table of scenarios through both and requires this to
+ * list an event from the exact millisecond the function names, so a change to either is
+ * refused until the other follows. See that function for what each candidate is and why.
+ *
+ * Four candidates, each **`NULL` when it does not apply**, and the earliest wins:
+ *
+ * - `own`: `closed_at + the host's retentionDays`;
+ * - `cap`: `max(closed_at + c.max_retention_days, notice floor)`, when the client has a
+ *   retention ceiling;
+ * - `live`: `max(opened_at + c.max_live_days + c.max_retention_days, notice floor)`, when
+ *   the event opened, and the client has both a window and a ceiling;
+ * - `c.purge_after`.
+ *
+ * **Every `NULL` is replaced by a sentinel in the far future before the scalar `MIN`**, and
+ * that is the whole fix. SQLite's multi-argument `MIN(a, b)` is `NULL` when either argument
+ * is, so the previous shape — guard `retentionDays IS NOT NULL`, then compare — would, once
+ * a client ceiling was added to it as a second argument, have made an event kept "for ever"
+ * under a ceiling the one thing never purged. A candidate that does not apply is the
+ * sentinel, which is never due, and the others decide.
+ *
+ * A left join, so an event with no client has `c` all `NULL` and only `own` contributes —
+ * which is what it has always been.
+ */
+const PURGE_DEADLINE_SQL = `MIN(
+  COALESCE(
+    CASE WHEN ${HOST_RETENTION_DAYS} IS NULL THEN NULL
+         ELSE strftime(${ISO}, e.closed_at, '+' || ${HOST_RETENTION_DAYS} || ' days') END,
+    :never),
+  COALESCE(
+    CASE WHEN c.max_retention_days IS NULL THEN NULL
+         ELSE MAX(strftime(${ISO}, e.closed_at, '+' || c.max_retention_days || ' days'),
+                  ${NOTICE_FLOOR}) END,
+    :never),
+  COALESCE(
+    CASE WHEN c.max_retention_days IS NULL OR c.max_live_days IS NULL OR e.opened_at IS NULL
+         THEN NULL
+         ELSE MAX(strftime(${ISO}, e.opened_at,
+                           '+' || (c.max_live_days + c.max_retention_days) || ' days'),
+                  ${NOTICE_FLOOR}) END,
+    :never),
+  COALESCE(c.purge_after, :never)
+)`
+
+/** After every instant this product will ever store, so a candidate that is not due is never due. */
+const NEVER = '9999-12-31T23:59:59.999Z'
+
+interface PurgeParams {
+  readonly now: string
+  readonly noticeDays: number
+  readonly never: string
+}
+
+const qualified = (alias: string, columns: string): string =>
+  columns
+    .split(',')
+    .map((column) => `${alias}.${column.trim()}`)
+    .join(', ')
 
 const corrupt = (column: string, detail: string): Error =>
   new Error(`Corrupt events.${column} in the database: ${detail}`)
@@ -345,6 +434,7 @@ const toEvent = (row: EventRow): Event =>
     startsAt: fromNullableIsoText(row.starts_at),
     clientId: row.client_id === null ? null : asClientId(row.client_id),
     closedAt: fromNullableIsoText(row.closed_at),
+    openedAt: fromNullableIsoText(row.opened_at),
     scheduledOpenAt: fromNullableIsoText(row.scheduled_open_at),
     scheduledCloseAt: fromNullableIsoText(row.scheduled_close_at),
     scheduleDiscardedAt: fromNullableIsoText(row.schedule_discarded_at),
@@ -377,6 +467,7 @@ const toParams = (event: Event): EventParams => {
     startsAt: props.startsAt === null ? null : toIsoText(props.startsAt),
     clientId: props.clientId,
     closedAt: props.closedAt === null ? null : toIsoText(props.closedAt),
+    openedAt: props.openedAt === null ? null : toIsoText(props.openedAt),
     scheduledOpenAt: props.scheduledOpenAt === null ? null : toIsoText(props.scheduledOpenAt),
     scheduledCloseAt: props.scheduledCloseAt === null ? null : toIsoText(props.scheduledCloseAt),
     scheduleDiscardedAt:
@@ -389,8 +480,9 @@ export class SqliteEventRepository implements EventRepository {
   private readonly selectBySlug: Database.Statement<[string], EventRow>
   private readonly selectByJoinCode: Database.Statement<[string], EventRow>
   private readonly selectSummaries: Database.Statement<[string, string], SummaryRow>
-  private readonly selectDueForPurge: Database.Statement<[string], EventRow>
+  private readonly selectDueForPurge: Database.Statement<PurgeParams, EventRow>
   private readonly selectDueForSchedule: Database.Statement<[string, string], EventRow>
+  private readonly selectLiveOfClients: Database.Statement<[], EventRow>
   private readonly selectSlug: Database.Statement<[string], PresenceRow>
   private readonly selectJoinCode: Database.Statement<[string], PresenceRow>
   private readonly insertEvent: Database.Statement<EventParams>
@@ -441,24 +533,18 @@ export class SqliteEventRepository implements EventRepository {
         ORDER BY e.created_at DESC, e.id`,
     )
 
-    // The retention deadline is `closed_at + settings.retentionDays`, and retentionDays
-    // lives inside the JSON column — so `json_extract` keeps the whole decision in one
-    // query. Hydrating every closed event to ask the entity would make the nightly
-    // purge scale with the size of the archive rather than with what is actually due.
-    //
-    // The `%f` format emits `SS.sss`, so the computed deadline is ISO-8601 to the
-    // millisecond and compares lexicographically against `now` — the same
-    // `now >= deadline` that `Event.isDueForPurge` applies. A null retentionDays means
-    // "keep the album forever" and yields no deadline, hence the explicit guard.
-    this.selectDueForPurge = db.prepare<[string], EventRow>(
-      `SELECT ${EVENT_COLUMNS}
-         FROM events
-        WHERE status IN ('closed', 'archived')
-          AND closed_at IS NOT NULL
-          AND json_extract(settings, '$.retentionDays') IS NOT NULL
-          AND strftime('%Y-%m-%dT%H:%M:%fZ', closed_at,
-                       '+' || json_extract(settings, '$.retentionDays') || ' days') <= ?
-        ORDER BY created_at DESC, id`,
+    // The deadline is `PURGE_DEADLINE_SQL` — the host's retention, the client's ceiling, the
+    // live-window bound and `purge_after` — compared as the same `now >= deadline` that
+    // `purgeDeadline` applies. The columns are qualified because `clients` shares names
+    // with `events` (`id`, `created_at`).
+    this.selectDueForPurge = db.prepare<PurgeParams, EventRow>(
+      `SELECT ${qualified('e', EVENT_COLUMNS)}
+         FROM events e
+         LEFT JOIN clients c ON c.id = e.client_id
+        WHERE e.status IN ('closed', 'archived')
+          AND e.closed_at IS NOT NULL
+          AND ${PURGE_DEADLINE_SQL} <= :now
+        ORDER BY e.created_at DESC, e.id`,
     )
 
     // The scheduling sweep's query, and the one read in this repository that is not
@@ -476,6 +562,16 @@ export class SqliteEventRepository implements EventRepository {
         ORDER BY created_at DESC, id`,
     )
 
+    // The live-window sweep's candidates: live, and with a client. Narrowing only — the
+    // deadline is `ClientCeilings.liveWindowOver`, applied by the use case, so it is spelled
+    // once. `idx_events_client` serves the `client_id IS NOT NULL` half.
+    this.selectLiveOfClients = db.prepare<[], EventRow>(
+      `SELECT ${EVENT_COLUMNS}
+         FROM events
+        WHERE status = 'live' AND client_id IS NOT NULL
+        ORDER BY created_at DESC, id`,
+    )
+
     this.selectSlug = db.prepare<[string], PresenceRow>(
       `SELECT 1 AS present FROM events WHERE slug = ? LIMIT 1`,
     )
@@ -487,10 +583,10 @@ export class SqliteEventRepository implements EventRepository {
     // The column list exists once. `createWithOwner` inserts with it and `save` appends an
     // `ON CONFLICT` to it, so a column added to one cannot be forgotten by the other.
     const insertSql = `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
-                           quota_bytes, created_at, starts_at, client_id, closed_at,
+                           quota_bytes, created_at, starts_at, client_id, closed_at, opened_at,
                            scheduled_open_at, scheduled_close_at, schedule_discarded_at)
             VALUES (@id, @ownerId, @name, @slug, @joinCode, @status, @settings,
-                    @quotaBytes, @createdAt, @startsAt, @clientId, @closedAt,
+                    @quotaBytes, @createdAt, @startsAt, @clientId, @closedAt, @openedAt,
                     @scheduledOpenAt, @scheduledCloseAt, @scheduleDiscardedAt)`
 
     this.insertEvent = db.prepare<EventParams>(insertSql)
@@ -511,6 +607,7 @@ export class SqliteEventRepository implements EventRepository {
                                       created_at  = excluded.created_at,
                                       starts_at   = excluded.starts_at,
                                       closed_at   = excluded.closed_at,
+                                      opened_at   = excluded.opened_at,
                                       scheduled_open_at  = excluded.scheduled_open_at,
                                       scheduled_close_at = excluded.scheduled_close_at,
                                       schedule_discarded_at = excluded.schedule_discarded_at`,
@@ -646,8 +743,14 @@ export class SqliteEventRepository implements EventRepository {
     return this.selectJoinCode.get(code.value) !== undefined
   }
 
-  async listDueForPurge(now: Date): Promise<readonly Event[]> {
-    return this.selectDueForPurge.all(toIsoText(now)).map(toEvent)
+  async listDueForPurge(now: Date, policy: PurgePolicy): Promise<readonly Event[]> {
+    return this.selectDueForPurge
+      .all({ now: toIsoText(now), noticeDays: policy.capNoticeDays, never: NEVER })
+      .map(toEvent)
+  }
+
+  async listLiveOfClients(): Promise<readonly Event[]> {
+    return this.selectLiveOfClients.all().map(toEvent)
   }
 
   async listDueForSchedule(now: Date): Promise<readonly Event[]> {

@@ -13,6 +13,8 @@ describe('classifyClipFailure', () => {
     'clip.sourceMissing',
     'event.quotaExceeded',
     'event.photoLimitReached',
+    'client.storageFull',
+    'client.clipsNotAllowed',
   ])('treats %s as a property of the file, not of the machine', (code) => {
     expect(classifyClipFailure(code)).toBe('permanent')
   })

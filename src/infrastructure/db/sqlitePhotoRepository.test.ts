@@ -1,5 +1,8 @@
 import type Database from 'better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   PHOTO_CONTRACT_FIXTURES,
   photoRepositoryContract,
@@ -8,6 +11,7 @@ import type { PhotoAdmissionLimits, PhotoPage } from '../../application/ports/ph
 import { AT, aPhoto, atPlus, type AuthorInput } from '../../application/testing/builders'
 import type { Photo, PhotoReview } from '../../domain/photos/photo'
 import {
+  asClientId,
   asClipJobId,
   asEventId,
   asPhotoId,
@@ -99,6 +103,17 @@ photoRepositoryContract('sqlite', async () => {
         ISO_AT,
       )
       return asClipJobId(`clip-${staged}`)
+    },
+    /**
+     * A `clients` row and `events.client_id`, in raw SQL for the reason the clip fixture
+     * above is: the photo contract must not depend on the client or event repositories.
+     */
+    placeEventsInClient: async (clientId, eventIds): Promise<void> => {
+      db.prepare<[string, string, string]>(
+        `INSERT OR IGNORE INTO clients (id, name, created_at) VALUES (?, ?, ?)`,
+      ).run(clientId, clientId, ISO_AT)
+      const attach = db.prepare<[string, string]>(`UPDATE events SET client_id = ? WHERE id = ?`)
+      for (const eventId of eventIds) attach.run(clientId, eventId)
     },
     dispose: async () => closeDatabase(db),
   }
@@ -536,5 +551,90 @@ describe('SqlitePhotoRepository', () => {
     insertRawPhoto(db, row)
 
     await expect(repo.findById(WEDDING, asPhotoId('p-raw'))).rejects.toThrow()
+  })
+})
+
+// ------------------------------------------------------- two connections, one file --
+
+/** better-sqlite3 exposes a stable `code`; the message is not part of the contract. */
+const sqliteCodeOf = (thrown: unknown): string =>
+  thrown instanceof Error && 'code' in thrown && typeof thrown.code === 'string'
+    ? thrown.code
+    : `not a SqliteError: ${String(thrown)}`
+
+describe('SqlitePhotoRepository over two connections', () => {
+  it('holds the write lock from the first read, so a second event of the client cannot spend what the first is reading', async () => {
+    // `max_total_bytes` is a sum compared against a number, and two uploads to two events of
+    // one client that both read a sum under the ceiling would both write. That interleaving
+    // needs two connections, so this runs on a file: the second connection tries to store
+    // its photograph at the instant between the first one's reads and its write, which is
+    // where `saveManyWithinLimits` reads `photo.author`. A deferred transaction holds no write
+    // lock yet, lets the intruder in, and fails its own write against a stale snapshot.
+    const directory = mkdtempSync(join(tmpdir(), 'eventslide-photos-'))
+    const path = join(directory, 'eventslide.sqlite')
+    const first = openDatabase({ path })
+    const second = openDatabase({ path })
+
+    try {
+      migrate(first, migrations)
+      seedForeignRows(first)
+      first
+        .prepare<[string]>(`INSERT INTO clients (id, name, created_at) VALUES ('client-1', 'c', ?)`)
+        .run(ISO_AT)
+      first
+        .prepare(`UPDATE events SET client_id = 'client-1' WHERE id IN ('evt-wedding', 'evt-gala')`)
+        .run()
+      // No waiting: the intruder must be refused on the spot, not queued behind the lock.
+      second.pragma('busy_timeout = 0')
+
+      const limits: PhotoAdmissionLimits = {
+        quotaBytes: Number.MAX_SAFE_INTEGER,
+        maxPhotosPerGuest: null,
+        clientBytes: { clientId: asClientId('client-1'), maxBytes: 2_000_000 },
+      }
+      const mine = aPhoto({ id: 'mine', eventId: WEDDING, byteSize: 1_500_000 })
+      const theirs = aPhoto({
+        id: 'theirs',
+        eventId: GALA,
+        author: SAM,
+        byteSize: 1_500_000,
+        contentHash: 'b'.repeat(64),
+      })
+
+      let intrusion: Promise<unknown> | null = null
+      const author = mine.author
+      vi.spyOn(mine, 'author', 'get').mockImplementation(() => {
+        intrusion ??= new SqlitePhotoRepository(second)
+          .saveManyWithinLimits(GALA, [theirs], limits)
+          .then(
+            () => null,
+            (thrown: unknown) => thrown,
+          )
+        return author
+      })
+
+      const admissions = await new SqlitePhotoRepository(first).saveManyWithinLimits(
+        WEDDING,
+        [mine],
+        limits,
+      )
+
+      expect(admissions.map((admission) => admission.refusal)).toEqual([null])
+      expect(sqliteCodeOf(await (intrusion ?? Promise.resolve('the intruder never ran')))).toBe(
+        'SQLITE_BUSY',
+      )
+      expect(
+        first
+          .prepare<[], { readonly total: number }>(
+            `SELECT COALESCE(SUM(byte_size), 0) AS total FROM photos`,
+          )
+          .get()?.total,
+      ).toBe(1_500_000)
+    } finally {
+      vi.restoreAllMocks()
+      closeDatabase(first)
+      closeDatabase(second)
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 })

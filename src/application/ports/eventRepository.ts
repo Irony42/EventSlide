@@ -24,6 +24,20 @@ export interface EventSummary {
   readonly createdAt: Date
 }
 
+/**
+ * What the purge needs from configuration that the rows themselves do not carry.
+ *
+ * A policy rather than a bare number, so the next knob is a field and not a third
+ * positional argument on a method whose two existing ones are both `Date`-shaped.
+ */
+export interface PurgePolicy {
+  /**
+   * `RETENTION_CAP_NOTICE_DAYS`: how long after a client's retention ceiling was lowered
+   * an event under it may not yet be purged on that ceiling's account. See `purgeDeadline`.
+   */
+  readonly capNoticeDays: number
+}
+
 /** The membership a new event is created with: its creator, as owner. */
 export interface EventOwnerGrant {
   readonly userId: UserId
@@ -111,8 +125,37 @@ export interface EventRepository {
 
   joinCodeTaken(code: JoinCode): Promise<boolean>
 
-  /** Closed or archived events whose retention deadline has passed. */
-  listDueForPurge(now: Date): Promise<readonly Event[]>
+  /**
+   * Closed or archived events whose purge deadline has passed.
+   *
+   * The deadline is `purgeDeadline` in the domain, and an event with a client is judged
+   * against that client's ceilings: the host's own retention, **and** the client's
+   * `max_retention_days` (so an event kept "for ever" is not kept for ever), **and** the
+   * bound that a reopening cannot move (`opened_at + max_live_days + max_retention_days`),
+   * **and** the notice a lowered ceiling is owed, **and** the client's `purge_after`. An
+   * event with no client is judged on its own retention alone, exactly as before there were
+   * clients, and one kept for ever is never listed.
+   *
+   * **No `NULL` anywhere makes an event undue that should be due**, or crashes the listing:
+   * every one of those inputs may be absent and each absent one simply contributes nothing.
+   *
+   * Both implementations answer the same `now >= deadline`, and the contract suite runs one
+   * table of scenarios through them and `purgeDeadline` together.
+   */
+  listDueForPurge(now: Date, policy: PurgePolicy): Promise<readonly Event[]>
+
+  /**
+   * Live events that belong to a client: the candidates for closing an event whose client's
+   * live window has run out (`max_live_days`, roadmap §10.5 / G2-05).
+   *
+   * A **narrowing**, in the way {@link EventRepository.listDueForSchedule} is: which rows are
+   * worth looking at, not whether any of them is due. The deadline is
+   * `ClientCeilings.liveWindowOver`, applied by the caller, so it has one spelling; the cost
+   * is reading every live event of a client each sweep, which is the events a box is serving
+   * right now and not an archive. An event with no client has no window and is never listed.
+   * Newest first, like every listing here.
+   */
+  listLiveOfClients(): Promise<readonly Event[]>
 
   /**
    * Events carrying a scheduled opening or closing whose instant has passed.

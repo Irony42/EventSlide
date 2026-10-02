@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import cookieParser from 'cookie-parser'
 import express, { type Express, type RequestHandler } from 'express'
 import session from 'express-session'
+import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
 import { FakeClock } from '../../../application/testing/fakeClock'
 import { FakeDiskSpaceChecker } from '../../../application/testing/fakeDiskSpaceChecker'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
@@ -94,6 +95,13 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
 export interface TestWorld {
   readonly deps: HttpDeps
   readonly events: FakeEventRepository
+  /**
+   * The clients the world's events may belong to — linked to `events`, so an event seeded
+   * with a `clientId` finds its client's ceilings. A use case built over this world takes it as
+   * its own `clients`, which is what lets an HTTP test arrange a client with ceilings and see
+   * the real route answer with the real refusal.
+   */
+  readonly clients: FakeClientRepository
   readonly guests: FakeGuestRepository
   readonly memberships: FakeMembershipRepository
   /** Accounts, for the one thing the HTTP layer asks them: who operates the box. */
@@ -116,7 +124,10 @@ export const buildTestWorld = (
   options: { readonly logger?: Logger } = {},
 ): TestWorld => {
   const clock = new FakeClock(AT)
-  const events = new FakeEventRepository()
+  // Linked: an event seeded with a `clientId` names a client that has to exist, exactly as the
+  // foreign key says, and a world with no client in it behaves as it always did.
+  const clients = new FakeClientRepository()
+  const events = new FakeEventRepository({ clients })
   const guests = new FakeGuestRepository()
   const users = new FakeUserRepository()
   // Linked, because `roleFor` is a join over `users` in SQLite in both directions that
@@ -149,6 +160,7 @@ export const buildTestWorld = (
   return {
     deps,
     events,
+    clients,
     guests,
     diskSpaceChecker,
     memberships,
@@ -173,7 +185,7 @@ export interface HarnessOptions {
    * fake user in, so a test does not have to drive a real login to reach an
    * authenticated route.
    */
-  readonly routes: (app: Express, deps: HttpDeps) => void
+  readonly routes: (app: Express, deps: HttpDeps, world: TestWorld) => void
   /**
    * Whether to mount `express-session`. On by default, because almost every route
    * needs a principal.
@@ -232,7 +244,7 @@ export const buildHarness = ({
   app.use(enforceSessionAge(deps))
   app.use(attachUser())
 
-  routes(app, deps)
+  routes(app, deps, world)
 
   app.use(errorHandler())
 

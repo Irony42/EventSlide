@@ -380,3 +380,165 @@ describe('ClientCeilings.clipsAllowed', () => {
     expect(ClientCeilings.unlimited().clipsAllowed).toBe(true)
   })
 })
+
+describe('ClientCeilings.quotaBound', () => {
+  it('is no bound at all when neither the box nor the client has one', () => {
+    expect(ClientCeilings.unlimited().quotaBound(null)).toBeNull()
+  })
+
+  it('is the box ceiling when the client has none', () => {
+    expect(ClientCeilings.unlimited().quotaBound(5_000)).toBe(5_000)
+  })
+
+  it('is the client ceiling when the box has none', () => {
+    const ceilings = must(ClientCeilings.create({ maxEventQuotaBytes: 2_000 }))
+
+    expect(ceilings.quotaBound(null)).toBe(2_000)
+  })
+
+  it('is the smaller of the two, whichever side it comes from', () => {
+    const ceilings = must(ClientCeilings.create({ maxEventQuotaBytes: 2_000 }))
+
+    expect(ceilings.quotaBound(5_000)).toBe(2_000)
+    expect(ceilings.quotaBound(1_000)).toBe(1_000)
+  })
+})
+
+describe('ClientCeilings.clampQuota', () => {
+  it('leaves a quota alone with no ceiling at all', () => {
+    expect(ClientCeilings.unlimited().clampQuota(9_000)).toBe(9_000)
+  })
+
+  it('lowers a quota above the ceiling to the ceiling', () => {
+    const ceilings = must(ClientCeilings.create({ maxEventQuotaBytes: 2_000 }))
+
+    expect(ceilings.clampQuota(9_000)).toBe(2_000)
+  })
+
+  it('keeps a quota already at or under the ceiling', () => {
+    const ceilings = must(ClientCeilings.create({ maxEventQuotaBytes: 2_000 }))
+
+    expect(ceilings.clampQuota(2_000)).toBe(2_000)
+    expect(ceilings.clampQuota(500)).toBe(500)
+  })
+})
+
+describe('ClientCeilings.admitsRetention', () => {
+  it('admits anything, "keep forever" included, with no ceiling at all', () => {
+    expect(ClientCeilings.unlimited().admitsRetention(null)).toBe(true)
+    expect(ClientCeilings.unlimited().admitsRetention(3_650)).toBe(true)
+  })
+
+  it('refuses "keep forever" once a ceiling exists, because forever is what the ceiling is for', () => {
+    const ceilings = must(ClientCeilings.create({ maxRetentionDays: 30 }))
+
+    expect(ceilings.admitsRetention(null)).toBe(false)
+  })
+
+  it('admits a retention at the ceiling and refuses one day past it', () => {
+    const ceilings = must(ClientCeilings.create({ maxRetentionDays: 30 }))
+
+    expect(ceilings.admitsRetention(30)).toBe(true)
+    expect(ceilings.admitsRetention(31)).toBe(false)
+  })
+
+  it('agrees with clampRetention: a request is admitted exactly when clamping leaves it alone', () => {
+    const ceilings = must(ClientCeilings.create({ maxRetentionDays: 30 }))
+
+    for (const days of [null, 1, 29, 30, 31, 3_650]) {
+      expect(ceilings.admitsRetention(days)).toBe(ceilings.clampRetention(days) === days)
+    }
+  })
+})
+
+describe('ClientCeilings.liveWindowOver', () => {
+  const OPENED = new Date('2026-06-20T18:00:00.000Z')
+
+  it('is never over with no maxLiveDays, however long ago the event opened', () => {
+    const far = new Date('2036-06-20T18:00:00.000Z')
+
+    expect(ClientCeilings.unlimited().liveWindowOver(OPENED, far)).toBe(false)
+  })
+
+  it('is not over for an event that has never been opened, which has no window yet', () => {
+    const ceilings = must(ClientCeilings.create({ maxLiveDays: 3 }))
+
+    expect(ceilings.liveWindowOver(null, new Date('2036-06-20T18:00:00.000Z'))).toBe(false)
+  })
+
+  it('is not over one millisecond before opened_at + maxLiveDays', () => {
+    const ceilings = must(ClientCeilings.create({ maxLiveDays: 3 }))
+
+    expect(ceilings.liveWindowOver(OPENED, new Date('2026-06-23T17:59:59.999Z'))).toBe(false)
+  })
+
+  it('is over at exactly opened_at + maxLiveDays, because the rule is "<= now"', () => {
+    const ceilings = must(ClientCeilings.create({ maxLiveDays: 3 }))
+
+    expect(ceilings.liveWindowOver(OPENED, new Date('2026-06-23T18:00:00.000Z'))).toBe(true)
+  })
+
+  it('stays over afterwards', () => {
+    const ceilings = must(ClientCeilings.create({ maxLiveDays: 3 }))
+
+    expect(ceilings.liveWindowOver(OPENED, new Date('2026-07-23T18:00:00.000Z'))).toBe(true)
+  })
+})
+
+describe('ClientCeilings.openingRefusal', () => {
+  const OPENED = new Date('2026-06-20T18:00:00.000Z')
+  const NOW = new Date('2026-06-21T18:00:00.000Z')
+
+  const withFlags = (liveAllowed: boolean, maxLiveDays: number | null): ClientCeilings =>
+    must(ClientCeilings.create({ liveAllowed, maxLiveDays }))
+
+  it('refuses nothing with no ceiling at all', () => {
+    expect(ClientCeilings.unlimited().openingRefusal(OPENED, NOW)).toBeNull()
+  })
+
+  it('refuses with liveNotAllowed when the client may not go live', () => {
+    expect(withFlags(false, null).openingRefusal(null, NOW)).toBe('liveNotAllowed')
+  })
+
+  it('refuses with liveWindowOver once the window has passed', () => {
+    expect(withFlags(true, 1).openingRefusal(OPENED, NOW)).toBe('liveWindowOver')
+  })
+
+  it('names liveNotAllowed first when both apply, because that is the one nothing cures', () => {
+    expect(withFlags(false, 1).openingRefusal(OPENED, NOW)).toBe('liveNotAllowed')
+  })
+
+  it('refuses nothing for a first opening inside the window', () => {
+    expect(withFlags(true, 3).openingRefusal(null, NOW)).toBeNull()
+    expect(withFlags(true, 3).openingRefusal(OPENED, NOW)).toBeNull()
+  })
+})
+
+describe('ClientCeilings.lowersRetentionCapFrom', () => {
+  const withCap = (maxRetentionDays: number | null): ClientCeilings =>
+    must(ClientCeilings.create({ maxRetentionDays }))
+
+  it('is true for a smaller ceiling', () => {
+    expect(withCap(30).lowersRetentionCapFrom(withCap(60))).toBe(true)
+  })
+
+  it('is true for a ceiling where there was none, which can bring a purge forward as much as 60 to 30', () => {
+    expect(withCap(30).lowersRetentionCapFrom(withCap(null))).toBe(true)
+  })
+
+  it('is false for the same ceiling', () => {
+    expect(withCap(30).lowersRetentionCapFrom(withCap(30))).toBe(false)
+  })
+
+  it('is false for a larger ceiling', () => {
+    expect(withCap(60).lowersRetentionCapFrom(withCap(30))).toBe(false)
+  })
+
+  it('is false when the ceiling is removed, since nothing is brought forward', () => {
+    expect(withCap(null).lowersRetentionCapFrom(withCap(30))).toBe(false)
+  })
+
+  it('is false when there is none before and none after', () => {
+    expect(withCap(null).lowersRetentionCapFrom(withCap(null))).toBe(false)
+  })
+})

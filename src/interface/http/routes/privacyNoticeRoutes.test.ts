@@ -1,6 +1,12 @@
 import request from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { AT, aGuest, anEvent, anEventSettings } from '../../../application/testing/builders'
+import {
+  AT,
+  aClient,
+  aGuest,
+  anEvent,
+  anEventSettings,
+} from '../../../application/testing/builders'
 import { makeAcknowledgePrivacyNotice } from '../../../application/usecases/guests/acknowledgePrivacyNotice'
 import { makeGetPrivacyNotice } from '../../../application/usecases/guests/getPrivacyNotice'
 import { privacyNoticeFor } from '../../../domain/privacy/privacyNotice'
@@ -36,15 +42,20 @@ let harness: Harness
 
 beforeEach(() => {
   harness = buildHarness({
-    routes: (app, deps) => {
+    routes: (app, deps, world) => {
       app.use(
         '/api',
         privacyNoticeRoutes({
           deps,
           usecases: {
-            getPrivacyNotice: makeGetPrivacyNotice({ events: deps.events, guests: deps.guests }),
+            getPrivacyNotice: makeGetPrivacyNotice({
+              events: deps.events,
+              clients: world.clients,
+              guests: deps.guests,
+            }),
             acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
               events: deps.events,
+              clients: world.clients,
               guests: deps.guests,
               clock: deps.clock,
             }),
@@ -93,6 +104,28 @@ describe('GET /api/events/:slug/privacy-notice', () => {
       },
       acknowledgement: 'none',
     })
+  })
+
+  it('answers the retention the box applies when the event’s client caps it, not the host’s “for ever”', async () => {
+    // The roadmap's §10.5 promise: the notice a guest reads is the retention the box acts on.
+    harness.clients.seed(aClient({ id: 'client-1', ceilings: { maxRetentionDays: 14 } }))
+    harness.events.seed(
+      anEvent({
+        id: 'client-event',
+        slug: 'cliente',
+        joinCode: 'K8M3NP',
+        clientId: 'client-1',
+        settings: { retentionDays: null },
+      }),
+    )
+    harness.guests.seed(aGuest({ id: 'guest-cliente', eventId: 'client-event' }))
+
+    const response = await request(harness.app)
+      .get('/api/events/cliente/privacy-notice')
+      .set('Cookie', cookie(harness.issueGuestToken('client-event', 'guest-cliente')))
+
+    expect(response.status).toBe(200)
+    expect(response.body.notice.retentionDays).toBe(14)
   })
 
   it('is never cached, because it is the read that tells a guest the host changed something', async () => {

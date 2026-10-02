@@ -4,6 +4,7 @@ import { asClientId, asEventId, asUserId } from '../shared/ids'
 import { JoinCode } from '../shared/joinCode'
 import type { Result } from '../shared/result'
 import { Slug } from '../shared/slug'
+import { ClientCeilings } from '../clients/clientCeilings'
 import { Event, type EventProps, type NewEvent } from './event'
 import { EventName } from './eventName'
 import { EventSettings } from './eventSettings'
@@ -61,6 +62,7 @@ const anEvent = (overrides: Partial<EventProps> = {}): Event =>
     startsAt: null,
     clientId: null,
     closedAt: null,
+    openedAt: null,
     scheduledOpenAt: null,
     scheduledCloseAt: null,
     scheduleDiscardedAt: null,
@@ -79,6 +81,12 @@ describe('Event.create', () => {
 
     expect(event.createdAt).toBe(CREATED_AT)
     expect(event.closedAt).toBeNull()
+  })
+
+  it('has never been opened, so its live window has not started', () => {
+    const event = unwrap(Event.create(newEvent(), EVENT_ID, CREATED_AT))
+
+    expect(event.openedAt).toBeNull()
   })
 
   it('carries the identity the host chose', () => {
@@ -375,30 +383,6 @@ describe('Event retention', () => {
 
     expect(event.retentionDeadline()).toBeNull()
   })
-
-  it('is not due for purge the day before its deadline', () => {
-    const event = anEvent({ status: 'closed', settings: RETAINED_30_DAYS, closedAt: ENDED_AT })
-
-    expect(event.isDueForPurge(new Date('2026-07-20T02:00:00.000Z'))).toBe(false)
-  })
-
-  it('is due for purge on the deadline itself', () => {
-    const event = anEvent({ status: 'closed', settings: RETAINED_30_DAYS, closedAt: ENDED_AT })
-
-    expect(event.isDueForPurge(PURGE_DUE_AT)).toBe(true)
-  })
-
-  it('is due for purge after its deadline', () => {
-    const event = anEvent({ status: 'closed', settings: RETAINED_30_DAYS, closedAt: ENDED_AT })
-
-    expect(event.isDueForPurge(new Date('2026-08-01T00:00:00.000Z'))).toBe(true)
-  })
-
-  it('is never due for purge without a retention policy', () => {
-    const event = anEvent({ status: 'archived', closedAt: ENDED_AT })
-
-    expect(event.isDueForPurge(new Date('2030-01-01T00:00:00.000Z'))).toBe(false)
-  })
 })
 
 describe('Event identity', () => {
@@ -432,6 +416,7 @@ describe('Event identity', () => {
       startsAt: null,
       clientId: null,
       closedAt: ENDED_AT,
+      openedAt: null,
       scheduledOpenAt: null,
       scheduledCloseAt: null,
       scheduleDiscardedAt: null,
@@ -808,5 +793,409 @@ describe('Event schedule', () => {
       expect(refused.ok).toBe(false)
       expect(discarded.scheduleDiscardedAt).toBe(SEVEN_MINUTES_LATE)
     })
+  })
+})
+
+/**
+ * The live window (roadmap §10.5 / G2-05). `closed → live` is a legal transition and
+ * reopening clears `closedAt`, so without a bound on it a host who presses the button once
+ * a month keeps a public wall and its media for ever. For an event that belongs to a client
+ * the bound is `max_live_days`, counted from the **first** time the event went live.
+ */
+describe('Event live window', () => {
+  const OPENED_AT = new Date('2026-06-20T18:00:00.000Z')
+  const MAX_THREE_DAYS = unwrap(ClientCeilings.create({ maxLiveDays: 3 }))
+  /** Exactly `OPENED_AT` + 3 days: the deadline itself. */
+  const DEADLINE = new Date('2026-06-23T18:00:00.000Z')
+  const JUST_BEFORE_DEADLINE = new Date(DEADLINE.getTime() - 1)
+  const A_MONTH_ON = new Date('2026-07-20T18:00:00.000Z')
+  const CLIENT = asClientId('client-1')
+
+  describe('opened_at', () => {
+    it('records when the event first went live', () => {
+      const live = unwrap(anEvent({ status: 'draft' }).goLive(OPENED_AT))
+
+      expect(live.openedAt).toBe(OPENED_AT)
+    })
+
+    it('records it for an event with no client too, which is the same fact about the same event', () => {
+      const live = unwrap(anEvent({ status: 'draft', clientId: null }).goLive(OPENED_AT, null))
+
+      expect(live.openedAt).toBe(OPENED_AT)
+    })
+
+    it('keeps it through a close, because closing does not end the window', () => {
+      const live = unwrap(anEvent({ status: 'live', openedAt: OPENED_AT }).close(ENDED_AT))
+
+      expect(live.openedAt).toBe(OPENED_AT)
+    })
+
+    it('does not restamp it when a closed event reopens: the window counts from the first opening', () => {
+      const closed = anEvent({ status: 'closed', openedAt: OPENED_AT, closedAt: ENDED_AT })
+
+      const reopened = unwrap(closed.goLive(new Date('2026-06-21T03:00:00.000Z')))
+
+      expect(reopened.openedAt).toBe(OPENED_AT)
+    })
+
+    it('does not move it on a repeated opening of an event that is already live', () => {
+      const live = anEvent({ status: 'live', openedAt: OPENED_AT })
+
+      const again = unwrap(live.goLive(new Date('2026-06-21T03:00:00.000Z')))
+
+      expect(again.openedAt).toBe(OPENED_AT)
+    })
+
+    it('stamps a closed event that has none, which is one that predates the column', () => {
+      const closed = anEvent({ status: 'closed', openedAt: null, closedAt: ENDED_AT })
+
+      const reopened = unwrap(closed.goLive(WENT_LIVE_AT))
+
+      expect(reopened.openedAt).toBe(WENT_LIVE_AT)
+    })
+
+    it('stays empty for an event archived without ever opening', () => {
+      const archived = unwrap(anEvent({ status: 'draft' }).archive(ENDED_AT))
+
+      expect(archived.openedAt).toBeNull()
+    })
+  })
+
+  describe('closed → live under a client ceiling', () => {
+    const closedEvent = (): Event =>
+      anEvent({ status: 'closed', openedAt: OPENED_AT, closedAt: ENDED_AT, clientId: CLIENT })
+
+    it('is allowed one millisecond before opened_at + max_live_days', () => {
+      const result = closedEvent().goLive(JUST_BEFORE_DEADLINE, MAX_THREE_DAYS)
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('is refused 403 client.liveWindowOver at exactly opened_at + max_live_days', () => {
+      const result = closedEvent().goLive(DEADLINE, MAX_THREE_DAYS)
+
+      expect(!result.ok && result.error.code).toBe('client.liveWindowOver')
+      expect(!result.ok && result.error.kind).toBe('forbidden')
+    })
+
+    it('is refused for ever afterwards, a month on', () => {
+      const result = closedEvent().goLive(A_MONTH_ON, MAX_THREE_DAYS)
+
+      expect(!result.ok && result.error.code).toBe('client.liveWindowOver')
+    })
+
+    it('does not change the event when it refuses', () => {
+      const event = closedEvent()
+
+      event.goLive(DEADLINE, MAX_THREE_DAYS)
+
+      expect(event.status).toBe('closed')
+      expect(event.closedAt).toBe(ENDED_AT)
+    })
+
+    it('is not refused for an event with no client: reopening a month later works exactly as before', () => {
+      const closed = anEvent({ status: 'closed', openedAt: OPENED_AT, closedAt: ENDED_AT })
+
+      const result = closed.goLive(A_MONTH_ON)
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('is not refused by a client with no max_live_days, however long ago it opened', () => {
+      const result = closedEvent().goLive(
+        new Date('2036-06-20T18:00:00.000Z'),
+        ClientCeilings.unlimited(),
+      )
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('still lets the event close, whatever the window says', () => {
+      const live = anEvent({ status: 'live', openedAt: OPENED_AT, clientId: CLIENT })
+
+      const result = live.close(A_MONTH_ON, MAX_THREE_DAYS)
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('still lets the event be archived, whatever the window says', () => {
+      const result = closedEvent().archive(A_MONTH_ON, MAX_THREE_DAYS)
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('leaves a repeated opening of an event that is already live alone, since it changes nothing', () => {
+      const live = anEvent({ status: 'live', openedAt: OPENED_AT, clientId: CLIENT })
+
+      const result = live.goLive(A_MONTH_ON, MAX_THREE_DAYS)
+
+      expect(result.ok).toBe(true)
+    })
+
+    it('says an archived event cannot reopen with the lifecycle error, before any ceiling is asked', () => {
+      const archived = anEvent({ status: 'archived', openedAt: OPENED_AT, clientId: CLIENT })
+
+      const result = archived.goLive(DEADLINE, MAX_THREE_DAYS)
+
+      expect(!result.ok && result.error.code).toBe('event.illegalTransition')
+    })
+  })
+
+  describe('draft → live under live_allowed = 0', () => {
+    const QUARANTINED = unwrap(ClientCeilings.create({ liveAllowed: false }))
+
+    it('is refused 403 client.liveNotAllowed', () => {
+      const result = anEvent({ status: 'draft', clientId: CLIENT }).goLive(
+        WENT_LIVE_AT,
+        QUARANTINED,
+      )
+
+      expect(!result.ok && result.error.code).toBe('client.liveNotAllowed')
+      expect(!result.ok && result.error.kind).toBe('forbidden')
+    })
+
+    it('leaves the draft a draft, with no opened_at', () => {
+      const draft = anEvent({ status: 'draft', clientId: CLIENT })
+
+      draft.goLive(WENT_LIVE_AT, QUARANTINED)
+
+      expect(draft.status).toBe('draft')
+      expect(draft.openedAt).toBeNull()
+    })
+
+    it('refuses a reopening too, because a quarantined client may not be live at all', () => {
+      const closed = anEvent({ status: 'closed', openedAt: OPENED_AT, closedAt: ENDED_AT })
+
+      const result = closed.goLive(JUST_BEFORE_DEADLINE, QUARANTINED)
+
+      expect(!result.ok && result.error.code).toBe('client.liveNotAllowed')
+    })
+
+    it('does not stop an event that is already live from carrying on, nor from closing', () => {
+      const live = anEvent({ status: 'live', openedAt: OPENED_AT })
+
+      expect(live.goLive(WENT_LIVE_AT, QUARANTINED).ok).toBe(true)
+      expect(live.close(ENDED_AT, QUARANTINED).ok).toBe(true)
+    })
+
+    it('does not stop a draft from being archived', () => {
+      expect(anEvent({ status: 'draft' }).archive(ENDED_AT, QUARANTINED).ok).toBe(true)
+    })
+  })
+
+  describe('isLiveWindowOver', () => {
+    it('is true for a live event of a client at exactly its deadline', () => {
+      const live = anEvent({ status: 'live', openedAt: OPENED_AT, clientId: CLIENT })
+
+      expect(live.isLiveWindowOver(DEADLINE, MAX_THREE_DAYS)).toBe(true)
+    })
+
+    it('is false one millisecond before it', () => {
+      const live = anEvent({ status: 'live', openedAt: OPENED_AT, clientId: CLIENT })
+
+      expect(live.isLiveWindowOver(JUST_BEFORE_DEADLINE, MAX_THREE_DAYS)).toBe(false)
+    })
+
+    it('is false for an event with no client, which has no window', () => {
+      const live = anEvent({ status: 'live', openedAt: OPENED_AT })
+
+      expect(live.isLiveWindowOver(new Date('2036-06-20T18:00:00.000Z'), null)).toBe(false)
+    })
+
+    it.each<EventStatus>(['draft', 'closed', 'archived'])(
+      'is false for a %s event: only a live one has a wall to take down',
+      (status) => {
+        const event = anEvent({ status, openedAt: OPENED_AT, clientId: CLIENT })
+
+        expect(event.isLiveWindowOver(DEADLINE, MAX_THREE_DAYS)).toBe(false)
+      },
+    )
+  })
+
+  describe('recordOpening', () => {
+    it('stamps a live event that has no opening with the moment it is recorded', () => {
+      const live = anEvent({ status: 'live', openedAt: null, clientId: CLIENT })
+
+      expect(live.recordOpening(A_MONTH_ON)?.openedAt).toBe(A_MONTH_ON)
+    })
+
+    it('has nothing to record for a live event that already has one, and never moves it', () => {
+      const live = anEvent({ status: 'live', openedAt: OPENED_AT, clientId: CLIENT })
+
+      expect(live.recordOpening(A_MONTH_ON)).toBeNull()
+    })
+
+    it.each<EventStatus>(['draft', 'closed', 'archived'])(
+      'has nothing to record for a %s event, which is not running',
+      (status) => {
+        expect(anEvent({ status, openedAt: null }).recordOpening(A_MONTH_ON)).toBeNull()
+      },
+    )
+
+    it('leaves the status and everything else alone', () => {
+      const live = anEvent({ status: 'live', openedAt: null, clientId: CLIENT })
+
+      const recorded = live.recordOpening(A_MONTH_ON)
+
+      expect(recorded?.status).toBe('live')
+      expect(recorded?.closedAt).toBeNull()
+    })
+  })
+
+  describe('expireLiveWindow', () => {
+    const live = (): Event =>
+      anEvent({ status: 'live', openedAt: OPENED_AT, closedAt: null, clientId: CLIENT })
+
+    it('closes a live event at exactly opened_at + max_live_days, stamping closedAt with the moment it acted', () => {
+      const closed = live().expireLiveWindow(DEADLINE, MAX_THREE_DAYS)
+
+      expect(closed?.status).toBe('closed')
+      expect(closed?.closedAt).toBe(DEADLINE)
+    })
+
+    it('closes it late as well, and starts the retention clock at the moment it acted, not at the deadline', () => {
+      const closed = live().expireLiveWindow(A_MONTH_ON, MAX_THREE_DAYS)
+
+      expect(closed?.closedAt).toBe(A_MONTH_ON)
+    })
+
+    it('does nothing one millisecond before the deadline', () => {
+      expect(live().expireLiveWindow(JUST_BEFORE_DEADLINE, MAX_THREE_DAYS)).toBeNull()
+    })
+
+    it('does nothing for an event with no client or a client with no max_live_days', () => {
+      expect(live().expireLiveWindow(A_MONTH_ON, null)).toBeNull()
+      expect(live().expireLiveWindow(A_MONTH_ON, ClientCeilings.unlimited())).toBeNull()
+    })
+
+    it('does nothing for an event that is not live', () => {
+      const closed = anEvent({ status: 'closed', openedAt: OPENED_AT, closedAt: ENDED_AT })
+
+      expect(closed.expireLiveWindow(A_MONTH_ON, MAX_THREE_DAYS)).toBeNull()
+    })
+
+    it('leaves opened_at alone, so the latest purge date does not move', () => {
+      expect(live().expireLiveWindow(A_MONTH_ON, MAX_THREE_DAYS)?.openedAt).toBe(OPENED_AT)
+    })
+
+    it('leaves the original untouched', () => {
+      const original = live()
+
+      original.expireLiveWindow(DEADLINE, MAX_THREE_DAYS)
+
+      expect(original.status).toBe('live')
+    })
+  })
+
+  describe('a scheduled opening', () => {
+    const QUARANTINED = unwrap(ClientCeilings.create({ liveAllowed: false }))
+
+    const scheduledOpen = (overrides: Partial<EventProps> = {}): Event =>
+      anEvent({ clientId: CLIENT, scheduledOpenAt: DEADLINE, ...overrides })
+
+    it('is refused and reported when the client may not go live, and the draft stays a draft', () => {
+      const outcome = scheduledOpen({ status: 'draft' }).applySchedule(DEADLINE, QUARANTINED)
+
+      expect(outcome.applied).toEqual([])
+      expect(outcome.refused).toEqual(['open'])
+      expect(outcome.event.status).toBe('draft')
+      expect(outcome.event.openedAt).toBeNull()
+    })
+
+    it('leaves the host a notice that the schedule was thrown away, and spends the instant', () => {
+      const outcome = scheduledOpen({ status: 'draft' }).applySchedule(DEADLINE, QUARANTINED)
+
+      expect(outcome.event.scheduleDiscardedAt).toBe(DEADLINE)
+      expect(outcome.event.scheduledOpenAt).toBeNull()
+    })
+
+    it('is refused and reported when the live window is over, so a schedule cannot reopen a closed event', () => {
+      const outcome = scheduledOpen({
+        status: 'closed',
+        openedAt: OPENED_AT,
+        closedAt: ENDED_AT,
+      }).applySchedule(DEADLINE, MAX_THREE_DAYS)
+
+      expect(outcome.refused).toEqual(['open'])
+      expect(outcome.event.status).toBe('closed')
+    })
+
+    it('opens a draft inside the window and records opened_at, as the manual path does', () => {
+      const outcome = scheduledOpen({ status: 'draft' }).applySchedule(DEADLINE, MAX_THREE_DAYS)
+
+      expect(outcome.applied).toEqual(['open'])
+      expect(outcome.event.openedAt).toBe(DEADLINE)
+    })
+
+    it('behaves exactly as before when no ceilings are passed', () => {
+      const outcome = anEvent({
+        status: 'closed',
+        openedAt: OPENED_AT,
+        closedAt: ENDED_AT,
+        scheduledOpenAt: DEADLINE,
+      }).applySchedule(new Date('2036-06-20T18:00:00.000Z'))
+
+      expect(outcome.applied).toEqual(['open'])
+    })
+
+    it('still closes on schedule under a ceiling that would refuse an opening', () => {
+      const outcome = anEvent({
+        status: 'live',
+        openedAt: OPENED_AT,
+        scheduledCloseAt: DEADLINE,
+      }).applySchedule(
+        DEADLINE,
+        unwrap(ClientCeilings.create({ liveAllowed: false, maxLiveDays: 1 })),
+      )
+
+      expect(outcome.applied).toEqual(['close'])
+    })
+  })
+})
+
+describe('Event quota under a client ceiling', () => {
+  const LOWERED = unwrap(ClientCeilings.create({ maxEventQuotaBytes: 600 }))
+
+  it('has room for what fits the lowered quota and none for a byte more', () => {
+    const event = anEvent({ quotaBytes: 1_000 })
+
+    expect(event.hasQuotaFor(100, 500, LOWERED)).toBe(true)
+    expect(event.hasQuotaFor(101, 500, LOWERED)).toBe(false)
+  })
+
+  it('judges by the stored quota when no ceilings are passed, as it always did', () => {
+    expect(anEvent({ quotaBytes: 1_000 }).hasQuotaFor(500, 500)).toBe(true)
+  })
+
+  it('reports what is left of the lowered quota, never negative', () => {
+    const event = anEvent({ quotaBytes: 1_000 })
+
+    expect(event.remainingQuota(500, LOWERED)).toBe(100)
+    expect(event.remainingQuota(900, LOWERED)).toBe(0)
+    expect(event.remainingQuota(500)).toBe(500)
+  })
+})
+
+describe('Event.effectiveQuotaBytes', () => {
+  it('is the event’s own quota for an event with no client', () => {
+    expect(anEvent({ quotaBytes: 5_000 }).effectiveQuotaBytes(null)).toBe(5_000)
+  })
+
+  it('is the event’s own quota under a client with no max_event_quota_bytes', () => {
+    expect(anEvent({ quotaBytes: 5_000 }).effectiveQuotaBytes(ClientCeilings.unlimited())).toBe(
+      5_000,
+    )
+  })
+
+  it('is lowered to the client’s max_event_quota_bytes, which an operator may have lowered since', () => {
+    const ceilings = unwrap(ClientCeilings.create({ maxEventQuotaBytes: 2_000 }))
+
+    expect(anEvent({ quotaBytes: 5_000 }).effectiveQuotaBytes(ceilings)).toBe(2_000)
+  })
+
+  it('is never raised to the ceiling', () => {
+    const ceilings = unwrap(ClientCeilings.create({ maxEventQuotaBytes: 9_000 }))
+
+    expect(anEvent({ quotaBytes: 5_000 }).effectiveQuotaBytes(ceilings)).toBe(5_000)
   })
 })

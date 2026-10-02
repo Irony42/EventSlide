@@ -1,7 +1,7 @@
 import { ClientCeilings } from '../../../domain/clients/clientCeilings'
 import { Event } from '../../../domain/events/event'
 import { EventName } from '../../../domain/events/eventName'
-import { EventSettings } from '../../../domain/events/eventSettings'
+import { EventSettings, type EventSettingsPatch } from '../../../domain/events/eventSettings'
 import type { EventLanguage } from '../../../domain/events/eventLanguage'
 import { eventTemplateSettings, type EventTemplateKey } from '../../../domain/events/eventTemplate'
 import { DomainError } from '../../../domain/shared/errors'
@@ -284,6 +284,29 @@ const resolveClient = async (
     : ok(NO_CLIENT)
 }
 
+/**
+ * What a client's ceilings change in the settings an event is created with — reductions,
+ * never refusals, because an event being **created** has no value the host chose to override:
+ *
+ * - `retentionDays` is clamped to `max_retention_days`, and "keep for ever" (`null`, which is
+ *   the default and what no template turns off) becomes the ceiling itself. This is where
+ *   the infinite-retention default of `eventSettings.ts` is settled for a client's events.
+ * - `allowClips` is switched off when the client may not have clips. The host reads it back
+ *   in the settings, and `uploadClip` refuses either way — this keeps what the page says and
+ *   what the box does in step.
+ *
+ * A patch rather than a new settings object, so it travels in the one `with` that validates
+ * the language as well; and empty when nothing changes, so an event with no client — or a
+ * client with no ceiling — gets the very settings the template produced.
+ */
+const ceilingsPatch = (settings: EventSettings, ceilings: ClientCeilings): EventSettingsPatch => {
+  const retentionDays = ceilings.clampRetention(settings.retentionDays)
+  return {
+    ...(retentionDays === settings.retentionDays ? {} : { retentionDays }),
+    ...(!ceilings.clipsAllowed && settings.allowClips ? { allowClips: false } : {}),
+  }
+}
+
 export const makeCreateEvent =
   ({
     events,
@@ -337,25 +360,32 @@ export const makeCreateEvent =
     // The creator's language on top, because no template has an opinion about it. This
     // is the one place the value is read from anybody's preference; from here on it is
     // the event's, and only the settings page moves it.
-    const settings =
-      input.wallLanguage === undefined
-        ? ok(preset)
-        : preset.with({ wallLanguage: input.wallLanguage })
+    // What the client's ceilings make of those settings (roadmap §10.5 / G2-05), in the same
+    // patch as the language: one validation, and for an event with no client — whose ceilings
+    // are `ClientCeilings.unlimited()` — an empty patch, so the template's own settings object
+    // comes back untouched.
+    const patch: EventSettingsPatch = {
+      ...(input.wallLanguage === undefined ? {} : { wallLanguage: input.wallLanguage }),
+      ...ceilingsPatch(preset, resolved.value.ceilings),
+    }
+    const settings = Object.keys(patch).length === 0 ? ok(preset) : preset.with(patch)
     if (!settings.ok) return settings
 
-    // The box-wide ceiling (roadmap §10.5 / G3-02). Checked only when the host asked
-    // for a specific quota: an absent `quotaBytes` falls back to `defaultQuotaBytes`,
-    // which `env.ts` already refuses to configure below the ceiling, so there is
-    // nothing here for a default to violate. Refused outright rather than clamped to
-    // the ceiling — a silent reduction would tell a host they got the quota they asked
-    // for when they did not.
-    if (
-      input.quotaBytes !== undefined &&
-      maxQuotaBytes !== null &&
-      input.quotaBytes > maxQuotaBytes
-    ) {
-      return err(DomainError.invalid('event.quotaAboveCeiling', { maxBytes: maxQuotaBytes }))
+    // The ceilings on a quota the host asked for: the box's (G3-02) and the client's
+    // `max_event_quota_bytes`, as the **smaller** of the two, so the refusal names the bound
+    // that actually applied. Checked only when a specific quota was asked for: an absent
+    // `quotaBytes` falls back to `defaultQuotaBytes`, which `env.ts` already refuses to
+    // configure below the box's ceiling — and which is *reduced* to the client's below, since
+    // an event created with no opinion has nothing for a refusal to correct. A requested
+    // quota is refused outright rather than clamped: a silent reduction would tell a host
+    // they got the quota they asked for when they did not.
+    const quotaBound = resolved.value.ceilings.quotaBound(maxQuotaBytes)
+    if (input.quotaBytes !== undefined && quotaBound !== null && input.quotaBytes > quotaBound) {
+      return err(DomainError.invalid('event.quotaAboveCeiling', { maxBytes: quotaBound }))
     }
+    // The client's ceiling only: the box's number is never applied to the default, which
+    // `env.ts` already keeps at or under it, so a box with no clients is unchanged.
+    const quotaBytes = resolved.value.ceilings.clampQuota(input.quotaBytes ?? defaultQuotaBytes)
 
     const now = clock.now()
     const created = Event.create(
@@ -365,7 +395,7 @@ export const makeCreateEvent =
         slug: slug.value,
         joinCode: joinCode.value,
         settings: settings.value,
-        quotaBytes: input.quotaBytes ?? defaultQuotaBytes,
+        quotaBytes,
         startsAt: input.startsAt ?? null,
         clientId: resolved.value.clientId,
       },

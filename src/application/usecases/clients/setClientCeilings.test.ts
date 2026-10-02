@@ -18,6 +18,7 @@ describe('setClientCeilings', () => {
   let setClientCeilings: SetClientCeilings
 
   beforeEach(() => {
+    clock = new FakeClock(atPlus(10 * 86_400_000))
     clients = new FakeClientRepository().seed(
       aClient({
         id: 'client-1',
@@ -269,5 +270,26 @@ describe('setClientCeilings', () => {
 
       expect(written).toBe(0)
     })
+  })
+
+  // ------------------------------------------------------- the retention notice clock --
+
+  it('starts the retention notice, at the injected now, when the ceiling is lowered', async () => {
+    const result = await change({ maxRetentionDays: 30 })
+
+    expect(result.ok && result.value.retentionCapSince).toEqual(clock.now())
+    expect((await clients.findById(CLIENT))?.retentionCapSince).toEqual(clock.now())
+  })
+
+  it('does not start a notice when the ceiling is raised', async () => {
+    await change({ maxRetentionDays: 365 })
+
+    expect((await clients.findById(CLIENT))?.retentionCapSince).toBeNull()
+  })
+
+  it('does not start a notice on an edit of some other ceiling', async () => {
+    await change({ maxEvents: 6 })
+
+    expect((await clients.findById(CLIENT))?.retentionCapSince).toBeNull()
   })
 })
