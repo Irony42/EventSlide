@@ -334,10 +334,13 @@ export class ClientCeilings {
    * that is a **deadline** rather than an appointment needs: the sweep that should have run
    * at the exact instant may not have.
    *
-   * An event that has never opened has no window and is never over. `openedAt` is
-   * `null` for a draft, for an event archived without ever opening, and for one created
-   * before `events.opened_at` existed — the last two cannot go live again, and the first
-   * is about to open for the first time.
+   * An event with no recorded opening has no window and is never over. `openedAt` is
+   * `null` for a draft (about to open for the first time), for an event archived without
+   * ever opening (which cannot go live again) and for one closed or live before
+   * `events.opened_at` existed. That last one is the only case where a `null` can still
+   * open: the opening stamps it, and the window runs from that instant. A live one of them is
+   * stamped by the schedule sweep (`Event.recordOpening`), which is what keeps the gap from
+   * lasting longer than one pass.
    */
   liveWindowOver(openedAt: Date | null, now: Date): boolean {
     if (openedAt === null) return false

@@ -5,7 +5,9 @@ import type { ClientId, ClipJobId, EventId, GuestId, PhotoId } from '../../domai
 import type { ClientByteLimit } from './clientRepository'
 
 /**
- * Every method takes `eventId` first.
+ * Every method takes `eventId` first, **except {@link PhotoRepository.clientTotalBytes}**,
+ * which is scoped by client the way the others are by event: the client's total is the one
+ * number a use case needs that no single event owns, and it answers a sum, never a photograph.
  *
  * That is not a style choice. Tenant isolation in this product *is* "was the event id
  * part of the query", so the port makes the unsafe call impossible to write rather than
