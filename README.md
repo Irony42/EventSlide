@@ -440,7 +440,9 @@ The interesting parts are documented rather than left to be inferred:
 
 |                                                |                                                                                      |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [CONTRIBUTING.md](CONTRIBUTING.md)             | The short version: before a pull request, commit style, migration numbers            |
+| [CONTRIBUTING.md](CONTRIBUTING.md)             | The short version: the CLA, before a pull request, commit style, migration numbers   |
+| [docs/CLA.md](docs/CLA.md)                     | The Contributor Licence Agreement: a licence grant, not an assignment                |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)       | How we treat each other                                                              |
 | [CLAUDE.md](CLAUDE.md)                         | The rules, the layer boundaries, and the traps this codebase has already fallen into |
 | [AGENTS.md](AGENTS.md)                         | The same, for any AI coding agent                                                    |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)   | Layers, a guest upload traced file by file, the ports, the schema                    |
@@ -479,6 +481,11 @@ else still means passing on the licence and the source, exactly as before.
 licence grant cannot be revoked after the fact. [.github/gpl-boundary](.github/gpl-boundary)
 names the last commit that carries the GPL text, and the `licenseHistory` CI job
 checks that every commit after it carries the AGPL one.
+
+Contributions come in under the same AGPL-3.0-only, plus a [Contributor Licence
+Agreement](docs/CLA.md) that must be signed before a pull request is merged. It is a
+licence grant, not an assignment: contributors keep their copyright, and the maintainer
+keeps the freedom to relicense. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 In short: run it, read it, change it, and pass it on — and if you let others use a
 modified version over a network, ship them its source under the same licence.

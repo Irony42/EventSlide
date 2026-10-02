@@ -1803,3 +1803,57 @@ is application design plus a personal commitment, not a technical guarantee. Wri
 gap down is the point of this section. Closing it — session recording first, the cheapest
 option, then moving routine backup and restore to a path that needs no interactive shell —
 is future work, and nothing here claims it is done.
+
+## 17. The CLA workflow and `pull_request_target`
+
+[`.github/workflows/cla.yml`](../.github/workflows/cla.yml) is the one workflow here that
+runs on `pull_request_target`, and so the one place where a stranger's pull request and the
+repository's write token meet. [CONTRIBUTING.md](../CONTRIBUTING.md) is the contributor's
+side of it and [docs/CLA.md](CLA.md) the agreement it enforces.
+
+**Why the trigger is dangerous.** `pull_request_target` runs the workflow file from the
+**base** branch, with the base repository's `GITHUB_TOKEN` and secrets, even for a pull
+request from a fork. That is what lets a stranger's pull request receive a bot comment at
+all. It also means that any step that checks out, builds or executes the pull request's
+code runs a stranger's code with a token that can write to this repository. The workflow
+is written so that nothing of the pull request is ever executed:
+
+| Rule                                                    | How the workflow keeps it                                                                                                                                                         | What fails if it is broken                                                                           |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| It never checks out the pull request                    | There is no `actions/checkout`. The action reads the commit authors through the GraphQL API, not through a clone                                                                  | `claWorkflow.test.ts`: `actions/checkout`, `pull_request.head` and `github.head_ref` are all refused |
+| No pull-request text reaches a shell                    | The one `run:` step takes its inputs from `env:`, so a title or a branch name cannot become a command                                                                             | `claWorkflow.test.ts`: any `${{ }}` inside that script is refused                                    |
+| The token is as small as the action allows              | `permissions:` is written out: `contents`, `pull-requests` and `actions`, all `write`, read off the action's source. The repository default is read-only, so nothing is inherited | `claWorkflow.test.ts`: a missing block, or any other scope, is refused                               |
+| The third-party action cannot change under the workflow | `contributor-assistant/github-action` is pinned by the full commit SHA of `v2.6.1`, not by its tag                                                                                | `claWorkflow.test.ts`: any `uses:` that is not a 40-hex SHA is refused                               |
+| No personal access token exists to leak                 | Signatures go to a branch of this same repository, `cla-signatures`, with the workflow token. The action only asks for a personal token when signatures go to another repository  | `claWorkflow.test.ts`: `PERSONAL_ACCESS_TOKEN` and `remote-*` inputs are refused                     |
+
+**The signatures branch.** `cla-signatures` holds one JSON file, `signatures/v1/cla.json`:
+for each signer a GitHub login, the numeric account id, the time of the comment and the
+pull request number. It is public, like the rest of the repository. It must **not** be
+protected, because the action pushes to it with the workflow token. The workflow's first
+step creates the branch, with no shared history, when it does not exist, because the
+action's own "file not found" branch never runs (its check compares a status code with a
+string).
+
+**What the check does not prove.** It is a gate for contributors acting in good faith. It
+is not a defence against a forger, and it should not be read as one.
+
+- The allowlist (`Irony42`, `dependabot[bot]`) is matched against the commit author's
+  GitHub login. When a commit's email address is not tied to a GitHub account, the action
+  falls back to the git author **name**, which the committer chooses. A commit made with
+  `git config user.name Irony42` and an unlinked address is treated as the maintainer's.
+  What stops a forged commit from landing is that the maintainer merges every pull request
+  and sees whose commits it carries, not this check.
+- A signature is a comment posted by a GitHub account. It is as strong as that account's
+  hold on its owner, and no stronger.
+- The action locks a pull request when it is closed, so that a signature comment cannot be
+  edited or deleted afterwards. Nothing else protects the comment while the pull request
+  is open.
+- Making the `CLA signed` check required is a branch-protection setting, and it is the
+  maintainer's call. Until it is set, a red check does not by itself stop a merge.
+- The action is third-party code that runs with a write token. It is pinned, and it is read
+  by hand when the pin moves, because Dependabot is not configured for `github-actions`.
+  The pin is at `v2.6.1`, its last release, from September 2024.
+
+As of this writing the workflow has not yet run on GitHub: it can only be exercised from
+`main`. `scripts/claWorkflow.test.ts` runs its bootstrap script against a stand-in `gh` and
+pins its shape, which is not the same as watching a first pull request go through it.
