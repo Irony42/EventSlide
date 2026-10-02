@@ -46,6 +46,13 @@ RUN npm prune --omit=dev
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 
+# Declared on the runtime stage, not `deps` or `build`, so it describes only the image
+# that is actually published and pulled. Kept in lockstep with `package.json`'s
+# `license` field by scripts/licenseMetadata.test.ts — a bump of one without the other
+# fails that test rather than drifting silently. Only one such LABEL may exist here: a
+# later one with the same key would silently win.
+LABEL org.opencontainers.image.licenses=AGPL-3.0-only
+
 # BACKUP_DIR is where `node dist/ops/scripts/backup.js` writes when it is not given `--to`.
 # The default outside the image, `./backups`, resolves against `/app` here, which is
 # root's and read-only under compose, so the bare command could not write at all.
