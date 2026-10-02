@@ -62,6 +62,20 @@ export interface EventCreationRefusal {
   readonly max: number
 }
 
+/**
+ * Why a client's event may not open, when it may not.
+ *
+ * Both are `403` at the boundary and both carry no details: what the client can do about
+ * either is outside the event — ask the operator, or start a new one.
+ *
+ * - `liveNotAllowed` — the client is not allowed to be live at all (`live_allowed = 0`:
+ *   quarantine, an expired Pass).
+ * - `liveWindowOver` — the event first opened more than `max_live_days` ago. A host who
+ *   closes and reopens an event does not get a fresh window: the window is counted from the
+ *   first opening and nothing restarts it.
+ */
+export type OpeningRefusal = 'liveNotAllowed' | 'liveWindowOver'
+
 const MIN_RETENTION_DAYS = 1
 const MAX_RETENTION_DAYS = 3650
 const MIN_LIVE_DAYS = 1
@@ -229,6 +243,35 @@ export class ClientCeilings {
   }
 
   /**
+   * The most one event of this client may be given, taking the box's own ceiling
+   * (`MAX_EVENT_QUOTA_BYTES`, G3-02) into account: the **smaller** of the two, or `null`
+   * when neither exists.
+   *
+   * One function so `createEvent` cannot compare a request against the box's number and
+   * forget the client's, or the other way round, and so the refusal it reports names the
+   * bound that actually applied.
+   */
+  quotaBound(boxMaxBytes: number | null): number | null {
+    const own = this.props.maxEventQuotaBytes
+    if (own === null) return boxMaxBytes
+    if (boxMaxBytes === null) return own
+    return Math.min(own, boxMaxBytes)
+  }
+
+  /**
+   * An event's quota after this ceiling: lowered to `max_event_quota_bytes`, never raised.
+   *
+   * What an upload is judged against, so an event created **before** an operator lowered
+   * the ceiling stops being admitted past it from the next write on. Nothing already
+   * stored is touched; the downgrade rule is that new writes are refused, not that data is
+   * deleted.
+   */
+  clampQuota(quotaBytes: number): number {
+    const own = this.props.maxEventQuotaBytes
+    return own === null ? quotaBytes : Math.min(quotaBytes, own)
+  }
+
+  /**
    * The retention a new or edited event may actually have, after this ceiling.
    *
    * `null` in means "keep forever", which becomes the ceiling itself once one exists —
@@ -242,6 +285,19 @@ export class ClientCeilings {
     return Math.min(requestedDays, this.props.maxRetentionDays)
   }
 
+  /**
+   * Whether an event may be **given** this retention, as opposed to having it clamped.
+   *
+   * `updateEventSettings` refuses where `createEvent` clamps, for the reason
+   * {@link ClientCeilings.clampRetention} gives for `null`: creation has no value the host
+   * chose to override, so reducing it is what an unopinionated request means; an edit does,
+   * and silently shortening what a host just typed would tell them they got what they asked
+   * for. It is exactly "clamping would change nothing".
+   */
+  admitsRetention(days: number | null): boolean {
+    return this.clampRetention(days) === days
+  }
+
   /** Whether an event of this client may open its doors at all (quarantine, an expired Pass). */
   allowsOpening(): boolean {
     return this.props.liveAllowed
@@ -251,5 +307,38 @@ export class ClientCeilings {
   liveDeadline(openedAt: Date): Date | null {
     if (this.props.maxLiveDays === null) return null
     return new Date(openedAt.getTime() + this.props.maxLiveDays * MS_PER_DAY)
+  }
+
+  /**
+   * Whether the event's live window has run out: `opened_at + max_live_days <= now`.
+   *
+   * `<=`, so the deadline itself is already over — the same comparison the paid plan writes
+   * ("ferme un événement dont `opened_at + max_live_days ≤ now`") and the one a deadline
+   * that is a **deadline** rather than an appointment needs: the sweep that should have run
+   * at the exact instant may not have.
+   *
+   * An event that has never opened has no window and is never over. `openedAt` is
+   * `null` for a draft, for an event archived without ever opening, and for one created
+   * before `events.opened_at` existed — the last two cannot go live again, and the first
+   * is about to open for the first time.
+   */
+  liveWindowOver(openedAt: Date | null, now: Date): boolean {
+    if (openedAt === null) return false
+    const deadline = this.liveDeadline(openedAt)
+    return deadline !== null && deadline.getTime() <= now.getTime()
+  }
+
+  /**
+   * Why an event that was first opened at `openedAt` (`null`: never) may not go live at
+   * `now`, or `null` when it may. The rule behind `403 client.liveNotAllowed` and
+   * `403 client.liveWindowOver`.
+   *
+   * `liveNotAllowed` wins when both hold: it is the state nothing the host does can cure,
+   * and the window being over would only be the second thing they were told.
+   */
+  openingRefusal(openedAt: Date | null, now: Date): OpeningRefusal | null {
+    if (!this.allowsOpening()) return 'liveNotAllowed'
+    if (this.liveWindowOver(openedAt, now)) return 'liveWindowOver'
+    return null
   }
 }
