@@ -96,8 +96,8 @@ describe('findPackageVersion', () => {
   })
 
   it('also recognises the core when it is installed as a library', () => {
-    // The paid plan's P2 turns the core into a package other programs compose. Its
-    // manifest carries a scoped name, and the version it reports must still be found.
+    // The core may be installed as a package another program composes. Its manifest
+    // carries a scoped name, and the version it reports must still be found.
     writeManifest(root, manifest('@eventslide/core', A_VERSION))
 
     expect(findPackageVersion(dirAt('dist', 'server', 'main'))).toBe(A_VERSION)

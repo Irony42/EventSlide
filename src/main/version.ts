@@ -35,7 +35,7 @@ import { z } from 'zod'
 
 /**
  * The names the manifest of this code carries: the application itself, and the core when
- * it is installed as a library another program composes (the paid plan's P2).
+ * it is installed as a library another program composes.
  */
 const OWN_PACKAGE_NAMES: ReadonlySet<string> = new Set(['eventslide', '@eventslide/core'])
 

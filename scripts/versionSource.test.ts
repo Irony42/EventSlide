@@ -65,6 +65,24 @@ describe('the product version', () => {
     expect(offenders, 'a version literal in production code').toEqual([])
   })
 
+  it('is looked for from __dirname, the only start that is right at all four depths', () => {
+    // `findPackageVersion` is tested at each depth with a start directory handed to it, but
+    // nothing at runtime can tell `appVersion()` which start it chose: under tsx
+    // (`src/main`) `process.cwd()` and a fixed `../..` both land on the repository root
+    // too, so a runtime test is green for a mutant that is wrong the moment the code is
+    // compiled (`dist/server/main`, `dist/ops/src/main`) or the process is started from
+    // another directory. `scripts/verify-image.sh` proves the right start in the image; this
+    // proves it in `npm run verify`, by reading the one line that makes the choice.
+    const source = read('src', 'main', 'version.ts')
+    const code = source
+      .split('\n')
+      .filter((line) => !isComment(line))
+      .join('\n')
+
+    expect(code).toMatch(/findPackageVersion\(__dirname\)/)
+    expect(code).not.toMatch(/process\.cwd\(\)/)
+  })
+
   it('is the tag of the image compose.yaml builds', () => {
     // `image: eventslide:<version>` is a name a human reads in `docker images`. It cannot
     // be derived from package.json, so it is held to it instead: bumping one and not the
