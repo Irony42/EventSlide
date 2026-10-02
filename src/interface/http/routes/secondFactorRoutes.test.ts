@@ -11,6 +11,7 @@ import {
   aSecondFactorWorld,
 } from '../../../application/testing/secondFactorWorld'
 import { makeChangePassword } from '../../../application/usecases/auth/changePassword'
+import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
 import { decodeBase32 } from '../../../domain/users/base32'
 import { CSRF_COOKIE, CSRF_HEADER } from '../middleware/csrf'
 import { buildServerHarness } from '../testing/serverHarness'
@@ -34,12 +35,18 @@ interface ServerOptions {
   /** Whether the box has a key. Defaults to yes. */
   readonly available?: boolean
   readonly siteRole?: 'operator' | 'none'
+  /** Trust one proxy, so a request can say which address it comes from (`X-Forwarded-For`). */
+  readonly behindAProxy?: boolean
+  /** The per-address sign-in budget. Wide by default: most cases are not about it. */
+  readonly loginPerMinute?: number
 }
 
 const aServer = ({
   requireForOperators = false,
   available = true,
   siteRole = 'operator',
+  behindAProxy = false,
+  loginPerMinute = 1_000,
 }: ServerOptions = {}) => {
   const clock = new FakeClock(AT)
   const users = new FakeUserRepository()
@@ -52,10 +59,11 @@ const aServer = ({
     clock,
     config: {
       siteAdmin: true,
+      ...(behindAProxy ? { trustProxyHops: 1 } : {}),
       secondFactor: { available, requiredForOperators: requireForOperators },
       // Wide enough that the per-address limiter is not what these cases meet; the per-account
       // budget has a case of its own.
-      rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 1_000 },
+      rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute },
     },
     usecases: {
       authenticateUser: world.authenticateUser,
@@ -66,6 +74,7 @@ const aServer = ({
       regenerateRecoveryCodes: world.regenerateRecoveryCodes,
       disableSecondFactor: world.disableSecondFactor,
       changePassword: makeChangePassword({ users, hasher: world.hasher, clock }),
+      revokeOtherSessions: makeRevokeOtherSessions({ users, clock }),
     },
   })
   return { world, clock, users, factors, app: harness.app }
@@ -74,7 +83,7 @@ const aServer = ({
 type Server = ReturnType<typeof aServer>
 
 /** A browser: one cookie jar, and the CSRF token it was last handed. */
-const aBrowser = async (server: Server) => {
+const aBrowser = async (server: Server, address?: string) => {
   const { agent, csrf } = await anonymousCaller(server.app)
   let token = csrf
   const remember = (response: request.Response): request.Response => {
@@ -84,14 +93,16 @@ const aBrowser = async (server: Server) => {
     }
     return response
   }
+  /** Which address the server sees this browser at, when it is behind a proxy. */
+  const from = (test: request.Test): request.Test =>
+    address === undefined ? test : test.set('X-Forwarded-For', address)
   return {
     post: async (path: string, body: object = {}) =>
-      remember(await agent.post(path).set(CSRF_HEADER, token).send(body)),
-    get: async (path: string) => remember(await agent.get(path)),
+      remember(await from(agent.post(path)).set(CSRF_HEADER, token).send(body)),
+    get: async (path: string) => remember(await from(agent.get(path))),
     signIn: async () =>
       remember(
-        await agent
-          .post('/api/auth/login')
+        await from(agent.post('/api/auth/login'))
           .set(CSRF_HEADER, token)
           .send({ email: EMAIL, password: PASSWORD }),
       ),
@@ -187,6 +198,7 @@ describe('POST /api/auth/login/2fa', () => {
     })
 
     expect(response.status).toBe(200)
+    expect(response.headers['cache-control']).toBe('no-store')
     expect(response.body).toEqual({
       userId: USER,
       email: EMAIL,
@@ -741,5 +753,191 @@ describe('step-up', () => {
     const disable = await browser.post('/api/auth/2fa/disable')
 
     expect([recovery.status, disable.status]).toEqual([401, 401])
+  })
+})
+
+describe('the second factor: what the brute-force controls are made of', () => {
+  const wrongAttempts = async (browser: Browser, count: number): Promise<number[]> => {
+    const statuses: number[] = []
+    for (let attempt = 0; attempt < count; attempt += 1) {
+      statuses.push((await browser.post('/api/auth/login/2fa', { code: '000000' })).status)
+    }
+    return statuses
+  }
+
+  it('is one budget for the account whatever the address: ten wrong codes from one network close the door to the right one from another', async () => {
+    const { server, secret } = await anEnrolledServer({ behindAProxy: true })
+    for (const address of ['198.51.100.1', '198.51.100.1']) {
+      const browser = await aBrowser(server, address)
+      await browser.signIn()
+      await wrongAttempts(browser, 5)
+    }
+
+    const elsewhere = await aBrowser(server, '203.0.113.9')
+    await elsewhere.signIn()
+    const right = await elsewhere.post('/api/auth/login/2fa', {
+      code: server.world.codeFor(secret),
+    })
+
+    expect(right.status).toBe(429)
+    expect(codeOf(right)).toBe('auth.tooManySecondFactorAttempts')
+  })
+
+  it('allows exactly ten wrong attempts and refuses the eleventh', async () => {
+    const { server } = await anEnrolledServer()
+    const statuses: number[] = []
+    for (let signIn = 0; signIn < 2; signIn += 1) {
+      const browser = await aBrowser(server)
+      await browser.signIn()
+      statuses.push(...(await wrongAttempts(browser, 5)))
+    }
+    const last = await aBrowser(server)
+    await last.signIn()
+
+    const eleventh = await last.post('/api/auth/login/2fa', { code: '000000' })
+
+    expect(statuses).toEqual(Array.from({ length: 10 }, () => 401))
+    expect(eleventh.status).toBe(429)
+  })
+
+  it('states its policy in the standard header: ten per quarter of an hour', async () => {
+    const { server } = await anEnrolledServer()
+    const browser = await aBrowser(server)
+    await browser.signIn()
+
+    const answer = await browser.post('/api/auth/login/2fa', { code: '000000' })
+
+    expect(answer.headers['ratelimit-policy']).toBe('10;w=900')
+  })
+
+  it('has a per-address budget of its own on the sign-in step', async () => {
+    const { server } = await anEnrolledServer({ loginPerMinute: 3 })
+    const browser = await aBrowser(server)
+    await browser.signIn()
+
+    const answers = []
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      answers.push(await browser.post('/api/auth/login/2fa', { code: '000000' }))
+    }
+
+    expect(answers.map((answer) => answer.status)).toEqual([401, 401, 401, 429])
+    expect(codeOf(answers[3] as request.Response)).toBe('rate.limited')
+  })
+
+  it('charges a wrong confirmation code to the same budget', async () => {
+    const server = aServer()
+    const browser = await aBrowser(server)
+    await browser.signIn()
+    const started = await browser.post('/api/auth/2fa/enroll', { password: PASSWORD })
+    const secret = decodeBase32(started.body.secret as string) ?? new Uint8Array()
+    for (let wrong = 0; wrong < 10; wrong += 1) {
+      await browser.post('/api/auth/2fa/confirm', { code: '000000' })
+    }
+
+    const right = await browser.post('/api/auth/2fa/confirm', {
+      code: server.world.codeFor(secret),
+    })
+
+    expect(right.status).toBe(429)
+    expect(server.factors.has(USER)).toBe(true)
+    expect((await server.factors.find(USER))?.confirmedAt).toBeNull()
+  })
+
+  it('charges a wrong password at the start of an enrolment to the same budget', async () => {
+    const server = aServer()
+    const browser = await aBrowser(server)
+    await browser.signIn()
+    for (let wrong = 0; wrong < 10; wrong += 1) {
+      await browser.post('/api/auth/2fa/enroll', { password: 'not-the-password' })
+    }
+
+    const right = await browser.post('/api/auth/2fa/enroll', { password: PASSWORD })
+
+    expect(right.status).toBe(429)
+    expect(server.factors.has(USER)).toBe(false)
+  })
+})
+
+describe('the second factor: what a session keeps across a renewal', () => {
+  const SIX_DAYS = 6 * 24 * 60 * 60 * 1000
+  const A_DAY_AND_A_SECOND = 24 * 60 * 60 * 1000 + 1_000
+
+  it('gives the half-finished sign-in a session id and a CSRF token of its own', async () => {
+    const { server, secret } = await anEnrolledServer()
+    const browser = await aBrowser(server)
+    await browser.signIn()
+    const finished = await browser.post('/api/auth/login/2fa', {
+      code: server.world.codeFor(secret),
+    })
+    const before = setCookies(finished.headers)
+
+    const again = await browser.signIn()
+    const after = setCookies(again.headers)
+
+    const valueOf = (cookies: readonly string[], name: string): string | undefined =>
+      cookies.find((cookie) => cookie.startsWith(`${name}=`))?.split(';')[0]
+    expect(valueOf(after, 'es_session')).toBeDefined()
+    expect(valueOf(after, 'es_session')).not.toBe(valueOf(before, 'es_session'))
+    expect(valueOf(after, CSRF_COOKIE)).toBeDefined()
+    expect(valueOf(after, CSRF_COOKIE)).not.toBe(valueOf(before, CSRF_COOKIE))
+  })
+
+  it('keeps the second factor when the person signs out everywhere', async () => {
+    const { server, secret } = await anEnrolledServer({ requireForOperators: true })
+    const browser = await aBrowser(server)
+    await signInWithCode(server, browser, secret)
+
+    const revoked = await browser.post('/api/auth/sessions/revoke-others')
+    const gate = await browser.get('/api/site/anything')
+
+    expect(revoked.status).toBe(204)
+    expect(codeOf(gate)).toBe('route.notFound')
+  })
+
+  it('does not restart the seven-day cap when an enrolment renews the session', async () => {
+    const server = aServer()
+    const browser = await aBrowser(server)
+    await browser.signIn()
+    server.clock.advance(SIX_DAYS)
+    const started = await browser.post('/api/auth/2fa/enroll', { password: PASSWORD })
+    const secret = decodeBase32(started.body.secret as string) ?? new Uint8Array()
+    await browser.post('/api/auth/2fa/confirm', { code: server.world.codeFor(secret) })
+    expect((await browser.get('/api/auth/me')).body.authenticated).toBe(true)
+
+    server.clock.advance(A_DAY_AND_A_SECOND)
+
+    expect((await browser.get('/api/auth/me')).body).toEqual({ authenticated: false })
+  })
+
+  it('does not restart the seven-day cap when removing the factor renews the session', async () => {
+    const { server, secret } = await anEnrolledServer()
+    const browser = await aBrowser(server)
+    await signInWithCode(server, browser, secret)
+    server.clock.advance(SIX_DAYS)
+    await browser.post('/api/auth/step-up', {
+      password: PASSWORD,
+      code: server.world.codeFor(secret),
+    })
+    expect((await browser.post('/api/auth/2fa/disable')).status).toBe(204)
+    expect((await browser.get('/api/auth/me')).body.authenticated).toBe(true)
+
+    server.clock.advance(A_DAY_AND_A_SECOND)
+
+    expect((await browser.get('/api/auth/me')).body).toEqual({ authenticated: false })
+  })
+
+  it('refuses a step-up that names both a code and a recovery code, rather than guess', async () => {
+    const { server, secret } = await anEnrolledServer()
+    const browser = await aBrowser(server)
+    await signInWithCode(server, browser, secret)
+
+    const response = await browser.post('/api/auth/step-up', {
+      password: PASSWORD,
+      code: server.world.codeFor(secret),
+      recoveryCode: 'AAAA-AAAA-AAAA-AAAA',
+    })
+
+    expect(response.status).toBe(400)
+    expect(codeOf(response)).toBe('request.invalid')
   })
 })

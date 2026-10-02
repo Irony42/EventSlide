@@ -104,6 +104,14 @@ const aBrowser = async (app: TestApp) => {
 test.describe('the operator’s second factor', () => {
   test.describe.configure({ mode: 'serial' })
 
+  // eslint-disable-next-line no-empty-pattern -- Playwright reads the first parameter's destructuring to know which fixtures are wanted, so it has to be a pattern even when it is empty.
+  test.beforeEach(async ({}, testInfo) => {
+    test.skip(
+      testInfo.project.name !== 'chromium-desktop',
+      'API-level: one project is enough, and each boots a server of its own',
+    )
+  })
+
   let app: TestApp
   let secret: Buffer
   let recoveryCodes: string[]

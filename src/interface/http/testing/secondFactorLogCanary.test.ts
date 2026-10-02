@@ -53,7 +53,7 @@ const SECOND_PASSWORD = 'canary-another-password-5c0a1e9d'
  * spaces or punctuation, never by more letters or digits.
  */
 const appearsIn = (output: string, secret: string): boolean =>
-  /^d{6}$/.test(secret)
+  /^\d{6}$/.test(secret)
     ? new RegExp(`(?<![0-9A-Za-z])${secret}(?![0-9A-Za-z])`).test(output)
     : output.includes(secret)
 
@@ -181,6 +181,68 @@ const journey = async (): Promise<readonly string[]> => {
   return planted.filter((value) => value !== '')
 }
 
+/**
+ * The refusal an attacker meets: the account's budget of wrong codes spent. A line written for
+ * the 429, or for any of the ten attempts before it, must not carry the code that was typed
+ * or the one that was right.
+ */
+const budgetJourney = async (): Promise<readonly string[]> => {
+  const logger = createPinoLogger({ level: 'trace', pretty: false, bindings: INSTANCE })
+  const clock = new FakeClock(AT)
+  const users = new FakeUserRepository()
+  const factors = new FakeSecondFactorRepository()
+  const world = aSecondFactorWorld({
+    clock,
+    users,
+    factors,
+    logger,
+    vault: createAesGcmMfaVault({ keyMaterial: KEY }),
+    engine: nodeTotpEngine,
+    secrets: sha256SecretTokens,
+  })
+  const { secret } = await world.enrolled()
+  const subject = buildServerHarness({
+    logger,
+    users,
+    secondFactors: factors,
+    clock,
+    config: {
+      accessLog: { enabled: true, level: 'trace', pretty: false, ...INSTANCE },
+      rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 1_000 },
+    },
+    usecases: {
+      authenticateUser: world.authenticateUser,
+      verifySecondFactor: world.verifySecondFactor,
+    },
+  })
+  const planted = [world.codeFor(secret), Buffer.from(secret).toString('hex'), '424242']
+
+  let refused = 0
+  for (let signIn = 0; signIn < 3; signIn += 1) {
+    const { agent, csrf } = await anonymousCaller(subject.app)
+    let token = csrf
+    const post = async (path: string, body: object) => {
+      const response = await agent.post(path).set(CSRF_HEADER, token).send(body)
+      const rotated = setCookies(response.headers).find((value) =>
+        value.startsWith(`${CSRF_COOKIE}=`),
+      )
+      if (rotated !== undefined) {
+        token = decodeURIComponent(rotated.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? '')
+      }
+      return response
+    }
+    await post('/api/auth/login', { email: EMAIL, password: PASSWORD })
+    for (let wrong = 0; wrong < 5; wrong += 1) {
+      const response = await post('/api/auth/login/2fa', { code: '424242' })
+      if (response.status === 429) refused += 1
+    }
+    const right = await post('/api/auth/login/2fa', { code: world.codeFor(secret) })
+    if (right.status === 429) refused += 1
+  }
+  if (refused === 0) throw new Error('the journey never met the account budget')
+  return planted
+}
+
 describe('the log canary: a second factor', () => {
   it('writes no secret, code, key, password or address on any channel, through enrolment, sign-in, step-up and removal', async () => {
     let planted: readonly string[] = []
@@ -204,6 +266,18 @@ describe('the log canary: a second factor', () => {
     })
 
     expect(output).toContain('a stored second factor could not be opened with the configured key')
+  })
+
+  it('writes no code, right or wrong, when the account budget refuses', async () => {
+    let planted: readonly string[] = []
+    const output = await captureAllOutputWhile(async () => {
+      planted = await budgetJourney()
+    })
+
+    expect(output).toContain('429')
+    for (const secret of planted) {
+      expect(appearsIn(output, secret), 'a code or a secret reached the log').toBe(false)
+    }
   })
 
   it('keeps the audit log free of every secret it could have been handed', async () => {
