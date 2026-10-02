@@ -17,6 +17,7 @@ import type { ArchiveWriter } from '../application/ports/archiveWriter'
 import type { PasswordHasher } from '../application/ports/passwordHasher'
 import type { GuestTokenService } from '../application/ports/guestTokenService'
 import type { ShareLinkRepository } from '../application/ports/shareLinkRepository'
+import type { ClientRepository } from '../application/ports/clientRepository'
 import type { GallerySigner } from '../application/ports/gallerySigner'
 
 import { makeAuthenticateUser } from '../application/usecases/auth/authenticateUser'
@@ -83,6 +84,12 @@ import { makeGetShareLink } from '../application/usecases/gallery/getShareLink'
 import { makeListGalleryPhotos } from '../application/usecases/gallery/listGalleryPhotos'
 import { makeOpenGallery } from '../application/usecases/gallery/openGallery'
 import { makeRevokeShareLink } from '../application/usecases/gallery/revokeShareLink'
+
+import { makeCreateClient } from '../application/usecases/clients/createClient'
+import { makeDeleteEmptyClient } from '../application/usecases/clients/deleteEmptyClient'
+import { makeListClients } from '../application/usecases/clients/listClients'
+import { makeRenameClient } from '../application/usecases/clients/renameClient'
+import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
 import { makeUnlockGallery } from '../application/usecases/gallery/unlockGallery'
 
 /**
@@ -114,6 +121,8 @@ export interface Adapters {
   readonly guestTokens: GuestTokenService
   /** The shared gallery's links (roadmap §4.1). */
   readonly shareLinks: ShareLinkRepository
+  /** Clients as records (roadmap §10.2). Empty on a box that never created one. */
+  readonly clients: ClientRepository
   /** Tokens, their digests, and the MAC behind every signed gallery URL. */
   readonly gallerySigner: GallerySigner
 }
@@ -510,6 +519,22 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     archive: adapters.archive,
     logger: adapters.logger,
   }),
+
+  // ---------------------------------------------------------------- clients --
+  //
+  // Built whatever `SITE_ADMIN` says, like every use case: the mode decides which routes
+  // are mounted (roadmap §10.9), never which use cases exist. **No route calls these yet**
+  // — the operator API is G2-14, behind `SITE_ADMIN` and `requireOperator` — so none of
+  // them takes an actor: the gate is the HTTP layer's, as for every operator route.
+  createClient: makeCreateClient({
+    clients: adapters.clients,
+    ids: adapters.ids,
+    clock: adapters.clock,
+  }),
+  renameClient: makeRenameClient({ clients: adapters.clients }),
+  setClientCeilings: makeSetClientCeilings({ clients: adapters.clients }),
+  listClients: makeListClients({ clients: adapters.clients }),
+  deleteEmptyClient: makeDeleteEmptyClient({ clients: adapters.clients }),
 
   // -------------------------------------------------------------- reactions --
   reactToPhoto: makeReactToPhoto({

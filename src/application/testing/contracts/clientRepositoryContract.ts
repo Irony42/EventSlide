@@ -6,7 +6,8 @@ import {
   type ClientId,
   type EventId,
 } from '../../../domain/shared/ids'
-import type { ClientMembership, ClientRepository, ClientRole } from '../../ports/clientRepository'
+import type { ClientRole } from '../../../domain/clients/clientRole'
+import type { ClientMembership, ClientRepository } from '../../ports/clientRepository'
 import { AT, aClient, aClientCeilings, atPlus } from '../builders'
 
 /**

@@ -1,20 +1,7 @@
 import type { Client } from '../../domain/clients/client'
 import type { ClientCeilings } from '../../domain/clients/clientCeilings'
+import type { ClientRole } from '../../domain/clients/clientRole'
 import type { ClientId, EventId, UserId } from '../../domain/shared/ids'
-
-/**
- * Who manages a client's account, as opposed to who is a member of one of its events.
- *
- * A `ClientRole` is a different vocabulary from `EventRole` for the same reason
- * `SiteRole` is: ranking the three together is exactly the matrix roadmap §10.1 refuses
- * to build. An `owner` here can invite another member and rename the client; a `member`
- * can sign in to the client's events as whatever `EventRole` those events separately
- * grant them. Neither grants anything inside an event on its own — `client_members` is
- * the client's own roster, `event_memberships` is still the only table authorization
- * reads from for a single event.
- */
-export const CLIENT_ROLES = ['owner', 'member'] as const
-export type ClientRole = (typeof CLIENT_ROLES)[number]
 
 export interface ClientMembership {
   readonly clientId: ClientId

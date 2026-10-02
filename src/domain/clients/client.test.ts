@@ -34,7 +34,7 @@ describe('Client.create', () => {
   })
 
   it('starts with no contact on file when none is given', () => {
-    const client = must(Client.create(aNewClient({ contactEmail: undefined }), ID, AT))
+    const client = must(Client.create(aNewClient(), ID, AT))
 
     expect(client.contactEmail).toBeNull()
   })

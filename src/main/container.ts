@@ -17,6 +17,7 @@ import { SqliteMembershipRepository } from '../infrastructure/db/sqliteMembershi
 import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepository'
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
 import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
+import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
 import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
 import { probeFfmpegCapability } from '../infrastructure/media/ffmpegBinaries'
@@ -333,6 +334,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     passwordHasher: createBcryptPasswordHasher({ cost: config.crypto.bcryptCost }),
     guestTokens: createHmacGuestTokenService({ secret: config.secrets.guestToken }),
     shareLinks: new SqliteShareLinkRepository(db),
+    clients: new SqliteClientRepository(db),
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.
     gallerySigner: createHmacGallerySigner({ rootSecret: config.secrets.session }),

@@ -599,7 +599,9 @@ export const aClient = (input: ClientInput = {}): Client => {
       {
         name: pick(input.name, 'Atelier Photo Camille'),
         contactEmail: pick(input.contactEmail, null),
-        ceilings: input.ceilings === undefined ? undefined : toCeilings(input.ceilings),
+        // `exactOptionalPropertyTypes`: absent means "unlimited", an explicit `undefined`
+        // would be a different thing to say.
+        ...(input.ceilings === undefined ? {} : { ceilings: toCeilings(input.ceilings) }),
         locale: pick(input.locale, 'fr'),
       },
       asClientId(pick(input.id, 'client-1')),

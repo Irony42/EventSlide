@@ -4,11 +4,11 @@ import type {
   ClientMembership,
   ClientPage,
   ClientRepository,
-  ClientRole,
 } from '../../application/ports/clientRepository'
 import { Client } from '../../domain/clients/client'
 import { ClientCeilings, type ClientCeilingsProps } from '../../domain/clients/clientCeilings'
 import { isClientLocale, type ClientLocale } from '../../domain/clients/clientLocale'
+import { isClientRole, type ClientRole } from '../../domain/clients/clientRole'
 import { ClientName } from '../../domain/clients/clientName'
 import {
   asClientId,
@@ -123,7 +123,7 @@ const corrupt = (column: string, detail: string): Error =>
  * same reasoning `sqliteMembershipRepository.ts`'s `roleOf` applies to an event role.
  */
 const clientRoleOf = (raw: string): ClientRole => {
-  if (raw !== 'owner' && raw !== 'member') {
+  if (!isClientRole(raw)) {
     throw new Error(`Corrupt client_members.role in the database: ${raw}`)
   }
   return raw

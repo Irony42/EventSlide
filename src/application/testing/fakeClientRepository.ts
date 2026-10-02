@@ -1,11 +1,11 @@
 import type { Client } from '../../domain/clients/client'
+import type { ClientRole } from '../../domain/clients/clientRole'
 import type { ClientId, EventId, UserId } from '../../domain/shared/ids'
 import type {
   ClientEventContext,
   ClientMembership,
   ClientPage,
   ClientRepository,
-  ClientRole,
 } from '../ports/clientRepository'
 
 /**
