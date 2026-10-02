@@ -547,6 +547,20 @@ describe('GET /api/auth/me', () => {
       expect(await canOperateSite(subject)).toBe(false)
     })
 
+    it('is not moved by anything else about the account, such as a password it must still change', async () => {
+      const ordinary = harness()
+      ordinary.users.seed(
+        aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'none', mustChangePassword: true }),
+      )
+      const operator = harness()
+      operator.users.seed(
+        aUser({ id: HOST_ID, email: HOST_EMAIL, siteRole: 'operator', mustChangePassword: true }),
+      )
+
+      expect(await canOperateSite(ordinary)).toBe(false)
+      expect(await canOperateSite(operator)).toBe(true)
+    })
+
     it('is read from storage on this request, not from the session that was opened before', async () => {
       // Demoted at 19:00, still holding the tab opened at 18:00: the next `/me` says so.
       const subject = harness()

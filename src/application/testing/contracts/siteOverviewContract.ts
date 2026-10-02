@@ -77,6 +77,8 @@ export const SITE_EVENTS = {
   wedding: asEventId('evt-wedding'),
   gala: asEventId('evt-gala'),
   brunch: asEventId('evt-brunch'),
+  /** Archived: still an event of its client, still counted by `max_events`. */
+  archive: asEventId('evt-archive'),
   /** Belongs to nobody's client: the operator's own, which no client listing may show. */
   solo: asEventId('evt-solo'),
 } as const
@@ -108,9 +110,21 @@ export const BRUNCH_USED = 40_000
  * distinctive enough that a substring hit cannot be a coincidence.
  */
 export const SITE_PLANTS = {
-  eventNames: ['Mariage de CANARY-EVENT-NAME', 'Gala de CANARY-EVENT-NAME-2'],
-  slugs: ['mariage-canary-slug', 'gala-canary-slug'],
-  joinCodes: ['H7K2QM', 'K3M9PX'],
+  eventNames: [
+    'Mariage de CANARY-EVENT-NAME',
+    'Gala de CANARY-EVENT-NAME-2',
+    'Brunch de CANARY-EVENT-NAME-3',
+    'Anniversaire de CANARY-EVENT-NAME-4',
+    'Baptême de CANARY-EVENT-NAME-5',
+  ],
+  slugs: [
+    'mariage-canary-slug',
+    'gala-canary-slug',
+    'brunch-canary-slug',
+    'solo-canary-slug',
+    'archive-canary-slug',
+  ],
+  joinCodes: ['H7K2QM', 'K3M9PX', 'R5T8WZ', 'C4D6FG', 'T8V9WX'],
   captions: ['Légende CANARY-CAPTION', 'Légende CANARY-CAPTION-2'],
   guestNames: ['Léa CANARY-GUEST', 'Hugo CANARY-GUEST-2'],
   prompts: ['Un selfie CANARY-PROMPT'],
@@ -269,9 +283,9 @@ export const plantSiteWorld = async (world: SiteWorld): Promise<void> => {
       id: SITE_EVENTS.brunch,
       ownerId: SITE_ACCOUNTS.ownerB,
       clientId: SITE_CLIENTS.bleu,
-      name: 'Brunch de CANARY-EVENT-NAME-3',
-      slug: 'brunch-canary-slug',
-      joinCode: 'R5T8WZ',
+      name: SITE_PLANTS.eventNames[2],
+      slug: SITE_PLANTS.slugs[2],
+      joinCode: SITE_PLANTS.joinCodes[2],
       status: 'draft',
       quotaBytes: 5_000_000,
       createdAt: atPlus(15_000),
@@ -279,12 +293,26 @@ export const plantSiteWorld = async (world: SiteWorld): Promise<void> => {
   )
   await world.addEvent(
     anEvent({
+      id: SITE_EVENTS.archive,
+      ownerId: SITE_ACCOUNTS.ownerB,
+      clientId: SITE_CLIENTS.bleu,
+      name: SITE_PLANTS.eventNames[4],
+      slug: SITE_PLANTS.slugs[4],
+      joinCode: SITE_PLANTS.joinCodes[4],
+      status: 'archived',
+      quotaBytes: 5_000_000,
+      createdAt: atPlus(14_000),
+      closedAt: atPlus(16_000),
+    }),
+  )
+  await world.addEvent(
+    anEvent({
       id: SITE_EVENTS.solo,
       ownerId: SITE_ACCOUNTS.operator,
       clientId: null,
-      name: 'Anniversaire de CANARY-EVENT-NAME-4',
-      slug: 'solo-canary-slug',
-      joinCode: 'C4D6FG',
+      name: SITE_PLANTS.eventNames[3],
+      slug: SITE_PLANTS.slugs[3],
+      joinCode: SITE_PLANTS.joinCodes[3],
       status: 'live',
       createdAt: atPlus(25_000),
     }),
@@ -547,6 +575,26 @@ export const siteOverviewContract = (
         expect(second.items.map((row) => row.id)).toEqual([SITE_CLIENTS.atelier])
       })
 
+      it('breaks a tie on the creation instant by id, descending, and pages through the tie whole', async () => {
+        await world.addClient(
+          aClient({ id: 'client-tie-a', name: 'Tie A', createdAt: atPlus(4_000) }),
+        )
+        await world.addClient(
+          aClient({ id: 'client-tie-b', name: 'Tie B', createdAt: atPlus(4_000) }),
+        )
+
+        const all = await overview.listClients({ limit: 10 })
+        const first = await overview.listClients({ limit: 1 })
+        const second = await overview.listClients({
+          limit: 1,
+          after: first.next ?? SITE_CLIENTS.vert,
+        })
+
+        expect(all.items.slice(0, 2).map((row) => row.id)).toEqual(['client-tie-b', 'client-tie-a'])
+        expect(first.items.map((row) => row.id)).toEqual(['client-tie-b'])
+        expect(second.items.map((row) => row.id)).toEqual(['client-tie-a'])
+      })
+
       it('answers an unknown cursor with an empty page, not with the first page again', async () => {
         const page = await overview.listClients({ limit: 10, after: asClientId('client-nobody') })
 
@@ -598,10 +646,10 @@ export const siteOverviewContract = (
         const page = await overview.listClients({ limit: 10 })
         const bleu = page.items.find((row) => row.id === SITE_CLIENTS.bleu)
 
-        // One draft event, two members: the draft is counted (it is what `max_events`
-        // counts) and is not live.
+        // One draft and one archived event, two members: both are counted (it is what
+        // `max_events` counts, every status) and neither is live.
         expect(bleu?.usage).toEqual({
-          eventCount: 1,
+          eventCount: 2,
           liveEventCount: 0,
           memberCount: 2,
           usedBytes: BRUNCH_USED,
@@ -648,7 +696,7 @@ export const siteOverviewContract = (
         const bleu = await overview.clientEvents(SITE_CLIENTS.bleu, { limit: 10 })
 
         expect(atelier?.items.map((row) => row.id)).toEqual([SITE_EVENTS.gala, SITE_EVENTS.wedding])
-        expect(bleu?.items.map((row) => row.id)).toEqual([SITE_EVENTS.brunch])
+        expect(bleu?.items.map((row) => row.id)).toEqual([SITE_EVENTS.brunch, SITE_EVENTS.archive])
       })
 
       it("carries an event's status, dates and sizes", async () => {
@@ -720,6 +768,34 @@ export const siteOverviewContract = (
         expect(page).toEqual({ items: [], next: null })
       })
 
+      it('breaks a tie on the creation instant by id, descending', async () => {
+        for (const [id, joinCode] of [
+          ['evt-tie-a', 'M2N3P4'],
+          ['evt-tie-b', 'Q5R6S7'],
+        ] as const) {
+          await world.addEvent(
+            anEvent({
+              id,
+              ownerId: SITE_ACCOUNTS.ownerA,
+              clientId: SITE_CLIENTS.atelier,
+              slug: id,
+              joinCode,
+              createdAt: atPlus(40_000),
+            }),
+          )
+        }
+
+        const page = await overview.clientEvents(SITE_CLIENTS.atelier, { limit: 10 })
+        const first = await overview.clientEvents(SITE_CLIENTS.atelier, { limit: 1 })
+        const second = await overview.clientEvents(SITE_CLIENTS.atelier, {
+          limit: 1,
+          after: first?.next ?? SITE_EVENTS.gala,
+        })
+
+        expect(page?.items.slice(0, 2).map((row) => row.id)).toEqual(['evt-tie-b', 'evt-tie-a'])
+        expect(second?.items.map((row) => row.id)).toEqual(['evt-tie-a'])
+      })
+
       it('answers an unknown cursor with an empty page', async () => {
         const page = await overview.clientEvents(SITE_CLIENTS.atelier, {
           limit: 10,
@@ -768,6 +844,25 @@ export const siteOverviewContract = (
         expect(first.next).toBe(SITE_ACCOUNTS.ownerA)
         expect(second.items.map((row) => row.id)).toEqual([SITE_ACCOUNTS.operator])
         expect(second.next).toBeNull()
+      })
+
+      it('breaks a tie on the creation instant by id, descending', async () => {
+        await world.addAccount(
+          aUser({ id: 'user-tie-a', email: 'tie-a@example.test', createdAt: atPlus(5_000) }),
+        )
+        await world.addAccount(
+          aUser({ id: 'user-tie-b', email: 'tie-b@example.test', createdAt: atPlus(5_000) }),
+        )
+
+        const page = await overview.listAccounts({ limit: 10 })
+        const first = await overview.listAccounts({ limit: 1 })
+        const second = await overview.listAccounts({
+          limit: 1,
+          after: first.next ?? SITE_ACCOUNTS.operator,
+        })
+
+        expect(page.items.slice(0, 2).map((row) => row.id)).toEqual(['user-tie-b', 'user-tie-a'])
+        expect(second.items.map((row) => row.id)).toEqual(['user-tie-a'])
       })
 
       it('answers an unknown cursor with an empty page', async () => {
@@ -868,9 +963,9 @@ export const siteOverviewContract = (
         )
 
         expect(violations).toEqual([])
-        // And it saw something: three clients, three events of clients, four accounts.
+        // And it saw something: three clients, four events of clients, four accounts.
         expect(rows.client).toHaveLength(3)
-        expect(rows.event).toHaveLength(3)
+        expect(rows.event).toHaveLength(4)
         expect(rows.account).toHaveLength(4)
       })
 
