@@ -298,6 +298,23 @@ export class ClientCeilings {
     return this.clampRetention(days) === days
   }
 
+  /**
+   * Whether these ceilings give less retention than `before` did: a bound where there was
+   * none, or a smaller one. Raising the bound, removing it and leaving it alone are all
+   * `false`.
+   *
+   * It is what decides whether a change of ceilings starts the **notice** clock
+   * (`clients.retention_cap_since`, see `purgeDeadline`): only a ceiling that can bring a
+   * purge forward owes the client a warning, and "no bound to a bound of 30 days" can, as
+   * much as 60 to 30.
+   */
+  lowersRetentionCapFrom(before: ClientCeilings): boolean {
+    const now = this.props.maxRetentionDays
+    if (now === null) return false
+    const was = before.props.maxRetentionDays
+    return was === null || now < was
+  }
+
   /** Whether an event of this client may open its doors at all (quarantine, an expired Pass). */
   allowsOpening(): boolean {
     return this.props.liveAllowed

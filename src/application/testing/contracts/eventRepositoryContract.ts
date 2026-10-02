@@ -725,6 +725,7 @@ export const eventRepositoryContract = (
         await clients.save(
           before.withCeilings(
             aClientCeilings({ maxEventsPerPeriod: 1, periodStartedAt: atPlus(DAY) }),
+            atPlus(DAY),
           ),
         )
 

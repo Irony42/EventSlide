@@ -25,6 +25,12 @@ import type { Clock } from '../../ports/clock'
  * leaves it alone. The counter never decreases on its own, so "create, delete, recreate"
  * cannot walk around a per-period ceiling.
  *
+ * **Lowering the retention ceiling starts the notice clock.** `retention_cap_since` is set to
+ * now whenever `max_retention_days` becomes smaller than it was (`Client.withCeilings` carries
+ * the rule), which is what `purgeDeadline` reads to give an event closed long ago the
+ * `RETENTION_CAP_NOTICE_DAYS` of warning instead of purging it the same night. It is a column
+ * of its own, not a ceiling, so the audit entry's `before` / `after` do not carry it.
+ *
  * **What is written.** `describeCeilingsChange` decides, as a pure function: nothing when
  * the patch changed nothing, `client.ceilingsChanged {before, after}` when a ceiling
  * moved, and `client.periodReset {before, after}` as well when the period did. The actor is
@@ -60,6 +66,7 @@ export interface SetClientCeilingsDeps {
   readonly clients: ClientRepository
   /** Only the writing half of the log: this use case cannot prune it. */
   readonly audit: AuditRecorder
+  /** When an entry is written, and when a lowered retention ceiling starts its notice. */
   readonly clock: Clock
 }
 
@@ -76,9 +83,9 @@ export const makeSetClientCeilings =
     const next = ClientCeilings.create({ ...client.ceilings.toProps(), ...ceilings })
     if (!next.ok) return next
 
-    const updated = client.withCeilings(next.value)
-
     const at = clock.now()
+    const updated = client.withCeilings(next.value, at)
+
     const entries: AuditEntry[] = []
     for (const planned of describeCeilingsChange(client, updated)) {
       const entry = AuditEntry.create({

@@ -147,12 +147,19 @@ export class Client {
    * Replace the ceilings, resetting the per-period counter exactly when `periodStartedAt`
    * itself changes — a renewal — and never on an ordinary edit of some other ceiling.
    *
+   * **And starting the retention notice exactly when the retention ceiling is lowered.**
+   * `retentionCapSince` is set to `now` when `max_retention_days` becomes smaller than it was
+   * (a bound where there was none included) and left alone by every other edit, raising or
+   * removing the bound included. `purgeDeadline` reads it as the floor that guarantees an
+   * event closed long ago a real warning — `RETENTION_CAP_NOTICE_DAYS`, thirty by default —
+   * instead of being purged the night an operator tightens a number.
+   *
    * The audit entries (`client.ceilingsChanged`, and `client.periodReset` when this resets the
    * counter) belong to the use case: `setClientCeilings` asks `describeCeilingsChange` which
    * ones a change is worth and writes them (roadmap §10.8). This method only carries the
    * counter reset itself.
    */
-  withCeilings(ceilings: ClientCeilings): Client {
+  withCeilings(ceilings: ClientCeilings, now: Date): Client {
     const periodChanged = !sameInstant(
       this.props.ceilings.periodStartedAt,
       ceilings.periodStartedAt,
@@ -160,6 +167,9 @@ export class Client {
     return this.with({
       ceilings,
       eventsCreatedInPeriod: periodChanged ? 0 : this.props.eventsCreatedInPeriod,
+      retentionCapSince: ceilings.lowersRetentionCapFrom(this.props.ceilings)
+        ? now
+        : this.props.retentionCapSince,
     })
   }
 

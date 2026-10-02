@@ -513,3 +513,32 @@ describe('ClientCeilings.openingRefusal', () => {
     expect(withFlags(true, 3).openingRefusal(OPENED, NOW)).toBeNull()
   })
 })
+
+describe('ClientCeilings.lowersRetentionCapFrom', () => {
+  const withCap = (maxRetentionDays: number | null): ClientCeilings =>
+    must(ClientCeilings.create({ maxRetentionDays }))
+
+  it('is true for a smaller ceiling', () => {
+    expect(withCap(30).lowersRetentionCapFrom(withCap(60))).toBe(true)
+  })
+
+  it('is true for a ceiling where there was none, which can bring a purge forward as much as 60 to 30', () => {
+    expect(withCap(30).lowersRetentionCapFrom(withCap(null))).toBe(true)
+  })
+
+  it('is false for the same ceiling', () => {
+    expect(withCap(30).lowersRetentionCapFrom(withCap(30))).toBe(false)
+  })
+
+  it('is false for a larger ceiling', () => {
+    expect(withCap(60).lowersRetentionCapFrom(withCap(30))).toBe(false)
+  })
+
+  it('is false when the ceiling is removed, since nothing is brought forward', () => {
+    expect(withCap(null).lowersRetentionCapFrom(withCap(30))).toBe(false)
+  })
+
+  it('is false when there is none before and none after', () => {
+    expect(withCap(null).lowersRetentionCapFrom(withCap(null))).toBe(false)
+  })
+})

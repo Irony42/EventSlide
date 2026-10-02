@@ -187,7 +187,7 @@ describe('Client.withCeilings', () => {
   it('keeps the counter when neither period has started', () => {
     const client = clientWithPeriod(null, 7)
 
-    const updated = client.withCeilings(must(ClientCeilings.create({ maxEvents: 2 })))
+    const updated = client.withCeilings(must(ClientCeilings.create({ maxEvents: 2 })), AT)
 
     expect(updated.eventsCreatedInPeriod).toBe(7)
   })
@@ -195,7 +195,7 @@ describe('Client.withCeilings', () => {
   it('keeps the counter when the period instant is unchanged', () => {
     const client = clientWithPeriod(AT, 7)
 
-    const updated = client.withCeilings(must(ClientCeilings.create({ periodStartedAt: AT })))
+    const updated = client.withCeilings(must(ClientCeilings.create({ periodStartedAt: AT })), AT)
 
     expect(updated.eventsCreatedInPeriod).toBe(7)
   })
@@ -203,7 +203,7 @@ describe('Client.withCeilings', () => {
   it('resets the counter when a period starts for the first time', () => {
     const client = clientWithPeriod(null, 7)
 
-    const updated = client.withCeilings(must(ClientCeilings.create({ periodStartedAt: AT })))
+    const updated = client.withCeilings(must(ClientCeilings.create({ periodStartedAt: AT })), AT)
 
     expect(updated.eventsCreatedInPeriod).toBe(0)
   })
@@ -211,7 +211,7 @@ describe('Client.withCeilings', () => {
   it('resets the counter when the period is cleared', () => {
     const client = clientWithPeriod(AT, 7)
 
-    const updated = client.withCeilings(must(ClientCeilings.create({ periodStartedAt: null })))
+    const updated = client.withCeilings(must(ClientCeilings.create({ periodStartedAt: null })), AT)
 
     expect(updated.eventsCreatedInPeriod).toBe(0)
   })
@@ -220,7 +220,7 @@ describe('Client.withCeilings', () => {
     const client = clientWithPeriod(AT, 7)
     const later = new Date(AT.getTime() + 1_000)
 
-    const updated = client.withCeilings(must(ClientCeilings.create({ periodStartedAt: later })))
+    const updated = client.withCeilings(must(ClientCeilings.create({ periodStartedAt: later })), AT)
 
     expect(updated.eventsCreatedInPeriod).toBe(0)
   })
@@ -228,9 +228,74 @@ describe('Client.withCeilings', () => {
   it('replaces the ceilings themselves', () => {
     const client = clientWithPeriod(null, 0)
 
-    const updated = client.withCeilings(must(ClientCeilings.create({ maxEvents: 9 })))
+    const updated = client.withCeilings(must(ClientCeilings.create({ maxEvents: 9 })), AT)
 
     expect(updated.ceilings.maxEvents).toBe(9)
+  })
+
+  describe('the retention notice clock (retention_cap_since)', () => {
+    const NOW = new Date('2026-09-01T12:00:00.000Z')
+    const EARLIER = new Date('2026-05-01T12:00:00.000Z')
+
+    const clientWithCap = (
+      maxRetentionDays: number | null,
+      retentionCapSince: Date | null,
+    ): Client =>
+      Client.restore({
+        ...clientWithPeriod(null, 0).toProps(),
+        ceilings: must(ClientCeilings.create({ maxRetentionDays })),
+        retentionCapSince,
+      })
+
+    const withCap = (client: Client, maxRetentionDays: number | null): Client =>
+      client.withCeilings(must(ClientCeilings.create({ maxRetentionDays })), NOW)
+
+    it('starts when the ceiling is lowered', () => {
+      const updated = withCap(clientWithCap(60, null), 30)
+
+      expect(updated.retentionCapSince).toEqual(NOW)
+    })
+
+    it('starts when a ceiling is set where there was none, because that too can bring a purge forward', () => {
+      const updated = withCap(clientWithCap(null, null), 30)
+
+      expect(updated.retentionCapSince).toEqual(NOW)
+    })
+
+    it('starts again when the ceiling is lowered a second time, replacing the first notice', () => {
+      const updated = withCap(clientWithCap(60, EARLIER), 14)
+
+      expect(updated.retentionCapSince).toEqual(NOW)
+    })
+
+    it('does not start when the ceiling is raised', () => {
+      const updated = withCap(clientWithCap(30, EARLIER), 60)
+
+      expect(updated.retentionCapSince).toEqual(EARLIER)
+    })
+
+    it('does not start when the ceiling is removed, and leaves a notice that is running alone', () => {
+      const updated = withCap(clientWithCap(30, EARLIER), null)
+
+      expect(updated.retentionCapSince).toEqual(EARLIER)
+    })
+
+    it('does not start when the same ceiling is saved again', () => {
+      const updated = withCap(clientWithCap(30, EARLIER), 30)
+
+      expect(updated.retentionCapSince).toEqual(EARLIER)
+    })
+
+    it('does not start when some other ceiling is edited', () => {
+      const client = clientWithCap(30, null)
+
+      const updated = client.withCeilings(
+        must(ClientCeilings.create({ maxRetentionDays: 30, maxEvents: 4 })),
+        NOW,
+      )
+
+      expect(updated.retentionCapSince).toBeNull()
+    })
   })
 })
 
