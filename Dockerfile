@@ -34,6 +34,20 @@ RUN npm ci --include=dev
 # ---------------------------------------------------------------------- build --
 FROM deps AS build
 WORKDIR /app
+
+# The tag or commit this image's source is published at, for the AGPL section 13 link
+# (roadmap G1-04). Left empty, the link is the upstream tag of package.json's version —
+# right for the published image, wrong for any build from a commit no tag names, which
+# should say so: `docker build --build-arg SOURCE_REF=<commit-or-tag> .`.
+#
+# Declared here so `vite build` sees it as the default the footer shows from its first
+# paint (web/buildInfo.ts), and again on the runtime stage so the server answers
+# `GET /api/about` with the same one (`SOURCE_REF` in src/infrastructure/config/env.ts).
+# An ARG does not persist into a later stage, so one declaration would not reach both.
+# Placed before `COPY . .`: a different value is a different bundle, and the layers that
+# follow must not come from the cache.
+ARG SOURCE_REF=""
+
 COPY . .
 RUN npm run build
 
@@ -52,6 +66,11 @@ WORKDIR /app
 # fails that test rather than drifting silently. Only one such LABEL may exist here: a
 # later one with the same key would silently win.
 LABEL org.opencontainers.image.licenses=AGPL-3.0-only
+
+# See the build stage: what the running server offers as its source when the operator has
+# not set SOURCE_CODE_URL. Empty is "not set", which is the upstream tag of this version.
+ARG SOURCE_REF=""
+ENV SOURCE_REF=$SOURCE_REF
 
 # BACKUP_DIR is where `node dist/ops/scripts/backup.js` writes when it is not given `--to`.
 # The default outside the image, `./backups`, resolves against `/app` here, which is

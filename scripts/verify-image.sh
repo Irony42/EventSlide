@@ -2,7 +2,7 @@
 #
 # Proves what the Dockerfile and compose.yaml claim, instead of asserting it.
 #
-# The image makes eight promises that nothing in the six test rings can reach, because
+# The image makes nine promises that nothing in the six test rings can reach, because
 # none of them runs Docker. They are all promises about the *artefact*, not about the
 # code, so they cannot be moved down a ring: `npm run test:coverage` is green on a tree
 # whose image has no ffmpeg in it, ships the Playwright browsers, or runs as root.
@@ -24,6 +24,12 @@
 #      has no `scripts/` and no `tsx`. So this takes a backup of the running server,
 #      verifies it, purges, copies the archive off the volume, stops the server, is
 #      refused by a restore without `--force`, restores with it, and boots on the result.
+#   9. The AGPL section 13 source offer is true of the artefact: the running server's
+#      /api/about names the version in the image's own package.json, from dist/server and
+#      from dist/ops alike, the web bundle carries the same default link, and a boot with a
+#      javascript: or http: SOURCE_CODE_URL is refused. src/main/version.ts finds
+#      package.json by walking up from __dirname, which is right at four depths, and only
+#      this script can say that it is right in the image.
 #
 # Usage:
 #   ./scripts/verify-image.sh              # build, then check
@@ -256,6 +262,26 @@ else
   fail "a boot with a blank NODE_ENV exited $unnamed_code — the strict posture is not the default"
 fi
 
+# The source link is shown to every visitor, so the scheme is a control: a box told to offer
+# `javascript:` or plain http as its source must not boot. Everything else is valid, so the
+# refusal can only be about the one variable.
+set +e
+hostile="$(docker run --rm \
+  -e NODE_ENV=production \
+  -e PUBLIC_URL=https://example.com \
+  -e SESSION_SECRET=verification-session-secret-at-least-32-chars \
+  -e GUEST_TOKEN_SECRET=verification-guest-token-secret-at-least-32-c \
+  -e 'SOURCE_CODE_URL=javascript:alert(1)' \
+  "$IMAGE" 2>&1)"
+hostile_code=$?
+set -e
+
+if [ "$hostile_code" -eq 78 ] && printf '%s' "$hostile" | grep -q 'SOURCE_CODE_URL must be an https URL'; then
+  pass "a javascript: SOURCE_CODE_URL is refused at boot (exit 78), naming the variable"
+else
+  fail "a javascript: SOURCE_CODE_URL exited $hostile_code — the source link could carry a script URI"
+fi
+
 # ------------------------------------------------------------ an empty volume boots --
 section "First boot on an empty volume"
 
@@ -330,6 +356,58 @@ if docker exec "$CONTAINER" node -e \
   pass "/api/health answers"
 else
   fail "/api/health does not answer"
+fi
+
+# The source offer (roadmap G1-04), proven against the artefact. The version is read from
+# the image's own package.json and compared with what the running server says it is: that
+# is the claim `src/main/version.ts` makes, and a fixed `../..` would be right under tsx and
+# wrong here.
+image_version="$(in_image "node -p \"require('./package.json').version\"" 2>/dev/null || true)"
+about_body="$(docker exec "$CONTAINER" node -e \
+  "fetch('http://127.0.0.1:4300/api/about').then(r=>r.text()).then(t=>{console.log(t);process.exit(0)}).catch(()=>process.exit(1))" \
+  2>/dev/null || true)"
+
+if [ -n "$image_version" ] && printf '%s' "$about_body" | grep -qF "\"version\":\"$image_version\""; then
+  pass "/api/about names the version in the image's package.json ($image_version)"
+else
+  fail "/api/about does not name the image's version ($image_version): $about_body"
+fi
+
+if printf '%s' "$about_body" | grep -qF '"license":"AGPL-3.0-only"'; then
+  pass "/api/about reports AGPL-3.0-only"
+else
+  fail "/api/about does not report the licence: $about_body"
+fi
+
+if printf '%s' "$about_body" | grep -qF "\"sourceUrl\":\"https://github.com/Irony42/EventSlide/tree/v$image_version\""; then
+  pass "with nothing configured, the source offer is the upstream tag of that version"
+else
+  fail "the default source offer is not the tag of the image's version: $about_body"
+fi
+
+# `/api/health` and `/api/about` read one `appVersion()`, so they cannot name two builds.
+if docker exec "$CONTAINER" node -e \
+  "fetch('http://127.0.0.1:4300/api/health').then(r=>r.json()).then(j=>process.exit(j.version==='$image_version'?0:1)).catch(()=>process.exit(1))"; then
+  pass "/api/health reports the same version"
+else
+  fail "/api/health does not report the image's version"
+fi
+
+# The other depth: the operator commands are compiled with rootDir '.', one level deeper
+# than the server, and stamp their backups with this value.
+ops_version="$(in_image "node -p \"require('./dist/ops/src/main/version.js').appVersion()\"" 2>/dev/null || true)"
+if [ "$ops_version" = "$image_version" ]; then
+  pass "dist/ops resolves the same version, from one level deeper"
+else
+  fail "dist/ops resolved '$ops_version', expected $image_version"
+fi
+
+# The footer's link has to be there on the first paint, which is the build-time default
+# Vite bakes in. Present in the bundle or the guest chunk is waiting on a request.
+if in_image "grep -rlF 'EventSlide/tree/v$image_version' dist/client/assets >/dev/null"; then
+  pass "the web bundle carries the same default source link"
+else
+  fail "the web bundle does not contain the default source link for $image_version"
 fi
 
 # The HEALTHCHECK in the Dockerfile is what an operator's `docker ps` reads. Checking
