@@ -31,14 +31,27 @@ const packageVersion = (): string => {
   return version
 }
 
+/** The entry that starts at line `start`: its heading line and everything up to the next `## `. */
+const entryFrom = (lines: readonly string[], start: number): { heading: string; body: string } => {
+  const next = lines.findIndex((line, index) => index > start && line.startsWith('## '))
+  const entry = lines.slice(start, next === -1 ? undefined : next)
+  return { heading: entry[0] ?? '', body: entry.slice(1).join('\n') }
+}
+
 /** The newest entry of the CHANGELOG: its heading line and everything up to the next `## `. */
 const newestEntry = (): { heading: string; body: string } => {
   const lines = read('CHANGELOG.md').split('\n')
   const start = lines.findIndex((line) => line.startsWith('## '))
   if (start === -1) throw new Error('CHANGELOG.md has no `## ` entry')
-  const next = lines.findIndex((line, index) => index > start && line.startsWith('## '))
-  const entry = lines.slice(start, next === -1 ? undefined : next)
-  return { heading: entry[0] ?? '', body: entry.slice(1).join('\n') }
+  return entryFrom(lines, start)
+}
+
+/** The entry of one release, wherever it stands in the file. */
+const entryOf = (version: string): { heading: string; body: string } => {
+  const lines = read('CHANGELOG.md').split('\n')
+  const start = lines.findIndex((line) => line.startsWith(`## [${version}] - `))
+  if (start === -1) throw new Error(`CHANGELOG.md has no entry for ${version}`)
+  return entryFrom(lines, start)
 }
 
 describe('the version is written down alike everywhere a release bump reaches', () => {
@@ -76,9 +89,12 @@ describe('the version is written down alike everywhere a release bump reaches', 
   })
 })
 
-describe('the CHANGELOG entry of this release', () => {
+// The entry of 2.1.0 and not the newest one: it is the release that changed the licence, and
+// the entry of a release after it has no reason to say so first. Held to the newest entry, these
+// went red the day 3.0.0 was written up, for a reason that had nothing to do with 3.0.0.
+describe('the CHANGELOG entry of 2.1.0, the release that changed the licence', () => {
   it('says the licence change first, before any feature', () => {
-    const sections = newestEntry()
+    const sections = entryOf('2.1.0')
       .body.split('\n')
       .filter((line) => line.startsWith('### '))
 
@@ -86,7 +102,7 @@ describe('the CHANGELOG entry of this release', () => {
   })
 
   it('names the new licence, the old one and the commit where one gives way to the other', () => {
-    const licence = newestEntry().body.split('\n### ')[1] ?? ''
+    const licence = entryOf('2.1.0').body.split('\n### ')[1] ?? ''
     const boundary = read('.github', 'gpl-boundary').trim()
 
     expect(licence).toContain('AGPL-3.0-only')
