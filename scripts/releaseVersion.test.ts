@@ -89,12 +89,12 @@ describe('the version is written down alike everywhere a release bump reaches', 
   })
 })
 
-// The entry of 2.1.0 and not the newest one: it is the release that changed the licence, and
+// The entry of 3.0.0 and not the newest one: it is the release that changed the licence, and
 // the entry of a release after it has no reason to say so first. Held to the newest entry, these
-// went red the day 3.0.0 was written up, for a reason that had nothing to do with 3.0.0.
-describe('the CHANGELOG entry of 2.1.0, the release that changed the licence', () => {
+// would go red the day 3.1.0 is written up, for a reason that had nothing to do with 3.1.0.
+describe('the CHANGELOG entry of 3.0.0, the release that changed the licence', () => {
   it('says the licence change first, before any feature', () => {
-    const sections = entryOf('2.1.0')
+    const sections = entryOf('3.0.0')
       .body.split('\n')
       .filter((line) => line.startsWith('### '))
 
@@ -102,7 +102,7 @@ describe('the CHANGELOG entry of 2.1.0, the release that changed the licence', (
   })
 
   it('names the new licence, the old one and the commit where one gives way to the other', () => {
-    const licence = entryOf('2.1.0').body.split('\n### ')[1] ?? ''
+    const licence = entryOf('3.0.0').body.split('\n### ')[1] ?? ''
     const boundary = read('.github', 'gpl-boundary').trim()
 
     expect(licence).toContain('AGPL-3.0-only')
@@ -111,5 +111,41 @@ describe('the CHANGELOG entry of 2.1.0, the release that changed the licence', (
     expect(licence).toMatch(/(?<!A)GPL-3\.0/)
     expect(licence).toContain('gpl-final')
     expect(licence).toContain(boundary)
+  })
+
+  it('names the last GPL release and says that it is this one that starts the AGPL', () => {
+    const licence = entryOf('3.0.0').body.split('\n### ')[1] ?? ''
+
+    expect(licence).toContain('2.1.0')
+    expect(licence).toMatch(/3\.0\.0 is the first release under it/)
+  })
+})
+
+// 2.1.0 was prepared as the AGPL release and was published as the last GPL one. Its entry is
+// the record of what the published release is, so it is held to saying so.
+describe('the CHANGELOG entry of 2.1.0, the last release under the GPL', () => {
+  it('says it is GPL-3.0 and that the AGPL is the next release', () => {
+    const entry = entryOf('2.1.0').body
+
+    expect(entry).toMatch(/(?<!A)GPL-3\.0/)
+    expect(entry).toMatch(/last release under the GPL-3\.0/)
+    expect(entry).toMatch(/next release, 3\.0\.0, is licensed AGPL-3\.0-only/)
+  })
+
+  it('names the commit it was cut on, the one the tag gpl-final also names', () => {
+    const entry = entryOf('2.1.0').body
+
+    expect(entry).toContain(read('.github', 'gpl-boundary').trim())
+    expect(entry).toContain('gpl-final')
+  })
+})
+
+// The entries of 2.0.0 and 2.1.0 were written after those releases were published, from their
+// release notes, so each one points at the release it describes.
+describe('the CHANGELOG entries of the releases already published', () => {
+  it.each(['2.0.0', '2.1.0'])('%s links its GitHub release', (version) => {
+    expect(entryOf(version).body).toContain(
+      `https://github.com/Irony42/EventSlide/releases/tag/v${version}`,
+    )
   })
 })

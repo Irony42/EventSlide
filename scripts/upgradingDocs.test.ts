@@ -164,7 +164,7 @@ describe('the messages docs/UPGRADING.md says to expect', () => {
     expect(source(...where), where.join('/')).toContain(code)
   })
 
-  it('cites the two boot warnings 2.1.0 added, which are warnings and not refusals', () => {
+  it('cites the two boot warnings 3.0.0 added, which are warnings and not refusals', () => {
     const env = source('src', 'infrastructure', 'config', 'env.ts')
 
     expect(prose).toContain('`PUBLIC_URL`')
