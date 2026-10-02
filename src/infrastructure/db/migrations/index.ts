@@ -8,6 +8,7 @@ import { migration006 } from './006_guest_notice_acknowledgement'
 import { migration007 } from './007_share_links'
 import { migration008 } from './008_clients'
 import { migration009 } from './009_audit_log'
+import { migration010 } from './010_account_tokens'
 
 /**
  * The ordering contract, written out rather than globbed.
@@ -26,4 +27,5 @@ export const migrations: readonly Migration[] = [
   migration007,
   migration008,
   migration009,
+  migration010,
 ]

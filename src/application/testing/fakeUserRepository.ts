@@ -30,7 +30,10 @@ export class FakeUserRepository implements UserRepository {
         throw new Error(`UNIQUE constraint failed: users.email (${user.email.value})`)
       }
     }
-    this.rows.set(user.id, user)
+    // The adapter's `MAX(stored, incoming)` on the epoch: a save never moves it backwards.
+    // `revokeSessionsBefore` on the incoming copy is the same rule in the domain's words.
+    const stored = this.rows.get(user.id)?.credentialsChangedAt ?? null
+    this.rows.set(user.id, stored === null ? user : user.revokeSessionsBefore(stored))
   }
 
   async findById(id: UserId): Promise<User | null> {
@@ -56,9 +59,8 @@ export class FakeUserRepository implements UserRepository {
   /**
    * The same narrowing as the adapter's `WHERE id = ? AND disabled_at IS NULL`: an
    * account that is gone and one that was switched off are one answer, because a session
-   * that outlived its account names nobody either. `credentialsChangedAt` is always
-   * `null` here, exactly as it is on the adapter, since neither reads a column that does
-   * not exist yet (P3-09).
+   * that outlived its account names nobody either. `credentialsChangedAt` is the stored
+   * epoch, as the adapter reads it from `users.credentials_changed_at`.
    */
   async authStateFor(id: UserId): Promise<AuthState> {
     const user = this.rows.get(id)
@@ -66,7 +68,7 @@ export class FakeUserRepository implements UserRepository {
     return {
       active: true,
       mustChangePassword: user.mustChangePassword,
-      credentialsChangedAt: null,
+      credentialsChangedAt: user.credentialsChangedAt,
     }
   }
 

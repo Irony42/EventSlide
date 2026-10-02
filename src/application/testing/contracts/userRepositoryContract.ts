@@ -192,7 +192,7 @@ export const userRepositoryContract = (
       expect((await repo.authStateFor(asUserId('user-host'))).active).toBe(true)
     })
 
-    it('stays null for credentialsChangedAt on every account, until P3-09 ships the column', async () => {
+    it('reports no epoch for an account whose credentials never changed, and for an inactive one', async () => {
       await repo.save(
         aUser({ id: 'user-host', email: 'hote@example.test', mustChangePassword: true }),
       )
@@ -202,6 +202,69 @@ export const userRepositoryContract = (
 
       expect((await repo.authStateFor(asUserId('user-host'))).credentialsChangedAt).toBeNull()
       expect((await repo.authStateFor(asUserId('user-other'))).credentialsChangedAt).toBeNull()
+    })
+
+    // ----------------------------------------------------- credentials epoch --
+
+    /**
+     * The epoch is what stands in for `sessions.user_id`: `enforceSessionAge` refuses a
+     * session older than it. Both halves have to be read back exactly — the entity, for the
+     * use cases, and `authStateFor`, for the one query a request makes.
+     */
+    it('reads the epoch back through both the entity and the authorization read', async () => {
+      await repo.save(aUser({ id: 'user-host' }).revokeSessionsBefore(atPlus(9_000)))
+
+      const stored = await repo.findById(asUserId('user-host'))
+      expect(stored?.credentialsChangedAt?.toISOString()).toBe(atPlus(9_000).toISOString())
+      const state = await repo.authStateFor(asUserId('user-host'))
+      expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(9_000).toISOString())
+    })
+
+    it('moves the epoch forward when the account is saved with a later one', async () => {
+      const user = aUser({ id: 'user-host' })
+      await repo.save(user.revokeSessionsBefore(atPlus(1_000)))
+
+      await repo.save(user.revokeSessionsBefore(atPlus(2_000)))
+
+      const state = await repo.authStateFor(asUserId('user-host'))
+      expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(2_000).toISOString())
+    })
+
+    /**
+     * A sign-in reads the account, spends ~200 ms in bcrypt, and saves it back; a reset can
+     * finish in between. The repository must not let that stale copy undo the revocation.
+     */
+    it('never moves the epoch backwards when a copy read before the change is saved after it', async () => {
+      const staleCopy = aUser({ id: 'user-host' })
+      await repo.save(staleCopy)
+      await repo.save(staleCopy.revokeSessionsBefore(atPlus(5_000)))
+
+      await repo.save(staleCopy.recordLogin(atPlus(6_000)))
+
+      const state = await repo.authStateFor(asUserId('user-host'))
+      expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(5_000).toISOString())
+      const stored = await repo.findById(asUserId('user-host'))
+      expect(stored?.lastLoginAt?.toISOString()).toBe(atPlus(6_000).toISOString())
+    })
+
+    it('never moves the epoch backwards when it is saved with an earlier one', async () => {
+      const user = aUser({ id: 'user-host' })
+      await repo.save(user.revokeSessionsBefore(atPlus(5_000)))
+
+      await repo.save(aUser({ id: 'user-host', credentialsChangedAt: atPlus(1_000) }))
+
+      const state = await repo.authStateFor(asUserId('user-host'))
+      expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(5_000).toISOString())
+    })
+
+    it('keeps the epoch of an account that is switched off and on again', async () => {
+      const user = aUser({ id: 'user-host' })
+      await repo.save(user.disable(atPlus(3_000)))
+      await repo.save(user.disable(atPlus(3_000)).enable())
+
+      const state = await repo.authStateFor(asUserId('user-host'))
+      expect(state.active).toBe(true)
+      expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(3_000).toISOString())
     })
 
     it('replaces the stored row when the same account is saved again', async () => {

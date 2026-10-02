@@ -38,6 +38,7 @@ interface UserRow {
   readonly must_change_password: number
   readonly disabled_at: string | null
   readonly site_role: string
+  readonly credentials_changed_at: string | null
 }
 
 const SELECT_USER = `
@@ -49,7 +50,8 @@ const SELECT_USER = `
          last_login_at,
          must_change_password,
          disabled_at,
-         site_role
+         site_role,
+         credentials_changed_at
     FROM users
 `
 
@@ -66,18 +68,33 @@ const SELECT_USER = `
  * Conflicting on the primary key alone leaves the unique email index free to raise,
  * which is what the contract suite asserts.
  */
+/**
+ * The epoch only moves forward, in the statement rather than in the caller.
+ *
+ * `save` rewrites the whole row from an entity that was read earlier, and a request that
+ * reads an account, spends 200 ms in bcrypt and then saves it back (a sign-in) can finish
+ * after a reset that completed in between. Overwriting would put the old epoch back and
+ * the sessions the reset revoked would work again. ISO-8601 UTC text sorts as time, so the
+ * later of the two is the greater string. `COALESCE(..., '')` because scalar `MAX` is NULL
+ * as soon as one argument is, and an empty string sorts below every instant.
+ */
+const LATEST_EPOCH = `NULLIF(MAX(COALESCE(users.credentials_changed_at, ''),
+                                 COALESCE(excluded.credentials_changed_at, '')), '')`
+
 const UPSERT_USER = `
   INSERT INTO users (id, email, display_name, password_hash, created_at,
-                     last_login_at, must_change_password, disabled_at, site_role)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT (id) DO UPDATE SET email                = excluded.email,
-                                 display_name         = excluded.display_name,
-                                 password_hash        = excluded.password_hash,
-                                 created_at           = excluded.created_at,
-                                 last_login_at        = excluded.last_login_at,
-                                 must_change_password = excluded.must_change_password,
-                                 disabled_at          = excluded.disabled_at,
-                                 site_role            = excluded.site_role
+                     last_login_at, must_change_password, disabled_at, site_role,
+                     credentials_changed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT (id) DO UPDATE SET email                  = excluded.email,
+                                 display_name           = excluded.display_name,
+                                 password_hash          = excluded.password_hash,
+                                 created_at             = excluded.created_at,
+                                 last_login_at          = excluded.last_login_at,
+                                 must_change_password   = excluded.must_change_password,
+                                 disabled_at            = excluded.disabled_at,
+                                 site_role              = excluded.site_role,
+                                 credentials_changed_at = ${LATEST_EPOCH}
 `
 
 /**
@@ -131,6 +148,7 @@ const toUser = (row: UserRow): User =>
     mustChangePassword: fromSqliteBoolean(row.must_change_password),
     disabledAt: fromNullableIsoText(row.disabled_at),
     siteRole: toSiteRole(row.site_role),
+    credentialsChangedAt: fromNullableIsoText(row.credentials_changed_at),
   })
 
 export class SqliteUserRepository implements UserRepository {
@@ -188,8 +206,12 @@ export class SqliteUserRepository implements UserRepository {
    */
   async authStateFor(id: UserId): Promise<AuthState> {
     const row = this.db
-      .prepare<[string], { readonly must_change_password: number }>(
-        `SELECT must_change_password FROM users WHERE id = ? AND disabled_at IS NULL`,
+      .prepare<
+        [string],
+        { readonly must_change_password: number; readonly credentials_changed_at: string | null }
+      >(
+        `SELECT must_change_password, credentials_changed_at
+           FROM users WHERE id = ? AND disabled_at IS NULL`,
       )
       .get(id)
 
@@ -198,7 +220,7 @@ export class SqliteUserRepository implements UserRepository {
       : {
           active: true,
           mustChangePassword: fromSqliteBoolean(row.must_change_password),
-          credentialsChangedAt: null,
+          credentialsChangedAt: fromNullableIsoText(row.credentials_changed_at),
         }
   }
 
@@ -217,6 +239,7 @@ export class SqliteUserRepository implements UserRepository {
           number,
           string | null,
           SiteRole,
+          string | null,
         ]
       >(UPSERT_USER)
       .run(
@@ -229,6 +252,7 @@ export class SqliteUserRepository implements UserRepository {
         toSqliteBoolean(props.mustChangePassword),
         props.disabledAt === null ? null : toIsoText(props.disabledAt),
         props.siteRole,
+        props.credentialsChangedAt === null ? null : toIsoText(props.credentialsChangedAt),
       )
   }
 

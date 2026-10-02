@@ -11,7 +11,12 @@ import type { EventId, UserId } from '../../domain/shared/ids'
 export interface AuthState {
   readonly active: boolean
   readonly mustChangePassword: boolean
-  /** `null` until P3-09 (roadmap §10 jetons) ships the column this will be read from. */
+  /**
+   * The credentials epoch (G2-08 / P3-09): a session issued before this instant is no
+   * longer valid. `null` when the account's credentials never changed, which revokes
+   * nothing. Always `null` for an inactive account: nothing asks an epoch of an account
+   * that may not act.
+   */
   readonly credentialsChangedAt: Date | null
 }
 
@@ -53,9 +58,10 @@ export interface UserRepository {
    * need to agree on what a disabled account's flag means, because nothing downstream
    * ever asks the flag before asking whether the account may act at all.
    *
-   * `credentialsChangedAt` is `null` until roadmap §10's account-tokens epoch
-   * (P3-09) ships the column it will be read from; nothing in this port or its callers
-   * compares against it yet.
+   * `credentialsChangedAt` is the epoch `enforceSessionAge` compares a session's `issuedAt`
+   * against. It rides this read rather than a third one for the reason the other two
+   * already do: a request pays one query for everything authorization knows about the
+   * account behind its cookie.
    */
   authStateFor(id: UserId): Promise<AuthState>
 
@@ -75,6 +81,13 @@ export interface UserRepository {
    */
   siteRoleFor(id: UserId): Promise<SiteRole>
 
+  /**
+   * Insert or update. **The epoch only moves forward**: `credentialsChangedAt` is stored
+   * as the later of what the row holds and what `user` carries, so a copy of the account
+   * read before a password change and saved after it (a sign-in's `lastLoginAt` write
+   * racing a reset, say) cannot bring revoked sessions back. Every other field is
+   * overwritten, as it always was.
+   */
   save(user: User): Promise<void>
 
   delete(id: UserId): Promise<void>

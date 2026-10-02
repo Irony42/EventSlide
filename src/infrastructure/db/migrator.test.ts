@@ -166,6 +166,7 @@ describe('the real schema', () => {
     migrate(db, migrations)
 
     expect(tableNames(db)).toEqual([
+      'account_tokens',
       'audit_log',
       'audit_prune_gate',
       'client_members',
@@ -192,6 +193,9 @@ describe('the real schema', () => {
 
     expect(indexNames(db)).toEqual(
       expect.arrayContaining([
+        'idx_account_tokens_digest',
+        'idx_account_tokens_email',
+        'idx_account_tokens_expires',
         'idx_audit_client',
         'idx_client_members_user',
         'idx_event_missions_event',
@@ -2115,6 +2119,241 @@ describe('migration 009, the append-only audit log', () => {
     expect(count(db)).toBe(0)
     expect(gate(db)).toEqual([{ id: 1, open: 0 }])
     expect(() => insertEntry(db)).not.toThrow()
+    closeDatabase(db)
+  })
+})
+
+describe('migration 010, account tokens and the credentials epoch', () => {
+  const AT = '2026-06-20T21:00:00.000Z'
+  const LATER = '2026-06-20T22:00:00.000Z'
+  const DIGEST = 'a'.repeat(64)
+
+  const columnNames = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
+
+  const seedUsers = (db: Db): void => {
+    const insertUser = db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at, must_change_password)
+            VALUES (?, ?, 'hash:x', '${AT}', ?)`,
+    )
+    insertUser.run('u1', 'hote@example.test', 1)
+    insertUser.run('u2', 'invitee@example.test', 0)
+  }
+
+  /** Everything a row needs and nothing optional, so a test overrides one thing at a time. */
+  const insertToken = (db: Db, over: Record<string, string | number | null> = {}): void => {
+    const row: Record<string, string | number | null> = {
+      id: 't1',
+      purpose: 'passwordReset',
+      token_digest: DIGEST,
+      email: 'hote@example.test',
+      user_id: 'u1',
+      delivery: 'mail',
+      created_at: AT,
+      expires_at: LATER,
+      ...over,
+    }
+    const names = Object.keys(row)
+    db.prepare(
+      `INSERT INTO account_tokens (${names.join(', ')}) VALUES (${names.map(() => '?').join(', ')})`,
+    ).run(...Object.values(row))
+  }
+
+  const refusalOf = (action: () => unknown): string => {
+    try {
+      action()
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+    return ''
+  }
+
+  it('adds the epoch and the verification stamp to users, both empty for an existing account', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUsers(db)
+
+    expect(columnNames(db, 'users')).toEqual(
+      expect.arrayContaining(['credentials_changed_at', 'email_verified_at']),
+    )
+    expect(
+      db
+        .prepare(`SELECT credentials_changed_at, email_verified_at FROM users WHERE id = 'u1'`)
+        .get(),
+    ).toEqual({ credentials_changed_at: null, email_verified_at: null })
+    closeDatabase(db)
+  })
+
+  it('creates the table with every column the later items rely on', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'account_tokens')).toEqual([
+      'id',
+      'purpose',
+      'token_digest',
+      'email',
+      'user_id',
+      'event_id',
+      'event_role',
+      'delivery',
+      'requires_approval',
+      'approved_by',
+      'approved_at',
+      'created_by',
+      'created_at',
+      'expires_at',
+      'consumed_at',
+      'revoked_at',
+    ])
+    closeDatabase(db)
+  })
+
+  it('stores a token row and defaults it to not needing approval', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUsers(db)
+
+    insertToken(db)
+
+    expect(
+      db
+        .prepare(`SELECT purpose, requires_approval, consumed_at, revoked_at FROM account_tokens`)
+        .get(),
+    ).toEqual({
+      purpose: 'passwordReset',
+      requires_approval: 0,
+      consumed_at: null,
+      revoked_at: null,
+    })
+    closeDatabase(db)
+  })
+
+  it.each([
+    ['a purpose the domain does not have', { purpose: 'magicLogin' }],
+    ['a delivery other than mail or link', { delivery: 'sms' }],
+    ['a token written instead of its digest', { token_digest: 'AbCdEf-_token-in-base64url' }],
+    ['a digest in upper case', { token_digest: 'A'.repeat(64) }],
+    ['a digest of the wrong length', { token_digest: 'a'.repeat(63) }],
+    ['an event role other than moderator', { event_role: 'owner' }],
+    ['an approval flag other than 0 or 1', { requires_approval: 2 }],
+    ['a token that expires before it was created', { expires_at: '2026-06-20T20:00:00.000Z' }],
+    ['a token that expires the instant it was created', { expires_at: AT }],
+  ])('refuses %s, in the database rather than only in code', (_label, over) => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUsers(db)
+
+    expect(refusalOf(() => insertToken(db, over))).toMatch(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('refuses two tokens with the same digest, which is what makes the lookup a seek', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUsers(db)
+    insertToken(db)
+
+    expect(refusalOf(() => insertToken(db, { id: 't2' }))).toMatch(/UNIQUE constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('serves the lookups from indexes', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    const plan = (sql: string): string =>
+      (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all() as { detail: string }[])
+        .map((row) => row.detail)
+        .join(' ')
+
+    expect(plan(`SELECT id FROM account_tokens WHERE token_digest = 'x'`)).toContain(
+      'idx_account_tokens_digest',
+    )
+    expect(
+      plan(`SELECT id FROM account_tokens WHERE email = 'x' AND purpose = 'passwordReset'`),
+    ).toContain('idx_account_tokens_email')
+    expect(plan(`DELETE FROM account_tokens WHERE expires_at < 'x'`)).toContain(
+      'idx_account_tokens_expires',
+    )
+    closeDatabase(db)
+  })
+
+  it('takes a reset token with the account it was issued for', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUsers(db)
+    insertToken(db)
+
+    db.prepare(`DELETE FROM users WHERE id = 'u1'`).run()
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM account_tokens`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('keeps an invitation when the person who sent it is deleted, and forgets who that was', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seedUsers(db)
+    insertToken(db, {
+      purpose: 'invitation',
+      user_id: null,
+      email: 'nouveau@example.test',
+      created_by: 'u1',
+      approved_by: 'u1',
+      approved_at: LATER,
+    })
+
+    db.prepare(`DELETE FROM users WHERE id = 'u1'`).run()
+
+    expect(db.prepare(`SELECT created_by, approved_by FROM account_tokens`).get()).toEqual({
+      created_by: null,
+      approved_by: null,
+    })
+    closeDatabase(db)
+  })
+
+  it('keeps a box that existed before it, accounts and flags intact, with no epoch', () => {
+    // The upgrade path, on somebody's wedding album: two columns added to `users` and a
+    // table next to it, nothing rewritten.
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 10),
+    )
+    seedUsers(db)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'live',
+                    '{}', 1000000000, '${AT}')`,
+    ).run()
+
+    migrate(db, migrations)
+
+    expect(
+      db
+        .prepare(
+          `SELECT id, email, must_change_password, credentials_changed_at FROM users ORDER BY id`,
+        )
+        .all(),
+    ).toEqual([
+      {
+        id: 'u1',
+        email: 'hote@example.test',
+        must_change_password: 1,
+        credentials_changed_at: null,
+      },
+      {
+        id: 'u2',
+        email: 'invitee@example.test',
+        must_change_password: 0,
+        credentials_changed_at: null,
+      },
+    ])
+    expect(db.prepare(`SELECT name FROM events WHERE id = 'e1'`).get()).toEqual({
+      name: 'Camille & Sacha',
+    })
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM account_tokens`).get()).toEqual({ n: 0 })
     closeDatabase(db)
   })
 })
