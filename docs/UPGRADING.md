@@ -23,15 +23,15 @@ the image.
 
 Versions are `MAJOR.MINOR.PATCH`.
 
-- **A patch (`2.1.1`) fixes a bug** and changes nothing you could have relied on. Fixes are
+- **A patch (`3.0.1`) fixes a bug** and changes nothing you could have relied on. Fixes are
   released as the next version, with no maintenance branch for an older minor, so the way to
   get one is to upgrade.
-- **A minor (`2.2.0`) adds, and takes nothing away.** It may add settings (off, or at
+- **A minor (`3.1.0`) adds, and takes nothing away.** It may add settings (off, or at
   today's behaviour, until you set them), endpoints, screens and migrations. It may add a
   warning at boot about something a later major will change. It may mark something
   deprecated. It does not remove or rename anything listed below, and it does not refuse to
   start on a configuration that started before.
-- **A major (`3.0.0`) is the only release that may break something.** It may remove or
+- **A major (`4.0.0`) is the only release that may break something.** It may remove or
   rename a thing on the list below, change what a default does to an existing installation,
   or refuse to start on a configuration that used to start. It is never silent: the CHANGELOG
   entry has a `BREAKING` section, [a section of this page](#upgrading-to-a-major) says what to
@@ -60,9 +60,9 @@ EventSlide is not published as a library today; the package is private.
 A change that makes an existing installation behave differently arrives in two steps.
 
 1. **A minor warns.** The server logs a warning at boot, and the CHANGELOG lists it under
-   "Behaviour changes to check before upgrading". 2.1.0 did this for a production box with no
-   `PUBLIC_URL`, and for one with a secure cookie and `TRUST_PROXY_HOPS=0`: both are
-   warnings, and neither stops the boot.
+   "Behaviour changes to check before upgrading". 3.0.0 introduced three such warnings, for a
+   production box with no `PUBLIC_URL`, for one with a secure cookie and `TRUST_PROXY_HOPS=0`,
+   and for `MAIL_FROM` set without `SMTP_URL`: they are warnings, and none stops the boot.
 2. **The next major changes it, at the earliest.** A refusal to start is only ever added in a
    major, with its own `BREAKING` entry.
 
@@ -84,8 +84,9 @@ warning first.
 
 **This policy applies to every release after 2.1.0.** 2.1.0 and what came before were not held
 to it, and its entry lists what it changed under "Behaviour changes to check before
-upgrading": the error code `event.slugTaken` is gone, and a malformed `SUPPORT_URL` or
-`REPORT_URL` stops the boot, which a major would have carried.
+upgrading": the error code `event.slugTaken` is gone, and an unset NODE_ENV now means
+production, which refuses a boot without real secrets. A major would have carried both. 3.0.0
+is the first release held to it.
 
 ## Migrations
 
@@ -123,7 +124,8 @@ out; no prebuilt image is published.
 
 1. **Choose the moment**: between events, with nobody about to upload.
 2. **Read the CHANGELOG** for every release between yours and the target. Your version is
-   `version` in `GET /api/health`.
+   `version` in `GET /api/health`, except on 2.1.0, which reports `2.0.0` (see
+   [Upgrading to 3.0](#upgrading-to-30)).
 3. **Back up, verify, and take it off the volume.** The server stays up while you do.
    [README](../README.md#backups) has the reasoning and the variants. Keep the archive
    **outside the checkout**: the next step builds from that directory, and Docker would send
@@ -246,3 +248,65 @@ A minor or a patch never has a `BREAKING` section, and a major always does.
 Each major gets a section after this one, titled `Upgrading to N.0`, written in the pull
 request that breaks something and kept afterwards. It says who is affected, what to change and
 in which order, and how to tell it worked.
+
+## Upgrading to 3.0
+
+3.0.0 is the AGPL release and the first major held to this policy. If you run EventSlide
+unmodified the licence asks nothing more of you ([licensing FAQ](LICENSING-FAQ.md)); what can
+stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CHANGELOG.md).
+
+**Who is affected.** Everyone who upgrades from 2.x. Go in this order.
+
+1. **Be on 2.1.0, and back up with it.** The newest release of the 2.x line carries the Docker
+   backup commands the steps [above](#upgrading-with-docker) use, and it is the version that
+   can restore the archive if you go back: 3.0.0 applies migrations 008, 009 and 010, and
+   2.1.0 refuses a database that holds them ("downgrading is not supported"). A build of
+   2.1.0 reports `2.0.0` in `GET /api/health`, in its image tag and in its backup manifest,
+   because the tag was cut before `package.json` was bumped: `git describe --tags --match 'v*'`
+   in your checkout says which release you are on.
+   - **From 2.0.0, make the hop to 2.1.0 first, and treat it as an upgrade of its own.** The
+     2.0.0 image has no backup command, and 2.1.0 applies migrations 002 to 007, which 2.0.0
+     refuses to run on. Stop the container and copy the data volume (or run `npm run backup`
+     from a checkout, [below](#without-docker)) before you start 2.1.0, and take the Docker
+     backup again once it runs.
+2. **Read your `.env`, and check Docker Compose.** `compose.yaml` now needs Docker Compose
+   2.24 or later (`docker compose version`), and passes every key of `.env` to the container,
+   where it used to pass only the few the file names. Remove each line you did not mean to
+   apply. Look first at `DATABASE_PATH` and `MEDIA_ROOT`: the values in `.env.example`
+   (`./data/eventslide.sqlite`, `./media`) override the `/data` paths the image sets, and
+   point the server away from your volume.
+3. **Look for the names of the new settings.** The server now checks them at boot and exits
+   with code 78 on a value that does not fit, naming the variable. If your environment already
+   sets one of them for another purpose, change or remove it: `SUPPORT_URL`, `REPORT_URL`,
+   `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SOURCE_CODE_URL`,
+   `DONATION_URL`, `BUDGET_URL`, `SOURCE_REF`, `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`,
+   `SMTP_URL`, `MAIL_FROM`, `EVENT_CREATION`, `AUDIT_RETENTION_DAYS`, `MIN_FREE_DISK_BYTES`,
+   `MAX_CONCURRENT_UPLOAD_REQUESTS`, `MAX_QUEUED_CLIPS_PER_EVENT`, `MAX_STREAMS_PER_CLIENT`,
+   `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`, `RETENTION_CAP_NOTICE_DAYS` and
+   `SQLITE_SHUTDOWN_CHECKPOINT`. The CHANGELOG says what each accepts.
+4. **Check the scripts and clients that call the API.**
+   - An account that must change its password gets `403 auth.passwordChangeRequired` on every
+     route but the three that let it see who it is, change the password and sign out.
+   - After `POST /api/auth/password`, the other sessions of the account are signed out and
+     the caller's `es_csrf` cookie is new: read it again, or the next write gets
+     `403 request.csrfMismatch`.
+   - An upload can now get `413 storage.boxFull` (less than `MIN_FREE_DISK_BYTES` free, or
+     the free space cannot be read) or `429 upload.busy` (more than
+     `MAX_CONCURRENT_UPLOAD_REQUESTS` in flight). A video clip can get `429 clip.queueFull`
+     once its event has `MAX_QUEUED_CLIPS_PER_EVENT` clips queued, which is 20 whatever
+     `MAX_QUEUED_CLIPS` says.
+   - Signing in is throttled per account: after five failures from one network the next
+     attempt gets `429 rate.limited` with a `Retry-After`, up to 15 minutes. Back off on a
+     wrong password instead of retrying at once.
+5. **Decide about the licence.** If you modify EventSlide and other people use your version
+   over a network, publish your source and set `SOURCE_CODE_URL` to it. Unmodified, there is
+   nothing to do.
+
+Then take the steps of [Upgrading with Docker](#upgrading-with-docker), or
+[without](#without-docker), with `vX.Y.Z` as `v3.0.0`.
+
+**How to tell it worked.** The first boot logs `applied migrations` with the ids 8, 9 and 10
+(only the ones your database lacked) and then the listening line; `GET /api/health` answers
+`"version": "3.0.0"` and `GET /api/ready` answers 200. If the boot exits with code 78, the log
+names the setting to fix. If anything else looks wrong, go back as [described above](#going-back):
+restore the archive you took before the upgrade, with 2.1.0.

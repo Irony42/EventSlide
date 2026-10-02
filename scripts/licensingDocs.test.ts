@@ -7,12 +7,13 @@ import { describe, expect, it } from 'vitest'
  * The words that announce the AGPL relicence to the people who run EventSlide (roadmap
  * G1-08 / P1-10), held to what the repository can check about them.
  *
- * `v2.1.0` announces the licence and nothing else. Anything about the maintainer's own way
- * of running it for other people is announced separately and later, and until then a
- * sentence about it in a public, indexed repository is a promise nobody has decided to make.
- * That is a boundary rather than a format, so it is a test: a document written for a
- * self-hoster gets longer one well-meant sentence at a time. The announcement that lifts the
- * boundary edits this file in the same change.
+ * `v3.0.0` announces the licence (and, being a major, points at what it breaks) and nothing
+ * else; `v2.1.0`, the release before it, is the last one under the GPL-3.0. Anything about
+ * the maintainer's own way of running it for other people is announced separately and later,
+ * and until then a sentence about it in a public, indexed repository is a promise nobody has
+ * decided to make. That is a boundary rather than a format, so it is a test: a document
+ * written for a self-hoster gets longer one well-meant sentence at a time. The announcement
+ * that lifts the boundary edits this file in the same change.
  *
  * The other half is that the FAQ must stay true. The commit where the GPL gives way to the
  * AGPL is a fact `.github/gpl-boundary` already commits to and `scripts/licenseMetadata.test.ts`
@@ -27,7 +28,11 @@ const read = (...segments: string[]): string => readFileSync(join(ROOT, ...segme
 const prose = (...segments: string[]): string => read(...segments).replace(/\s+/g, ' ')
 
 const FAQ = join('docs', 'LICENSING-FAQ.md')
-const DRAFTS = join('docs', 'releases', 'v2.1.0.md')
+const DRAFTS = join('docs', 'releases', 'v3.0.0.md')
+
+/** The release the AGPL starts with, and the last one under the GPL. */
+const FIRST_AGPL_RELEASE = 'v3.0.0'
+const LAST_GPL_RELEASE = 'v2.1.0'
 
 /**
  * Words that announce or hint at running the software for other people as an offer.
@@ -114,13 +119,51 @@ describe('the licence FAQ for people who run the image', () => {
   })
 })
 
-describe('the CHANGELOG entry of 2.1.0', () => {
+describe('where the AGPL starts, said in the places a self-hoster reads', () => {
+  it.each([
+    ['the FAQ', FAQ],
+    ['the README', 'README.md'],
+  ])(
+    'says in %s that v3.0.0 is the first release under the AGPL and v2.1.0 the last under the GPL',
+    (_name, file) => {
+      const text = prose(file)
+
+      expect(text).toContain(`\`${FIRST_AGPL_RELEASE}\` is the first release under the AGPL`)
+      expect(text).toContain(`\`${LAST_GPL_RELEASE}\` is the last release under the GPL-3.0`)
+      expect(text).toContain('`gpl-final`')
+    },
+  )
+
+  it.each([
+    ['the FAQ', FAQ],
+    ['the README', 'README.md'],
+  ])(
+    'never ties v2.1.0 to the AGPL in %s: each sentence or table row that names it says GPL-3.0',
+    (_name, file) => {
+      // 2.1.0 was prepared as the first AGPL release and published as the last GPL one, so the
+      // mistake to catch is a sentence from the first plan that survived the second.
+      const units = read(file)
+        .split(/\n\s*\n/)
+        .flatMap((block) =>
+          block.startsWith('|')
+            ? block.split('\n')
+            : block.replace(/\s+/g, ' ').split(/(?<=[.;]) /),
+        )
+      const naming = units.filter((unit) => unit.includes('2.1.0'))
+
+      expect(naming.length, `sentences naming 2.1.0 in ${file}`).toBeGreaterThan(0)
+      for (const unit of naming) expect(unit).toMatch(GPL)
+    },
+  )
+})
+
+describe('the CHANGELOG entry of 3.0.0', () => {
   it('announces no service', () => {
-    expect(changelogEntry('2.1.0')).not.toMatch(HOSTED_SERVICE)
+    expect(changelogEntry('3.0.0')).not.toMatch(HOSTED_SERVICE)
   })
 
   it('names no commit but the boundary', () => {
-    expect(new Set(hashesIn(changelogEntry('2.1.0')))).toEqual(new Set([boundary()]))
+    expect(new Set(hashesIn(changelogEntry('3.0.0')))).toEqual(new Set([boundary()]))
   })
 })
 
@@ -135,6 +178,16 @@ describe.skipIf(!existsSync(join(ROOT, DRAFTS)))(
       expect(text).toContain('gpl-final')
       expect(text).toContain(boundary())
       expect(text).not.toMatch(HOSTED_SERVICE)
+    })
+
+    it('say that v3.0.0 starts the AGPL, that v2.1.0 is the last GPL release, and what breaks', () => {
+      const text = prose(DRAFTS)
+
+      expect(text).toContain(`\`${FIRST_AGPL_RELEASE}\` is the first release under it`)
+      expect(text).toContain(`\`${LAST_GPL_RELEASE}\``)
+      // A major: the release notes send the reader to the BREAKING section and the upgrade page.
+      expect(text).toContain('BREAKING')
+      expect(text).toContain('docs/UPGRADING.md#upgrading-to-30')
     })
 
     it('name no commit but the boundary', () => {

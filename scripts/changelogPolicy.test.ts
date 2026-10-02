@@ -53,7 +53,7 @@ describe('reading a CHANGELOG', () => {
   })
 
   it('does not credit an entry with the sections under the heading that follows it', () => {
-    // The real file ends in `## 2.0.0 (never tagged)`, below 2.1.0.
+    // A hand-written heading that is not an entry, such as `## 2.0.0 (never tagged)`, below 2.1.0.
     const text = [
       changelog(entry('2.1.0', ['Added'])),
       '## 2.0.0 (never tagged)',
