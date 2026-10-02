@@ -155,6 +155,7 @@ describe('loadConfig', () => {
         e2eHooks: false,
         siteAdmin: false,
         source: { url: null, ref: null },
+        support: { donationUrl: null, budgetUrl: null },
         events: {
           slugSuffix: 'none',
           allowCustomSlugs: true,
@@ -1162,6 +1163,98 @@ describe('loadConfig', () => {
 
         expect(issues.some((issue) => issue.startsWith('SOURCE_REF: '))).toBe(true)
       })
+    })
+  })
+
+  /**
+   * The two optional support links (roadmap G4-02): where to donate, and where the money is
+   * accounted for. Both are **empty by default** — a self-hoster who sets nothing must see
+   * nothing about money anywhere — and both are validated exactly like `SOURCE_CODE_URL`,
+   * because both are rendered as a link on screens the operator did not write.
+   */
+  describe.each([
+    ['DONATION_URL', 'donationUrl', 'https://opencollective.com/eventslide'],
+    ['BUDGET_URL', 'budgetUrl', 'https://opencollective.com/eventslide/budget'],
+  ] as const)('the support link %s', (variable, field, address) => {
+    it('is empty by default, so a box that sets nothing says nothing about money', () => {
+      expect(loadConfig({ ...DEV }).support[field]).toBeNull()
+      expect(loadConfig(aProductionEnv()).support[field]).toBeNull()
+    })
+
+    it('reads a blank value as absent, which is what a dangling compose variable renders', () => {
+      // `${DONATION_URL:-}` is an empty string whenever the operator did not set it. Read
+      // as a value it would be refused as not-a-URL and stop every default deployment.
+      expect(loadConfig({ ...DEV, [variable]: '' }).support[field]).toBeNull()
+    })
+
+    it('carries the address the operator set', () => {
+      expect(loadConfig({ ...DEV, [variable]: address }).support[field]).toBe(address)
+    })
+
+    it('canonicalises and trims what it accepts, so what is rendered is what was parsed', () => {
+      expect(loadConfig({ ...DEV, [variable]: `  HTTPS://Pay.Example.ORG  ` }).support[field]).toBe(
+        'https://pay.example.org/',
+      )
+    })
+
+    it.each([
+      ['a javascript: URI', 'javascript:alert(document.cookie)'],
+      ['a data: URI', 'data:text/html,<script>alert(1)</script>'],
+      ['plain http', 'http://pay.example.org/eventslide'],
+      ['plain http on localhost', 'http://localhost:3000/eventslide'],
+      ['an uppercase HTTP scheme', 'HTTP://pay.example.org/eventslide'],
+      ['a file: URI', 'file:///etc/passwd'],
+      ['a protocol-relative address', '//pay.example.org/eventslide'],
+      ['a path with no origin', '/eventslide'],
+      ['something that is not a URL at all', 'send me a coffee'],
+      ['credentials in the address', 'https://user:secret@pay.example.org/eventslide'],
+      ['a username with no password', 'https://token@pay.example.org/eventslide'],
+      [
+        'a newline inside the address',
+        'https://pay.example.org/' + String.fromCharCode(10) + 'event',
+      ],
+      ['a space inside the address', 'https://pay.example.org/ event'],
+    ])('refuses %s, naming the variable', (_name, value) => {
+      const issues = refusalIssues({ ...DEV, [variable]: value })
+
+      const issue = issues.find((candidate) => candidate.startsWith(`${variable}: `)) ?? ''
+      expect(issue).toContain('https')
+    })
+
+    it('refuses beside every other problem at once, not one boot at a time', () => {
+      const issues = refusalIssues({
+        ...DEV,
+        [variable]: 'http://pay.example.org/eventslide',
+        LOG_LEVEL: 'verbose',
+      })
+
+      expect(issues.some((candidate) => candidate.startsWith(`${variable}: `))).toBe(true)
+      expect(issues.some((candidate) => candidate.startsWith('LOG_LEVEL: '))).toBe(true)
+    })
+
+    it('is checked on a production box too, where an operator is most likely to paste one', () => {
+      const issues = refusalIssues(aProductionEnv({ [variable]: 'http://pay.example.org' }))
+
+      expect(issues.some((candidate) => candidate.startsWith(`${variable}: `))).toBe(true)
+    })
+  })
+
+  describe('the support links together', () => {
+    it('are independent: a budget page may be published without a donation page, and back', () => {
+      const budgetOnly = loadConfig({ ...DEV, BUDGET_URL: 'https://ledger.example.org/' }).support
+      const donationOnly = loadConfig({ ...DEV, DONATION_URL: 'https://pay.example.org/' }).support
+
+      expect(budgetOnly).toEqual({ donationUrl: null, budgetUrl: 'https://ledger.example.org/' })
+      expect(donationOnly).toEqual({ donationUrl: 'https://pay.example.org/', budgetUrl: null })
+    })
+
+    it('have no counterpart to configure: the config says where to give and nothing else', () => {
+      // A donation unlocks nothing (G4-01 / G4-02). The shape is the guard: a field that
+      // could carry a tier, a perk or a badge would be the first step to selling one.
+      expect(Object.keys(loadConfig({ ...DEV }).support).sort()).toEqual([
+        'budgetUrl',
+        'donationUrl',
+      ])
     })
   })
 
