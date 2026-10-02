@@ -229,6 +229,9 @@ const within = <T>(work: Promise<T>, ms: number): Promise<T> =>
     const timer = setTimeout(() => {
       reject(Object.assign(new Error('the mail was not accepted in time'), { code: 'ETIMEDOUT' }))
     }, ms)
+    // Never the reason a process stays up: the deadline only matters while a send is in
+    // flight, and a send holds the loop open with its own socket.
+    timer.unref()
     work.then(
       (value) => {
         clearTimeout(timer)
