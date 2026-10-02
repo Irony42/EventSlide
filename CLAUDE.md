@@ -116,6 +116,7 @@ src/
     clients/       Client entity, ceilings, roles (roadmap §10.2; no route yet)
     audit/         Audit entries, their allow-listed details, retention (roadmap §10.8; no route yet)
     mail/          Outgoing message rules: one mailbox, a one-line subject (roadmap §10.3)
+    site/          What the operator may see of the box: the closed field vocabulary and the rows of the content-free overview (roadmap §10.4; no route yet)
   application/
     ports/         Interfaces. One file per port. No implementations.
     usecases/      One file, one exported factory, one responsibility.

@@ -514,6 +514,7 @@ different middleware, from the question of what anybody may do inside an event.
 | It is read from storage on every request, never carried in the session  | a capability in a cookie outlives the account being switched off. `siteRoleFor` answers `none` for an unknown **or disabled** account, and **throws** on a value the domain does not know rather than guessing at it                                                                                                                  |
 | An operator is created in exactly two places, both on a box's first day | `bootstrapOwner` on a fresh install, and migration `004_site_role` on an upgrade — never both, since `bootstrapOwner` stops on a non-empty `users` table. An invitation creates `none` explicitly (`registerModerator`), and there is no route that changes a site role at all today                                                  |
 | The operator's namespace exists only on a box that asked for it         | `/api/site` — itself and `/api/site/*`, never `/api/sites` — is mounted only with `SITE_ADMIN=on` (roadmap §10.9) and gated by `requireOperator` at **router level**, so a route there inherits the check. Off, every path under it answers as an unknown route does, headers included (`siteAdminMode.test.ts`): no operator surface |
+| The operator's console is fed by a content-free read model              | `SiteOverview` (§18) returns ids, statuses, dates and sizes in rows whose only free text is a client's name and an account's address, held by a closed field vocabulary, a per-query column list and a planted-content sweep. `GET /api/auth/me` reports `canOperateSite` from the same predicate as the gate                         |
 
 **Who may create an event** (`EVENT_CREATION`, roadmap §10.9 and P3-05). Under `clientMembers` an
 account that belongs to no client is refused `403 event.creationNotAllowed` — an invited
@@ -2277,3 +2278,63 @@ one transaction: if the save fails after the entry was recorded, the log holds a
 that did not happen, and the retry writes a second. That is the lesser error, and a visible one.
 Closing it needs a unit-of-work port that no use case has yet; G2-20 asks for the same atomicity for
 the acceptance of the terms.
+
+## 18. The operator's overview
+
+Roadmap §10.4 and §10.6; paid plan P3-12 and D-06. **An operator sees shapes and sizes of a
+client's box, never what its guests made or typed.** `SiteOverview` is the read model the
+operator's console (G2-15) and API (G2-14) will present: three listings — every client with its
+ceilings and what it is using, one client's events, every account — returned as rows declared in
+`src/domain/site/siteOverviewRows.ts`. There is **no route** that serves it yet; G2-14 mounts it
+behind `requireOperator` and carries the response-side sweep, and neither is described here until
+it exists.
+
+**What a row holds.** Ids, statuses, instants, counts and byte sizes, and exactly two pieces of
+free text: a client's **name** (`clients.name`, which the console must print to be usable) and an
+account's **address** (`users.email`, how an operator recognises a person to disable or help). It
+never holds an event's name, slug or join code (D-06: the name is the client's data and the slug
+leads to the public wall), a photograph's id, digest or caption, a guest or a guest's name, a
+mission's prompt, an account's display name, a client's contact address, or a hash or a token of
+any kind. The operator can no more ask this port for them than ask a function for an argument it
+does not take.
+
+**Three guards, because each watches something the others cannot.**
+
+| Guard                                                                                                    | What it holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The **shape** (`overviewShape.ts`, `siteOverviewRows.ts`; `siteOverviewRows.test.ts`)                    | A field is one of `id`, `instant`, `count`, `flag`, `oneOf` or `label`, and **`label` is the only kind that can carry text a person typed.** The labels are an explicit list in a test (`client.name`, `account.email`), so a third is a decision in a diff and not a column that rode along. Each row type is bound to its shape by `satisfies`, so `tsc` refuses either one gaining a member the other lacks, and a compile-time assertion refuses a content-named key (`slug`, `caption`, `joinCode`, `displayName`, `hash`…) in the types themselves. |
+| The **query list** (`sqliteSiteOverview.ts`, `sqliteSiteOverview.queries.test.ts`)                       | Every statement is declared with the `table.column` pairs it reads, and a test compares the SQL text with the list in both directions: an undeclared read fails, a stale declaration fails, a content column (`events.name`, `events.slug`, `events.join_code`, `events.settings`, `photos.caption`, `photos.id`, `guests`, `event_missions`, `users.display_name`, any hash, digest or token) fails whichever list it is found in, and a bare `name` or `caption` is refused because which table's it is cannot be seen.                                 |
+| The **contract sweep** (`siteOverviewContract.ts`, run by the SQLite adapter **and** the in-memory fake) | A world is planted with a distinctive string in every place content could be read from, written through the real repositories, and everything the three listings return is swept at every depth: every row has exactly its declared keys of the declared kinds; no planted string appears anywhere; and every string in the output is a seeded id, a seeded label or a member of a closed set. A slug used as an `id`, or as a key, fails it.                                                                                                             |
+
+The query list is a text comparison, not a parse of what SQLite plans, and the sweep sees only what
+the fixture world contains: a content column added by a **future migration** is on no list until
+somebody adds it, and a leak through a column the world never fills would pass the sweep. That is
+the argument for the first guard being a closed vocabulary rather than a list of bad words — a new
+column cannot reach a row without a field being declared for it — and for the label list being
+short.
+
+**The bytes are the admission figure.** `usedBytes` is built from `eventHoldingBytesSum` and
+`clientHoldingBytesSum`, the fragments the upload paths enforce the quota with, so the number an
+operator reads is the number a guest is refused against: photographs of every status plus the
+staged source of every clip still waiting to be transcoded, and an event with no client counts for
+nobody. `eventBytesSum.test.ts` holds this reader to it alongside the dashboard and both admissions.
+
+**Scoped, and paged without a probe.** `clientEvents` takes the client's id first, and a cursor that
+names another client's event is an empty page (not the page it would have been), so a cursor tells
+the caller nothing about an event it did not ask about. A client that does not exist is `null`,
+distinct from one with no event. A `limit` that is not a positive integer is a `RangeError` in both
+adapters, because `LIMIT -1` is "no limit" in SQLite.
+
+**`canOperateSite` on `GET /api/auth/me`** is the account's authority over the box, from the same
+column and the same predicate `requireOperator` uses, read from storage on that request. It
+grants nothing, is not part of the login response, is not reported for a disabled account, and
+does not change with `SITE_ADMIN` (the console is offered when it and `features.siteAdmin` are
+both true). It is named tests in `authRoutes.test.ts`.
+
+**What this does not defend against.** It is a property of this port, not a firewall: a route
+written in G2-14 that reads `EventRepository` instead of `SiteOverview` is not caught here, and is
+what that item's response sweep (`assertResponsesContentFree`) is for. Support access to a
+client's evening is §10.6 — time-boxed, announced to the client, audited — and a different item.
+Left out on purpose: an event's **expiry date**, which `PURGE_DEADLINE_SQL` computes from
+`events.settings` (a JSON column that carries host-written text) and so cannot be read without
+declaring that column; it arrives with a numeric source for the host's retention.

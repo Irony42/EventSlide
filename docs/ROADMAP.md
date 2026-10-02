@@ -652,6 +652,17 @@ an account that does not exist yet.
 
 ### 10.4 The operator console (P1, effort M, risk: low)
 
+> **Partly shipped**: the read model it will present, and no route and no screen yet.
+> `SiteOverview` (G2-11 / P3-12) lists every client with its ceilings and what it is using, one
+> client's events, and every account — ids, statuses, dates and sizes, with a client's name and an
+> account's address as the only free text, so the "shapes and sizes, not photographs" below is a
+> property of the type rather than of the screen. It is held by a closed field vocabulary, a
+> per-query list of the columns each statement reads, and a contract that plants content in every
+> place it could come from and sweeps what comes out (SECURITY.md §18). `GET /api/auth/me` now
+> reports `canOperateSite`, the account menu's one input. **Not built**: the operator API that
+> serves it (`/api/site`, G2-14), the console (G2-15), and an event's expiry date, which needs a
+> numeric source for the host's retention before the overview can read it.
+
 One screen the operator actually lives in: every client, their events, what state each is
 in, disk used against its ceiling, when it expires. Today the answer to "how much of this
 box is that wedding using" is a SQL query.
