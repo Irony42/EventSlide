@@ -60,8 +60,8 @@ export interface DeclaredQuery {
   readonly reads: readonly string[]
 }
 
-const CLIENT_ORDER = `ORDER BY c.created_at DESC, c.id DESC LIMIT :limit`
-const EVENT_ORDER = `ORDER BY e.created_at DESC, e.id DESC LIMIT :limit`
+const CLIENT_ORDER = `ORDER BY c.created_at DESC, c.id DESC`
+const EVENT_ORDER = `ORDER BY e.created_at DESC, e.id DESC`
 const ACCOUNT_ORDER = `ORDER BY u.created_at DESC, u.id DESC LIMIT :limit`
 
 const CLIENT_SELECT = `SELECT c.id, c.name, c.created_at, c.suspended_at, c.purge_after,
@@ -151,10 +151,22 @@ const ACCOUNT_READS = [
  * header says what may never be on it.
  */
 export const SITE_OVERVIEW_QUERIES = {
-  clientsFirst: { sql: `${CLIENT_SELECT} ${CLIENT_ORDER}`, reads: CLIENT_READS },
+  // **The page is chosen before anything is summed.** `used_bytes` walks every photograph and
+  // staged clip of a client's events, and a select list is evaluated for every row that
+  // reaches the sorter: with `ORDER BY … LIMIT` on the same statement, a page of fifty clients
+  // cost what the whole box costs. So the keyset page is a subquery on `clients` alone and the
+  // sums are computed for its rows only (measured at 500 clients and 200 000 photographs).
+  clientsFirst: {
+    sql: `${CLIENT_SELECT}
+ WHERE c.id IN (SELECT pc.id FROM clients pc ORDER BY pc.created_at DESC, pc.id DESC LIMIT :limit)
+ ${CLIENT_ORDER}`,
+    reads: CLIENT_READS,
+  },
   clientsAfter: {
     sql: `${CLIENT_SELECT}
- WHERE c.created_at < :cursorAt OR (c.created_at = :cursorAt AND c.id < :cursorId)
+ WHERE c.id IN (SELECT pc.id FROM clients pc
+                 WHERE pc.created_at < :cursorAt OR (pc.created_at = :cursorAt AND pc.id < :cursorId)
+                 ORDER BY pc.created_at DESC, pc.id DESC LIMIT :limit)
  ${CLIENT_ORDER}`,
     reads: CLIENT_READS,
   },
@@ -169,14 +181,17 @@ export const SITE_OVERVIEW_QUERIES = {
   },
   eventsFirst: {
     sql: `${EVENT_SELECT}
- WHERE e.client_id = :clientId
+ WHERE e.id IN (SELECT pe.id FROM events pe WHERE pe.client_id = :clientId
+                 ORDER BY pe.created_at DESC, pe.id DESC LIMIT :limit)
  ${EVENT_ORDER}`,
     reads: EVENT_READS,
   },
   eventsAfter: {
     sql: `${EVENT_SELECT}
- WHERE e.client_id = :clientId
-   AND (e.created_at < :cursorAt OR (e.created_at = :cursorAt AND e.id < :cursorId))
+ WHERE e.id IN (SELECT pe.id FROM events pe
+                 WHERE pe.client_id = :clientId
+                   AND (pe.created_at < :cursorAt OR (pe.created_at = :cursorAt AND pe.id < :cursorId))
+                 ORDER BY pe.created_at DESC, pe.id DESC LIMIT :limit)
  ${EVENT_ORDER}`,
     reads: EVENT_READS,
   },
