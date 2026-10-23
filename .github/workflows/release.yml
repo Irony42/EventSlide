@@ -1,0 +1,551 @@
+name: Release
+
+# Builds, checks, signs and publishes the image, and attaches what a downstream user needs to
+# the GitHub release: the SBOM, and the list of Debian source packages the image carries
+# (docs/IMAGE-SOURCES.md says what that list is for).
+#
+# **It publishes only when somebody asks.** The two triggers below are a tag `vX.Y.Z` /
+# `vX.Y.Z-rc.N` pushed by hand, and "Run workflow" in the Actions tab. A push to a branch,
+# `main` included, a pull request and a schedule never reach it, so merging a pull request
+# publishes nothing. `scripts/releasePipeline.test.ts` holds that, and the permissions below.
+#
+# The two ways in:
+#
+#   * `git tag vX.Y.Z && git push origin vX.Y.Z` publishes that release. The tag has to name
+#     the version `package.json` declares, and a commit that is on `main`.
+#   * Actions > Release > Run workflow, with `publish` **unchecked** (its default), is a
+#     rehearsal: it builds the image of the branch you chose, runs `scripts/verify-image.sh`
+#     on it, writes an SBOM and scans it, and pushes, signs and releases nothing. Check
+#     `publish` and give an existing `tag` to publish it from the Actions tab instead, which
+#     is how a run that failed half way is started again.
+#
+# What is published for a tag:
+#
+#   * a final tag `vX.Y.Z` pushes `ghcr.io/irony42/eventslide:X.Y.Z`, `:X.Y` and `:X`;
+#   * a release candidate `vX.Y.Z-rc.N` pushes `:X.Y.Z-rc.N` and nothing else, so that no
+#     floating tag ever points at a candidate;
+#   * there is no `:latest`, on purpose (docs/UPGRADING.md, "Which image tag").
+#
+# One-time settings, none of which a workflow file can make:
+#
+#   * The first push creates the package private. Make it **public** once, in the package's
+#     settings on GitHub, or `docker compose up` cannot pull it without a login. The
+#     `org.opencontainers.image.source` label below links the package to this repository.
+#   * Create the environment `release` (Settings > Environments) and add yourself as a
+#     required reviewer: the `publish` job then waits for your approval before the first
+#     byte is pushed, whoever pushed the tag. Without the environment's rules it only runs.
+#   * Restrict who can create tags matching `v*` (Settings > Rules > Rulesets). A pushed tag
+#     is a publication.
+#   * Nothing to add under Secrets: the registry login uses the run's own GITHUB_TOKEN, and
+#     the signature is keyless (GitHub's OIDC token, so `id-token: write` below).
+#
+# Every job states its own `permissions:`; the workflow-level one is empty so that a job
+# added later starts with nothing.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'An existing release tag to build (vX.Y.Z or vX.Y.Z-rc.N). Leave empty to rehearse on the selected branch.'
+        required: false
+        type: string
+      publish:
+        description: 'Push the image, sign it and create the GitHub release. Unchecked, nothing is published.'
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  # The name the release publishes and compose.yaml pulls. `scripts/releasePipeline.test.ts`
+  # fails if compose.yaml names anything else. Not called IMAGE: scripts/verify-image.sh reads
+  # that variable for the image it checks, and must be told which one on every call.
+  REGISTRY_IMAGE: ghcr.io/irony42/eventslide
+
+jobs:
+  resolve:
+    name: Resolve the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      publish: ${{ steps.resolve.outputs.publish }}
+      tags: ${{ steps.resolve.outputs.tags }}
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tag a manual run names, else the ref that started the run (a tag push, or the
+          # branch of a rehearsal). The full history, to tell whether the commit is on main.
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Read the commit and the version package.json declares
+        id: sha
+        run: |
+          set -euo pipefail
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Work out what this run releases
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          TAG_INPUT: ${{ inputs.tag }}
+          PUBLISH_INPUT: ${{ inputs.publish }}
+          PACKAGE_VERSION: ${{ steps.sha.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          # A tag push is a request to publish that tag. A manual run publishes only if it
+          # says so, and may name no tag at all, which is a rehearsal of the selected branch.
+          if [ "$EVENT_NAME" = "push" ]; then
+            tag="$REF_NAME"
+            publish=true
+          else
+            tag="$TAG_INPUT"
+            publish="$PUBLISH_INPUT"
+          fi
+
+          if [ "$publish" = "true" ] && [ -z "$tag" ]; then
+            echo "::error::Publishing needs the tag to release: set the tag input to an existing vX.Y.Z or vX.Y.Z-rc.N tag."
+            exit 1
+          fi
+          if [ -z "$tag" ]; then
+            tag="v$PACKAGE_VERSION"
+          fi
+
+          # Exactly vX.Y.Z or vX.Y.Z-rc.N, with no leading zeros. Anything else is refused
+          # before it is used for anything, which also keeps what a manual run typed out of
+          # the shell below.
+          release_tag='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.(0|[1-9][0-9]*))?$'
+          if [[ ! "$tag" =~ $release_tag ]]; then
+            echo "::error::'$tag' is not a release tag: expected vX.Y.Z, or vX.Y.Z-rc.N for a release candidate."
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          candidate="${BASH_REMATCH[4]}"
+          version="${tag#v}"
+
+          # The product has one version, written in package.json (scripts/versionSource.test.ts),
+          # and the image reports it, links its source with it and is named after it.
+          if [ "$version" != "$PACKAGE_VERSION" ]; then
+            echo "::error::The tag says $version and package.json at that commit says $PACKAGE_VERSION. Tag the commit that bumped it, or bump it first."
+            exit 1
+          fi
+
+          # A candidate gets its own tag and no other, so that X.Y and X never point at one.
+          if [ -n "$candidate" ]; then
+            prerelease=true
+            tags="$REGISTRY_IMAGE:$version"
+          else
+            prerelease=false
+            tags="$REGISTRY_IMAGE:$version"$'\n'"$REGISTRY_IMAGE:$major.$minor"$'\n'"$REGISTRY_IMAGE:$major"
+          fi
+
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "prerelease=$prerelease"
+            echo "publish=$publish"
+            echo "tags<<TAGS_END"
+            echo "$tags"
+            echo "TAGS_END"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Release $tag (publish: $publish, release candidate: $prerelease). Image tags:"
+          echo "$tags"
+
+      - name: The commit is on main
+        if: steps.resolve.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          # Everything on main went through a pull request and its checks. A tag on a side
+          # branch would publish code nobody reviewed.
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::This commit is not on main, so it is not published. Merge it, then tag the merge."
+            exit 1
+          fi
+
+      - name: The release is not already complete
+        if: steps.resolve.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          # The last job of this workflow attaches this file to the GitHub release, so its
+          # presence is what "this version was published to the end" means. A run that failed
+          # half way has not attached it and may be run again; one that finished is never
+          # pushed a second time, because a published X.Y.Z is a version somebody runs.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2> /dev/null | grep -qx "image-sources-$VERSION.txt"; then
+            echo "::error::$TAG is already released, image and assets. A version is published once: fix forward with the next patch."
+            exit 1
+          fi
+
+  gate:
+    # Everything that can be checked before a byte is pushed: the image builds, it keeps the
+    # promises scripts/verify-image.sh checks (the same script the `image` job of ci.yml runs),
+    # and no fixable critical vulnerability is in it. Runs in a rehearsal too.
+    name: Build, check and scan the image
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the image for this runner's platform
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          # The checkout, not the Git context the action would otherwise pick.
+          context: .
+          push: false
+          load: true
+          tags: eventslide:release-candidate
+          provenance: false
+
+      - name: Check what the image promises
+        run: IMAGE=eventslide:release-candidate bash ./scripts/verify-image.sh --no-build
+
+      - name: Write the SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: eventslide:release-candidate
+          format: syft-json
+          output-file: sbom.syft.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Scan the SBOM
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          sbom: sbom.syft.json
+          # The same bar the weekly scan and SECURITY.md use: a critical vulnerability that a
+          # newer package already fixes.
+          only-fixed: true
+          severity-cutoff: critical
+          fail-build: true
+          output-format: table
+
+  publish:
+    name: Push the image
+    needs: [resolve, gate]
+    if: needs.resolve.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # With required reviewers on this environment (see the header), nothing below this line
+    # starts until the maintainer has approved it.
+    environment: release
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+
+      # arm64 is built under emulation: slow, and needs nothing but this runner.
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build for both platforms and push
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ needs.resolve.outputs.tags }}
+          # Not org.opencontainers.image.licenses: the Dockerfile sets it to AGPL-3.0-only,
+          # a label given here would silently replace it, and GitHub's own idea of the
+          # licence is not that identifier. scripts/releasePipeline.test.ts holds this.
+          labels: |
+            org.opencontainers.image.title=EventSlide
+            org.opencontainers.image.source=https://github.com/Irony42/EventSlide
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.sha }}
+            org.opencontainers.image.version=${{ needs.resolve.outputs.version }}
+          # No BuildKit attestations: they add unknown/unknown entries to the index, and the
+          # SBOM and the signature below are made on the digest instead.
+          provenance: false
+          sbom: false
+
+  verify-published:
+    # The digest that was pushed, which is the one people will pull, checked again: the
+    # same script as above, its labels, both platforms, an SBOM, and a scan.
+    name: Check the pushed digest
+    needs: [resolve, publish]
+    if: needs.resolve.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    env:
+      IMAGE_REF: ghcr.io/irony42/eventslide@${{ needs.publish.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull the digest
+        run: docker pull "$IMAGE_REF"
+
+      - name: Both platforms are in the index
+        run: |
+          set -euo pipefail
+          index="$(docker buildx imagetools inspect "$IMAGE_REF")"
+          echo "$index"
+          for platform in linux/amd64 linux/arm64; do
+            if ! grep -q "Platform:[[:space:]]*$platform\$" <<< "$index"; then
+              echo "::error::$platform is missing from $IMAGE_REF"
+              exit 1
+            fi
+          done
+
+      - name: Check what the image promises
+        run: IMAGE="$IMAGE_REF" bash ./scripts/verify-image.sh --no-build
+
+      - name: The labels say what the image is
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          label() { docker inspect --format "{{ index .Config.Labels \"$1\" }}" "$IMAGE_REF"; }
+          licence="$(label org.opencontainers.image.licenses)"
+          source_url="$(label org.opencontainers.image.source)"
+          version="$(label org.opencontainers.image.version)"
+          if [ "$licence" != "AGPL-3.0-only" ]; then
+            echo "::error::org.opencontainers.image.licenses is '$licence', expected AGPL-3.0-only."
+            exit 1
+          fi
+          if [ "$source_url" != "https://github.com/Irony42/EventSlide" ]; then
+            echo "::error::org.opencontainers.image.source is '$source_url'."
+            exit 1
+          fi
+          if [ "$version" != "$VERSION" ]; then
+            echo "::error::org.opencontainers.image.version is '$version', expected $VERSION."
+            exit 1
+          fi
+
+      - name: Write the SBOM (SPDX, what is published)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ghcr.io/irony42/eventslide@${{ needs.publish.outputs.digest }}
+          format: spdx-json
+          output-file: eventslide-${{ needs.resolve.outputs.version }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Write the SBOM (Syft's own format, what the scan reads)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ghcr.io/irony42/eventslide@${{ needs.publish.outputs.digest }}
+          format: syft-json
+          output-file: sbom.syft.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Scan the SBOM of the pushed digest
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          sbom: sbom.syft.json
+          only-fixed: true
+          severity-cutoff: critical
+          fail-build: true
+          output-format: table
+
+      - name: List the source packages the image carries
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          out="image-sources-$VERSION.txt"
+          {
+            echo "EventSlide $VERSION"
+            echo "Image: $IMAGE_REF"
+            echo
+            echo "What is in this image and where its source is: docs/IMAGE-SOURCES.md, attached"
+            echo "to the release. This list is written from the image that was pushed."
+            echo
+            echo "== Base image"
+            echo "Pinned in the Dockerfile:"
+            grep '^FROM node:' Dockerfile | sed -e 's/ AS .*$//' | sort -u
+            echo "Debian release: $(docker run --rm --entrypoint cat "$IMAGE_REF" /etc/debian_version)"
+            echo "Node.js: $(docker run --rm --entrypoint node "$IMAGE_REF" --version)"
+            echo
+            echo "== libvips"
+            echo "libvips is not a Debian package here. It is the build that sharp loads from"
+            echo "the @img/sharp-libvips-* npm packages, and these are the versions it reports:"
+            docker run --rm --entrypoint node "$IMAGE_REF" -e "console.log(JSON.stringify(require('sharp').versions, null, 2))"
+            echo
+            echo "== Debian packages"
+            echo "One line per source package: name, version, then the binary packages in the image."
+            echo "apt-get source <name>=<version>, or https://snapshot.debian.org/package/<name>/"
+            echo
+            docker run --rm --entrypoint dpkg-query "$IMAGE_REF" -W -f='${source:Package}\t${source:Version}\t${binary:Package}\n' |
+              sort |
+              awk -F '\t' '
+                { key = $1 "\t" $2 }
+                key != last { if (NR > 1) print line; line = $1 " " $2 " (" $3; last = key; next }
+                { line = line ", " $3 }
+                END { if (NR > 0) print line }
+              ' | sed -e 's/$/)/'
+          } > "$out"
+          grep -q '^ffmpeg ' "$out" || { echo "::error::ffmpeg is not in the list of source packages."; exit 1; }
+          echo "Wrote $out ($(wc -l < "$out") lines)."
+
+      - name: Keep what the release will attach
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: |
+            eventslide-${{ needs.resolve.outputs.version }}.spdx.json
+            image-sources-${{ needs.resolve.outputs.version }}.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  sign:
+    # Keyless: GitHub gives this job an OIDC token, Sigstore's CA exchanges it for a
+    # short-lived certificate naming this workflow, and the signature goes to the registry
+    # beside the image and to the public transparency log. There is no key to keep.
+    name: Sign the image
+    needs: [resolve, publish, verify-published]
+    if: needs.resolve.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      packages: write
+      id-token: write
+    env:
+      IMAGE_REF: ghcr.io/irony42/eventslide@${{ needs.publish.outputs.digest }}
+      VERSION: ${{ needs.resolve.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sign the digest
+        run: cosign sign --yes "$IMAGE_REF"
+
+      - name: Attach the SBOM as a signed attestation
+        run: cosign attest --yes --type spdxjson --predicate "eventslide-$VERSION.spdx.json" "$IMAGE_REF"
+
+      - name: Verify what was just signed, as a user would
+        # The identity a user passes to `cosign verify`, written in docs/IMAGE-SOURCES.md
+        # word for word: this run is what proves that command works.
+        run: |
+          set -euo pipefail
+          identity='^https://github\.com/Irony42/EventSlide/\.github/workflows/release\.yml@refs/(tags/v.+|heads/main)$'
+          issuer='https://token.actions.githubusercontent.com'
+          cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$IMAGE_REF"
+          cosign verify-attestation --type spdxjson --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$IMAGE_REF"
+
+  release:
+    name: Create the GitHub release
+    needs: [resolve, publish, verify-published, sign]
+    if: needs.resolve.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+
+      - name: Create the release, or add to the one release-please made
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          PRERELEASE: ${{ needs.resolve.outputs.prerelease }}
+          DIGEST: ${{ needs.publish.outputs.digest }}
+          TAGS: ${{ needs.resolve.outputs.tags }}
+        run: |
+          set -euo pipefail
+
+          cp docs/IMAGE-SOURCES.md IMAGE-SOURCES.md
+          assets=("eventslide-$VERSION.spdx.json" "image-sources-$VERSION.txt" IMAGE-SOURCES.md)
+
+          {
+            echo "## Image"
+            echo
+            echo "\`$REGISTRY_IMAGE@$DIGEST\`, for linux/amd64 and linux/arm64, with these tags:"
+            echo
+            while IFS= read -r ref; do echo "- \`$ref\`"; done <<< "$TAGS"
+            echo
+            echo "It is signed with Sigstore, keyless. To check the signature, and what is in the image and where its source is, see [IMAGE-SOURCES.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/IMAGE-SOURCES.md). The SBOM (SPDX) and the list of source packages are attached below."
+            echo
+            echo "To upgrade, see [docs/UPGRADING.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/UPGRADING.md)."
+          } > image-notes.md
+
+          # The hand-written CHANGELOG entry of this version, when there is one.
+          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 { keep = 1; next } /^## / { keep = 0 } keep' CHANGELOG.md > changelog-entry.md
+
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --clobber
+            body="$(gh release view "$TAG" --json body --jq .body)"
+            if [[ "$body" != *"$DIGEST"* ]]; then
+              { echo "$body"; echo; cat image-notes.md; } > notes.md
+              gh release edit "$TAG" --notes-file notes.md
+            fi
+          else
+            { cat changelog-entry.md; echo; cat image-notes.md; } > notes.md
+            flags=(--verify-tag --title "$TAG" --notes-file notes.md)
+            if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+            gh release create "$TAG" "${flags[@]}" "${assets[@]}"
+          fi

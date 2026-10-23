@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { parseWorkflow, type YamlValue } from './workflowYaml'
 
 /**
  * `.github/dependabot.yml`, asserted rather than described.
@@ -146,5 +147,54 @@ describe('.github/dependabot.yml', () => {
 
     expect(ignored).toContain('typescript')
     expect(valuesOf('versions', ignored).join(' ')).toContain('>=7')
+  })
+})
+
+/**
+ * The two ecosystems the release pipeline added (roadmap G3-08 / P4-08).
+ *
+ * `scripts/workflowPinning.test.ts` holds every action to a commit SHA, and the Dockerfile
+ * pins its base image by digest. A pin that nothing updates is a pin that rots: the day a
+ * fix lands in an action or in Debian, the pull request that moves it has to arrive by
+ * itself. These two blocks are what makes it arrive, and a typo in either one is silent in
+ * the way the first test of this file describes, so they are asserted by name.
+ */
+describe('the ecosystems that keep the pins current', () => {
+  const root = parseWorkflow(readFileSync(CONFIG_PATH, 'utf8'))
+  const updates = (Array.isArray(root['updates']) ? root['updates'] : []).flatMap((entry) =>
+    typeof entry === 'object' && entry !== null && !Array.isArray(entry) ? [entry] : [],
+  )
+  const block = (ecosystem: string): Record<string, YamlValue> | undefined =>
+    updates.find((entry) => entry['package-ecosystem'] === ecosystem)
+
+  it.each(['github-actions', 'docker'])(
+    'updates %s at the root of the repository, weekly',
+    (name) => {
+      const entry = block(name)
+
+      expect(entry, `an updates entry for ${name}`).toBeDefined()
+      expect(entry?.['directory']).toBe('/')
+      expect(entry?.['schedule']).toEqual({ interval: 'weekly' })
+    },
+  )
+
+  it('groups the actions by minor and patch only, so that a major arrives alone', () => {
+    expect(block('github-actions')?.['groups']).toEqual({
+      actions: { 'applies-to': 'version-updates', 'update-types': ['minor', 'patch'] },
+    })
+  })
+
+  it('does not move the base image to another major of node, which is a decision', () => {
+    // A new digest of node:24-bookworm-slim is a pull request. node:25 is not: it moves the
+    // engines field, @types/node and CI with it, and it is one edit made together.
+    expect(block('docker')?.['ignore']).toEqual([
+      { 'dependency-name': 'node', 'update-types': ['version-update:semver-major'] },
+    ])
+  })
+
+  it('never reads compose.yaml as a docker-compose ecosystem, which would propose to bump the image this project publishes', () => {
+    expect(valuesOf('package-ecosystem', readFileSync(CONFIG_PATH, 'utf8'))).not.toContain(
+      'docker-compose',
+    )
   })
 })
