@@ -42,6 +42,8 @@ export interface OpenFiles {
   /** Streams handed out by `openRead`: each holds a file descriptor until it closes. */
   opened: number
   closed: number
+  /** The most that were open at once, counted each time another was handed out. */
+  mostOpen: number
 }
 
 /**
@@ -52,7 +54,7 @@ export interface OpenFiles {
  * returning streams makes this throw instead of counting nothing, which would pass.
  */
 export const countingOpenFiles = (store: MediaStore): { store: MediaStore; files: OpenFiles } => {
-  const files: OpenFiles = { opened: 0, closed: 0 }
+  const files: OpenFiles = { opened: 0, closed: 0, mostOpen: 0 }
   return {
     files,
     store: {
@@ -62,6 +64,7 @@ export const countingOpenFiles = (store: MediaStore): { store: MediaStore; files
         if (stream === null) return null
         if (!(stream instanceof Readable)) throw new Error('the store no longer returns streams')
         files.opened += 1
+        files.mostOpen = Math.max(files.mostOpen, files.opened - files.closed)
         stream.once('close', () => {
           files.closed += 1
         })

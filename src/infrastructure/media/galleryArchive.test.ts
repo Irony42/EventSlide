@@ -137,6 +137,23 @@ describe('the gallery archive with the real archiver, filesystem and database', 
     expect(received).toBeLessThan((PHOTOS / 2) * PHOTO_BYTES)
   })
 
+  it('keeps one file open at a time while it writes the album', async () => {
+    // The use case opens an entry's file when its bytes are first asked for, and says one
+    // descriptor is open at a time, not one per photograph. That is only so if the writer
+    // asks one entry at a time. The previous file's `close` is an event still on its way when
+    // the next is opened, so two is the most a correct writer can show; a writer that took
+    // the album at once shows all twelve.
+    const result = await rig.download()
+    if (!result.ok) throw new Error(`expected an archive, got ${result.error.code}`)
+
+    for await (const _chunk of result.value.chunks) {
+      // Reading it all is the point.
+    }
+
+    expect(rig.files.opened).toBe(PHOTOS)
+    expect(rig.files.mostOpen).toBeLessThanOrEqual(2)
+  })
+
   it('closes every file it opened when the client stops reading', async () => {
     // The tab was closed with the album half sent. The writer used to take every
     // photograph at once and open every file, then leave them open: 55 of 60 measured on

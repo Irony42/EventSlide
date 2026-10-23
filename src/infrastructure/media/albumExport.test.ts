@@ -125,6 +125,18 @@ describe('the host’s album with the real archiver, filesystem and database', (
     expect(total).toBeGreaterThan((PHOTOS - 2) * PHOTO_BYTES)
   })
 
+  it('keeps one file open at a time while it writes the album', async () => {
+    // The previous file's `close` is an event still on its way when the next is opened, so
+    // two is the most a correct writer can show; one that took the album at once shows all
+    // twelve, and four thousand open files is a host whose download dies of EMFILE.
+    for await (const _chunk of await download()) {
+      // Reading it all is the point.
+    }
+
+    expect(rig.files.opened).toBe(PHOTOS)
+    expect(rig.files.mostOpen).toBeLessThanOrEqual(2)
+  })
+
   it('closes every file it opened when the host stops reading', async () => {
     // The host closes the tab with the album half downloaded. Four thousand photographs
     // were four thousand files opened as the listing went by, and left open.
