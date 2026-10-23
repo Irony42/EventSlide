@@ -283,15 +283,16 @@ describe('SITE_ADMIN=on: the whole namespace is behind requireOperator', () => {
     // `buildServer` mounts the namespace first among the routers behind the CSRF gate, so a
     // request that reaches the `/api/site` mount meets the operator check before any of the
     // `/api` routers sees it. That is all ordering can promise: `GET /api//site/x` never
-    // reaches this mount, and the `/api` routers are handed it as `/site/x`. That no other
-    // router declares such a path is a separate rule, held structurally in both modes by
-    // `siteOperatorScope.test.ts`; this one is the order.
+    // reaches this mount, and the `/api` routers are handed it as `//site/x` (as `/site/x` on
+    // Express 4). That no other router declares such a path is a separate rule, held
+    // structurally in both modes by `siteOperatorScope.test.ts`; this one is the order.
     const routers = routersMeeting(harness(true).app, NEVER_A_SITE_ROUTE)
 
     // The guard on the guard: the routers mounted on `/api` match this path too, so an
     // empty or single-entry list means the walk read nothing, not that the order is right.
     expect(routers.length).toBeGreaterThan(1)
-    expect(routers[0]?.test('/api/events')).toBe(false)
+    expect(routers[0]?.matches('/api/events')).toBe(false)
+    expect(routers[0]?.mount).toBe('/api/site')
   })
 })
 
