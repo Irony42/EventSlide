@@ -29,6 +29,22 @@ describe('parseSmtpUrl', () => {
     })
   })
 
+  it.each(['SMTPS://mail.example.com', 'Smtps://mail.example.com', 'sMtPs://mail.example.com'])(
+    'reads the scheme whatever its case (%s), so an uppercase smtps is still implicit TLS',
+    (value) => {
+      // A scheme is not case-sensitive. Read as a typed prefix, `SMTPS://` would fall through
+      // to the STARTTLS branch and quietly send a password the operator meant to wrap in TLS.
+      expect(valueOf(parseSmtpUrl(value))).toMatchObject({ port: 465, implicitTls: true })
+    },
+  )
+
+  it.each(['SMTP://mail.example.com', 'Smtp://mail.example.com'])(
+    'reads an uppercase smtp (%s) as STARTTLS on the submission port',
+    (value) => {
+      expect(valueOf(parseSmtpUrl(value))).toMatchObject({ port: 587, implicitTls: false })
+    },
+  )
+
   it('keeps an explicit port, and accepts the one a local relay uses', () => {
     expect(valueOf(parseSmtpUrl('smtp://localhost:1025')).port).toBe(1025)
     expect(valueOf(parseSmtpUrl('smtp://mail.example.com:25')).port).toBe(25)
