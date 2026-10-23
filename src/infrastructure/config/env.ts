@@ -556,7 +556,7 @@ const eventCreation = z.preprocess(
  */
 const operatorResetLinks = z.preprocess(
   blankAsAbsent,
-  z.enum(OPERATOR_RESET_LINK_MODES).default(DEFAULT_OPERATOR_RESET_LINKS),
+  choice(OPERATOR_RESET_LINK_MODES).default(DEFAULT_OPERATOR_RESET_LINKS),
 )
 
 /**
@@ -1236,7 +1236,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       // Not production-gated, for the reason the ceiling check above is not.
       if (raw.OPERATOR_RESET_LINKS !== DEFAULT_OPERATOR_RESET_LINKS && raw.SITE_ADMIN !== 'on') {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['OPERATOR_RESET_LINKS'],
           message: `OPERATOR_RESET_LINKS=${raw.OPERATOR_RESET_LINKS} requires SITE_ADMIN=on: it decides what an operator may be shown, and a box with SITE_ADMIN=off has no operator surface (docs/ROADMAP.md §10.9)`,
         })
