@@ -211,6 +211,26 @@ const publicUrl = z
   })
 
 /**
+ * Whether `value` is a plain `http:` address on a host other than `localhost`, which is the
+ * one thing production refuses about {@link publicUrl}: guests submit photos over that
+ * origin, and a `Secure` session cookie is never sent over http.
+ *
+ * It reads the **parsed** URL, never the text as typed. A scheme is case-insensitive and the
+ * check that admits the value says so (`/^https?:\/\//i`), so a test on the typed prefix let
+ * `HTTP://photos.example.com` through the very rule meant to catch it. The host is read the
+ * same way, because the prefix `http://localhost` also matched `http://localhost.example.com`
+ * and `http://localhost@example.com`, whose host is somewhere else entirely.
+ *
+ * A value that does not parse is not this rule's to report: `publicUrl` refuses it, and zod
+ * hands the object-level refinement the text as typed even then.
+ */
+const isPlainHttpBeyondLocalhost = (value: string): boolean => {
+  if (!URL.canParse(value)) return false
+  const url = new URL(value)
+  return url.protocol === 'http:' && url.hostname !== 'localhost'
+}
+
+/**
  * `""` is absent, not a value.
  *
  * `compose.yaml` passes the first-owner variables as `${BOOTSTRAP_OWNER_EMAIL:-}` and
@@ -1272,7 +1292,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
           message: 'E2E_HOOKS must not be enabled in production',
         })
       }
-      if (raw.PUBLIC_URL.startsWith('http://') && !raw.PUBLIC_URL.startsWith('http://localhost')) {
+      if (isPlainHttpBeyondLocalhost(raw.PUBLIC_URL)) {
         ctx.addIssue({
           code: 'custom',
           path: ['PUBLIC_URL'],
