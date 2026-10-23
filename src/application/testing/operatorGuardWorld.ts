@@ -141,7 +141,7 @@ export const makeOperatorGuardWorld = (options: OperatorGuardWorldOptions = {}) 
     asUserId(MEMBER_ID),
     asUserId(STRANGER_ID),
   )
-  const acceptance = new FakeInvitationAcceptance({ tokens, users, memberships, clients })
+  const acceptance = new FakeInvitationAcceptance({ tokens, users, memberships, clients, audit })
 
   const issueInvitation = makeIssueInvitation({
     tokens,

@@ -7,6 +7,7 @@ import type { Db } from './connection'
 import { ACCOUNT_TOKEN_USABLE_SQL } from './sqliteAccountTokenRepository'
 import { INSERT_USER, userRow } from './sqliteUserRepository'
 import { toIsoText } from './rowMapping'
+import { INSERT_AUDIT_SQL, auditParams } from './sqliteAuditLog'
 
 /**
  * `InvitationAcceptance` over SQLite: one transaction around the spend of the link, the
@@ -34,6 +35,10 @@ import { toIsoText } from './rowMapping'
  *   means to ignore. `INSERT OR IGNORE` would also swallow a `CHECK` or `NOT NULL` failure and
  *   report an acceptance that granted nothing.
  * - The client grant raises a `member` to `owner` and never lowers an `owner`.
+ * - **The audit entry, when there is one, is the last statement** (the acceptance of the terms,
+ *   G2-20): after the spend and the grant it describes, inside the same transaction, so the
+ *   log never says an acceptance happened that did not, and an entry the log refuses rolls the
+ *   whole acceptance back. It is the plain `INSERT` `SqliteAuditLog.record` uses.
  */
 
 interface InvitationRow {
@@ -54,6 +59,7 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
   private readonly stampVerified
   private readonly grantEvent
   private readonly grantClient
+  private readonly insertAudit
 
   constructor(private readonly db: Db) {
     this.selectInvitation = db.prepare<[string, string], InvitationRow>(
@@ -79,6 +85,7 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
             VALUES (?, ?, ?, ?)
        ON CONFLICT (event_id, user_id) DO NOTHING`,
     )
+    this.insertAudit = db.prepare(INSERT_AUDIT_SQL)
     this.grantClient = db.prepare<[string, string, string, string]>(
       `INSERT INTO client_members (client_id, user_id, role, granted_at)
             VALUES (?, ?, ?, ?)
@@ -129,6 +136,7 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
         } else {
           throw new Error('the invitation names nothing to grant')
         }
+        if (record.audit !== undefined) this.insertAudit.run(auditParams(record.audit))
         return 'accepted'
       })
       .immediate()

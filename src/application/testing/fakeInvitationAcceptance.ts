@@ -7,6 +7,7 @@ import type {
 import type { ClientRepository } from '../ports/clientRepository'
 import type { MembershipRepository, UserRepository } from '../ports/userRepository'
 import type { FakeAccountTokenRepository } from './fakeAccountTokenRepository'
+import type { FakeAuditLog } from './fakeAuditLog'
 
 /**
  * In-memory `InvitationAcceptance`, composed of the fakes whose tables the real one writes in
@@ -25,6 +26,8 @@ export interface FakeInvitationAcceptanceParts {
   readonly users: UserRepository
   readonly memberships: MembershipRepository
   readonly clients: ClientRepository
+  /** Where an entry rides the acceptance (G2-20): the log the world reads it back from. */
+  readonly audit: FakeAuditLog
 }
 
 export class FakeInvitationAcceptance implements InvitationAcceptance {
@@ -40,7 +43,7 @@ export class FakeInvitationAcceptance implements InvitationAcceptance {
   }
 
   private async acceptNow(record: AcceptInvitationRecord): Promise<InvitationAcceptanceOutcome> {
-    const { tokens, users, memberships, clients } = this.parts
+    const { tokens, users, memberships, clients, audit } = this.parts
     const { account, now } = record
 
     const token = tokens.all.find((candidate) => candidate.id === record.tokenId)
@@ -65,6 +68,14 @@ export class FakeInvitationAcceptance implements InvitationAcceptance {
       if (existing !== null) throw new Error('UNIQUE constraint failed: users.id')
     }
 
+    // The foreign key on `actor_user_id`, decided before the first write like every other
+    // refusal: in the adapter an entry the log refuses undoes the acceptance with it, and here
+    // nothing is written yet to undo. The accepting account exists by the time the row goes in.
+    const actorId = record.audit?.toProps().actor.userId ?? null
+    if (actorId !== null && actorId !== userId && (await users.findById(actorId)) === null) {
+      throw new Error('FOREIGN KEY constraint failed: the actor is not an account')
+    }
+
     await tokens.consume(record.tokenId, now)
 
     if (account.kind === 'new') {
@@ -83,23 +94,29 @@ export class FakeInvitationAcceptance implements InvitationAcceptance {
           grantedAt: now,
         })
       }
-      return 'accepted'
+    } else {
+      // A client: absent, it is granted; a member invited as owner is raised, and the original
+      // instant is kept as the adapter keeps it; an owner is never lowered.
+      const held = (await clients.membershipsForUser(userId)).find(
+        (membership) => membership.clientId === grant.clientId,
+      )
+      if (held === undefined) {
+        await clients.grantMember({
+          clientId: grant.clientId,
+          userId,
+          role: grant.role,
+          grantedAt: now,
+        })
+      } else if (grant.role === 'owner' && held.role !== 'owner') {
+        await clients.grantMember({ ...held, role: 'owner' })
+      }
     }
 
-    // A client: absent, it is granted; a member invited as owner is raised, and the original
-    // instant is kept as the adapter keeps it; an owner is never lowered.
-    const held = (await clients.membershipsForUser(userId)).find(
-      (membership) => membership.clientId === grant.clientId,
-    )
-    if (held === undefined) {
-      await clients.grantMember({
-        clientId: grant.clientId,
-        userId,
-        role: grant.role,
-        grantedAt: now,
-      })
-    } else if (grant.role === 'owner' && held.role !== 'owner') {
-      await clients.grantMember({ ...held, role: 'owner' })
+    // Last, as in the adapter: the entry describes what was just written.
+    if (record.audit !== undefined) {
+      audit.withAccounts(userId)
+      if (actorId !== null) audit.withAccounts(actorId)
+      await audit.record(record.audit)
     }
     return 'accepted'
   }
