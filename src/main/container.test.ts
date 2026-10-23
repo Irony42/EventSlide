@@ -608,6 +608,97 @@ describe('createContainer: a client’s ceilings reach every write path', () => 
 })
 
 /**
+ * `PUBLIC_URL` is spelled once by `loadConfig` and read in four places that each build a
+ * link from it: the QR on the projected wall (and, through the same presenter context, the
+ * host's event page and the shared gallery), the invitation and the password-reset mails.
+ * `env.test.ts` proves what `loadConfig` returns, but the ring-4 harness builds its own
+ * presenter context and never calls it, so nothing there can say whether the canonical value
+ * is the one that reaches a response. These boot the real container and read what a guest's
+ * phone and an invitee's mailbox are actually given.
+ *
+ * The reverse-proxied sub-path is in the value on purpose: a canonical form that lower-cased
+ * or dropped it would send every QR code of such a deployment somewhere else.
+ */
+describe('createContainer: PUBLIC_URL reaches the links in its canonical form', () => {
+  const TYPED = 'HTTPS://Photos.Example.com:443/EventSlide/'
+  const CANONICAL = 'https://photos.example.com/EventSlide'
+
+  const relays: SmtpSink[] = []
+  afterEach(async () => {
+    await Promise.all(relays.splice(0).map((relay) => relay.close()))
+  })
+
+  it('builds the wall’s join link, the QR a guest scans, from the canonical origin and the prefix', async () => {
+    const booted = await boot({ PUBLIC_URL: TYPED })
+    booted.db
+      .prepare(
+        `INSERT INTO users (id, email, password_hash, created_at, site_role)
+         VALUES ('user-host', 'user-host@example.test', 'hash:x', ?, 'none')`,
+      )
+      .run(new Date().toISOString())
+    const created = await booted.usecases.createEvent({
+      ownerId: asUserId('user-host'),
+      name: 'Camille & Sacha',
+    })
+    if (!created.ok) throw new Error(`fixture rejected: ${created.error.code}`)
+    const opened = await booted.usecases.changeEventStatus({
+      eventId: created.value.id,
+      actorId: asUserId('user-host'),
+      status: 'live',
+    })
+    if (!opened.ok) throw new Error(`fixture rejected: ${opened.error.code}`)
+    const row = booted.db
+      .prepare<[], { readonly join_code: string }>('SELECT join_code FROM events')
+      .get()
+    if (row === undefined) throw new Error('fixture: no event row')
+
+    const wall = await request(booted.app).get(`/api/events/${created.value.slug}/wall`)
+
+    expect(wall.status).toBe(200)
+    expect(wall.body.joinUrl).toBe(`${CANONICAL}/join/${row.join_code}`)
+  })
+
+  it('builds the invitation link, the one a host passes on when the box has no relay, the same way', async () => {
+    const booted = await boot({ PUBLIC_URL: TYPED })
+
+    const provisioned = await booted.usecases.provisionClientOwner({
+      clientName: 'Camille et Sacha',
+      ownerEmail: 'camille@example.org',
+      locale: 'fr',
+      createdBy: null,
+    })
+
+    const invitation = provisioned.ok ? provisioned.value.invitation : null
+    const link = invitation !== null && 'link' in invitation ? invitation.link : ''
+    expect(link).toMatch(/^https:\/\/photos\.example\.com\/EventSlide\/invite\/[A-Za-z0-9_-]{43}$/)
+  })
+
+  it('builds the link of a password-reset mail the same way, as the relay received it', async () => {
+    const relay = await startSmtpSink()
+    relays.push(relay)
+    const booted = await boot({
+      SMTP_URL: `smtp://127.0.0.1:${relay.port}`,
+      MAIL_FROM: 'no-reply@photos.example.org',
+      PUBLIC_URL: TYPED,
+      BOOTSTRAP_OWNER_EMAIL: 'hote@example.org',
+      BOOTSTRAP_OWNER_PASSWORD: 'un-mot-de-passe-solide',
+    })
+
+    const requested = await booted.usecases.requestPasswordReset({
+      email: 'hote@example.org',
+      locale: 'en',
+    })
+    if (!requested.ok) throw new Error(`fixture rejected: ${requested.error.code}`)
+    await requested.value.completion
+    await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+
+    const text = parseMessage(relay.messages[0]?.raw ?? '').text ?? ''
+    expect(text).toContain(`${CANONICAL}/password/reset/`)
+    expect(text).not.toContain('Photos.Example.com')
+  })
+})
+
+/**
  * Outgoing mail (G2-07 / P3-08): the composition root choosing the mailer.
  *
  * `env.test.ts` proves `SMTP_URL` parses and `smtpMailer.test.ts` proves the adapter speaks
