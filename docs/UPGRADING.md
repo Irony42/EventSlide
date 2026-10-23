@@ -299,6 +299,15 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
    - Signing in is throttled per account: after five failures from one network the next
      attempt gets `429 rate.limited` with a `Retry-After`, up to 15 minutes. Back off on a
      wrong password instead of retrying at once.
+   - **A moderator is invited by link.** `POST /api/events/:slug/moderators` takes `{ "email" }`
+     and answers `201` with `status`, `expiresAt` and, when the box has no mail relay, a `link`; it
+     creates no account. A script that sent `temporaryPassword` or `displayName` now gets
+     `400 request.invalid`, and one that read `created` or `userId` finds neither. Stop typing a
+     password, give the person the `link` (or let the mail carry it) and they make their own account
+     when they open it. Opening a link as an account that already exists is `409 invitation.signInRequired`
+     until that account is signed in; a dead one is `404 invitation.notFound`. An address is written
+     to at most five times an hour: the sixth gets `429 invitation.tooManyForAddress`. Your own
+     reverse proxy must not log `/invite/*`, which carries the token.
 5. **Decide about the licence.** If you modify EventSlide and other people use your version
    over a network, publish your source and set `SOURCE_CODE_URL` to it. Unmodified, there is
    nothing to do.

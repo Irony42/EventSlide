@@ -125,6 +125,19 @@ Read these before you upgrade, and back up with the version you run now.
   network, and the owner of the address signs in from another with no wait. Beyond 100
   failures an hour across every network, each attempt is held for two seconds and never
   refused. A script that retries a wrong password must back off.
+- **A moderator is invited by a link, and the box no longer makes an account for them**
+  (#139, #NNN). `POST /api/events/:slug/moderators` takes `{ "email" }` (and an optional
+  `locale`) and answers `201 { "status": "invited", "expiresAt", "link"? }`. It no longer takes
+  `temporaryPassword` or `displayName`: a client that sends either gets `400 request.invalid`. It no
+  longer answers `created` or `userId`, which said whether the address was already on the box, and it
+  creates no account and no role: the person opens the link (`GET /api/invitations/:token`,
+  `POST /api/invitations/:token/accept`), chooses a name and a password, and the account exists from
+  that moment. The link works once and lives seven days. With a mail relay (`SMTP_URL`) it is mailed
+  and the answer has no `link`; with none, `link` is in the answer for the host to pass on. A script that
+  invited moderators must stop sending a password, read `link` when it is there, and give it to the
+  person. An address that already has an account is never given a second one and is never attached by
+  someone who only holds the link: that account signs in and accepts as itself. Until the page that
+  opens `/invite/<token>` ships, accepting is the API call.
 
 ### Behaviour changes to check before upgrading
 
@@ -132,7 +145,7 @@ Read these before you upgrade, and back up with the version you run now.
   008 (clients, and `events.client_id` and `events.opened_at`), 009 (the audit log), 010
   (account tokens, and the `credentials_changed_at` and `email_verified_at` columns of
   `users`), 011 (an operator's second factor: `user_totp` and `user_recovery_codes`) and 012
-  (`account_tokens.client_id` and `client_role`).
+  (`account_tokens.client_id` and `client_role`, the client an invitation is for).
   Migrations are not reversed, and 2.1.0 refuses a database that holds them
   ("downgrading is not supported"), so back up first.
 - **The container's memory limit in `compose.yaml` goes from 1 GB to 2 GB** (#105), because
@@ -167,6 +180,13 @@ Read these before you upgrade, and back up with the version you run now.
   (default 1095, never below 365) (#118); and a content-free overview of a box, shapes and
   sizes and never what guests made (#126). No HTTP route reaches the clients, the audit log or
   the overview yet. `GET /api/auth/me` reports `canOperateSite`, whatever `SITE_ADMIN` says.
+- **Invitations by link** (#139, #NNN). A moderator is invited by a single-use link that lives
+  seven days, mailed when the box has a relay and otherwise handed to the host. The account is made by
+  the invitee, with a password they choose, when they accept it; an account that already uses the
+  address signs in and accepts as itself. Writing an invitation to the same address and event replaces
+  the earlier link, and one address is written to at most five times an hour. The address is marked
+  verified only when the link came by mail. Behind it, and not reachable yet: opening a client and
+  inviting its owner.
 - **Mail, optional** (#120). A `Mailer` port, a `NullMailer` that sends nothing and is the
   default, and an SMTP adapter on `nodemailer` (a new dependency) switched on by `SMTP_URL`
   and `MAIL_FROM`. The password reset is the first thing that sends mail.

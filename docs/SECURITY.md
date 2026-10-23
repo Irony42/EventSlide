@@ -147,9 +147,11 @@ running server's own database and then asks).
 
 ### Forcing a password change
 
-`users.must_change_password` is set when somebody else chose the account's password — a
-host inviting a moderator (`registerModerator`) — so the invitee has to replace it before
-doing anything else. Until this branch (P3-03), only
+`users.must_change_password` is set when somebody else chose the account's password — the
+first account a box creates from `BOOTSTRAP_OWNER_PASSWORD`, and in 2.x a host inviting a
+moderator — so its holder has to replace it before doing anything else. **An invitation no
+longer sets it** (3.0): the invitee chooses their own password when they accept, so nobody else
+ever knew it. The flag, the gate and the epoch stay for the accounts that still need them. Until this branch (P3-03), only
 `web/src/features/auth/MustChangePasswordGate.tsx` enforced it: a client-side redirect,
 which is a courtesy to a browser that is already cooperating and does nothing for one that
 calls an endpoint directly while holding the session a host just read out to them.
@@ -180,9 +182,10 @@ not each ask storage again.
 Named tests at ring 3 (`userRepositoryContract`'s `authStateFor` cases, fake **and**
 SQLite) and ring 4 (`authz.test.ts`'s sweep over every mounted `/api` route, built the way
 `siteOperatorScope.test.ts` sweeps the operator's own invariant). `tests/e2e/journeys/
-moderator-invitation.spec.ts` is the ring-6 case that was already there and stays green:
-an invited moderator signs in on the temporary password, is sent to the rotation screen,
-and only reaches the moderation queue after choosing their own.
+moderator-invitation.spec.ts` was the ring-6 case that held it end to end in 2.x, and is now the
+journey of an invitation accepted by link, which has no rotation screen to cross; the gate is
+held by the sweep above at ring 4. No ring-6 journey crosses the rotation screen any more; the
+first account a box creates still has one to cross, and `startTestApp.ts` settles it for every spec.
 
 ### The credentials epoch, and signing out everywhere
 
@@ -358,6 +361,80 @@ provoke at will, is the one that was closed. Expired token rows
 are deleted opportunistically by the next reset request, a day after they expire — there is no
 dedicated sweep, because a reset token cascades with its account and holds no address the
 `users` table does not.
+
+### Invitations (roadmap §10.3, G2-09 / P3-10)
+
+An invitation is a password reset for an account that does not exist yet, and it is spent through
+the same table and the same single-use statement as a reset (§2, "Account tokens"). It replaced a
+flow in which a host typed a password, the box created an account with it, and the host read it out
+loud. That flow let a third party choose the credential of an account in somebody else's name,
+attached an existing account to an event without its owner's say, and answered whether the address
+was already on the box. What holds now, each rule with the test that holds it:
+
+- **No `users` row exists before an invitation is accepted.** `issueInvitation` has no dependency on
+  the user repository at all: it writes one `account_tokens` row. The account is made by
+  `acceptInvitation`, by the person the link is for, with a password they chose, at the address the
+  link was written to (never one from the request), with no authority on the box
+  (`siteRole: 'none'`, written out and asserted by name) and nothing to change on first sign-in.
+  (`acceptInvitation.test.ts`; the container test runs it through the real adapters, a relay and
+  bcrypt.)
+- **One transaction, read from the link.** Spending the link, creating the account, granting the
+  role and stamping the mailbox are one `IMMEDIATE` transaction (`SqliteInvitationAcceptance`;
+  `invitationAcceptanceContract.ts`, fake and SQLite). **What the link grants is read from its own
+  row inside the transaction**, never from the caller, so no caller's bug can spend one person's link
+  for another's place; an account at another address than the link's, and an account id that already
+  exists (an upsert would have rewritten another account's address and authority), are refused and
+  roll everything back. Of N concurrent acceptances exactly one wins.
+- **An existing account is never attached by someone who only holds the link.** A password sent for
+  an address that has an account is `409 invitation.signInRequired` and nothing is spent; the
+  account signs in and accepts as itself with an empty body, and any other signed-in account is
+  `403 invitation.wrongAccount`. It is never given a second account. A role it already holds is not
+  lowered (a member invited as owner is raised, which the invitation says).
+- **The mailbox is proved only by a mail.** `delivery` is part of the record: `mail` if the relay
+  accepted the message, `link` otherwise (no relay, a refusal, a timeout — a relay that times out may
+  in fact have delivered, and is read conservatively). `users.email_verified_at` is set at acceptance
+  **only** when the link was mailed: a link the inviter was handed proves nothing, because the
+  inviter could have accepted it.
+- **The answer does not depend on the address.** Writing an invitation, previewing one and the
+  mail itself are the same for an address that has an account and one that has not
+  (`registerModerator.test.ts`, `previewInvitation.test.ts`). A refusal of the name or the password is
+  the same for every address too, because the address is looked at after them.
+- **Authority is read when it is used, twice.** Only an owner of the event may invite a moderator,
+  read from storage; and when the link is accepted — up to a week later — its author must **still**
+  be an owner of the event (removed, disabled, demoted or deleted, the link opens nothing), and the
+  event must still be mutable. The link is read **again after the password has been hashed**, which is
+  long enough for either to change. An event invitation with no author is refused when it is written.
+- **One live link per address and place; at most five an hour per address.** Writing a new
+  invitation to an address for the same event or client revokes the earlier one; the cap counts
+  what was written, whoever wrote it. Both are count-then-act around a mail that takes as long as a
+  relay takes, so writes for one address queue, in the process (one process over one SQLite file is
+  the whole box). The cap is global to the address, so one host can spend its five slots and make an
+  operator's invitation to that address wait an hour; that is accepted.
+- **The password is judged before the link is spent**, so a weak password costs the person nothing and
+  the same link still works.
+- **The token is in the path and never in a log.** `/invite/<token>` and `/api/invitations/<token>`
+  are written `:token` by the request logger (`loggablePath`, `errorHandler.test.ts`); the SPA
+  fallback serves the former, so an error logged while serving it would otherwise have carried the
+  credential. **A reverse proxy in front of the box is the operator's own**: its access log must be
+  told not to record `/invite/*`, as for `/password/reset/*` (the hosted instance's edge rule, free plan
+  F-13 and G5-02). The database holds only the SHA-256 (`container.test.ts` searches every table for
+  the token and the chosen password). The mail is plain text with one link, neutral about who sent it.
+  Nothing logs the address, the link or the name of the event.
+
+**What this does not end, and says so.** On a box with **no mail relay** the inviter holds the link
+(that is what "copy the link" is) and can accept it first, which creates an account with a password the
+inviter chose, at an address they do not control. Such an account is never marked verified, and a
+later invitation to the real owner of the address answers `409 invitation.signInRequired` to an
+account whose password only the squatter knows. The plan accepts that trade — a box with no relay
+cannot prove a mailbox, and the operator who copies a link to a client is trusted to pass it on —
+and it is bounded: it needs the inviter to be an owner of the event, a client's own account is made at
+the address the operator typed, and an operator's invitation to a client that has events (roadmap
+G2-12) will be refused a link. Nothing here ends it, and a box that wants it ended configures SMTP.
+The same property is why **the one thing a holder of a link can learn about who is on the box** is the
+`409` above, and only by sending a name and a password that pass the policy — which, where the
+address is free, creates the account. A host cannot cancel a pending invitation except by writing a
+new one to the same address (the old one then dies); a list of pending invitations with a cancel
+button is not built.
 
 ### Guest token format
 

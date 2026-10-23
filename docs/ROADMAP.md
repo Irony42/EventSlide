@@ -636,8 +636,8 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 
 ### 10.3 Invitations that survive a box with no mail server (P1, effort M, risk: medium)
 
-> **Partly shipped**: the mailer, the tokens, and the invitation itself as use cases; the
-> routes that expose them are the next change. `Mailer` with `NullMailer` and an optional SMTP
+> **Partly shipped**: the mailer, the tokens, the invitation, and its routes. Still to come: the
+> pages that use them (G2-10 / P3-11) and the operator's invitations to a client (G2-12 to G2-14). `Mailer` with `NullMailer` and an optional SMTP
 > adapter (G2-07 / P3-08), and the account tokens with the credentials epoch, password reset and
 > "sign out everywhere" (G2-08 / P3-09) are shipped. **Invitations** (G2-09 / P3-10) are built as
 > `issueInvitation`, `previewInvitation`, `acceptInvitation` and `provisionClientOwner`, over
@@ -652,8 +652,11 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 > the link came by mail), and nothing in this item ends that. A link is single-use and lives a
 > week; an address that already has an account is never given a second one and is never
 > attached by someone who only holds the link; one live link per address and place; five
-> invitations an hour to one address. The existing `POST /api/events/:eventSlug/moderators`
-> still takes a temporary password until the routes land; it is the thing this replaces.
+> invitations an hour to one address. **`POST /api/events/:eventSlug/moderators` now
+> invites by link** (3.0.0, a break: it no longer takes a temporary password or answers whether an
+> account was created), and the invitee's two routes are `GET /api/invitations/:token` and
+> `POST /api/invitations/:token/accept` (docs/API.md). The page that opens `/invite/:token` is G2-10:
+> until it lands, accepting is an API call, and the host's panel shows the link to copy.
 
 Today's flow — create the account, read the password aloud — has to be replaced by a
 single-use, expiring, signed link that lets a client set their own password and lands them
