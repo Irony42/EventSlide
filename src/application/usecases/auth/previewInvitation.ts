@@ -132,8 +132,8 @@ export interface PreviewInvitationDeps extends ResolveInvitationDeps {
 }
 
 /**
- * What a link would do, for the page that asks its holder to accept (docs/API.md;
- * paid plan P3-10): the purpose, the target's name and when it ends — and nothing else.
+ * What a link would do, for the page that asks its holder to accept (paid plan P3-10): the
+ * purpose, the target's name and when it ends — and nothing else.
  *
  * **Neutral on purpose.** It says nothing about who invited, nothing about the address the
  * link was written to, and above all nothing about whether that address already has an

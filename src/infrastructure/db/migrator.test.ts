@@ -2660,6 +2660,7 @@ describe('migration 012, the client an invitation is for', () => {
       'a client role in the case the domain never writes',
       { client_id: 'c1', client_role: 'Owner' },
     ],
+    ['a third client role', { client_id: 'c1', client_role: 'admin' }],
     ['a client role with no client', { client_id: null, client_role: 'owner' }],
     ['a client with no role', { client_id: 'c1', client_role: null }],
   ])('refuses %s, in the database rather than only in code', (_label, over) => {

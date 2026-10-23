@@ -26,8 +26,10 @@ export type AcceptInvitationInput = { readonly token: string } & (
   | {
       /** The address has no account yet: this is the person it is for, choosing how they sign in. */
       readonly credentials: { readonly password: string; readonly displayName: string }
+      readonly signedInUserId?: never
     }
   | {
+      readonly credentials?: never
       /**
        * From the **session**, never from the request. An id a client could send would let
        * anyone attach any account to any invitation they hold.

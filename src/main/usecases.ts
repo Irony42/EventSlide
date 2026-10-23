@@ -368,12 +368,11 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     clock: adapters.clock,
   }),
   /**
-   * Writing, previewing and accepting an invitation (G2-09 / P3-10). `issueInvitation` is
-   * the mechanism under the callers that decide who may invite (`registerModerator`,
-   * `provisionClientOwner`) and is listed here for them, not for a route. The other two are
-   * the invitee's: a link in a mail, and the account it creates.
+   * Previewing and accepting an invitation (G2-09 / P3-10): the invitee's, a link in a mail
+   * and the account it creates. Writing one is the mechanism under the callers that decide
+   * who may invite (`registerModerator`, `provisionClientOwner`), which build it for
+   * themselves from `invitationIssuer`: it is not on this bag, so no route can reach it.
    */
-  issueInvitation: invitationIssuer(adapters, policy),
   previewInvitation: makePreviewInvitation({
     ...invitationReaders(adapters),
     clock: adapters.clock,

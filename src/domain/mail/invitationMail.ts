@@ -172,8 +172,10 @@ export const invitationMail = ({
 
 /**
  * Where an invitation link points: a **path** under the instance's public origin, with the
- * token in it rather than in a query string — for the reason `passwordResetLink` gives, and
- * it is the path the hosted instance's access log is told never to record (`/invite/*`).
+ * token in it rather than in a query string — for the reason `passwordResetLink` gives. This
+ * box's own request log writes it as `/invite/:token` (`loggablePath`), and a reverse proxy in
+ * front of it is the operator's own: its access log must be told not to record `/invite/*`, as
+ * the hosted instance's is (free plan F-13 and G5-02).
  *
  * `publicUrl` is the configured origin without a trailing slash (`env.ts` strips it), so this
  * only joins.

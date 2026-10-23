@@ -248,8 +248,8 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
     now: Date,
   ): Promise<number> {
     const at = toIsoText(now)
-    // The same "outstanding" as above, narrowed to one place. Two statements rather than one
-    // with an `OR` so each is served by its own column, and neither can match the other kind.
+    // The same "outstanding" as above, narrowed to one place: the column is chosen by the
+    // kind of target, so an event's id can never match a client's and neither uses an `OR`.
     const place = target.kind === 'event' ? 'event_id' : 'client_id'
     const placeId = target.kind === 'event' ? target.eventId : target.clientId
     const result = this.db
