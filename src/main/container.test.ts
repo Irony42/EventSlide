@@ -435,6 +435,47 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
       })
     })
 
+    it('shows the same defaults to the operator, through the real session, gate and route', async () => {
+      const OPERATOR = 'operateur@example.org'
+      const PASSWORD = 'un-mot-de-passe-solide'
+      const booted = await boot({
+        SITE_ADMIN: 'on',
+        BOOTSTRAP_OWNER_EMAIL: OPERATOR,
+        BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+        NEW_CLIENT_MAX_EVENTS: '2',
+        NEW_CLIENT_MAX_LIVE_DAYS: '3',
+        NEW_CLIENT_CLIPS_ALLOWED: 'false',
+      })
+      // A bootstrapped owner must choose a new password before anything else; not what is under test.
+      booted.db.prepare('UPDATE users SET must_change_password = 0').run()
+      const agent = request.agent(booted.app)
+      const first = await agent.get('/api/auth/me')
+      const cookie = (first.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+        c.startsWith(`${CSRF_COOKIE}=`),
+      )
+      const csrf = decodeURIComponent(cookie?.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? '')
+      const login = await agent
+        .post('/api/auth/login')
+        .set(CSRF_HEADER, csrf)
+        .send({ email: OPERATOR, password: PASSWORD })
+      expect(login.status, JSON.stringify(login.body)).toBe(200)
+
+      const response = await agent.get('/api/site/client-defaults')
+
+      expect(response.status).toBe(200)
+      expect(response.body).toEqual({
+        ceilings: {
+          maxEvents: 2,
+          maxEventsPerPeriod: null,
+          maxTotalBytes: null,
+          maxEventQuotaBytes: null,
+          maxRetentionDays: null,
+          maxLiveDays: 3,
+          clipsAllowed: false,
+        },
+      })
+    })
+
     it('starts the client with no ceiling on a box that set none, which is every self-hosted box', async () => {
       const booted = await boot({})
 
