@@ -253,6 +253,7 @@ paragraph beneath the table).
 | `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm` | 10            | client IP, own bucket each | `rate.limited`                     |
 | the same four                                                      | 10 / 15 min   | **account**, failures only | `auth.tooManySecondFactorAttempts` |
 | `POST /api/events` (create)                                        | 20 / **hour** | account                    | `event.creationRateLimited`        |
+| `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                    | `rate.limited`                     |
 | `POST /api/events/:slug/photos`                                    | 12            | client IP **and** event    | `rate.limited`                     |
 | `POST /api/events/:slug/clips`                                     | 12            | client IP **and** event    | `rate.limited`                     |
 | `POST /api/events/:slug/photos/:id/reactions`                      | 30            | client IP **and** event    | `reaction.rateLimited`             |
@@ -1688,7 +1689,9 @@ person signs in as that account and accepts with the empty body; `403 invitation
 when the signed-in account is not the one the link was written to; `400 invitation.credentialsRequired`
 when the empty body is sent with no session; `400 password.*` and `400 accountName.*` for a
 password or a name the rules refuse; `400 request.invalid` (an unknown key — no field can name an
-account); `409 event.immutable`; `429 rate.limited`; and the CSRF codes.
+account); `409 event.immutable`; `429 rate.limited`; `403 auth.passwordChangeRequired` for a signed-in account that must
+first choose a password (§1); and the CSRF codes. A path whose token cannot be decoded
+(`/api/invitations/%`) is a `404 invitation.notFound` like any other dead link.
 
 > **Who learns that an address has an account.** Only the holder of a link, and only by sending a
 > name and a password the policy accepts, and then not without creating the account when it is free.
@@ -1887,6 +1890,7 @@ cross-cutting codes in §1:
 | `photo.illegalTransition`      | 409    | A decision the photo's status machine does not allow                                                                                |
 | `guest.notFound`               | 404    | Revoking a guest id that is not in this event                                                                                       |
 | `membership.alreadyExists`     | 409    | Inviting someone who already moderates this event                                                                                   |
+| `invitation.tooManyForAddress` | 429    | An address already written to five times in the last hour, by anybody                                                               |
 | `membership.notFound`          | 404    | Revoking a membership that is not there                                                                                             |
 | `membership.lastOwner`         | 409    | Revoking the only remaining owner                                                                                                   |
 | `event.joinCodeExhausted`      | 500    | Rotation could not find a free code — a bug, not a client error                                                                     |
@@ -2664,6 +2668,9 @@ below). Only then does a membership exist.
 Whether it is there depends on the box and its relay and never on the address: **the answer is the
 same for an address that has an account and one that has not**, and nothing in it says which.
 Re-inviting an address to the same event revokes the earlier link, so a lost one can be replaced.
+
+A host may write thirty invitations an hour, to any addresses (`429 rate.limited`, per account: another host is not
+affected).
 
 **Errors** — `409 membership.alreadyExists` (the address is already a member of this event: the host
 can read that list), `429 invitation.tooManyForAddress` (an address is written to at most five

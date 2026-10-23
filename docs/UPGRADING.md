@@ -304,10 +304,10 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
      creates no account. A script that sent `temporaryPassword` or `displayName` now gets
      `400 request.invalid`, and one that read `created` or `userId` finds neither. Stop typing a
      password, give the person the `link` (or let the mail carry it) and they make their own account
-     when they open it. Opening a link as an account that already exists is `409 invitation.signInRequired`
-     until that account is signed in; a dead one is `404 invitation.notFound`. An address is written
+     when they open it. Sending a name and a password for an address that already has an account is
+     `409 invitation.signInRequired`: that account signs in and accepts with an empty body; a dead one is `404 invitation.notFound`. An address is written
      to at most five times an hour: the sixth gets `429 invitation.tooManyForAddress`. Your own
-     reverse proxy must not log `/invite/*`, which carries the token.
+     reverse proxy must not log `/invite/*` or `/api/invitations/*`, which carry the token.
 5. **Decide about the licence.** If you modify EventSlide and other people use your version
    over a network, publish your source and set `SOURCE_CODE_URL` to it. Unmodified, there is
    nothing to do.
