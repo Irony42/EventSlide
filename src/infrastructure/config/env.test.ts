@@ -550,8 +550,6 @@ describe('loadConfig', () => {
     it.each([
       ['a host that only starts with localhost', 'http://localhost.example.com'],
       ['a host that merely continues the word', 'http://localhostx:4300'],
-      ['a localhost user name in front of another host', 'http://localhost@photos.example.com'],
-      ['a localhost user name, in capitals', 'HTTP://localhost:4300@photos.example.com'],
       ['a loopback address, which was never exempt', 'http://127.0.0.1:4300'],
       ['an IPv6 loopback address, which was never exempt', 'http://[::1]:4300'],
       ['a .localhost name, which was never exempt', 'http://app.localhost:4300'],
@@ -560,6 +558,20 @@ describe('loadConfig', () => {
       const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: url }))
 
       expect(issues).toEqual([expect.stringContaining('PUBLIC_URL must use https in production')])
+    })
+
+    it.each([
+      ['a localhost user name in front of another host', 'http://localhost@photos.example.com'],
+      ['a localhost user name, in capitals', 'HTTP://localhost:4300@photos.example.com'],
+    ])('does not extend the localhost exemption to %s either', (_name, url) => {
+      // These carry a user name, so the credentials rule refuses them as well and the list
+      // is longer than one: the https rule must still be in it, because the host is not
+      // localhost and a refusal for the credentials alone would be the wrong reason.
+      const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: url }))
+
+      expect(issues).toContainEqual(
+        expect.stringContaining('PUBLIC_URL must use https in production'),
+      )
     })
 
     it('accepts an explicitly disabled E2E_HOOKS in production, since only enabling it is the hazard', () => {
@@ -2739,6 +2751,221 @@ describe('loadConfig', () => {
         expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
       },
     )
+  })
+
+  /**
+   * `PUBLIC_URL` is the address that goes into every join link, QR code and mail, so what
+   * `loadConfig` hands on is what a guest's phone is sent to: refused when it cannot be
+   * what an operator meant, and otherwise the parsed URL's own spelling, not the typed one.
+   */
+  describe('the public origin (PUBLIC_URL)', () => {
+    const A_PASSWORD = 'HUNTER2-canary-pw'
+
+    /** What the boot prints, in full: the one thing that must never repeat the value. */
+    const refusalText = (source: Source): string => {
+      try {
+        loadConfig(source)
+      } catch (error) {
+        return error instanceof ConfigError ? error.message : String(error)
+      }
+      throw new Error('loadConfig accepted a configuration that the test expected it to refuse')
+    }
+
+    describe('what a reverse proxy relies on, kept as it was', () => {
+      it.each([
+        ['no path', 'https://photos.example.com', 'https://photos.example.com'],
+        ['a bare trailing slash', 'https://photos.example.com/', 'https://photos.example.com'],
+        ['several trailing slashes', 'https://photos.example.com///', 'https://photos.example.com'],
+        ['a path prefix', 'https://example.com/eventslide', 'https://example.com/eventslide'],
+        [
+          'a path prefix and a slash',
+          'https://example.com/eventslide/',
+          'https://example.com/eventslide',
+        ],
+        [
+          'a path prefix and slashes',
+          'https://example.com/eventslide//',
+          'https://example.com/eventslide',
+        ],
+        ['a deeper prefix', 'https://example.com/apps/photos/', 'https://example.com/apps/photos'],
+        [
+          'a prefix whose case matters',
+          'https://example.com/EventSlide/',
+          'https://example.com/EventSlide',
+        ],
+      ])(
+        'accepts %s, so a join link is never //join/ and never leaves its prefix',
+        (_name, typed, expected) => {
+          expect(loadConfig(aProductionEnv({ PUBLIC_URL: typed })).publicUrl).toBe(expected)
+          expect(loadConfig({ ...DEV, PUBLIC_URL: typed }).publicUrl).toBe(expected)
+        },
+      )
+    })
+
+    describe('the canonical form', () => {
+      it.each([
+        [
+          'an uppercase scheme and host',
+          'HTTPS://Photos.Example.com',
+          'https://photos.example.com',
+        ],
+        ['the default https port', 'https://photos.example.com:443', 'https://photos.example.com'],
+        [
+          'the default port and a slash',
+          'https://photos.example.com:443/',
+          'https://photos.example.com',
+        ],
+        ['the default http port, on localhost', 'http://localhost:80', 'http://localhost'],
+        [
+          'a port that is not the default',
+          'https://photos.example.com:8443',
+          'https://photos.example.com:8443',
+        ],
+        [
+          'a prefix, whose case is the proxy’s and stays as typed',
+          'HTTPS://PHOTOS.example.com/EventSlide/',
+          'https://photos.example.com/EventSlide',
+        ],
+        [
+          'a space in a prefix, spelled as a browser would send it',
+          'https://example.com/my event/',
+          'https://example.com/my%20event',
+        ],
+        [
+          'dot segments in a prefix, resolved as a browser would',
+          'https://example.com/a/../b/',
+          'https://example.com/b',
+        ],
+        [
+          'an internationalised host, as a phone resolves it',
+          'https://bücher.example',
+          'https://xn--bcher-kva.example',
+        ],
+      ])('hands on %s as its parsed spelling, not as typed', (_name, typed, expected) => {
+        const config = loadConfig(aProductionEnv({ PUBLIC_URL: typed }))
+
+        expect(config.publicUrl).toBe(expected)
+      })
+    })
+
+    describe('whitespace', () => {
+      const REFUSED =
+        /^PUBLIC_URL: PUBLIC_URL must not contain a tab or a line break, nor end with /
+
+      it.each([
+        ['a space', 'https://photos.example.com '],
+        ['a tab', 'https://photos.example.com\t'],
+        ['a newline', 'https://photos.example.com\n'],
+        ['a carriage return', 'https://photos.example.com\r'],
+        ['a space after a slash', 'https://photos.example.com/ '],
+        ['a space after a path prefix', 'https://example.com/eventslide '],
+        ['several spaces', 'https://photos.example.com   '],
+        ['a control character', 'https://photos.example.com' + String.fromCharCode(0x1f)],
+        [
+          'a zero-width space after a prefix, which the parser keeps and a proxy would not route',
+          'https://photos.example.com/eventslide' + String.fromCharCode(0x200b),
+        ],
+      ])('refuses %s at the end, naming the variable, in production', (_name, typed) => {
+        // `URL.canParse` strips it and the scheme check only reads the front, so this
+        // used to boot and the join link carried the character. #52 closed the leading
+        // twin of this case.
+        const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: typed }))
+
+        expect(issues).toEqual([expect.stringMatching(REFUSED)])
+      })
+
+      it.each([
+        ['a tab inside the host', 'https://photos.exam' + String.fromCharCode(9) + 'ple.com'],
+        [
+          'a newline inside a prefix',
+          'https://photos.example.com/ev' + String.fromCharCode(10) + 'ent',
+        ],
+        ['a tab inside the port', 'https://photos.example.com:4' + String.fromCharCode(9) + '43'],
+        ['a tab before the slash', 'https://photos.example.com' + String.fromCharCode(9) + '/'],
+      ])(
+        'refuses %s, which the URL parser deletes and would leave an address nobody typed',
+        (_name, typed) => {
+          const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: typed }))
+
+          expect(issues).toEqual([expect.stringMatching(REFUSED)])
+        },
+      )
+
+      it('refuses it outside production too, where a QR code is just as wrong', () => {
+        const issues = refusalIssues({ ...DEV, PUBLIC_URL: 'https://photos.example.com ' })
+
+        expect(issues).toEqual([expect.stringMatching(REFUSED)])
+      })
+
+      it('names the space and the plain http beside each other when both are wrong', () => {
+        const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: 'http://photos.example.com ' }))
+
+        expect(issues).toHaveLength(2)
+        expect(issues).toContainEqual(expect.stringMatching(REFUSED))
+        expect(issues).toContainEqual(
+          expect.stringContaining('PUBLIC_URL must use https in production'),
+        )
+      })
+    })
+
+    describe('credentials', () => {
+      it.each([
+        ['a user name and a password', 'https://camille:secret@photos.example.com'],
+        ['a user name alone', 'https://camille@photos.example.com'],
+        ['a password alone', 'https://:secret@photos.example.com'],
+        ['credentials and a prefix', 'https://camille:secret@photos.example.com/eventslide/'],
+        [
+          'credentials on localhost, which production exempts from https',
+          'http://camille:secret@localhost',
+        ],
+        ['credentials on localhost with a port', 'http://camille:secret@localhost:4300'],
+        ['an uppercase scheme', 'HTTPS://camille:secret@photos.example.com'],
+      ])('refuses %s, naming the variable, in production', (_name, typed) => {
+        const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: typed }))
+
+        expect(issues).toEqual([
+          expect.stringMatching(
+            /^PUBLIC_URL: PUBLIC_URL must not contain a user name or a password/,
+          ),
+        ])
+      })
+
+      it('refuses them outside production too', () => {
+        const issues = refusalIssues({ ...DEV, PUBLIC_URL: 'http://camille:secret@localhost:5173' })
+
+        expect(issues).toEqual([
+          expect.stringMatching(
+            /^PUBLIC_URL: PUBLIC_URL must not contain a user name or a password/,
+          ),
+        ])
+      })
+
+      it('never repeats a refused PUBLIC_URL, because it may still carry the password it was refused with', () => {
+        // The boot prints its problems to a terminal, and what prints there is kept.
+        const refused = [
+          `https://camille:${A_PASSWORD}@photos.example.com`,
+          `https://camille:${A_PASSWORD}@photos.example.com/eventslide/`,
+          `http://camille:${A_PASSWORD}@localhost:4300`,
+          `http://camille:${A_PASSWORD}@photos.example.com`,
+          `HTTPS://:${A_PASSWORD}@photos.example.com`,
+          `https://camille:${A_PASSWORD}@photos.example.com `,
+          `https://camille:${A_PASSWORD}@`,
+        ]
+
+        for (const value of refused) {
+          for (const source of [
+            aProductionEnv({ PUBLIC_URL: value }),
+            { ...DEV, PUBLIC_URL: value },
+          ]) {
+            const message = refusalText(source)
+
+            expect(message, value).toContain('PUBLIC_URL')
+            expect(message).not.toContain(A_PASSWORD)
+            expect(message).not.toContain('camille')
+          }
+        }
+      })
+    })
   })
 
   describe('config warnings', () => {

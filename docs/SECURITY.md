@@ -1653,6 +1653,14 @@ who upgrades expects a changed default to warn before it ever refuses. A refusal
 either belongs in a major version, announced in the CHANGELOG, not a silent tightening of
 an existing minor.
 
+`PUBLIC_URL` is refused in every environment, too, when it contains a tab or a line break,
+ends in whitespace, a control character or an invisible one, or carries a user name or a
+password. The refusal names the variable and
+never prints the value, which may be the password, and `http://user:pw@localhost` is no
+way round production's `localhost` exemption. What is accepted is handed on in its
+canonical form: lower-case scheme and host, no default port, the path as the URL parser
+spells it (its case is kept, a space becomes `%20`), no trailing slash. The QR code, the join link and the mails all carry that one spelling.
+
 **Saying nothing means production, and that is the security default of the file.** It used
 to mean development, and five controls hang off the answer at once: both secrets fell back
 to constants published in this repository, the session cookie lost `Secure`, HSTS and
@@ -2564,7 +2572,8 @@ broken.
   or infinite number for a numeric variable (`JOIN_CODE_LENGTH=6.5`) is now a type error, which
   stops the cross-field checks, so any other cross-field problem is named on the next boot.
 - **`PUBLIC_URL` is judged as written.** zod 4's `url` check trims its input and passes the
-  trimmed copy on, so the scheme check would have read a string nobody typed.
+  trimmed copy on, so the scheme check would have read a string nobody typed. A trailing
+  space or tab is refused for the same reason: the URL parser drops it without a word.
 - **Refusal wording.** An unknown word for a closed set is still `Expected 'off' | 'on'`, and
   no longer ends in `received '<what was typed>'`, which zod 3 appended. The messages
   `scripts/verify-image.sh` and the docs quote are written in this repository and did not move;

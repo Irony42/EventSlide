@@ -220,6 +220,45 @@ const publicUrl = z
   .refine((value) => /^https?:\/\//i.test(value), {
     error: 'PUBLIC_URL must be an http or https origin',
   })
+  // The trailing twin of the leading-whitespace case the scheme check above refuses: the URL
+  // parser strips whitespace and control characters from both ends, so `canParse` says yes to
+  // `'https://photos.example.com '` and nothing in front of it is anchored at the back. An
+  // invisible format character (a zero-width space) at the end would survive the parser and
+  // end up in every join link, percent-encoded. A tab or a line break anywhere is refused too:
+  // the parser deletes it from the middle of the text, and the address that boots would be one
+  // nobody typed.
+  .refine((value) => !/[\t\n\r]|[\s\p{Cc}\p{Cf}]$/u.test(value), {
+    error:
+      'PUBLIC_URL must not contain a tab or a line break, nor end with whitespace, a control character or an invisible one: check the end of the line',
+  })
+  // Never a user name or a password, and never the value in the message: it may be the
+  // password, and the boot prints the refusal where the output is kept. `http://user:pw@localhost`
+  // is the shape production's localhost exemption lets through.
+  .refine(
+    (value) => {
+      if (!URL.canParse(value)) return true
+      const url = new URL(value)
+      return url.username === '' && url.password === ''
+    },
+    {
+      error:
+        'PUBLIC_URL must not contain a user name or a password: the address is printed in every join link, QR code and mail',
+    },
+  )
+
+/**
+ * `PUBLIC_URL` as the rest of the application sees it: the parsed URL's own spelling
+ * (lower-case scheme and host, no default port, an internationalised host in the form a
+ * phone resolves), the path as that parser writes it (case kept, but percent-encoded and with
+ * its dot segments resolved, which is what a browser would do with the typed text anyway),
+ * and no trailing slash, because `${publicUrl}/join/CODE` would otherwise read
+ * `//join/CODE` in a QR code.
+ *
+ * `joinUrl`, `galleryUrl`, the mail links and the wall response all concatenate this onto a
+ * path, so what `loadConfig` returns is what a guest's phone is sent to. Only for a value
+ * {@link publicUrl} has accepted, which `new URL` therefore parses.
+ */
+const canonicalPublicUrl = (accepted: string): string => new URL(accepted).href.replace(/\/+$/, '')
 
 /**
  * Whether `value` is a plain `http:` address on a host other than `localhost`, which is the
@@ -1927,8 +1966,7 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
     env: raw.NODE_ENV,
     isProduction,
     port: raw.PORT,
-    // Trailing slashes would produce `//join/ABC123` in a QR code.
-    publicUrl: raw.PUBLIC_URL.replace(/\/+$/, ''),
+    publicUrl: canonicalPublicUrl(raw.PUBLIC_URL),
     logLevel: raw.LOG_LEVEL,
     trustProxyHops: raw.TRUST_PROXY_HOPS,
 
