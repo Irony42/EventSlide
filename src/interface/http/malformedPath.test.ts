@@ -116,7 +116,19 @@ describe('a path that is not valid percent-encoding', () => {
     ],
     ['the gallery page', `/g/${TOKEN}${BROKEN}`, true, 'invalid'],
     ['the gallery page, a segment further', `/g/${TOKEN}/${BROKEN}`, true, 'invalid'],
+    [
+      'the gallery page, its name spelled with an escape',
+      `/%67/${TOKEN}${BROKEN}`,
+      true,
+      'invalid',
+    ],
     ['the invitation page', `/invite/${TOKEN}${BROKEN}`, true, 'invalid'],
+    [
+      'the invitation page, spelled with an escape and a doubled slash',
+      `//%69nvite/${TOKEN}${BROKEN}`,
+      true,
+      'invalid',
+    ],
     ['the password-reset page', `/password/reset/${TOKEN}${BROKEN}`, true, 'invalid'],
     ['the client fallback', `/${BROKEN}`, false, 'invalid'],
     ['a client route', `/e/mariage${BROKEN}/display`, false, 'invalid'],
@@ -233,6 +245,7 @@ describe('a path that is not valid percent-encoding', () => {
 
   it.each([
     ['the gallery page', `/g/${TOKEN}${BROKEN}`, '/g/:token'],
+    ['the gallery page spelled with an escape', `/%67/${TOKEN}${BROKEN}`, '/g/:token'],
     ['the invitation page', `/invite/${TOKEN}${BROKEN}`, '/invite/:token'],
     ['the password-reset page', `/password/reset/${TOKEN}${BROKEN}`, '/password/reset/:token'],
   ])(
