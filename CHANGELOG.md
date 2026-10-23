@@ -82,6 +82,8 @@ Read these before you upgrade, and back up with the version you run now.
   - `SUPPORT_URL`, `REPORT_URL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL` and
     `LEGAL_NOTICE_URL` take an `https` URL without credentials, or a path starting with one
     `/`.
+  - `LEGAL_TERMS_VERSION` takes at most 32 characters of letters, digits, `.`, `_` and `-`,
+    starting with a letter or a digit (such as `2027-01`).
   - `SOURCE_CODE_URL`, `DONATION_URL` and `BUDGET_URL` take an `https` URL without
     credentials.
   - `SOURCE_REF` takes a git tag, branch or commit; `OPERATOR_NAME`,
@@ -103,7 +105,7 @@ Read these before you upgrade, and back up with the version you run now.
     `1` or `0` (#145).
   - These combinations are refused too: `SMTP_URL` without `MAIL_FROM`,
     `EVENT_CREATION=clientMembers` without `SITE_ADMIN=on`, `OPERATOR_CONTACT_EMAIL`
-    without `OPERATOR_NAME`, `REQUIRE_OPERATOR_2FA=true` without a valid
+    without `OPERATOR_NAME`, `LEGAL_TERMS_VERSION` without `LEGAL_TERMS_URL`, `REQUIRE_OPERATOR_2FA=true` without a valid
     `MFA_ENCRYPTION_KEY` or without `SITE_ADMIN=on`, an `MFA_ENCRYPTION_KEY` equal to
     `SESSION_SECRET` or `GUEST_TOKEN_SECRET`, any `NEW_CLIENT_*` setting without
     `SITE_ADMIN=on` (which is the default), any other name that starts with `NEW_CLIENT_`, and
@@ -231,6 +233,12 @@ Read these before you upgrade, and back up with the version you run now.
   all empty by default. When set they appear on `/about` and in the footers, the guest
   privacy notice names the operator, and guests get a link to report a content. A box that
   sets none of them looks as before.
+- **Accepting an invitation can also accept the terms of use**, when the operator asks for it. With
+  `LEGAL_TERMS_URL` and `LEGAL_TERMS_VERSION` both set, the invitation page shows a required,
+  unticked box with a link to the terms, `POST /api/invitations/:token/accept` takes
+  `acceptTerms: true` and answers `400 terms.notAccepted` without it, and the acceptance writes the
+  audit entry `account.termsAccepted` with the version, in the transaction that spends the link. A
+  box that sets neither, or only the address, looks and behaves as before.
 - **Support links, optional** (#119). `DONATION_URL` and `BUDGET_URL`, empty by default: a
   link in the host footer and on `/about`, and a closable card on the page of a closed event.
 - **Settings whose default is today's behaviour**: `MAX_STREAMS_PER_CLIENT`,
