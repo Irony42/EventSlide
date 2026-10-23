@@ -191,12 +191,17 @@ const NEVER_A_SITE_ROUTE = `${SITE_NAMESPACE}/__never-a-route__`
  *
  * **Case-insensitively**, because every router here is: `/SITE/x` answers `/api/site/x`.
  * **With repeated slashes collapsed**, because a double slash is how a request steps around
- * a mount: `GET /api//site/x` matches the `/api` mount, which hands its routers `/site/x`,
- * and does not match the `/api/site` mount at all. So a route written `/site/x` on a router
- * mounted at `/api` answers it without `requireOperator` ever running, and one written
- * `//site/x` answers `/api///site/x` the same way. Mounting `siteRoutes` first cannot help
- * with either — ordering only decides who meets a request that reaches the mount — which
- * is why the rule is on what may be declared rather than on where the gate sits.
+ * a mount, and does not match the `/api/site` mount at all. On Express 4.22.3 `GET /api//site/x`
+ * matched the `/api` mount, which trimmed `/api/` and handed its routers `/site/x`, so a
+ * route written `/site/x` on a router mounted at `/api` answered it without
+ * `requireOperator` ever running. Express 5 trims `/api` only and hands them `//site/x`
+ * (measured on 5.3.0: that route answers 404), so that spelling is closed by the framework
+ * now. A route written `//site/x` still answers `/api//site/x` exactly as written, and
+ * walks round the mount the same way. Mounting `siteRoutes` first cannot help with either —
+ * ordering only decides who meets a request that reaches the mount — which is why the rule
+ * is on what may be declared rather than on where the gate sits, and why it collapses
+ * slashes still: it holds for the spelling Express 5 left open, and for the one a release
+ * that went back would reopen.
  * **At a segment boundary**, as a mount point matches: `/api/site` and `/api/site/…` are
  * the namespace and `/api/sites` is not, which is also what `siteAdminMode.test.ts` asserts
  * of the running gate. This used to reserve every path that merely started with
@@ -205,7 +210,7 @@ const NEVER_A_SITE_ROUTE = `${SITE_NAMESPACE}/__never-a-route__`
  * unnecessary — and it was wrong about `/api/sites`.
  * **With a `:parameter` standing for any segment**, because that is what it matches: a
  * route written `/:section/leak` on a router mounted at `/api` answers `/api/site/leak`
- * with `SITE_ADMIN=off` and `/api//site/leak` with it on, and never spells `site` at all.
+ * with `SITE_ADMIN=off` — to anybody — and never spells `site` at all.
  */
 const inSiteNamespace = (path: string): boolean => {
   const segments = path
@@ -523,25 +528,39 @@ describe('the stack walk', () => {
   )
 
   it.each([
-    '/site*',
-    '/(site)/leak',
-    '/sit?e/leak',
-    '/[s]ite/leak',
-    '/s{1}ite/leak',
-    String.raw`/sit\e/leak`,
-    '/x|/site/leak',
-    '/events/:slug+',
+    ['/s{1}ite/leak', '/api/site/leak'],
+    [String.raw`/sit\e/leak`, '/api/site/leak'],
+    ['/{site}/leak', '/api/site/leak'],
+    ['/site{/leak}', '/api/site/leak'],
+    ['/:section{/leak}', '/api/site/leak'],
+    ['/*splat', '/api/site/leak'],
+    ['/{*splat}', '/api/site/leak'],
   ])(
     'refuses to guess what a route written %s matches, rather than reading its spelling',
+    async (path, reached) => {
+      // The guard on the walk's refusal of patterns. Every row is a route `path-to-regexp` 8
+      // compiles — `{…}` makes its content optional, `\` escapes, `*name` takes any number of
+      // segments — and each one answers a request into the namespace without spelling
+      // `/site/leak`, so a walk that read them as text would file every one of them outside
+      // it. The request below is the proof that the row is a real hazard and not an
+      // arbitrary string; the walk then has to refuse it, because it accepts one known shape
+      // and nothing else.
+      const app = express()
+      const api = express.Router()
+      api.get(path, answer)
+      app.use('/api', api)
+
+      await request(app).get(reached).expect(200)
+      expect(() => mountedRoutes(app)).toThrow(`refuses to guess what the route path ${path}`)
+    },
+  )
+
+  it.each(['/x|/site/leak', '/events/*splat'])(
+    'refuses to guess what a route written %s matches, though it stays outside the namespace',
     (path) => {
-      // The guard on the walk's refusal of patterns. On a router mounted at `/api`, each of
-      // the first seven reaches into the namespace on express 4.22.3 — all but the first
-      // answer `GET /api//site/leak` — and a walk that read them as text would file every
-      // one of them outside it: none of those six spells `/site`, and `/site*` is not `/site`
-      // or `/site/…` at a segment boundary. `{1}` and `\` are the two a list of forbidden
-      // characters let through, which is why the walk now accepts one known shape instead.
-      // The last row is outside the namespace altogether, because the refusal is not about
-      // the namespace: a pattern is a route no sweep here can place.
+      // The refusal is not about the namespace: a pattern is a route no sweep here can
+      // place, wherever it answers. `|` is a literal character on `path-to-regexp` 8 (it was
+      // an alternation on Express 4), and a wildcard under `/events` never reaches `/site`.
       const app = express()
       const api = express.Router()
       api.get(path, answer)
@@ -551,11 +570,31 @@ describe('the stack walk', () => {
     },
   )
 
+  it.each(['/site*', '/(site)/leak', '/sit?e/leak', '/[s]ite/leak', '/events/:slug+'])(
+    'cannot register a route written %s at all, so no walk has to refuse it',
+    (path) => {
+      // On Express 4 these compiled into a regular expression, and on 4.22.3 the first four
+      // each answered `GET /api/site/leak` and `GET /api//site/leak` without spelling
+      // `/site/leak` — which is what the walk's refusal of patterns was first written for.
+      // `path-to-regexp` 8 reserves `()[]?+!` and requires a name after `*`, so it refuses
+      // to compile any of them: `router.get` throws and nothing is left on the stack to
+      // answer. The defence is the library's now, and this case is what says so — and what
+      // goes red if a later release takes it back, at which point the walk's refusal above
+      // is the only one left.
+      const app = express()
+      const api = express.Router()
+      app.use('/api', api)
+
+      expect(() => api.get(path, answer)).toThrow(path)
+      expect(mountedRoutes(app)).toEqual([])
+    },
+  )
+
   it.each(['/site/leak', '/events'])(
     'refuses to guess what a middleware mounted at %s inside a router answers',
     (path) => {
       // `router.use('/site/leak', h)` on a router mounted at `/api` answers
-      // `GET /api//site/leak` with no route anywhere for a walk to read — and a middleware
+      // `GET /api/site/leak` with no route anywhere for a walk to read — and a middleware
       // at any other path can answer whatever lies under it just as silently. Nothing on
       // the layer says whether it only sets a header, so the walk does not guess.
       const app = express()
@@ -596,6 +635,37 @@ describe('the stack walk', () => {
     ])
   })
 
+  it('reads an array of middleware at the root of a router the same way', () => {
+    // `router.use([a, b])` has no path either; the router reads its first argument to tell,
+    // and the recorder has to read it the way the router does.
+    const app = express()
+    const site = express.Router()
+    const pass: express.RequestHandler = (_req, _res, next) => next()
+    site.use([pass, pass])
+    site.get('/clients', answer)
+    app.use('/api/site', site)
+
+    expect(mountedRoutes(app)).toEqual([
+      { method: 'get', path: '/api/site/clients', mount: '/api/site' },
+    ])
+  })
+
+  it.each([
+    ['a regular expression', /^\/api/, String.raw`/^\/api/`],
+    ['an array of paths', ['/a', '/b'], '["/a","/b"]'],
+    ['a parameter', '/api/:version', '/api/:version'],
+    ['an optional segment', '/api{/v1}', '/api{/v1}'],
+  ])('refuses to guess a router mounted at %s', (_label, mount, quoted) => {
+    // A mount point the walk cannot read as literal segments would file every route under
+    // it at the wrong prefix, and a request for the wrong prefix 404s and passes.
+    const app = express()
+    const api = express.Router()
+    api.get('/events', answer)
+    app.use(mount, api)
+
+    expect(() => mountedRoutes(app)).toThrow(`cannot read the mount point ${quoted}`)
+  })
+
   it.each([
     [
       'on the app, at /api',
@@ -618,7 +688,7 @@ describe('the stack walk', () => {
       },
     ],
   ])('refuses to guess what a sub-app mounted %s serves', (_where, mount) => {
-    // A sub-app's routes answer `GET /api//site/leak` like any router's, from a stack this
+    // A sub-app's routes answer `GET /api/site/leak` like any router's, from a stack this
     // walk cannot reach: `app.use` hides it behind Express's `mounted_app` wrapper.
     const app = express()
     const sub = express()
@@ -822,10 +892,11 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
       // `buildServer` mounts `siteRoutes` first behind the CSRF gate, which puts
       // `requireOperator` ahead of every other router for a request that reaches the
       // `/api/site` mount. It does nothing for one that does not: `GET /api//site/x` matches
-      // only the `/api` mount, whose routers are handed `/site/x`. So a route some later
-      // edit writes as `/site/…` on `eventRoutes` answered anybody with this switch off, and
-      // anybody who typed the extra slash with it on. What keeps the namespace the gate's is
-      // this: no other router may declare a path in it at all, in either mode.
+      // only the `/api` mount, which on Express 5 hands its routers `//site/x`, so a route
+      // some later edit writes as `//site/…` on `eventRoutes` answers anybody who typed the
+      // extra slash with this switch on, and a route written `/site/…` answers anybody at all
+      // with it off. What keeps the namespace the gate's is this: no other router may declare
+      // a path in it at all, in either mode.
       expect(trespassersOn(operatorHarness().app)).toEqual([])
     })
 

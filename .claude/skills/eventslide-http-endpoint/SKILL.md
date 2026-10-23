@@ -121,10 +121,12 @@ itself (an entry naming a route of any other router excuses nothing), and refuse
 signed-in account that does not operate the box. No other router may declare a path in
 the namespace — `/api/site` or `/api/site/*`, however it is spelled (`/site`, `//site/x`,
 `/SITE/x`); `/api/sites` is outside it. A structural case in the same file fails if one
-does, because `GET /api//site/x` reaches the `/api` routers without ever meeting the
-gate. The walk behind that case refuses to guess, so do not write what it cannot read: a
-route path that is anything but literal segments and `:parameters` (`*`, `?`, `+`, `(…)`,
-`[…]`, `{n}`, `\`, `|` and every other pattern character alike), a middleware
+does, because a route written `/site/x` elsewhere answers `/api/site/x` with the mount off,
+and one written `//site/x` answers `GET /api//site/x`, which never meets the gate. The walk
+behind that case refuses to guess, so do not write what it cannot read: a
+route path that is anything but literal segments and `:parameters` (`*name`, `{…}`, `\`,
+`|` and every other pattern character alike; Express 5 refuses `*`, `?`, `+`, `(…)` and
+`[…]` when the route is registered), a middleware
 mounted at a path inside a router (`router.use('/x', fn)`; declare a route, or name the
 middleware in `PATH_MOUNTED_MIDDLEWARE` in `testing/routeTable.ts` with the reason it
 answers nothing), or a sub-app. Each makes it fail loudly, in both modes. Every other

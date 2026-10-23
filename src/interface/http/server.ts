@@ -123,6 +123,19 @@ export const buildServer = ({
   // Bounded well below any legitimate payload: the only JSON bodies here are a login,
   // a caption and a list of at most 200 photo ids. Uploads go through multer.
   app.use(express.json({ limit: '64kb' }))
+  // Express 5 leaves `req.body` **undefined** when no parser read a body — a request with
+  // none, or one whose type `express.json` does not take — where Express 4 left `{}`.
+  // Every handler parses `req.body` with a zod schema, and `{}` fails it field by field
+  // while `undefined` fails it once, at the root, naming none: `POST /api/join` with no
+  // body answered `details.fields: "joinCode"` and would answer `""`, which is not what
+  // docs/API.md §1 promises. Worse, `shareLinkBody` and `updateSettingsBody` accept `{}` and
+  // refuse `undefined`, so a body-less `POST /api/events/:slug/share-link` would be a 400 where
+  // it used to make the link. Restoring the empty object keeps both answers. Multer, on the
+  // upload routes, sets its own `req.body` after this.
+  app.use((req, _res, next) => {
+    req.body ??= {}
+    next()
+  })
   app.use(cookieParser())
 
   app.use(
@@ -188,14 +201,15 @@ export const buildServer = ({
   // the routers behind that gate**, so a request that reaches this mount meets the operator
   // check before any `/api` router below sees it. Ordering cannot cover a request that
   // never reaches the mount: `GET /api//site/x` matches only `/api`, whose routers are
-  // handed `/site/x`, so a route written `/site/…` in the wrong file would answer it
-  // ungated. What keeps the namespace this router's alone is the structural case in
-  // `siteOperatorScope.test.ts`, which fails, in both modes, on any route at `/api/site`
-  // or `/api/site/*` that another router declares — and whose walk of the route table
-  // refuses to guess: a route path that is anything but literal segments and
-  // `:parameters` (`/(site)/x`, `/sit?e/x`, `/s{1}ite/x`), a middleware
+  // handed `//site/x` (Express 4 handed them `/site/x`), so a route written `//site/…` in
+  // the wrong file would answer it ungated, and one written `/site/…` would answer
+  // `/api/site/x` with this switch off. What keeps the namespace this router's alone is the
+  // structural case in `siteOperatorScope.test.ts`, which fails, in both modes, on any route
+  // at `/api/site` or `/api/site/*` that another router declares — and whose walk of the
+  // route table refuses to guess: a route path that is anything but literal segments and
+  // `:parameters` (`/s{1}ite/x`, `/sit\e/x`, `/*splat`, `/{site}/x`), a middleware
   // mounted at a path inside a router, or a sub-app makes it fail loudly, because each can
-  // answer `/api//site/x` without spelling `/site` where a walk could read it.
+  // answer `/api/site/x` without spelling `/site` where a walk could read it.
   // (Collapsing `//` app-wide would close the request side as well. It is deliberately not
   // done: while that walk holds, the double slash reaches no route in this namespace, only
   // `apiNotFound`.)
@@ -309,6 +323,13 @@ const mountClient = (app: Express, clientDir: string, isProduction: boolean): vo
   app.use(
     express.static(clientDir, {
       index: false,
+      // Said rather than inherited. Express 4 only looked at the last segment of a path, so
+      // `/.hidden/file.txt` was served from inside the client directory; Express 5 refuses
+      // a dot-directory anywhere in it, and a request for one falls through to the SPA
+      // shell. Nothing here ships a dotfile, and nothing should start to by default. A test
+      // holds the behaviour, not this line: the line only keeps a later default from
+      // deciding it.
+      dotfiles: 'ignore',
       setHeaders: (res, path) => {
         if (path.endsWith('.html')) {
           res.setHeader('Cache-Control', 'no-cache')
@@ -324,14 +345,14 @@ const mountClient = (app: Express, clientDir: string, isProduction: boolean): vo
   // The shared gallery's page. The same shell, with the gallery's headers: the token is
   // in this address, so no referrer may carry it off, no crawler may index it and no
   // cache may keep the page it opened. `no-store` rather than the shell's `no-cache`.
-  app.get(['/g', '/g/*'], (_req, res) => {
+  app.get(['/g', '/g/*splat'], (_req, res) => {
     setGalleryHeaders(res)
     res.sendFile('index.html', { root: clientDir, headers: { 'Cache-Control': 'no-store' } })
   })
 
   // The SPA fallback. Everything that is not /api and not a file is a client route:
   // /join/:code, /e/:slug/display, /admin/**.
-  app.get('*', (req, res, next) => {
+  app.get('/{*splat}', (req, res, next) => {
     if (req.path.startsWith('/api/')) {
       next()
       return
