@@ -499,6 +499,57 @@ describe('loadConfig', () => {
       expect(issues.some((issue) => issue.startsWith('PUBLIC_URL: '))).toBe(true)
     })
 
+    it.each([
+      'HTTP://photos.example.com',
+      'Http://photos.example.com',
+      'hTtP://photos.example.com',
+      'HTTP://photos.example.com:8080/',
+    ])(
+      'refuses a plain-http PUBLIC_URL however its scheme is cased (%s), because a scheme is not case-sensitive',
+      (url) => {
+        // The scheme check that admits the value is case-insensitive; this one read the
+        // typed prefix, so `HTTP://` got past it and guests were handed an http join link
+        // that a Secure session cookie is never sent over.
+        const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: url }))
+
+        expect(issues).toEqual([expect.stringContaining('PUBLIC_URL must use https in production')])
+      },
+    )
+
+    it.each([
+      'HTTPS://photos.example.com',
+      'Https://Photos.Example.com/',
+      'hTTpS://photos.example.com:8443',
+    ])('accepts an https PUBLIC_URL however its scheme is cased (%s)', (url) => {
+      const config = loadConfig(aProductionEnv({ PUBLIC_URL: url }))
+
+      expect(config.isProduction).toBe(true)
+    })
+
+    it.each(['HTTP://localhost:4300', 'Http://localhost:4300', 'http://LOCALHOST:4300'])(
+      'keeps the localhost exemption whatever the case of the scheme or the host (%s)',
+      (url) => {
+        const config = loadConfig(aProductionEnv({ PUBLIC_URL: url }))
+
+        expect(config.isProduction).toBe(true)
+      },
+    )
+
+    it.each([
+      ['a host that only starts with localhost', 'http://localhost.example.com'],
+      ['a host that merely continues the word', 'http://localhostx:4300'],
+      ['a localhost user name in front of another host', 'http://localhost@photos.example.com'],
+      ['a localhost user name, in capitals', 'HTTP://localhost:4300@photos.example.com'],
+      ['a loopback address, which was never exempt', 'http://127.0.0.1:4300'],
+      ['an IPv6 loopback address, which was never exempt', 'http://[::1]:4300'],
+      ['a .localhost name, which was never exempt', 'http://app.localhost:4300'],
+      ['the localhost name with a trailing dot', 'http://localhost.:4300'],
+    ])('does not extend the localhost exemption to %s', (_name, url) => {
+      const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: url }))
+
+      expect(issues).toEqual([expect.stringContaining('PUBLIC_URL must use https in production')])
+    })
+
     it('accepts an explicitly disabled E2E_HOOKS in production, since only enabling it is the hazard', () => {
       const config = loadConfig(aProductionEnv({ E2E_HOOKS: '0' }))
 
