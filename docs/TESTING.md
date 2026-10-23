@@ -77,7 +77,7 @@ suites as the SQLite adapters (§4).
 | `FakePhotoRepository`   | keyed by `${eventId}:${photoId}`; `list` filters by `eventId` and sorts newest first |
 | `FakeGuestRepository`   | a device token belongs to one event and resolves in no other                         |
 | `FakeUserRepository`    | per-event role membership, so "moderator" is never global                            |
-| `InMemoryMediaStore`    | byte buffers, `put`/`get`/`delete`, reports real sizes                               |
+| `InMemoryMediaStore`    | byte buffers copied in and out, reports real sizes; held to `mediaStoreContract`     |
 | `FakeImageProcessor`    | deterministic metadata, simulates rotation and simulates failure on demand           |
 | `FakeClock`             | `now()`, `advance(ms)`                                                               |
 | `SequentialIdGenerator` | `id-1`, `id-2`, … so assertions are readable                                         |
@@ -243,11 +243,15 @@ ids from parameters or seeded builders, never from the ambient clock.
 **Rule: a new port method requires a new contract case, in the same commit.** Adding
 `findByContentHash(eventId, hash)` to `PhotoRepository` without one lets the fake and
 the adapter disagree from day one, and that disagreement surfaces as a duplicate photo
-on a wall rather than as a red test. There is a suite per port — `EventRepository`,
-`PhotoRepository`, `GuestRepository`, `UserRepository`, `MediaStore`, `ImageProcessor`,
-`PasswordHasher`, `TokenService` — each run for its SQLite/filesystem/sharp/bcrypt/HMAC
-adapter and for its fake. `Clock` and `IdGenerator` are the only exemption: there is no
-behaviour there worth pinning.
+on a wall rather than as a red test. The suites are the files of
+`src/application/testing/contracts/` — the repositories, `MediaStore` (run on the filesystem
+store and on `InMemoryMediaStore`), `EventBus` (on the in-memory bus and on
+`RecordingEventBus`), `Mailer`, `SecretTokens`, `GallerySigner` and the rest of that folder —
+each run for its adapter and for its fake. Where the two disagreed, the adapter's behaviour
+became the contract and the fake followed. `Clock` and `IdGenerator` are exempt: there is no
+behaviour there worth pinning. `PasswordHasher` has a fake and an adapter and no suite yet,
+and the ports whose double lives inside one test (`ImageProcessor`, `GuestTokenService`,
+`ContentHasher`, `ArchiveWriter`) have none either.
 
 ---
 

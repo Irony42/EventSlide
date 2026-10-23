@@ -3,6 +3,7 @@ import type { ReactionKind } from '../../domain/reactions/reactionKind'
 import { tally, type ReactionCounts, type TallyEntry } from '../../domain/reactions/reactionTally'
 import type { EventId, GuestId, PhotoId } from '../../domain/shared/ids'
 import type { ReactionRepository } from '../ports/reactionRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `ReactionRepository`.
@@ -20,10 +21,6 @@ import type { ReactionRepository } from '../ports/reactionRepository'
  * Counting goes through the domain's own `tally`, so the fake cannot disagree with the
  * arithmetic the wall renders.
  */
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 const newestFirst = (left: Reaction, right: Reaction): number =>
   right.createdAt.getTime() - left.createdAt.getTime() || compareIds(left.id, right.id)

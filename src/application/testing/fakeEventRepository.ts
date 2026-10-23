@@ -16,6 +16,7 @@ import type { GuestRepository } from '../ports/guestRepository'
 import type { PhotoRepository } from '../ports/photoRepository'
 import type { MembershipRepository, UserRepository } from '../ports/userRepository'
 import type { FakeClientRepository } from './fakeClientRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `EventRepository`.
@@ -27,10 +28,6 @@ import type { FakeClientRepository } from './fakeClientRepository'
  * where every guest silently uploaded to a default event. A double that accepted a
  * duplicate would let a use case ship without the collision retry it needs.
  */
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 const newestFirst = (left: Event, right: Event): number =>
   right.createdAt.getTime() - left.createdAt.getTime() || compareIds(left.id, right.id)

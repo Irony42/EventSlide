@@ -499,7 +499,7 @@ describe('what one pass costs', () => {
       const second = await sweep()
 
       expect(second.collected).toBe(2)
-      expect(await media.listEvents()).toEqual([])
+      expect(await media.list(EVENT)).toEqual([])
     })
 
     it('asks the database nothing about an event whose objects it cannot name', async () => {
