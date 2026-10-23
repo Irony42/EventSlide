@@ -46,7 +46,7 @@ const UNLIMITED: NewClientDefaults = {
 const A_TIER: NewClientDefaults = {
   maxEvents: 1,
   maxEventsPerPeriod: 6,
-  maxTotalBytes: 5_000_000_000,
+  maxTotalBytes: 20_000_000_000,
   maxEventQuotaBytes: 5_000_000_000,
   maxRetentionDays: 30,
   maxLiveDays: 3,
@@ -114,6 +114,25 @@ describe('GET /api/site/client-defaults', () => {
     const response = await operator.agent.get(PATH)
 
     expect(response.headers['cache-control']).toBe('no-store')
+  })
+
+  it('refuses an operator who must still change a provisional password, as the whole API does', async () => {
+    const subject = harness({ newClientCeilings: A_TIER })
+    subject.users.seed(
+      aUser({
+        id: OPERATOR,
+        email: 'ops@example.test',
+        siteRole: 'operator',
+        mustChangePassword: true,
+      }),
+    )
+    const operator = await signedInAs(subject.app, 'ops@example.test')
+
+    const response = await operator.agent.get(PATH)
+
+    expect(response.status).toBe(403)
+    expect(response.body.error).toMatchObject({ code: 'auth.passwordChangeRequired' })
+    expect(response.text).not.toContain('maxEvents')
   })
 
   it('refuses a request with no session, with 401', async () => {

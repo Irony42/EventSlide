@@ -398,7 +398,7 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
         SITE_ADMIN: 'on',
         NEW_CLIENT_MAX_EVENTS: '1',
         NEW_CLIENT_MAX_EVENTS_PER_PERIOD: '6',
-        NEW_CLIENT_MAX_TOTAL_BYTES: '5000000000',
+        NEW_CLIENT_MAX_TOTAL_BYTES: '20000000000',
         NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '5000000000',
         NEW_CLIENT_MAX_RETENTION_DAYS: '30',
         NEW_CLIENT_MAX_LIVE_DAYS: '3',
@@ -412,7 +412,7 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
         {
           max_events: 1,
           max_events_per_period: 6,
-          max_total_bytes: 5_000_000_000,
+          max_total_bytes: 20_000_000_000,
           max_event_quota_bytes: 5_000_000_000,
           max_retention_days: 30,
           max_live_days: 3,

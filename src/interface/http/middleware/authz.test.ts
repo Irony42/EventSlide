@@ -938,9 +938,10 @@ describe('resolvePublicEvent', () => {
  * answering could not be swept this way; one that cannot be reached without the
  * question being asked first can.
  *
- * Only one `SITE_ADMIN` mode: `OPERATOR_ROUTES` in `siteOperatorScope.test.ts` is empty
- * today, so there is nothing under `/api/site` for this sweep to find in either mode.
- * Extend it the way that file extends across both modes once P3-13 mounts the first one.
+ * Only one `SITE_ADMIN` mode: this harness mounts no `/api/site`, so the one route there
+ * (`GET /api/site/client-defaults`, `OPERATOR_ROUTES` in `siteOperatorScope.test.ts`) is not
+ * requested by this sweep. `siteClientDefaults.test.ts` holds that route to this gate by hand;
+ * extend this sweep the way that file extends across both modes once P3-13 mounts more.
  */
 describe('requirePasswordCurrent: mustChangePassword enforced server-side (P3-03)', () => {
   /**
