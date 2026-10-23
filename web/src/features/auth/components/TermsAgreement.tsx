@@ -73,7 +73,7 @@ export function TermsAgreement({
         </p>
       )}
       {error === undefined ? null : (
-        <p className={styles['error']} id={errorId}>
+        <p className={styles['error']} id={errorId} role="alert">
           <StatusIcon tone="danger" />
           {error}
         </p>

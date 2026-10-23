@@ -859,7 +859,7 @@ describe('AcceptInvitationPage: the terms of use', () => {
       await submit()
 
       const box = await termsBox()
-      expect(await screen.findByText(fr.errors['terms.notAccepted'])).toBeVisible()
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['terms.notAccepted'])
       expect(box).toHaveAttribute('aria-invalid', 'true')
       expect(box).toHaveAccessibleDescription(new RegExp(fr.errors['terms.notAccepted']))
       expect(box).toHaveFocus()
