@@ -194,8 +194,8 @@ The namespace for running one box for other people (roadmap §10.9): `/api/site`
 every path below it, at a segment boundary — `/api/sites` is not in it and answers as any
 unknown path does. What it carries is below: the box's **reads** (clients, a client's events, accounts,
 the audit log, the defaults a new client starts with) and the operator's **acts on a client and its
-owner** (open one, rename it, change its ceilings, invite into it, reset a password). Suspension,
-offboarding and the accounts' own acts (switch off, switch on, delete) arrive with their own items
+owner** (open one, rename it, change its ceilings, invite into it, reset a password). Its suspension and resumption are here as well;
+Offboarding and the accounts' own acts (switch off, switch on, delete) arrive with their own items
 and are documented here when they ship.
 
 A state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) without a valid token meets
@@ -414,7 +414,7 @@ outside its bounds). Nothing moves for any of them.
 
 #### `POST /api/site/clients/:clientId/suspend` and `.../resume`
 
-No body. **204**, `Cache-Control: no-store`. Suspension is **one column** (`clients.suspended_at`) and one audit line
+No body. **204**. Suspension is **one column** (`clients.suspended_at`) and one audit line
 (`client.suspended` / `client.resumed`, carrying the client id and no detail): no account is disabled, no event
 changes status, no photograph is touched, and the ceilings are as they were when it is lifted. Both are
 idempotent: freezing a frozen client keeps its first instant and writes no second line, and lifting a client that is
@@ -429,9 +429,12 @@ What a suspended client is told, per surface (docs/SECURITY.md §22):
 | the wall, its playlist and its live feed; a published photograph by slug; a gallery link and its media | the same `404` as an unknown event or a dead link                                             |
 | an open live feed                                                                                      | closed at the next heartbeat, told to retry in 60 s, and answered with the `404` when it does |
 | a member of the client, on any event route                                                             | **reads** as before; every **write** is `403 client.suspended`                                |
+| a member's moderation feed                                                                             | stays open: members keep their reads, and only an event that is gone ends it                  |
+| a malformed photograph id or variant on the media route                                                | the same `404`, answered before the ids are judged                                            |
+| an invitation into the client, or a moderator invitation to one of its events                          | `404 invitation.notFound`, to preview and to accept, until the client is resumed              |
 | a member creating an event, or attaching one to the client                                             | `403 client.suspended`, under either `EVENT_CREATION` policy                                  |
 | an owner approving an operator's invitation or reset request                                           | `403 client.suspended`; a stranger is still told `404`                                        |
-| `GET /api/client`                                                                                      | `suspended: true`, so the screen can say so                                                   |
+| `GET /api/me/limits`                                                                                   | `suspended: true`, so the screen can say so                                                   |
 
 #### `POST /api/site/clients/:clientId/invitations`
 

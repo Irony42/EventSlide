@@ -3285,13 +3285,13 @@ that serves an event reads the client's standing **with the event** (`Event.clie
 query that finds it, never written back), so there is no second lookup to forget and no event status to restore.
 The rule has three halves, each with a mutation. **Public, anonymous and capability surfaces answer exactly what an
 unknown event answers**: the join, the guest surfaces, the wall and its feed, a published photograph by slug and a
-gallery link, so a suspended client cannot be told from one that never existed by anyone who is not a member
+gallery link, a photograph's malformed id included (the ids are judged only after the answer is chosen), and an invitation to preview or accept, so a suspended client cannot be told from one that never existed by anyone who is not a member
 (`suspension.container.test.ts` compares each with an unknown slug over the real composition root). **Members keep
 their reads and lose their writes** with `403 client.suspended`, because the client is entitled to know why: the
 refusal is in `requireRole`, so a route added later is refused by default, and creating an event and approving an
 operator's invitation or reset are refused in their use cases because no event route can see them. **A connection
 opened before the suspension does not outlive it**: the live feed re-reads the event at every heartbeat (plan item
-A-22), so a projector left running is closed within one beat and told to wait a minute rather than to retry at once.
+A-22), so a projector left running is closed within one beat and told to wait a minute rather than to retry at once. The moderation feed is the exception that follows from the second half: its members keep their reads, so only an event that is gone ends it.
 Resuming is the same column set back to null; a suspended client's guests reach their event again at once.
 
 **What the routes do not do.**
@@ -3316,5 +3316,5 @@ Resuming is the same column set back to null; a suspended client's guests reach 
   A reset has no such exception: a refused mail is `409 reset.mailNotSent` and still no link. Held by
   `siteRoutes.clients.test.ts` and `siteRoutes.guard.test.ts`.
 - **A reset request is told to the owner by the operator**, not listed for them (§20).
-- **The accounts' own acts, suspension and offboarding** are not in this change; each arrives with its own
+- **The accounts' own acts and offboarding** are not in this change; each arrives with its own
   item and is documented here when it ships.
