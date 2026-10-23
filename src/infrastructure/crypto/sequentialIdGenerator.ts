@@ -40,7 +40,7 @@ import {
  * regression could use any.
  *
  * Ids keep the canonical UUID shape, because the HTTP layer validates them with zod
- * `.uuid()` and a test that fed the routes something else would be exercising a
+ * `z.guid()` and a test that fed the routes something else would be exercising a
  * different path from production.
  *
  * **"The same ids on every run" is a claim about this process, and it is narrower than it
@@ -97,7 +97,7 @@ export const createSequentialIdGenerator = (): IdGenerator => {
   /**
    * A valid v4-shaped UUID whose last field counts.
    *
-   * The version and variant nibbles are kept so the value passes the same `.uuid()`
+   * The version and variant nibbles are kept so the value passes both `z.guid()` and `z.uuid()`
    * checks a real one does; everything distinguishing is in the final field.
    */
   const next = (kind: Kind): string => {

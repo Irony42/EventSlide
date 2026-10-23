@@ -21,15 +21,50 @@ import { parseMailbox, parseSmtpUrl, type SmtpSettings } from '../mail/smtpEndpo
  * is miserable when you are setting up in a venue an hour before the guests arrive.
  */
 
+/**
+ * Refuses a value from inside a `transform`, and keeps the object's cross-field refinement
+ * running afterwards.
+ *
+ * **The second half is the point of the helper.** zod 3 let that refinement run whenever the
+ * fields had only been *refused*, as opposed to being the wrong type altogether, and the boot
+ * refusal leans on it: it is what lets a malformed `SMTP_URL` and the missing `MAIL_FROM` be
+ * named in one list rather than one per restart (`env.test.ts`, "names both problems when the
+ * URL is malformed and there is no sender"). zod 4 marks an issue added from a `transform` as
+ * stopping every later check on the object unless it says `continue: true`, so a bare
+ * `ctx.addIssue` there would quietly turn "every problem at once" into "the first problem".
+ * A wrong type, an unknown enum word and a number that is not one still stop it, as before.
+ */
+const refuse = (ctx: z.core.$RefinementCtx<string>, message: string): typeof z.NEVER => {
+  ctx.addIssue({ code: 'custom', message, continue: true })
+  return z.NEVER
+}
+
+/**
+ * A closed set of words, refused with the words named in single quotes: `Expected 'off' | 'on'`.
+ *
+ * That is the wording zod 3 gave an unknown enum word, and what the tests and the
+ * operator-facing documentation read ("names both accepted words"). zod 4 words it
+ * `expected one of "off"|"on"`. Unlike zod 3 this does **not** repeat what was typed: an
+ * environment variable is where a secret ends up when a line is pasted into the wrong place,
+ * and a boot refusal is printed and kept.
+ */
+const choice = <const Values extends readonly [string, ...string[]]>(values: Values) =>
+  z.enum(values, {
+    error: (issue) =>
+      issue.code === 'invalid_value'
+        ? `Expected ${values.map((value) => `'${value}'`).join(' | ')}`
+        : undefined,
+  })
+
 /** `.env` files give strings; this coerces and bounds them. */
 const positiveInt = (fallback: number, max?: number) => {
   const base = z.coerce.number().int().positive()
   return (max === undefined ? base : base.max(max)).default(fallback)
 }
 
-const boolish = z
-  .enum(['true', 'false', '1', '0'])
-  .transform((value) => value === 'true' || value === '1')
+const boolish = choice(['true', 'false', '1', '0']).transform(
+  (value) => value === 'true' || value === '1',
+)
 
 /**
  * {@link boolish}, with a default. Kept separate rather than adding `.default()` to
@@ -40,8 +75,7 @@ const boolish = z
  * as "true, unless told otherwise", with nothing else to layer on top of it.
  */
 const boolishWithDefault = (fallback: 'true' | 'false') =>
-  z
-    .enum(['true', 'false', '1', '0'])
+  choice(['true', 'false', '1', '0'])
     .default(fallback)
     .transform((value) => value === 'true' || value === '1')
 
@@ -61,7 +95,7 @@ const secret = (name: string) =>
     .string()
     .min(32, `${name} must be at least 32 characters`)
     .refine((value) => !PLACEHOLDER_SECRETS.has(value), {
-      message: `${name} is still the example value from .env.example`,
+      error: `${name} is still the example value from .env.example`,
     })
 
 /**
@@ -121,7 +155,7 @@ const sweepInterval = (name: string, consequence: string) =>
         value === SWEEP_OFF ||
         (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= SWEEP_MAX_MINUTES),
       {
-        message: `${name} must be a whole number of minutes from 1 to ${SWEEP_MAX_MINUTES}, or the word '${SWEEP_OFF}' ${consequence}`,
+        error: `${name} must be a whole number of minutes from 1 to ${SWEEP_MAX_MINUTES}, or the word '${SWEEP_OFF}' ${consequence}`,
       },
     )
     // `null` is "never", and it is only ever reached through that word.
@@ -166,9 +200,14 @@ const DEFAULT_SCHEDULE_SWEEP_MINUTES = 5
  */
 const publicUrl = z
   .string()
-  .url()
+  // Not `z.url()`: zod 4's trims what it is given and then **replaces the value with the
+  // trimmed, tab-and-newline-stripped text**, so the scheme check below would be judging a
+  // string the operator never typed (` https://x` would pass where zod 3 refused it).
+  // Whether the URL parser accepts the text exactly as written is the question this has
+  // always asked, and `URL.canParse` is that question.
+  .refine((value) => URL.canParse(value), { error: 'PUBLIC_URL must be a URL' })
   .refine((value) => /^https?:\/\//i.test(value), {
-    message: 'PUBLIC_URL must be an http or https origin',
+    error: 'PUBLIC_URL must be an http or https origin',
   })
 
 /**
@@ -241,11 +280,10 @@ const optionalHttpsLink = (variable: string, shownTo: string) =>
       .transform((value, ctx) => {
         const parsed = parseHttpsUrl(value)
         if (parsed === null) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `${variable} must be an https URL with no credentials in it: a javascript:, data: or http: address is refused, because this link is shown to ${shownTo}`,
-          })
-          return z.NEVER
+          return refuse(
+            ctx,
+            `${variable} must be an https URL with no credentials in it: a javascript:, data: or http: address is refused, because this link is shown to ${shownTo}`,
+          )
         }
         return parsed
       })
@@ -335,11 +373,10 @@ const optionalSiteLink = (variable: string, shownTo: string) =>
               ? parseSameOriginPath(value)
               : parseHttpsUrl(value)
         if (parsed === null) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `${variable} must be an https URL with no credentials in it, or a path on this site starting with a single / (as in /legal/terms), of at most ${LINK_MAX_LENGTH} characters: a javascript:, data: or http: address, or one that leaves the site, is refused, because this link is shown to ${shownTo}`,
-          })
-          return z.NEVER
+          return refuse(
+            ctx,
+            `${variable} must be an https URL with no credentials in it, or a path on this site starting with a single / (as in /legal/terms), of at most ${LINK_MAX_LENGTH} characters: a javascript:, data: or http: address, or one that leaves the site, is refused, because this link is shown to ${shownTo}`,
+          )
         }
         return parsed
       })
@@ -368,11 +405,11 @@ const operatorName = z.preprocess(
       `OPERATOR_NAME must be at most ${OPERATOR_NAME_MAX_LENGTH} characters`,
     )
     .refine((value) => !/[\p{Cc}\p{Zl}\p{Zp}\p{Bidi_Control}]/u.test(value), {
-      message:
+      error:
         'OPERATOR_NAME must not contain a control character, a line break or a bidirectional override',
     })
     .refine((value) => /[\p{L}\p{N}]/u.test(value), {
-      message:
+      error:
         'OPERATOR_NAME must contain at least one letter or digit: a name made only of invisible characters or punctuation would print as a blank line and still ask every guest to read the notice again',
     })
     .optional(),
@@ -382,7 +419,7 @@ const operatorName = z.preprocess(
  * `OPERATOR_CONTACT_EMAIL`: where a visitor can reach the operator (roadmap G2-17). Required
  * to sit beside `OPERATOR_NAME`: an address with no one behind it is not an identity.
  *
- * One plain address, which is what zod's `email()` accepts and nothing wider: no display
+ * One plain address, which is what zod's `z.email()` accepts and nothing wider: no display
  * name, no list, and no `?` or `&`, so the `mailto:` link built from it cannot carry a
  * header the operator did not mean to publish.
  */
@@ -392,7 +429,9 @@ const operatorContactEmail = z.preprocess(
     .string()
     .trim()
     .max(254)
-    .email('OPERATOR_CONTACT_EMAIL must be one e-mail address, such as contact@example.org')
+    // `.pipe(z.email())` rather than the string's own `.email()`, which zod 4 keeps only as a
+    // deprecated alias: the trim runs first either way, and the pattern is the same one.
+    .pipe(z.email('OPERATOR_CONTACT_EMAIL must be one e-mail address, such as contact@example.org'))
     .optional(),
 )
 
@@ -425,7 +464,7 @@ const sourceRef = z.preprocess(
       /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/,
       'SOURCE_REF must be a git tag, branch or commit: letters, digits, dots, underscores and hyphens, joined by /',
     )
-    .refine((value) => !value.includes('..'), { message: 'SOURCE_REF must not contain ..' })
+    .refine((value) => !value.includes('..'), { error: 'SOURCE_REF must not contain ..' })
     .optional(),
 )
 
@@ -444,7 +483,7 @@ const sourceRef = z.preprocess(
  * absence. Here the default is also the posture with less surface — no `/api/site` router
  * is mounted at all — so a blank can only ever take something away.
  */
-const siteAdmin = z.preprocess(blankAsAbsent, z.enum(['off', 'on']).default('off'))
+const siteAdmin = z.preprocess(blankAsAbsent, choice(['off', 'on']).default('off'))
 
 /**
  * `REQUIRE_OPERATOR_2FA`: `true` or `false` (or `1` / `0`), `false` when absent (G2-13 / P3-15).
@@ -473,7 +512,7 @@ const requireOperator2fa = boolishWithDefault('false')
  * lands on the default exactly as a dangling `EVENT_SLUG_SUFFIX=` would otherwise be a
  * silent and unintended change of posture, never a guess at a third spelling.
  */
-const eventSlugSuffix = z.preprocess(blankAsAbsent, z.enum(['none', 'random']).default('none'))
+const eventSlugSuffix = z.preprocess(blankAsAbsent, choice(['none', 'random']).default('none'))
 
 /**
  * Who may create an event (P3-05 / G2-04, decision D-07).
@@ -490,7 +529,7 @@ const eventSlugSuffix = z.preprocess(blankAsAbsent, z.enum(['none', 'random']).d
  */
 const eventCreation = z.preprocess(
   blankAsAbsent,
-  z.enum(['anyAccount', 'clientMembers']).default('anyAccount'),
+  choice(['anyAccount', 'clientMembers']).default('anyAccount'),
 )
 
 /**
@@ -575,11 +614,10 @@ const smtpUrl = z.preprocess(
     .transform((value, ctx) => {
       const parsed = parseSmtpUrl(value)
       if (!parsed.ok) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `SMTP_URL ${parsed.error}. Expected smtp://host:587 or smtps://user:password@host:465, with special characters in the credentials percent-encoded; the value is not repeated here because it may carry a password`,
-        })
-        return z.NEVER
+        return refuse(
+          ctx,
+          `SMTP_URL ${parsed.error}. Expected smtp://host:587 or smtps://user:password@host:465, with special characters in the credentials percent-encoded; the value is not repeated here because it may carry a password`,
+        )
       }
       return parsed.value
     })
@@ -599,8 +637,7 @@ const mailFrom = z.preprocess(
     .transform((value, ctx) => {
       const parsed = parseMailbox(value)
       if (!parsed.ok) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `MAIL_FROM ${parsed.error}` })
-        return z.NEVER
+        return refuse(ctx, `MAIL_FROM ${parsed.error}`)
       }
       return parsed.value
     })
@@ -649,11 +686,10 @@ const mfaEncryptionKey = z.preprocess(
         decoded.length < MFA_KEY_MIN_BYTES ||
         PLACEHOLDER_SECRETS.has(value.trim())
       ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `MFA_ENCRYPTION_KEY must be at least ${MFA_KEY_MIN_BYTES} random bytes written as hex (64 characters or more) or as base64 (44 or more), and not an example value: generate one with 'openssl rand -base64 32'. The value is not repeated here because it is a key`,
-        })
-        return z.NEVER
+        return refuse(
+          ctx,
+          `MFA_ENCRYPTION_KEY must be at least ${MFA_KEY_MIN_BYTES} random bytes written as hex (64 characters or more) or as base64 (44 or more), and not an example value: generate one with 'openssl rand -base64 32'. The value is not repeated here because it is a key`,
+        )
       }
       return { text: value.trim(), bytes: decoded }
     })
@@ -683,7 +719,7 @@ const bootstrapOwnerPassword = z.string().superRefine((value, ctx) => {
   const parsed = Password.create(value)
   if (parsed.ok) return
   ctx.addIssue({
-    code: z.ZodIssueCode.custom,
+    code: 'custom',
     message: `BOOTSTRAP_OWNER_PASSWORD must satisfy the same policy as any other account password: at least ${Password.minLength} characters, and not a guessable one (${parsed.error.code})`,
   })
 })
@@ -739,11 +775,11 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        */
       NODE_ENV: z.preprocess(
         blankAsAbsent,
-        z.enum(['development', 'test', 'production']).default('production'),
+        choice(['development', 'test', 'production']).default('production'),
       ),
       PORT: positiveInt(4300, 65535),
       PUBLIC_URL: publicUrl.default('http://localhost:5173'),
-      LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+      LOG_LEVEL: choice(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
       // Optional here, required for production by the refinement below, so a developer
       // can `npm run dev` with no .env at all.
@@ -1014,7 +1050,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        */
       SQLITE_SHUTDOWN_CHECKPOINT: z.preprocess(
         blankAsAbsent,
-        z.enum(['truncate', 'passive', 'none']).default('truncate'),
+        choice(['truncate', 'passive', 'none']).default('truncate'),
       ),
 
       /**
@@ -1113,7 +1149,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       if ((email === undefined) !== (password === undefined)) {
         const missing = email === undefined ? 'BOOTSTRAP_OWNER_EMAIL' : 'BOOTSTRAP_OWNER_PASSWORD'
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: [missing],
           message: `${missing} is required alongside the other half of the first-owner bootstrap: an email with no password, or a password with no email, creates no account at all`,
         })
@@ -1125,7 +1161,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       // day somebody needed it. The reverse — a sender and no relay — is only a warning, below.
       if (raw.SMTP_URL !== undefined && raw.MAIL_FROM === undefined) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['MAIL_FROM'],
           message:
             'MAIL_FROM is required when SMTP_URL is set: a relay will not accept a message with no sender, so every invitation would be refused',
@@ -1143,7 +1179,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
         raw.MAX_EVENT_QUOTA_BYTES < raw.DEFAULT_EVENT_QUOTA_BYTES
       ) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['MAX_EVENT_QUOTA_BYTES'],
           message: `MAX_EVENT_QUOTA_BYTES (${raw.MAX_EVENT_QUOTA_BYTES}) must be at least DEFAULT_EVENT_QUOTA_BYTES (${raw.DEFAULT_EVENT_QUOTA_BYTES}), or every event created with no opinion would already be above the ceiling`,
         })
@@ -1157,7 +1193,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       // a feature. Not production-gated, for the reason the ceiling check above is not.
       if (raw.EVENT_CREATION === 'clientMembers' && raw.SITE_ADMIN !== 'on') {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['EVENT_CREATION'],
           message:
             'EVENT_CREATION=clientMembers requires SITE_ADMIN=on: restricting event creation to client members only means something on a box that has an operator and clients, and with SITE_ADMIN=off there is no way to create either (docs/ROADMAP.md §10.9)',
@@ -1168,7 +1204,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       // has no shape for one: accepting it would publish nothing and look configured.
       if (raw.OPERATOR_CONTACT_EMAIL !== undefined && raw.OPERATOR_NAME === undefined) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['OPERATOR_CONTACT_EMAIL'],
           message:
             'OPERATOR_CONTACT_EMAIL requires OPERATOR_NAME: a contact address is published beside the name of the operator it belongs to, and with no name it would be published nowhere',
@@ -1180,7 +1216,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       // nothing guards it. Not production-gated, for the reason the ceiling check above is not.
       if (raw.REQUIRE_OPERATOR_2FA && raw.MFA_ENCRYPTION_KEY === undefined) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['MFA_ENCRYPTION_KEY'],
           message:
             'MFA_ENCRYPTION_KEY is required when REQUIRE_OPERATOR_2FA is true: without a key no operator can enrol a factor, and every operator would be refused by the gate forever',
@@ -1192,7 +1228,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       // not mounted.
       if (raw.REQUIRE_OPERATOR_2FA && raw.SITE_ADMIN !== 'on') {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['REQUIRE_OPERATOR_2FA'],
           message:
             'REQUIRE_OPERATOR_2FA=true requires SITE_ADMIN=on: the requirement guards the operator namespace /api/site, which a box with SITE_ADMIN=off does not mount (docs/ROADMAP.md §10.9)',
@@ -1209,7 +1245,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       for (const other of ['SESSION_SECRET', 'GUEST_TOKEN_SECRET'] as const) {
         if (keyText !== undefined && keyText === raw[other]) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: 'custom',
             path: ['MFA_ENCRYPTION_KEY'],
             message: `MFA_ENCRYPTION_KEY must not be the same value as ${other}: rotating or leaking one would change or expose the other`,
           })
@@ -1222,7 +1258,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
         for (const name of ['SESSION_SECRET', 'GUEST_TOKEN_SECRET'] as const) {
           if (raw[name] === undefined) {
             ctx.addIssue({
-              code: z.ZodIssueCode.custom,
+              code: 'custom',
               path: [name],
               message: `${name} is required in production`,
             })
@@ -1231,14 +1267,14 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       }
       if (raw.E2E_HOOKS === true) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['E2E_HOOKS'],
           message: 'E2E_HOOKS must not be enabled in production',
         })
       }
       if (raw.PUBLIC_URL.startsWith('http://') && !raw.PUBLIC_URL.startsWith('http://localhost')) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['PUBLIC_URL'],
           message:
             'PUBLIC_URL must use https in production: guests submit photos over this origin, and a Secure session cookie will not be sent over http',

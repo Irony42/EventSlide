@@ -55,12 +55,28 @@ export const requestContext =
     next()
   }
 
-/** A zod failure describes which fields were wrong, without echoing their values. */
+/**
+ * A zod failure describes which fields were wrong, without echoing their values.
+ *
+ * docs/API.md §1 promises "up to ten offending **paths**", so a path is named once however
+ * many rules it broke. That was nearly always true under zod 3 and stopped being true
+ * under zod 4, which keeps running the length rules on a value of the wrong type (`[]` for
+ * a name is an `invalid_type` *and* a `too_small`): `name, name`, with a slot of the ten
+ * spent on the repeat.
+ *
+ * A key is stringified rather than joined as it comes: zod 4 types a path as `PropertyKey[]`,
+ * and `join` throws on a symbol. No JSON body or query string can carry one, which is the
+ * only reason this has never been reachable.
+ */
 const fromZodError = (error: ZodError): DomainError =>
   DomainError.invalid('request.invalid', {
-    fields: error.issues
-      .map((issue) => issue.path.join('.'))
-      .filter((path) => path.length > 0)
+    fields: [
+      ...new Set(
+        error.issues
+          .map((issue) => issue.path.map((key) => String(key)).join('.'))
+          .filter((path) => path.length > 0),
+      ),
+    ]
       .slice(0, 10)
       .join(', '),
   })

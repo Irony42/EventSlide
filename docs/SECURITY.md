@@ -2380,6 +2380,51 @@ is MIT-licensed and none carries an install script; it lost 5.
   already could. The 64 kB limit applies to the inflated body for all three, and a test sends a
   compressed body that inflates past it for gzip and brotli.
 
+### 14.9 zod 4: what the upgrade changed at the trust boundary
+
+`zod` 3.25.76 became 4.6.5 (#52). It parses every request body, query string, path parameter
+and environment variable (CLAUDE.md §3, rule 3), so the upgrade was measured and not only read:
+the schemas and `env.ts` of `main`, on 3.25.76, and the migrated ones, on 4.6.5, were run over
+the same 28 000 request inputs and 39 000 environment configurations and compared on accepted
+or refused, on the parsed value, and on the fields named. That harness was a throwaway and is
+not kept; what is kept is the tests below, each of which was shown to go red when its rule is
+broken.
+
+- **Nothing refused before is accepted now**, on either surface. The one family that went the
+  other way is **a decision, not a side effect**: an integer above 2^53 − 1 (a quota, a link
+  lifetime, a grant's expiry, and the seven byte and pixel settings of `env.ts`) is refused,
+  because 3.25.76 rounded `9007199254740993` to `…992` and accepted it, and a quota or a size is
+  no place for a number that cannot tell itself from its neighbour. On the environment side it
+  is a new boot refusal: an operator who wrote `MAX_EVENT_QUOTA_BYTES=99999999999999999999` to
+  mean "no limit" booted before and is told which variable to fix now. It belongs in
+  `docs/UPGRADING.md` at release time.
+- **Unknown keys are decided per schema.** Every body and query is `z.strictObject` (zod 3's
+  `.strict()`, which zod 4 keeps only as a legacy method), and a path-parameter schema is a
+  plain `z.object`, which strips. The conversion dropped the strictness of `galleryGrantQuery`
+  once, which the differential run caught and `requestSchemas.test.ts` now sweeps for.
+- **Two zod 4 tightenings are held where they were, because they would have narrowed the API
+  without anyone choosing to.** Ids stay `z.guid()` (eight, four, four, four, twelve hexadecimal
+  digits), since `z.uuid()` now demands an RFC 9562 version and refuses
+  `00000000-0000-0000-0000-000000000001`. Instants keep the forms 3.25.76 read (`18:00Z`,
+  `+0200`), since `z.iso.datetime()` now demands seconds and `+hh:mm`. Narrowing either is a
+  one-line change that wants its own decision.
+- **A refusal raised inside a `transform` stops every later check on the object in zod 4**
+  unless it says `continue: true`. `env.ts` does (`refuse`), so a malformed `SMTP_URL` still
+  names the missing `MAIL_FROM` in the same boot. One narrower case did change: a non-integer
+  or infinite number for a numeric variable (`JOIN_CODE_LENGTH=6.5`) is now a type error, which
+  stops the cross-field checks, so any other cross-field problem is named on the next boot.
+- **`PUBLIC_URL` is judged as written.** zod 4's `url` check trims its input and passes the
+  trimmed copy on, so the scheme check would have read a string nobody typed.
+- **Refusal wording.** An unknown word for a closed set is still `Expected 'off' | 'on'`, and
+  no longer ends in `received '<what was typed>'`, which zod 3 appended. The messages
+  `scripts/verify-image.sh` and the docs quote are written in this repository and did not move;
+  zod's own wording for a number that is not one did (now `expected number, received NaN`).
+- **`details.fields` names a path once**, as §1 of the API reference says. zod 4 runs a string's
+  length rules on a value of the wrong type, so `name: []` is two issues for one path.
+- The licence audit's lockfile schema declares `license` and `licenses` as `z.unknown().optional()`:
+  since zod 4.4 a bare `z.unknown()` key must be present, and a fifth of the lockfile's packages
+  state no licence.
+
 ## 15. The shared gallery — the first public read surface
 
 Roadmap §4.1. A link the host makes after the event and sends to the guests: the

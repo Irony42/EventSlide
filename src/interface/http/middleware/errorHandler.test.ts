@@ -45,6 +45,47 @@ const harness = (isProduction = false): Harness =>
         next(parsed.success ? undefined : parsed.error)
       })
 
+      // A string field given an array: zod 4 reports the wrong type and then still runs the
+      // length rules on it, so one path arrives as two issues. The nested key is the second case.
+      app.get('/zod-repeat', (_req, _res, next) => {
+        const schema = z.strictObject({
+          name: z.string().min(1).max(200),
+          theme: z.strictObject({ accentHue: z.number().int().min(0).max(359) }),
+        })
+        const parsed = schema.safeParse({ name: [], theme: { accentHue: 'x' } })
+        next(parsed.success ? undefined : parsed.error)
+      })
+
+      // zod 4 types an issue's path as `PropertyKey[]`. No JSON body can put a symbol there, but a
+      // path that holds one must still be a 400 and not a TypeError out of the error handler.
+      app.get('/zod-symbol', (_req, _res, next) => {
+        next(
+          new z.ZodError([
+            { code: 'custom', path: ['name', Symbol('hidden')], message: 'no', input: null },
+          ]),
+        )
+      })
+
+      // Twelve fields wrong at once, and an unknown key beside a wrong one.
+      app.get('/zod-many', (_req, _res, next) => {
+        const names = Array.from({ length: 12 }, (_unused, at) => `field${at}`)
+        const schema = z.strictObject(Object.fromEntries(names.map((name) => [name, z.string()])))
+        const parsed = schema.safeParse(Object.fromEntries(names.map((name) => [name, 1])))
+        next(parsed.success ? undefined : parsed.error)
+      })
+      app.get('/zod-unknown-and-wrong', (_req, _res, next) => {
+        const parsed = z.strictObject({ name: z.string() }).safeParse({ name: 1, colour: 'red' })
+        next(parsed.success ? undefined : parsed.error)
+      })
+
+      // An object that refuses unknown keys reports the unknown one on the object itself, which
+      // has no path of its own: the request is refused and no field is named.
+      app.get('/zod-unknown-key', (_req, _res, next) => {
+        const schema = z.strictObject({ name: z.string() })
+        const parsed = schema.safeParse({ name: 'x', colour: 'red' })
+        next(parsed.success ? undefined : parsed.error)
+      })
+
       app.get('/boom', (_req, _res) => {
         throw new Error('a secret path /var/data/eventslide.sqlite leaked into the message')
       })
@@ -247,6 +288,49 @@ describe('errorHandler', () => {
     expect(response.body.error.details.fields).toContain('status')
     expect(response.body.error.details.fields).toContain('limit')
     expect(JSON.stringify(response.body)).not.toContain('nope')
+  })
+
+  it('names at most ten fields, which docs/API.md §1 promises and a response size depends on', async () => {
+    const response = await request(harness().app).get('/zod-many')
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.details.fields.split(', ')).toHaveLength(10)
+  })
+
+  it('leaves out the empty path of an unknown key when a field is wrong beside it', async () => {
+    // The key sits on the object, which has no path of its own. Counting it would print
+    // `name, ` and spend a slot of the ten on nothing.
+    const response = await request(harness().app).get('/zod-unknown-and-wrong')
+
+    expect(response.body.error.details).toEqual({ fields: 'name' })
+    expect(JSON.stringify(response.body)).not.toContain('colour')
+  })
+
+  it('names a field once however many rules it broke, and a nested one by its dotted path', async () => {
+    // docs/API.md §1: "names up to ten offending paths". Counting a path twice spends a slot
+    // of the ten on the repeat and tells the caller nothing new.
+    const response = await request(harness().app).get('/zod-repeat')
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+    expect(response.body.error.details).toEqual({ fields: 'name, theme.accentHue' })
+  })
+
+  it('names a path that holds a symbol as text instead of failing while it describes the failure', async () => {
+    const response = await request(harness().app).get('/zod-symbol')
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+    expect(response.body.error.details).toEqual({ fields: 'name.Symbol(hidden)' })
+  })
+
+  it('refuses an unknown key as request.invalid with no field named, since the key sits on the object', async () => {
+    const response = await request(harness().app).get('/zod-unknown-key')
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
+    expect(response.body.error.details).toEqual({ fields: '' })
+    expect(JSON.stringify(response.body)).not.toContain('colour')
   })
 
   it('answers an unexpected throw with an opaque 500 that leaks nothing', async () => {

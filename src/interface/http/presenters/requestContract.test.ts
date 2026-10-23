@@ -557,10 +557,20 @@ const routeFor = (call: ClientCall): ServerRoute | null => {
 
 const SCHEMAS: Readonly<Record<string, unknown>> = { ...requestSchemas }
 
-const asObjectSchema = (name: string): z.AnyZodObject | null => {
+const asObjectSchema = (name: string): z.ZodObject | null => {
   const schema = SCHEMAS[name]
   return schema instanceof z.ZodObject ? schema : null
 }
+
+/**
+ * The keys a body must carry. "Required" is what the field says about an absent key: zod 4
+ * dropped `isOptional()` for this exact question, and `safeParse(undefined)` is the answer it
+ * points to.
+ */
+const requiredKeysOf = (schema: z.ZodObject): string[] =>
+  Object.entries(schema.shape)
+    .filter(([, field]) => !field.safeParse(undefined).success)
+    .map(([key]) => key)
 
 interface Pairing {
   readonly name: string
@@ -568,7 +578,7 @@ interface Pairing {
   readonly declared: string
   readonly payload: Payload
   readonly schemaName: string
-  readonly schema: z.AnyZodObject
+  readonly schema: z.ZodObject
   readonly keys: Keys
   readonly fileFields: readonly string[]
 }
@@ -671,12 +681,20 @@ describe('the request contract', () => {
       const refused = outcome.success
         ? []
         : outcome.error.issues.flatMap((issue) =>
-            issue.code === z.ZodIssueCode.unrecognized_keys ? [...issue.keys] : [],
+            issue.code === 'unrecognized_keys' ? [...issue.keys] : [],
           )
 
       expect(refused, `${schemaName} would refuse keys ${name} sends`).toEqual([])
     },
   )
+
+  it('can tell a required field from an optional one', () => {
+    // The check below filters to the fields a schema requires; against a schema read as having
+    // none it would be vacuously green, the way an empty map makes every assertion true.
+    const required = PAIRINGS.flatMap(({ schema }) => requiredKeysOf(schema))
+
+    expect(required.length).toBeGreaterThanOrEqual(10)
+  })
 
   it.each(PAIRINGS)(
     '$name sends every field $schemaName requires of $verb $declared',
@@ -687,10 +705,7 @@ describe('the request contract', () => {
         [...keys].flatMap(([key, presence]) => (presence === 'always' ? [key] : [])),
       )
 
-      const missing = Object.entries(schema.shape as z.ZodRawShape)
-        .filter(([, field]) => !field.isOptional())
-        .map(([key]) => key)
-        .filter((key) => !always.has(key))
+      const missing = requiredKeysOf(schema).filter((key) => !always.has(key))
 
       expect(missing, `${schemaName} requires fields ${name} does not always send`).toEqual([])
     },

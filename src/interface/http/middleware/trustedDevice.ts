@@ -98,13 +98,11 @@ const DEVICE_ID_BYTES = 16
  */
 const MAC_SHAPE = /^[A-Za-z0-9_-]{43}$/
 
-const claims = z
-  .object({
-    d: z.string().min(1).max(64),
-    u: z.string().min(1).max(64),
-    i: z.number().int().nonnegative(),
-  })
-  .strict()
+const claims = z.strictObject({
+  d: z.string().min(1).max(64),
+  u: z.string().min(1).max(64),
+  i: z.number().int().nonnegative(),
+})
 
 export interface DeviceClaims {
   readonly device: string

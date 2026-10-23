@@ -33,7 +33,7 @@ import {
  * belong to a different party.
  *
  * UUIDs rather than a shorter random string: 128 bits with a canonical text form that
- * a zod `.uuid()` on the route can validate, which turns a malformed id into a 400
+ * a zod `z.guid()` on the route can validate, which turns a malformed id into a 400
  * before it reaches a query.
  */
 export const randomIdGenerator: IdGenerator = {
