@@ -8,8 +8,15 @@ import type { EventSummary } from '../../../application/ports/eventRepository'
 import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { EventThemeProps } from '../../../domain/events/eventTheme'
+import type { AuditPage } from '../../../application/ports/auditLog'
+import type { ClientLimits } from '../../../application/usecases/clients/getClientLimits'
+import type { PendingInvitation } from '../../../application/usecases/clients/listPendingInvitations'
+import type { EventLimits } from '../../../application/usecases/events/getEventLimits'
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
+  CeilingsDto,
+  ClientAuditPageDto,
+  ClientLimitsDto,
   EventDto,
   EventSettingsDto,
   EventSummaryDto,
@@ -20,6 +27,8 @@ import type {
   GuestDto,
   GuestPhotoDto,
   ModerationPhotoDto,
+  MyLimitsDto,
+  PendingInvitationsDto,
   PrivacyNoticeDto,
   PrivacyNoticeStateDto,
   PublicEventDto,
@@ -179,18 +188,23 @@ export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto =>
  * as what happens to *their* photo, which is the one framing in which a guest is entitled
  * to them.
  */
-export const toPublicEventDto = (event: Event, context: PresenterContext): PublicEventDto => ({
+export const toPublicEventDto = (
+  event: Event,
+  context: PresenterContext,
+  /** `Event.acceptsClips`: the host's switch **and** the client's plan. */
+  clipsAccepted: boolean,
+): PublicEventDto => ({
   slug: event.slug.value,
   name: event.name.value,
   allowCaptions: event.settings.allowCaptions,
   allowReactions: event.settings.allowReactions,
   maxUploadBytes: context.uploadLimits.maxBytes,
   maxFilesPerUpload: context.uploadLimits.maxFiles,
-  // The host's decision **and** the box's capability. A guest is being told whether they
-  // may send a video here, which is a different question from the one
-  // `EventSettingsDto.allowClips` answers for the host — that one is their own switch,
-  // and it stays exactly as they set it whatever this deployment can do.
-  allowClips: event.settings.allowClips && context.clipLimits.supported,
+  // The host's decision, the client's plan **and** the box's capability. A guest is being told
+  // whether they may send a video here, which is a different question from the one
+  // `EventSettingsDto.allowClips` answers for the host — that one is their own switch, and it
+  // stays exactly as they set it whatever this deployment or their plan can do.
+  allowClips: clipsAccepted && context.clipLimits.supported,
   maxClipBytes: context.clipLimits.maxBytes,
   maxClipSeconds: context.clipLimits.maxSeconds,
   // Unlike the switches above, this is not a permission: it is what the host's event
@@ -244,10 +258,12 @@ export interface EventDtoInput {
     readonly guestCount: number
     readonly usedBytes: number
   }
+  /** What the event's client makes of its quota and its live window (`getEventLimits`). */
+  readonly limits: EventLimits
 }
 
 export const toEventDto = (
-  { event, role, counts }: EventDtoInput,
+  { event, role, counts, limits }: EventDtoInput,
   context: PresenterContext,
 ): EventDto => ({
   id: event.id,
@@ -261,7 +277,8 @@ export const toEventDto = (
   createdAt: iso(event.createdAt),
   joinCode: event.joinCode.value,
   joinUrl: joinUrl(context.publicUrl, event.joinCode.value),
-  quotaBytes: event.quotaBytes,
+  quotaBytes: limits.quotaBytes,
+  ...(limits.liveWindowEnd === null ? {} : { liveWindowEnd: iso(limits.liveWindowEnd) }),
   settings: toEventSettingsDto(event.settings),
   startsAt: isoOrNull(event.startsAt),
   closedAt: isoOrNull(event.closedAt),
@@ -902,4 +919,76 @@ export const toGalleryPhotoDto = ({
 export const toGalleryPageDto = (page: GalleryPage): GalleryPageDto => ({
   items: page.items.map(toGalleryPhotoDto),
   nextCursor: page.nextCursor,
+})
+
+// ----------------------------------------------------------------- client space --
+
+const toCeilingsDto = (ceilings: ClientLimits['ceilings']): CeilingsDto => ({
+  maxEvents: ceilings.maxEvents,
+  maxTotalBytes: ceilings.maxTotalBytes,
+  maxEventQuotaBytes: ceilings.maxEventQuotaBytes,
+  maxRetentionDays: ceilings.maxRetentionDays,
+  clipsAllowed: ceilings.clipsAllowed,
+  liveAllowed: ceilings.liveAllowed,
+  maxLiveDays: ceilings.maxLiveDays,
+  maxEventsPerPeriod: ceilings.maxEventsPerPeriod,
+  periodStartedAt: isoOrNull(ceilings.periodStartedAt),
+})
+
+export const toClientLimitsDto = (limits: ClientLimits): ClientLimitsDto => ({
+  id: limits.clientId,
+  name: limits.name,
+  role: limits.role,
+  suspended: limits.suspended,
+  ceilings: toCeilingsDto(limits.ceilings),
+  usage: {
+    events: limits.usage.events,
+    eventsCreatedInPeriod: limits.usage.eventsCreatedInPeriod,
+    usedBytes: limits.usage.usedBytes,
+  },
+  meters: limits.meters.map((meter) => ({
+    kind: meter.kind,
+    used: meter.used,
+    max: meter.max,
+    level: meter.level,
+  })),
+})
+
+export const toMyLimitsDto = (limits: readonly ClientLimits[]): MyLimitsDto => ({
+  clients: limits.map(toClientLimitsDto),
+})
+
+/**
+ * The log of a client as its owner may read it: field by field, never a spread of the record.
+ *
+ * What is left out is the point. The actor's account id is not copied, so an owner is told that
+ * "the operator" did something and never which operator; an account subject's id is not copied
+ * either. `details` is passed through whole, because the action's allow-list (`auditAction.ts`)
+ * already admits nothing but numbers, switches and instants.
+ */
+export const toClientAuditPageDto = (page: AuditPage): ClientAuditPageDto => ({
+  items: page.items.map((record) => ({
+    seq: record.seq,
+    at: iso(record.at),
+    action: record.action,
+    actor: { kind: record.actor.kind, label: record.actor.label },
+    subject:
+      record.subject.type === 'account'
+        ? { type: record.subject.type }
+        : { type: record.subject.type, id: record.subject.id },
+    details: record.details,
+  })),
+  next: page.next,
+})
+
+export const toPendingInvitationsDto = (
+  invitations: readonly PendingInvitation[],
+): PendingInvitationsDto => ({
+  items: invitations.map((invitation) => ({
+    id: invitation.id,
+    email: invitation.email,
+    role: invitation.role,
+    createdAt: iso(invitation.createdAt),
+    expiresAt: iso(invitation.expiresAt),
+  })),
 })

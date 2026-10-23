@@ -22,6 +22,7 @@ import { galleryHeaders, galleryRoutes, setGalleryHeaders } from './routes/galle
 import { guestRoutes } from './routes/guestRoutes'
 import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
 import { mediaRoutes } from './routes/mediaRoutes'
+import { meRoutes } from './routes/meRoutes'
 import { missionRoutes } from './routes/missionRoutes'
 import { moderationRoutes } from './routes/moderationRoutes'
 import { privacyNoticeRoutes } from './routes/privacyNoticeRoutes'
@@ -224,6 +225,9 @@ export const buildServer = ({
   // every path here is an unknown route, as `/api/site` is.
   if (config.siteAdmin) {
     app.use('/api', clientRoutes(routeDeps))
+    // What a signed-in account reads of its own clients' limits (G2-16 / P3-17): the same
+    // surface, so the same switch.
+    app.use('/api', meRoutes(routeDeps))
   }
 
   app.use('/api', publicRoutes(routeDeps))

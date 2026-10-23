@@ -122,7 +122,7 @@ describe('toPublicEventDto', () => {
   })
 
   it('tells a guest the name and what they are allowed to do', () => {
-    expect(toPublicEventDto(event, context)).toEqual({
+    expect(toPublicEventDto(event, context, true)).toEqual({
       slug: 'mariage',
       name: 'Camille & Sacha',
       allowCaptions: true,
@@ -144,10 +144,11 @@ describe('toPublicEventDto', () => {
     // megabytes go up a venue's Wi-Fi is the whole reason they are on the wire. A
     // constant in the bundle would be a second copy of `MAX_CLIP_BYTES` that no
     // deployment's `.env` could move.
-    const strict = toPublicEventDto(event, {
-      ...context,
-      clipLimits: { maxBytes: 40_000_000, maxSeconds: 8, supported: true },
-    })
+    const strict = toPublicEventDto(
+      event,
+      { ...context, clipLimits: { maxBytes: 40_000_000, maxSeconds: 8, supported: true } },
+      true,
+    )
 
     expect(strict.maxClipBytes).toBe(40_000_000)
     expect(strict.maxClipSeconds).toBe(8)
@@ -159,22 +160,22 @@ describe('toPublicEventDto', () => {
     // **after** multer has written the upload to disk — so a deployment with no ffmpeg
     // and a ticked checkbox charges every guest a full eighty-megabyte upload to be told
     // `500`, and nothing about the answer improves by repeating it.
-    const noEncoder = toPublicEventDto(event, {
-      ...context,
-      clipLimits: { ...context.clipLimits, supported: false },
-    })
+    const noEncoder = toPublicEventDto(
+      event,
+      { ...context, clipLimits: { ...context.clipLimits, supported: false } },
+      true,
+    )
 
     expect(noEncoder.allowClips).toBe(false)
   })
 
-  it('tells a guest when the host has turned video off', () => {
-    // Without this the picker offers a video control that answers
-    // `403 event.clipsNotAllowed` after the upload — on exactly the events the
-    // persistence fallback reads `false` for, which is every event created before
-    // clips shipped.
-    const noClips = anEvent({ settings: { allowClips: false } })
-
-    expect(toPublicEventDto(noClips, context).allowClips).toBe(false)
+  it('tells a guest there is no video when the join says the event does not accept clips', () => {
+    // The host's switch and the client's plan are the use case's conjunction
+    // (`Event.acceptsClips`, held at ring 1 and in `joinEvent`); the presenter reads the answer
+    // and not the host's setting, so a plan that lost video is not offered to a guest as one.
+    // Without it the picker offers a control that answers `403 event.clipsNotAllowed` after the
+    // upload.
+    expect(toPublicEventDto(event, context, false).allowClips).toBe(false)
   })
 
   it.each(['joinCode', 'quotaBytes', 'ownerId', 'photoCount', 'settings', 'retentionDays'])(
@@ -184,7 +185,7 @@ describe('toPublicEventDto', () => {
       // toggles. Everything else — who owns it, how full it is, how long it is kept —
       // is none of their business, and a leak here would be permanent once printed on
       // a card.
-      expect(Object.keys(toPublicEventDto(event, context))).not.toContain(field)
+      expect(Object.keys(toPublicEventDto(event, context, true))).not.toContain(field)
     },
   )
 })
@@ -202,6 +203,7 @@ describe('toEventDto', () => {
     }),
     role: 'owner' as const,
     counts: { photoCount: 42, pendingCount: 7, guestCount: 18, usedBytes: 900_000 },
+    limits: { quotaBytes: 5_000_000_000, liveWindowEnd: null },
   }
 
   it('gives a host the join code and the link behind the QR code', () => {
@@ -223,6 +225,30 @@ describe('toEventDto', () => {
       role: 'owner',
       status: 'live',
     })
+  })
+
+  it('answers with the quota the event is judged against, not the one it was stored with', () => {
+    // G2-05's review, finding 4: an operator lowered the client's ceiling after the event
+    // was created, so the stored 5 GB is a promise the box no longer keeps.
+    const dto = toEventDto(
+      { ...input, limits: { quotaBytes: 2_000, liveWindowEnd: null } },
+      context,
+    )
+
+    expect(dto.quotaBytes).toBe(2_000)
+  })
+
+  it('announces when the live window closes, and has no such key when there is none', () => {
+    const closing = new Date('2026-06-23T18:00:00.000Z')
+
+    const announced = toEventDto(
+      { ...input, limits: { quotaBytes: 1, liveWindowEnd: closing } },
+      context,
+    )
+    const silent = toEventDto(input, context)
+
+    expect(announced.liveWindowEnd).toBe('2026-06-23T18:00:00.000Z')
+    expect(Object.keys(silent)).not.toContain('liveWindowEnd')
   })
 
   it('serialises timestamps as ISO strings', () => {

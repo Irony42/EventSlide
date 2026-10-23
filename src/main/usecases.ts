@@ -115,6 +115,10 @@ import { makeCreateClient } from '../application/usecases/clients/createClient'
 import { makeDeleteEmptyClient } from '../application/usecases/clients/deleteEmptyClient'
 import { makeListClients } from '../application/usecases/clients/listClients'
 import { makeApproveInvitation } from '../application/usecases/clients/approveInvitation'
+import { makeGetClientLimits } from '../application/usecases/clients/getClientLimits'
+import { makeListClientAudit } from '../application/usecases/clients/listClientAudit'
+import { makeListPendingInvitations } from '../application/usecases/clients/listPendingInvitations'
+import { makeGetEventLimits } from '../application/usecases/events/getEventLimits'
 import { makeApprovePasswordReset } from '../application/usecases/clients/approvePasswordReset'
 import { makeInviteToClientAsOperator } from '../application/usecases/clients/inviteToClientAsOperator'
 import { makeProvisionClientOwner } from '../application/usecases/clients/provisionClientOwner'
@@ -435,6 +439,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       joinCodeLength: policy.events.joinCodeLength,
     }),
     getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
+    getEventLimits: makeGetEventLimits({ clients: adapters.clients }),
     listEventsForHost: makeListEventsForHost({ events: adapters.events }),
     resolveJoinCode: makeResolveJoinCode({ events: adapters.events }),
     updateEventSettings: makeUpdateEventSettings({
@@ -803,6 +808,18 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       clients: adapters.clients,
       tokens: adapters.accountTokens,
       audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    /**
+     * The client's own space, read-only (G2-16 / P3-17): the caller's limits, the log of their
+     * own client and what waits for their approval. Mounted only on a box with `SITE_ADMIN=on`,
+     * and scoped by the caller's own roster in each use case, never by an id from the request.
+     */
+    getClientLimits: makeGetClientLimits({ clients: adapters.clients, photos: adapters.photos }),
+    listClientAudit: makeListClientAudit({ clients: adapters.clients, audit: adapters.audit }),
+    listPendingInvitations: makeListPendingInvitations({
+      clients: adapters.clients,
+      tokens: adapters.accountTokens,
       clock: adapters.clock,
     }),
     approvePasswordReset: makeApprovePasswordReset({

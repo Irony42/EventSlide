@@ -13,6 +13,7 @@ import {
   type EventCreationPolicy,
 } from '../../../application/usecases/events/createEvent'
 import { makeGetEventBySlug } from '../../../application/usecases/events/getEventBySlug'
+import { makeGetEventLimits } from '../../../application/usecases/events/getEventLimits'
 import { makeListEventsForHost } from '../../../application/usecases/events/listEventsForHost'
 import { makePurgeEvent } from '../../../application/usecases/events/purgeEvent'
 import { makeRotateJoinCode } from '../../../application/usecases/events/rotateJoinCode'
@@ -246,6 +247,9 @@ const buildWorld = ({
         regenerateRecoveryCodes: absent('regenerateRecoveryCodes'),
         disableSecondFactor: absent('disableSecondFactor'),
         approveInvitation: absent('approveInvitation'),
+        getClientLimits: absent('getClientLimits'),
+        listClientAudit: absent('listClientAudit'),
+        listPendingInvitations: absent('listPendingInvitations'),
         registerModerator: makeRegisterModerator({
           events,
           users,
@@ -275,6 +279,7 @@ const buildWorld = ({
           ...CORE_DEFAULTS,
         }),
         getEventBySlug: makeGetEventBySlug({ events }),
+        getEventLimits: makeGetEventLimits({ clients }),
         listEventsForHost: makeListEventsForHost({ events }),
         resolveJoinCode: absent('resolveJoinCode'),
         updateEventSettings: makeUpdateEventSettings({
