@@ -760,6 +760,10 @@ album elsewhere. Suspension freezes an account without touching media; handover 
 ownership of an event to another account; export-then-purge (§4.4) is the door out. The
 three together are what let an operator stop a relationship without a database console.
 
+> **Partly shipped (G2-14)**: suspension and its resumption, `POST /api/site/clients/:clientId/suspend` and
+> `.../resume`, with the surfaces that obey it (docs/SECURITY.md §22). Still to come: handover, the account
+> routes (disable, delete for a GDPR request) and offboarding.
+
 ### 10.8 An audit log of operator actions (P2, effort S, risk: low)
 
 > **Partly shipped**: the log itself, and no way to read it yet. Migration 009 creates

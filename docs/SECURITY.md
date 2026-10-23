@@ -1340,9 +1340,7 @@ hold back what the host themselves asked for: their shorter retention was the pr
 moved. The guest's privacy notice carries the retention the box applies (`privacyNoticeOf`), not the
 host's "for ever".
 
-**Not covered here, and said plainly.** A suspended client (`clients.suspended_at`) is not refused
-anywhere yet — suspension and its single "same 404 as an unknown event" answer belong to the operator API
-(roadmap §10.4, G2-14). The audit log exists (G2-06) but its catalogue has no `event.autoClosed` entry and
+**Not covered here, and said plainly.** The audit log exists (G2-06) but its catalogue has no `event.autoClosed` entry and
 the sweep does not write one, and the e-mail to the host when a window closes an event waits for the mailer
 (G2-07); the sweep already reports the closed ids as `autoClosed` and logs them, which is the seam both will use. An event already live when its client's `live_allowed` becomes 0 is not
 force-closed: `max_live_days` bounds it, and quarantine is about opening.
@@ -3217,9 +3215,9 @@ reads the clients table for an event with no client.
 - **It enforces nothing.** The banner and the suspension screen tell; the refusals are the write paths'
   (`client.ceilingReached` 409, `client.storageFull` 413, `client.suspended` 403, §5). A client whose
   limits could not be read still creates and moderates, and meets the server's refusal if a ceiling is in the way.
-- **Suspension is displayed, not applied here.** `suspended` reports `clients.suspended_at`; what suspension
-  refuses (`403 client.suspended`, the same 404 as an unknown event on the public surfaces) is `suspendClient`
-  and the routes of G2-14 / P3-13, which this change does not touch.
+- **Suspension is displayed here and applied where an event is served.** `suspended` reports `clients.suspended_at`;
+  what it refuses is §22 (`403 client.suspended` on a member's writes, the same 404 as an unknown event on the
+  public surfaces).
 - **There is no `links.upgrade`.** The call to action is "contact your operator": a link to the operator's
   published contact address when there is one, words otherwise. An upgrade address belongs to the paid plan's
   `UPGRADE_URL` (P3-18) and no box here publishes one.
@@ -3281,6 +3279,20 @@ second factor and confirming a step-up are stamps written into the session store
 `secondFactorRoutes.test.ts` drives the real flow. `container.test.ts` boots the real composition root and
 walks one journey (confirm, open a client, read it back, change a ceiling with a reason, read the log), which
 is what catches a use case left out of the bag the routes read.
+
+**Suspension (roadmap §10.7).** `suspendClient` writes one column and one audit line and nothing else; every surface
+that serves an event reads the client's standing **with the event** (`Event.clientSuspendedAt`, joined in the same
+query that finds it, never written back), so there is no second lookup to forget and no event status to restore.
+The rule has three halves, each with a mutation. **Public, anonymous and capability surfaces answer exactly what an
+unknown event answers**: the join, the guest surfaces, the wall and its feed, a published photograph by slug and a
+gallery link, so a suspended client cannot be told from one that never existed by anyone who is not a member
+(`suspension.container.test.ts` compares each with an unknown slug over the real composition root). **Members keep
+their reads and lose their writes** with `403 client.suspended`, because the client is entitled to know why: the
+refusal is in `requireRole`, so a route added later is refused by default, and creating an event and approving an
+operator's invitation or reset are refused in their use cases because no event route can see them. **A connection
+opened before the suspension does not outlive it**: the live feed re-reads the event at every heartbeat (plan item
+A-22), so a projector left running is closed within one beat and told to wait a minute rather than to retry at once.
+Resuming is the same column set back to null; a suspended client's guests reach their event again at once.
 
 **What the routes do not do.**
 
