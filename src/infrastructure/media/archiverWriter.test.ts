@@ -195,6 +195,8 @@ describe('archiverWriter, sources and a client that goes away', () => {
     open: number
     /** The most that were ever open together. */
     mostOpen: number
+    /** Whether the listing itself was closed, as a database cursor behind it would be. */
+    listingClosed: boolean
   }
 
   /** An album of `total` photographs, each `chunks` chunks of 64 KiB, that counts itself. */
@@ -203,7 +205,14 @@ describe('archiverWriter, sources and a client that goes away', () => {
     chunks: number,
     failAt?: number,
   ): { readonly counts: Counts; readonly entries: AsyncIterable<ArchiveEntry> } => {
-    const counts: Counts = { listed: 0, opened: 0, closed: 0, open: 0, mostOpen: 0 }
+    const counts: Counts = {
+      listed: 0,
+      opened: 0,
+      closed: 0,
+      open: 0,
+      mostOpen: 0,
+      listingClosed: false,
+    }
     const bytes = async function* (index: number): AsyncGenerator<Uint8Array> {
       counts.opened += 1
       counts.open += 1
@@ -222,9 +231,13 @@ describe('archiverWriter, sources and a client that goes away', () => {
       counts,
       entries: {
         async *[Symbol.asyncIterator]() {
-          for (let index = 0; index < total; index += 1) {
-            counts.listed += 1
-            yield { ...entry(`photo-${index}.jpg`), bytes: bytes(index) }
+          try {
+            for (let index = 0; index < total; index += 1) {
+              counts.listed += 1
+              yield { ...entry(`photo-${index}.jpg`), bytes: bytes(index) }
+            }
+          } finally {
+            counts.listingClosed = true
           }
         },
       },
@@ -288,6 +301,17 @@ describe('archiverWriter, sources and a client that goes away', () => {
     expect(counts.closed).toBe(counts.opened)
     expect(counts.opened).toBeGreaterThan(0)
     expect(counts.opened).toBeLessThan(30)
+  })
+
+  it('closes the listing of entries when the client stops reading', async () => {
+    // Whatever the listing holds — a cursor, a page, a lock — is held until it is closed,
+    // and the writer is the only thing that knows the download is over.
+    const { counts, entries: photos } = album(30, 24)
+
+    const iterator = await intoTheAlbum(archiverWriter.stream(photos), counts)
+    await iterator.return?.(undefined)
+
+    await vi.waitFor(() => expect(counts.listingClosed).toBe(true), { timeout: 2_000 })
   })
 
   it('closes every source it opened when the response is destroyed with an error', async () => {
