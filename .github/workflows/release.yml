@@ -81,6 +81,8 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
       prerelease: ${{ steps.resolve.outputs.prerelease }}
       publish: ${{ steps.resolve.outputs.publish }}
+      exact: ${{ steps.resolve.outputs.exact }}
+      floating: ${{ steps.resolve.outputs.floating }}
       tags: ${{ steps.resolve.outputs.tags }}
       sha: ${{ steps.sha.outputs.sha }}
     steps:
@@ -148,13 +150,19 @@ jobs:
             exit 1
           fi
 
-          # A candidate gets its own tag and no other, so that X.Y and X never point at one.
+          # The image is pushed under its exact tag only. The floating tags, X.Y and X, are moved
+          # by a later job once the digest has been checked and signed, so that nobody who
+          # follows one is handed an image that was never verified. A candidate has none, so
+          # that X.Y and X never point at one.
+          exact="$REGISTRY_IMAGE:$version"
           if [ -n "$candidate" ]; then
             prerelease=true
-            tags="$REGISTRY_IMAGE:$version"
+            floating=""
+            tags="$exact"
           else
             prerelease=false
-            tags="$REGISTRY_IMAGE:$version"$'\n'"$REGISTRY_IMAGE:$major.$minor"$'\n'"$REGISTRY_IMAGE:$major"
+            floating="$REGISTRY_IMAGE:$major.$minor"$'\n'"$REGISTRY_IMAGE:$major"
+            tags="$exact"$'\n'"$floating"
           fi
 
           {
@@ -162,6 +170,10 @@ jobs:
             echo "version=$version"
             echo "prerelease=$prerelease"
             echo "publish=$publish"
+            echo "exact=$exact"
+            echo "floating<<FLOATING_END"
+            echo "$floating"
+            echo "FLOATING_END"
             echo "tags<<TAGS_END"
             echo "$tags"
             echo "TAGS_END"
@@ -170,7 +182,7 @@ jobs:
           echo "Release $tag (publish: $publish, release candidate: $prerelease). Image tags:"
           echo "$tags"
 
-      - name: The commit is on main
+      - name: The commit is on main, and so is the workflow that runs
         if: steps.resolve.outputs.publish == 'true'
         run: |
           set -euo pipefail
@@ -180,6 +192,17 @@ jobs:
             echo "::error::This commit is not on main, so it is not published. Merge it, then tag the merge."
             exit 1
           fi
+          # The workflow file that runs, and the identity the signature will carry, come from
+          # the ref the run started on. A manual run started from a branch would publish with
+          # that branch's copy of this file, and could not be verified by the identity the
+          # documentation gives: it is refused here, before anything is pushed.
+          case "$GITHUB_REF" in
+            refs/heads/main | refs/tags/v*) ;;
+            *)
+              echo "::error::Publish from main or from a tag, not from $GITHUB_REF: choose main in Run workflow."
+              exit 1
+              ;;
+          esac
 
       - name: The release is not already complete
         if: steps.resolve.outputs.publish == 'true'
@@ -193,7 +216,8 @@ jobs:
           # presence is what "this version was published to the end" means. A run that failed
           # half way has not attached it and may be run again; one that finished is never
           # pushed a second time, because a published X.Y.Z is a version somebody runs.
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2> /dev/null | grep -qx "image-sources-$VERSION.txt"; then
+          assets="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2> /dev/null || true)"
+          if grep -qxF "image-sources-$VERSION.txt" <<< "$assets"; then
             echo "::error::$TAG is already released, image and assets. A version is published once: fix forward with the next patch."
             exit 1
           fi
@@ -289,7 +313,8 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ needs.resolve.outputs.tags }}
+          # Only the exact tag: the floating ones move in the `promote` job, after the signature.
+          tags: ${{ needs.resolve.outputs.exact }}
           # Not org.opencontainers.image.licenses: the Dockerfile sets it to AGPL-3.0-only,
           # a label given here would silently replace it, and GitHub's own idea of the
           # licence is not that identifier. scripts/releasePipeline.test.ts holds this.
@@ -298,6 +323,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/Irony42/EventSlide
             org.opencontainers.image.revision=${{ needs.resolve.outputs.sha }}
             org.opencontainers.image.version=${{ needs.resolve.outputs.version }}
+            org.opencontainers.image.documentation=https://github.com/Irony42/EventSlide/blob/${{ needs.resolve.outputs.tag }}/docs/IMAGE-SOURCES.md
           # No BuildKit attestations: they add unknown/unknown entries to the index, and the
           # SBOM and the signature below are made on the digest instead.
           provenance: false
@@ -355,6 +381,7 @@ jobs:
           licence="$(label org.opencontainers.image.licenses)"
           source_url="$(label org.opencontainers.image.source)"
           version="$(label org.opencontainers.image.version)"
+          documentation="$(label org.opencontainers.image.documentation)"
           if [ "$licence" != "AGPL-3.0-only" ]; then
             echo "::error::org.opencontainers.image.licenses is '$licence', expected AGPL-3.0-only."
             exit 1
@@ -365,6 +392,11 @@ jobs:
           fi
           if [ "$version" != "$VERSION" ]; then
             echo "::error::org.opencontainers.image.version is '$version', expected $VERSION."
+            exit 1
+          fi
+          # The page that carries the written offer of source, from the image itself.
+          if [ "$documentation" != "https://github.com/Irony42/EventSlide/blob/v$VERSION/docs/IMAGE-SOURCES.md" ]; then
+            echo "::error::org.opencontainers.image.documentation is '$documentation', expected the IMAGE-SOURCES.md of v$VERSION."
             exit 1
           fi
 
@@ -444,6 +476,8 @@ jobs:
             image-sources-${{ needs.resolve.outputs.version }}.txt
           if-no-files-found: error
           retention-days: 7
+          # A whole run started again starts with the artifact of the first one still there.
+          overwrite: true
 
   sign:
     # Keyless: GitHub gives this job an OIDC token, Sigstore's CA exchanges it for a
@@ -489,9 +523,68 @@ jobs:
           cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$IMAGE_REF"
           cosign verify-attestation --type spdxjson --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$IMAGE_REF"
 
+  promote:
+    # `X.Y` and `X` are what people who follow a minor or a major pull, so they move last:
+    # when the digest has been checked, signed, and verified as signed. A release candidate
+    # has none. And only the newest release of a line moves its tag, so that a patch of an
+    # older minor, published late, cannot send `X` backwards.
+    name: Move the floating tags
+    needs: [resolve, publish, sign]
+    if: needs.resolve.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          # Every tag, to tell which release of a line is the newest.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Point the floating tags at the signed digest
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          FLOATING: ${{ needs.resolve.outputs.floating }}
+          DIGEST: ${{ needs.publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FLOATING" ]; then
+            echo "A release candidate moves no floating tag."
+            exit 0
+          fi
+
+          newest() { git tag --list "v$1.*" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true; }
+
+          create=()
+          while IFS= read -r ref; do
+            line="${ref##*:}"
+            if [ "$(newest "$line")" = "v$VERSION" ]; then
+              create+=(--tag "$ref")
+            else
+              echo "$ref stays where it is: v$VERSION is not the newest release of $line.x."
+            fi
+          done <<< "$FLOATING"
+
+          if [ "${#create[@]}" -eq 0 ]; then
+            exit 0
+          fi
+          docker buildx imagetools create "${create[@]}" "$REGISTRY_IMAGE@$DIGEST"
+          echo "Moved ${#create[@]} floating tag(s) to $DIGEST."
+
   release:
     name: Create the GitHub release
-    needs: [resolve, publish, verify-published, sign]
+    needs: [resolve, publish, verify-published, sign, promote]
     if: needs.resolve.outputs.publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -519,7 +612,10 @@ jobs:
           set -euo pipefail
 
           cp docs/IMAGE-SOURCES.md IMAGE-SOURCES.md
-          assets=("eventslide-$VERSION.spdx.json" "image-sources-$VERSION.txt" IMAGE-SOURCES.md)
+          assets=("eventslide-$VERSION.spdx.json" IMAGE-SOURCES.md)
+          # What says "this release is complete" (the first job of this workflow looks for it)
+          # goes up on its own, after the others: one upload call sends its files at once.
+          marker="image-sources-$VERSION.txt"
 
           {
             echo "## Image"
@@ -534,7 +630,9 @@ jobs:
           } > image-notes.md
 
           # The hand-written CHANGELOG entry of this version, when there is one.
-          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 { keep = 1; next } /^## / { keep = 0 } keep' CHANGELOG.md > changelog-entry.md
+          # Its links are relative to the repository, and a release page is not in it.
+          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 { keep = 1; next } /^## / { keep = 0 } keep' CHANGELOG.md |
+            sed -E "s|\]\(([^):# ]+)(#[^)]*)?\)|](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/\1\2)|g" > changelog-entry.md
 
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" "${assets[@]}" --clobber
@@ -543,9 +641,11 @@ jobs:
               { echo "$body"; echo; cat image-notes.md; } > notes.md
               gh release edit "$TAG" --notes-file notes.md
             fi
+            gh release upload "$TAG" "$marker" --clobber
           else
             { cat changelog-entry.md; echo; cat image-notes.md; } > notes.md
             flags=(--verify-tag --title "$TAG" --notes-file notes.md)
             if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
             gh release create "$TAG" "${flags[@]}" "${assets[@]}"
+            gh release upload "$TAG" "$marker" --clobber
           fi

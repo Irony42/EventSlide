@@ -108,6 +108,7 @@ describe('what each job of the release workflow may do', () => {
     publish: { contents: 'read', packages: 'write' },
     'verify-published': { contents: 'read', packages: 'read' },
     sign: { packages: 'write', 'id-token': 'write' },
+    promote: { contents: 'read', packages: 'write' },
     release: { contents: 'write' },
   }
 
@@ -119,12 +120,12 @@ describe('what each job of the release workflow may do', () => {
     }
   })
 
-  it('lets only the job that publishes and the job that signs write to the registry', () => {
+  it('lets only the jobs that publish, sign and move the floating tags write to the registry', () => {
     const writers = Object.keys(releaseJobs).filter(
       (name) => mapAt(jobOf(release, name), 'permissions')['packages'] === 'write',
     )
 
-    expect(writers.sort()).toEqual(['publish', 'sign'])
+    expect(writers.sort()).toEqual(['promote', 'publish', 'sign'])
   })
 
   it('lets only the job that creates the release write to the repository, and only the signing job mint a token', () => {
@@ -139,7 +140,7 @@ describe('what each job of the release workflow may do', () => {
 })
 
 describe('what only a publication reaches', () => {
-  const published = ['publish', 'verify-published', 'sign', 'release']
+  const published = ['publish', 'verify-published', 'sign', 'promote', 'release']
   const stepsWith = (name: string): readonly YamlMap[] => stepsOf(jobOf(release, name))
 
   it.each(published)('%s is skipped unless the run was asked to publish', (name) => {
@@ -161,7 +162,7 @@ describe('what only a publication reaches', () => {
       stepsWith(name).some((step) => String(step['uses']).startsWith('docker/login-action@')),
     )
 
-    expect(logging.sort()).toEqual(['publish', 'sign', 'verify-published'])
+    expect(logging.sort()).toEqual(['promote', 'publish', 'sign', 'verify-published'])
   })
 
   it('waits for the maintainer at the first byte pushed, through an environment', () => {
@@ -179,7 +180,8 @@ describe('what only a publication reaches', () => {
     expect(needs('publish')).toEqual(expect.arrayContaining(['gate']))
     expect(needs('verify-published')).toEqual(expect.arrayContaining(['publish']))
     expect(needs('sign')).toEqual(expect.arrayContaining(['publish', 'verify-published']))
-    expect(needs('release')).toEqual(expect.arrayContaining(['sign']))
+    expect(needs('promote')).toEqual(expect.arrayContaining(['publish', 'sign']))
+    expect(needs('release')).toEqual(expect.arrayContaining(['sign', 'promote']))
   })
 })
 
@@ -242,6 +244,10 @@ describe('what is checked before an image is signed', () => {
 
     expect(labels).toContain(
       'org.opencontainers.image.source=https://github.com/Irony42/EventSlide',
+    )
+    // And points at the page that carries the written offer of source, for this very release.
+    expect(labels).toContain(
+      'org.opencontainers.image.documentation=https://github.com/Irony42/EventSlide/blob/${{ needs.resolve.outputs.tag }}/docs/IMAGE-SOURCES.md',
     )
     expect(labels).not.toContain('org.opencontainers.image.licenses')
     expect(code(read('.github', 'workflows', 'release.yml'))).not.toMatch(
@@ -472,6 +478,23 @@ describe.skipIf(!bashAvailable)(
       })
     })
 
+    it('pushes the exact tag first and alone, and leaves X.Y and X to the job that moves them after the signature', () => {
+      const ran = resolve({ REF_NAME: 'v3.1.4', PACKAGE_VERSION: '3.1.4' })
+
+      expect(ran.outputs['exact']).toBe(`${REGISTRY_IMAGE}:3.1.4`)
+      expect((ran.outputs['floating'] ?? '').split('\n')).toEqual([
+        `${REGISTRY_IMAGE}:3.1`,
+        `${REGISTRY_IMAGE}:3`,
+      ])
+    })
+
+    it('has no floating tag at all for a release candidate', () => {
+      const ran = resolve({ REF_NAME: 'v3.1.0-rc.1', PACKAGE_VERSION: '3.1.0-rc.1' })
+
+      expect(ran.outputs['exact']).toBe(`${REGISTRY_IMAGE}:3.1.0-rc.1`)
+      expect(ran.outputs['floating']).toBe('')
+    })
+
     it('reads two-digit parts as numbers, not as digits', () => {
       const ran = resolve({ REF_NAME: 'v10.20.30', PACKAGE_VERSION: '10.20.30' })
 
@@ -614,6 +637,7 @@ describe.skipIf(!bashAvailable)(
       '  *"image.licenses"*) printf "%s\\n" "$LABEL_LICENSES" ;;',
       '  *"image.source"*) printf "%s\\n" "$LABEL_SOURCE" ;;',
       '  *"image.version"*) printf "%s\\n" "$LABEL_VERSION" ;;',
+      '  *"image.documentation"*) printf "%s\\n" "$LABEL_DOCUMENTATION" ;;',
       '  *"--entrypoint cat"*) echo "12.8" ;;',
       '  *"--entrypoint node"*"--version"*) echo "v24.9.0" ;;',
       '  *"--entrypoint node"*) printf "%s\\n" \'{"vips": "8.17.2"}\' ;;',
@@ -644,6 +668,8 @@ describe.skipIf(!bashAvailable)(
         LABEL_LICENSES: 'AGPL-3.0-only',
         LABEL_SOURCE: 'https://github.com/Irony42/EventSlide',
         LABEL_VERSION: '3.0.0',
+        LABEL_DOCUMENTATION:
+          'https://github.com/Irony42/EventSlide/blob/v3.0.0/docs/IMAGE-SOURCES.md',
       }
       const run = (changed: Record<string, string>): Ran =>
         runStep(
@@ -657,6 +683,14 @@ describe.skipIf(!bashAvailable)(
       expect(run({ LABEL_LICENSES: 'GPL-3.0' }).status).toBe(1)
       expect(run({ LABEL_SOURCE: 'https://github.com/someone/EventSlide' }).status).toBe(1)
       expect(run({ LABEL_VERSION: '3.0.1' }).status).toBe(1)
+      // The page that carries the written offer is the one of this very release.
+      expect(
+        run({
+          LABEL_DOCUMENTATION:
+            'https://github.com/Irony42/EventSlide/blob/v2.1.0/docs/IMAGE-SOURCES.md',
+        }).status,
+      ).toBe(1)
+      expect(run({ LABEL_DOCUMENTATION: '' }).status).toBe(1)
     })
 
     describe('the list of source packages the release attaches', () => {
@@ -725,7 +759,7 @@ describe.skipIf(!bashAvailable)(
       const files = {
         'docs/IMAGE-SOURCES.md': '# Image sources\n',
         'CHANGELOG.md':
-          '# Changelog\n\n## [3.0.0] - 2026-10-02\n\nThe notes of 3.0.0.\n\n## [2.1.0] - 2026-09-01\n\nOlder.\n',
+          '# Changelog\n\n## [3.0.0] - 2026-10-02\n\nThe notes of 3.0.0. See [the upgrade](docs/UPGRADING.md#upgrading-to-30), [the FAQ](docs/LICENSING-FAQ.md), [a site](https://example.com/x?a=b#c) and [below](#licence).\n\n## [2.1.0] - 2026-09-01\n\nOlder.\n',
       }
       const env = {
         GH_TOKEN: 'unused',
@@ -742,9 +776,39 @@ describe.skipIf(!bashAvailable)(
 
         expect(ran.status, ran.stderr + ran.stdout).toBe(0)
         expect(ran.calls).toMatch(
-          /^gh release create v3\.0\.0 --verify-tag --title v3\.0\.0 --notes-file notes\.md eventslide-3\.0\.0\.spdx\.json image-sources-3\.0\.0\.txt IMAGE-SOURCES\.md$/m,
+          /^gh release create v3\.0\.0 --verify-tag --title v3\.0\.0 --notes-file notes\.md eventslide-3\.0\.0\.spdx\.json IMAGE-SOURCES\.md$/m,
         )
         expect(ran.calls).not.toContain('--prerelease')
+      })
+
+      it('attaches the file that says the release is complete last, on its own, after everything else', () => {
+        // The first job of the workflow reads its presence as "published to the end", and one
+        // upload call sends its files together: a marker uploaded with the others, or before the
+        // notes are edited, would call a release complete that is not.
+        const created = runStep(script, env, { stubs: { gh }, files })
+        const existing = runStep(
+          script,
+          { ...env, GH_EXISTS: '0', GH_BODY: 'Notes.' },
+          { stubs: { gh }, files },
+        )
+
+        for (const ran of [created, existing]) {
+          const calls = ran.calls.trim().split('\n')
+          expect(calls.at(-1), ran.calls).toBe(
+            'gh release upload v3.0.0 image-sources-3.0.0.txt --clobber',
+          )
+          expect(calls.filter((call) => call.includes('image-sources-3.0.0.txt'))).toHaveLength(1)
+        }
+      })
+
+      it('makes the links of the changelog entry absolute, because a release page is not in the repository', () => {
+        const notes = runStep(script, env, { stubs: { gh }, files }).read('notes.md')
+        const base = 'https://github.com/Irony42/EventSlide/blob/v3.0.0'
+
+        expect(notes).toContain(`[the upgrade](${base}/docs/UPGRADING.md#upgrading-to-30)`)
+        expect(notes).toContain(`[the FAQ](${base}/docs/LICENSING-FAQ.md)`)
+        expect(notes).toContain('[a site](https://example.com/x?a=b#c)')
+        expect(notes).toContain('[below](#licence)')
       })
 
       it('marks a release candidate as a pre-release, and a final one never', () => {
@@ -840,6 +904,233 @@ describe.skipIf(!bashAvailable)('a version is published once, to the end', () =>
   })
 })
 
+describe('the wiring between the jobs of the release workflow', () => {
+  // The shell tests above run each script with its variables set by hand, so they cannot see a
+  // job that reads an output nobody wrote or a step nobody named. These read the workflow itself.
+  const strings = (value: YamlValue | undefined): string[] => {
+    if (typeof value === 'string') return [value]
+    if (Array.isArray(value)) return value.flatMap((item) => strings(item))
+    if (isMap(value)) return Object.values(value).flatMap((item) => strings(item))
+    return []
+  }
+  const needsOf = (job: YamlMap): string[] => {
+    const needs = job['needs']
+    if (typeof needs === 'string') return [needs]
+    return Array.isArray(needs)
+      ? needs.filter((item): item is string => typeof item === 'string')
+      : []
+  }
+
+  it('reads, from another job, only outputs that the job declares, and only from jobs it waits for', () => {
+    for (const [name, job] of Object.entries(releaseJobs)) {
+      const refs = strings(job as YamlMap).flatMap((text) =>
+        [...text.matchAll(/needs\.([\w-]+)\.outputs\.([\w-]+)/g)].map((m) => [m[1], m[2]] as const),
+      )
+
+      for (const [from = '', output = ''] of refs) {
+        expect(needsOf(jobOf(release, name)), `${name} reads needs.${from}`).toContain(from)
+        expect(
+          Object.keys(mapAt(jobOf(release, from), 'outputs')),
+          `needs.${from}.outputs.${output}, read by ${name}`,
+        ).toContain(output)
+      }
+    }
+  })
+
+  it('reads, from a step, only steps that the same job names', () => {
+    for (const [name, job] of Object.entries(releaseJobs)) {
+      const ids = stepsOf(jobOf(release, name)).map((step) => step['id'])
+      const refs = strings(job as YamlMap).flatMap((text) =>
+        [...text.matchAll(/steps\.([\w-]+)\.outputs\./g)].map((m) => m[1] ?? ''),
+      )
+
+      for (const id of refs) expect(ids, `steps.${id} in ${name}`).toContain(id)
+    }
+  })
+
+  it('checks out the commit that was resolved, in every job after it, and not whatever the ref is by then', () => {
+    // A tag can move between the jobs, and a manual run's ref is a branch. The first job
+    // resolves one commit, and the others build, check, sign and release exactly that.
+    for (const name of ['gate', 'publish', 'verify-published', 'promote', 'release']) {
+      const checkouts = stepsOf(jobOf(release, name)).filter((step) =>
+        String(step['uses']).startsWith('actions/checkout@'),
+      )
+
+      expect(checkouts, `the checkout of ${name}`).toHaveLength(1)
+      expect(mapAt(checkouts[0], 'with')['ref'], name).toBe('${{ needs.resolve.outputs.sha }}')
+    }
+    const first = stepsOf(jobOf(release, 'resolve'))[0]
+    expect(mapAt(first, 'with')['ref']).toBe(
+      "${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}",
+    )
+  })
+
+  it('pushes the exact tag and nothing else, from the output that carries it', () => {
+    const build = stepOf(jobOf(release, 'publish'), 'build')
+
+    expect(mapAt(build, 'with')['tags']).toBe('${{ needs.resolve.outputs.exact }}')
+    expect(mapAt(jobOf(release, 'publish'), 'outputs')['digest']).toBe(
+      '${{ steps.build.outputs.digest }}',
+    )
+  })
+
+  it('builds the image for the gate on this runner, and does not push it', () => {
+    const build = stepOf(jobOf(release, 'gate'), "Build the image for this runner's platform")
+
+    expect(build['with']).toMatchObject({ push: 'false', load: 'true', context: '.' })
+  })
+
+  it('lets a whole run that is started again replace the artifact of the first one', () => {
+    const upload = stepOf(jobOf(release, 'verify-published'), 'Keep what the release will attach')
+
+    expect(mapAt(upload, 'with')['overwrite']).toBe('true')
+  })
+
+  it('exports whether the run is a release candidate, which the release job reads to mark it', () => {
+    expect(Object.keys(mapAt(jobOf(release, 'resolve'), 'outputs'))).toEqual(
+      expect.arrayContaining([
+        'tag',
+        'version',
+        'prerelease',
+        'publish',
+        'exact',
+        'floating',
+        'tags',
+        'sha',
+      ]),
+    )
+  })
+
+  it('does the two checks that a publication needs on its own, only when it publishes', () => {
+    for (const name of [
+      'The commit is on main, and so is the workflow that runs',
+      'The release is not already complete',
+    ]) {
+      expect(stepOf(jobOf(release, 'resolve'), name)['if'], name).toBe(
+        "steps.resolve.outputs.publish == 'true'",
+      )
+    }
+  })
+})
+
+describe.skipIf(!bashAvailable)('the two checks a publication starts with, by running them', () => {
+  const script = runOf(
+    jobOf(release, 'resolve'),
+    'The commit is on main, and so is the workflow that runs',
+  )
+  // A `git` that answers the ancestry question from the environment.
+  const git =
+    'echo "git $*" >> "$CALLS"\ncase "$*" in "merge-base --is-ancestor"*) exit "${GIT_ANCESTOR:-0}" ;; esac'
+  const check = (env: Record<string, string>): Ran =>
+    runStep(
+      script,
+      { GITHUB_REF: 'refs/tags/v3.0.0', GIT_ANCESTOR: '0', ...env },
+      { stubs: { git } },
+    )
+
+  it('lets a tag on main through, and a manual run started from main', () => {
+    expect(check({}).status).toBe(0)
+    expect(check({ GITHUB_REF: 'refs/heads/main' }).status).toBe(0)
+  })
+
+  it('refuses a commit that is not on main, which nobody reviewed', () => {
+    const ran = check({ GIT_ANCESTOR: '1' })
+
+    expect(ran.status).toBe(1)
+    expect(ran.stdout).toContain('This commit is not on main')
+    expect(ran.calls).toContain('git merge-base --is-ancestor HEAD origin/main')
+  })
+
+  it('refuses a manual run started from another branch, whose copy of the workflow would publish', () => {
+    for (const ref of [
+      'refs/heads/feature',
+      'refs/heads/main-2',
+      'refs/pull/1/merge',
+      'refs/tags/x1',
+    ]) {
+      const ran = check({ GITHUB_REF: ref })
+
+      expect(ran.status, ref).toBe(1)
+      expect(ran.stdout).toContain(`not from ${ref}`)
+    }
+  })
+})
+
+describe.skipIf(!bashAvailable)(
+  'the floating tags, moved last, by running the step that moves them',
+  () => {
+    const script = runOf(jobOf(release, 'promote'), 'Point the floating tags at the signed digest')
+    const git =
+      'case "$*" in "tag --list"*) pattern="${3}"; for tag in $GIT_TAGS; do case "$tag" in $pattern) echo "$tag" ;; esac; done ;; esac'
+    const docker = 'echo "docker $*" >> "$CALLS"'
+    const floating = (version: string): string => {
+      const [major = '', minor = ''] = version.split('.')
+      return `${REGISTRY_IMAGE}:${major}.${minor}\n${REGISTRY_IMAGE}:${major}`
+    }
+    const promote = (version: string, existing: string, env: Record<string, string> = {}): Ran =>
+      runStep(
+        script,
+        {
+          VERSION: version,
+          FLOATING: floating(version),
+          DIGEST: 'sha256:abc',
+          REGISTRY_IMAGE,
+          GIT_TAGS: existing,
+          ...env,
+        },
+        { stubs: { git, docker } },
+      )
+    const created = (ran: Ran): string =>
+      ran.calls.split('\n').find((call) => call.startsWith('docker buildx imagetools create')) ?? ''
+
+    it('points X.Y and X at the digest that was signed, for the newest release', () => {
+      const ran = promote('3.1.0', 'v2.1.0 v3.0.0 v3.0.1 v3.1.0')
+
+      expect(ran.status, ran.stderr + ran.stdout).toBe(0)
+      expect(created(ran)).toBe(
+        `docker buildx imagetools create --tag ${REGISTRY_IMAGE}:3.1 --tag ${REGISTRY_IMAGE}:3 ${REGISTRY_IMAGE}@sha256:abc`,
+      )
+    })
+
+    it('does not send X backwards when a patch of an older minor is published late', () => {
+      const ran = promote('3.0.2', 'v3.0.0 v3.0.1 v3.0.2 v3.1.0')
+
+      expect(ran.status, ran.stderr + ran.stdout).toBe(0)
+      expect(created(ran)).toBe(
+        `docker buildx imagetools create --tag ${REGISTRY_IMAGE}:3.0 ${REGISTRY_IMAGE}@sha256:abc`,
+      )
+      expect(ran.stdout).toContain(`${REGISTRY_IMAGE}:3 stays where it is`)
+    })
+
+    it('moves nothing for a patch that is not the newest of its minor either', () => {
+      const ran = promote('3.0.1', 'v3.0.0 v3.0.1 v3.0.2 v3.1.0')
+
+      expect(created(ran)).toBe('')
+    })
+
+    it('reads a version as numbers, so that 3.10.0 is newer than 3.9.0', () => {
+      expect(created(promote('3.10.0', 'v3.9.0 v3.10.0'))).toContain(`--tag ${REGISTRY_IMAGE}:3 `)
+      expect(created(promote('3.9.0', 'v3.9.0 v3.10.0'))).not.toContain(
+        `--tag ${REGISTRY_IMAGE}:3 `,
+      )
+    })
+
+    it('ignores release candidates when it decides which release is the newest', () => {
+      expect(created(promote('3.0.0', 'v3.0.0 v3.1.0-rc.1'))).toContain(
+        `--tag ${REGISTRY_IMAGE}:3 `,
+      )
+    })
+
+    it('moves no tag for a release candidate, which has none', () => {
+      const ran = promote('3.1.0-rc.1', 'v3.1.0-rc.1', { FLOATING: '' })
+
+      expect(ran.status).toBe(0)
+      expect(ran.calls).toBe('')
+      expect(ran.stdout).toContain('moves no floating tag')
+    })
+  },
+)
+
 describe('the weekly scan', () => {
   const scanJob = jobOf(scan, 'scan')
   const on = mapAt(scan, 'on')
@@ -894,6 +1185,60 @@ describe('the weekly scan', () => {
 
       expect(ran.outputs).toEqual({ found: 'true', version: '3.0.0' })
       expect(ran.calls).toContain('--exclude-pre-releases')
+    })
+
+    describe('when the latest release has an image, and when it does not', () => {
+      // v2.1.0, the latest release of this repository today, was made by hand with no image.
+      const resolveDigest = runOf(scanJob, 'image')
+      const docker = [
+        'echo "docker $*" >> "$CALLS"',
+        'case "$*" in',
+        '  "buildx imagetools inspect"*) [ "$IMAGE_EXISTS" = "1" ] || exit 1; printf "%s" \'{"mediaType":"x","digest":"sha256:abc123","size":1}\' ;;',
+        'esac',
+      ].join('\n')
+      const run = (exists: string): Ran =>
+        runStep(
+          resolveDigest,
+          { REGISTRY_IMAGE, VERSION: '2.1.0', IMAGE_EXISTS: exists },
+          { stubs: { docker } },
+        )
+
+      it('scans nothing, and does not fail, for a release that has no published image', () => {
+        const ran = run('0')
+
+        expect(ran.status, ran.stderr + ran.stdout).toBe(0)
+        expect(ran.outputs).toEqual({ ref: '' })
+        expect(ran.stdout).toContain('::warning::')
+        expect(ran.calls).not.toContain('docker pull')
+      })
+
+      it('pulls and names the digest the release tag points at, when there is one', () => {
+        const ran = run('1')
+
+        expect(ran.status, ran.stderr + ran.stdout).toBe(0)
+        expect(ran.outputs).toEqual({ ref: `${REGISTRY_IMAGE}@sha256:abc123` })
+        expect(ran.calls).toContain(`docker pull ${REGISTRY_IMAGE}@sha256:abc123`)
+      })
+
+      it('goes on to the scan, the report and the issues only when an image was found', () => {
+        const steps = stepsOf(scanJob)
+        const after = steps.slice(steps.findIndex((step) => step['id'] === 'image') + 1)
+
+        expect(after.length).toBeGreaterThan(2)
+        for (const step of after) {
+          expect(step['if'], String(step['name'] ?? step['uses'])).toBe(
+            "steps.image.outputs.ref != ''",
+          )
+        }
+      })
+
+      it('has the repository checked out for the scan, so that a .grype.yaml there is read', () => {
+        const checkout = stepsOf(scanJob).find((step) =>
+          String(step['uses']).startsWith('actions/checkout@'),
+        )
+
+        expect(mapAt(checkout, 'with')['persist-credentials']).toBe('false')
+      })
     })
 
     const finding = (id: string, severity: string, fixed: string[] | undefined): unknown => ({
@@ -987,6 +1332,7 @@ describe('release-please, which is configured and switched off', () => {
     expect(jobOf(workflow, 'release-please')['permissions']).toEqual({
       contents: 'write',
       'pull-requests': 'write',
+      issues: 'write',
       actions: 'write',
     })
   })
@@ -1034,14 +1380,27 @@ describe('release-please, which is configured and switched off', () => {
 })
 
 describe('SECURITY.md and the corrective release', () => {
-  const security = read('docs', 'SECURITY.md').replace(/\s+/g, ' ')
+  const whole = read('docs', 'SECURITY.md').replace(/\s+/g, ' ')
+  const heading = "### A critical vulnerability in what decodes a guest's file"
+  // Only this section: "best effort" and "7 days" are phrases the rest of the 2,800-line file
+  // already uses for other things, and a search of the whole of it would pass without it.
+  const security = ((): string => {
+    const start = whole.indexOf(heading)
+    if (start === -1) throw new Error(`docs/SECURITY.md has no section "${heading}"`)
+    const next = whole.indexOf(' ## ', start)
+    return whole.slice(start, next === -1 ? undefined : next)
+  })()
 
   it('states a best-effort goal of seven days for the decoders and the runtime, and no commitment', () => {
-    expect(security).toContain('best effort')
-    expect(security).toMatch(/seven days|7 days/)
-    for (const component of ['ffmpeg', 'libvips', 'Node', 'openssl']) {
+    expect(security).toContain('within seven days** of the fix being available')
+    expect(security).toContain('**Best effort, with no commitment.**')
+    for (const component of ['ffmpeg', 'libvips', 'Node.js', 'openssl']) {
       expect(security, component).toContain(component)
     }
+    // The row of the table in section 13 that points at it says the same.
+    expect(whole).toContain(
+      '| Critical decoder CVE | best effort, aiming at a corrective release within seven days of a fix: no commitment (see below)',
+    )
     // The 72 h + 24 h commitment of the paid plan, which a maintainer with a day job and no
     // on-call cannot keep, and which this one does not make.
     expect(security).not.toMatch(/72\s*(h|hours)/i)

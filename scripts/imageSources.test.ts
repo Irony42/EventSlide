@@ -85,7 +85,8 @@ describe('the files the page says every release attaches', () => {
   it('are the ones the release workflow attaches, under the same names', () => {
     expect(page).toContain('`image-sources-X.Y.Z.txt`')
     expect(page).toContain('`eventslide-X.Y.Z.spdx.json`')
-    expect(script).toContain('"eventslide-$VERSION.spdx.json" "image-sources-$VERSION.txt"')
+    expect(script).toContain('assets=("eventslide-$VERSION.spdx.json" IMAGE-SOURCES.md)')
+    expect(script).toContain('marker="image-sources-$VERSION.txt"')
     expect(script).toContain('cp docs/IMAGE-SOURCES.md IMAGE-SOURCES.md')
     expect(prose).toContain('The page is attached to every GitHub release')
   })

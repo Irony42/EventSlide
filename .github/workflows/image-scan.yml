@@ -72,7 +72,14 @@ jobs:
           VERSION: ${{ steps.latest.outputs.version }}
         run: |
           set -euo pipefail
-          digest="$(docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION" --format '{{json .Manifest}}' | node -p "JSON.parse(require('node:fs').readFileSync(0, 'utf8')).digest")"
+          # A release can exist with no image: v2.1.0 and every release before 3.0.0 were made
+          # without one. That is not a failure of this scan, so it says so and scans nothing.
+          if ! manifest="$(docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION" --format '{{json .Manifest}}' 2> /dev/null)"; then
+            echo "::warning::$REGISTRY_IMAGE:$VERSION cannot be read: the release has no published image, or the registry did not answer. Nothing was scanned."
+            echo "ref=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          digest="$(node -p "JSON.parse(process.argv[1]).digest" "$manifest")"
           case "$digest" in
             sha256:*) ;;
             *) echo "::error::Could not read the digest of $REGISTRY_IMAGE:$VERSION (got '$digest')."; exit 1 ;;
@@ -80,9 +87,16 @@ jobs:
           echo "ref=$REGISTRY_IMAGE@$digest" >> "$GITHUB_OUTPUT"
           docker pull "$REGISTRY_IMAGE@$digest"
 
+      # The repository, for the one file the scan reads from it: a `.grype.yaml` that says, with
+      # its reason, which findings have been judged and do not matter.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.image.outputs.ref != ''
+        with:
+          persist-credentials: false
+
       - name: Scan it
         id: scan
-        if: steps.latest.outputs.found == 'true'
+        if: steps.image.outputs.ref != ''
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
           image: ${{ steps.image.outputs.ref }}
@@ -92,7 +106,7 @@ jobs:
           output-format: json
 
       - name: Open an issue for each new critical finding
-        if: steps.latest.outputs.found == 'true'
+        if: steps.image.outputs.ref != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPORT: ${{ steps.scan.outputs.json }}

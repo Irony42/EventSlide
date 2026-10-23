@@ -38,14 +38,21 @@ const fail = (line: Line | undefined, message: string): never => {
 
 const isItem = (text: string): boolean => /^-( |$)/.test(text)
 
-/** `text` without a trailing ` # comment`, unless the `#` is inside quotes. */
+/**
+ * `text` without a trailing ` # comment`, unless the `#` is inside quotes. A quote opens a
+ * quoted scalar only where one can start (the beginning, or after a space, `[` or `,`): the
+ * apostrophe of `it's` is part of a plain scalar and hides nothing.
+ */
 const withoutComment = (text: string): string => {
   let quote = ''
   for (let i = 0; i < text.length; i++) {
     const char = text.charAt(i)
     if (quote !== '') {
-      if (char === quote) quote = ''
-    } else if (char === "'" || char === '"') {
+      // `''` inside single quotes and `\"` inside double quotes are the quote itself.
+      if (char === '\\' && quote === '"') i++
+      else if (char === quote && quote === "'" && text.charAt(i + 1) === "'") i++
+      else if (char === quote) quote = ''
+    } else if ((char === "'" || char === '"') && (i === 0 || /[\s[,]/.test(text.charAt(i - 1)))) {
       quote = char
     } else if (char === '#' && (i === 0 || text.charAt(i - 1) === ' ')) {
       return text.slice(0, i).trimEnd()
@@ -59,6 +66,9 @@ const unquote = (text: string, line: Line): string => {
   if (first !== "'" && first !== '"') return text
   if (text.length < 2 || !text.endsWith(first)) return fail(line, `unterminated quote: ${text}`)
   const inside = text.slice(1, -1)
+  if (first === '"' && /\\(?!")/.test(inside)) {
+    return fail(line, `only \\" is supported as an escape in a double-quoted value: ${text}`)
+  }
   return first === "'" ? inside.replaceAll("''", "'") : inside.replaceAll('\\"', '"')
 }
 
@@ -75,7 +85,14 @@ const scalar = (text: string, line: Line): YamlValue => {
   if (text.startsWith('{')) {
     return text === '{}' ? {} : fail(line, 'only an empty {} is supported as a flow mapping')
   }
-  return unquote(text, line)
+  if (text.startsWith("'") || text.startsWith('"')) return unquote(text, line)
+  // What a plain value may not be is what GitHub refuses, and a reader that took it would pass
+  // a workflow that never starts.
+  if (/^[@`%]/.test(text))
+    return fail(line, `a plain value cannot start with ${text.charAt(0)}: ${text}`)
+  if (/: |:$/.test(text))
+    return fail(line, `a plain value cannot contain a colon and a space: quote it: ${text}`)
+  return text
 }
 
 /** Where `key: value` splits: the first `:` outside quotes that ends the text or precedes a space. */
@@ -149,6 +166,7 @@ export const parseWorkflow = (source: string): YamlMap => {
       const rest = line.text.slice(1)
       const inner = rest.trimStart()
       const body = withoutComment(inner)
+      if (isItem(body)) return fail(line, 'a sequence inside a sequence item is not supported')
       if (body === '') {
         cursor++
         const next = lines[cursor]

@@ -12,13 +12,14 @@ differ, the licence wins.
 
 One image, three kinds of content, and each has its own source.
 
-| Part                                                   | Licence                                                 | Where it comes from                                                                                            | Where its source is                                                                                            |
-| ------------------------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| EventSlide (`/app/dist`)                               | AGPL-3.0-only                                           | this repository, built by the `Dockerfile`                                                                     | the tag of the release: `https://github.com/Irony42/EventSlide/tree/vX.Y.Z`, which `GET /api/about` also gives |
-| npm packages (`/app/node_modules`, and the web bundle) | MIT, ISC, Apache-2.0, BSD and the like                  | `package-lock.json`                                                                                            | each package's own repository; the licence texts are in `dist/client/third-party-licenses.txt`                 |
-| Node.js, and the Debian system under it                | MIT and the many licences of a distribution             | the base image `node:24-bookworm-slim`, **pinned by digest** in the `Dockerfile`                               | Debian's source packages (below)                                                                               |
-| `ffmpeg`, `ffprobe` and the libraries they load        | GPL-2.0-or-later (Debian's build enables `libx264`)     | `apt-get install ffmpeg` in the runtime stage of the `Dockerfile`                                              | Debian's source packages `ffmpeg` and `x264`, among others (below)                                             |
-| libvips, inside `sharp`                                | LGPL-3.0-or-later (the `@img/sharp-libvips-*` packages) | **not Debian**: the prebuilt library that `sharp` loads from the npm package `@img/sharp-libvips-linux-<arch>` | libvips, and the build scripts of that package (below)                                                         |
+| Part                                                   | Licence                                                 | Where it comes from                                                                                                                                        | Where its source is                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| EventSlide (`/app/dist`)                               | AGPL-3.0-only                                           | this repository, built by the `Dockerfile`                                                                                                                 | the tag of the release: `https://github.com/Irony42/EventSlide/tree/vX.Y.Z`, which `GET /api/about` also gives |
+| npm packages (`/app/node_modules`, and the web bundle) | MIT, ISC, Apache-2.0, BSD and the like                  | `package-lock.json`                                                                                                                                        | each package's own repository; the licence texts are in `dist/client/third-party-licenses.txt`                 |
+| Node.js                                                | MIT, and the licences of what it bundles                | the base image `node:24-bookworm-slim`, **pinned by digest** in the `Dockerfile`: the official Node.js build, under `/usr/local`, **not** a Debian package | `https://github.com/nodejs/node`, at the version in the list below                                             |
+| The Debian system under it                             | the many licences of a distribution                     | the same base image                                                                                                                                        | Debian's source packages (below)                                                                               |
+| `ffmpeg`, `ffprobe` and the libraries they load        | GPL-2.0-or-later (Debian's build enables `libx264`)     | `apt-get install ffmpeg` in the runtime stage of the `Dockerfile`                                                                                          | Debian's source packages `ffmpeg` and `x264`, among others (below)                                             |
+| libvips, inside `sharp`                                | LGPL-3.0-or-later (the `@img/sharp-libvips-*` packages) | **not Debian**: the prebuilt library that `sharp` loads from the npm package `@img/sharp-libvips-linux-<arch>`                                             | libvips, and the build scripts of that package (below)                                                         |
 
 EventSlide runs `ffmpeg` as a separate process, and never links to it. `sharp` loads libvips
 as a shared library, which is the reason its source is offered and not only named. [NOTICE](../NOTICE)
@@ -39,7 +40,9 @@ generated from the image itself.
 
 ## Getting the source of what the image carries
 
-Each GitHub release attaches two files that describe the image **as it was pushed**:
+Each GitHub release attaches two files, written from the pushed digest (its `linux/amd64` image: the
+`linux/arm64` one is built from the same `Dockerfile` on the same pinned base, and has the same
+versions of the same packages):
 
 - `image-sources-X.Y.Z.txt`: the base image the `Dockerfile` pins, the Debian and Node.js
   versions, the versions `sharp` reports for libvips and its libraries, and one line for each
@@ -89,13 +92,12 @@ repository's release workflow, running on a tag or on `main`, produced the diges
 written to a public transparency log. Check the digest you run, not a tag, which can be moved:
 
 ```bash
-docker pull ghcr.io/irony42/eventslide:X.Y.Z
-docker inspect --format '{{ index .RepoDigests 0 }}' ghcr.io/irony42/eventslide:X.Y.Z
+docker buildx imagetools inspect ghcr.io/irony42/eventslide:X.Y.Z   # the line "Digest: sha256:…"
 
 cosign verify \
   --certificate-identity-regexp '^https://github\.com/Irony42/EventSlide/\.github/workflows/release\.yml@refs/(tags/v.+|heads/main)$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/irony42/eventslide@sha256:<the digest above>
+  ghcr.io/irony42/eventslide@sha256:<the hexadecimal digits of the Digest above>
 ```
 
 `cosign verify-attestation --type spdxjson` with the same two options checks the attached SBOM
@@ -105,8 +107,9 @@ the same way. An image that was built on your own machine, with
 ## Where the image comes from
 
 - It is built by [`.github/workflows/release.yml`](../.github/workflows/release.yml), when a
-  tag `vX.Y.Z` is pushed, for `linux/amd64` and `linux/arm64`. Nothing else publishes it, and a
-  push to `main` does not.
+  tag `vX.Y.Z` is pushed or when the maintainer starts the workflow by hand for an existing tag, for
+  `linux/amd64` and `linux/arm64`. Nothing else publishes it, and a push to `main` does not. The
+  image says where this page is, in its `org.opencontainers.image.documentation` label.
 - Before anything is pushed the image is built on its own and put through
   [`scripts/verify-image.sh`](../scripts/verify-image.sh), the script that checks what it
   promises (the unprivileged user, the licence and the source offer, the backup and restore

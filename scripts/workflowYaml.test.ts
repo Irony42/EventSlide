@@ -46,6 +46,13 @@ describe('parseWorkflow, on the shapes the workflows are written in', () => {
     })
   })
 
+  it('reads an apostrophe inside a plain value as text, and still cuts the comment after it', () => {
+    expect(parseWorkflow("name: Syft's own format # why\nrun: echo it's fine\n")).toEqual({
+      name: "Syft's own format",
+      run: "echo it's fine",
+    })
+  })
+
   it('reads a flow sequence on one line, and an empty one, and an empty mapping', () => {
     expect(parseWorkflow("a: ['v*', b]\nb: []\nc: {}\n")).toEqual({ a: ['v*', 'b'], b: [], c: {} })
   })
@@ -157,6 +164,17 @@ describe('parseWorkflow, on what it refuses rather than guesses', () => {
     ['a flow mapping with content', 'a: {b: 1}', 'empty {}'],
     ['an unterminated quote', "a: 'x", 'unterminated'],
     ['a lone quote', "a: '", 'unterminated'],
+    [
+      'a plain value with a colon and a space',
+      'name: Push the image: sign it',
+      'colon and a space',
+    ],
+    ['a plain value that ends in a colon', 'name: Push:', 'colon and a space'],
+    ['a plain value that starts with @', 'a: @here', 'cannot start with @'],
+    ['a plain value that starts with a backtick', 'a: `x`', 'cannot start with `'],
+    ['a plain value that starts with %', 'a: %x', 'cannot start with %'],
+    ['a sequence inside a sequence item', 'a:\n  - - x', 'sequence inside a sequence'],
+    ['an escape other than a quote', String.raw`a: "x\ny"`, 'is supported as an escape'],
     ['a second document', 'a: 1\n---\nb: 2', 'several documents'],
     ['a line with no colon', 'a: 1\nnot a mapping', 'expected "key: value"'],
     ['a duplicate key', 'a: 1\nb: 2\na: 3', 'duplicate key "a"'],

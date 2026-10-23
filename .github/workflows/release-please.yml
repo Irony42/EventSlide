@@ -41,6 +41,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      # The labels release-please puts on its pull request are issue labels.
+      issues: write
       # To start release.yml by hand-off: see the last step.
       actions: write
     steps:

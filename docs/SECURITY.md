@@ -2055,7 +2055,7 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 | Fix or mitigation plan | targeted within 30 days of confirmation, published as an advisory with the affected versions                                 |
 | Please do not          | test against a live event you do not own, exfiltrate other people's photos to prove a point, or load-test someone's instance |
 | Scope                  | this repository. Reports about the operator's reverse proxy, OS, or network belong to that operator                          |
-| Supported versions     | `2.0.x` only. `1.x` is unpatched (see Status, above) — upgrade rather than report                                            |
+| Supported versions     | the latest release only: there is no maintenance branch (docs/UPGRADING.md). `1.x` is unpatched (see Status)                 |
 | Critical decoder CVE   | best effort, aiming at a corrective release within seven days of a fix: no commitment (see below)                            |
 
 ### A critical vulnerability in what decodes a guest's file
