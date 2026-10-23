@@ -127,16 +127,32 @@ export class FakeEventRepository implements EventRepository {
     return this.links.clients
   }
 
+  /**
+   * The event as a lookup returns it: with its client's suspension read from the linked clients
+   * fake **now**, as the SQLite lookups read it from the client's row, so a test that suspends a
+   * client sees the next request answer as a suspended one. An event with no client, or a fake
+   * with no clients linked, is returned as it was stored.
+   */
+  private withClientStanding(event: Event | undefined): Event | null {
+    if (event === undefined) return null
+    const clientId = event.clientId
+    if (clientId === null || this.links.clients === undefined) return event
+    const suspendedAt = this.links.clients.peek(clientId)?.suspendedAt ?? null
+    return Event.restore({ ...event.toProps(), clientSuspendedAt: suspendedAt })
+  }
+
   async findById(id: EventId): Promise<Event | null> {
-    return this.rows.get(id) ?? null
+    return this.withClientStanding(this.rows.get(id))
   }
 
   async findBySlug(slug: Slug): Promise<Event | null> {
-    return [...this.rows.values()].find((event) => event.slug.equals(slug)) ?? null
+    return this.withClientStanding([...this.rows.values()].find((event) => event.slug.equals(slug)))
   }
 
   async findByJoinCode(code: JoinCode): Promise<Event | null> {
-    return [...this.rows.values()].find((event) => event.joinCode.equals(code)) ?? null
+    return this.withClientStanding(
+      [...this.rows.values()].find((event) => event.joinCode.equals(code)),
+    )
   }
 
   /**

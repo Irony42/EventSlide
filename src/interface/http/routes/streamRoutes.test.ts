@@ -17,8 +17,8 @@ import {
   type TestWorld,
 } from '../testing/middlewareHarness'
 import { SseSink, asResponse } from '../testing/sseSink'
-import { AT, anEvent } from '../../../application/testing/builders'
-import { asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
+import { AT, aClient, anEvent } from '../../../application/testing/builders'
+import { asClientId, asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import { DomainError } from '../../../domain/shared/errors'
 import { err } from '../../../domain/shared/result'
 import type { DomainEvent, EventBus } from '../../../application/ports/eventBus'
@@ -510,6 +510,8 @@ describe('openStream', () => {
   beforeEach(() => {
     resetSignalLogs()
     world = buildTestWorld()
+    // The beat asks whether the event is still served (G2-14), so there has to be one.
+    world.events.seed(anEvent({ id: WEDDING }))
     // Nothing in this block awaits a real timer, so the heartbeat can simply be driven.
     vi.useFakeTimers()
   })
@@ -540,27 +542,97 @@ describe('openStream', () => {
     expect(sink.headersFlushed).toBe(true)
   })
 
-  it('emits a comment frame on the heartbeat interval, so a proxy sees traffic', () => {
+  it('emits a comment frame on the heartbeat interval, so a proxy sees traffic', async () => {
     // Proxies and mobile networks close an idle connection after 30–60 seconds. 1.0
     // sent nothing between events, so a quiet spell ended the stream and the wall
     // stopped updating for the rest of the night with nothing on screen to say so.
     const sink = open()
 
-    vi.advanceTimersByTime(15_000)
+    await vi.advanceTimersByTimeAsync(15_000)
 
     expect(sink.text).toContain(': keep-alive')
   })
 
-  it('names the heartbeat too, so a client can tell quiet from dead', () => {
+  it('names the heartbeat too, so a client can tell quiet from dead', async () => {
     // A comment reaches no client handler, which is what makes it safe for a proxy and
     // useless as a sign of life. The named half is what the client's watchdog listens
     // for; it carries no `id:`, so it never moves a reconnecting client's cursor.
     const sink = open()
 
-    vi.advanceTimersByTime(15_000)
+    await vi.advanceTimersByTimeAsync(15_000)
 
     expect(sink.text).toContain('event: ping')
     expect(sink.text).not.toContain('id:')
+  })
+
+  describe('is authorised again at every beat (G2-14, plan item A-22)', () => {
+    const CLIENT = 'client-frozen'
+
+    /** An event of a client the test can suspend and resume, open on a stream. */
+    const openForAClient = async (): Promise<SseSink> => {
+      // An event is never moved to another client by saving it, so the one the block seeded
+      // without a client is removed before the one that has one is written.
+      await world.events.delete(asEventId(WEDDING))
+      world.clients.seed(aClient({ id: CLIENT }))
+      world.events.seed(anEvent({ id: WEDDING, clientId: CLIENT }))
+      return open()
+    }
+
+    it('closes at the first beat after its client is suspended, telling the client to wait a long time', async () => {
+      const sink = await openForAClient()
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(sink.text).toContain(': keep-alive')
+      expect(sink.writableEnded).toBe(false)
+
+      const frozen = (await world.clients.findById(asClientId(CLIENT)))?.suspend(AT)
+      if (frozen === undefined) throw new Error('fixture rejected')
+      await world.clients.save(frozen)
+      const before = sink.frames.length
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(sink.writableEnded).toBe(true)
+      expect(sink.frames.slice(before).join('')).toBe('retry: 60000\n\n')
+      expect(world.bus.subscriberCount(asEventId(WEDDING))).toBe(0)
+    })
+
+    it('holds the connection open for a client that is not suspended, however many beats pass', async () => {
+      const sink = await openForAClient()
+
+      await vi.advanceTimersByTimeAsync(15_000 * 4)
+
+      expect(sink.writableEnded).toBe(false)
+      expect(sink.text.match(/: keep-alive/g)).toHaveLength(4)
+    })
+
+    it('closes at the first beat after the event is gone, as a purge would leave it', async () => {
+      const sink = open()
+      await world.events.delete(asEventId(WEDDING))
+
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(sink.writableEnded).toBe(true)
+      expect(sink.text).not.toContain(': keep-alive')
+    })
+
+    it('keeps the stream as it was when the check itself fails, so a database blip does not blank every projector', async () => {
+      const sink = new SseSink()
+      const failing = Object.assign(Object.create(world.events) as typeof world.events, {
+        findById: async () => {
+          throw new Error('database is locked')
+        },
+      })
+      openStreamFor({
+        deps: { ...world.deps, events: failing },
+        logger: world.deps.logger,
+        eventId: asEventId(WEDDING),
+        lastEventId: undefined,
+        res: asResponse(sink),
+      })
+
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(sink.writableEnded).toBe(false)
+    })
   })
 
   it('writes nothing at all when the bus has no room for the connection', () => {

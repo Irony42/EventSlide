@@ -154,6 +154,8 @@ const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): Ht
     provisionClientOwner: notWired,
     renameClient: notWired,
     setClientCeilings: notWired,
+    suspendClient: notWired,
+    resumeClient: notWired,
     inviteToClientAsOperator: notWired,
     issuePasswordResetForAccount: notWired,
     getClientLimits: notWired,

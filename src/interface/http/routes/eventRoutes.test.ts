@@ -255,6 +255,8 @@ const buildWorld = ({
         provisionClientOwner: absent('provisionClientOwner'),
         renameClient: absent('renameClient'),
         setClientCeilings: absent('setClientCeilings'),
+        suspendClient: absent('suspendClient'),
+        resumeClient: absent('resumeClient'),
         inviteToClientAsOperator: absent('inviteToClientAsOperator'),
         issuePasswordResetForAccount: absent('issuePasswordResetForAccount'),
         getClientLimits: absent('getClientLimits'),

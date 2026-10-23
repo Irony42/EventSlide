@@ -18,7 +18,9 @@ import { makeListPendingInvitations } from '../../../application/usecases/client
 import { makeInviteToClientAsOperator } from '../../../application/usecases/clients/inviteToClientAsOperator'
 import { makeProvisionClientOwner } from '../../../application/usecases/clients/provisionClientOwner'
 import { makeRenameClient } from '../../../application/usecases/clients/renameClient'
+import { makeResumeClient } from '../../../application/usecases/clients/resumeClient'
 import { makeSetClientCeilings } from '../../../application/usecases/clients/setClientCeilings'
+import { makeSuspendClient } from '../../../application/usecases/clients/suspendClient'
 import { makeListSiteAccounts } from '../../../application/usecases/site/listSiteAccounts'
 import { makeListSiteAudit } from '../../../application/usecases/site/listSiteAudit'
 import { makeListSiteClientEvents } from '../../../application/usecases/site/listSiteClientEvents'
@@ -226,6 +228,8 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       }),
       renameClient: makeRenameClient({ clients, audit, clock }),
       setClientCeilings: makeSetClientCeilings({ clients, audit, clock }),
+      suspendClient: makeSuspendClient({ clients, audit, clock }),
+      resumeClient: makeResumeClient({ clients, audit, clock }),
       inviteToClientAsOperator: makeInviteToClientAsOperator({
         users,
         clients,

@@ -228,13 +228,40 @@ export const openStream = ({
   // immediately that bytes flow.
   res.write(`: connected\n\n`)
 
-  const heartbeat = setInterval(() => {
+  // **An open stream is authorised again at every beat** (G2-14; the plan's A-22). Nothing about
+  // a connection that was opened at 19:00 says it may still be open at 23:00: the client may have
+  // been suspended, or the event purged. So the beat asks first, and a stream that is no longer
+  // served is told to wait and ended, which is "at most one beat" (fifteen seconds) after the
+  // operator pressed the button. A read that fails is logged and leaves the stream as it was:
+  // a database blip must not blank every projector on the box.
+  const stillServed = async (): Promise<boolean> => {
+    const current = await deps.events.findById(eventId)
+    return current !== null && !current.isClientSuspended()
+  }
+
+  const beat = async (): Promise<void> => {
     if (closed || res.writableEnded) return
+    const served = await stillServed()
+    if (closed || res.writableEnded) return
+    if (!served) {
+      res.write(`retry: ${UNSERVED_RETRY_MS}\n\n`)
+      res.end()
+      return
+    }
     // One block, two jobs. The comment line is invisible to every client handler and is
     // what keeps a proxy from closing an idle connection; the named frame carries no
     // `id:`, so it moves no cursor, and is the only thing that lets a client tell a
     // quiet evening from a pipe that has stopped delivering.
     res.write(`: keep-alive\nevent: ${HEARTBEAT_EVENT}\ndata: {}\n\n`)
+  }
+
+  const heartbeat = setInterval(() => {
+    beat().catch((error: unknown) => {
+      logger.warn('a stream could not be re-checked at its heartbeat', {
+        eventId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
   }, HEARTBEAT_MS)
 
   // Must not hold the process open during a graceful shutdown.
@@ -260,6 +287,13 @@ export const openStream = ({
 
   return ok(cleanup)
 }
+
+/**
+ * What a stream that is no longer served tells its client to wait: long, because what it will find
+ * on reconnecting is the same 404 an unknown event answers, and a projector retrying every two
+ * seconds against it would be a small flood from every wall of a frozen client.
+ */
+const UNSERVED_RETRY_MS = 60_000
 
 /** What a drained connection tells the client to wait before its next reconnect. */
 const DRAIN_RETRY_MS = 2000

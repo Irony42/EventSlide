@@ -72,6 +72,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   provisionClientOwner: notWired('provisionClientOwner'),
   renameClient: notWired('renameClient'),
   setClientCeilings: notWired('setClientCeilings'),
+  suspendClient: notWired('suspendClient'),
+  resumeClient: notWired('resumeClient'),
   inviteToClientAsOperator: notWired('inviteToClientAsOperator'),
   issuePasswordResetForAccount: notWired('issuePasswordResetForAccount'),
 

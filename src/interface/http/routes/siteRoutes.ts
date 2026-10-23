@@ -84,7 +84,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  */
 
 /**
- * What the operator's router is handed: the gates' own dependencies, and **the nine use cases it
+ * What the operator's router is handed: the gates' own dependencies, and **the eleven use cases it
  * calls and no others**. It is not given the whole bag, so a handler that reached for
  * `getEventBySlug`, a moderation queue or a photograph would not compile; `deps` is there for
  * `requireOperator` and its siblings, and no handler here reads `deps.events`.
@@ -99,6 +99,8 @@ export interface SiteRouteDeps extends Pick<RouteDeps, 'deps'> {
     | 'provisionClientOwner'
     | 'renameClient'
     | 'setClientCeilings'
+    | 'suspendClient'
+    | 'resumeClient'
     | 'inviteToClientAsOperator'
     | 'issuePasswordResetForAccount'
   >
@@ -306,6 +308,47 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
       sendResult(res, result, (response, client) =>
         sendJson(response, toClientCeilingsChangedDto(client)),
       )
+    }),
+  )
+
+  /**
+   * Freezes a client (roadmap §10.7). Its public surfaces answer as an unknown event does, its
+   * members may read and may not write, and an open live feed closes at its next heartbeat. No
+   * account is disabled and no medium is touched, so `resume` restores exactly what was there.
+   * Idempotent: `204` also for a client that is already suspended, and one line only.
+   */
+  router.post(
+    '/clients/:clientId/suspend',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const operator = operatorOf(req, res)
+      if (operator === null) return
+      const params = clientIdParams.parse(req.params)
+
+      const result = await usecases.suspendClient({
+        clientId: asClientId(params.clientId),
+        actor: { kind: 'operator', userId: operator },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /** Lifts a suspension. Idempotent, like `suspend`. */
+  router.post(
+    '/clients/:clientId/resume',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const operator = operatorOf(req, res)
+      if (operator === null) return
+      const params = clientIdParams.parse(req.params)
+
+      const result = await usecases.resumeClient({
+        clientId: asClientId(params.clientId),
+        actor: { kind: 'operator', userId: operator },
+      })
+
+      sendResultNoContent(res, result)
     }),
   )
 

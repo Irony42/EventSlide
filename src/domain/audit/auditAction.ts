@@ -76,6 +76,14 @@ export const AUDIT_ACTIONS = {
     details: { before: CEILINGS_SNAPSHOT, after: CEILINGS_SNAPSHOT, reason: detail.reason },
   },
   /**
+   * An operator froze a client (`suspendClient`, G2-14): its public surfaces answer as an unknown
+   * event does and its members may read and not write. Written once: suspending a client that is
+   * already suspended is not an act and leaves no second line.
+   */
+  'client.suspended': { subject: 'client', details: {} },
+  /** An operator lifted a suspension (`resumeClient`, G2-14). */
+  'client.resumed': { subject: 'client', details: {} },
+  /**
    * An operator renamed a client (`renameClient`, G2-14). The entry says that it happened and
    * to which client, **not what the name was or became**: a name is the client's own text, and
    * the log has no word for one.

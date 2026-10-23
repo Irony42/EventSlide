@@ -407,6 +407,69 @@ export const eventRepositoryContract = (
       expect((await repo.findById(asEventId('evt-1')))?.clientId).toBeNull()
     })
 
+    describe('the standing of its client (roadmap §10.7, G2-14)', () => {
+      const stored = async () => {
+        const event = await repo.findById(asEventId('evt-1'))
+        if (event === null) throw new Error('fixture rejected')
+        return event
+      }
+
+      it('reads as not suspended while the client is active, and an event with no client is never suspended', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+        await repo.save(nthEvent(1, CLIENT))
+        await repo.save(nthEvent(2))
+
+        expect((await stored()).isClientSuspended()).toBe(false)
+        expect((await repo.findById(asEventId('evt-2')))?.isClientSuspended()).toBe(false)
+      })
+
+      it('reports a suspended client on every lookup a public surface uses: by id, by slug and by join code', async () => {
+        const client = aClient({ id: CLIENT })
+        await clients.save(client)
+        await repo.save(nthEvent(1, CLIENT))
+        const event = await stored()
+
+        await clients.save(client.suspend(atPlus(10)))
+
+        const lookups = [
+          await repo.findById(event.id),
+          await repo.findBySlug(event.slug),
+          await repo.findByJoinCode(event.joinCode),
+        ]
+        expect(lookups.map((found) => found?.clientSuspendedAt)).toEqual([
+          atPlus(10),
+          atPlus(10),
+          atPlus(10),
+        ])
+      })
+
+      it('lifts the moment the client is resumed, with nothing cached in between', async () => {
+        const client = aClient({ id: CLIENT })
+        await clients.save(client)
+        await repo.save(nthEvent(1, CLIENT))
+        await clients.save(client.suspend(atPlus(10)))
+        expect((await stored()).isClientSuspended()).toBe(true)
+
+        await clients.save(client.suspend(atPlus(10)).reinstate())
+
+        expect((await stored()).isClientSuspended()).toBe(false)
+      })
+
+      it('is never saved: writing back an event read while its client was suspended suspends nothing', async () => {
+        const client = aClient({ id: CLIENT })
+        await clients.save(client)
+        await repo.save(nthEvent(1, CLIENT))
+        await clients.save(client.suspend(atPlus(10)))
+        const whileSuspended = await stored()
+        await clients.save(client.suspend(atPlus(10)).reinstate())
+
+        await repo.save(whileSuspended)
+
+        expect((await stored()).isClientSuspended()).toBe(false)
+        expect((await clients.findById(CLIENT))?.suspendedAt).toBeNull()
+      })
+    })
+
     it('refuses to save an event that names a client that does not exist', async () => {
       await expect(repo.save(nthEvent(1, 'client-that-never-was'))).rejects.toThrow()
 
