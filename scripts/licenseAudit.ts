@@ -335,24 +335,33 @@ export const declaredLicense = (manifest: {
   return types.length === 1 ? types[0] : `(${types.join(' OR ')})`
 }
 
-const manifestSchema = z
-  .object({ version: z.string().optional(), license: z.unknown(), licenses: z.unknown() })
-  .passthrough()
+/**
+ * **`.optional()` on a `z.unknown()` is not decoration.** Since zod 4.4 a key declared
+ * `z.unknown()` (or `z.any()`) must be present, and a lockfile entry says nothing about its
+ * licence for roughly a fifth of its packages: without it every real lockfile is refused
+ * with "expected nonoptional" at each of them, and the audit stops auditing.
+ *
+ * Both objects are loose, as they were: a manifest and a lockfile entry carry dozens of keys
+ * this audit does not read, and refusing them would refuse every real file.
+ */
+const manifestSchema = z.looseObject({
+  version: z.string().optional(),
+  license: z.unknown().optional(),
+  licenses: z.unknown().optional(),
+})
 
 const lockfileSchema = z.object({
   packages: z.record(
     z.string(),
-    z
-      .object({
-        name: z.string().optional(),
-        version: z.string().optional(),
-        license: z.unknown(),
-        licenses: z.unknown(),
-        dev: z.boolean().optional(),
-        optional: z.boolean().optional(),
-        link: z.boolean().optional(),
-      })
-      .passthrough(),
+    z.looseObject({
+      name: z.string().optional(),
+      version: z.string().optional(),
+      license: z.unknown().optional(),
+      licenses: z.unknown().optional(),
+      dev: z.boolean().optional(),
+      optional: z.boolean().optional(),
+      link: z.boolean().optional(),
+    }),
   ),
 })
 

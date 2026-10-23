@@ -2126,6 +2126,90 @@ describe('loadConfig', () => {
    * warnings so an operator reading the boot log learns about them without anything
    * breaking.
    */
+  /**
+   * What the boot refusal keeps doing under zod 4.
+   *
+   * Each of these was true under zod 3 by accident of how that library treated a refused value,
+   * and none of them is something zod 4 does unless it is asked: the first stops "every problem
+   * at once" from becoming "the first problem", the second keeps a typed word out of a printed
+   * message, the third is the scheme check judging what the operator wrote and not a trimmed copy.
+   */
+  describe('what the boot refusal keeps doing under zod 4', () => {
+    it.each([
+      ['SOURCE_CODE_URL', 'http://example.org/source'],
+      ['DONATION_URL', 'javascript:alert(1)'],
+      ['BUDGET_URL', 'data:text/html,x'],
+      ['LEGAL_TERMS_URL', '//evil.example/x'],
+      ['SUPPORT_URL', 'http://example.org/help'],
+      ['SMTP_URL', 'ftp://mail.example.com'],
+      ['MAIL_FROM', 'a@example.org, b@example.com'],
+      ['MFA_ENCRYPTION_KEY', 'too-short'],
+    ])('lists a refused %s and a cross-field problem beside it, in one boot', (name, value) => {
+      // EVENT_CREATION=clientMembers with SITE_ADMIN off is a problem only the object-level
+      // refinement can see. A refusal raised from inside a transform stops that refinement
+      // in zod 4 unless it says otherwise, so the operator would be told about one problem
+      // per restart in a venue an hour before the guests arrive.
+      const issues = refusalIssues({ ...DEV, [name]: value, EVENT_CREATION: 'clientMembers' })
+
+      expect(
+        issues.some((issue) => issue.startsWith(`${name}: `)),
+        `${name} was not named`,
+      ).toBe(true)
+      expect(
+        issues.some((issue) => issue.startsWith('EVENT_CREATION: ')),
+        'the cross-field refinement did not run',
+      ).toBe(true)
+    })
+
+    it.each([
+      ['NODE_ENV', ['development', 'test', 'production']],
+      ['LOG_LEVEL', ['fatal', 'error', 'warn', 'info', 'debug', 'trace']],
+      ['SITE_ADMIN', ['off', 'on']],
+      ['EVENT_CREATION', ['anyAccount', 'clientMembers']],
+      ['EVENT_SLUG_SUFFIX', ['none', 'random']],
+      ['SQLITE_SHUTDOWN_CHECKPOINT', ['truncate', 'passive', 'none']],
+      ['ALLOW_CUSTOM_SLUGS', ['true', 'false', '1', '0']],
+      ['REQUIRE_OPERATOR_2FA', ['true', 'false', '1', '0']],
+      ['SESSION_COOKIE_SECURE', ['true', 'false', '1', '0']],
+      ['E2E_HOOKS', ['true', 'false', '1', '0']],
+    ] as const)(
+      'refuses an unknown %s by naming every accepted word, and never the word typed',
+      (name, accepted) => {
+        // A pasted secret lands in the wrong variable often enough to be worth a test, and the
+        // refusal is printed and kept by whatever collects a container's output.
+        const typed = 'hunter2-a-secret-pasted-into-the-wrong-line'
+        const issue =
+          refusalIssues({ ...DEV, [name]: typed }).find((candidate) =>
+            candidate.startsWith(`${name}: `),
+          ) ?? ''
+
+        expect(issue).not.toBe('')
+        for (const word of accepted) expect(issue).toContain(`'${word}'`)
+        expect(issue).not.toContain(typed)
+      },
+    )
+
+    it.each([' https://photos.example.com', '	https://photos.example.com'])(
+      'refuses a PUBLIC_URL written with leading whitespace (%j), not a trimmed copy of it',
+      (value) => {
+        // zod 4's own url check trims, then hands the trimmed text to the rules after it, so
+        // the https? check would be judging a string the operator never typed.
+        const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: value }))
+
+        expect(issues.some((issue) => issue.startsWith('PUBLIC_URL: '))).toBe(true)
+      },
+    )
+
+    it.each(['9007199254740993', '1e21'])(
+      'refuses the byte count %s, which no integer in a double can hold, rather than rounding it',
+      (value) => {
+        const issues = refusalIssues({ ...DEV, MAX_UPLOAD_BYTES: value })
+
+        expect(issues.some((issue) => issue.startsWith('MAX_UPLOAD_BYTES: '))).toBe(true)
+      },
+    )
+  })
+
   describe('config warnings', () => {
     it('warns when production has no configured PUBLIC_URL, which is silently unreachable', () => {
       const config = loadConfig({
