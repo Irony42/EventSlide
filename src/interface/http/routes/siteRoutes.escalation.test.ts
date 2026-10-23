@@ -96,6 +96,17 @@ const ACCOUNT_LEVEL: ReadonlySet<string> = new Set(['get /api/events', 'post /ap
  */
 const OPEN_FOR_EVERYBODY = 'get /api/events/:eventSlug/stream'
 
+/**
+ * The public routes of an event that reach a use case this harness does not wire, so that every
+ * caller, a stranger included, is answered a 500 by them. A route that is public is the same for
+ * everybody by definition; any **other** route a stranger can crash is a defect of its own, and
+ * the sweep names it instead of calling two crashes the same answer.
+ */
+const PUBLIC_AND_UNWIRED: ReadonlySet<string> = new Set([
+  'get /api/events/:eventSlug/wall',
+  'get /api/events/:eventSlug/photos/:photoId/:variant',
+])
+
 const isLeftOut = (route: Route): boolean =>
   `${route.method} ${route.path}` === OPEN_FOR_EVERYBODY ||
   ACCOUNT_LEVEL.has(`${route.method} ${route.path}`) ||
@@ -205,6 +216,9 @@ describe('the operator and the accounts it brought in, on the events of a client
     for (const route of eventRoutes(scene.site)) {
       const theirs = await answerTo(scene.stranger, route)
       const name = `${route.method} ${route.path}`
+      if (theirs.status >= 500 && !PUBLIC_AND_UNWIRED.has(name)) {
+        different.push(`a stranger crashed ${name}: ${theirs.status}`)
+      }
       for (const [who, caller] of [
         ['the operator', scene.operator],
         ['the account it invited', scene.accomplice],
