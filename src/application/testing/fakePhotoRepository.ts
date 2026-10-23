@@ -34,10 +34,11 @@ import type {
  * 2. **`(eventId, contentHash)` is unique**, as `idx_photos_event_hash` makes it. A
  *    save that would duplicate rejects, so the "double-tapped Envoyer" path is
  *    exercised against a repository that behaves like the real one.
- * 3. **One total order: `createdAt` descending, then id ascending.** That is
- *    `idx_photos_event_status_created`. Without the id tie-break two projectors
- *    reading the same event can disagree about what comes next, which is 1.0's
- *    per-browser slideshow index in a new costume.
+ * 3. **One total order: `createdAt` descending, then id descending** — `ORDER BY
+ *    created_at DESC, id DESC`, which `idx_photos_event_status_created` serves. Both keys
+ *    run the same way, and the keyset cursor is the same pair. Without the id tie-break
+ *    two projectors reading the same event can disagree about what comes next, which is
+ *    1.0's per-browser slideshow index in a new costume.
  */
 
 /** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
@@ -54,7 +55,7 @@ interface Cursor {
 
 /**
  * `<epoch millis>:<photo id>` — opaque to the caller, and enough to resume a
- * `(createdAt DESC, id ASC)` scan without an offset. Offset paging would skip or
+ * `(createdAt DESC, id DESC)` scan without an offset. Offset paging would skip or
  * repeat a photo as guests keep uploading during a scroll.
  */
 const encodeCursor = (photo: Photo): string => `${photo.createdAt.getTime()}:${photo.id}`
@@ -67,10 +68,16 @@ const decodeCursor = (raw: string): Cursor | null => {
   return { createdAt, id: raw.slice(separator + 1) }
 }
 
+/**
+ * Strictly after the cursor in `createdAt DESC, id DESC` order: older, or the same instant
+ * with a **smaller** id — the SQLite adapter's `created_at < ? OR (created_at = ? AND id < ?)`.
+ * A tied photo whose id is larger than the cursor's sorts *before* it and was already
+ * served, so comparing the other way round repeats the first page's rows and skips the last.
+ */
 const isAfterCursor = (photo: Photo, cursor: Cursor): boolean => {
   const createdAt = photo.createdAt.getTime()
   if (createdAt !== cursor.createdAt) return createdAt < cursor.createdAt
-  return compareIds(photo.id, cursor.id) > 0
+  return compareIds(photo.id, cursor.id) < 0
 }
 
 const requirePositive = (limit: number, method: string): void => {
