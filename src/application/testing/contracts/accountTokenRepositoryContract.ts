@@ -232,6 +232,45 @@ export const accountTokenRepositoryContract = (
       })
     })
 
+    // --------------------------------------------------------------- findById --
+
+    describe('findById', () => {
+      it('finds a token by its id with every field intact', async () => {
+        const token = anAccountToken({
+          id: 'tok-1',
+          purpose: 'invitation',
+          email: 'nouveau@example.test',
+          userId: null,
+          clientId: 'client-1',
+          clientRole: 'owner',
+          requiresApproval: true,
+          createdBy: 'user-1',
+        })
+        await repo.save(token)
+
+        expect(await repo.findById(token.id)).toEqual(token)
+      })
+
+      it('finds a token that can no longer be spent, which is what findUsable never does', async () => {
+        const spent = anAccountToken({ id: 'tok-spent' })
+        const revoked = anAccountToken({ id: 'tok-revoked' })
+        const waiting = anAccountToken({ id: 'tok-waiting', requiresApproval: true })
+        await repo.save(spent)
+        await repo.save(revoked)
+        await repo.save(waiting)
+        await repo.consume(spent.id, atPlus(1_000))
+        await repo.revokeOutstanding(HOST, 'passwordReset', atPlus(1_000))
+
+        expect((await repo.findById(spent.id))?.consumedAt).toEqual(atPlus(1_000))
+        expect((await repo.findById(revoked.id))?.revokedAt).toEqual(atPlus(1_000))
+        expect((await repo.findById(waiting.id))?.approvedAt).toBeNull()
+      })
+
+      it('finds nothing for an id it never stored', async () => {
+        expect(await repo.findById(asAccountTokenId('nobody'))).toBeNull()
+      })
+    })
+
     // ---------------------------------------------------------------- consume --
 
     describe('consume', () => {

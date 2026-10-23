@@ -129,6 +129,7 @@ describe('the privacy notice, linking the operator’s policy', () => {
   it.each([
     ['a javascript: URI', 'javascript:alert(1)'],
     ['plain http', 'http://hosted.example.org/legal'],
+    ['an uppercase HTTP scheme', 'HTTP://hosted.example.org/legal'],
     ['a protocol-relative address', '//evil.example/legal'],
   ])('never puts %s behind it, whatever the response says', async (_why, hostile) => {
     const api = serving({ privacy: hostile })

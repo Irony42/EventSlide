@@ -15,6 +15,8 @@ import type { RevokeOtherSessions } from '../../application/usecases/auth/revoke
 import type { StepUp } from '../../application/usecases/auth/stepUp'
 import type { VerifySecondFactor } from '../../application/usecases/auth/verifySecondFactor'
 
+import type { ApproveInvitation } from '../../application/usecases/clients/approveInvitation'
+
 import type { ChangeEventStatus } from '../../application/usecases/events/changeEventStatus'
 import type { CreateEvent } from '../../application/usecases/events/createEvent'
 import type { GetEventBySlug } from '../../application/usecases/events/getEventBySlug'
@@ -107,6 +109,9 @@ export interface HttpUseCases {
   readonly registerModerator: RegisterModerator
   readonly previewInvitation: PreviewInvitation
   readonly acceptInvitation: AcceptInvitation
+
+  // the client's own space (G2-12 / P3-14): the owner's half of R1
+  readonly approveInvitation: ApproveInvitation
 
   // events
   readonly createEvent: CreateEvent

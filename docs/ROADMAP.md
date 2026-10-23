@@ -313,7 +313,7 @@ the link anyway, so switching it off kills every URL it ever issued on the next 
 The ZIP re-checks before every entry and aborts rather than ending early but well formed,
 because a truncated archive that looks complete is how a family thinks it has the album.
 
-**The fakes said yes twice where the real adapters said no.** The first cut checked the
+**The fakes said yes three times where the real adapters said no.** The first cut checked the
 link while _listing_ the archive's entries and was green on the recording writer, which
 pulls one entry at a time; `archiver` queues every entry it is handed at once, so the
 check ran for the whole album before the first byte left — measured, a link revoked after
@@ -322,7 +322,14 @@ export's row stream, and better-sqlite3 refuses every write on the connection wh
 statement is iterating: 600 of 602 uploads on another event failed during one download.
 Both are now held by a test over the real `archiver`, filesystem and SQLite
 (`galleryArchive.test.ts`), the check runs when an entry's bytes are read, and the album
-is read in pages. The host's own export still streams rows, which is the follow-up.
+is read in pages — the host's own export too, since the writer below makes a row stream
+hold its statement for the whole download. The third was found on the `archiver` 8 bump:
+a client that closed the tab left one open file per queued photograph, because the writer
+handed `archiver` every entry at once and nothing closed them afterwards (292 of 300
+generators and 55 of 60 real files, measured). The writer now asks for an entry only when
+it is about to write it and closes what it was handed when the client goes, for the host's
+download and for the link holder's alike; `archiverWriter.test.ts`, `galleryArchive.test.ts`,
+`albumExport.test.ts` and `albumAbort.test.ts` (a real socket) count the sources.
 
 **Every dead link is one sentence.** Expired, revoked, mistyped, creator switched off,
 event purged: one `404`, byte for byte. The reader may be somebody the link was forwarded
@@ -659,7 +666,17 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 >
 > **Still to come:** the page that opens `/invite/:token` (G2-10 / P3-11) — until it lands, accepting
 > is an API call, and every link a box mails ends on the "not found" page, so **3.0.0 should not be
-> tagged before it** — and the operator's invitations to a client (G2-12 to G2-14).
+> tagged before it** — and the operator routes that write an invitation to a client (G2-14).
+>
+> **The operator guard is built** (G2-12 / P3-14, [ADR 0009](adr/0009-operator-cannot-grant-itself-access.md),
+> [SECURITY.md §20](SECURITY.md)): the rules that stop the operator from using these invitations, and
+> the password reset that goes with them, to become somebody's client. An operator's invitation into a
+> client that has an event or a member waits for one of its owners (`POST /api/client/invitations/:id/approve`,
+> mounted with `SITE_ADMIN=on`), and is judged again when it is spent; an operator's reset is mailed and
+> never shown, `OPERATOR_RESET_LINKS=mailOnly` by default, with an opt-in for a box with no relay that
+> needs another owner's approval. Each leaves a line in the audit log. **Not built**: the operator routes
+> that call them (G2-14), the owner's list of what waits (G2-16), the break-glass command, and
+> the ownership transfer (P9-02).
 
 The flow of 2.x — create the account, read the password aloud — is what this replaces: a
 single-use, expiring, signed link that lets a client set their own password and lands them

@@ -119,6 +119,23 @@ export const errorHandler = (): ErrorRequestHandler => (error, req, res, _next) 
     return
   }
 
+  // A path Express could not decode: the client's mistake, not ours. Logged as that, and
+  // with nothing from the error itself — see `isUndecodablePath` for why not its message.
+  if (isUndecodablePath(error)) {
+    logger?.debug('request rejected', { code: 'request.invalid', kind: 'invalid', status: 400 })
+    // An address whose last segment is a credential goes out with the headers the page it
+    // names would have had, refusal included: the router refused before the handler that
+    // sets them ran. The same three as `setGalleryHeaders`, and the same test of "is this
+    // address a credential's" as the log — `loggablePath` changing the path is the answer.
+    if (loggablePath(req.path) !== req.path) {
+      res.setHeader('Referrer-Policy', 'no-referrer')
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow')
+      res.setHeader('Cache-Control', 'no-store')
+    }
+    sendError(res, DomainError.invalid('request.invalid'))
+    return
+  }
+
   // Multer's own errors arrive as plain Errors with a `code`.
   if (isMulterError(error)) {
     sendError(res, multerToDomain(error))
@@ -162,6 +179,29 @@ export const errorHandler = (): ErrorRequestHandler => (error, req, res, _next) 
       ),
     )
 }
+
+/**
+ * The router's refusal to decode a path: `/api/events/%E0%A4%A/wall`, `/g/%E0%A4%A`.
+ *
+ * Express decodes a route parameter or a wildcard itself, before any handler runs, with
+ * `decodeURIComponent`. When that throws, the router stamps the `URIError` with
+ * `status: 400` and passes it on. A request whose path is not valid percent-encoding is
+ * the client's mistake — a link cut in the middle of an escape — so it is a
+ * `400 request.invalid`, the answer a body that is not JSON already gets.
+ *
+ * **Recognised by both**, the class and the `400` the router stamped. A `URIError` on its
+ * own is also what a handler of ours gets from calling `decodeURIComponent` on a header, and
+ * that is a bug here: it has no `status`, so it stays the opaque 500 with its stack in the
+ * log. The same care as `bodyParserToDomain` takes, from the other side.
+ *
+ * **Nothing from the error is ever logged or sent.** Its message is `Failed to decode param
+ * '<the raw parameter>'`, and on a gallery, invitation or password-reset path the parameter
+ * is the credential: a link cut half way through an escape (`/g/<token>%E2%80`) used to put
+ * the whole token into the error log through exactly this line. `loggablePath` hides the
+ * token in the path binding, and this is what keeps it out of the message.
+ */
+export const isUndecodablePath = (error: unknown): boolean =>
+  error instanceof URIError && (error as { status?: unknown }).status === 400
 
 /**
  * body-parser's own refusals, recognised by the `type` it stamps on every one of them.

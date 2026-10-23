@@ -5,6 +5,11 @@ import {
   AUDIT_RETENTION_MAX_DAYS,
   AUDIT_RETENTION_MIN_DAYS,
 } from '../../domain/audit/auditRetention'
+import {
+  DEFAULT_OPERATOR_RESET_LINKS,
+  OPERATOR_RESET_LINK_MODES,
+  type OperatorResetLinks,
+} from '../../domain/clients/operatorGuard'
 import { OPERATOR_NAME_MAX_LENGTH } from '../../domain/privacy/privacyNotice'
 import { JoinCode } from '../../domain/shared/joinCode'
 import { Password } from '../../domain/users/password'
@@ -209,6 +214,28 @@ const publicUrl = z
   .refine((value) => /^https?:\/\//i.test(value), {
     error: 'PUBLIC_URL must be an http or https origin',
   })
+
+/**
+ * Whether `value` is a plain `http:` address on a host other than `localhost`, which is the
+ * one thing production refuses about {@link publicUrl}: guests submit photos over that
+ * origin, and a `Secure` session cookie is never sent over http.
+ *
+ * It reads the **parsed** URL, never the text as typed. A scheme is case-insensitive and the
+ * check that admits the value says so (`/^https?:\/\//i`), so a test on the typed prefix let
+ * `HTTP://photos.example.com` through the very rule meant to catch it. The host is read the
+ * same way, because the prefix `http://localhost` also matched `http://localhost.example.com`
+ * and `http://localhost@example.com`, whose host is somewhere else entirely.
+ *
+ * A value that does not parse is not this rule's to report: `publicUrl` refuses it, and zod
+ * hands the object-level refinement the text as typed even then. One that parses and that
+ * `publicUrl` refuses anyway (` http://x`, `http:x`) may be named by both; the boot is refused
+ * either way.
+ */
+const isPlainHttpBeyondLocalhost = (value: string): boolean => {
+  if (!URL.canParse(value)) return false
+  const url = new URL(value)
+  return url.protocol === 'http:' && url.hostname !== 'localhost'
+}
 
 /**
  * `""` is absent, not a value.
@@ -530,6 +557,28 @@ const eventSlugSuffix = z.preprocess(blankAsAbsent, choice(['none', 'random']).d
 const eventCreation = z.preprocess(
   blankAsAbsent,
   choice(['anyAccount', 'clientMembers']).default('anyAccount'),
+)
+
+/**
+ * Whether a password-reset link that an operator asked for may ever be shown to the operator
+ * (G2-12 / P3-14, decision D-16): `mailOnly` or `copyLinkWithOwnerApproval`.
+ *
+ * **`mailOnly` is the default, here and on every box**, and it is the posture in which nothing
+ * an operator does can put a credential for a client's account in front of the operator: the
+ * link goes to the account's own mailbox, and on a box with no mail relay the operator simply
+ * cannot reset a password. `copyLinkWithOwnerApproval` is an opt-in that **weakens that
+ * invariant** and says so in docs/SECURITY.md: on a box with no relay, a link is handed to the
+ * operator, but only after another owner of the account's client approved the request. It
+ * additionally requires `SITE_ADMIN=on`, in the refinement below.
+ *
+ * Same spelling convention as {@link siteAdmin}, and the direction matters: a blank or an
+ * absence lands on `mailOnly`, which is the less permissive of the two, so a template that
+ * rendered empty can only take a path away; anything that is neither word is a refusal that
+ * names the variable, never a guess at which was meant — a typo must not be read as the opt-in.
+ */
+const operatorResetLinks = z.preprocess(
+  blankAsAbsent,
+  choice(OPERATOR_RESET_LINK_MODES).default(DEFAULT_OPERATOR_RESET_LINKS),
 )
 
 /**
@@ -1089,6 +1138,9 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /** See {@link eventCreation}. `anyAccount` unless the box says otherwise. */
       EVENT_CREATION: eventCreation,
 
+      /** See {@link operatorResetLinks}. `mailOnly` unless the box says otherwise. */
+      OPERATOR_RESET_LINKS: operatorResetLinks,
+
       /** See {@link donationUrl}. Absent means no donation link anywhere. */
       DONATION_URL: donationUrl,
       /** See {@link budgetUrl}. Absent means no public-budget link anywhere. */
@@ -1200,6 +1252,18 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
         })
       }
 
+      // The opt-in that hands an operator a link is a setting that only means something with an
+      // operator, and one that weakens an invariant: refused where there is no operator surface,
+      // so nobody believes a box is configured one way while it is configured the other.
+      // Not production-gated, for the reason the ceiling check above is not.
+      if (raw.OPERATOR_RESET_LINKS !== DEFAULT_OPERATOR_RESET_LINKS && raw.SITE_ADMIN !== 'on') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['OPERATOR_RESET_LINKS'],
+          message: `OPERATOR_RESET_LINKS=${raw.OPERATOR_RESET_LINKS} requires SITE_ADMIN=on: it decides what an operator may be shown, and a box with SITE_ADMIN=off has no operator surface (docs/ROADMAP.md §10.9)`,
+        })
+      }
+
       // An address with no name behind it is not an identity, and `/api/about`'s `operator`
       // has no shape for one: accepting it would publish nothing and look configured.
       if (raw.OPERATOR_CONTACT_EMAIL !== undefined && raw.OPERATOR_NAME === undefined) {
@@ -1272,7 +1336,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
           message: 'E2E_HOOKS must not be enabled in production',
         })
       }
-      if (raw.PUBLIC_URL.startsWith('http://') && !raw.PUBLIC_URL.startsWith('http://localhost')) {
+      if (isPlainHttpBeyondLocalhost(raw.PUBLIC_URL)) {
         ctx.addIssue({
           code: 'custom',
           path: ['PUBLIC_URL'],
@@ -1464,6 +1528,12 @@ export interface AppConfig {
    * `requireOperator`'s, in both modes; migrations run in both modes.
    */
   readonly siteAdmin: boolean
+
+  /**
+   * `OPERATOR_RESET_LINKS` (G2-12 / P3-14, D-16). `mailOnly` unless the box opted into
+   * `copyLinkWithOwnerApproval`, which the schema refuses without `SITE_ADMIN=on`.
+   */
+  readonly operatorResetLinks: OperatorResetLinks
 
   /**
    * The inputs of the AGPL section 13 source link (roadmap G1-04 / P1-05), both optional.
@@ -1821,6 +1891,8 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
     e2eHooks: raw.E2E_HOOKS ?? false,
 
     siteAdmin: raw.SITE_ADMIN === 'on',
+
+    operatorResetLinks: raw.OPERATOR_RESET_LINKS,
 
     source: {
       url: raw.SOURCE_CODE_URL ?? null,

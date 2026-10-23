@@ -1,12 +1,13 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { aPhoto, AT, atPlus } from '../../application/testing/builders'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { aPhoto, atPlus } from '../../application/testing/builders'
 import { buildGalleryWorld, WEDDING, type GalleryWorld } from '../../application/testing/galleryWorld'
 import { grantArchive } from '../../application/usecases/gallery/galleryAccess'
 import {
   makeDownloadGalleryArchive,
+  ShareLinkWithdrawnError,
   type DownloadGalleryArchiveInput,
 } from '../../application/usecases/gallery/downloadGalleryArchive'
 import type { MediaStore } from '../../application/ports/mediaStore'
@@ -17,23 +18,30 @@ import { migrations } from '../db/migrations'
 import { SqlitePhotoRepository } from '../db/sqlitePhotoRepository'
 import { archiverWriter } from './archiverWriter'
 import { createFsMediaStore } from './fsMediaStore'
+import { countingOpenFiles, seedAlbumRows, type OpenFiles } from './testing/archiveRig'
 
 /**
  * The shared gallery's ZIP with the real pieces under it (roadmap §4.1): `archiver`, the
  * filesystem store and SQLite.
  *
- * Both cases here are about how those pieces behave together and were green against the
+ * Every case here is about how those pieces behave together and was green against the
  * fakes while broken for real. The recording archive writer pulls one entry at a time,
- * `archiver` queues every entry it is handed at once; the fake photo repository hands
- * back arrays, better-sqlite3 keeps a statement iterating across every `await` of a
- * streamed read and refuses writes on the connection until it finishes. A test of the
- * revocation promise or of the box staying writable that runs on the fakes proves
- * neither.
+ * `archiver` queued every entry it was handed at once, and left every one of them open when
+ * a client went away; the fake photo repository hands back arrays, better-sqlite3 keeps a
+ * statement iterating across every `await` of a streamed read and refuses writes on the
+ * connection until it finishes. A test of the revocation promise, of the files a download
+ * leaves open or of the box staying writable that runs on the fakes proves none of them.
  */
 
 const HOUR = 60 * 60 * 1000
-const PHOTO_BYTES = 256 * 1024
-const ISO_AT = AT.toISOString()
+/**
+ * Twelve photographs of 3 MiB each. A photograph has to be larger than everything the writer
+ * and `archiver` buffer between them, a megabyte or two: smaller, and a file left open by a
+ * download that was abandoned is read to its end into those buffers and closes on its own,
+ * so the leak these tests exist for would not show.
+ */
+const PHOTOS = 12
+const PHOTO_BYTES = 3 * 1024 * 1024
 
 interface Rig {
   readonly world: GalleryWorld
@@ -41,30 +49,10 @@ interface Rig {
   readonly photos: PhotoRepository
   readonly media: MediaStore
   readonly root: string
-  /** Resolves once every photograph of the album has been listed — sized, not read. */
-  readonly listed: Promise<void>
+  /** The files the download opened, and how many of them have been closed since. */
+  readonly files: OpenFiles
   input(): DownloadGalleryArchiveInput
   download(): ReturnType<ReturnType<typeof makeDownloadGalleryArchive>>
-}
-
-const seedForeignRows = (db: Db): void => {
-  db.prepare(
-    `INSERT INTO users (id, email, password_hash, created_at)
-          VALUES ('user-owner', 'hote@example.test', 'hash:x', '${ISO_AT}')`,
-  ).run()
-  for (const id of ['evt-wedding', 'evt-gala']) {
-    db.prepare(
-      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes,
-                           created_at)
-            VALUES ('${id}', 'user-owner', '${id}', '${id}', '${id}', 'closed', '{}',
-                    100000000000, '${ISO_AT}')`,
-    ).run()
-  }
-  db.prepare(
-    `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
-          VALUES ('guest-1', 'evt-wedding', NULL, '${ISO_AT}', '${ISO_AT}'),
-                 ('guest-gala', 'evt-gala', NULL, '${ISO_AT}', '${ISO_AT}')`,
-  ).run()
 }
 
 describe('the gallery archive with the real archiver, filesystem and database', () => {
@@ -74,13 +62,13 @@ describe('the gallery archive with the real archiver, filesystem and database', 
     const world = buildGalleryWorld()
     const db = openDatabase({ path: ':memory:' })
     migrate(db, migrations)
-    seedForeignRows(db)
+    seedAlbumRows(db)
     const root = await mkdtemp(join(tmpdir(), 'eventslide-gallery-archive-'))
     const photos = new SqlitePhotoRepository(db)
     const store = createFsMediaStore({ root })
     const { link } = world.seedLink()
 
-    for (let index = 0; index < 40; index += 1) {
+    for (let index = 0; index < PHOTOS; index += 1) {
       const photo = aPhoto({
         id: `photo-${String(index).padStart(3, '0')}`,
         eventId: WEDDING,
@@ -91,23 +79,7 @@ describe('the gallery archive with the real archiver, filesystem and database', 
       await store.put(WEDDING, photo.contentHash, 'original', new Uint8Array(PHOTO_BYTES).fill(index))
     }
 
-    // Counts the sizing reads the listing makes, so a test can wait until the whole album
-    // has been handed to the writer — the moment after which a check made while listing
-    // can no longer stop anything.
-    let sized = 0
-    let finishListing = (): void => undefined
-    const listed = new Promise<void>((resolve) => {
-      finishListing = resolve
-    })
-    const media: MediaStore = {
-      ...store,
-      stat: async (...args) => {
-        const found = await store.stat(...args)
-        sized += 1
-        if (sized === 40) finishListing()
-        return found
-      },
-    }
+    const { store: media, files } = countingOpenFiles(store)
 
     const deps = { ...world, photos, media, archive: archiverWriter }
     rig = {
@@ -116,7 +88,7 @@ describe('the gallery archive with the real archiver, filesystem and database', 
       photos,
       media,
       root,
-      listed,
+      files,
       input: () => {
         const grant = grantArchive(world.signer, link.id, atPlus(HOUR))
         return {
@@ -135,11 +107,15 @@ describe('the gallery archive with the real archiver, filesystem and database', 
   })
 
   it('stops the download at the next photograph once the link is revoked', async () => {
-    // Measured before the fix: revoked after the first chunk, the archive still ended
-    // cleanly with every byte of the album, because `archiver` had been handed every
-    // entry — and every check — before the first byte was written. So the revoke here
-    // waits until the whole album has been listed: a check that only runs while listing
-    // has nothing left to say by then, and this is what tells the two apart.
+    // The link is read again when each photograph's bytes are about to be sent, not once
+    // for the download: a wedding is gigabytes and minutes, and "revoke is immediate" has to
+    // hold for the download already in flight. Measured before the fix to the writer, a
+    // link revoked after the first chunk still delivered the whole album, because
+    // `archiver` had been handed every entry — and every check — before a byte was written.
+    // The writer now asks for an entry only when it is about to write it, so there is no
+    // whole-album listing to wait for: what is left to tell is a check made once from a
+    // check made for every photograph, and the second is the one that ends this with an
+    // error and a fraction of the album rather than with a clean ZIP of all twelve.
     const result = await rig.download()
     if (!result.ok) throw new Error(`expected an archive, got ${result.error.code}`)
 
@@ -150,14 +126,51 @@ describe('the gallery archive with the real archiver, filesystem and database', 
         received += chunk.length
         if (!revoked) {
           revoked = true
-          await rig.listed
           await rig.world.shareLinks.revokeCurrent(WEDDING, rig.world.clock.now())
         }
       }
     }
 
-    await expect(consume()).rejects.toThrow()
-    expect(received).toBeLessThan(40 * PHOTO_BYTES)
+    await expect(consume()).rejects.toThrow(ShareLinkWithdrawnError)
+    // Half the album is generous: what was already written when the link was revoked is
+    // what the writer's own buffers hold, a photograph or two of twelve.
+    expect(received).toBeLessThan((PHOTOS / 2) * PHOTO_BYTES)
+  })
+
+  it('keeps one file open at a time while it writes the album', async () => {
+    // The use case opens an entry's file when its bytes are first asked for, and says one
+    // descriptor is open at a time, not one per photograph. That is only so if the writer
+    // asks one entry at a time. The previous file's `close` is an event still on its way when
+    // the next is opened, so two is the most a correct writer can show; a writer that took
+    // the album at once shows all twelve.
+    const result = await rig.download()
+    if (!result.ok) throw new Error(`expected an archive, got ${result.error.code}`)
+
+    for await (const _chunk of result.value.chunks) {
+      // Reading it all is the point.
+    }
+
+    expect(rig.files.opened).toBe(PHOTOS)
+    expect(rig.files.mostOpen).toBeLessThanOrEqual(2)
+  })
+
+  it('closes every file it opened when the client stops reading', async () => {
+    // The tab was closed with the album half sent. The writer used to take every
+    // photograph at once and open every file, then leave them open: 55 of 60 measured on
+    // the real filesystem, a descriptor each for as long as the process lived, for anybody
+    // holding a gallery link.
+    const result = await rig.download()
+    if (!result.ok) throw new Error(`expected an archive, got ${result.error.code}`)
+
+    // The first chunk is a ZIP header, written before any file is opened, so read on until
+    // the writer is into the album: three photographs have been opened.
+    for await (const _chunk of result.value.chunks) {
+      if (rig.files.opened >= 3) break
+    }
+
+    await vi.waitFor(() => expect(rig.files.closed).toBe(rig.files.opened), { timeout: 2_000 })
+    expect(rig.files.opened).toBeGreaterThan(0)
+    expect(rig.files.opened).toBeLessThan(PHOTOS)
   })
 
   it('leaves the database writable for every other event while an archive is listed', async () => {
@@ -193,6 +206,6 @@ describe('the gallery archive with the real archiver, filesystem and database', 
     const [total] = await Promise.all([consume(), upload()])
 
     expect(failures).toEqual([])
-    expect(total).toBeGreaterThan(40 * PHOTO_BYTES)
+    expect(total).toBeGreaterThan(PHOTOS * PHOTO_BYTES)
   })
 })

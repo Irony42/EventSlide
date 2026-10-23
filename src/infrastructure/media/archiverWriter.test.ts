@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
+import { createReadStream, type ReadStream } from 'node:fs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { albumEntryName, archiverWriter } from './archiverWriter'
 import type { ArchiveEntry } from '../../application/ports/archiveWriter'
 
@@ -138,7 +142,8 @@ describe('archiverWriter', () => {
 
     await expect(collect(archiverWriter.stream(source))).rejects.toThrow()
 
-    expect(pulled).toEqual(['', 'second.jpg'])
+    // Only the entry that failed: the next is not asked for once the archive is lost.
+    expect(pulled).toEqual([''])
   })
 
   it('reports a non-Error failure as an Error, so the consumer can read a message', async () => {
@@ -169,6 +174,256 @@ describe('archiverWriter', () => {
     }
 
     await expect(collect(archiverWriter.stream(brokenSource))).rejects.toThrow()
+  })
+})
+
+/**
+ * What an album's sources do while it is downloaded, and when the client goes away.
+ *
+ * A source is "open" from the first time its bytes are asked for until its generator is
+ * closed: the moment a real one holds a file descriptor. `archiver` used to take every
+ * entry at once and start every source on the spot, so a client that closed the tab left
+ * one open per queued photograph — 292 of 300 generators never closed, measured here.
+ */
+describe('archiverWriter, sources and a client that goes away', () => {
+  const CHUNK = new Uint8Array(64 * 1024)
+
+  interface Counts {
+    /** Entries pulled from the listing. */
+    listed: number
+    /** Sources started: their bytes were asked for. */
+    opened: number
+    /** Sources closed, whether they ran to their end or were abandoned. */
+    closed: number
+    /** Started and not closed yet. */
+    open: number
+    /** The most that were ever open together. */
+    mostOpen: number
+    /** Whether the listing itself was closed, as a database cursor behind it would be. */
+    listingClosed: boolean
+  }
+
+  /** An album of `total` photographs, each `chunks` chunks of 64 KiB, that counts itself. */
+  const album = (
+    total: number,
+    chunks: number,
+    failAt?: number,
+  ): { readonly counts: Counts; readonly entries: AsyncIterable<ArchiveEntry> } => {
+    const counts: Counts = {
+      listed: 0,
+      opened: 0,
+      closed: 0,
+      open: 0,
+      mostOpen: 0,
+      listingClosed: false,
+    }
+    const bytes = async function* (index: number): AsyncGenerator<Uint8Array> {
+      counts.opened += 1
+      counts.open += 1
+      counts.mostOpen = Math.max(counts.mostOpen, counts.open)
+      try {
+        for (let chunk = 0; chunk < chunks; chunk += 1) {
+          if (index === failAt && chunk === 1) throw new Error('the media store lost the file')
+          yield CHUNK
+        }
+      } finally {
+        counts.closed += 1
+        counts.open -= 1
+      }
+    }
+    return {
+      counts,
+      entries: {
+        async *[Symbol.asyncIterator]() {
+          try {
+            for (let index = 0; index < total; index += 1) {
+              counts.listed += 1
+              yield { ...entry(`photo-${index}.jpg`), bytes: bytes(index) }
+            }
+          } finally {
+            counts.listingClosed = true
+          }
+        },
+      },
+    }
+  }
+
+  /**
+   * A consumer that has read until the writer is into the album, and is about to stop, as a
+   * client does while the rest is queued. The first chunk is a ZIP header, written before
+   * any source is asked for its bytes, so one chunk is not yet "into" it.
+   */
+  const intoTheAlbum = async (
+    chunks: AsyncIterable<Uint8Array>,
+    counts: { readonly opened: number },
+  ): Promise<AsyncIterator<Uint8Array>> => {
+    const iterator = chunks[Symbol.asyncIterator]()
+    while (counts.opened === 0) await iterator.next()
+    return iterator
+  }
+
+  it('keeps one photograph’s source open at a time, however long the album is', async () => {
+    // "One file descriptor is open at a time, not one per entry" is what the gallery's
+    // lazy `bytesOf` promises. It is only true if the writer asks for an entry's bytes
+    // one entry at a time, which is what this counts.
+    const { counts, entries: photos } = album(12, 4)
+
+    await collect(archiverWriter.stream(photos))
+
+    expect({ opened: counts.opened, closed: counts.closed, mostOpen: counts.mostOpen }).toEqual({
+      opened: 12,
+      closed: 12,
+      mostOpen: 1,
+    })
+  })
+
+  it('does not start the album’s sources while the client is not reading it', async () => {
+    // Three hundred in the report; thirty is enough to tell "one more than the buffers
+    // hold" from "all of them". What the writer may be ahead by is what its own buffers
+    // can hold, a few photographs, never the album.
+    const { counts, entries: photos } = album(30, 24)
+
+    const iterator = await intoTheAlbum(archiverWriter.stream(photos), counts)
+    await new Promise<void>((resolve) => setTimeout(resolve, 100))
+    const seen = { ...counts }
+    await iterator.return?.(undefined)
+
+    expect(seen.opened).toBeLessThanOrEqual(3)
+    expect(seen.listed).toBeLessThanOrEqual(3)
+  })
+
+  it('closes every source it opened when the client stops reading', async () => {
+    // The tab was closed with the album half sent. Nothing is reading, so nothing will
+    // ever finish the source that was being read: a descriptor each, for as long as the
+    // process lives, on a download anybody holding a gallery link can start.
+    const { counts, entries: photos } = album(30, 24)
+
+    const iterator = await intoTheAlbum(archiverWriter.stream(photos), counts)
+    await iterator.return?.(undefined)
+
+    await vi.waitFor(() => expect(counts.open).toBe(0), { timeout: 2_000 })
+    expect(counts.closed).toBe(counts.opened)
+    expect(counts.opened).toBeGreaterThan(0)
+    expect(counts.opened).toBeLessThan(30)
+  })
+
+  it('closes the listing of entries when the client stops reading', async () => {
+    // Whatever the listing holds — a cursor, a page, a lock — is held until it is closed,
+    // and the writer is the only thing that knows the download is over.
+    const { counts, entries: photos } = album(30, 24)
+
+    const iterator = await intoTheAlbum(archiverWriter.stream(photos), counts)
+    await iterator.return?.(undefined)
+
+    await vi.waitFor(() => expect(counts.listingClosed).toBe(true), { timeout: 2_000 })
+  })
+
+  it('closes every source it opened when the response is destroyed with an error', async () => {
+    // `pipeline` does not call `return()` on a response that dies, it calls `throw()`
+    // with the premature-close error: the other way out of the same generator.
+    const { counts, entries: photos } = album(30, 24)
+
+    const iterator = await intoTheAlbum(archiverWriter.stream(photos), counts)
+    await expect(iterator.throw?.(new Error('premature close'))).rejects.toThrow('premature close')
+
+    await vi.waitFor(() => expect(counts.open).toBe(0), { timeout: 2_000 })
+    expect(counts.closed).toBe(counts.opened)
+    expect(counts.opened).toBeGreaterThan(0)
+    expect(counts.opened).toBeLessThan(30)
+  })
+
+  it('closes every source it opened when an entry fails part-way', async () => {
+    // The third photograph's file goes missing under the download. The two before it
+    // have been written and the one after it was never going to be.
+    const { counts, entries: photos } = album(10, 4, 2)
+
+    await expect(collect(archiverWriter.stream(photos))).rejects.toThrow()
+
+    await vi.waitFor(() => expect(counts.open).toBe(0), { timeout: 2_000 })
+    expect({ opened: counts.opened, closed: counts.closed }).toEqual({ opened: 3, closed: 3 })
+  })
+
+  describe('an entry that is already open when it arrives', () => {
+    // What the host's export hands over: the media store opens the file as it builds the
+    // entry, and a `ReadStream` has its descriptor from the moment it exists. Nothing has
+    // read from it yet, so closing it means destroying that stream itself — a wrapper
+    // destroyed before its first read closes nothing, which is how one file was left open
+    // for the life of the process.
+    let directory: string
+    let file: string
+
+    beforeEach(async () => {
+      directory = await mkdtemp(join(tmpdir(), 'eventslide-archiver-writer-'))
+      file = join(directory, 'photo.jpg')
+      await writeFile(file, new Uint8Array(1024 * 1024))
+    })
+
+    afterEach(async () => {
+      await rm(directory, { recursive: true, force: true })
+    })
+
+    /** Resolves when the file's descriptor is released, which `close` is the event for. */
+    const closing = (stream: ReadStream): Promise<void> =>
+      new Promise<void>((resolve) => {
+        if (stream.closed) resolve()
+        else stream.once('close', () => resolve())
+      })
+
+    it('closes the file of an entry that arrives after the client has gone', async () => {
+      // The listing is a database read and takes its time, so the client can leave while
+      // the next entry is still being fetched — a few milliseconds per photograph, which
+      // over a long album and many abandoned downloads is a descriptor now and then.
+      let arrive = (): void => undefined
+      const late = new Promise<void>((resolve) => {
+        arrive = resolve
+      })
+      let waiting = (): void => undefined
+      const listingIsWaiting = new Promise<void>((resolve) => {
+        waiting = resolve
+      })
+      let stream: ReadStream | undefined
+      const slowListing: AsyncIterable<ArchiveEntry> = {
+        async *[Symbol.asyncIterator]() {
+          yield entry('first.jpg')
+          waiting()
+          await late
+          stream = createReadStream(file)
+          yield { ...entry('second.jpg'), bytes: stream }
+        },
+      }
+
+      const iterator = archiverWriter.stream(slowListing)[Symbol.asyncIterator]()
+      await iterator.next()
+      // Only now is the writer waiting on the listing, which is the moment this is about.
+      await listingIsWaiting
+      await iterator.return?.(undefined)
+      arrive()
+
+      await vi.waitFor(() => expect(stream).toBeDefined(), { timeout: 2_000 })
+      await expect(
+        Promise.race([
+          closing(stream as ReadStream).then(() => 'closed'),
+          new Promise((resolve) => setTimeout(() => resolve('still open'), 2_000)),
+        ]),
+      ).resolves.toBe('closed')
+    })
+
+    it('closes the file of an entry that archiver refuses', async () => {
+      // An entry with no name is refused by `archiver` after its source was made. Names are
+      // server-generated, so no route reaches this today; the cleanup does not depend on why
+      // an entry was not written.
+      const stream = createReadStream(file)
+      const nameless: ArchiveEntry = { ...entry('x.jpg'), name: '', bytes: stream }
+
+      await expect(collect(archiverWriter.stream(entries(nameless)))).rejects.toThrow()
+
+      await expect(
+        Promise.race([
+          closing(stream).then(() => 'closed'),
+          new Promise((resolve) => setTimeout(() => resolve('still open'), 2_000)),
+        ]),
+      ).resolves.toBe('closed')
+    })
   })
 })
 

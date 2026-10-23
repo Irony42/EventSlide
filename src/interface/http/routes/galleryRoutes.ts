@@ -1,8 +1,15 @@
-import { Router, type Request, type RequestHandler, type Response } from 'express'
+import {
+  Router,
+  type NextFunction,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from 'express'
 import { notAvailable } from '../../../application/usecases/gallery/galleryAccess'
 import { DomainError } from '../../../domain/shared/errors'
 import { asPhotoId, asShareLinkId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
+import { isUndecodablePath } from '../middleware/errorHandler'
 import {
   galleryLimiter,
   galleryMediaLimiter,
@@ -282,6 +289,22 @@ export const galleryRoutes = ({ deps, usecases, limits }: GalleryRouteDeps): Rou
       return streamOrAbandon(res, req.context.logger, 'gallery media failed mid-stream', chunks)
     }),
   )
+
+  // Express decodes a path parameter while it **matches** the route, before any handler or
+  // limiter runs, and throws when it cannot: a link cut in the middle of an escape,
+  // `/api/gallery/<token>%E2%80`. That is a malformed token, and a malformed token is a dead
+  // link answered like every other, byte for byte — the one refusal this surface promises. The
+  // error handler would say `400 request.invalid` to any other address; here it would be a
+  // second answer for a token, and its log line used to carry the whole credential in Express's
+  // own message. Only the router's own refusal is answered here, by the same test the error
+  // handler uses, so a `URIError` of ours in a handler above stays a bug.
+  router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (!isUndecodablePath(error)) {
+      next(error)
+      return
+    }
+    sendError(res, notAvailable())
+  })
 
   return router
 }

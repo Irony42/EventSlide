@@ -80,6 +80,40 @@ export const AUDIT_ACTIONS = {
    * secret, the codes or the address.
    */
   'account.secondFactorEnrolled': { subject: 'account', details: {} },
+  /**
+   * An invitation into a client was written (`inviteToClientAsOperator`, the operator guard's
+   * R1; G2-12 / P3-14). `pendingApproval` is the fact the client's owner reads it for: `true`
+   * means the invitation is unusable until one of them approves it, which is what R1 requires
+   * of an operator's invitation into a client that already has events. The subject is the
+   * invitation's id; **never the address it was written to**, and not its role either, since
+   * the vocabulary has no word for either.
+   */
+  'invitation.issued': { subject: 'invitation', details: { pendingApproval: detail.boolean } },
+  /**
+   * An owner of the client approved an invitation that was waiting for them
+   * (`approveInvitation`). The actor is that owner, which is the whole content of the entry.
+   */
+  'invitation.approved': { subject: 'invitation', details: {} },
+  /**
+   * An operator asked to reset an account's password on a box that cannot mail the link, with
+   * `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval`, and the request now waits for another
+   * owner of the account's client (`issuePasswordResetForAccount`, R2). The subject is the
+   * account whose password it is.
+   */
+  'account.resetRequested': { subject: 'account', details: {} },
+  /**
+   * An owner of the account's client approved an operator's request for a reset link
+   * (`approvePasswordReset`, R2). The actor is that owner.
+   */
+  'account.resetApproved': { subject: 'account', details: {} },
+  /**
+   * A password-reset link was issued for an account **by an operator** (R2). `linkShown` says
+   * whether the operator was handed the link (`true`, only ever after an owner's approval, on
+   * a box with no mail relay and `copyLinkWithOwnerApproval`) or it went to the account's own
+   * mailbox and nowhere else (`false`, the default and the rule). A client's owner reads this
+   * line to know which of the two happened to their member.
+   */
+  'account.resetIssued': { subject: 'account', details: { linkShown: detail.boolean } },
   /** An account removed its authenticator and its recovery codes (`disableSecondFactor`). */
   'account.secondFactorDisabled': { subject: 'account', details: {} },
   /** An account replaced its set of recovery codes (`regenerateRecoveryCodes`). */

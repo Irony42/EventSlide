@@ -102,6 +102,18 @@ describe('SqliteClientRepository', () => {
     closeDatabase(db)
   })
 
+  it.each(['draft', 'live', 'closed', 'archived'])(
+    'counts a %s event as an event of the client, since R1 asks whether there is anything to take, not whether it is running',
+    async (status) => {
+      await repo.save(aClient({ id: 'client-1' }))
+      db.prepare<[string, string]>(
+        `UPDATE events SET client_id = 'client-1', status = ? WHERE id = ?`,
+      ).run(status, CLIENT_CONTRACT_FIXTURES.eventIds[0])
+
+      expect(await repo.countEvents(asClientId('client-1'))).toBe(1)
+    },
+  )
+
   it('refuses a membership whose user does not exist', async () => {
     await repo.save(aClient({ id: 'client-1' }))
 

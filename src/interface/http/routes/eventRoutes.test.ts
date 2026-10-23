@@ -245,6 +245,7 @@ const buildWorld = ({
         stepUp: absent('stepUp'),
         regenerateRecoveryCodes: absent('regenerateRecoveryCodes'),
         disableSecondFactor: absent('disableSecondFactor'),
+        approveInvitation: absent('approveInvitation'),
         registerModerator: makeRegisterModerator({
           events,
           users,
