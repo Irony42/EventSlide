@@ -103,90 +103,136 @@ const DAY_MS = 24 * 60 * 60 * 1000
  * - **At most {@link INVITATION_MAX_PER_ADDRESS_PER_HOUR} an hour to one address**, from
  *   anybody: a host can write a hundred invitations an hour to a hundred inboxes, and the
  *   per-client limit already slows that; this bounds what any one inbox is sent.
+ *   Held under concurrency: writes for one address run one after another (see `queues`).
+ *   The cap is global to the address, so one host can spend the five slots and make an
+ *   operator's invitation to that address wait an hour; that is accepted, and a cap per
+ *   inviter beside it is a later decision, not a hole in this one.
+ * - **An invitation to an event has an author.** `createdBy` may be `null` only for a
+ *   client, because an event's invitation is honoured only while its author is still an owner.
  *
  * ## What is never logged
  *
  * Not the address, not the token, not the link, not the target's name. A failed mail is
  * logged by its code and nothing else, as `requestPasswordReset` does.
  */
-export const makeIssueInvitation =
-  ({
-    tokens,
-    secrets,
-    mailer,
-    ids,
-    clock,
-    logger,
-    publicUrl,
-  }: IssueInvitationDeps): IssueInvitation =>
-  async ({ email, locale, place, createdBy }) => {
-    const now = clock.now()
+export const makeIssueInvitation = ({
+  tokens,
+  secrets,
+  mailer,
+  ids,
+  clock,
+  logger,
+  publicUrl,
+}: IssueInvitationDeps): IssueInvitation => {
+  /**
+   * One invitation at a time per address, in this process.
+   *
+   * The cap and the "one live link" rule are both **count, then act** around a mail that takes
+   * as long as a relay takes: twelve requests for one address that arrive together would each
+   * count zero, each send a mail and each save a link — a cap of five that lets twelve through
+   * and twelve links that all open. This box is one process over one SQLite file, so a queue
+   * keyed by address is exactly as wide as the race is, and it costs a request for an address
+   * that is already being written to the wait of the one ahead of it (a relay's own deadline at
+   * the worst), and nobody else anything.
+   */
+  const queues = new Map<string, Promise<void>>()
+  const serially = <T>(key: string, task: () => Promise<T>): Promise<T> => {
+    const ahead = queues.get(key) ?? Promise.resolve()
+    const run = ahead.then(task)
+    const settled = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    queues.set(key, settled)
+    void settled.then(() => {
+      if (queues.get(key) === settled) queues.delete(key)
+    })
+    return run
+  }
 
+  return async ({ email, locale, place, createdBy }) => {
     const address = EmailAddress.create(email)
     if (!address.ok) return address
 
-    await tokens.deleteExpired(new Date(now.getTime() - ACCOUNT_TOKEN_RETENTION_AFTER_EXPIRY_MS))
-
-    const recent = await tokens.countCreatedSince(
-      address.value,
-      'invitation',
-      new Date(now.getTime() - INVITATION_WINDOW_MS),
-    )
-    if (recent >= INVITATION_MAX_PER_ADDRESS_PER_HOUR) {
-      return err(DomainError.rateLimited('invitation.tooManyForAddress'))
+    // An invitation to an event is honoured only while its author is still an owner of it
+    // (`resolveInvitation`), and one with no author never is. Refused here so the mail that
+    // could never be opened is not sent, and a slot of the hourly cap is not spent on it.
+    if (place.kind === 'event' && createdBy === null) {
+      return err(DomainError.invalid('invitation.inviterRequired'))
     }
 
-    const minted = secrets.mint()
-    const link = invitationLink(publicUrl, minted.token)
+    return serially(
+      address.value.value,
+      async (): Promise<Result<IssuedInvitation, DomainError>> => {
+        const now = clock.now()
 
-    // Built, and so validated, before anything is sent: a mail must never carry a link to a
-    // record the rules would have refused. How it travelled is settled below, from the mail's
-    // outcome, and written onto this record rather than into a second one.
-    const draft = issueAccountToken(
-      {
-        purpose: 'invitation',
-        tokenDigest: minted.digest,
-        email: address.value,
-        userId: null,
-        ...(place.kind === 'event'
-          ? { eventId: place.eventId, eventRole: place.role }
-          : { clientId: place.clientId, clientRole: place.role }),
-        delivery: 'link',
-        createdBy,
+        await tokens.deleteExpired(
+          new Date(now.getTime() - ACCOUNT_TOKEN_RETENTION_AFTER_EXPIRY_MS),
+        )
+
+        const recent = await tokens.countCreatedSince(
+          address.value,
+          'invitation',
+          new Date(now.getTime() - INVITATION_WINDOW_MS),
+        )
+        if (recent >= INVITATION_MAX_PER_ADDRESS_PER_HOUR) {
+          return err(DomainError.rateLimited('invitation.tooManyForAddress'))
+        }
+
+        const minted = secrets.mint()
+        const link = invitationLink(publicUrl, minted.token)
+
+        // Built, and so validated, before anything is sent: a mail must never carry a link to a
+        // record the rules would have refused. How it travelled is settled below, from the mail's
+        // outcome, and written onto this record rather than into a second one.
+        const draft = issueAccountToken(
+          {
+            purpose: 'invitation',
+            tokenDigest: minted.digest,
+            email: address.value,
+            userId: null,
+            ...(place.kind === 'event'
+              ? { eventId: place.eventId, eventRole: place.role }
+              : { clientId: place.clientId, clientRole: place.role }),
+            delivery: 'link',
+            createdBy,
+          },
+          ids.accountTokenId(),
+          now,
+        )
+        if (!draft.ok) return draft
+
+        let delivery: AccountTokenDelivery = 'link'
+        if (mailer.canDeliver) {
+          const sent = await mailer.send(
+            invitationMail({
+              to: address.value,
+              locale,
+              link,
+              target:
+                place.kind === 'event'
+                  ? { kind: 'event', name: place.name }
+                  : { kind: 'client', name: place.name, role: place.role },
+              lifetimeDays: ACCOUNT_TOKEN_LIFETIME_MS.invitation / DAY_MS,
+            }),
+          )
+          if (sent.ok) {
+            delivery = 'mail'
+          } else {
+            logger.warn('an invitation mail was not sent', { code: sent.error.code })
+          }
+        }
+
+        const record = { ...draft.value, delivery }
+
+        // Revoke before saving, never after: the new link must not be one of the outstanding
+        // ones it replaces.
+        await tokens.revokeOutstandingInvitations(address.value, place, now)
+        await tokens.save(record)
+
+        const base = { invitationId: record.id, expiresAt: record.expiresAt }
+        return ok(delivery === 'mail' ? { ...base, delivery } : { ...base, delivery, link })
       },
-      ids.accountTokenId(),
-      now,
     )
-    if (!draft.ok) return draft
-
-    let delivery: AccountTokenDelivery = 'link'
-    if (mailer.canDeliver) {
-      const sent = await mailer.send(
-        invitationMail({
-          to: address.value,
-          locale,
-          link,
-          target:
-            place.kind === 'event'
-              ? { kind: 'event', name: place.name }
-              : { kind: 'client', name: place.name, role: place.role },
-          lifetimeDays: ACCOUNT_TOKEN_LIFETIME_MS.invitation / DAY_MS,
-        }),
-      )
-      if (sent.ok) {
-        delivery = 'mail'
-      } else {
-        logger.warn('an invitation mail was not sent', { code: sent.error.code })
-      }
-    }
-
-    const record = { ...draft.value, delivery }
-
-    // Revoke before saving, never after: the new link must not be one of the outstanding
-    // ones it replaces.
-    await tokens.revokeOutstandingInvitations(address.value, place, now)
-    await tokens.save(record)
-
-    const base = { invitationId: record.id, expiresAt: record.expiresAt }
-    return ok(delivery === 'mail' ? { ...base, delivery } : { ...base, delivery, link })
   }
+}

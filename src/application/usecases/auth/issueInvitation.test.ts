@@ -256,10 +256,27 @@ describe('issueInvitation', () => {
       expect(result.ok && result.value.invitationId).toBe(tokens.all[0]?.id)
     })
 
-    it('may come from nobody, as a system provisioning does', async () => {
-      await invite({ createdBy: null })
+    it('may come from nobody for a client, as a system provisioning does', async () => {
+      await invite({ createdBy: null, place: CLIENT_PLACE })
 
       expect(tokens.all[0]?.createdBy).toBeNull()
+    })
+
+    it('may not come from nobody for an event, whose invitation is only honoured while its author owns it', async () => {
+      const result = await invite({ createdBy: null })
+
+      expect(!result.ok && result.error.code).toBe('invitation.inviterRequired')
+      expect(!result.ok && result.error.kind).toBe('invalid')
+      expect(mailer.sent).toHaveLength(0)
+      expect(tokens.all).toHaveLength(0)
+    })
+
+    it('spends no slot of the hourly cap on an invitation it refuses for that', async () => {
+      for (let attempt = 0; attempt < INVITATION_MAX_PER_ADDRESS_PER_HOUR * 2; attempt += 1) {
+        await invite({ createdBy: null })
+      }
+
+      expect((await invite()).ok).toBe(true)
     })
 
     it('stores the address as an account would, lower-cased and trimmed', async () => {
@@ -313,6 +330,111 @@ describe('issueInvitation', () => {
   })
 
   // ------------------------------------------------------------- the cap --
+
+  describe('invitations to one address that arrive together', () => {
+    /** A relay that takes a moment, which is what gives a second request time to count. */
+    const slowMailer: Mailer = {
+      canDeliver: true,
+      send: async (mail) => {
+        await new Promise((resolve) => setTimeout(resolve, 2))
+        return mailer.send(mail)
+      },
+    }
+
+    it('are held to the cap, not counted all at once before any is written', async () => {
+      // The box builds the use case once and the queue lives in it, so these share one.
+      const once = build(slowMailer)
+      const results = await Promise.all(
+        Array.from({ length: 12 }, () =>
+          once({
+            email: NEWCOMER,
+            locale: 'fr',
+            place: EVENT_PLACE,
+            createdBy: asUserId('user-host'),
+          }),
+        ),
+      )
+
+      expect(results.filter((result) => result.ok)).toHaveLength(
+        INVITATION_MAX_PER_ADDRESS_PER_HOUR,
+      )
+      expect(mailer.sent).toHaveLength(INVITATION_MAX_PER_ADDRESS_PER_HOUR)
+      expect(tokens.all).toHaveLength(INVITATION_MAX_PER_ADDRESS_PER_HOUR)
+    })
+
+    it('leave exactly one live link to the same event, the newest', async () => {
+      const once = build(slowMailer)
+      await Promise.all(
+        Array.from({ length: 4 }, () =>
+          once({
+            email: NEWCOMER,
+            locale: 'fr',
+            place: EVENT_PLACE,
+            createdBy: asUserId('user-host'),
+          }),
+        ),
+      )
+
+      const live = tokens.all.filter(
+        (token) => token.revokedAt === null && token.consumedAt === null,
+      )
+      expect(live).toHaveLength(1)
+      expect(live[0]?.id).toBe(tokens.all.at(-1)?.id)
+    })
+
+    it('do not make another address wait for them', async () => {
+      const log: string[] = []
+      const gated: Mailer = {
+        canDeliver: true,
+        send: async (mail) => {
+          log.push(`start ${mail.to.value}`)
+          await new Promise((resolve) => setTimeout(resolve, 20))
+          log.push(`end ${mail.to.value}`)
+          return mailer.send(mail)
+        },
+      }
+
+      const once = build(gated)
+      const to = (email: string) =>
+        once({ email, locale: 'fr', place: EVENT_PLACE, createdBy: asUserId('user-host') })
+
+      await Promise.all([to('lent@example.test'), to('rapide@example.test')])
+
+      // The second address reached the relay before the first one finished: the queue is
+      // per address, not one for the whole box.
+      expect(log.slice(0, 2)).toEqual(['start lent@example.test', 'start rapide@example.test'])
+      expect(mailer.sent.map((sent) => sent.to).sort()).toEqual([
+        'lent@example.test',
+        'rapide@example.test',
+      ])
+    })
+
+    it('go on after one whose relay blew up, since the queue only orders them', async () => {
+      let sends = 0
+      const flaky: Mailer = {
+        canDeliver: true,
+        send: async (mail) => {
+          sends += 1
+          if (sends === 1) throw new Error('relay exploded')
+          return mailer.send(mail)
+        },
+      }
+      const once = build(flaky)
+      const attempt = () =>
+        once({
+          email: NEWCOMER,
+          locale: 'fr',
+          place: EVENT_PLACE,
+          createdBy: asUserId('user-host'),
+        })
+
+      const [first, second] = await Promise.allSettled([attempt(), attempt()])
+
+      expect(first.status).toBe('rejected')
+      expect(second.status).toBe('fulfilled')
+      expect(mailer.sent).toHaveLength(1)
+    })
+  })
 
   describe('the hourly cap on one address', () => {
     it('lets an address be invited up to the cap', async () => {
@@ -406,7 +528,7 @@ describe('issueInvitation', () => {
         clock,
         logger,
         publicUrl: PUBLIC_URL,
-      })({ email: NEWCOMER, locale: 'fr', place: EVENT_PLACE, createdBy: null })
+      })({ email: NEWCOMER, locale: 'fr', place: EVENT_PLACE, createdBy: asUserId('user-host') })
 
       expect(!result.ok && result.error.code).toBe('accountToken.digestInvalid')
       expect(mailer.sent).toHaveLength(0)
