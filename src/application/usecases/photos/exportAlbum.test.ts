@@ -327,6 +327,30 @@ describe('exportAlbum', () => {
     expect(namesInArchive()).toContain(`camille-et-sacha/0002-${last.short}.jpg`)
   })
 
+  it('archives an album longer than one page of the listing, every photo once and in order', async () => {
+    // The listing is read a page at a time, so a photograph on a page boundary is where an
+    // off-by-one in the cursor would drop it or write it twice.
+    const hashes: ContentHash[] = []
+    for (let index = 0; index < 205; index += 1) {
+      hashes.push(
+        await seedPhoto({
+          id: `bulk-${String(index).padStart(3, '0')}`,
+          status: 'published',
+          createdAt: atPlus(index),
+        }),
+      )
+    }
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    // Newest first, as the host's console lists it.
+    expect(namesInArchive()).toEqual(
+      hashes
+        .map((hash, index) => `camille-et-sacha/${String(205 - index).padStart(4, '0')}-${hash.short}.jpg`)
+        .reverse(),
+    )
+  })
+
   it('refuses to export an event that does not exist', async () => {
     const result = await exportAlbum({ eventId: asEventId('event-404') })
 
