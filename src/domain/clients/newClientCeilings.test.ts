@@ -20,7 +20,7 @@ const NONE: NewClientDefaults = {
 const TIER: NewClientDefaults = {
   maxEvents: 1,
   maxEventsPerPeriod: 6,
-  maxTotalBytes: 5_000_000_000,
+  maxTotalBytes: 20_000_000_000,
   maxEventQuotaBytes: 5_000_000_000,
   maxRetentionDays: 30,
   maxLiveDays: 3,
@@ -107,7 +107,7 @@ describe('startingCeilings', () => {
     })
   })
 
-  describe('the period the defaults start', () => {
+  describe('the period a count starts', () => {
     it('starts at the moment of provisioning when the count comes from the defaults', () => {
       expect(stored(TIER).periodStartedAt).toEqual(NOW)
     })
@@ -121,8 +121,9 @@ describe('startingCeilings', () => {
       expect(input.periodStartedAt).toEqual(NOW)
     })
 
-    it('is left alone when the operator names the count: they have decided', () => {
-      expect(stored(TIER, { maxEventsPerPeriod: 2 }).periodStartedAt).toBeNull()
+    it('starts at the moment of provisioning when the operator names the count too, as a console form pre-filled from the defaults does', () => {
+      expect(stored(TIER, { maxEventsPerPeriod: 6 }).periodStartedAt).toEqual(NOW)
+      expect(stored(NONE, { maxEventsPerPeriod: 2 }).periodStartedAt).toEqual(NOW)
     })
 
     it('is left alone when the operator lifts the count: there is nothing to date', () => {

@@ -91,19 +91,23 @@ const actorOf = (createdBy: UserId | null): AuditActorInput =>
  *
  * **The ceilings are the operator's, completed by the box's** (G2-18). A ceiling the operator
  * names is kept (`null` lifts the default for this client); every other takes its
- * `NEW_CLIENT_*` default, and a default per-period count starts its period now. That is
+ * `NEW_CLIENT_*` default, and a per-period count starts its period now unless the operator dated it. That is
  * `startingCeilings`, a pure rule; what this use case adds is that the result is **written
  * down**: `client.created` carries the whole snapshot the client starts with, because the
  * defaults are configuration and change at the next boot while "what was this client promised
  * on the day it was opened" must still have an answer.
  *
- * **The entry is written before the invitation, and the client is removed if it cannot be.**
- * Write-ahead, as in `setClientCeilings`: a client cannot be opened with a ceiling nobody can
- * read back. It cannot come after, because by then a mail may have gone. The actor is
- * `createdBy`, an operator, or the system when there is none. If the invitation then fails
- * the client is removed again and its entry stays, a line for an intent that failed: the log
- * never holds a foreign key to a client, so history outlives it, and the lesser error is the
- * one that is visible.
+ * **The entry is written after the client is saved and before the invitation is issued, and
+ * the client is removed if it cannot be.** Not write-ahead as in `setClientCeilings`, where the
+ * entry precedes the save: the client exists first because the entry names it. What it does
+ * hold is that no mail goes for a client the log cannot name, which is why it cannot come
+ * after the invitation. The actor is `createdBy`, an operator, or the system when there is
+ * none. If the invitation then fails the client is removed again and its entry stays, a line
+ * for an intent that failed: the log never holds a foreign key to a client, so history
+ * outlives it, and the lesser error is the one that is visible. **The gap:** if the log
+ * cannot be written and the removal fails too (one locked database would do both), an empty
+ * client with its full ceilings and no line is left, with no member, no event and no
+ * invitation; `deleteEmptyClient` removes it, and the error that is thrown is the log's.
  *
  * **Not here yet.** The `invitation.issued` entry arrives with the operator API that calls
  * this (G2-14), which is also where the console's own audit of an approval lives.

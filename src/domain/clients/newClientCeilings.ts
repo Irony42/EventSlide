@@ -40,12 +40,13 @@ const orDefault = <T>(named: T | undefined, fallback: T): T =>
  * field) is a client with no storage ceiling on a box that meant to have one. An explicit
  * `undefined` is an omission, as `ClientCeilings.create` would read it from a spread.
  *
- * **A period that the defaults start starts now.** `maxEventsPerPeriod` counts the events
- * created since `periodStartedAt`; a default for the count with no start would leave the
- * period undated, and a renewal (`setClientCeilings`, which resets the counter when the
- * start moves) would have nothing to move. So when the count comes from the defaults, the
- * period starts at `now`, the moment of provisioning. When the operator names the count, or
- * the start, they have decided and nothing here adds to it.
+ * **A period that has a count starts now, unless the operator dated it.** `maxEventsPerPeriod`
+ * counts the events created since `periodStartedAt`; a count with no start would leave the
+ * period undated, and a renewal (`setClientCeilings`, which resets the counter when the start
+ * moves) would have nothing to move. So whenever the client ends up with a count, whether it
+ * came from the defaults or from the operator (a console form pre-filled from the defaults
+ * sends the count back **named**), the period starts at `now`, the moment of provisioning. The
+ * operator's own start is kept; with no count there is no period to date.
  *
  * Pure: it neither validates (`ClientCeilings.create` does, on the result) nor reads a
  * clock, so the caller's `now` is the one instant an audit entry and the period share.
@@ -58,12 +59,11 @@ export const startingCeilings = (
   const named: ClientCeilingsInput = given ?? {}
   const maxEventsPerPeriod = orDefault(named.maxEventsPerPeriod, defaults.maxEventsPerPeriod)
 
-  // The period's start is the operator's if they gave one; otherwise it is stamped only for a
-  // count that came from the defaults and is a count at all.
+  // The period's start is the operator's if they gave one; otherwise it is stamped for a count.
   const periodStartedAt =
     named.periodStartedAt !== undefined
       ? named.periodStartedAt
-      : named.maxEventsPerPeriod === undefined && maxEventsPerPeriod !== null
+      : maxEventsPerPeriod !== null
         ? new Date(now.getTime())
         : undefined
 

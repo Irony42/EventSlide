@@ -43,11 +43,11 @@ const NO_DEFAULTS: NewClientDefaults = {
   clipsAllowed: true,
 }
 
-/** The free tier of the plan's section 4.3, as the hosted instance would configure it. */
+/** A tier a hosted box might configure: every ceiling set, the two byte counts told apart. */
 const A_TIER: NewClientDefaults = {
   maxEvents: 1,
   maxEventsPerPeriod: 6,
-  maxTotalBytes: 5_000_000_000,
+  maxTotalBytes: 20_000_000_000,
   maxEventQuotaBytes: 5_000_000_000,
   maxRetentionDays: 30,
   maxLiveDays: 3,
@@ -235,7 +235,7 @@ describe('provisionClientOwner', () => {
           ceilings: {
             maxEvents: 5,
             maxEventsPerPeriod: 6,
-            maxTotalBytes: 5_000_000_000,
+            maxTotalBytes: 20_000_000_000,
             maxEventQuotaBytes: 5_000_000_000,
             maxRetentionDays: 30,
             maxLiveDays: 3,
