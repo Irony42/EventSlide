@@ -478,6 +478,92 @@ describe('issuePasswordResetForAccount', () => {
     })
   })
 
+  describe('when what it builds on misbehaves', () => {
+    /** A secret source whose digest is not a SHA-256, which the table would refuse. */
+    const broken = {
+      mint: () => ({ token: 'secret-1', digest: 'not a sha-256' }),
+      digestOf: (token: string) => token,
+      verify: () => true,
+    }
+
+    const buildWith = (overrides: {
+      readonly secrets?: typeof broken
+      readonly mailer?: Mailer
+      readonly mode?: 'mailOnly' | 'copyLinkWithOwnerApproval'
+      readonly tokens?: OperatorGuardWorld['tokens']
+    }) =>
+      makeIssuePasswordResetForAccount({
+        users: world.users,
+        clients: world.clients,
+        tokens: overrides.tokens ?? world.tokens,
+        secrets: overrides.secrets ?? world.secrets,
+        mailer: overrides.mailer ?? world.mailer,
+        ids: world.ids,
+        clock: world.clock,
+        logger: silentLogger,
+        publicUrl: PUBLIC_URL,
+        mode: overrides.mode ?? 'mailOnly',
+        audit: world.audit,
+      })
+
+    it('mails nothing and writes nothing when the secret source hands back a digest the table would refuse', async () => {
+      await build()
+
+      const result = await buildWith({ secrets: broken })({
+        actorId: asUserId(OPERATOR_ID),
+        userId: asUserId(MEMBER_ID),
+        locale: 'fr',
+      })
+
+      expect(!result.ok && result.error.code).toBe('accountToken.digestInvalid')
+      expect(sent().sent).toHaveLength(0)
+      expect(world.tokens.all).toHaveLength(0)
+      expect(await world.logged()).toHaveLength(0)
+    })
+
+    it('writes no request when the secret source hands back a digest the table would refuse', async () => {
+      await build({ mailer: noRelay, mode: 'copyLinkWithOwnerApproval' })
+
+      const result = await buildWith({
+        secrets: broken,
+        mailer: noRelay,
+        mode: 'copyLinkWithOwnerApproval',
+      })({ actorId: asUserId(OPERATOR_ID), userId: asUserId(MEMBER_ID), locale: 'fr' })
+
+      expect(!result.ok && result.error.code).toBe('accountToken.digestInvalid')
+      expect(world.tokens.all).toHaveLength(0)
+      expect(await world.logged()).toHaveLength(0)
+    })
+
+    it('hands out one link when two redemptions of one approval arrive together, and the other is told it is gone', async () => {
+      await build({ mailer: noRelay, mode: 'copyLinkWithOwnerApproval' })
+      const asked = await reset(MEMBER_ID)
+      const requestId =
+        asked.ok && asked.value.delivery === 'pendingApproval'
+          ? asked.value.approvalId
+          : asAccountTokenId('x')
+      await world.useCases.approvePasswordReset({ actorId: asUserId(OWNER_ID), requestId })
+      // The rival spends it between the read and the spend, which is what the conditional
+      // update in the repository is there to decide.
+      const losing = Object.create(world.tokens) as OperatorGuardWorld['tokens']
+      losing.consume = async () => false
+
+      const result = await buildWith({
+        mailer: noRelay,
+        mode: 'copyLinkWithOwnerApproval',
+        tokens: losing,
+      })({
+        actorId: asUserId(OPERATOR_ID),
+        userId: asUserId(MEMBER_ID),
+        locale: 'fr',
+        approvalId: requestId,
+      })
+
+      expect(!result.ok && result.error.code).toBe('reset.requestNotFound')
+      expect(JSON.stringify(result)).not.toContain('/password/reset/')
+    })
+  })
+
   describe('the line comes first (R5)', () => {
     it('sends no mail and saves no link when the log cannot take the line', async () => {
       await build()
