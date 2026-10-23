@@ -68,6 +68,7 @@ const harness = ({ config = {}, csrf = false }: Options = {}): Subject => {
               events: world.events,
               clients: world.clients,
               memberships: world.memberships,
+              users: world.users,
               clock: world.clock,
             }),
             acceptInvitation: makeAcceptInvitation({

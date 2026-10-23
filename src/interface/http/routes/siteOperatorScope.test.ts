@@ -151,6 +151,21 @@ const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
 }
 
 /**
+ * The routes of the **client space** (`/api/client`, roadmap §10.9), which exist only on a box
+ * with `SITE_ADMIN=on`, each with the reason it reaches no event.
+ *
+ * Kept apart from {@link NOT_EVENT_SCOPED} because that list is held in both modes and these
+ * are mounted in one: an entry there that a mode does not mount fails "lists no exemption that
+ * is not a route". The same claim is checked of them in the mode that mounts them.
+ */
+const CLIENT_SPACE_ROUTES: Readonly<Record<string, string>> = {
+  'post /api/client/invitations/:invitationId/approve':
+    'an owner letting an operator’s invitation into the client’s **account** (R1 of the ' +
+    'operator guard): the answer is decided by the client’s own roster, so an operator who ' +
+    'is no part of the client is answered as a stranger is, and no event is read',
+}
+
+/**
  * The routes of the operator's own namespace, `/api/site` (roadmap §10.9), each with the
  * reason it exists.
  *
@@ -282,6 +297,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   kind: 'love',
   token: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   linkId: A_PHOTO,
+  invitationId: A_PHOTO,
 }
 
 /**
@@ -750,6 +766,11 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
   const siteAdmin = mode === 'on'
   const operatorHarness = (overrides: HarnessOverrides = {}) =>
     buildOperatorHarness(siteAdmin, overrides)
+  /** What this mode mounts that reaches no event: the shared list, and the client space if it is on. */
+  const notEventScoped: Readonly<Record<string, string>> = {
+    ...NOT_EVENT_SCOPED,
+    ...(siteAdmin ? CLIENT_SPACE_ROUTES : {}),
+  }
 
   describe('the route table this sweep covers', () => {
     it('finds the routes this is actually about', () => {
@@ -821,7 +842,7 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
       const mounted = new Set(
         mountedRoutes(operatorHarness().app).map((route) => `${route.method} ${route.path}`),
       )
-      const exemptions = [...Object.keys(PUBLIC_ROUTES), ...Object.keys(NOT_EVENT_SCOPED)]
+      const exemptions = [...Object.keys(PUBLIC_ROUTES), ...Object.keys(notEventScoped)]
 
       expect(exemptions.filter((key) => !mounted.has(key))).toEqual([])
     })
@@ -832,7 +853,7 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
       // what it claims.
       const keys = [
         ...Object.keys(PUBLIC_ROUTES),
-        ...Object.keys(NOT_EVENT_SCOPED),
+        ...Object.keys(notEventScoped),
         ...Object.keys(OPERATOR_ROUTES),
       ]
       const claimed = keys.filter((key, index) => keys.indexOf(key) !== index)
@@ -840,7 +861,7 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
       expect(claimed).toEqual([])
     })
 
-    it.each(Object.entries(NOT_EVENT_SCOPED))(
+    it.each(Object.entries(notEventScoped))(
       'reaches no event on %s, so leaving it out of the sweep exempts nothing',
       async (name) => {
         // The guard on the other exemption list. `NOT_EVENT_SCOPED` removes a route from
@@ -1011,7 +1032,7 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
       const name = `${route.method} ${route.path}`
       return (
         PUBLIC_ROUTES[name] === undefined &&
-        NOT_EVENT_SCOPED[name] === undefined &&
+        notEventScoped[name] === undefined &&
         !(carriedBySite(route) && OPERATOR_ROUTES[name] !== undefined)
       )
     })

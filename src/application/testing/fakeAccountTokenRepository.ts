@@ -103,6 +103,10 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
     return null
   }
 
+  async findById(id: AccountTokenId): Promise<AccountToken | null> {
+    return this.rows.get(id) ?? null
+  }
+
   async consume(id: AccountTokenId, now: Date): Promise<boolean> {
     const row = this.rows.get(id)
     if (row === undefined || !isAccountTokenUsable(row, now)) return false

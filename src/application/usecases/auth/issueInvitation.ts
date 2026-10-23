@@ -34,6 +34,17 @@ export interface IssueInvitationInput {
   readonly place: InvitedPlace
   /** Who is inviting, or `null` for the system. Kept on the record, never shown to the invitee. */
   readonly createdBy: UserId | null
+  /**
+   * Whether somebody other than the inviter has to approve the link before it opens anything
+   * (the operator guard's R1, G2-12 / P3-14). Absent means no. The decision is the caller's,
+   * made from facts this use case does not read (who the inviter is, what the client holds);
+   * this only writes it onto the record, where `findUsable` and the acceptance's spend refuse
+   * the link until an approval is recorded.
+   *
+   * The mail still goes out and the link is still shown when there is no relay: the invitee
+   * can open it and is told it is not valid, exactly as for any link that cannot be used yet.
+   */
+  readonly requiresApproval?: boolean
 }
 
 export type IssuedInvitation = {
@@ -150,7 +161,7 @@ export const makeIssueInvitation = ({
     return run
   }
 
-  return async ({ email, locale, place, createdBy }) => {
+  return async ({ email, locale, place, createdBy, requiresApproval }) => {
     const address = EmailAddress.create(email)
     if (!address.ok) return address
 
@@ -195,6 +206,7 @@ export const makeIssueInvitation = ({
               ? { eventId: place.eventId, eventRole: place.role }
               : { clientId: place.clientId, clientRole: place.role }),
             delivery: 'link',
+            ...(requiresApproval === undefined ? {} : { requiresApproval }),
             createdBy,
           },
           ids.accountTokenId(),

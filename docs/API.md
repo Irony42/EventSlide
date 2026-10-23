@@ -222,12 +222,15 @@ which is derived from the very setting that decides whether the namespace is mou
 the two cannot disagree. (Nothing in the SPA reads it yet: the `/admin/site` screens it
 gates do not exist.)
 
-**No client route exists yet.** Clients (roadmap §10.2) have a domain, a port, a SQLite
-adapter and five use cases (`createClient`, `renameClient`, `setClientCeilings`,
-`listClients`, `deleteEmptyClient`), and nothing in this document is a route for them: the
-operator API that calls them is a later item (G2-14) and will be mounted under `/api/site`,
-behind `SITE_ADMIN` and `requireOperator`, like everything else in that namespace. Until it
-lands the use cases are built and unreachable from the wire.
+**No operator route over clients exists yet.** Clients (roadmap §10.2) have a domain, a port, a SQLite
+adapter and use cases (`createClient`, `renameClient`, `setClientCeilings`, `listClients`,
+`deleteEmptyClient`, `provisionClientOwner`, and the operator guard's `inviteToClientAsOperator` and
+`issuePasswordResetForAccount`, docs/SECURITY.md §20), and nothing in this document is an operator route
+for them: the operator API that calls them is a later item (G2-14) and will be mounted under
+`/api/site`, behind `SITE_ADMIN` and `requireOperator`, like everything else in that namespace. Until
+it lands the use cases are built and unreachable from the wire. The one route a client's **owner**
+has is under `/api/client` (§6, `POST /api/client/invitations/:invitationId/approve`), mounted only with
+`SITE_ADMIN=on`: off, it answers as a path nobody wrote.
 
 **No audit route exists yet either.** The append-only audit log (roadmap §10.8) is written by
 `setClientCeilings` and pruned by the retention sweep, and nothing reads it over the wire: the
@@ -2963,6 +2966,30 @@ confirm that a photo the caller may not see exists.
 transition is a skip, not an error.
 
 ---
+
+### `POST /api/client/invitations/:invitationId/approve`
+
+An owner of a client lets an operator's invitation into that client in (the operator guard's R1,
+docs/SECURITY.md §20). **Only with `SITE_ADMIN=on`**: off, the whole `/api/client` space is unmounted and
+every path in it is `404 route.notFound`, status, body and headers exactly as for a path nobody wrote.
+
+An operator's invitation into a client **that has an event or a member** is written as waiting (`pendingApproval`),
+and opens nothing, as a link or a mail, until an owner of that client approves it here. Approving
+records who approved and when and does nothing else: the link is not spent and no account is created,
+so the invitee still has to open it and accept.
+
+- **Auth:** a signed-in, enabled account (`401 auth.required` otherwise) that is an **owner of the
+  invitation's client** and **does not operate the box**. The caller is the session's; the request names
+  no actor, and a body is ignored.
+- **Request:** no body. `:invitationId` is the id the operator's invitation answered with, a UUID shape
+  (`400 request.invalid` otherwise). It is an id and not a secret: it opens nothing by itself.
+- **Response:** `204`, also when the invitation was already approved (nothing changes and nothing is
+  written). The line `invitation.approved` is written to the audit log before the approval is recorded.
+
+| Code                  | Status | When                                                                                                                                                                                                                                                                 |
+| --------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.forbidden`      | 403    | A member of the client who is not an owner; **an operator**, whether or not the client made them an owner. `details.required: "owner"`                                                                                                                               |
+| `invitation.notFound` | 404    | An unknown id; another client's invitation; an invitation to an event, or one that never waited for anyone; a password-reset link; one already spent, revoked or expired; and a caller with no part in the client (an operator included). One answer for all of them |
 
 ## 7. Realtime
 
