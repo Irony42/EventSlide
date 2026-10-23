@@ -1563,6 +1563,9 @@ confirmation) against a real logger and a real access log and requires that the 
 token, the link and the new password appear in none of it.
 **`malformedPathLogCanary.test.ts`** is the other way a credential reaches an error log: a link
 cut in the middle of a percent-escape, whose decode error carries the raw parameter.
+**`loggablePathLogCanary.test.ts`** is the third: those same addresses spelled with doubled
+slashes and percent-escaped letters, so that the path the request's logger carries is the one
+under test.
 
 ### Data-subject flows a host can actually perform
 
@@ -2627,9 +2630,30 @@ password-reset address. Both answer it by the class **and** the `status: 400` th
 `URIError` of ours stays a bug, with nothing from the error in the log, and the error handler
 sets the gallery's three headers when the address carries a credential. `malformedPath.test.ts` holds the answers and `malformedPathLogCanary.test.ts`
 reads every byte the real logger and the access log write for the canonical addresses
-`loggablePath` knows. It does not widen what `loggablePath` recognises: an address with a
-doubled slash or an encoded prefix (`//g/<token>`, `/%67/<token>`) is logged as it came at
-debug level, which is a gap in `loggablePath` that this paragraph does not close.
+`loggablePath` knows.
+
+**The same address spelled another way is redacted too.** `loggablePath` matches on the path
+after three normalisations, so `//g/<token>`, `/%67/<token>`, `/g/./<token>` and
+`/api/%69nvitations/<token>` are logged as `/g/:token` and `/api/invitations/:token`: doubled
+slashes are collapsed, a percent-escape of an unreserved character (a letter, a digit, `-._~`,
+RFC 3986 section 2.3) is replaced by the character, since a decoder, a proxy or a client
+library treats the two as one address, and dot segments are removed (the page routes are
+wildcards, so `/g/./<token>` reaches the page; a browser resolves the dot before it sends, `curl
+--path-as-is` does not). `..` is read both ways, kept and resolved, because resolved
+`/g/<token>/..` has no token left to find. Any other escape (`%2F`, `%20`) is left as written.
+A path with an escape cut in the middle (`%E0%A4%A`) cannot make the normalisation fail, because
+it decodes one escape at a time: the address in front of the break is read as usual and its
+token redacted. A path that carries no token is still logged as it came. The error handler
+sets the gallery's three headers on the refusal by the same test. `errorHandler.test.ts` holds
+what each spelling is logged as, and `loggablePathLogCanary.test.ts` reads every byte the real
+logger and an enabled access log write for the five credential addresses in eight spellings
+each.
+
+**What it does not cover.** A spelling that no router reads as the address: a backslash
+(`/g<token>`), `%2F` or `%5C` for a slash, a `;parameter` in a segment, a NUL. Express sends
+every one of them to the client fallback, never to a token handler, so they matter only behind
+a proxy that rewrites them into the address, and this repository configures none. A path like
+that, with a cut escape after the token, is logged at debug level as it came.
 
 **A link-preview bot learns nothing.** Messaging apps fetch a pasted URL to draw a preview.
 What they get at `/g/<token>` is the SPA shell — the album is loaded by the page's script —
