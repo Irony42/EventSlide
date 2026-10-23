@@ -7,6 +7,7 @@ import { toClientAuditPageDto, toPendingInvitationsDto } from '../presenters/pre
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   approveInvitationParams,
+  approvePasswordResetParams,
   clientAuditQuery,
   pendingInvitationsQuery,
 } from '../schemas/clientSchemas'
@@ -17,7 +18,9 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * does about that client, mounted only on a box with `SITE_ADMIN=on` — with it off there is
  * no client space and every path here answers as an unknown route does.
  *
- * It carries the owner's half of R1 of the operator guard (G2-12 / P3-14: approving) and what an
+ * It carries the owner's half of R1 of the operator guard (G2-12 / P3-14: approving an invitation),
+ * the owner's half of R2 (G2-14: approving an operator's request for a password-reset link, on a
+ * box with no mail relay and `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval`) and what an
  * owner reads of their own client (G2-16 / P3-17: the log of what the operator did, and the
  * list of what waits for them). `/api/me/limits`, which every member reads, is `meRoutes.ts`.
  *
@@ -36,7 +39,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
 export interface ClientRouteDeps extends Omit<RouteDeps, 'usecases'> {
   readonly usecases: Pick<
     HttpUseCases,
-    'approveInvitation' | 'listClientAudit' | 'listPendingInvitations'
+    'approveInvitation' | 'approvePasswordReset' | 'listClientAudit' | 'listPendingInvitations'
   >
 }
 
@@ -71,6 +74,40 @@ export const clientRoutes = ({ deps, usecases }: ClientRouteDeps): Router => {
         // approval anybody could cast in anybody's name.
         actorId: user.userId,
         invitationId: asAccountTokenId(params.invitationId),
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
+   * **Another** owner of an account's client lets an operator be handed that account's
+   * password-reset link (R2, `copyLinkWithOwnerApproval`). The consent is the same as the
+   * invitation's and judged by the same gate (`approvalGate`): a signed-in, enabled owner of the
+   * client who does not operate the box, and who is not the account being reset.
+   *
+   * Approving hands nobody a link: it makes the request redeemable once, by the operator who made
+   * it, who is then given a link that did not exist until that moment. `404 reset.requestNotFound`
+   * is one answer for an unknown id, an invitation's, a request that is spent, revoked or expired,
+   * a request for an account of another client or of none or of two, and a caller with no part in
+   * the client; `204` also for a request already approved, which changes nothing.
+   */
+  router.post(
+    '/client/password-resets/:requestId/approve',
+    requireUser(deps),
+    asyncHandler(async (req, res) => {
+      const user = req.context.user
+      if (!user) {
+        sendError(res, DomainError.unauthenticated('auth.required'))
+        return
+      }
+
+      const params = approvePasswordResetParams.parse(req.params)
+
+      const result = await usecases.approvePasswordReset({
+        // From the session, never from the request: an approval anybody could cast in anybody's name.
+        actorId: user.userId,
+        requestId: asAccountTokenId(params.requestId),
       })
 
       sendResultNoContent(res, result)

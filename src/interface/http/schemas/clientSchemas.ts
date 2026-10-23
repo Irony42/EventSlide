@@ -14,6 +14,9 @@ import { z } from 'zod'
  */
 export const approveInvitationParams = z.object({ invitationId: z.guid() })
 
+/** `POST /api/client/password-resets/:requestId/approve` (G2-14): the id the operator's request answered with. */
+export const approvePasswordResetParams = z.object({ requestId: z.guid() })
+
 /** The ceiling on one page of the log, whatever the caller asks for. */
 export const CLIENT_AUDIT_MAX_LIMIT = 100
 export const CLIENT_AUDIT_DEFAULT_LIMIT = 50

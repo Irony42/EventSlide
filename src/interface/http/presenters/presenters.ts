@@ -927,7 +927,7 @@ export const toGalleryPageDto = (page: GalleryPage): GalleryPageDto => ({
 
 // ----------------------------------------------------------------- client space --
 
-const toCeilingsDto = (ceilings: ClientLimits['ceilings']): CeilingsDto => ({
+export const toCeilingsDto = (ceilings: ClientLimits['ceilings']): CeilingsDto => ({
   maxEvents: ceilings.maxEvents,
   maxTotalBytes: ceilings.maxTotalBytes,
   maxEventQuotaBytes: ceilings.maxEventQuotaBytes,

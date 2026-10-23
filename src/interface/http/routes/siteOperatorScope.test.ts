@@ -159,6 +159,10 @@ const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
  * is not a route". The same claim is checked of them in the mode that mounts them.
  */
 const CLIENT_SPACE_ROUTES: Readonly<Record<string, string>> = {
+  'post /api/client/password-resets/:requestId/approve':
+    'another owner letting an operator be handed an account’s reset link (R2, ' +
+    '`copyLinkWithOwnerApproval`): decided by the client’s own roster, so an operator who is no ' +
+    'part of the client is answered as a stranger is, and it reads no event',
   'post /api/client/invitations/:invitationId/approve':
     'an owner letting an operator’s invitation into the client’s **account** (R1 of the ' +
     'operator guard): the answer is decided by the client’s own roster, so an operator who ' +
@@ -204,6 +208,32 @@ const CLIENT_SPACE_ROUTES: Readonly<Record<string, string>> = {
  * line here in the same diff.
  */
 const OPERATOR_ROUTES: Readonly<Record<string, string>> = {
+  'get /api/site/clients':
+    'every client with its ceilings and what it uses, read through `SiteOverview`, whose rows ' +
+    'have no field for an event’s name, a photograph or a guest — so no evening is behind it',
+  'get /api/site/clients/:clientId/events':
+    'one client’s events as ids, statuses, dates and sizes, through the same read model: ' +
+    'there is no name, slug, join code or photograph in the row type for it to hand out',
+  'get /api/site/accounts':
+    'every account by address, with its clients, through the read model: never a hash, ' +
+    'never a display name, and no event is read',
+  'get /api/site/audit':
+    'the audit log, whose entries are numbers, switches, instants and one bounded reason, ' +
+    'and which holds no photograph, caption, name or token by construction',
+  'post /api/site/clients':
+    'opens a client and invites its owner (`provisionClientOwner`): writes the clients table, ' +
+    'one account token and two audit lines, and reads no event',
+  'patch /api/site/clients/:clientId':
+    'renames a client (`renameClient`): one column of the clients table and one audit line',
+  'put /api/site/clients/:clientId/ceilings':
+    'changes a client’s ceilings with a mandatory reason (`setClientCeilings`): the clients ' +
+    'table and the audit log; no event is read or written',
+  'post /api/site/clients/:clientId/invitations':
+    'invites somebody into a client’s **account** (`inviteToClientAsOperator`, R1), waiting ' +
+    'for an owner where the client is in use; it grants no event role, which R4 forbids',
+  'post /api/site/accounts/:userId/password-reset':
+    'resets an account’s password by mail to its own address (`issuePasswordResetForAccount`, ' +
+    'R2); it opens no session and changes nothing about the account until its holder uses the link',
   'get /api/site/client-defaults':
     'the ceilings a new client starts with (`NEW_CLIENT_*`, G2-18): the box’s own configuration, ' +
     'read from nothing but the process’s settings, naming no client, no event and no account — ' +
@@ -312,6 +342,8 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   token: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   linkId: A_PHOTO,
   invitationId: A_PHOTO,
+  clientId: CLIENT,
+  requestId: A_PHOTO,
 }
 
 /**

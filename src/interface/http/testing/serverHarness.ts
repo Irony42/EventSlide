@@ -185,6 +185,13 @@ export interface ServerHarnessOptions {
   readonly secondFactors?: FakeSecondFactorRepository
   /** The clock the use cases were built with, so the server and they agree on now. */
   readonly clock?: FakeClock
+  /**
+   * Ports to put in place of the world's fakes, for a suite whose subject needs the server to read
+   * what its use cases write through **real** adapters (`siteHarness.ts`: SQLite, so that the
+   * operator's listings see the client a route just created). Everything the harness would have
+   * built stays as it was for a key that is not given.
+   */
+  readonly deps?: Partial<HttpDeps>
 }
 
 /**
@@ -213,6 +220,7 @@ export const buildServerHarness = ({
   users,
   secondFactors,
   clock,
+  deps: depOverrides = {},
 }: ServerHarnessOptions = {}): ServerHarness => {
   const world = buildTestWorld(config, {
     ...(logger === undefined ? {} : { logger }),
@@ -221,7 +229,7 @@ export const buildServerHarness = ({
     ...(clock === undefined ? {} : { clock }),
     ...(mailer === undefined ? {} : { mailer }),
   })
-  const { deps } = world
+  const deps: HttpDeps = { ...world.deps, ...depOverrides }
 
   const health: MutableHealthChecks = {
     version: '2.0.0-test',
@@ -272,5 +280,5 @@ export const buildServerHarness = ({
     ...(clientDir === undefined ? {} : { clientDir }),
   })
 
-  return { app, health, ...world }
+  return { ...world, app, health, deps }
 }
