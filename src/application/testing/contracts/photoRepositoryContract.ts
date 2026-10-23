@@ -494,13 +494,15 @@ export const photoRepositoryContract = (
       it.each([1, 2, 3])(
         'returns every photo once, in order, when all of them share one timestamp and the page is %i',
         async (limit) => {
+          // Four, so that a page of three still ends inside the run instead of swallowing it.
           await saveAll([
             aPhoto({ id: 'p-b', eventId: WEDDING, createdAt: AT }),
             aPhoto({ id: 'p-a', eventId: WEDDING, createdAt: AT }),
+            aPhoto({ id: 'p-d', eventId: WEDDING, createdAt: AT }),
             aPhoto({ id: 'p-c', eventId: WEDDING, createdAt: AT }),
           ])
 
-          expect(await pageThrough(repo, WEDDING, limit)).toEqual(['p-c', 'p-b', 'p-a'])
+          expect(await pageThrough(repo, WEDDING, limit)).toEqual(['p-d', 'p-c', 'p-b', 'p-a'])
         },
       )
 

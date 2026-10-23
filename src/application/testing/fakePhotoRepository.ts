@@ -34,11 +34,11 @@ import type {
  * 2. **`(eventId, contentHash)` is unique**, as `idx_photos_event_hash` makes it. A
  *    save that would duplicate rejects, so the "double-tapped Envoyer" path is
  *    exercised against a repository that behaves like the real one.
- * 3. **One total order: `createdAt` descending, then id descending** — `ORDER BY
- *    created_at DESC, id DESC`, which `idx_photos_event_status_created` serves. Both keys
- *    run the same way, and the keyset cursor is the same pair. Without the id tie-break
- *    two projectors reading the same event can disagree about what comes next, which is
- *    1.0's per-browser slideshow index in a new costume.
+ * 3. **One total order: `createdAt` descending, then id descending**, as the adapter's
+ *    `ORDER BY created_at DESC, id DESC` has it. Both keys run the same way, and the keyset
+ *    cursor is the same pair. Without the id tie-break two projectors reading the same
+ *    event can disagree about what comes next, which is 1.0's per-browser slideshow index
+ *    in a new costume.
  */
 
 /** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
