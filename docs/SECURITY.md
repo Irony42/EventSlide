@@ -2351,7 +2351,7 @@ there.
 ### 14.8 Express 5: what the upgrade changed on this audit's rows
 
 `express` 4.22.3 became 5.3.0 (#93), with `router` 2.2.0, `path-to-regexp` 8.4.2,
-`body-parser` 2.3.0, `send` 1.2.1 and `qs` 6.16.0. Every one of the 25 entries the tree gained
+`body-parser` 2.4.0, `send` 1.2.1 and `qs` 6.16.1. Every one of the 25 entries the tree gained
 is MIT-licensed and none carries an install script; it lost 5.
 
 - **`proxy-addr` 2.0.7 became 2.0.8**, which closes `GHSA-jqcg-44mw-7w3h` (IP spoofing through
