@@ -250,6 +250,22 @@ describe('issueInvitation', () => {
       expect(mailer.sent[0]?.text).toContain('7')
     })
 
+    it('writes no approval requirement unless the caller asked for one', async () => {
+      await invite({ place: CLIENT_PLACE })
+
+      expect(tokens.all[0]?.requiresApproval).toBe(false)
+    })
+
+    it('writes the approval requirement the caller asked for, unapproved, so the link opens nothing yet', async () => {
+      await invite({ place: CLIENT_PLACE, requiresApproval: true })
+
+      expect(tokens.all[0]).toMatchObject({
+        requiresApproval: true,
+        approvedAt: null,
+        approvedBy: null,
+      })
+    })
+
     it('hands back the id of the invitation it stored', async () => {
       const result = await invite()
 

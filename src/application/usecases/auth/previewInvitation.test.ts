@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { asEventId, asUserId } from '../../../domain/shared/ids'
-import { aUser, anAccountToken, anEvent, atPlus } from '../../testing/builders'
+import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
+import { AT, aUser, anAccountToken, anEvent, atPlus } from '../../testing/builders'
 import {
+  CLIENT_ID,
   EVENT_ID,
   EXISTING_EMAIL,
   HOST_ID,
@@ -200,7 +201,11 @@ describe('previewInvitation', () => {
         tokens: world.tokens,
         secrets: world.secrets,
         events: world.events,
-        clients: { findById: async () => null },
+        clients: {
+          findById: async () => null,
+          memberRole: async () => null,
+          countEvents: async () => 0,
+        },
         memberships: world.memberships,
         clock: world.clock,
       })
@@ -280,6 +285,73 @@ describe('previewInvitation', () => {
 
     it('is not asked of an invitation to a client, which has no event to be an owner of', async () => {
       const { token } = await world.invite({ to: 'client-owner', createdBy: null })
+
+      expect((await preview({ token })).ok).toBe(true)
+    })
+  })
+
+  describe('R1 of the operator guard, held again when the link is read: an invitation into a client that nobody had to approve is good only while the client has no event', () => {
+    const wedding = asEventId('event-wedding')
+    const NOT_FOUND = {
+      ok: false,
+      error: expect.objectContaining({ kind: 'notFound', code: 'invitation.notFound' }),
+    }
+
+    /** The client grows its first event after the invitation was written. */
+    const clientGrowsAnEvent = (): void => {
+      world.clients.linkEvent(wedding, asClientId(CLIENT_ID))
+    }
+
+    it('still opens while the client has no event', async () => {
+      const { token } = await world.invite({ to: 'client-owner' })
+
+      expect((await preview({ token })).ok).toBe(true)
+    })
+
+    it('stops opening, as any dead link does, once the client has an event and nobody approved it', async () => {
+      const { token } = await world.invite({ to: 'client-owner' })
+      clientGrowsAnEvent()
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+    })
+
+    it('keeps opening once an owner approved it, whatever the client holds', async () => {
+      const { token, id } = await world.invite({ to: 'client-owner', requiresApproval: true })
+      await world.tokens.approve(id as never, asUserId(HOST_ID), AT)
+      clientGrowsAnEvent()
+
+      expect((await preview({ token })).ok).toBe(true)
+    })
+
+    it('keeps opening when an owner of the client wrote it, who is not who R1 is about', async () => {
+      await world.clients.grantMember({
+        clientId: asClientId(CLIENT_ID),
+        userId: asUserId(HOST_ID),
+        role: 'owner',
+        grantedAt: AT,
+      })
+      const { token } = await world.invite({ to: 'client-member', createdBy: HOST_ID })
+      clientGrowsAnEvent()
+
+      expect((await preview({ token })).ok).toBe(true)
+    })
+
+    it('stops opening when it was written by a mere member of the client', async () => {
+      await world.clients.grantMember({
+        clientId: asClientId(CLIENT_ID),
+        userId: asUserId(HOST_ID),
+        role: 'member',
+        grantedAt: AT,
+      })
+      const { token } = await world.invite({ to: 'client-owner', createdBy: HOST_ID })
+      clientGrowsAnEvent()
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+    })
+
+    it('keeps opening when the system wrote it, with no account behind it', async () => {
+      const { token } = await world.invite({ to: 'client-owner', createdBy: null })
+      clientGrowsAnEvent()
 
       expect((await preview({ token })).ok).toBe(true)
     })
