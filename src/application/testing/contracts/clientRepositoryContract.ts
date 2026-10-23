@@ -452,6 +452,33 @@ export const clientRepositoryContract = (
       expect(await repo.contextForEvent(GALA)).toBeNull()
     })
 
+    // -------------------------------------------------------------- countEvents --
+
+    it('counts the events of a client and of no other', async () => {
+      await repo.save(aClient({ id: 'client-1' }))
+      await repo.save(aClient({ id: 'client-2' }))
+      await linkEvent(WEDDING, asClientId('client-1'))
+      await linkEvent(GALA, asClientId('client-2'))
+
+      expect(await repo.countEvents(asClientId('client-1'))).toBe(1)
+      expect(await repo.countEvents(asClientId('client-2'))).toBe(1)
+    })
+
+    it('counts every event of the client', async () => {
+      await repo.save(aClient({ id: 'client-1' }))
+      await linkEvent(WEDDING, asClientId('client-1'))
+      await linkEvent(GALA, asClientId('client-1'))
+
+      expect(await repo.countEvents(asClientId('client-1'))).toBe(2)
+    })
+
+    it('counts none for a client with no event, and for one that does not exist', async () => {
+      await repo.save(aClient({ id: 'client-1' }))
+
+      expect(await repo.countEvents(asClientId('client-1'))).toBe(0)
+      expect(await repo.countEvents(asClientId('ghost'))).toBe(0)
+    })
+
     // ------------------------------------------------------------- deleteIfEmpty --
 
     it('deletes a client with no member and no event', async () => {

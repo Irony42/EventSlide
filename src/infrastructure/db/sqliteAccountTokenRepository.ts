@@ -192,6 +192,14 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
     return row === undefined ? null : toToken(row)
   }
 
+  async findById(id: AccountTokenId): Promise<AccountToken | null> {
+    const row = this.db
+      .prepare<[string], AccountTokenRow>(`SELECT ${COLUMNS} FROM account_tokens WHERE id = ?`)
+      .get(id)
+
+    return row === undefined ? null : toToken(row)
+  }
+
   async consume(id: AccountTokenId, now: Date): Promise<boolean> {
     const at = toIsoText(now)
     const result = this.db
