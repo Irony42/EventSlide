@@ -162,9 +162,6 @@ export function AcceptInvitationPage() {
   if (signedInAs !== null) {
     return (
       <AuthForm
-        // Keyed: leaving this account swaps the form for the other one, and the keyboard goes
-        // to the new heading instead of to a button that has just been removed.
-        key="signed-in"
         title={t.auth.invitationTitle}
         intro={intro}
         focusTitle
@@ -185,7 +182,6 @@ export function AcceptInvitationPage() {
 
   return (
     <AuthForm
-      key="new-account"
       title={t.auth.invitationTitle}
       intro={`${intro} ${t.auth.invitationChoose}`}
       focusTitle
