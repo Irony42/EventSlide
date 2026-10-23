@@ -160,19 +160,16 @@ describe('the operator and the accounts it brought in, on the events of a client
         ? operator.agent.get(path)
         : operator.agent[method](path).set(CSRF_HEADER, operator.csrf).send(body)
 
-    // The operator opens a client for a customer, and, **before the customer has accepted
-    // anything** (the client holds nothing), brings in an account of its own.
+    // The one account an operator may bring in without anybody's say: the first owner of a
+    // client it has just opened, an address it controls. The invitation waits for nobody, because
+    // the client holds nothing, and a second one would (SECURITY.md §20, R1).
     const opened = await act('post', '/api/site/clients', {
-      clientName: 'Jean et Marie',
-      ownerEmail: 'jean@example.test',
+      clientName: 'Le complice et compagnie',
+      ownerEmail: ACCOMPLICE,
     })
     const clientId: string = opened.body.clientId
-    const invited = await act('post', `/api/site/clients/${clientId}/invitations`, {
-      email: ACCOMPLICE,
-      role: 'owner',
-    })
-    expect(invited.body.invitation.pendingApproval).toBe(false)
-    const token = /\/invite\/([A-Za-z0-9_-]+)$/.exec(invited.body.invitation.link)?.[1]
+    expect(opened.body.invitation.pendingApproval).toBe(false)
+    const token = /\/invite\/([A-Za-z0-9_-]+)$/.exec(opened.body.invitation.link)?.[1]
     const newcomer = await anonymousCaller(site.app)
     const accepted = await newcomer.agent
       .post(`/api/invitations/${token}/accept`)
@@ -181,7 +178,9 @@ describe('the operator and the accounts it brought in, on the events of a client
     expect(accepted.status).toBe(200)
     expect(await site.recognise(ACCOMPLICE)).toBe(true)
 
-    // Then the customer, who has an event: the evening this is all about.
+    // Then a customer of the same client, who has an event: the evening this is all about. How
+    // they came to be in the client (an invitation an owner approved) is not what is swept; what
+    // is held is that the client's owner and the operator are told nothing of their event.
     await site.addAccount(aUser({ id: JEAN, email: 'jean@example.test' }))
     await site.world.addClientMember({
       clientId: asClientId(clientId),

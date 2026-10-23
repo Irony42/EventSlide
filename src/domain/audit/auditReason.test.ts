@@ -22,6 +22,10 @@ const BIDI_ISOLATE_START = char(0x2066)
 const BIDI_ISOLATE_END = char(0x2069)
 const BYTE_ORDER_MARK = char(0xfeff)
 const COMBINING_ACUTE = char(0x0301)
+const HANGUL_FILLER = char(0x3164)
+const BRAILLE_BLANK = char(0x2800)
+const FULLWIDTH_AT = char(0xff20)
+const SMALL_AT = char(0xfe6b)
 
 const refusal = (raw: string): string | null => {
   const result = parseAuditReason(raw)
@@ -84,12 +88,35 @@ describe('parseAuditReason', () => {
     ],
     ['a bidirectional isolate', `abus${BIDI_ISOLATE_START}constaté${BIDI_ISOLATE_END}`],
     ['a byte-order mark', `abus${BYTE_ORDER_MARK}constaté`],
+    [
+      'a Hangul filler, which is a letter to Unicode and draws nothing',
+      `abus${HANGUL_FILLER}constaté`,
+    ],
+    ['a Braille blank', `abus${BRAILLE_BLANK}constaté`],
   ])('refuses %s, because it hides what was typed', (_label, raw) => {
     expect(refusal(raw)).toBe('audit.reasonInvalid')
   })
 
   it('refuses an @, so an address pasted into the box does not reach a log that has no word for one', () => {
     expect(refusal('demande de marie@example.test')).toBe('audit.reasonInvalid')
+  })
+
+  it.each([
+    ['a fullwidth @', `marie${FULLWIDTH_AT}example.test`],
+    ['a small @', `marie${SMALL_AT}example.test`],
+  ])(
+    'refuses %s as it does the ASCII one, because a reader sees the same character',
+    (_label, raw) => {
+      expect(refusal(raw)).toBe('audit.reasonInvalid')
+    },
+  )
+
+  it('counts characters and not UTF-16 units: a hundred and one emoji are a hundred and one, and fit', () => {
+    const emoji = String.fromCodePoint(0x1f4f7)
+
+    expect(refusal(emoji.repeat(101))).toBeNull()
+    expect(refusal(emoji.repeat(AUDIT_REASON_MAX_LENGTH))).toBeNull()
+    expect(refusal(emoji.repeat(AUDIT_REASON_MAX_LENGTH + 1))).toBe('audit.reasonInvalid')
   })
 
   it('never puts what was typed in the error, only the bound', () => {

@@ -2132,12 +2132,44 @@ describe('createContainer: the operator’s API is wired end to end (G2-14)', ()
       .send({ ceilings: { maxEvents: 4 } })
     expect([refused.status, refused.body.error.code]).toEqual([400, 'request.invalid'])
 
+    // The rest of the namespace, through the same bag: every route reaches a use case that exists.
+    const clientPath = `/api/site/clients/${opened.body.clientId as string}`
+    const renamed = await agent
+      .patch(clientPath)
+      .set(CSRF_HEADER, csrf)
+      .send({ name: 'Atelier Lumière, rebaptisé' })
+    expect(renamed.status, JSON.stringify(renamed.body)).toBe(204)
+
+    const events = await agent.get(`${clientPath}/events`)
+    expect([events.status, events.body]).toEqual([200, { items: [], next: null }])
+
+    const accounts = await agent.get('/api/site/accounts')
+    expect(accounts.body.items.map((row: { email: string }) => row.email)).toEqual([OPERATOR])
+
+    // The customer's invitation is still waiting, so a second one waits too (R1).
+    const invited = await agent
+      .post(`${clientPath}/invitations`)
+      .set(CSRF_HEADER, csrf)
+      .send({ email: 'collegue@example.org', role: 'member' })
+    expect(invited.status, JSON.stringify(invited.body)).toBe(201)
+    expect(invited.body.invitation.pendingApproval).toBe(true)
+
+    // No relay and the default mode: a reset is refused, by the real use case.
+    const accountId = accounts.body.items[0].id as string
+    const asked = await agent
+      .post(`/api/site/accounts/${accountId}/password-reset`)
+      .set(CSRF_HEADER, csrf)
+      .send({})
+    expect([asked.status, asked.body.error.code]).toEqual([409, 'reset.mailerRequired'])
+
     const log = await agent.get('/api/site/audit')
     expect(log.body.items.map((entry: { action: string }) => entry.action)).toEqual([
+      'invitation.issued',
+      'client.renamed',
       'client.ceilingsChanged',
       'invitation.issued',
       'client.created',
     ])
-    expect(log.body.items[0].details.reason).toBe('Forfait mis à jour')
+    expect(log.body.items[2].details.reason).toBe('Forfait mis à jour')
   })
 })

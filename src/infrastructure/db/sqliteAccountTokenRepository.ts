@@ -272,6 +272,21 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
     return result.changes
   }
 
+  async countLiveClientInvitations(
+    clientId: ClientId,
+    now: Date,
+    except: EmailAddress,
+  ): Promise<number> {
+    const row = this.db
+      .prepare<[string, string, string], { n: number }>(
+        `SELECT COUNT(*) AS n FROM account_tokens
+          WHERE purpose = 'invitation' AND client_id = ? AND email <> ?
+            AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > ?`,
+      )
+      .get(clientId, except.value, toIsoText(now))
+    return row?.n ?? 0
+  }
+
   async revokeOutstandingInvitations(
     email: EmailAddress,
     target: InvitationTarget,

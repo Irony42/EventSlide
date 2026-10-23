@@ -8,10 +8,11 @@ import type { AuditSubjectType } from './auditSubjectType'
  * **Adding an action is adding a line here**, and that is the whole of the process: the
  * subject it is about, and the exact shape of its details. There is no way to record an
  * action that is not in this table, and no way to attach a detail that its entry does not
- * name. See `auditDetails.ts` for why the vocabulary has no free-text kind.
+ * name. See `auditDetails.ts` for why the vocabulary has no free-text kind, and `auditReason.ts` for
+ * the one exception, which exactly one declaration here uses.
  *
  * Only actions with a producer in the tree are declared. The plan names many more
- * (`client.suspended`, `invitation.issued`, `account.termsAccepted`,
+ * (`client.suspended`, `account.termsAccepted`,
  * `event.autoClosed`, ...); each arrives with the use case that writes it, together with the
  * test that proves its details carry nothing a person typed, rather than as a guess made
  * before the use case exists.

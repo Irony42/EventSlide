@@ -251,10 +251,15 @@ describe('GET /api/site/accounts', () => {
     expect(second.body.next).toBeNull()
   })
 
-  it('answers 400 for a page outside the bound', async () => {
-    const { response } = await operatorGets('/api/site/accounts?limit=0')
+  it.each([
+    ['a page outside the bound', '?limit=0'],
+    ['a filter this contract does not have', '?email=ops'],
+    ['a cursor that is not an id', '?after=compte-1'],
+  ])('answers 400 request.invalid for %s', async (_label, query) => {
+    const { response } = await operatorGets(`/api/site/accounts${query}`)
 
     expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('request.invalid')
   })
 })
 
@@ -373,6 +378,8 @@ describe('GET /api/site/audit', () => {
           nested: { caption: 'une légende', n: 1 },
           list: ['a'],
           reason: ' pas canonique ',
+          // A sentence that would pass as a reason, but only the top of an entry may carry one.
+          after: { reason: 'une phrase plausible' },
         }),
       )
 
@@ -382,6 +389,7 @@ describe('GET /api/site/audit', () => {
       count: 3,
       at: AT.toISOString(),
       nested: { n: 1 },
+      after: {},
     })
   })
 

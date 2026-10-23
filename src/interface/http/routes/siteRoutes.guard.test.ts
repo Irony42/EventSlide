@@ -87,6 +87,40 @@ describe('POST /api/site/clients/:clientId/invitations (R1)', () => {
     expect((await logged()).map((line) => line.details['pendingApproval'])).toEqual([true, true])
   })
 
+  it('makes a second invitation into a client the operator has just opened wait, so no account of its own can be brought in beside the customer', async () => {
+    const { site, post } = await operator({ mail: 'none' })
+    const opened = await post('/api/site/clients', {
+      clientName: 'Atelier neuf',
+      ownerEmail: NEWCOMER,
+    })
+    const customerToken = /\/invite\/([A-Za-z0-9_-]+)$/.exec(opened.body.invitation.link)?.[1]
+
+    const second = await invite(post, opened.body.clientId, {
+      email: 'complice@example.test',
+      role: 'owner',
+    })
+    const secondToken = /\/invite\/([A-Za-z0-9_-]+)$/.exec(second.body.invitation.link)?.[1]
+
+    expect(opened.body.invitation.pendingApproval).toBe(false)
+    expect(second.body.invitation.pendingApproval).toBe(true)
+    const stranger = await anonymousCaller(site.app)
+    expect((await stranger.agent.get(`/api/invitations/${secondToken}`)).status).toBe(404)
+    expect((await stranger.agent.get(`/api/invitations/${customerToken}`)).status).toBe(200)
+  })
+
+  it('lets the operator send the customer their own link again, which replaces it and waits for nobody', async () => {
+    const { post } = await operator({ mail: 'none' })
+    const opened = await post('/api/site/clients', {
+      clientName: 'Atelier neuf',
+      ownerEmail: NEWCOMER,
+    })
+
+    const again = await invite(post, opened.body.clientId, { email: NEWCOMER, role: 'owner' })
+
+    expect(again.status).toBe(201)
+    expect(again.body.invitation.pendingApproval).toBe(false)
+  })
+
   it('opens nothing for the invitee until an owner of the client approves it, then opens it', async () => {
     const { site, post } = await operator()
     const invitation = await invite(post, ID.clientK)
@@ -184,6 +218,32 @@ describe('POST /api/site/clients/:clientId/invitations (R1)', () => {
     expect(mine.clients).toEqual([])
   })
 
+  it('mails each invitation in the language it was asked in: one subject per language, none forced', async () => {
+    const { site, post } = await operator()
+
+    for (const [index, locale] of ['fr', 'en', 'de', 'es', 'it'].entries()) {
+      await invite(post, ID.clientK, {
+        email: `invite-${index}@example.test`,
+        role: 'member',
+        locale,
+      })
+    }
+
+    const subjects = (site.mailer?.sent ?? []).map((mail) => mail.subject)
+    expect(subjects).toHaveLength(5)
+    expect(new Set(subjects).size).toBe(5)
+  })
+
+  it('shows the operator the link when the relay refused the mail, which is the only way it reaches the invitee', async () => {
+    const { site, post } = await operator({ mail: 'delivers' })
+    site.mailer?.failNextWith('transient')
+
+    const response = await invite(post, ID.clientK)
+
+    expect(response.body.invitation).toMatchObject({ delivery: 'link', pendingApproval: true })
+    expect(response.body.invitation.link).toMatch(/\/invite\//)
+  })
+
   it('answers 404 client.notFound for a client that does not exist and 400 for an address that is not one', async () => {
     const { post } = await operator()
 
@@ -240,6 +300,19 @@ describe('POST /api/site/accounts/:userId/password-reset (R2)', () => {
     expect(token).toBeDefined()
     expect(JSON.stringify(response.body)).not.toContain(token ?? 'unreachable')
     expect(JSON.stringify(response.body)).not.toContain(ADDRESS.member)
+  })
+
+  it('mails each reset in the language it was asked in: one subject per language, none forced', async () => {
+    const { site, post } = await operator()
+    const accounts = [ID.owner, ID.coOwner, ID.member, ID.stranger, ID.otherOwner]
+
+    for (const [index, locale] of ['fr', 'en', 'de', 'es', 'it'].entries()) {
+      await reset(post, accounts[index], { locale })
+    }
+
+    const subjects = (site.mailer?.sent ?? []).map((mail) => mail.subject)
+    expect(subjects).toHaveLength(5)
+    expect(new Set(subjects).size).toBe(5)
   })
 
   it('writes account.resetIssued {linkShown: false} once for each client the account is in, by the operator', async () => {

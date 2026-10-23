@@ -1,6 +1,7 @@
 import type request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { AT, atPlus } from '../../../application/testing/builders'
+import { ClientCeilings } from '../../../domain/clients/clientCeilings'
 import { CSRF_HEADER } from '../middleware/csrf'
 import { ID, NEWCOMER, aBox } from '../testing/siteBox'
 import type { SiteHarnessOptions } from '../testing/siteHarness'
@@ -168,12 +169,87 @@ describe('POST /api/site/clients', () => {
     expect(response.body.error.code).toBe('request.invalid')
   })
 
-  it('mails the invitation in the language of the console’s page', async () => {
+  it('mails the invitation in the language of the console’s page: one subject per language, none forced', async () => {
     const { site, write } = await operator()
 
-    await write('post', '/api/site/clients', { ...BODY, locale: 'en' })
+    for (const [index, locale] of ['fr', 'en', 'de', 'es', 'it'].entries()) {
+      await write('post', '/api/site/clients', {
+        clientName: `Atelier ${index}`,
+        ownerEmail: `proprietaire-${index}@example.test`,
+        locale,
+      })
+    }
 
-    expect(site.mailer?.sent[0]?.subject).not.toMatch(/invitation/i)
+    const subjects = (site.mailer?.sent ?? []).map((mail) => mail.subject.replace(/\d/g, ''))
+    expect(subjects).toHaveLength(5)
+    expect(new Set(subjects).size).toBe(5)
+  })
+
+  it('shows the owner’s link to the operator when the relay refused the mail, because nobody else has it', async () => {
+    // "Where a mailer delivers" is a fact about **this** mail: a relay that is down is not a
+    // mailer that delivered, and the link has to get to its owner some way. The use case writes
+    // the token with `delivery: link` for the same reason (accepting it proves nothing about the
+    // mailbox), and docs/SECURITY.md §22 names this as the one exception.
+    const { site, write } = await operator({ mail: 'delivers' })
+    site.mailer?.failNextWith('transient')
+
+    const response = await write('post', '/api/site/clients', BODY)
+
+    expect(response.status).toBe(201)
+    expect(response.body.invitation.delivery).toBe('link')
+    expect(response.body.invitation.link).toMatch(/\/invite\/[A-Za-z0-9_-]{20,}$/)
+    expect(site.mailer?.sent).toEqual([])
+  })
+})
+
+describe('each of the nine ceilings, on its own, reaches the use case', () => {
+  // A route that drops a key answers 200 and writes nothing, because the answer is read back from
+  // storage and a patch that changes nothing is not logged. So each key is sent alone and what is
+  // stored is read: a tenth ceiling, or a key the handler forgot, is a row here that goes red.
+  const EACH: readonly (readonly [string, unknown])[] = [
+    ['maxEvents', 3],
+    ['maxTotalBytes', 5_000],
+    ['maxEventQuotaBytes', 4_000],
+    ['maxRetentionDays', 60],
+    ['clipsAllowed', false],
+    ['liveAllowed', false],
+    ['maxLiveDays', 4],
+    ['maxEventsPerPeriod', 6],
+    ['periodStartedAt', AT.toISOString()],
+  ]
+
+  it('names exactly the nine ceilings of the catalogue, so a tenth cannot go untested', () => {
+    expect(EACH.map(([key]) => key).sort()).toEqual(
+      Object.keys(ClientCeilings.unlimited().toProps()).sort(),
+    )
+  })
+
+  it.each(EACH)('PUT changes %s alone, and the listing agrees', async (key, value) => {
+    const { write, clients } = await operator()
+
+    const response = await write('put', `/api/site/clients/${ID.clientK}/ceilings`, {
+      ceilings: { [key]: value },
+      reason: 'Essai d’une seule limite',
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body.ceilings[key]).toEqual(value)
+    const stored = (await clients()).find((row) => row.id === ID.clientK)?.ceilings ?? {}
+    expect(stored[key]).toEqual(value)
+  })
+
+  it.each(EACH)('POST keeps %s as the operator named it', async (key, value) => {
+    const { write, clients } = await operator()
+
+    const response = await write('post', '/api/site/clients', {
+      clientName: 'Atelier Lumière',
+      ownerEmail: NEWCOMER,
+      ceilings: { [key]: value },
+    })
+
+    expect(response.status).toBe(201)
+    const created = (await clients()).find((row) => row.id === response.body.clientId)
+    expect(created?.ceilings[key]).toEqual(value)
   })
 })
 

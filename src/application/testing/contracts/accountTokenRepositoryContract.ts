@@ -271,6 +271,87 @@ export const accountTokenRepositoryContract = (
       })
     })
 
+    // ------------------------------------------------ countLiveClientInvitations --
+
+    describe('countLiveClientInvitations', () => {
+      const live = (id: string, over: Parameters<typeof anAccountToken>[0] = {}) =>
+        anAccountToken({
+          id,
+          purpose: 'invitation',
+          email: 'nouveau@example.test',
+          userId: null,
+          eventId: null,
+          eventRole: null,
+          clientId: 'client-1',
+          clientRole: 'owner',
+          delivery: 'link',
+          createdBy: 'user-1',
+          ...over,
+        })
+
+      const countFor = async (clientId: string, except: string, now = atPlus(1_000)) =>
+        repo.countLiveClientInvitations(asClientId(clientId), now, email(except))
+
+      it('counts the invitations into the client that could still be accepted, written to another address', async () => {
+        await repo.save(live('tok-a', { email: 'a@example.test' }))
+        await repo.save(live('tok-b', { email: 'b@example.test' }))
+
+        expect(await countFor('client-1', 'c@example.test')).toBe(2)
+      })
+
+      it('leaves out the address it is told to, which is the one being re-sent its own link', async () => {
+        await repo.save(live('tok-a', { email: 'a@example.test' }))
+        await repo.save(live('tok-b', { email: 'b@example.test' }))
+
+        expect(await countFor('client-1', 'a@example.test')).toBe(1)
+      })
+
+      it('counts an invitation that waits for an approval and one that does not', async () => {
+        await repo.save(live('tok-free', { email: 'a@example.test' }))
+        await repo.save(live('tok-waiting', { email: 'b@example.test', requiresApproval: true }))
+
+        expect(await countFor('client-1', 'c@example.test')).toBe(2)
+      })
+
+      it('never counts another client’s invitation, an event’s or a reset', async () => {
+        await repo.save(live('tok-mine', { email: 'a@example.test' }))
+        await repo.save(live('tok-theirs', { email: 'b@example.test', clientId: 'client-2' }))
+        await repo.save(
+          anAccountToken({
+            id: 'tok-reset',
+            purpose: 'passwordReset',
+            email: 'r@example.test',
+            userId: 'user-1',
+          }),
+        )
+
+        expect(await countFor('client-1', 'c@example.test')).toBe(1)
+        expect(await countFor('client-2', 'c@example.test')).toBe(1)
+      })
+
+      it('stops counting what can no longer be accepted: spent, revoked and expired', async () => {
+        await repo.save(live('tok-spent', { email: 'a@example.test' }))
+        await repo.save(live('tok-revoked', { email: 'b@example.test' }))
+        await repo.save(live('tok-expired', { email: 'c@example.test', expiresAt: atPlus(500) }))
+        await repo.save(live('tok-ok', { email: 'd@example.test' }))
+        await repo.consume(asAccountTokenId('tok-spent'), atPlus(10))
+        await repo.revokeOutstandingInvitations(
+          email('b@example.test'),
+          { kind: 'client', clientId: asClientId('client-1'), role: 'owner' },
+          atPlus(10),
+        )
+
+        expect(await countFor('client-1', 'z@example.test')).toBe(1)
+      })
+
+      it('counts an invitation up to the last millisecond before it expires, and not at that instant', async () => {
+        await repo.save(live('tok-edge', { email: 'a@example.test', expiresAt: atPlus(500) }))
+
+        expect(await countFor('client-1', 'z@example.test', atPlus(499))).toBe(1)
+        expect(await countFor('client-1', 'z@example.test', atPlus(500))).toBe(0)
+      })
+    })
+
     // ---------------------------------------------------- listAwaitingApproval --
 
     describe('listAwaitingApproval', () => {

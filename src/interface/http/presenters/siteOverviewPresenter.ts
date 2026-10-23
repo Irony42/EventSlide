@@ -17,8 +17,13 @@ import type { OperatorResetOutcome } from '../../../application/usecases/auth/is
 import type { Client } from '../../../domain/clients/client'
 import type {
   ClientCeilingsChangedDto,
+  OperatorInvitationByLinkDto,
+  OperatorInvitationByMailDto,
   OperatorInvitationDto,
+  OperatorPasswordResetByLinkDto,
+  OperatorPasswordResetByMailDto,
   OperatorPasswordResetDto,
+  OperatorPasswordResetPendingDto,
   ProvisionedClientDto,
   SiteAccountDto,
   SiteAccountPageDto,
@@ -154,21 +159,25 @@ export const toSiteAuditPageDto = (page: AuditPage): SiteAuditPageDto => ({
  * (`delivery: 'link'`, which the use case produces when no mail went out), so there is no branch
  * of this function in which a token or a link is read from anywhere else.
  */
-export const toOperatorInvitationDto = (invitation: OperatorInvitation): OperatorInvitationDto =>
-  invitation.delivery === 'link'
-    ? {
-        id: invitation.invitationId,
-        delivery: 'link',
-        expiresAt: iso(invitation.expiresAt),
-        pendingApproval: invitation.pendingApproval,
-        link: invitation.link,
-      }
-    : {
-        id: invitation.invitationId,
-        delivery: 'mail',
-        expiresAt: iso(invitation.expiresAt),
-        pendingApproval: invitation.pendingApproval,
-      }
+export const toOperatorInvitationDto = (invitation: OperatorInvitation): OperatorInvitationDto => {
+  if (invitation.delivery === 'link') {
+    const byLink: OperatorInvitationByLinkDto = {
+      id: invitation.invitationId,
+      delivery: 'link',
+      expiresAt: iso(invitation.expiresAt),
+      pendingApproval: invitation.pendingApproval,
+      link: invitation.link,
+    }
+    return byLink
+  }
+  const byMail: OperatorInvitationByMailDto = {
+    id: invitation.invitationId,
+    delivery: 'mail',
+    expiresAt: iso(invitation.expiresAt),
+    pendingApproval: invitation.pendingApproval,
+  }
+  return byMail
+}
 
 /** A freshly provisioned client: its id and its owner's invitation, which waits for nobody. */
 export const toProvisionedClientDto = (
@@ -192,15 +201,28 @@ export const toOperatorPasswordResetDto = (
   outcome: OperatorResetOutcome,
 ): OperatorPasswordResetDto => {
   switch (outcome.delivery) {
-    case 'mail':
-      return { delivery: 'mail', expiresAt: iso(outcome.expiresAt) }
-    case 'pendingApproval':
-      return {
+    case 'mail': {
+      const byMail: OperatorPasswordResetByMailDto = {
+        delivery: 'mail',
+        expiresAt: iso(outcome.expiresAt),
+      }
+      return byMail
+    }
+    case 'pendingApproval': {
+      const pending: OperatorPasswordResetPendingDto = {
         delivery: 'pendingApproval',
         expiresAt: iso(outcome.expiresAt),
         approvalId: outcome.approvalId,
       }
-    case 'link':
-      return { delivery: 'link', expiresAt: iso(outcome.expiresAt), link: outcome.link }
+      return pending
+    }
+    case 'link': {
+      const byLink: OperatorPasswordResetByLinkDto = {
+        delivery: 'link',
+        expiresAt: iso(outcome.expiresAt),
+        link: outcome.link,
+      }
+      return byLink
+    }
   }
 }

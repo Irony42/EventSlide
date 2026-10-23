@@ -23,6 +23,7 @@ import { makeListSiteAccounts } from '../../../application/usecases/site/listSit
 import { makeListSiteAudit } from '../../../application/usecases/site/listSiteAudit'
 import { makeListSiteClientEvents } from '../../../application/usecases/site/listSiteClientEvents'
 import { makeListSiteClients } from '../../../application/usecases/site/listSiteClients'
+import type { Logger } from '../../../application/ports/logger'
 import type { Mailer } from '../../../application/ports/mailer'
 import { AT } from '../../../application/testing/builders'
 import { FakeClock } from '../../../application/testing/fakeClock'
@@ -96,6 +97,8 @@ export interface SiteHarnessOptions {
   readonly newClientDefaults?: NewClientDefaults
   /** Anything else `HttpConfig` carries. */
   readonly config?: Partial<HttpConfig>
+  /** What the server and the use cases log to. Silent unless a case is about what a box writes. */
+  readonly logger?: Logger
 }
 
 /** What a session may be stamped with: the two facts `requireSecondFactor` and `requireStepUp` read. */
@@ -174,7 +177,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
   const ids = createSequentialIdGenerator()
   const secrets = sha256SecretTokens
   const hasher = new FakePasswordHasher()
-  const logger = silentLogger()
+  const logger = options.logger ?? silentLogger()
 
   const recorder = options.mail === 'none' ? null : new FakeMailer()
   const mailer: Mailer = recorder ?? nullMailer
@@ -196,6 +199,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
 
   const harness = buildServerHarness({
     sessionStore: sessions,
+    logger,
     clock,
     config: {
       siteAdmin: options.siteAdmin ?? true,

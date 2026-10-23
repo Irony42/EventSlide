@@ -983,13 +983,23 @@ export interface SiteAuditPageDto {
  * holds no token and no link. `pendingApproval` says the link opens nothing until an owner of the
  * client has approved it (R1).
  */
-export interface OperatorInvitationDto {
+export interface OperatorInvitationByMailDto {
   readonly id: string
-  readonly delivery: 'mail' | 'link'
+  readonly delivery: 'mail'
   readonly expiresAt: string
   readonly pendingApproval: boolean
-  readonly link?: string
 }
+
+export interface OperatorInvitationByLinkDto {
+  readonly id: string
+  readonly delivery: 'link'
+  readonly expiresAt: string
+  readonly pendingApproval: boolean
+  readonly link: string
+}
+
+/** A union, so that `{ delivery: 'mail', link }` is not a value the type can hold. */
+export type OperatorInvitationDto = OperatorInvitationByMailDto | OperatorInvitationByLinkDto
 
 export interface ProvisionedClientDto {
   readonly clientId: string
@@ -1008,9 +1018,23 @@ export interface ClientCeilingsChangedDto {
  * account's client is asked to approve, which is not a secret. **`link` exists only** on a box
  * with no mail relay and `copyLinkWithOwnerApproval`, after another owner's approval.
  */
-export interface OperatorPasswordResetDto {
-  readonly delivery: 'mail' | 'pendingApproval' | 'link'
+export interface OperatorPasswordResetByMailDto {
+  readonly delivery: 'mail'
   readonly expiresAt: string
-  readonly approvalId?: string
-  readonly link?: string
 }
+
+export interface OperatorPasswordResetPendingDto {
+  readonly delivery: 'pendingApproval'
+  readonly expiresAt: string
+  readonly approvalId: string
+}
+
+export interface OperatorPasswordResetByLinkDto {
+  readonly delivery: 'link'
+  readonly expiresAt: string
+  readonly link: string
+}
+
+/** A union: the link exists in the type only on the variant that is allowed to carry one. */
+export type OperatorPasswordResetDto =
+  OperatorPasswordResetByMailDto | OperatorPasswordResetPendingDto | OperatorPasswordResetByLinkDto

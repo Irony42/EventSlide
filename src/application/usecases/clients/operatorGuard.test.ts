@@ -72,6 +72,12 @@ describe('the operator guard', () => {
     return { id: result.value.invitationId, token: tokenOf(result.value.link) }
   }
 
+  const emailOf = (address: string): EmailAddress => {
+    const parsed = EmailAddress.create(address)
+    if (!parsed.ok) throw new Error('fixture')
+    return parsed.value
+  }
+
   const accountOf = async (address: string) => {
     const parsed = EmailAddress.create(address)
     if (!parsed.ok) throw new Error('fixture')
@@ -242,6 +248,88 @@ describe('the operator guard', () => {
       })
 
       expect(again.ok && again.value.pendingApproval).toBe(true)
+    })
+  })
+
+  describe('R1: an empty client admits exactly one live operator invitation (G2-14)', () => {
+    beforeEach(() => {
+      world = makeOperatorGuardWorld({ mailer: noRelay })
+    })
+
+    const writes = async (email: string, role: 'owner' | 'member' = 'owner') => {
+      const result = await world.useCases.inviteToClientAsOperator({
+        actorId: asUserId(OPERATOR_ID),
+        clientId: asClientId(NEW_CLIENT_ID),
+        email,
+        role,
+        locale: 'fr',
+      })
+      if (!result.ok || result.value.delivery !== 'link') throw new Error('fixture')
+      return { waits: result.value.pendingApproval, token: tokenOf(result.value.link) }
+    }
+
+    it('lets the first through and makes a second, to another address, wait', async () => {
+      const first = await writes('premier@example.test')
+      const second = await writes('second@example.test')
+
+      expect([first.waits, second.waits]).toEqual([false, true])
+    })
+
+    it('opens nothing for the second, and still lets the first in: the customer is not locked out by it', async () => {
+      const first = await writes('premier@example.test')
+      const second = await writes('second@example.test')
+
+      expect(await opens(second.token)).toBe(false)
+      expect((await accepts(second.token)).ok).toBe(false)
+      expect((await accepts(first.token)).ok).toBe(true)
+    })
+
+    it('does not count an address that is sent its own link again: the new one replaces the old', async () => {
+      await writes('premier@example.test')
+      const again = await writes('premier@example.test')
+
+      expect(again.waits).toBe(false)
+      expect(await opens(again.token)).toBe(true)
+    })
+
+    it('does not count what can no longer be accepted: a revoked invitation, or one that has expired', async () => {
+      await writes('premier@example.test')
+      await world.tokens.revokeOutstandingInvitations(
+        emailOf('premier@example.test'),
+        { kind: 'client', clientId: asClientId(NEW_CLIENT_ID), role: 'owner' },
+        world.clock.now(),
+      )
+      const afterRevocation = await writes('second@example.test')
+      world.clock.advance(8 * 24 * HOUR)
+      const afterExpiry = await writes('troisieme@example.test')
+
+      expect([afterRevocation.waits, afterExpiry.waits]).toEqual([false, false])
+    })
+
+    it('counts the invitation into **this** client only: another client’s waiting invitation is nothing to it', async () => {
+      await world.useCases.inviteToClientAsOperator({
+        actorId: asUserId(OPERATOR_ID),
+        clientId: asClientId(CLIENT_ID),
+        email: 'ailleurs@example.test',
+        role: 'member',
+        locale: 'fr',
+      })
+
+      const here = await writes('premier@example.test')
+
+      expect(here.waits).toBe(false)
+    })
+
+    it('closes the chain it was written for: the account the operator brought in second approves nothing', async () => {
+      // The customer is invited first, as provisioning does; the operator then tries to bring in an
+      // account of its own, which waits and so never becomes an owner whose yes would count.
+      const customer = await writes('client@example.test')
+      const puppet = await writes('complice@example.test')
+      await accepts(puppet.token)
+      await accepts(customer.token)
+
+      expect(await accountOf('complice@example.test')).toBeNull()
+      expect(await accountOf('client@example.test')).not.toBeNull()
     })
   })
 

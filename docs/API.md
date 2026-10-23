@@ -257,8 +257,9 @@ kind in any answer of the namespace (docs/SECURITY.md §18 and §22). Every read
 **Pages** are keyset pages, newest first. `limit` is 1 to 200 (50 by default); `after` is the `next` of
 the previous page and is an id. A page ends with `"next": null`. A cursor that names nobody is an **empty
 page**, not the first one again; so is a cursor that names another client's event. The audit log pages with
-`before` (the `next` of the previous page, a number) in the same way. A key a query does not have is
-`400 request.invalid`.
+`before` (the `next` of the previous page, a number), which is **a bound and not a pointer**: every line
+older than it, so a `before` past the newest line answers the newest page and not an empty one. A key a
+query does not have is `400 request.invalid`.
 
 #### `GET /api/site/clients`
 
@@ -425,12 +426,14 @@ never into an event (docs/SECURITY.md §20, R1 and R4). **201**, `Cache-Control:
 }
 ```
 
-`pendingApproval` is **`true` for a client that has an event or a member**: the invitation is written, mailed
+`pendingApproval` is **`true` for a client that has an event, a member or another invitation waiting**: the invitation is written, mailed
 and shown as for any other, and **opens nothing until an owner of the client approves it**
 (`POST /api/client/invitations/:id/approve`, §6); the invitee cannot tell it from a link that never existed.
-It is `false` for a client that holds nothing, which is the one case the operator handles alone. The operator
-is read **from storage on this call**, not on the route's word. The same rule as §5 applies to `link`: only
-where no mail went out. **404** `client.notFound`; **400** `email.malformed` or `request.invalid`; **429**
+It is `false` for a client that holds nothing, which is the one case the operator handles alone: **an empty
+client admits exactly one live operator invitation** (the first owner's, which `POST /api/site/clients`
+writes), a second to another address waits, and a person re-sent their own link is not a second one. The operator
+is read **from storage on this call**, not on the route's word. `link` is in the answer **only where no mail went out**:
+a box with no relay, **or a relay that refused this mail**. **404** `client.notFound`; **400** `email.malformed` or `request.invalid`; **429**
 `invitation.tooManyForAddress` once an address has had its five an hour.
 
 #### `POST /api/site/accounts/:userId/password-reset`

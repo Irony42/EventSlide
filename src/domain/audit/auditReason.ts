@@ -17,12 +17,16 @@ import { err, ok, type Result } from '../shared/result'
  *
  * - **Present.** A blank reason is no reason: the operator's route answers `400` without one.
  * - **At most {@link AUDIT_REASON_MAX_LENGTH} characters, on one line.** A sentence, not a
- *   document; a line break, a control character, a line or paragraph separator and the invisible
- *   formatting characters (a right-to-left override that reorders what a reader sees, a
- *   zero-width space) are refused, because none of them is something an operator types to
- *   explain themselves and each is something that hides what was typed.
- * - **No `@`.** The log has no word for an address, and a reason is the one field that could
- *   hold one. This is a guard against the slip (pasting the client's address into the box), not
+ *   document, counted in characters and not in UTF-16 units (an emoji is one); a line break, a
+ *   control character, a line or paragraph separator, the invisible formatting characters (a
+ *   right-to-left override that reorders what a reader sees, a zero-width space) and the blank
+ *   fillers that are letters in name only (a Hangul filler, a Braille blank) are refused, because
+ *   none of them is something an operator types to explain themselves and each is something that
+ *   hides what was typed.
+ * - **No `@`, in either width.** The log has no word for an address, and a reason is the one
+ *   field that could hold one. A fullwidth or small `@` is the same character to a reader and is
+ *   caught by comparing the compatibility form, so that pasting an address from a web page does
+ *   not get round the check. This is a guard against the slip (pasting the client's address into the box), not
  *   against a determined writer: an operator who spells an address out has been trusted with a
  *   free text field and has chosen to misuse it, and the line that records it is theirs.
  * - **Canonical.** Trimmed and NFC-normalised, so two spellings of one sentence are one string
@@ -38,6 +42,15 @@ export const AUDIT_REASON_MAX_LENGTH = 200
 /** A control character, a separator, or an invisible formatting character. */
 const HIDDEN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
 
+/**
+ * Characters that draw nothing and are **letters or symbols** to Unicode, so no category above
+ * finds them: the Hangul fillers, the halfwidth Hangul filler and the Braille blank. Written as
+ * code points, never as the characters, which a diff cannot show.
+ */
+const BLANK_FILLERS = new RegExp(
+  `[${[0x115f, 0x1160, 0x3164, 0xffa0, 0x2800].map((code) => String.fromCharCode(code)).join('')}]`,
+)
+
 export const parseAuditReason = (raw: unknown): Result<string, DomainError> => {
   // A caller the types cannot see: a body that arrived as JSON and was never parsed.
   if (typeof raw !== 'string') {
@@ -46,9 +59,10 @@ export const parseAuditReason = (raw: unknown): Result<string, DomainError> => {
   const reason = raw.normalize('NFC').trim()
   if (
     reason.length === 0 ||
-    reason.length > AUDIT_REASON_MAX_LENGTH ||
+    Array.from(reason).length > AUDIT_REASON_MAX_LENGTH ||
     HIDDEN.test(reason) ||
-    reason.includes('@')
+    BLANK_FILLERS.test(reason) ||
+    reason.normalize('NFKC').includes('@')
   ) {
     return err(DomainError.invalid('audit.reasonInvalid', { max: AUDIT_REASON_MAX_LENGTH }))
   }

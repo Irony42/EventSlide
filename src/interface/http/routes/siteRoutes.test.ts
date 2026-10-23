@@ -4,6 +4,7 @@ import { STEP_UP_LIFETIME_MS } from '../../../domain/users/secondFactor'
 import { asUserId } from '../../../domain/shared/ids'
 import { CSRF_HEADER } from '../middleware/csrf'
 import { anonymousCaller, type Caller } from '../testing/signIn'
+import { mountedRoutes } from '../testing/routeTable'
 import { ADDRESS, ID, NEWCOMER, aBox } from '../testing/siteBox'
 
 /**
@@ -11,9 +12,9 @@ import { ADDRESS, ID, NEWCOMER, aBox } from '../testing/siteBox'
  * middleware order and a real session store) over real SQLite storage (`siteHarness.ts`): the
  * authorization every route carries, and then what each one does.
  *
- * Every route is held to the same five answers, from one table, so a route added to
- * `siteRoutes.ts` is not covered until somebody adds it here (and `siteOperatorScope.test.ts`
- * fails until it is listed there): a stranger is `401`, an ordinary account `403`, an operator who
+ * Every route is held to the same answers, from one table that a case holds equal to the route
+ * table, so a route added to `siteRoutes.ts` is a red test until somebody adds it here (and
+ * `siteOperatorScope.test.ts` fails until it is listed there): a stranger is `401`, an ordinary account `403`, an operator who
  * has not passed the second factor `403` where the box asks for one, an operator whose step-up
  * lapsed `403` on a write, and an operator who has all of it is answered.
  */
@@ -94,6 +95,32 @@ const codeOf = (response: request.Response): string | undefined =>
 const named = (route: SiteRoute): string => `${route.method} ${route.path}`
 
 const FIVE_MINUTES_AND_A_MILLISECOND = STEP_UP_LIFETIME_MS + 1
+
+describe('the table below is the route table', () => {
+  it('names every route the namespace mounts, and no other, so a route added without a row here is a red test', async () => {
+    const { site } = await aBox()
+
+    const mounted = mountedRoutes(site.app)
+      .filter((route) => route.path.startsWith('/api/site/'))
+      .map((route) => `${route.method} ${route.path}`)
+      .sort()
+    const listed = ROUTES.map((route) => {
+      // `ID.clientK` and the other ids stand for `:clientId` and `:userId` in a path.
+      const pattern = route.path
+        .replace(/\/clients\/[0-9a-f-]{36}/, '/clients/:clientId')
+        .replace(/\/accounts\/[0-9a-f-]{36}/, '/accounts/:userId')
+        .replace(/\?.*$/, '')
+      return `${route.method} ${pattern}`
+    }).sort()
+
+    expect(listed).toEqual(mounted)
+  })
+
+  it('marks every route that is not a GET as a write, which is what asks for a step-up', () => {
+    expect(ROUTES.filter((route) => route.method !== 'get' && !route.write)).toEqual([])
+    expect(ROUTES.filter((route) => route.method === 'get' && route.write)).toEqual([])
+  })
+})
 
 describe('the operator’s routes: who may call them', () => {
   describe.each(ROUTES.map((route) => [named(route), route] as const))('%s', (_name, route) => {
