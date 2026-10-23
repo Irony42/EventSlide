@@ -116,8 +116,6 @@ describe('ClientSpacePage', () => {
 
     open(onBox([aClientLimits()], { clientAudit }))
 
-    const log = await screen.findByRole('list', { name: '' })
-    expect(log).toBeVisible()
     expect(await screen.findByText(fr.clientSpace.actionInvitationIssuedPending)).toBeVisible()
     expect(screen.getByText(fr.clientSpace.actionCeilingsChanged)).toBeVisible()
     expect(
@@ -164,7 +162,7 @@ describe('ClientSpacePage', () => {
     expect(api.clientAudit).not.toHaveBeenCalled()
   })
 
-  it('shows the suspension of a client above its limits', async () => {
+  it('says a suspended client is suspended', async () => {
     open(onBox([aClientLimits({ suspended: true })]))
 
     const title = await screen.findByText(fr.clientSpace.suspendedTitle)

@@ -274,7 +274,8 @@ describe('the client space', () => {
 
       const result = await list(OWNER_A)
 
-      expect(result.ok && result.value).toHaveLength(PENDING_INVITATIONS_LIMIT)
+      expect(PENDING_INVITATIONS_LIMIT).toBe(50)
+      expect(result.ok && result.value).toHaveLength(50)
     })
 
     it('skips a row that names no role, which the store never returns for this query', async () => {

@@ -286,6 +286,7 @@ export const de: UiText = {
     'event.creationNotAllowed':
       'Mit Ihrem Konto können auf diesem Server keine Veranstaltungen erstellt werden.',
     'client.notFound': 'Dieses Kundenkonto wurde nicht gefunden.',
+    'client.ownerRequired': 'Nur ein Inhaber des Kontos kann das einsehen.',
     'client.ceilingReached': 'Ihr Konto hat die zulässige Anzahl an Veranstaltungen erreicht.',
     'client.storageFull': 'Die Galerie ist voll. Sagen Sie dem Veranstalter Bescheid.',
     'client.liveNotAllowed': 'Ihr Konto kann derzeit keine Veranstaltung öffnen.',

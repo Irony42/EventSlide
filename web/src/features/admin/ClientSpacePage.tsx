@@ -9,10 +9,12 @@ import { useToast } from '../../design-system/components/useToast'
 import { formatBytes, formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { auditActor, auditSentence } from './auditLabels'
+import { errorMessage } from './errorMessage'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { SuspensionScreen } from './components/SuspensionScreen'
 import { useAction } from './hooks/useAction'
-import { useClientLimits } from './hooks/useClientLimits'
+import { useAbout } from '../../app/useAbout'
+import { contactActionOf } from './ceilingLevels'
 import { useLoader } from './hooks/useLoader'
 import styles from './ClientSpacePage.module.css'
 import type {
@@ -43,7 +45,17 @@ const TONE: Readonly<Record<CeilingMeterDto['level'], ProgressTone>> = {
  */
 export function ClientSpacePage() {
   const t = useTranslations()
-  const { clients, contact, loading } = useClientLimits()
+  const api = useApi()
+  const contact = contactActionOf(useAbout())
+  // Asked for directly and not through `useClientLimits`: the page exists only on a box with a
+  // client space, so there is no mode to read, and a failed read has to be said here rather than
+  // read as "no limit at all".
+  const load = useCallback(
+    async (signal: AbortSignal) => (await api.myLimits(signal)).clients,
+    [api],
+  )
+  const { data, loading, error, reload } = useLoader(load)
+  const clients = data ?? []
 
   return (
     <div className={styles['page']}>
@@ -51,7 +63,11 @@ export function ClientSpacePage() {
 
       {loading ? <Pending label={t.admin.loading} /> : null}
 
-      {!loading && clients.length === 0 ? <EmptyState title={t.clientSpace.noLimits} /> : null}
+      {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} /> : null}
+
+      {!loading && error === null && data !== null && clients.length === 0 ? (
+        <EmptyState title={t.clientSpace.noLimits} />
+      ) : null}
 
       {clients.map((client) => (
         <section key={client.id} className={styles['client']}>
@@ -136,6 +152,7 @@ function PendingInvitations({ client }: { readonly client: ClientLimitsDto }) {
     void approval.run(invitation.id, invitation.id).then((result) => {
       if (!result.ok) {
         toast.show(result.message, { tone: 'danger' })
+        reload()
         return
       }
       toast.show(t.clientSpace.approved, { tone: 'success' })
@@ -154,7 +171,9 @@ function PendingInvitations({ client }: { readonly client: ClientLimitsDto }) {
         <ul className={styles['rows']}>
           {data.map((invitation) => (
             <li key={invitation.id} className={styles['row']}>
-              <span className={styles['address']}>{invitation.email}</span>
+              <span id={`invitee-${invitation.id}`} className={styles['address']}>
+                {invitation.email}
+              </span>
               <Badge tone="neutral">
                 {invitation.role === 'owner' ? t.clientSpace.roleOwner : t.clientSpace.roleMember}
               </Badge>
@@ -168,6 +187,7 @@ function PendingInvitations({ client }: { readonly client: ClientLimitsDto }) {
                 variant="primary"
                 loading={approval.pending === invitation.id}
                 disabled={approval.busy}
+                aria-describedby={`invitee-${invitation.id}`}
                 onClick={() => approve(invitation)}
               >
                 {t.clientSpace.approve}
@@ -182,6 +202,7 @@ function PendingInvitations({ client }: { readonly client: ClientLimitsDto }) {
 
 function AuditLog({ client }: { readonly client: ClientLimitsDto }) {
   const t = useTranslations()
+  const toast = useToast()
   const { locale } = useLocale()
   const api = useApi()
   // The client is always named: the server checks it against the caller's roster, so naming
@@ -209,7 +230,7 @@ function AuditLog({ client }: { readonly client: ClientLimitsDto }) {
       .then((page) =>
         setOlder({ items: [...(older?.items ?? []), ...page.items], next: page.next }),
       )
-      .catch(() => undefined)
+      .catch((cause: unknown) => toast.show(errorMessage(cause, t), { tone: 'danger' }))
       .finally(() => setLoadingMore(false))
   }
 

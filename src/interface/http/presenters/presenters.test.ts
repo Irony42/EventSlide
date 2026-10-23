@@ -496,6 +496,36 @@ describe('toClientAuditPageDto', () => {
     expect(JSON.stringify(dto)).not.toContain('user-member')
   })
 
+  it('lets through only numbers, switches and instants of an entry’s details, whatever the row holds', () => {
+    // A row is read back as stored, so an older allow-list, or a future one with an id kind, could
+    // have put a string in it. The owner's door checks again.
+    const dto = toClientAuditPageDto({
+      items: [
+        record({
+          details: {
+            pendingApproval: true,
+            count: 3,
+            gone: null,
+            at: '2026-06-21T10:00:00.000Z',
+            note: 'jean.dupont@example.org',
+            list: ['x'] as never,
+            nested: { max: 5, label: 'Mariage Secret', since: '2026-06-21T10:00:00.000Z' },
+          },
+        }),
+      ],
+      next: null,
+    })
+
+    expect(dto.items[0]?.details).toEqual({
+      pendingApproval: true,
+      count: 3,
+      gone: null,
+      at: '2026-06-21T10:00:00.000Z',
+      nested: { max: 5, since: '2026-06-21T10:00:00.000Z' },
+    })
+    expect(JSON.stringify(dto)).not.toMatch(/dupont|Secret/)
+  })
+
   it('carries the instant, the sequence, the details and the cursor as they are', () => {
     const dto = toClientAuditPageDto({ items: [record()], next: 6 })
 

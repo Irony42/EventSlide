@@ -333,11 +333,22 @@ describe('the client space routes', () => {
         })
       })
 
-      it('carries nothing of the content the client’s events hold', async () => {
-        const text = JSON.stringify(
-          (await read('proprio-a@example.test', '/api/client/audit')).body,
-        )
+      it('carries only the fields the contract declares, so nothing of an event can ride along', async () => {
+        const response = await read('proprio-a@example.test', '/api/client/audit')
+        const items = (response.body as { items: Record<string, unknown>[] }).items
 
+        expect(Object.keys(response.body as object).sort()).toEqual(['items', 'next'])
+        for (const item of items) {
+          expect(Object.keys(item).sort()).toEqual([
+            'action',
+            'actor',
+            'at',
+            'details',
+            'seq',
+            'subject',
+          ])
+        }
+        const text = JSON.stringify(response.body)
         for (const planted of [
           PLANTED_SLUG,
           PLANTED_CODE,
@@ -425,7 +436,40 @@ describe('the client space routes', () => {
       })
     })
 
+    describe('authority is read on every request', () => {
+      it('ends an owner’s access to the log and to the invitations the moment the roster drops them', async () => {
+        const owner = await signedInAs(subject.app, 'proprio-a@example.test')
+        expect((await owner.agent.get('/api/client/audit')).status).toBe(200)
+        expect((await owner.agent.get('/api/client/invitations')).status).toBe(200)
+
+        await subject.clients.revokeMember(asClientId(CLIENT_A), asUserId(OWNER_A))
+
+        // The same session, the next request: no cache of the roster survives it.
+        expect((await owner.agent.get('/api/client/audit')).status).toBe(404)
+        expect((await owner.agent.get('/api/client/invitations')).status).toBe(404)
+        expect((await owner.agent.get('/api/me/limits')).body).toEqual({ clients: [] })
+      })
+
+      it('demotes an owner to a member as soon as the roster says so', async () => {
+        const owner = await signedInAs(subject.app, 'proprio-a@example.test')
+        await subject.clients.grantMember({
+          clientId: asClientId(CLIENT_A),
+          userId: asUserId(OWNER_A),
+          role: 'member',
+          grantedAt: AT,
+        })
+
+        expect((await owner.agent.get('/api/client/audit')).status).toBe(403)
+      })
+    })
+
     describe('GET /api/client/invitations', () => {
+      it('is never kept by a cache, since it shows invitees’ addresses', async () => {
+        const response = await read('proprio-a@example.test', '/api/client/invitations')
+
+        expect(response.headers['cache-control']).toBe('no-store')
+      })
+
       it('shows an owner whom the invitations waiting on them are for, and nothing that opens one', async () => {
         const response = await read('proprio-a@example.test', '/api/client/invitations')
 

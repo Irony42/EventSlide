@@ -27,7 +27,7 @@ export interface GetEventLimitsInput {
 }
 
 export interface GetEventLimitsDeps {
-  readonly clients: ClientRepository
+  readonly clients: Pick<ClientRepository, 'contextForEvent'>
 }
 
 export type GetEventLimits = (input: GetEventLimitsInput) => Promise<EventLimits>

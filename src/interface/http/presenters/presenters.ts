@@ -974,6 +974,28 @@ export const toMyLimitsDto = (limits: readonly ClientLimits[]): MyLimitsDto => (
  * either. `details` is passed through whole, because the action's allow-list (`auditAction.ts`)
  * already admits nothing but numbers, switches and instants.
  */
+const INSTANT_TEXT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+
+/**
+ * What of an entry's `details` an owner may read: numbers, switches, instants and objects of
+ * those. The allow-list refuses anything else when an entry is **written**, but a row is read
+ * back as it was stored (`AuditRecord` is deliberately looser, so last year's history stays
+ * readable), so the owner's door checks again: a string that is not an instant, or an array, is
+ * dropped here and never reaches a client, whatever an older allow-list let into the row.
+ */
+const readableDetails = (details: AuditPage['items'][number]['details']): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(details).flatMap(([key, value]): [string, unknown][] => {
+      if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
+        return [[key, value]]
+      }
+      if (typeof value === 'string') return INSTANT_TEXT.test(value) ? [[key, value]] : []
+      return typeof value === 'object' && !Array.isArray(value)
+        ? [[key, readableDetails(value)]]
+        : []
+    }),
+  )
+
 const toClientAuditEntryDto = (record: AuditPage['items'][number]): ClientAuditEntryDto => ({
   seq: record.seq,
   at: iso(record.at),
@@ -983,7 +1005,7 @@ const toClientAuditEntryDto = (record: AuditPage['items'][number]): ClientAuditE
     record.subject.type === 'account'
       ? { type: record.subject.type }
       : { type: record.subject.type, id: record.subject.id },
-  details: record.details,
+  details: readableDetails(record.details),
 })
 
 export const toClientAuditPageDto = (page: AuditPage): ClientAuditPageDto => ({

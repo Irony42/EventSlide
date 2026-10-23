@@ -265,6 +265,7 @@ export const en: UiText = {
     'event.quotaAboveCeiling': 'This quota exceeds the limit this server allows.',
     'event.creationNotAllowed': 'Your account cannot create events on this server.',
     'client.notFound': 'This client account could not be found.',
+    'client.ownerRequired': 'Only an owner of the account can read this.',
     'client.ceilingReached': 'Your account has reached the number of events it is allowed.',
     'client.storageFull': 'The gallery is full. Let the organiser know.',
     'client.liveNotAllowed': 'Your account cannot open an event right now.',

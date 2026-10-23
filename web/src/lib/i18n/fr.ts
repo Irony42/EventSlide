@@ -1209,6 +1209,7 @@ export const fr = {
     'event.quotaAboveCeiling': 'Ce quota dépasse la limite que ce serveur autorise.',
     'event.creationNotAllowed': 'Votre compte ne peut pas créer d’évènement sur ce serveur.',
     'client.notFound': 'Ce compte client est introuvable.',
+    'client.ownerRequired': 'Seul un propriétaire du compte peut consulter cette page.',
     'client.ceilingReached': 'Votre compte a atteint le nombre d’évènements autorisé.',
     'client.storageFull': 'La galerie a atteint sa capacité. Prévenez l’organisateur.',
     'client.liveNotAllowed': 'Votre compte ne peut pas ouvrir d’évènement pour le moment.',

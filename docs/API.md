@@ -3097,8 +3097,9 @@ GET /api/me/limits?clientId=… → 400 request.invalid   (no parameter exists t
 ### `GET /api/client/audit`
 
 The log of what was done on the owner's own client (roadmap §10.8, rule R5 of the operator guard, G2-16 /
-P3-17): **every** entry written about the client — the operator's, an integration's, the system's and the
-client's own members' — newest first. **Only with `SITE_ADMIN=on`**; off, `404 route.notFound` as for a path
+P3-17): **every** entry that carries the client's id — the operator's, an integration's, the system's and the
+client's own members' — newest first. Account-level lines written with no client (an operator switching an
+account off, a member's own second-factor lines) are not among them yet: docs/SECURITY.md §21. **Only with `SITE_ADMIN=on`**; off, `404 route.notFound` as for a path
 nobody wrote.
 
 - **Auth:** a signed-in, enabled account that is an **owner** of the client. `403 client.ownerRequired` for

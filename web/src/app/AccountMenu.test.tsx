@@ -377,7 +377,7 @@ describe('AccountMenu: the client space', () => {
     )
   })
 
-  it('offers it to an account that is in no client', async () => {
+  it('offers nothing to an account that is in no client', async () => {
     const api = onBox([])
     renderMenu(api)
     await waitFor(() => expect(api.myLimits).toHaveBeenCalled())

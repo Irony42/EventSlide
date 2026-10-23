@@ -3084,8 +3084,19 @@ exposes nothing here and its other answers are byte-for-byte what they were.
   `client_id` in the statement. A contract case holds each of them against a second client's rows.
 - **Owner or nothing for the log and the approvals.** A member who is not an owner is told
   `403 client.ownerRequired`; they are in the client and know it exists. They read the limits.
-- **Authority is read from storage per request** (§8), never from the session: an owner removed or
+- **Authority is read from storage per request** (CLAUDE.md §8), never from the session: an owner removed or
   switched off loses these three routes on their next request.
+
+**What the log holds, and what it does not.** It holds the lines that carry the client's id: the
+operator's acts on the client (ceilings, a period renewal, an invitation), the owners' own approvals, and
+the reset lines, which are written once per client of the account. **Account-level lines are not in it
+today**: `disableAccount` and a member's own second-factor lines are written with no client, so an owner
+does not read them. `disableAccount` has no route yet; making it write one line per client, as the
+reset use case does, belongs with the route that mounts it (G2-14), and the plan's "every operator
+action on the client" is complete only then. `seq` and `next` are the box-wide counter, so an owner can
+see gaps between their own lines: they say that other lines were written, never what or for whom.
+The **details** an owner reads are checked again at the door (`readableDetails`): only numbers,
+switches, instants and objects of those, whatever an older row holds.
 
 **What a client's owner never learns from the log.** The audit presenter (`toClientAuditPageDto`) copies
 field by field and drops what identifies a person: the actor is its **kind** (`operator`, `member`,
@@ -3101,7 +3112,7 @@ the consent R1 asks of them, and it reaches owners of that client only.
 **What a limit says is what the box enforces.** `usage` is read the way the write paths read it: events in
 every status, the period counter that never goes down, and the admission byte sum (`clientTotalBytes`). The
 level of each meter (`ok`, `warning` from 90 per cent, `reached` at 100) is decided by one function
-(`ceilingLevel`, whole-number arithmetic, so an exact 90 per cent is on the right side of the line), and
+(`ceilingLevel`, whole-number arithmetic, so the line is exactly 90 per cent with no rounding in the question), and
 the screens render the level they are given. The same session closes two findings of G2-05's review: the
 event the host reads (`GET /api/events/:slug`) answers `quotaBytes` as the quota the uploads are **actually**
 judged against (`Event.effectiveQuotaBytes`), and the join a guest reads answers `allowClips` from the

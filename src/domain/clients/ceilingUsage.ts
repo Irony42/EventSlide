@@ -14,9 +14,9 @@ import type { ClientCeilings } from './clientCeilings'
  *   can lower a ceiling under what a client already holds, and the downgrade rule is that new
  *   writes are refused, never that data is deleted.
  *
- * **Whole-number arithmetic**, `used * 100 >= max * 90`, and not `used / max >= 0.9`: a division
- * can land on the wrong side of the line for an exact ninety per cent (and a byte count is
- * far inside the safe-integer range for the product, which stays under 9e15 up to 90 TB).
+ * **Whole-number arithmetic**, `used * 100 >= max * 90`, so that the line is stated exactly as
+ * the plan states it and no rounding is in the question (a byte count is far inside the
+ * safe-integer range for the product: it stays under 9e15 up to about 100 TB).
  */
 
 export const CEILING_WARNING_PERCENT = 90
