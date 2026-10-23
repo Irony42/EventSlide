@@ -185,6 +185,18 @@ describe('POST /api/client/invitations/:invitationId/approve', () => {
       expect(await approvedAt()).toBeNull()
     })
 
+    it('answers 401 to an owner whose account was switched off after they signed in, which a session outlives', async () => {
+      const { agent, csrf } = await signedInAs(subject.app, 'proprio@example.test')
+      const owner = await subject.users.findById(asUserId(OWNER))
+      await subject.users.save(owner!.disable(AT))
+
+      const response = await agent.post(approvePath(INVITATION)).set(CSRF_HEADER, csrf).send({})
+
+      expect(response.status).toBe(401)
+      expect(response.body.error.code).toBe('auth.required')
+      expect(await approvedAt()).toBeNull()
+    })
+
     it('answers 403 to a member of the client who is not an owner', async () => {
       const response = await post('membre@example.test')
 
