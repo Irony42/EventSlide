@@ -16,6 +16,7 @@ import type { ReadStream } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createFsMediaStore } from './fsMediaStore'
+import { mediaStoreContract } from '../../application/testing/contracts/mediaStoreContract'
 import type { MediaStore, MediaVariant } from '../../application/ports/mediaStore'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { asEventId, type EventId } from '../../domain/shared/ids'
@@ -35,18 +36,13 @@ const GALA = asEventId('22222222-2222-4222-8222-222222222222')
 const objectPath = (root: string, eventId: EventId, variant: string, hash: ContentHash): string =>
   join(root, eventId, variant, hash.value.slice(0, 2), `${hash.value}.jpg`)
 
-const collect = async (chunks: AsyncIterable<Uint8Array>): Promise<Uint8Array> => {
-  const parts: Uint8Array[] = []
-  for await (const chunk of chunks) parts.push(chunk)
-  const total = parts.reduce((sum, part) => sum + part.length, 0)
-  const out = new Uint8Array(total)
-  let offset = 0
-  for (const part of parts) {
-    out.set(part, offset)
-    offset += part.length
+mediaStoreContract('filesystem', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'eventslide-media-contract-'))
+  return {
+    store: createFsMediaStore({ root }),
+    dispose: async () => rm(root, { recursive: true, force: true }),
   }
-  return out
-}
+})
 
 describe('fsMediaStore', () => {
   let root: string
@@ -59,14 +55,6 @@ describe('fsMediaStore', () => {
 
   afterEach(async () => {
     await rm(root, { recursive: true, force: true })
-  })
-
-  it('round-trips bytes through put and read', async () => {
-    const bytes = new Uint8Array([1, 2, 3, 4])
-
-    await store.put(WEDDING, HASH_A, 'display', bytes)
-
-    expect(await store.read(WEDDING, HASH_A, 'display')).toEqual(bytes)
   })
 
   it('creates the directory tree on first write', async () => {
@@ -85,63 +73,6 @@ describe('fsMediaStore', () => {
     const shard = HASH_A.value.slice(0, 2)
     const files = await readdir(join(root, WEDDING, 'display', shard))
     expect(files.filter((name) => name.endsWith('.tmp'))).toEqual([])
-  })
-
-  it('overwrites an existing object with the same address', async () => {
-    // Re-rendering after a pipeline change writes the same address again; the second
-    // write must not fail on the existing file.
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array([1]))
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array([2, 2]))
-
-    expect(await store.read(WEDDING, HASH_A, 'display')).toEqual(new Uint8Array([2, 2]))
-  })
-
-  it('keeps two events apart even for identical bytes', async () => {
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array([1]))
-    await store.put(GALA, HASH_A, 'display', new Uint8Array([2]))
-
-    expect(await store.read(WEDDING, HASH_A, 'display')).toEqual(new Uint8Array([1]))
-    expect(await store.read(GALA, HASH_A, 'display')).toEqual(new Uint8Array([2]))
-  })
-
-  it('keeps variants of one photo apart', async () => {
-    await store.put(WEDDING, HASH_A, 'original', new Uint8Array([1, 1, 1]))
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array([2, 2]))
-    await store.put(WEDDING, HASH_A, 'thumb', new Uint8Array([3]))
-
-    expect((await store.stat(WEDDING, HASH_A, 'original'))?.byteSize).toBe(3)
-    expect((await store.stat(WEDDING, HASH_A, 'display'))?.byteSize).toBe(2)
-    expect((await store.stat(WEDDING, HASH_A, 'thumb'))?.byteSize).toBe(1)
-  })
-
-  it('reports a missing object as absent rather than throwing', async () => {
-    expect(await store.exists(WEDDING, HASH_A, 'display')).toBe(false)
-    expect(await store.stat(WEDDING, HASH_A, 'display')).toBeNull()
-    expect(await store.read(WEDDING, HASH_A, 'display')).toBeNull()
-    expect(await store.openRead(WEDDING, HASH_A, 'display')).toBeNull()
-  })
-
-  it('reports an existing object as present', async () => {
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array([1]))
-
-    expect(await store.exists(WEDDING, HASH_A, 'display')).toBe(true)
-  })
-
-  it('streams an object for the HTTP layer to pipe', async () => {
-    const bytes = new Uint8Array(200_000).fill(7)
-    await store.put(WEDDING, HASH_A, 'original', bytes)
-
-    const stream = await store.openRead(WEDDING, HASH_A, 'original')
-
-    expect(stream).not.toBeNull()
-    expect(await collect(stream!)).toEqual(bytes)
-  })
-
-  it('returns null from openRead before committing to a response', async () => {
-    // createReadStream reports a missing file asynchronously on the stream, by which
-    // point the HTTP layer has already sent a 200. Statting first is what makes a 404
-    // possible.
-    expect(await store.openRead(WEDDING, hashOf('ff'), 'display')).toBeNull()
   })
 
   it('holds a file descriptor from the moment a stream is opened, read or not', async () => {
@@ -201,75 +132,6 @@ describe('fsMediaStore', () => {
     )
 
     expect(watermark()).toBe(before)
-  })
-
-  it('reports the content type per variant', async () => {
-    await store.put(WEDDING, HASH_A, 'thumb', new Uint8Array([1]))
-
-    expect((await store.stat(WEDDING, HASH_A, 'thumb'))?.contentType).toBe('image/jpeg')
-  })
-
-  it('deletes every variant of one photo', async () => {
-    await store.put(WEDDING, HASH_A, 'original', new Uint8Array([1]))
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array([1]))
-    await store.put(WEDDING, HASH_A, 'thumb', new Uint8Array([1]))
-
-    await store.delete(WEDDING, HASH_A)
-
-    expect(await store.exists(WEDDING, HASH_A, 'original')).toBe(false)
-    expect(await store.exists(WEDDING, HASH_A, 'display')).toBe(false)
-    expect(await store.exists(WEDDING, HASH_A, 'thumb')).toBe(false)
-  })
-
-  it('deletes a photo whose variants were never all generated', async () => {
-    // The contract is idempotent: a photo that failed part-way through ingest has a
-    // display variant and no thumb, and deleting it must still succeed.
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array([1]))
-
-    await expect(store.delete(WEDDING, HASH_A)).resolves.toBeUndefined()
-  })
-
-  it('deleting a photo that was never stored is not an error', async () => {
-    await expect(store.delete(WEDDING, HASH_B)).resolves.toBeUndefined()
-  })
-
-  it('leaves other photos alone when deleting one', async () => {
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array([1]))
-    await store.put(WEDDING, HASH_B, 'display', new Uint8Array([2]))
-
-    await store.delete(WEDDING, HASH_A)
-
-    expect(await store.exists(WEDDING, HASH_B, 'display')).toBe(true)
-  })
-
-  it('purges an entire event and nothing else', async () => {
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array([1]))
-    await store.put(WEDDING, HASH_B, 'thumb', new Uint8Array([1]))
-    await store.put(GALA, HASH_A, 'display', new Uint8Array([1]))
-
-    await store.deleteEvent(WEDDING)
-
-    expect(await store.exists(WEDDING, HASH_A, 'display')).toBe(false)
-    expect(await store.exists(WEDDING, HASH_B, 'thumb')).toBe(false)
-    expect(await store.exists(GALA, HASH_A, 'display')).toBe(true)
-  })
-
-  it('purging an event that stored nothing is not an error', async () => {
-    await expect(store.deleteEvent(GALA)).resolves.toBeUndefined()
-  })
-
-  it('sums bytes across variants and shards for one event only', async () => {
-    await store.put(WEDDING, HASH_A, 'original', new Uint8Array(1000))
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(300))
-    await store.put(WEDDING, HASH_B, 'thumb', new Uint8Array(50))
-    await store.put(GALA, HASH_A, 'original', new Uint8Array(99_999))
-
-    expect(await store.usedBytes(WEDDING)).toBe(1350)
-    expect(await store.usedBytes(GALA)).toBe(99_999)
-  })
-
-  it('reports zero bytes for an event with no media', async () => {
-    expect(await store.usedBytes(GALA)).toBe(0)
   })
 
   it.each([
@@ -451,18 +313,6 @@ describe('fsMediaStore: the inventory the reconciliation sweep reads', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  it('lists nothing for a store that has never been written to', async () => {
-    expect(await store.listEvents()).toEqual([])
-    expect(await store.list(WEDDING)).toEqual([])
-  })
-
-  it('names every event it is holding bytes for', async () => {
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(3))
-    await store.put(GALA, HASH_B, 'thumb', new Uint8Array(4))
-
-    expect([...(await store.listEvents())].sort()).toEqual([WEDDING, GALA].sort())
-  })
-
   it('leaves the boot scratch directories out of the event list', async () => {
     // `.uploads` and `.scratch` live under MEDIA_ROOT because the container is read-only
     // with a tmpfs on the memory cgroup. A sweep handed them as event ids would ask the
@@ -486,22 +336,6 @@ describe('fsMediaStore: the inventory the reconciliation sweep reads', () => {
     // The sweep refuses to collect anything written recently, so this field is the one
     // that decides whether a file the database does not yet name survives.
     expect(object?.modifiedAt.getTime()).toBeGreaterThanOrEqual(before)
-  })
-
-  it('lists every variant of every digest, including the unservable source', async () => {
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(1))
-    await store.put(WEDDING, HASH_A, 'thumb', new Uint8Array(1))
-    await store.put(WEDDING, HASH_B, 'source', new Uint8Array(1))
-
-    const objects = await store.list(WEDDING)
-
-    expect(objects.map((object) => object.variant).sort()).toEqual(['display', 'source', 'thumb'])
-  })
-
-  it('never lists another event’s objects', async () => {
-    await store.put(GALA, HASH_B, 'display', new Uint8Array(1))
-
-    expect(await store.list(WEDDING)).toEqual([])
   })
 
 it('reaps an abandoned .tmp on the way past, since nothing else ever would', async () => {
