@@ -27,8 +27,14 @@
 
 services:
   eventslide:
-    build: .
-    image: eventslide:3.0.0
+    # The published image, for the release you have checked out, and nothing is built on this
+    # machine. It is signed and scanned by .github/workflows/release.yml: docs/IMAGE-SOURCES.md
+    # says how to check that, and docs/UPGRADING.md which tag to run and how to change it.
+    #
+    # To build the image from this checkout instead (a modified copy, an unreleased commit),
+    # add compose.build.yaml, which swaps this line for a local build and a local name:
+    #   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+    image: ghcr.io/irony42/eventslide:3.0.0 # x-release-please-version
     restart: unless-stopped
     # Loopback, because the reverse proxy above is the only thing that should reach this
     # port — docs/SECURITY.md §11 says bind to 127.0.0.1 and this is where that happens.

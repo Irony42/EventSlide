@@ -130,6 +130,16 @@ docker compose up            # the first time, and read what it says
 docker compose up -d         # once it has booted cleanly
 ```
 
+The first `up` pulls the published image, `ghcr.io/irony42/eventslide` at the version you
+checked out, for `linux/amd64` and `linux/arm64`. It is signed and scanned when it is released,
+and [docs/IMAGE-SOURCES.md](docs/IMAGE-SOURCES.md) says what is in it, where the source of
+each part is, and how to check the signature. Nothing is built on your machine. To build it
+from the checkout instead (a modified copy, an unreleased commit):
+
+```bash
+docker compose -f compose.yaml -f compose.build.yaml up --build
+```
+
 Once the https proxy described below is in front of it, open `PUBLIC_URL/login` and sign
 in with that email and the generated password (`grep BOOTSTRAP_OWNER .env` shows it). The
 first sign-in asks you to choose your own before it shows you anything else.
@@ -443,7 +453,8 @@ forward, and a backup is the only way back.
 
 ```bash
 git fetch --tags && git checkout vX.Y.Z
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 What a major version may break, how a break is announced, and how to go back are in
@@ -464,6 +475,7 @@ The interesting parts are documented rather than left to be inferred:
 | [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) | Tokens, primitives, and the accessibility contract                                   |
 | [docs/API.md](docs/API.md)                     | The HTTP contract                                                                    |
 | [docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md) | What the licence asks of someone who runs it, changes it or forks it                 |
+| [docs/IMAGE-SOURCES.md](docs/IMAGE-SOURCES.md) | What the published image is made of, where its source is, how to check its signature |
 | [docs/ROADMAP.md](docs/ROADMAP.md)             | What comes next, and what will never be built                                        |
 | [docs/adr/](docs/adr/)                         | Why the architecture is the way it is, including the alternatives that lost          |
 

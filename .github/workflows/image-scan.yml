@@ -1,0 +1,183 @@
+name: Image scan
+
+# A published image is scanned once, when it is released, and then the vulnerability database
+# moves on. This re-scans the **latest published release** every week against today's data,
+# and opens an issue for each critical vulnerability that a newer package already fixes and
+# that nobody has an issue for yet.
+#
+# It only reads: it pushes nothing, signs nothing and creates no release. It never runs on a
+# push or a pull request, only on the schedule and by hand. The bar is the one the release
+# gate (release.yml) and docs/SECURITY.md use, a **critical** finding **with a fix**, so that
+# a maintainer with a day job gets few, actionable issues and not a weekly list of everything
+# Debian has not backported yet. High findings are listed in the run's summary and open no
+# issue.
+#
+# What happens next is a corrective release (docs/SECURITY.md, "A critical vulnerability in
+# what decodes a guest's file"): there is no deadline, only a goal.
+#
+# While any such finding stands, the run fails, so that GitHub's own notification about a
+# failed scheduled workflow reaches the maintainer even if the issue went unread. A finding
+# that has been judged not to matter is silenced in a `.grype.yaml`, with its reason, rather
+# than by closing the issue.
+#
+# Note that GitHub switches scheduled workflows off after 60 days without activity in the
+# repository: a re-run from the Actions tab switches this one back on.
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  REGISTRY_IMAGE: ghcr.io/irony42/eventslide
+
+jobs:
+  scan:
+    name: Re-scan the latest published image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+      issues: write
+    steps:
+      - name: Find the latest release
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName // empty')"
+          if [ -z "$tag" ]; then
+            echo "::notice::No release has been published yet, so there is no image to scan."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        if: steps.latest.outputs.found == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve the digest the release tag points at today
+        id: image
+        if: steps.latest.outputs.found == 'true'
+        env:
+          VERSION: ${{ steps.latest.outputs.version }}
+        run: |
+          set -euo pipefail
+          # A release can exist with no image: v2.1.0 and every release before 3.0.0 were made
+          # without one. That is not a failure of this scan, so it says so and scans nothing.
+          if ! manifest="$(docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION" --format '{{json .Manifest}}' 2> /dev/null)"; then
+            echo "::warning::$REGISTRY_IMAGE:$VERSION cannot be read: the release has no published image, or the registry did not answer. Nothing was scanned."
+            echo "ref=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          digest="$(node -p "JSON.parse(process.argv[1]).digest" "$manifest")"
+          case "$digest" in
+            sha256:*) ;;
+            *) echo "::error::Could not read the digest of $REGISTRY_IMAGE:$VERSION (got '$digest')."; exit 1 ;;
+          esac
+          echo "ref=$REGISTRY_IMAGE@$digest" >> "$GITHUB_OUTPUT"
+          docker pull "$REGISTRY_IMAGE@$digest"
+
+      # The repository, for the one file the scan reads from it: a `.grype.yaml` that says, with
+      # its reason, which findings have been judged and do not matter.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.image.outputs.ref != ''
+        with:
+          persist-credentials: false
+
+      - name: Scan it
+        id: scan
+        if: steps.image.outputs.ref != ''
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: ${{ steps.image.outputs.ref }}
+          # The scan reports; the next step decides what it means.
+          fail-build: false
+          only-fixed: true
+          output-format: json
+
+      - name: Open an issue for each new critical finding
+        if: steps.image.outputs.ref != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPORT: ${{ steps.scan.outputs.json }}
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+          VERSION: ${{ steps.latest.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          # One tab-separated line per distinct critical finding: id, package, installed, fixed in.
+          critical="$(node -e '
+            const TAB = String.fromCharCode(9)
+            const LINE = String.fromCharCode(10)
+            const report = JSON.parse(require("node:fs").readFileSync(process.env.REPORT, "utf8"))
+            const rows = report.matches
+              .filter((match) => match.vulnerability.severity === "Critical")
+              .map((match) =>
+                [
+                  match.vulnerability.id,
+                  match.artifact.name,
+                  match.artifact.version,
+                  (match.vulnerability.fix?.versions ?? []).join(","),
+                ].join(TAB),
+              )
+            console.log([...new Set(rows)].sort().join(LINE))
+          ')"
+          high="$(node -p 'JSON.parse(require("node:fs").readFileSync(process.env.REPORT, "utf8")).matches.filter((match) => match.vulnerability.severity === "High").length')"
+
+          {
+            echo "### Image scan of $IMAGE_REF"
+            echo
+            echo "Release $VERSION. Findings that a newer package fixes: **$(printf '%s' "$critical" | grep -c . || true) critical**, $high high."
+            echo
+            if [ -n "$critical" ]; then
+              echo "| Vulnerability | Package | Installed | Fixed in |"
+              echo "| --- | --- | --- | --- |"
+              while IFS=$'\t' read -r id package installed fixed; do
+                echo "| $id | $package | $installed | $fixed |"
+              done <<< "$critical"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -z "$critical" ]; then
+            echo "No critical finding with a fix."
+            exit 0
+          fi
+
+          gh label create image-scan --repo "$GITHUB_REPOSITORY" --color B60205 --description "A vulnerability in the published image, found by the weekly scan" 2> /dev/null || true
+
+          while IFS=$'\t' read -r id package installed fixed; do
+            # Looked for in every state: an issue somebody closed means the finding was
+            # judged, and a weekly scan must not reopen the question every Monday.
+            known="$(gh issue list --repo "$GITHUB_REPOSITORY" --label image-scan --state all --search "\"$id\" in:title" --json number --jq 'length')"
+            if [ "$known" != "0" ]; then
+              echo "$id already has an issue."
+              continue
+            fi
+            gh issue create --repo "$GITHUB_REPOSITORY" --label image-scan --title "Critical $id in $package $installed (image $VERSION)" --body-file - <<EOF
+          The weekly image scan found a critical vulnerability, with a fix available, in the latest release.
+
+          - Vulnerability: $id
+          - Package: $package $installed
+          - Fixed in: ${fixed:-unknown}
+          - Image: \`$IMAGE_REF\`
+
+          The next step is a corrective release: usually a rebuild on a newer base image (merge the
+          pending Dependabot pull request for the \`docker\` ecosystem, if there is one), or a
+          dependency bump for an npm package. docs/SECURITY.md says what is aimed for and what is
+          not promised. If the package is not reachable from an upload, say so here and add the
+          finding to a \`.grype.yaml\` with that reason, which stops this scan from failing.
+          EOF
+          done <<< "$critical"
+
+          echo "::error::The latest release ships critical vulnerabilities that a newer package fixes. See the issues labelled image-scan."
+          exit 1
