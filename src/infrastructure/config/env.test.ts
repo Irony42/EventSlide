@@ -970,7 +970,7 @@ describe('loadConfig', () => {
         ])
       })
 
-      it('refuses every NEW_CLIENT_ key the schema declares, found from env.ts rather than from a list here', () => {
+      it('refuses every NEW_CLIENT_ key the schema declares, and the list this file keeps is that schema’s', () => {
         // The refusal reads the family by its prefix so that a key added later is covered
         // without anybody remembering to extend a list. This holds the other half: the
         // family this file lists is the family the schema has, so a new variable that
@@ -995,6 +995,85 @@ describe('loadConfig', () => {
         expect(() =>
           loadMaintenanceConfig({ NODE_ENV: 'production', NEW_CLIENT_MAX_EVENTS: '1' }),
         ).toThrow(ConfigError)
+      })
+    })
+
+    describe('a name this version does not read', () => {
+      // A misspelt ceiling is not a setting, and a schema drops a key it does not declare without
+      // a word: the box would boot with no ceiling at all for every new client.
+      it.each([
+        'NEW_CLIENT_MAX_EVENT',
+        'NEW_CLIENT_MAX_EVENTS_PER_YEAR',
+        'NEW_CLIENT_CLIP_ALLOWED',
+        'NEW_CLIENT_MAX_LIVE_DAY',
+        'NEW_CLIENT_',
+      ])('refuses %s, naming it and the seven it may have meant, with SITE_ADMIN on', (name) => {
+        const issues = refusalIssues(hosted({ [name]: '3' }))
+        const issue = issues.find((line) => line.startsWith(`${name}: `)) ?? ''
+
+        for (const known of ALL) expect(issue, known).toContain(known)
+      })
+
+      it('refuses it with SITE_ADMIN off too, and in a maintenance command', () => {
+        expect(
+          refusalIssues({ ...DEV, NEW_CLIENT_MAX_EVENT: '3' }).some((line) =>
+            line.startsWith('NEW_CLIENT_MAX_EVENT: '),
+          ),
+        ).toBe(true)
+        expect(() =>
+          loadMaintenanceConfig({ NODE_ENV: 'production', NEW_CLIENT_MAX_EVENT: '3' }),
+        ).toThrow(ConfigError)
+      })
+
+      it('refuses it even when its value is empty: the name is the mistake', () => {
+        const issues = refusalIssues(hosted({ NEW_CLIENT_MAX_EVENT: '' }))
+
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_MAX_EVENT: '))).toBe(true)
+      })
+
+      it('never prints the value it was given', () => {
+        const issues = refusalIssues(hosted({ NEW_CLIENT_MAX_EVENT: 'a-pasted-secret-value' }))
+
+        expect(JSON.stringify(issues)).not.toContain('a-pasted-secret-value')
+      })
+
+      it('is listed beside the other problems, so one restart shows them all', () => {
+        const issues = refusalIssues(
+          hosted({ NEW_CLIENT_MAX_EVENT: '3', NEW_CLIENT_MAX_LIVE_DAYS: '366' }),
+        )
+
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_MAX_EVENT: '))).toBe(true)
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_MAX_LIVE_DAYS: '))).toBe(true)
+      })
+
+      it('leaves alone a name that merely contains the prefix, which is nobody’s ceiling', () => {
+        const config = loadConfig(
+          hosted({ MY_NEW_CLIENT_MAX_EVENTS: '3', OLD_CLIENT_MAX_EVENTS: '3', new_client_x: '3' }),
+        )
+
+        expect(config.newClientCeilings).toEqual(UNLIMITED)
+      })
+    })
+
+    describe('how a number is read', () => {
+      it('reads exponent notation as the sibling MAX_EVENT_QUOTA_BYTES does, so 5e9 is five billion', () => {
+        const config = loadConfig(hosted({ NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '5e9' }))
+
+        expect(config.newClientCeilings.maxEventQuotaBytes).toBe(5_000_000_000)
+      })
+
+      it('accepts a per-event default above the total, which the total simply binds first', () => {
+        const config = loadConfig(
+          hosted({
+            NEW_CLIENT_MAX_TOTAL_BYTES: '1000000000',
+            NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '5000000000',
+          }),
+        )
+
+        expect(config.newClientCeilings).toMatchObject({
+          maxTotalBytes: 1_000_000_000,
+          maxEventQuotaBytes: 5_000_000_000,
+        })
       })
     })
 

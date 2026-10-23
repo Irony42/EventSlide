@@ -613,16 +613,18 @@ const auditRetentionDays = z.preprocess(
  * and safe, because a byte count above 2^53 is not a number the audit log or SQLite can hold
  * exactly.
  */
-const newClientCeiling = (variable: string, min = 1, max = Number.MAX_SAFE_INTEGER) =>
-  z.preprocess(
+const newClientCeiling = (variable: string, min = 1, max = Number.MAX_SAFE_INTEGER) => {
+  const whole = { error: `${variable} must be a whole number` }
+  return z.preprocess(
     blankAsAbsent,
     z.coerce
-      .number({ invalid_type_error: `${variable} must be a whole number` })
-      .int(`${variable} must be a whole number`)
-      .min(min, `${variable} must be at least ${min}`)
-      .max(max, `${variable} must be at most ${max}`)
+      .number(whole)
+      .int(whole)
+      .min(min, { error: `${variable} must be at least ${min}` })
+      .max(max, { error: `${variable} must be at most ${max}` })
       .optional(),
   )
+}
 
 /**
  * `NEW_CLIENT_CLIPS_ALLOWED`: `true`, `false`, `1` or `0`, absent meaning "allowed" — which is
@@ -1256,7 +1258,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
         for (const [name, value] of Object.entries(raw)) {
           if (name.startsWith('NEW_CLIENT_') && value !== undefined) {
             ctx.addIssue({
-              code: z.ZodIssueCode.custom,
+              code: 'custom',
               path: [name],
               message: `${name} requires SITE_ADMIN=on: the ceilings a new client starts with only mean something on a box that creates clients, and with SITE_ADMIN=off there is no way to create one (docs/ROADMAP.md §10.9)`,
             })
@@ -1275,7 +1277,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
         raw.NEW_CLIENT_MAX_EVENT_QUOTA_BYTES > raw.MAX_EVENT_QUOTA_BYTES
       ) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['NEW_CLIENT_MAX_EVENT_QUOTA_BYTES'],
           message: `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES (${raw.NEW_CLIENT_MAX_EVENT_QUOTA_BYTES}) must not exceed MAX_EVENT_QUOTA_BYTES (${raw.MAX_EVENT_QUOTA_BYTES}): the box-wide ceiling binds every event whatever a client's own says, so the default would promise a quota that is refused`,
         })
@@ -1787,16 +1789,39 @@ const computeWarnings = ({
   return warnings
 }
 
+/**
+ * The `NEW_CLIENT_` names in `source` that this version does not read, sorted.
+ *
+ * A misspelt ceiling (`NEW_CLIENT_MAX_EVENT=3`) is not a setting, and zod drops a key its schema
+ * does not declare without a word: the box would boot with no ceiling at all for every new
+ * client, which is the one outcome the family exists to prevent, and nothing would say so. The
+ * prefix is this feature's own, so a name under it that is not a key of the schema is a typo, not
+ * somebody else's variable. Checked against the schema's keys, so a variable added later is known
+ * the moment it is declared. A value is never read here, only the name: this list is printed.
+ */
+const unknownNewClientNames = (schema: typeof serverSchema, source: Source): readonly string[] =>
+  Object.keys(source)
+    .filter((name) => name.startsWith('NEW_CLIENT_') && !Object.hasOwn(schema.shape, name))
+    .sort()
+
 const load = (schema: typeof serverSchema, source: Source): AppConfig => {
   const parsed = schema.safeParse(source)
-  if (!parsed.success) {
-    // Every issue this schema can raise names a variable: an object-shape failure
-    // carries its key, and each `addIssue` above sets `path` explicitly. There is no
-    // path-less case to format around, so there is no branch here either.
-    throw new ConfigError(
-      parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
-    )
-  }
+  // Every issue this schema can raise names a variable: an object-shape failure carries its key,
+  // and each `addIssue` above sets `path` explicitly. There is no path-less case to format
+  // around, so there is no branch here either. A name this version does not know is listed
+  // beside them, so one restart shows every problem.
+  const known = Object.keys(schema.shape).filter((name) => name.startsWith('NEW_CLIENT_'))
+  const unknown = unknownNewClientNames(schema, source).map(
+    (name) =>
+      `${name}: not a setting of this version; the ceilings a new client starts with are ${known.join(', ')}`,
+  )
+  const problems = [
+    ...(parsed.success
+      ? []
+      : parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)),
+    ...unknown,
+  ]
+  if (!parsed.success || problems.length > 0) throw new ConfigError(problems)
 
   const raw = parsed.data
   const isProduction = raw.NODE_ENV === 'production'
