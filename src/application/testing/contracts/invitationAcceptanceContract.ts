@@ -24,15 +24,20 @@ import { AT, aUser, anAccountToken, atPlus } from '../builders'
  * loser. A fake kinder than the transaction about any of these would let every use-case test
  * above it pass against a product that was broken.
  *
+ * What a link grants is read from the link, so the suite never names it when it accepts: it
+ * names the account, and the link says the rest.
+ *
  * The subject brings the repositories of the tables it writes, over the same storage, so the
  * suite reads its results through the ports that own them rather than around them. It must
- * hold, before the suite runs: the accounts {@link ACCEPTANCE_ACCOUNTS}, the event
- * {@link ACCEPTANCE_EVENT} with {@link ACCEPTANCE_HOST} as its owner, and the client
- * {@link ACCEPTANCE_CLIENT} with no member.
+ * hold, before the suite runs: the accounts {@link ACCEPTANCE_ACCOUNTS} (each at
+ * `<id>@example.test`), the event {@link ACCEPTANCE_EVENT} with {@link ACCEPTANCE_HOST} as its
+ * owner, and the client {@link ACCEPTANCE_CLIENT} with no member.
  */
 
 export const ACCEPTANCE_HOST = 'user-host'
 export const ACCEPTANCE_ACCOUNTS = [ACCEPTANCE_HOST, 'user-existing'] as const
+/** The address of `user-existing`: both subjects seed every account at `<id>@example.test`. */
+export const ACCEPTANCE_EXISTING_EMAIL = 'user-existing@example.test'
 export const ACCEPTANCE_EVENT = 'event-1'
 export const ACCEPTANCE_CLIENT = 'client-1'
 
@@ -100,12 +105,18 @@ export const invitationAcceptanceContract = (
     const newAccount = (id = 'user-new', email = NEWCOMER, over = {}) =>
       aUser({ id, email, displayName: 'Camille', mustChangePassword: false, ...over })
 
+    /** An invitation written to the address of the existing account, for it to accept. */
+    const issueForExisting = (id: string, target: InvitationTarget = EVENT_TARGET) =>
+      issue(id, target, { email: ACCEPTANCE_EXISTING_EMAIL })
+
     const accept = (
       tokenId: AccountTokenId,
       account: AcceptInvitationRecord['account'],
-      grant: InvitationTarget = EVENT_TARGET,
       now: Date = atPlus(1_000),
-    ) => subject.acceptance.accept({ tokenId, now, account, grant })
+    ) => subject.acceptance.accept({ tokenId, now, account })
+
+    const clientRoleOf = (userId: string) =>
+      subject.clients.memberRole(asClientId(ACCEPTANCE_CLIENT), asUserId(userId))
 
     const usable = async (id: string): Promise<boolean> =>
       (await subject.tokens.findUsable(
@@ -138,7 +149,7 @@ export const invitationAcceptanceContract = (
       it('makes the account a member of the client when the link was to a client', async () => {
         const id = await issue('tok-1', CLIENT_OWNER)
 
-        expect(await accept(id, { kind: 'new', user: newAccount() }, CLIENT_OWNER)).toBe('accepted')
+        expect(await accept(id, { kind: 'new', user: newAccount() })).toBe('accepted')
 
         expect(
           await subject.clients.memberRole(asClientId(ACCEPTANCE_CLIENT), asUserId('user-new')),
@@ -222,7 +233,7 @@ export const invitationAcceptanceContract = (
           Array.from({ length: 6 }, (_unused, index) =>
             accept(id, {
               kind: 'new',
-              user: newAccount(`user-${index}`, `racer-${index}@example.test`),
+              user: newAccount(`user-${index}`),
             }),
           ),
         )
@@ -243,7 +254,7 @@ export const invitationAcceptanceContract = (
 
         const outcomes = await Promise.all([
           accept(first, { kind: 'new', user: newAccount('user-a') }),
-          accept(second, { kind: 'new', user: newAccount('user-b') }, CLIENT_OWNER),
+          accept(second, { kind: 'new', user: newAccount('user-b') }),
         ])
 
         expect([...outcomes].sort()).toEqual(['accepted', 'emailTaken'])
@@ -251,15 +262,59 @@ export const invitationAcceptanceContract = (
         expect(await usable(loser)).toBe(true)
       })
 
-      it('stores nothing at all when the place the link grants is gone', async () => {
+      it('never overwrites an account that has the id it was given, and spends nothing', async () => {
         const id = await issue('tok-1')
-        const gone: InvitationTarget = { ...EVENT_TARGET, eventId: asEventId('event-gone') }
+        const before = await subject.users.findById(asUserId('user-existing'))
 
-        await expect(accept(id, { kind: 'new', user: newAccount() }, gone)).rejects.toThrow()
+        await expect(
+          accept(id, { kind: 'new', user: newAccount('user-existing') }),
+        ).rejects.toThrow()
 
-        // The transaction rolled back: no account, and the link was not spent.
-        expect(await subject.users.findById(asUserId('user-new'))).toBeNull()
+        // The transaction rolled back: the account that held the id is exactly as it was, the
+        // address is still free, and the link was not spent.
+        expect((await subject.users.findById(asUserId('user-existing')))?.toProps()).toEqual(
+          before?.toProps(),
+        )
+        expect(await subject.users.findByEmail(newAccount().email)).toBeNull()
         expect(await usable('tok-1')).toBe(true)
+      })
+
+      it('refuses an account at another address than the one the link was written to, and spends nothing', async () => {
+        const id = await issue('tok-1')
+
+        await expect(
+          accept(id, { kind: 'new', user: newAccount('user-new', 'stranger@example.test') }),
+        ).rejects.toThrow()
+
+        expect(await subject.users.findById(asUserId('user-new'))).toBeNull()
+        expect(await roleIn('user-new')).toBeNull()
+        expect(await usable('tok-1')).toBe(true)
+      })
+
+      it('spends no link that is not an invitation, and creates nothing for it', async () => {
+        await subject.tokens.save(
+          anAccountToken({
+            id: 'tok-reset',
+            purpose: 'passwordReset',
+            email: NEWCOMER,
+            userId: ACCEPTANCE_HOST,
+          }),
+        )
+
+        const outcome = await accept(asAccountTokenId('tok-reset'), {
+          kind: 'new',
+          user: newAccount(),
+        })
+
+        expect(outcome).toBe('spent')
+        expect(await subject.users.findById(asUserId('user-new'))).toBeNull()
+        expect(
+          await subject.tokens.findUsable(
+            anAccountToken({ id: 'tok-reset' }).tokenDigest,
+            'passwordReset',
+            atPlus(2_000),
+          ),
+        ).not.toBeNull()
       })
     })
 
@@ -271,7 +326,7 @@ export const invitationAcceptanceContract = (
 
       it('spends the link and grants the role, and changes nothing else about the account', async () => {
         const before = await subject.users.findById(asUserId('user-existing'))
-        const id = await issue('tok-1')
+        const id = await issueForExisting('tok-1')
 
         expect(await accept(id, existing())).toBe('accepted')
 
@@ -283,18 +338,18 @@ export const invitationAcceptanceContract = (
       })
 
       it('stamps the mailbox as proved when told to, and keeps the first proof after that', async () => {
-        const first = await issue('tok-1')
-        const second = await issue('tok-2', CLIENT_OWNER)
+        const first = await issueForExisting('tok-1')
+        const second = await issueForExisting('tok-2', CLIENT_OWNER)
 
         await accept(first, existing(atPlus(1_000)))
-        await accept(second, existing(atPlus(5_000)), CLIENT_OWNER, atPlus(5_000))
+        await accept(second, existing(atPlus(5_000)), atPlus(5_000))
 
         const stored = await subject.users.findById(asUserId('user-existing'))
         expect(stored?.emailVerifiedAt?.toISOString()).toBe(atPlus(1_000).toISOString())
       })
 
       it('leaves the mailbox unverified when it is not told to stamp it', async () => {
-        const id = await issue('tok-1')
+        const id = await issueForExisting('tok-1')
 
         await accept(id, existing(null))
 
@@ -304,7 +359,7 @@ export const invitationAcceptanceContract = (
       })
 
       it('never lowers a role the account already holds in that event', async () => {
-        const id = await issue('tok-1')
+        const id = await issueForExisting('tok-1')
         await subject.memberships.grant({
           eventId: asEventId(ACCEPTANCE_EVENT),
           userId: asUserId('user-existing'),
@@ -320,7 +375,7 @@ export const invitationAcceptanceContract = (
       })
 
       it('never lowers a role the account already holds in that client', async () => {
-        const id = await issue('tok-1', CLIENT_MEMBER)
+        const id = await issueForExisting('tok-1', CLIENT_MEMBER)
         await subject.clients.grantMember({
           clientId: asClientId(ACCEPTANCE_CLIENT),
           userId: asUserId('user-existing'),
@@ -328,18 +383,44 @@ export const invitationAcceptanceContract = (
           grantedAt: AT,
         })
 
-        expect(await accept(id, existing(), CLIENT_MEMBER)).toBe('accepted')
+        expect(await accept(id, existing())).toBe('accepted')
 
-        expect(
-          await subject.clients.memberRole(
-            asClientId(ACCEPTANCE_CLIENT),
-            asUserId('user-existing'),
-          ),
-        ).toBe('owner')
+        expect(await clientRoleOf('user-existing')).toBe('owner')
+      })
+
+      it('raises a member to owner when the link says owner, since the invitation says so', async () => {
+        const id = await issueForExisting('tok-1', CLIENT_OWNER)
+        await subject.clients.grantMember({
+          clientId: asClientId(ACCEPTANCE_CLIENT),
+          userId: asUserId('user-existing'),
+          role: 'member',
+          grantedAt: AT,
+        })
+
+        expect(await accept(id, existing())).toBe('accepted')
+
+        expect(await clientRoleOf('user-existing')).toBe('owner')
+      })
+
+      it('makes a client member of an account that is not one yet, with the role the link says', async () => {
+        const id = await issueForExisting('tok-1', CLIENT_MEMBER)
+
+        await accept(id, existing())
+
+        expect(await clientRoleOf('user-existing')).toBe('member')
+      })
+
+      it('refuses a link written to another address, and spends nothing', async () => {
+        const id = await issue('tok-1')
+
+        await expect(accept(id, existing())).rejects.toThrow()
+
+        expect(await roleIn('user-existing')).toBeNull()
+        expect(await usable('tok-1')).toBe(true)
       })
 
       it('writes nothing for a link that cannot be spent', async () => {
-        const id = await issue('tok-1')
+        const id = await issueForExisting('tok-1')
         await accept(id, existing())
         await subject.memberships.revoke(asEventId(ACCEPTANCE_EVENT), asUserId('user-existing'))
 

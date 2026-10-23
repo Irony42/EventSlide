@@ -1,5 +1,4 @@
 import type { AccountTokenId, UserId } from '../../domain/shared/ids'
-import type { InvitationTarget } from '../../domain/users/accountToken'
 import type { User } from '../../domain/users/user'
 
 /**
@@ -9,7 +8,7 @@ import type { User } from '../../domain/users/user'
  * ## Why this is a port of its own
  *
  * Accepting an invitation is four writes that mean nothing apart: **spend the link**,
- * **create the account** (when the address has none), **grant what the link grants**, and
+ * **create the account** (when the address has none), **grant what the link grants** and
  * **stamp the mailbox as proved** (when the link came by mail). Done one after another through
  * the ports that own each table, a failure between any two of them leaves somebody worse off
  * than they were: a link spent for an account that was never made is an invitation its holder
@@ -27,9 +26,15 @@ import type { User } from '../../domain/users/user'
  * The caller decides **who may accept** — the signed-in account whose address the link was
  * written to, or a person choosing a password for an address that has no account — and parses
  * and hashes everything before asking, so no hashing happens inside a transaction that holds
- * the database's one writer. This port decides only what the database can: whether the link
- * can still be spent, whether the address is still free, and that the writes happen together
- * or not at all.
+ * the database's one writer. This port decides what the database can: whether the link can
+ * still be spent, whether the address is still free, and that the writes happen together or
+ * not at all.
+ *
+ * **It does not take what to grant from the caller.** The place and the role are read from
+ * the link's own row, inside the transaction. A port that was handed "grant this role in that
+ * client" could be asked to spend one person's link for another place, and the only thing
+ * standing between a bug in a caller and a stranger made the owner of a client would be the
+ * caller. What a link grants is a fact about the link.
  */
 
 /** Who the link is accepted as. */
@@ -37,7 +42,8 @@ export type AcceptingAccount =
   /**
    * A person choosing a password for an address that has no account. The `User` is built by
    * the caller, already carrying `emailVerifiedAt` if the link came by mail; **nothing exists
-   * in `users` until this is accepted**, which is the point of the whole feature.
+   * in `users` until this is accepted**, which is the point of the whole feature. Its address
+   * must be the one the link was written to, and its id must be new.
    */
   | { readonly kind: 'new'; readonly user: User }
   /**
@@ -52,15 +58,13 @@ export interface AcceptInvitationRecord {
   /** The instant the link is judged usable at, and the stamp of the spend and the grant. */
   readonly now: Date
   readonly account: AcceptingAccount
-  /** What the link grants. The caller read it from the token it just found usable. */
-  readonly grant: InvitationTarget
 }
 
 /**
  * - `accepted`: the link is spent, the account exists, the grant is in place.
  * - `spent`: the link could not be spent — already used, revoked, expired, waiting for an
- *   approval it has not had, or unknown. **Nothing was written.** The caller cannot tell
- *   which, and neither can a stranger holding the link.
+ *   approval it has not had, not an invitation, or unknown. **Nothing was written.** The
+ *   caller cannot tell which, and neither can a stranger holding the link.
  * - `emailTaken`: a new account was asked for and the address already has one. **Nothing was
  *   written, and the link is still usable** — the person is told to sign in and accept it as
  *   that account. Checked after `spent`, so a dead link is never reported as anything else.
@@ -70,17 +74,20 @@ export type InvitationAcceptanceOutcome = 'accepted' | 'spent' | 'emailTaken'
 export interface InvitationAcceptance {
   /**
    * Spends the link and, in the same transaction, creates the account if it is new, grants
-   * `grant`, and stamps the mailbox as proved.
+   * what the link grants, and stamps the mailbox as proved.
    *
-   * **The grant never overwrites a role the account already holds in that place.** A
-   * co-owner who is invited to moderate the event they co-own is still its owner, and a
-   * client's owner who is invited as a member is still its owner: accepting a link can add a
-   * place, never lower one. The link is spent either way — it was used.
+   * **An account never loses a role to a link.** In an event, a role already held is left as
+   * it is (the only role a link grants there is `moderator`, which no role outranks but
+   * `owner`). In a client, an `owner` invitation raises a `member` to `owner` — the
+   * invitation says so, and the person who wrote it was entitled to — and a `member` one
+   * leaves an `owner` as it is. The link is spent either way: it was used.
    *
    * **Exactly one of any number of concurrent calls for one link answers `accepted`.**
    *
-   * Throws, like every writer here, for what the caller was meant to rule out: an existing
-   * account or a place that is gone. Nothing is left written when it does.
+   * Throws, like every writer here, for what the caller was meant to rule out, and leaves
+   * nothing written when it does: an existing account that does not exist, a new account
+   * whose id is taken (an existing account is never overwritten), and an account whose
+   * address is not the one the link was written to.
    */
   accept(record: AcceptInvitationRecord): Promise<InvitationAcceptanceOutcome>
 }

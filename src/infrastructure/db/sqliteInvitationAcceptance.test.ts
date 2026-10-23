@@ -7,7 +7,7 @@ import {
   ACCEPTANCE_HOST,
   invitationAcceptanceContract,
 } from '../../application/testing/contracts/invitationAcceptanceContract'
-import { asAccountTokenId, asClientId, asEventId, asUserId } from '../../domain/shared/ids'
+import { asAccountTokenId, asUserId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrations } from './migrations'
 import { migrate } from './migrator'
@@ -93,19 +93,21 @@ describe('SqliteInvitationAcceptance', () => {
   const count = (table: string): number =>
     (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n
 
-  it('rolls the whole acceptance back when a write after the spend fails, so the link is not lost', async () => {
-    // A grant naming a place that does not exist fails on its foreign key, after the link was
-    // spent and the account inserted. Neither may survive it.
+  it('rolls the spend back when the account cannot be created, so the link is not lost', async () => {
+    // The spend is the first write; the account is the second. An id that exists fails the
+    // second, and the first must not survive it.
     const accounts = count('users')
 
     await expect(
       acceptance.accept({
         tokenId: asAccountTokenId('tok-1'),
         now: atPlus(1_000),
-        account: { kind: 'new', user: aUser({ id: 'user-new', email: 'nouveau@example.test' }) },
-        grant: { kind: 'client', clientId: asClientId('client-gone'), role: 'owner' },
+        account: {
+          kind: 'new',
+          user: aUser({ id: 'user-existing', email: 'nouveau@example.test' }),
+        },
       }),
-    ).rejects.toThrow(/FOREIGN KEY/)
+    ).rejects.toThrow(/UNIQUE/)
 
     expect(count('users')).toBe(accounts)
     expect(db.prepare(`SELECT consumed_at FROM account_tokens WHERE id = 'tok-1'`).get()).toEqual({
@@ -118,7 +120,6 @@ describe('SqliteInvitationAcceptance', () => {
       tokenId: asAccountTokenId('tok-nobody'),
       now: atPlus(1_000),
       account: { kind: 'existing', userId: asUserId('user-existing'), emailVerifiedAt: null },
-      grant: { kind: 'event', eventId: asEventId(ACCEPTANCE_EVENT), role: 'moderator' },
     })
 
     expect(db.inTransaction).toBe(false)
@@ -128,15 +129,44 @@ describe('SqliteInvitationAcceptance', () => {
     await acceptance.accept({
       tokenId: asAccountTokenId('tok-1'),
       now: atPlus(1_234),
-      account: { kind: 'existing', userId: asUserId('user-existing'), emailVerifiedAt: null },
-      grant: { kind: 'event', eventId: asEventId(ACCEPTANCE_EVENT), role: 'moderator' },
+      account: { kind: 'new', user: aUser({ id: 'user-new', email: 'nouveau@example.test' }) },
     })
 
     expect(db.prepare(`SELECT consumed_at FROM account_tokens WHERE id = 'tok-1'`).get()).toEqual({
       consumed_at: atPlus(1_234).toISOString(),
     })
     expect(
-      db.prepare(`SELECT granted_at FROM event_memberships WHERE user_id = 'user-existing'`).get(),
+      db.prepare(`SELECT granted_at FROM event_memberships WHERE user_id = 'user-new'`).get(),
     ).toEqual({ granted_at: atPlus(1_234).toISOString() })
+  })
+
+  it('keeps the instant a member was first given a place when an owner link raises them', async () => {
+    db.prepare(
+      `INSERT INTO client_members (client_id, user_id, role, granted_at)
+            VALUES (?, 'user-existing', 'member', ?)`,
+    ).run(ACCEPTANCE_CLIENT, AT.toISOString())
+    await tokens.save(
+      anAccountToken({
+        id: 'tok-owner',
+        purpose: 'invitation',
+        email: 'user-existing@example.test',
+        userId: null,
+        clientId: ACCEPTANCE_CLIENT,
+        clientRole: 'owner',
+        createdBy: ACCEPTANCE_HOST,
+      }),
+    )
+
+    await acceptance.accept({
+      tokenId: asAccountTokenId('tok-owner'),
+      now: atPlus(5_000),
+      account: { kind: 'existing', userId: asUserId('user-existing'), emailVerifiedAt: null },
+    })
+
+    expect(
+      db
+        .prepare(`SELECT role, granted_at FROM client_members WHERE user_id = 'user-existing'`)
+        .get(),
+    ).toEqual({ role: 'owner', granted_at: AT.toISOString() })
   })
 })

@@ -146,6 +146,38 @@ describe('acceptInvitation', () => {
 
   // ------------------------------------------- what it never does to a stranger --
 
+  describe('what a refusal says about who is on the box', () => {
+    it.each([
+      ['a password the policy refuses', () => ({ password: 'court', displayName: 'Camille' })],
+      [
+        'a password built from the address it is for',
+        (address: string) => ({ password: address, displayName: 'Camille' }),
+      ],
+      ['an empty name', () => ({ password: PASSWORD, displayName: '   ' })],
+    ])(
+      'is the same for %s whether or not the address has an account, so a link holder learns nothing',
+      async (_label, bad) => {
+        const free = await world.invite({ email: NEWCOMER })
+        const taken = await world.invite({ email: EXISTING_EMAIL })
+
+        const forFree = await accept({ token: free.token, credentials: bad(NEWCOMER) })
+        const forTaken = await accept({ token: taken.token, credentials: bad(EXISTING_EMAIL) })
+
+        expect(forFree.ok).toBe(false)
+        expect(!forTaken.ok && forTaken.error.code).toBe(!forFree.ok && forFree.error.code)
+        expect(!forTaken.ok && forTaken.error.kind).toBe(!forFree.ok && forFree.error.kind)
+      },
+    )
+
+    it('says the address is taken only to somebody who presents a name and a password the policy accepts', async () => {
+      const taken = await world.invite({ email: EXISTING_EMAIL })
+
+      const result = await accept({ token: taken.token, credentials })
+
+      expect(!result.ok && result.error.code).toBe('invitation.signInRequired')
+    })
+  })
+
   describe('the moment an account first exists', () => {
     it('is the moment of acceptance and not before: no account at the address until then', async () => {
       const { token } = await world.invite()
@@ -459,6 +491,69 @@ describe('acceptInvitation', () => {
       await world.events.save(anEvent({ id: EVENT_ID, ownerId: HOST_ID, status: 'archived' }))
 
       const result = await accept({ token, credentials })
+
+      expect(!result.ok && result.error.code).toBe('event.immutable')
+      expect(await accountAt(NEWCOMER)).toBeNull()
+    })
+
+    it('is read again after the hash, so an owner removed while it ran does not create an account', async () => {
+      const { token } = await world.invite()
+      const removing: PasswordHasher = {
+        hash: async (password) => {
+          // The ~250 ms of a real hash: long enough for the owner who wrote the invitation
+          // to be removed from the event by somebody else.
+          await world.memberships.revoke(asEventId(EVENT_ID), asUserId(HOST_ID))
+          return world.hasher.hash(password)
+        },
+        verify: (attempt, hash) => world.hasher.verify(attempt, hash),
+        needsRehash: () => false,
+        dummyHash: world.hasher.dummyHash,
+      }
+      const racing = makeAcceptInvitation({
+        tokens: world.tokens,
+        secrets: world.secrets,
+        events: world.events,
+        clients: world.clients,
+        memberships: world.memberships,
+        users: world.users,
+        hasher: removing,
+        acceptance: world.acceptance,
+        ids: world.ids,
+        clock: world.clock,
+      })
+
+      const result = await racing({ token, credentials })
+
+      expect(!result.ok && result.error.code).toBe('invitation.notFound')
+      expect(await accountAt(NEWCOMER)).toBeNull()
+      expect(world.tokens.all[0]?.consumedAt).toBeNull()
+    })
+
+    it('is read again after the hash, so an event archived while it ran takes no moderator', async () => {
+      const { token } = await world.invite()
+      const archiving: PasswordHasher = {
+        hash: async (password) => {
+          await world.events.save(anEvent({ id: EVENT_ID, ownerId: HOST_ID, status: 'archived' }))
+          return world.hasher.hash(password)
+        },
+        verify: (attempt, hash) => world.hasher.verify(attempt, hash),
+        needsRehash: () => false,
+        dummyHash: world.hasher.dummyHash,
+      }
+      const racing = makeAcceptInvitation({
+        tokens: world.tokens,
+        secrets: world.secrets,
+        events: world.events,
+        clients: world.clients,
+        memberships: world.memberships,
+        users: world.users,
+        hasher: archiving,
+        acceptance: world.acceptance,
+        ids: world.ids,
+        clock: world.clock,
+      })
+
+      const result = await racing({ token, credentials })
 
       expect(!result.ok && result.error.code).toBe('event.immutable')
       expect(await accountAt(NEWCOMER)).toBeNull()

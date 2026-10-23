@@ -67,19 +67,29 @@ export type AcceptInvitation = (
  *    unexpired, an invitation, its event or client still there, and for an event its inviter
  *    still an owner. Anything else is `404 invitation.notFound`, the same answer.
  * 2. **Who is accepting.**
- *    - *With a password.* The address the link was **written to** — read from the link and
- *      never from the request — must have no account. If it has one the answer is
- *      `409 invitation.signInRequired` and **nothing is spent**: the person signs in and
- *      accepts as that account. An account is never created on top of one, and an existing
- *      one is never attached by someone who only knows a link. (A disabled account is
- *      answered like an unknown link: there is nothing for it to sign in to.)
+ *    - *With a password.* The name and the password are judged **first**, and a refusal is
+ *      the same refusal for every address, because the address is not looked at yet. Then the
+ *      address the link was **written to** — read from the link and never from the request —
+ *      must have no account. If it has one the answer is `409 invitation.signInRequired` and
+ *      **nothing is spent**: the person signs in and accepts as that account. An account is
+ *      never created on top of one, and an existing one is never attached by someone who only
+ *      knows a link. (A disabled account is answered like an unknown link: there is nothing
+ *      for it to sign in to.) **That 409 is the one thing a holder of a link can learn about
+ *      who is on the box, and only by presenting a name and a password the policy accepts**:
+ *      the person the link is for needs to be told, and a link in a mailbox is theirs. Where
+ *      the inviter holds the link (no mail relay) the inviter can learn it too, and cannot
+ *      learn it without also creating the account if the address was free — see
+ *      docs/SECURITY.md, "Invitations".
  *    - *Signed in.* The account must be enabled and use the address the link was written to.
  *      Another account is `403 invitation.wrongAccount`: a link is for one mailbox, and
  *      holding it does not make any signed-in stranger that mailbox's owner.
  * 3. **The password is judged before the link is spent** (and its name before that). A
  *    password that is too short costs the person nothing — the form says so and the same
- *    link still works — and the hash, which takes ~200 ms, is computed outside the
- *    transaction that holds the database's one writer.
+ *    link still works — and the hash, which takes ~250 ms, is computed outside the
+ *    transaction that holds the database's one writer. **The link is read again after the
+ *    hash**, because that wait is long enough for the owner who wrote an invitation to be
+ *    removed, or the event to be archived, and an account must not be created by a link the
+ *    box would no longer honour.
  * 4. **One transaction does the rest** (`InvitationAcceptance`): spends the link, creates the
  *    account, grants the role and stamps the mailbox. Of any number of simultaneous
  *    acceptances of one link exactly one wins; the others are `404 invitation.notFound`. An
@@ -118,7 +128,7 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
     // Mail proves the mailbox; a link the inviter held proves nothing about it.
     const emailVerifiedAt = record.delivery === 'mail' ? now : null
 
-    if ('signedInUserId' in input) {
+    if (input.signedInUserId !== undefined) {
       const account = await users.findById(input.signedInUserId)
       if (account === null || !account.canSignIn()) return err(invitationNotFound())
       if (!account.email.equals(record.email)) {
@@ -129,11 +139,21 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
         tokenId: record.id,
         now,
         account: { kind: 'existing', userId: account.id, emailVerifiedAt },
-        grant: target,
       })
       if (outcome !== 'accepted') return err(invitationNotFound())
       return ok({ userId: account.id, target, place })
     }
+
+    // Judged before the address is looked at, so a refusal is the same for every address:
+    // a stranger holding a link must not learn who is on the box from which 4xx they get.
+    const name = AccountName.create(input.credentials.displayName)
+    if (!name.ok) return name
+
+    const password = Password.create(
+      input.credentials.password,
+      passwordContextFor(record.email, name.value.value),
+    )
+    if (!password.ok) return password
 
     const existing = await users.findByEmail(record.email)
     if (existing !== null) {
@@ -144,20 +164,17 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
       )
     }
 
-    const name = AccountName.create(input.credentials.displayName)
-    if (!name.ok) return name
+    const passwordHash = await hasher.hash(password.value)
 
-    const password = Password.create(
-      input.credentials.password,
-      passwordContextFor(record.email, name.value.value),
-    )
-    if (!password.ok) return password
+    // The hash took long enough for the world to move: read the link again, now.
+    const stillGood = await resolve(input.token, now)
+    if (!stillGood.ok) return stillGood
 
     const created = User.create(
       {
         email: record.email,
         displayName: name.value.value,
-        passwordHash: await hasher.hash(password.value),
+        passwordHash,
         // The person chose this password just now; there is nothing to force them to change.
         mustChangePassword: false,
         // Never the inviter's, never derived: written out and asserted by name.
@@ -170,10 +187,9 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
     if (!created.ok) return created
 
     const outcome = await acceptance.accept({
-      tokenId: record.id,
+      tokenId: stillGood.value.record.id,
       now,
       account: { kind: 'new', user: created.value },
-      grant: target,
     })
     if (outcome === 'emailTaken') return err(DomainError.conflict('invitation.signInRequired'))
     if (outcome !== 'accepted') return err(invitationNotFound())

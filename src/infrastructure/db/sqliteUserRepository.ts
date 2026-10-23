@@ -92,11 +92,17 @@ const LATEST_EPOCH = `NULLIF(MAX(COALESCE(users.credentials_changed_at, ''),
  */
 const KEPT_VERIFICATION = `COALESCE(users.email_verified_at, excluded.email_verified_at)`
 
-export const UPSERT_USER = `
+/**
+ * Creating an account: a plain `INSERT`, so an id that exists is an error and never an
+ * overwrite. `UPSERT_USER` is built on it, so the column list exists once.
+ */
+export const INSERT_USER = `
   INSERT INTO users (id, email, display_name, password_hash, created_at,
                      last_login_at, must_change_password, disabled_at, site_role,
                      credentials_changed_at, email_verified_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+export const UPSERT_USER = `${INSERT_USER}
   ON CONFLICT (id) DO UPDATE SET email                  = excluded.email,
                                  display_name           = excluded.display_name,
                                  password_hash          = excluded.password_hash,

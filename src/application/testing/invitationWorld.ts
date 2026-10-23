@@ -78,7 +78,7 @@ export const makeInvitationWorld = () => {
     .withAccounts(asUserId(HOST_ID), asUserId(EXISTING_ID))
     .withEvents(asEventId(EVENT_ID))
     .withClients(asClientId(CLIENT_ID))
-  const acceptance = new FakeInvitationAcceptance({ tokens, events, users, memberships, clients })
+  const acceptance = new FakeInvitationAcceptance({ tokens, users, memberships, clients })
 
   /** Writes an invitation straight into the store and returns the secret that opens it. */
   const invite = async (
