@@ -27,7 +27,13 @@ const TOKEN_IN_PATH = /^(\/api\/gallery|\/g|\/password\/reset|\/invite|\/api\/in
  * operates the box and by whatever ships its logs, long after the link was sent. Every
  * other path is logged as it is.
  */
-export const loggablePath = (path: string): string => path.replace(TOKEN_IN_PATH, '$1/:token')
+export const loggablePath = (path: string): string => {
+  // A doubled slash is how a request steps round an anchored pattern: `/api//invitations/<t>`
+  // is routed exactly like `/api/invitations/<t>`. So the match is made on the path with its
+  // slashes collapsed, and a path that carries no token is logged as it came.
+  const collapsed = path.replace(/\/{2,}/g, '/')
+  return TOKEN_IN_PATH.test(collapsed) ? collapsed.replace(TOKEN_IN_PATH, '$1/:token') : path
+}
 
 /**
  * Attaches a request id and a child logger before anything else runs.

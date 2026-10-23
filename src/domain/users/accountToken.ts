@@ -57,8 +57,9 @@ export const ACCOUNT_TOKEN_LIFETIME_MS: Readonly<Record<AccountTokenPurpose, num
  * How many invitations one address can be sent in an hour, whoever sends them (G2-09 /
  * P3-10).
  *
- * An invitation is written by a signed-in host or by the operator, so the per-client limit
- * of the HTTP layer already bounds how fast any one of them can write. It says nothing about
+ * An invitation is written by a signed-in host or by the operator, so the per-account limit
+ * of the HTTP layer (`INVITATIONS_PER_ACCOUNT_PER_HOUR`) already bounds how fast any one of them
+ * can write. It says nothing about
  * **whom**: a host can invite the same stranger to ten events, and every one of those is a
  * mail in that stranger's inbox. This is the cap on the recipient's side. Re-inviting the
  * same address to the same event or client replaces the earlier link, so the common reason to

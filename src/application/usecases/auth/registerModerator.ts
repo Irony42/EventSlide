@@ -50,7 +50,7 @@ export type RegisterModerator = (
  * **Authority is read here, from storage, on this request**, and only an owner of this event
  * may invite: `canInviteModerators` is asked rather than the qualifying roles being listed,
  * so a role added later is refused by default. It is read **again** when the invitation is
- * accepted, a week later at the latest (`resolveInvitation`).
+ * accepted, a week later at the latest (`makeResolveInvitation`).
  */
 export const makeRegisterModerator =
   ({ events, users, memberships, issueInvitation }: RegisterModeratorDeps): RegisterModerator =>

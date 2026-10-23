@@ -51,7 +51,10 @@ const harness = ({ config = {}, csrf = false }: Options = {}): Subject => {
       // Who the session is, read the way a gated route reads it: after an acceptance this is
       // what shows the person arrived signed in.
       app.get('/api/probe/who', requireUser({ ...deps, users: world.users }), (req, res) => {
-        res.json({ userId: req.context.user?.userId ?? null })
+        res.json({
+          userId: req.context.user?.userId ?? null,
+          email: req.context.user?.email ?? null,
+        })
       })
 
       app.use(
@@ -168,6 +171,19 @@ describe('GET /api/invitations/:token', () => {
     expect(response.body).toMatchObject(NOT_FOUND)
   })
 
+  it.each(['%', '%zz', '%E0%A4%A'])(
+    'answers a malformed percent-encoding (%s) like a dead link, not with a 500',
+    async (token) => {
+      const subject = harness()
+
+      const response = await request(subject.app).get(`/api/invitations/${token}`)
+
+      expect(response.status).toBe(404)
+      expect(response.body).toMatchObject(NOT_FOUND)
+      expect(response.headers['cache-control']).toBe('no-store')
+    },
+  )
+
   it('answers every dead link with the same status and body: spent, revoked, expired', async () => {
     const subject = harness()
     const dead = [
@@ -259,7 +275,9 @@ describe('POST /api/invitations/:token/accept, choosing a password', () => {
 
     expect(cookieNamed(response.headers, SESSION_COOKIE_IN_HARNESS)).toBeTruthy()
     const created = await subject.world.users.findByEmail(emailOf(NEWCOMER))
-    expect(who.body).toEqual({ userId: created?.id })
+    // The session names the address the link was written to, which is what `/api/auth/me`
+    // will say the account is.
+    expect(who.body).toEqual({ userId: created?.id, email: NEWCOMER })
   })
 
   it('replaces a session planted before it, so a fixated id does not survive', async () => {
@@ -323,6 +341,7 @@ describe('POST /api/invitations/:token/accept, choosing a password', () => {
 
     expect(response.status).toBe(409)
     expect(response.body.error.code).toBe('invitation.signInRequired')
+    expect(response.headers['cache-control']).toBe('no-store')
     expect(cookieNamed(response.headers, SESSION_COOKIE_IN_HARNESS)).toBeUndefined()
     expect(subject.world.tokens.all[0]?.consumedAt).toBeNull()
   })
@@ -344,14 +363,18 @@ describe('POST /api/invitations/:token/accept, choosing a password', () => {
     expect(subject.world.tokens.all[0]?.consumedAt).toBeNull()
   })
 
-  it.each(['secret-99', 'x', 'a'.repeat(300)])('answers 404 for the link %j', async (token) => {
-    const subject = harness()
+  it.each(['secret-99', 'x', 'a'.repeat(300), '%', '%zz', '%E0%A4%A'])(
+    'answers 404 for the link %j, and never caches it',
+    async (token) => {
+      const subject = harness()
 
-    const response = await accept(subject, token)
+      const response = await accept(subject, token)
 
-    expect(response.status).toBe(404)
-    expect(response.body).toMatchObject(NOT_FOUND)
-  })
+      expect(response.status).toBe(404)
+      expect(response.body).toMatchObject(NOT_FOUND)
+      expect(response.headers['cache-control']).toBe('no-store')
+    },
+  )
 
   it('needs the CSRF token like every write, since it creates an account and a session', async () => {
     const subject = harness({ csrf: true })

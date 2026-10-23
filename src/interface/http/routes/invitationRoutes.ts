@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type NextFunction, type Request, type Response } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { resolveAuthState } from '../middleware/authz'
@@ -119,6 +119,19 @@ export const invitationRoutes = ({ deps, usecases }: InvitationRouteDeps): Route
       )
     }),
   )
+
+  // Express decodes a path parameter while it **matches** the route, before any handler or
+  // limiter runs, and throws a `URIError` for `%`, `%zz` or a truncated sequence. Left alone that
+  // is a 500 and an error line in the log for anybody who types it; a malformed link is a dead
+  // link, answered like every other. An error from anywhere else is not this router's to answer.
+  router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (!(error instanceof URIError)) {
+      next(error)
+      return
+    }
+    res.setHeader('Cache-Control', 'no-store')
+    sendError(res, notFound())
+  })
 
   return router
 }

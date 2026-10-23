@@ -16,6 +16,7 @@ import {
 import { unwrapOr, type Result } from '../../../domain/shared/result'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireRole, requireUser } from '../middleware/authz'
+import { INVITATIONS_PER_ACCOUNT_PER_HOUR, invitationIssueLimiter } from '../middleware/rateLimit'
 import {
   toEventDto,
   toEventSummaryDto,
@@ -418,9 +419,16 @@ export const eventRoutes = ({
     }),
   )
 
+  // Built once for the mount, like every limiter: `express-rate-limit` gives each call its own
+  // store.
+  const inviteLimiter = invitationIssueLimiter(INVITATIONS_PER_ACCOUNT_PER_HOUR)
+
   router.post(
     '/events/:eventSlug/moderators',
     requireRole('owner', deps),
+    // After the role, which is what puts an account on the request to key on, and before the
+    // body is read: a refused caller costs a counter and nothing else.
+    inviteLimiter,
     asyncHandler(async (req, res) => {
       const scope = hostScope(req.context)
       const body = moderatorInvitationBody.parse(req.body)

@@ -173,6 +173,39 @@ export const eventCreationLimiter = (perHour: number): RateLimitRequestHandler =
     },
   })
 
+// ------------------------------------------------------------- invitations --
+
+/**
+ * How many invitations one **account** may write per hour, to any address (G2-09 / P3-10).
+ *
+ * The per-address cap inside `issueInvitation` bounds what any one inbox is sent; it says
+ * nothing about **how many inboxes** a host can reach, and every invitation is a mail from the
+ * box's own sender address that names the host's event. This bounds that: thirty an hour is
+ * three events' worth of helpers, and a host does not write thirty a minute.
+ *
+ * Fixed rather than an environment setting, deliberately. Nobody has needed to move it, and a
+ * variable is a thing to document, validate and keep: if an operator turns out to, it becomes
+ * one then.
+ */
+export const INVITATIONS_PER_ACCOUNT_PER_HOUR = 30
+
+/**
+ * Keyed by account, for the reason {@link eventCreationLimiter} gives: an office behind one
+ * address is the legitimate case, and a colleague's burst must not lock a host out. After
+ * `requireRole`, which is what puts the account on the request.
+ */
+export const invitationIssueLimiter = (perHour: number): RateLimitRequestHandler =>
+  rateLimit({
+    windowMs: 60 * 60_000,
+    limit: perHour,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    keyGenerator: accountKey,
+    handler: (_req, res) => {
+      res.status(429).json(errorBody(DomainError.rateLimited('rate.limited')))
+    },
+  })
+
 // ------------------------------------------------------------ second factor --
 
 /**

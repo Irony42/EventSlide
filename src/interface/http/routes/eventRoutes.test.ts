@@ -218,7 +218,7 @@ const buildWorld = ({
   const ids = new SequentialIdGenerator()
   // The foreign keys the real table has: an invitation names an author and an event that exist.
   const tokens = new FakeAccountTokenRepository()
-    .withAccounts(asUserId(OWNER))
+    .withAccounts(asUserId(OWNER), asUserId(GALA_OWNER))
     .withEvents(WEDDING, GALA)
   const mailer = new FakeMailer()
   const mailerPort: Mailer = mailerChoice === 'none' ? nullMailer : mailer
@@ -2005,6 +2005,43 @@ describe('the host event routes', () => {
       expect(known.status).toBe(unknown.status)
       expect(Object.keys(known.body).sort()).toEqual(Object.keys(unknown.body).sort())
       expect(JSON.stringify(known.body)).not.toContain(NEWCOMER)
+    })
+
+    it('writes the mail in French when the form sends no language, the product source language', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      await invite(agent)
+
+      expect(world.mailer.sent[0]?.text).toContain('Bonjour,')
+    })
+
+    it('answers 429 once one account has written thirty invitations in an hour, to thirty addresses', async () => {
+      const agent = await signedIn(world, 'owner')
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        expect((await invite(agent, { email: `personne-${attempt}@example.test` })).status).toBe(
+          201,
+        )
+      }
+
+      const refused = await invite(agent, { email: 'une-de-trop@example.test' })
+
+      expect(refused.status).toBe(429)
+      expect(refused.body.error.code).toBe('rate.limited')
+      expect(world.mailer.sent).toHaveLength(30)
+    })
+
+    it('counts that allowance per account, so another host is not locked out by the first', async () => {
+      const agent = await signedIn(world, 'owner')
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        await invite(agent, { email: `personne-${attempt}@example.test` })
+      }
+      const other = await signedIn(world, 'gala-owner')
+
+      const response = await other
+        .post('/api/events/gala-annuel/moderators')
+        .send({ email: 'quelquun@example.test' })
+
+      expect(response.status).toBe(201)
     })
 
     it('writes the mail in the language the form sent', async () => {
