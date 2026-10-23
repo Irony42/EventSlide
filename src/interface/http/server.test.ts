@@ -944,6 +944,38 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     },
   )
 
+  it.each([
+    ['an invitation', '/invite/' + 'Q'.repeat(43)],
+    ['a password reset', '/password/reset/' + 'Q'.repeat(43)],
+    ['an invitation, in capitals, which Express routes the same', '/INVITE/' + 'Q'.repeat(43)],
+    ['a reset, in capitals', '/Password/Reset/' + 'Q'.repeat(43)],
+    ['an invitation with a trailing slash', '/invite/' + 'Q'.repeat(43) + '/'],
+  ])(
+    'serves the page of %s with no referrer, no index and no cache, like the gallery',
+    async (_name, path) => {
+      // The token is in this address (G2-10), so the page carries what the gallery's does:
+      // `no-store`, not the shell's `no-cache`, and nothing that lets it be indexed.
+      const response = await request(withClient().app).get(path)
+
+      expect(response.status).toBe(200)
+      expect(response.text).toContain(SPA_MARKER)
+      expect(response.get('cache-control')).toBe('no-store')
+      expect(response.get('x-robots-tag')).toBe('noindex, nofollow')
+      expect(response.get('referrer-policy')).toBe('no-referrer')
+    },
+  )
+
+  it.each(['/password/forgot', '/login', '/invite' + 'x'])(
+    'leaves %s, which carries no token, an ordinary client route',
+    async (path) => {
+      const response = await request(withClient().app).get(path)
+
+      expect(response.status).toBe(200)
+      expect(response.get('cache-control')).toBe('no-cache')
+      expect(response.get('x-robots-tag')).toBeUndefined()
+    },
+  )
+
   it('never caches index.html when it is requested by name', async () => {
     // `express.static` serves this one, not the fallback, so it needs its own header.
     const response = await request(withClient().app).get('/index.html')
