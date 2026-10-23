@@ -76,6 +76,7 @@ describe('the scope', () => {
         'admin',
         'app',
         'auth',
+        'clientSpace',
         'errors',
         'gallery',
         'join',

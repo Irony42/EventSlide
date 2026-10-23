@@ -468,6 +468,11 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   regenerateRecoveryCodes: vi.fn(async () => ({ recoveryCodes: ['K7QM-2XTR-9PHD-4VNB'] })),
   disableSecondFactor: vi.fn(async () => undefined),
 
+  myLimits: vi.fn(async () => ({ clients: [] })),
+  clientAudit: vi.fn(async () => ({ items: [], next: null })),
+  pendingInvitations: vi.fn(async () => ({ items: [] })),
+  approveInvitation: vi.fn(async () => undefined),
+
   listEvents: vi.fn(async () => ({ items: [] })),
   createEvent: vi.fn(async () => anEventDto()),
   getEvent: vi.fn(async () => anEventDto()),

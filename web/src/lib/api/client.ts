@@ -3,6 +3,7 @@ import type { Locale } from '../i18n/locale'
 import type {
   About,
   BulkModerationResponse,
+  ClientAuditPageDto,
   ClipJobDto,
   EventDto,
   EventLanguage,
@@ -22,6 +23,8 @@ import type {
   ModerationDecision,
   ModerationQueueResponse,
   ModeratorDto,
+  MyLimitsDto,
+  PendingInvitationsDto,
   PhotoStatus,
   PrivacyNoticeState,
   ReactionKind,
@@ -449,6 +452,33 @@ export const createApi = (transport: Transport) => ({
         ? { displayName: acceptance.displayName, password: acceptance.password }
         : {},
     ),
+
+  // ------------------------------------------------------------ client space --
+  //
+  // Only on a box with `SITE_ADMIN=on`: with it off these are unknown routes, so a caller reads
+  // `features.siteAdmin` from `about` first and never probes them.
+
+  myLimits: (signal?: AbortSignal): Promise<MyLimitsDto> =>
+    transport.get('/api/me/limits', undefined, signal),
+
+  clientAudit: (
+    query: {
+      readonly clientId?: string
+      readonly before?: number
+      readonly limit?: number
+    } = {},
+    signal?: AbortSignal,
+  ): Promise<ClientAuditPageDto> => transport.get('/api/client/audit', query, signal),
+
+  pendingInvitations: (clientId?: string, signal?: AbortSignal): Promise<PendingInvitationsDto> =>
+    transport.get(
+      '/api/client/invitations',
+      clientId === undefined ? undefined : { clientId },
+      signal,
+    ),
+
+  approveInvitation: (invitationId: string): Promise<void> =>
+    transport.post(`/api/client/invitations/${encode(invitationId)}/approve`),
 
   // ------------------------------------------------------------------ events --
 

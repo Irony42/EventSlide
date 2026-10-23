@@ -14,7 +14,9 @@ import type { PendingInvitation } from '../../../application/usecases/clients/li
 import type { EventLimits } from '../../../application/usecases/events/getEventLimits'
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
+  CeilingMeterDto,
   CeilingsDto,
+  ClientAuditEntryDto,
   ClientAuditPageDto,
   ClientLimitsDto,
   EventDto,
@@ -28,6 +30,7 @@ import type {
   GuestPhotoDto,
   ModerationPhotoDto,
   MyLimitsDto,
+  PendingInvitationDto,
   PendingInvitationsDto,
   PrivacyNoticeDto,
   PrivacyNoticeStateDto,
@@ -935,6 +938,13 @@ const toCeilingsDto = (ceilings: ClientLimits['ceilings']): CeilingsDto => ({
   periodStartedAt: isoOrNull(ceilings.periodStartedAt),
 })
 
+const toCeilingMeterDto = (meter: ClientLimits['meters'][number]): CeilingMeterDto => ({
+  kind: meter.kind,
+  used: meter.used,
+  max: meter.max,
+  level: meter.level,
+})
+
 export const toClientLimitsDto = (limits: ClientLimits): ClientLimitsDto => ({
   id: limits.clientId,
   name: limits.name,
@@ -946,12 +956,7 @@ export const toClientLimitsDto = (limits: ClientLimits): ClientLimitsDto => ({
     eventsCreatedInPeriod: limits.usage.eventsCreatedInPeriod,
     usedBytes: limits.usage.usedBytes,
   },
-  meters: limits.meters.map((meter) => ({
-    kind: meter.kind,
-    used: meter.used,
-    max: meter.max,
-    level: meter.level,
-  })),
+  meters: limits.meters.map(toCeilingMeterDto),
 })
 
 export const toMyLimitsDto = (limits: readonly ClientLimits[]): MyLimitsDto => ({
@@ -966,29 +971,31 @@ export const toMyLimitsDto = (limits: readonly ClientLimits[]): MyLimitsDto => (
  * either. `details` is passed through whole, because the action's allow-list (`auditAction.ts`)
  * already admits nothing but numbers, switches and instants.
  */
+const toClientAuditEntryDto = (record: AuditPage['items'][number]): ClientAuditEntryDto => ({
+  seq: record.seq,
+  at: iso(record.at),
+  action: record.action,
+  actor: { kind: record.actor.kind, label: record.actor.label },
+  subject:
+    record.subject.type === 'account'
+      ? { type: record.subject.type }
+      : { type: record.subject.type, id: record.subject.id },
+  details: record.details,
+})
+
 export const toClientAuditPageDto = (page: AuditPage): ClientAuditPageDto => ({
-  items: page.items.map((record) => ({
-    seq: record.seq,
-    at: iso(record.at),
-    action: record.action,
-    actor: { kind: record.actor.kind, label: record.actor.label },
-    subject:
-      record.subject.type === 'account'
-        ? { type: record.subject.type }
-        : { type: record.subject.type, id: record.subject.id },
-    details: record.details,
-  })),
+  items: page.items.map(toClientAuditEntryDto),
   next: page.next,
+})
+
+const toPendingInvitationDto = (invitation: PendingInvitation): PendingInvitationDto => ({
+  id: invitation.id,
+  email: invitation.email,
+  role: invitation.role,
+  createdAt: iso(invitation.createdAt),
+  expiresAt: iso(invitation.expiresAt),
 })
 
 export const toPendingInvitationsDto = (
   invitations: readonly PendingInvitation[],
-): PendingInvitationsDto => ({
-  items: invitations.map((invitation) => ({
-    id: invitation.id,
-    email: invitation.email,
-    role: invitation.role,
-    createdAt: iso(invitation.createdAt),
-    expiresAt: iso(invitation.expiresAt),
-  })),
-})
+): PendingInvitationsDto => ({ items: invitations.map(toPendingInvitationDto) })

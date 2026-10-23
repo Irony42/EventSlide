@@ -98,6 +98,7 @@ export const ROUTE_BACKDROPS: readonly RouteBackdrop[] = [
     backdrop: 'ground',
     page: 'features/admin/EventSettingsPage.tsx',
   },
+  { path: '/admin/client', backdrop: 'ground', page: 'features/admin/ClientSpacePage.tsx' },
   { path: '/admin/password', backdrop: 'ground', page: 'features/auth/ChangePasswordPage.tsx' },
   { path: '/admin/security', backdrop: 'photo', page: 'features/auth/SecurityPage.tsx' },
   { path: '*', backdrop: 'ground', page: 'app/NotFoundView.tsx' },

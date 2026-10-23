@@ -388,6 +388,30 @@ const ENDPOINTS: readonly EndpointCase[] = [
 
   // moderators
   {
+    name: 'myLimits',
+    verb: 'get',
+    path: '/api/me/limits',
+    invoke: (client) => client.myLimits(),
+  },
+  {
+    name: 'clientAudit',
+    verb: 'get',
+    path: '/api/client/audit',
+    invoke: (client) => client.clientAudit({ clientId: 'client-1', before: 7, limit: 20 }),
+  },
+  {
+    name: 'pendingInvitations',
+    verb: 'get',
+    path: '/api/client/invitations',
+    invoke: (client) => client.pendingInvitations('client-1'),
+  },
+  {
+    name: 'approveInvitation',
+    verb: 'post',
+    path: '/api/client/invitations/inv-1/approve',
+    invoke: (client) => client.approveInvitation('inv-1'),
+  },
+  {
     name: 'listModerators',
     verb: 'get',
     path: `/api/events/${SLUG}/moderators`,

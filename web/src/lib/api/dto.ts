@@ -420,7 +420,14 @@ export interface EventSummaryDto {
 export interface EventDto extends EventSummaryDto {
   readonly joinCode: string
   readonly joinUrl: string
+  /**
+   * The quota the event's uploads are judged against: the stored one, lowered to the client's
+   * ceiling when that is smaller. The host's meter is drawn against this and never against a
+   * number the box no longer holds the event to.
+   */
   readonly quotaBytes: number
+  /** When the live window closes, an ISO-8601 instant. **Absent** when there is none to announce. */
+  readonly liveWindowEnd?: string
   readonly settings: EventSettingsDto
   readonly startsAt: string | null
   readonly closedAt: string | null
@@ -692,4 +699,77 @@ export interface About {
   /** Operator links. Empty until the box has any to offer; see {@link AboutLinks}. */
   readonly links: AboutLinks
   readonly features: AboutFeatures
+}
+
+// ----------------------------------------------------------------- client space --
+
+/** A client's nine ceilings, as it reads them. `null` is "no ceiling". */
+export interface CeilingsDto {
+  readonly maxEvents: number | null
+  readonly maxTotalBytes: number | null
+  readonly maxEventQuotaBytes: number | null
+  readonly maxRetentionDays: number | null
+  readonly clipsAllowed: boolean
+  readonly liveAllowed: boolean
+  readonly maxLiveDays: number | null
+  readonly maxEventsPerPeriod: number | null
+  readonly periodStartedAt: string | null
+}
+
+/** `warning` from 90 per cent and `reached` at 100: the server decides, the screen shows it. */
+export type CeilingLevelDto = 'ok' | 'warning' | 'reached'
+
+export interface CeilingMeterDto {
+  readonly kind: 'events' | 'eventsPerPeriod' | 'storage'
+  readonly used: number
+  readonly max: number
+  readonly level: CeilingLevelDto
+}
+
+export interface ClientLimitsDto {
+  readonly id: string
+  readonly name: string
+  readonly role: 'owner' | 'member'
+  readonly suspended: boolean
+  readonly ceilings: CeilingsDto
+  readonly usage: {
+    readonly events: number
+    readonly eventsCreatedInPeriod: number
+    readonly usedBytes: number
+  }
+  readonly meters: readonly CeilingMeterDto[]
+}
+
+/** `GET /api/me/limits`. */
+export interface MyLimitsDto {
+  readonly clients: readonly ClientLimitsDto[]
+}
+
+export interface ClientAuditEntryDto {
+  readonly seq: number
+  readonly at: string
+  readonly action: string
+  readonly actor: {
+    readonly kind: 'operator' | 'member' | 'system' | 'integration'
+    readonly label: string | null
+  }
+  readonly subject: { readonly type: string; readonly id?: string }
+  readonly details: Readonly<Record<string, unknown>>
+}
+
+export interface ClientAuditPageDto {
+  readonly items: readonly ClientAuditEntryDto[]
+  readonly next: number | null
+}
+
+export interface PendingInvitationDto {
+  readonly id: string
+  readonly email: string
+  readonly role: 'owner' | 'member'
+  readonly createdAt: string
+  readonly expiresAt: string
+}
+
+export interface PendingInvitationsDto {
+  readonly items: readonly PendingInvitationDto[]
 }
