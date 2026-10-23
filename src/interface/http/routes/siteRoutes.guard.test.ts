@@ -414,6 +414,18 @@ describe('POST /api/site/accounts/:userId/password-reset (R2)', () => {
       expect([response.status, response.body.error.code]).toEqual([401, 'auth.required'])
     })
 
+    it('answers 401 to an owner whose account has been switched off while their session lived, as every route does', async () => {
+      const { site, id } = await aRequest()
+      const owner = await site.signIn(ADDRESS.owner)
+      const account = await site.repos.users.findById(asUserId(ID.owner))
+      if (account === null) throw new Error('fixture rejected')
+      await site.repos.users.save(account.disable(site.clock.now()))
+
+      const response = await postAs(owner, `/api/client/password-resets/${id}/approve`)
+
+      expect([response.status, response.body.error.code]).toEqual([401, 'auth.required'])
+    })
+
     it('answers 404 reset.requestNotFound to an account that is no part of the client: it learns nothing about it', async () => {
       const { site, id } = await aRequest()
 
