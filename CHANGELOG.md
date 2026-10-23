@@ -145,7 +145,7 @@ Read these before you upgrade, and back up with the version you run now.
   is the host `localhost` and nothing that merely starts with it: `http://localhost.example.com`
   and `http://localhost6` are refused. There was no warning first, because keeping the old
   behaviour kept the hole.
-- **`PUBLIC_URL` is judged and spelled as the URL it is** (#NNN). A value that ends in a space
+- **`PUBLIC_URL` is judged and spelled as the URL it is** (#150). A value that ends in a space
   or a tab, that has a tab or a line break inside it, or that carries a user name or a password
   (`https://user:pw@photos.example.com`, `http://user:pw@localhost`), now stops the boot (exit 78,
   naming `PUBLIC_URL`; the message never repeats the value). What boots reaches join links, QR
