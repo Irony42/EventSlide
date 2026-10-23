@@ -19,6 +19,7 @@ import type {
   ClientAuditEntryDto,
   ClientAuditPageDto,
   ClientLimitsDto,
+  ClientUsageDto,
   EventDto,
   EventSettingsDto,
   EventSummaryDto,
@@ -938,6 +939,12 @@ const toCeilingsDto = (ceilings: ClientLimits['ceilings']): CeilingsDto => ({
   periodStartedAt: isoOrNull(ceilings.periodStartedAt),
 })
 
+const toClientUsageDto = (usage: ClientLimits['usage']): ClientUsageDto => ({
+  events: usage.events,
+  eventsCreatedInPeriod: usage.eventsCreatedInPeriod,
+  usedBytes: usage.usedBytes,
+})
+
 const toCeilingMeterDto = (meter: ClientLimits['meters'][number]): CeilingMeterDto => ({
   kind: meter.kind,
   used: meter.used,
@@ -951,11 +958,7 @@ export const toClientLimitsDto = (limits: ClientLimits): ClientLimitsDto => ({
   role: limits.role,
   suspended: limits.suspended,
   ceilings: toCeilingsDto(limits.ceilings),
-  usage: {
-    events: limits.usage.events,
-    eventsCreatedInPeriod: limits.usage.eventsCreatedInPeriod,
-    usedBytes: limits.usage.usedBytes,
-  },
+  usage: toClientUsageDto(limits.usage),
   meters: limits.meters.map(toCeilingMeterDto),
 })
 

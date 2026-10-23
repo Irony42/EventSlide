@@ -468,14 +468,15 @@ export const createApi = (transport: Transport) => ({
       readonly limit?: number
     } = {},
     signal?: AbortSignal,
-  ): Promise<ClientAuditPageDto> => transport.get('/api/client/audit', query, signal),
-
-  pendingInvitations: (clientId?: string, signal?: AbortSignal): Promise<PendingInvitationsDto> =>
+  ): Promise<ClientAuditPageDto> =>
     transport.get(
-      '/api/client/invitations',
-      clientId === undefined ? undefined : { clientId },
+      '/api/client/audit',
+      { clientId: query.clientId, before: query.before, limit: query.limit },
       signal,
     ),
+
+  pendingInvitations: (clientId?: string, signal?: AbortSignal): Promise<PendingInvitationsDto> =>
+    transport.get('/api/client/invitations', { clientId }, signal),
 
   approveInvitation: (invitationId: string): Promise<void> =>
     transport.post(`/api/client/invitations/${encode(invitationId)}/approve`),

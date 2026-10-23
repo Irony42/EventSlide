@@ -819,6 +819,14 @@ export interface CeilingMeterDto {
   readonly level: CeilingLevelDto
 }
 
+/** What a client has used against its ceilings. */
+export interface ClientUsageDto {
+  readonly events: number
+  readonly eventsCreatedInPeriod: number
+  /** The figure the byte ceiling is judged against, clips still queued included. */
+  readonly usedBytes: number
+}
+
 export interface ClientLimitsDto {
   readonly id: string
   readonly name: string
@@ -827,12 +835,7 @@ export interface ClientLimitsDto {
   /** Frozen by the operator: reading and exporting still work, writing does not. */
   readonly suspended: boolean
   readonly ceilings: CeilingsDto
-  readonly usage: {
-    readonly events: number
-    readonly eventsCreatedInPeriod: number
-    /** The figure the byte ceiling is judged against, clips still queued included. */
-    readonly usedBytes: number
-  }
+  readonly usage: ClientUsageDto
   readonly meters: readonly CeilingMeterDto[]
 }
 

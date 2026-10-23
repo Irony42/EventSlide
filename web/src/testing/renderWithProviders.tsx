@@ -16,6 +16,7 @@ import type {
 import type { Locale } from '../lib/i18n/locale'
 import type {
   About,
+  ClientLimitsDto,
   ClipJobDto,
   CurrentUserDto,
   EventDto,
@@ -67,6 +68,34 @@ export const aPublicEvent = (overrides: Partial<PublicEventDto> = {}): PublicEve
   // The default theme, so a component test asserts the product's own look unless it
   // says otherwise — the same starting point an event that chose nothing has.
   theme: DEFAULT_EVENT_THEME,
+  ...overrides,
+})
+
+/**
+ * One client as `GET /api/me/limits` answers for its own member: an owner of a client with a
+ * ceiling on events and on storage, both well below their lines, so a test says what it moves.
+ */
+export const aClientLimits = (overrides: Partial<ClientLimitsDto> = {}): ClientLimitsDto => ({
+  id: 'client-1',
+  name: 'Atelier Alpha',
+  role: 'owner',
+  suspended: false,
+  ceilings: {
+    maxEvents: 5,
+    maxTotalBytes: 5_000_000_000,
+    maxEventQuotaBytes: null,
+    maxRetentionDays: null,
+    clipsAllowed: true,
+    liveAllowed: true,
+    maxLiveDays: null,
+    maxEventsPerPeriod: null,
+    periodStartedAt: null,
+  },
+  usage: { events: 1, eventsCreatedInPeriod: 1, usedBytes: 1_000_000 },
+  meters: [
+    { kind: 'events', used: 1, max: 5, level: 'ok' },
+    { kind: 'storage', used: 1_000_000, max: 5_000_000_000, level: 'ok' },
+  ],
   ...overrides,
 })
 
