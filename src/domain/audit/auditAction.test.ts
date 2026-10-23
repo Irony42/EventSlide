@@ -43,8 +43,10 @@ describe('AUDIT_ACTIONS', () => {
 
   // ---------------------------------------------------- the content-free rule --
 
-  it('declares no detail that can carry text a person typed: only numbers, switches and instants', () => {
-    const allowed = new Set(['integer', 'boolean', 'instant'])
+  it('declares no detail that can carry text a person typed: only numbers, switches, instants and the name of a document', () => {
+    // `termsVersion` is the one string kind: at most 32 characters of a fixed alphabet, written
+    // from the box's configuration and never from a request (`auditDetails.ts` says why).
+    const allowed = new Set(['integer', 'boolean', 'instant', 'termsVersion'])
 
     for (const action of ACTIONS) {
       const kinds = Object.values(AUDIT_ACTIONS[action].details).flatMap(leafKinds)
@@ -105,6 +107,15 @@ describe('AUDIT_ACTIONS', () => {
       const details: DetailFields = AUDIT_ACTIONS[action].details
       expect(details['before'], action).toEqual(details['after'])
     }
+  })
+})
+
+describe('account.termsAccepted', () => {
+  it('is about an account and says the version of the terms, and nothing else', () => {
+    expect(AUDIT_ACTIONS['account.termsAccepted']).toEqual({
+      subject: 'account',
+      details: { version: { type: 'termsVersion' } },
+    })
   })
 })
 

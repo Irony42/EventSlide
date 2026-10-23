@@ -1,3 +1,4 @@
+import { isTermsVersion } from '../legal/termsOfUse'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 
@@ -47,12 +48,20 @@ export interface AuditDetails {
  * - `boolean`: a switch.
  * - `instant`: an ISO-8601 UTC timestamp with milliseconds, exactly what `toISOString`
  *   writes, so it cannot smuggle prose either.
+ * - `termsVersion`: the version of the terms of use that an acceptance agreed to
+ *   (`isTermsVersion`: at most 32 characters of letters, digits, dot, underscore and hyphen).
+ *   **The one string kind, and not an exception to "no free text":** it is typed to one
+ *   thing, it is too short for a sentence or a token, and its writer is never a request. A
+ *   use case reads it from the box's configuration (`LEGAL_TERMS_VERSION`), which only the
+ *   operator can set, at boot. A kind that admitted "any short string" would be the `id`
+ *   kind this vocabulary refuses; this one is a name for a document, and is checked as one.
  * - `nullable` and `object`: composition, so a snapshot can say "this ceiling was unset".
  */
 export type DetailKind =
   | { readonly type: 'integer' }
   | { readonly type: 'boolean' }
   | { readonly type: 'instant' }
+  | { readonly type: 'termsVersion' }
   | { readonly type: 'nullable'; readonly of: DetailKind }
   | { readonly type: 'object'; readonly fields: DetailFields }
 
@@ -64,6 +73,7 @@ export const detail = {
   integer: { type: 'integer' } satisfies DetailKind,
   boolean: { type: 'boolean' } satisfies DetailKind,
   instant: { type: 'instant' } satisfies DetailKind,
+  termsVersion: { type: 'termsVersion' } satisfies DetailKind,
   nullable: (of: DetailKind): DetailKind => ({ type: 'nullable', of }),
   object: (fields: DetailFields): DetailKind => ({ type: 'object', fields }),
 }
@@ -120,6 +130,8 @@ const check = (kind: DetailKind, value: unknown, path: string): Checked => {
       return typeof value === 'string' && isInstantText(value)
         ? pass(value)
         : fail(path, 'wrongType')
+    case 'termsVersion':
+      return isTermsVersion(value) ? pass(value) : fail(path, 'wrongType')
     case 'nullable':
       return value === null ? pass(null) : check(kind.of, value, path)
     case 'object':
