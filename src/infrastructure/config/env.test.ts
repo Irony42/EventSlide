@@ -1781,6 +1781,17 @@ describe('loadConfig', () => {
         expect(issues.some((issue) => issue.startsWith('MAX_EVENT_QUOTA_BYTES: '))).toBe(true)
       })
 
+      it('names both accepted words when it refuses, and does not repeat what was typed', () => {
+        const issues = refusalIssues(
+          aProductionEnv({ [NAME]: 'copyLink-secret-typo', SITE_ADMIN: 'on' }),
+        )
+        const issue = issues.find((candidate) => candidate.startsWith(`${NAME}: `)) ?? ''
+
+        expect(issue).toContain("'mailOnly'")
+        expect(issue).toContain("'copyLinkWithOwnerApproval'")
+        expect(issue).not.toContain('secret-typo')
+      })
+
       it.each([
         'copyLink',
         'copylinkwithownerapproval',
