@@ -64,9 +64,10 @@ export const makeExportAlbum = ({
     /**
      * Both the size and the stream, or `null` when the file is not there.
      *
-     * The archive needs the size up front to write an entry without buffering it, and
-     * the two calls are separate, so the file can legitimately disappear between them:
-     * the retention purge is allowed to run while a host is downloading.
+     * The size rides on the entry, but the `archiver` adapter does not read it: it streams
+     * the bytes without knowing their length. The two calls are separate, so the file can
+     * legitimately disappear between them: the retention purge is allowed to run while a
+     * host is downloading.
      */
     const open = async (photo: Photo): Promise<Omit<ArchiveEntry, 'name'> | null> => {
       const metadata = await media.stat(eventId, photo.contentHash, ALBUM_VARIANT)
@@ -81,14 +82,14 @@ export const makeExportAlbum = ({
     /**
      * Pages rather than a row stream, because of what a row stream holds open.
      *
-     * `streamForExport` keeps one better-sqlite3 statement iterating across every `await`
-     * below it, and while a statement is iterating the connection refuses every write. That
-     * was tolerable while the archive listed the whole album at once, a second or two. The
-     * archive now asks for an entry only when it is ready to write it (see
-     * `archiverWriter`), so the same statement would stay open for as long as the download
-     * lasts: measured, an upload to any other event failed for the whole of a host's slow
-     * download. Each page here is one statement that runs to completion before anything
-     * else happens, the shape `downloadGalleryArchive` already reads in.
+     * A row stream keeps one better-sqlite3 statement iterating across every `await` below
+     * it, and while a statement is iterating the connection refuses every write. That would
+     * be tolerable if the archive listed the whole album at once, a second or two. It asks
+     * for an entry only when it is ready to write it (see `archiverWriter`), so the same
+     * statement would stay open for as long as the download lasts: measured, an upload to
+     * any other event failed for the whole of a host's slow download. Each page here is one
+     * statement that runs to completion before anything else happens, the shape
+     * `downloadGalleryArchive` also reads in.
      *
      * An entry is also asked for only when the archive is about to write it, so the file
      * `open` returns is the one about to be read: one descriptor at a time, not one per photo.

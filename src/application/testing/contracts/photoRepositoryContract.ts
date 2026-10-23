@@ -1229,46 +1229,5 @@ export const photoRepositoryContract = (
 
       expect([...changed].sort()).toEqual(['p1', 'p2'])
     })
-
-    // ------------------------------------------------------------- export --
-
-    const collect = async (
-      stream: AsyncIterable<{ readonly id: string }>,
-    ): Promise<readonly string[]> => {
-      const ids: string[] = []
-      for await (const photo of stream) ids.push(photo.id)
-      return ids
-    }
-
-    it('streams the album in the listing order', async () => {
-      await saveAll([
-        aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', createdAt: atPlus(0) }),
-        aPhoto({ id: 'p2', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
-      ])
-
-      expect(await collect(repo.streamForExport(WEDDING, ['published']))).toEqual(['p2', 'p1'])
-    })
-
-    it('streams only the requested statuses, so a rejected photo stays out of the zip', async () => {
-      await saveAll([
-        aPhoto({ id: 'p1', eventId: WEDDING, status: 'published' }),
-        aPhoto({ id: 'p2', eventId: WEDDING, status: 'rejected' }),
-      ])
-
-      expect(await collect(repo.streamForExport(WEDDING, ['published', 'hidden']))).toEqual(['p1'])
-    })
-
-    it('streams one event only', async () => {
-      await repo.save(
-        aPhoto({
-          id: 'p1',
-          eventId: GALA,
-          status: 'published',
-          author: { kind: 'guest', id: SAM },
-        }),
-      )
-
-      expect(await collect(repo.streamForExport(WEDDING, ['published']))).toEqual([])
-    })
   })
 }

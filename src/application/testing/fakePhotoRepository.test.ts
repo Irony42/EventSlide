@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { asEventId, asPhotoId, type ClipJobId, type EventId } from '../../domain/shared/ids'
 import { photoRepositoryContract } from './contracts/photoRepositoryContract'
-import { aClipJob, aPhoto, atPlus } from './builders'
+import { aClipJob, aPhoto } from './builders'
 import { FakeClientRepository } from './fakeClientRepository'
 import { FakeClipJobRepository } from './fakeClipJobRepository'
 import { FakePhotoRepository } from './fakePhotoRepository'
@@ -72,22 +72,5 @@ describe('FakePhotoRepository isolation', () => {
     const again = await repo.list(WEDDING)
 
     expect(page.items).not.toBe(again.items)
-  })
-
-  it('streams a snapshot, so a photo saved mid-export does not join the archive', async () => {
-    const repo = new FakePhotoRepository().seed(
-      aPhoto({ id: 'p1', eventId: WEDDING, status: 'published' }),
-    )
-
-    const stream = repo.streamForExport(WEDDING, ['published'])
-    const ids: string[] = []
-    for await (const photo of stream) {
-      await repo.save(
-        aPhoto({ id: 'p2', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
-      )
-      ids.push(photo.id)
-    }
-
-    expect(ids).toEqual(['p1'])
   })
 })

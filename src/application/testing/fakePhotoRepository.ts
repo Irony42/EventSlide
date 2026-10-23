@@ -482,16 +482,4 @@ export class FakePhotoRepository implements PhotoRepository {
     }
     return changed
   }
-
-  /**
-   * A snapshot taken when iteration starts, not a live view: the album export runs for
-   * minutes on a four-thousand-photo wedding while guests keep uploading, and a
-   * writer-visible iterator would decide the archive's contents by timing.
-   */
-  async *streamForExport(eventId: EventId, statuses: readonly PhotoStatus[]): AsyncIterable<Photo> {
-    const snapshot = this.forEvent(eventId)
-      .filter((photo) => statuses.includes(photo.status))
-      .sort(newestFirst)
-    for (const photo of snapshot) yield photo
-  }
 }
