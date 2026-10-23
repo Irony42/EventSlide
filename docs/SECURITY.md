@@ -349,10 +349,18 @@ feature.unavailable`, `features.forgotPassword = false` on `/api/about`. The lin
 - **Plain text only.** No HTML part, no image, no second link: a reset mail is a credential in
   transit and an HTML part is a surface (a remote image tells a stranger when it was opened).
 
-**Residuals.** The web pages that use these routes (forgot-password, reset, "sign out
-everywhere") are roadmap G2-10 / P3-11 and are not in the same change: until they land the
-routes have no browser client, and `features.forgotPassword` is published but unread. A
-successful reset does not set `email_verified_at` and does not mail the account holder that
+**The pages** (roadmap G2-10 / P3-11) are `/password/forgot`, `/password/reset/<token>` and the
+"Se déconnecter partout" entry of the account menu. The forgot page shows the one confirmation for
+every address, the sign-in offers its link only when `features.forgotPassword` is `true` (and
+reads `false` for a server that does not say), and the reset page sends the token in the **body** of
+its one request. The shell that serves `/password/reset/<token>` and `/invite/<token>` answers
+`Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer`, like
+the gallery's; neither page writes the token to the document title, to storage or to a log line,
+and the service worker, which only answers from a precache of the shell's own files, keeps no copy
+of either address. "Sign out everywhere" revokes the other sessions and then ends this one, in
+that order, and leaves the page only once the server has answered.
+
+**Residuals.** A successful reset does not set `email_verified_at` and does not mail the account holder that
 their password changed; both are possible later without a schema change. `changePassword`
 and `disableAccount` still save a whole account they read earlier, so a concurrent change by
 a second actor (the owner changing a password while the operator switches the account off)

@@ -136,8 +136,7 @@ Read these before you upgrade, and back up with the version you run now.
   and the answer has no `link`; with none, `link` is in the answer for the host to pass on. A script that
   invited moderators must stop sending a password, read `link` when it is there, and give it to the
   person. An address that already has an account is never given a second one and is never attached by
-  someone who only holds the link: that account signs in and accepts as itself. Until the page that
-  opens `/invite/<token>` ships, accepting is the API call.
+  someone who only holds the link: that account signs in and accepts as itself.
 - **A plain-`http` `PUBLIC_URL` is refused in production whatever the case of its scheme**
   (#146). `PUBLIC_URL=HTTP://photos.example.com` used to boot and hand guests join links that
   the `Secure` session cookie is never sent over; it now stops the boot like
@@ -171,6 +170,16 @@ Read these before you upgrade, and back up with the version you run now.
 
 ### Added
 
+- **The pages for the account flows** (G2-10). `/invite/:token` opens a mailed or copied
+  invitation: it says what the link is for and when it ends, takes a name and a password, or accepts
+  as the account that is already signed in, and says one sentence for every dead link. A person whose
+  address already has an account is sent to sign in and brought back to the same link.
+  `/password/forgot` and `/password/reset/:token` are the two halves of a forgotten password: the
+  sign-in page links to the first only when `features.forgotPassword` is true. Every screen on
+  `/admin/**` has an account menu with _Sign out_ (nothing in the app called `logout` before),
+  _Sign out everywhere_ behind a confirmation, and _Change password_. The three pages are served
+  with `Cache-Control: no-store`, `X-Robots-Tag: noindex` and no referrer, because the token is in
+  their address; they are in the five languages.
 - **Password reset, and sign out everywhere** (#125). `POST /api/auth/password-reset/request`
   and `POST /api/auth/password-reset/confirm`, by a mailed link that lasts an hour (at most
   three mails per address per hour), and `POST /api/auth/sessions/revoke-others`, which ends

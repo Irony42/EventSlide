@@ -657,9 +657,10 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 > link; one live link per address and place; five invitations an hour to one address, and thirty an
 > hour from one account.
 >
-> **Still to come:** the page that opens `/invite/:token` (G2-10 / P3-11) — until it lands, accepting
-> is an API call, and every link a box mails ends on the "not found" page, so **3.0.0 should not be
-> tagged before it** — and the operator routes that write an invitation to a client (G2-14).
+> **The page that opens the link** is G2-10 / P3-11, and it is in: `/invite/:token` shows what the
+> link is for, takes a name and a password (or accepts as the account already signed in), and says
+> one sentence for every dead link. Before it, accepting was an API call and every link a box
+> mailed ended on the "not found" page, which is why 3.0.0 was not tagged ahead of it.
 >
 > **The operator guard is built** (G2-12 / P3-14, [ADR 0009](adr/0009-operator-cannot-grant-itself-access.md),
 > [SECURITY.md §20](SECURITY.md)): the rules that stop the operator from using these invitations, and
