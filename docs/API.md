@@ -858,7 +858,9 @@ Every published photograph and clip, as their downloads, in one streamed ZIP:
 `Content-Disposition: attachment; filename="<slug>-album.zip"`, `Cache-Control:
 no-store`. The link is re-checked **before every entry**: revoked mid-download, the
 response is aborted rather than ended cleanly, because a well-formed ZIP that stops early
-looks exactly like a complete album. `404 gallery.notAvailable` otherwise.
+looks exactly like a complete album. The photographs are written one at a time, and a
+client that disconnects part-way leaves nothing open on the server. `404 gallery.notAvailable`
+otherwise.
 
 ---
 
@@ -1391,7 +1393,8 @@ Unlike the media route above, this one is behind `requireRole('moderator')` and 
 `404 event.notFound` for a caller with no membership, `403 auth.forbidden` never
 (both roles may export). A failure part-way through the stream destroys the socket
 rather than appending JSON — a truncated ZIP that looked complete is how a host deletes
-an album they do not actually hold.
+an album they do not actually hold. The photographs are written one at a time, and a host
+who closes the tab part-way leaves nothing open on the server.
 
 ---
 
