@@ -609,6 +609,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secureCookie: config.session.secureCookie,
     e2eHooks: config.e2eHooks,
     siteAdmin: config.siteAdmin,
+    newClientCeilings: config.newClientCeilings,
     secondFactor: {
       available: config.mfa.encryptionKey !== null,
       requiredForOperators: config.mfa.requireOperatorSecondFactor,

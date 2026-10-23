@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { requireOperator, requireSecondFactor } from '../middleware/authz'
+import { toClientDefaultsDto } from '../presenters/clientDefaultsPresenter'
 import type { RouteDeps } from '../useCases'
 
 /**
@@ -12,11 +13,11 @@ import type { RouteDeps } from '../useCases'
  * written on the event routes — is a rule every future author has to restate, and the
  * route that forgets it is the one that hands a client list to anybody signed in.
  *
- * It carries no route yet. The surfaces of §10.2 to §10.8 arrive with their own items,
- * each one registered below the gate. An operator whose request matches none of them
- * falls through: `requireOperator` calls `next()`, this router has nothing to match, and
- * `buildServer`'s `apiNotFound` answers `404 route.notFound` exactly as it would anywhere
- * else under `/api`.
+ * It carries one route so far, `GET /client-defaults` (G2-18). The surfaces of §10.2 to §10.8
+ * arrive with their own items, each one registered below the gate. An operator whose request
+ * matches none of them falls through: `requireOperator` calls `next()`, this router has
+ * nothing to match, and `buildServer`'s `apiNotFound` answers `404 route.notFound` exactly as it
+ * would anywhere else under `/api`.
  *
  * What this router may **not** do is reach into anybody's event. `requireOperator` grants
  * the box, never an evening — see `middleware/authz.ts` — and a handler here that read a
@@ -40,6 +41,17 @@ export const siteRoutes = ({ deps }: SiteRouteDeps): Router => {
   // passed the second factor reaches nothing below (G2-13 / P3-15). After `requireOperator` so a
   // stranger is told `auth.forbidden` and nothing about second factors. Off, it does nothing.
   router.use(requireSecondFactor(deps))
+
+  /**
+   * The ceilings a new client starts with (`NEW_CLIENT_*`, G2-18), for the console to pre-fill
+   * the form that provisions one. **Configuration, not content**: it names no client, no event
+   * and no account, and reads nothing from storage. `no-store`, because it describes the
+   * instance's policy to whoever is signed in and a shared cache has no business holding it.
+   */
+  router.get('/client-defaults', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    res.json(toClientDefaultsDto(deps.config.newClientCeilings))
+  })
 
   return router
 }
