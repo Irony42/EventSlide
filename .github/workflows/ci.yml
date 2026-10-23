@@ -149,16 +149,19 @@ jobs:
         # Bounded and retried once, like `npm ci` above: the download and apt both come
         # from hosts outside the npm cache, and that day they hung rather than failed.
         # `timeout` turns a hang into a failure the second attempt can recover from.
-        timeout-minutes: 20
+        timeout-minutes: 30
         env:
           PROJECT: ${{ matrix.project }}
-        # The runner image starts its own apt-get at boot, and Playwright's apt-get failed on its
-        # dpkg lock (exit 100, "Could not get lock /var/lib/dpkg/lock-frontend") whenever it
-        # got there first: apt is told to wait for the lock instead of giving up at once.
+        # System packages first, in one apt run of their own, then the browser alone.
+        # `install --with-deps` ran more than one apt-get at once (Playwright 1.64.1), and the
+        # second waited on the first's dpkg lock until it gave up with exit code 100
+        # ("Could not get lock /var/lib/dpkg/lock-frontend"). apt is also told to wait for a
+        # lock rather than fail at once, for any apt-get the runner image runs at boot.
         run: |
           echo 'DPkg::Lock::Timeout "300";' | sudo tee /etc/apt/apt.conf.d/99-dpkg-lock-wait > /dev/null
           engine="${PROJECT%%-*}"
-          timeout 9m npx playwright install --with-deps "$engine" || timeout 9m npx playwright install --with-deps "$engine"
+          timeout 9m npx playwright install-deps "$engine" || timeout 9m npx playwright install-deps "$engine"
+          timeout 6m npx playwright install "$engine" || timeout 6m npx playwright install "$engine"
 
       - name: Build
         run: npm run build
@@ -269,11 +272,12 @@ jobs:
       # install for nothing.
       - name: Install Chromium
         if: env.COMPARABLE == '1'
-        timeout-minutes: 20
-        # apt waits for the runner's own boot-time apt-get, as in the e2e job.
+        timeout-minutes: 30
+        # System packages, then the browser, in two steps, as in the e2e job.
         run: |
           echo 'DPkg::Lock::Timeout "300";' | sudo tee /etc/apt/apt.conf.d/99-dpkg-lock-wait > /dev/null
-          timeout 9m npx playwright install --with-deps chromium || timeout 9m npx playwright install --with-deps chromium
+          timeout 9m npx playwright install-deps chromium || timeout 9m npx playwright install-deps chromium
+          timeout 6m npx playwright install chromium || timeout 6m npx playwright install chromium
 
       - name: Build
         if: env.COMPARABLE == '1'
@@ -328,11 +332,12 @@ jobs:
 
       - name: Install Chromium
         if: env.COMPARABLE == '1'
-        timeout-minutes: 20
-        # apt waits for the runner's own boot-time apt-get, as in the e2e job.
+        timeout-minutes: 30
+        # System packages, then the browser, in two steps, as in the e2e job.
         run: |
           echo 'DPkg::Lock::Timeout "300";' | sudo tee /etc/apt/apt.conf.d/99-dpkg-lock-wait > /dev/null
-          timeout 9m npx playwright install --with-deps chromium || timeout 9m npx playwright install --with-deps chromium
+          timeout 9m npx playwright install-deps chromium || timeout 9m npx playwright install-deps chromium
+          timeout 6m npx playwright install chromium || timeout 6m npx playwright install chromium
 
       - name: Build
         if: env.COMPARABLE == '1'
