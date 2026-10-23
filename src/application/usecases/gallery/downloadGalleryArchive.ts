@@ -162,7 +162,6 @@ export const makeDownloadGalleryArchive =
           yield {
             name,
             bytes: bytesOf(hash, variant),
-            byteSize: metadata.byteSize,
             modifiedAt: photo.createdAt,
           }
         }

@@ -62,12 +62,11 @@ export const makeExportAlbum = ({
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
     /**
-     * Both the size and the stream, or `null` when the file is not there.
+     * The stream, or `null` when the file is not there.
      *
-     * The size rides on the entry, but the `archiver` adapter does not read it: it streams
-     * the bytes without knowing their length. The two calls are separate, so the file can
-     * legitimately disappear between them: the retention purge is allowed to run while a
-     * host is downloading.
+     * The `archiver` adapter streams the bytes without knowing their length, so an entry
+     * carries no size. The two calls are separate, so the file can legitimately disappear
+     * between them: the retention purge is allowed to run while a host is downloading.
      */
     const open = async (photo: Photo): Promise<Omit<ArchiveEntry, 'name'> | null> => {
       const metadata = await media.stat(eventId, photo.contentHash, ALBUM_VARIANT)
@@ -76,7 +75,7 @@ export const makeExportAlbum = ({
       const bytes = await media.openRead(eventId, photo.contentHash, ALBUM_VARIANT)
       if (bytes === null) return null
 
-      return { bytes, byteSize: metadata.byteSize, modifiedAt: photo.createdAt }
+      return { bytes, modifiedAt: photo.createdAt }
     }
 
     /**

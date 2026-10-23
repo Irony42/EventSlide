@@ -14,8 +14,6 @@ export interface ArchiveEntry {
   /** Path inside the archive. The caller guarantees it is unique and traversal-free. */
   readonly name: string
   readonly bytes: AsyncIterable<Uint8Array>
-  /** Known size of the entry. The `archiver` adapter does not read it: it streams the bytes. */
-  readonly byteSize: number
   readonly modifiedAt: Date
 }
 

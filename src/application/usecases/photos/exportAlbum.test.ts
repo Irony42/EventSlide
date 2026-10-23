@@ -119,7 +119,6 @@ class InMemoryMediaStore implements MediaStore {
 
 interface RecordedEntry {
   readonly name: string
-  readonly byteSize: number
   readonly modifiedAt: Date
   /** Bytes actually pulled from the store, so a test can prove which variant it got. */
   readonly bytesRead: number
@@ -141,7 +140,6 @@ class FakeArchiveWriter implements ArchiveWriter {
 
         recorded.push({
           name: entry.name,
-          byteSize: entry.byteSize,
           modifiedAt: entry.modifiedAt,
           bytesRead,
         })
@@ -265,7 +263,6 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries.map((entry) => entry.byteSize)).toEqual([BYTES_PER_VARIANT.original])
     expect(archive.entries.map((entry) => entry.bytesRead)).toEqual([BYTES_PER_VARIANT.original])
   })
 

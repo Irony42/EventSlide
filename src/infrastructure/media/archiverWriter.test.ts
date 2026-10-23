@@ -12,10 +12,9 @@ const bytesOf = (...values: number[]): AsyncIterable<Uint8Array> => ({
   },
 })
 
-const entry = (name: string, size = 3): ArchiveEntry => ({
+const entry = (name: string): ArchiveEntry => ({
   name,
   bytes: bytesOf(1, 2, 3),
-  byteSize: size,
   modifiedAt: new Date('2026-06-20T21:04:11.000Z'),
 })
 
@@ -103,7 +102,6 @@ describe('archiverWriter', () => {
     // like a complete album.
     const failing: ArchiveEntry = {
       name: 'broken.jpg',
-      byteSize: 3,
       modifiedAt: new Date('2026-06-20T21:04:11.000Z'),
       bytes: {
         // eslint-disable-next-line require-yield -- the point is that it throws
