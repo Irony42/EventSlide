@@ -165,6 +165,16 @@ const CALLS: readonly Call[] = [
     path: `/api/site/accounts/${ID.member}/password-reset`,
     body: {},
   },
+  {
+    name: 'post /api/site/clients/:clientId/suspend',
+    method: 'post',
+    path: `/api/site/clients/${ID.clientL}/suspend`,
+  },
+  {
+    name: 'post /api/site/clients/:clientId/resume',
+    method: 'post',
+    path: `/api/site/clients/${ID.clientL}/resume`,
+  },
   // The log last, so it holds what every call above wrote.
   { name: 'get /api/site/audit', method: 'get', path: '/api/site/audit?limit=200' },
   {
@@ -213,6 +223,16 @@ const REFUSED: readonly Call[] = [
     method: 'post',
     path: '/api/site/accounts/99999999-9999-4999-8999-999999999999/password-reset',
     body: {},
+  },
+  {
+    name: 'post /api/site/clients/:clientId/suspend',
+    method: 'post',
+    path: '/api/site/clients/99999999-9999-4999-8999-999999999999/suspend',
+  },
+  {
+    name: 'post /api/site/clients/:clientId/resume',
+    method: 'post',
+    path: '/api/site/clients/99999999-9999-4999-8999-999999999999/resume',
   },
 ]
 

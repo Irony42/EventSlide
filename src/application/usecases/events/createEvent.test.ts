@@ -771,6 +771,35 @@ describe('createEvent', () => {
       await grant(CLIENT_2, TWO_CLIENTS)
     })
 
+    it('refuses a member of a suspended client a new event, under either policy, and creates nothing (G2-14)', async () => {
+      clients.seed(aClient({ id: CLIENT_1, name: 'Atelier Camille', suspendedAt: AT }))
+
+      for (const policy of ['anyAccount', 'clientMembers'] as const) {
+        const result = await policyCreateEvent(policy)({
+          ownerId: MEMBER,
+          name: 'Un autre mariage',
+        })
+
+        expect(!result.ok && [result.error.kind, result.error.code], policy).toEqual([
+          'forbidden',
+          'client.suspended',
+        ])
+      }
+      expect(await events.listForUser(MEMBER)).toEqual([])
+    })
+
+    it('refuses it for a client the creator names as well, which is attaching to a suspended client', async () => {
+      clients.seed(aClient({ id: CLIENT_2, name: 'Studio Sacha', suspendedAt: AT }))
+
+      const result = await policyCreateEvent('anyAccount')({
+        ownerId: TWO_CLIENTS,
+        clientId: CLIENT_2,
+        name: 'Un autre mariage',
+      })
+
+      expect(!result.ok && result.error.code).toBe('client.suspended')
+    })
+
     describe.each<EventCreationPolicy>(['anyAccount', 'clientMembers'])(
       'under EVENT_CREATION=%s',
       (policy) => {

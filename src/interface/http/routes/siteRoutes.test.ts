@@ -61,6 +61,18 @@ const ROUTES: readonly SiteRoute[] = [
   },
   {
     method: 'post',
+    path: `/api/site/clients/${ID.clientEmpty}/suspend`,
+    success: 204,
+    write: true,
+  },
+  {
+    method: 'post',
+    path: `/api/site/clients/${ID.clientEmpty}/resume`,
+    success: 204,
+    write: true,
+  },
+  {
+    method: 'post',
     path: `/api/site/clients/${ID.clientEmpty}/invitations`,
     body: { email: NEWCOMER, role: 'owner' },
     success: 201,
