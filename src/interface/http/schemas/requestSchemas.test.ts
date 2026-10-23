@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import * as allSchemas from './requestSchemas'
 import {
   bulkModerationBody,
   captionBody,
@@ -9,6 +11,7 @@ import {
   eventScheduleBody,
   eventSlugParams,
   eventStatusBody,
+  galleryGrantQuery,
   joinBody,
   loginBody,
   guestListQuery,
@@ -20,10 +23,13 @@ import {
   reactionBody,
   secondFactorLoginBody,
   secondFactorProofOf,
+  shareLinkBody,
   stepUpBody,
   updateSettingsBody,
+  uploadFields,
   wallQuery,
 } from './requestSchemas'
+import { THEME_FONTS, THEME_FRAMES, THEME_MATERIALS } from '../../../domain/events/eventTheme'
 import { JoinCode } from '../../../domain/shared/joinCode'
 import { Slug } from '../../../domain/shared/slug'
 
@@ -512,5 +518,156 @@ describe('the second-factor bodies', () => {
   it('wants the password to enrol and to step up', () => {
     expect(enrollSecondFactorBody.safeParse({}).success).toBe(false)
     expect(stepUpBody.safeParse({ code: '123456' }).success).toBe(false)
+  })
+})
+
+describe('unknown keys, decided per schema', () => {
+  const objects = Object.entries(allSchemas).filter(
+    (entry): entry is [string, z.ZodObject] => entry[1] instanceof z.ZodObject,
+  )
+  const strict = objects.filter(([name]) => !name.endsWith('Params'))
+
+  it('found the schemas it sweeps', () => {
+    // Vacuous otherwise: an export renamed out of reach of the sweep would be a schema
+    // nobody checks, and the sweep would still be green.
+    expect(strict.length).toBeGreaterThanOrEqual(30)
+    expect(objects.length - strict.length).toBeGreaterThanOrEqual(8)
+  })
+
+  it.each(strict)(
+    '%s refuses a key it does not declare, because every body and query is strict',
+    (_name, schema) => {
+      const outcome = schema.safeParse({ zzz: 1 })
+
+      const unknown = outcome.success
+        ? []
+        : outcome.error.issues.flatMap((issue) =>
+            issue.code === 'unrecognized_keys' ? issue.keys : [],
+          )
+      expect(unknown).toContain('zzz')
+    },
+  )
+
+  it('refuses a key the theme does not declare, inside a settings body that is otherwise fine', () => {
+    // zod 4 keeps `.strict()` as a legacy method and spells it `z.strictObject`; a nested object
+    // that quietly went back to stripping would save a theme the host never chose.
+    const theme = {
+      accentHue: 200,
+      fonts: THEME_FONTS[0],
+      frame: THEME_FRAMES[0],
+      material: THEME_MATERIALS[0],
+    }
+
+    expect(updateSettingsBody.safeParse({ theme }).success).toBe(true)
+    expect(updateSettingsBody.safeParse({ theme: { ...theme, zzz: 1 } }).success).toBe(false)
+  })
+
+  it('drops a key a path-parameter schema does not declare, since the route pattern owns its keys', () => {
+    const parsed = eventSlugParams.safeParse({ eventSlug: 'mariage', zzz: 1 })
+
+    expect(parsed.success).toBe(true)
+    expect(parsed.data).toEqual({ eventSlug: 'mariage' })
+  })
+})
+
+describe('the id shape the routes accept', () => {
+  const NIL_ISH = '00000000-0000-0000-0000-000000000001'
+
+  it.each([UUID, UUID.toUpperCase(), NIL_ISH, 'ffffffff-ffff-ffff-ffff-ffffffffffff'])(
+    'accepts %s: eight, four, four, four and twelve hexadecimal digits, as zod 3 read an id',
+    (photoId) => {
+      // zod 4's `z.uuid()` would refuse the third: it carries no RFC 9562 version. A dependency
+      // upgrade does not get to change which requests the API answers.
+      expect(photoParams.safeParse({ eventSlug: 'mariage', photoId }).success).toBe(true)
+    },
+  )
+
+  it.each([
+    ['braces', `{${UUID}}`],
+    ['a urn prefix', `urn:uuid:${UUID}`],
+    ['a trailing newline', `${UUID}\n`],
+    ['no hyphens', UUID.replaceAll('-', '')],
+    ['a non-hexadecimal digit', `g${UUID.slice(1)}`],
+    ['a missing digit', UUID.slice(0, -1)],
+  ])('rejects an id with %s', (_label, photoId) => {
+    expect(photoParams.safeParse({ eventSlug: 'mariage', photoId }).success).toBe(false)
+  })
+
+  it('applies the same shape to the ids a body or a form carries', () => {
+    expect(uploadFields.safeParse({ missionId: NIL_ISH }).success).toBe(true)
+    expect(uploadFields.safeParse({ missionId: 'not-an-id' }).success).toBe(false)
+    expect(createEventBody.safeParse({ name: 'X', clientId: NIL_ISH }).success).toBe(true)
+    expect(createEventBody.safeParse({ name: 'X', clientId: 'not-an-id' }).success).toBe(false)
+    expect(bulkModerationBody.safeParse({ photoIds: [NIL_ISH], decision: 'publish' }).success).toBe(
+      true,
+    )
+    expect(
+      bulkModerationBody.safeParse({ photoIds: ['not-an-id'], decision: 'publish' }).success,
+    ).toBe(false)
+  })
+})
+
+describe('the instants a request may carry', () => {
+  const body = (scheduledOpenAt: string) => ({ scheduledOpenAt, scheduledCloseAt: null })
+
+  it.each(['2026-06-20T18:00Z', '2026-06-20T18:00:00Z', '2026-06-20T18:00:00.123456789Z'])(
+    'accepts %s as a start, in UTC, with or without seconds and a fraction',
+    (startsAt) => {
+      // zod 4's own reading requires seconds, so `18:00Z` became a 400 for a client that had
+      // always been answered.
+      expect(createEventBody.safeParse({ name: 'X', startsAt }).success).toBe(true)
+    },
+  )
+
+  it.each([
+    '2026-06-20T18:00:00+02:00',
+    '2026-06-20T18:00:00+0200',
+    '2026-06-20T18:00+02:00',
+    '2026-06-20T18:00:00.000-05:30',
+  ])('accepts the scheduled instant %s, whichever way it writes its offset', (value) => {
+    expect(eventScheduleBody.safeParse(body(value)).success).toBe(true)
+  })
+
+  it.each(['2026-06-20T18:00:00+02', '2026-06-20T18:00:00 +02:00', '2026-06-20T18:00:00ZZ'])(
+    'rejects the scheduled instant %s, which is neither Z nor an offset',
+    (value) => {
+      expect(eventScheduleBody.safeParse(body(value)).success).toBe(false)
+    },
+  )
+
+  it('refuses an offset on a start, which is read as an instant in UTC and nothing else', () => {
+    expect(
+      createEventBody.safeParse({ name: 'X', startsAt: '2026-06-20T18:00:00+02:00' }).success,
+    ).toBe(false)
+  })
+
+  it.each([
+    ['a day that month does not have', '2026-02-30T18:00:00Z'],
+    ['a leap day in a year that is not one', '2027-02-29T18:00:00Z'],
+    ['an hour past 23', '2026-06-20T24:00:00Z'],
+    ['a minute past 59', '2026-06-20T18:60:00Z'],
+    ['a trailing newline', '2026-06-20T18:00:00Z\n'],
+  ])('rejects %s', (_label, startsAt) => {
+    expect(createEventBody.safeParse({ name: 'X', startsAt }).success).toBe(false)
+  })
+
+  it('accepts a leap day in a year that has one', () => {
+    expect(createEventBody.safeParse({ name: 'X', startsAt: '2028-02-29T18:00:00Z' }).success).toBe(
+      true,
+    )
+  })
+})
+
+describe('integers too large to be integers', () => {
+  it.each([
+    ['a quota', () => createEventBody.safeParse({ name: 'X', quotaBytes: 2 ** 53 })],
+    ['a link lifetime', () => shareLinkBody.safeParse({ expiresInDays: 2 ** 53 })],
+    [
+      'a grant expiry',
+      () => galleryGrantQuery.safeParse({ e: '9007199254740993', s: 'a'.repeat(43) }),
+    ],
+  ])('refuses %s past 2^53, which a double cannot tell from its neighbour', (_label, parse) => {
+    // zod 3 accepted these and rounded them; zod 4's `.int()` means a safe integer.
+    expect(parse().success).toBe(false)
   })
 })

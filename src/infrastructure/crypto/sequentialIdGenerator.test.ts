@@ -60,7 +60,7 @@ describe('createSequentialIdGenerator', () => {
   })
 
   it('keeps the canonical UUID shape the routes validate', () => {
-    // The HTTP layer parses ids with zod `.uuid()`, which turns a malformed id into a
+    // The HTTP layer parses ids with zod `z.guid()`, which turns a malformed id into a
     // 400 before it reaches a query. A test generator that produced something else
     // would exercise a different path from production.
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/

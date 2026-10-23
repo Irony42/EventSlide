@@ -165,7 +165,7 @@ const CONTAINED_PATH_MESSAGE =
 
 /** A path in a manifest that this build will turn into a location on disk. */
 const containedPath = z.string().min(1).refine(isContainedPath, {
-  message: CONTAINED_PATH_MESSAGE,
+  error: CONTAINED_PATH_MESSAGE,
 })
 
 /**

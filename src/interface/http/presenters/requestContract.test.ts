@@ -557,7 +557,7 @@ const routeFor = (call: ClientCall): ServerRoute | null => {
 
 const SCHEMAS: Readonly<Record<string, unknown>> = { ...requestSchemas }
 
-const asObjectSchema = (name: string): z.AnyZodObject | null => {
+const asObjectSchema = (name: string): z.ZodObject | null => {
   const schema = SCHEMAS[name]
   return schema instanceof z.ZodObject ? schema : null
 }
@@ -568,7 +568,7 @@ interface Pairing {
   readonly declared: string
   readonly payload: Payload
   readonly schemaName: string
-  readonly schema: z.AnyZodObject
+  readonly schema: z.ZodObject
   readonly keys: Keys
   readonly fileFields: readonly string[]
 }
@@ -671,7 +671,7 @@ describe('the request contract', () => {
       const refused = outcome.success
         ? []
         : outcome.error.issues.flatMap((issue) =>
-            issue.code === z.ZodIssueCode.unrecognized_keys ? [...issue.keys] : [],
+            issue.code === 'unrecognized_keys' ? [...issue.keys] : [],
           )
 
       expect(refused, `${schemaName} would refuse keys ${name} sends`).toEqual([])
@@ -687,8 +687,10 @@ describe('the request contract', () => {
         [...keys].flatMap(([key, presence]) => (presence === 'always' ? [key] : [])),
       )
 
-      const missing = Object.entries(schema.shape as z.ZodRawShape)
-        .filter(([, field]) => !field.isOptional())
+      // "Required" is what the field says about an absent key: zod 4 dropped `isOptional()`
+      // for this exact question, and `safeParse(undefined)` is the answer it points to.
+      const missing = Object.entries(schema.shape)
+        .filter(([, field]) => !field.safeParse(undefined).success)
         .map(([key]) => key)
         .filter((key) => !always.has(key))
 
