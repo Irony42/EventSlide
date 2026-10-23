@@ -118,10 +118,13 @@ test('a box with no mail relay offers no way to ask, and says so if asked anyway
   try {
     const page = await context.newPage()
 
+    // Registered before the navigation: the answer can arrive before a wait started after it.
+    const answered = page.waitForResponse((response) => response.url().endsWith('/api/about'))
     await page.goto(app.url('/login'))
     await expect(page.getByLabel(fr.auth.email)).toBeVisible()
-    // Let `/api/about` answer before asserting an absence.
-    await page.waitForResponse((response) => response.url().endsWith('/api/about'))
+    // Let `/api/about` answer before asserting an absence: an absence checked first is true of
+    // every version of this page.
+    await answered
     await expect(page.getByRole('link', { name: fr.auth.forgotLink })).toHaveCount(0)
 
     // A bookmark or an old mail can still land on the page: the server is the judge.
