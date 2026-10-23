@@ -152,6 +152,28 @@ describe('a path that is not valid percent-encoding', () => {
     expect(JSON.stringify(logger.lines)).not.toContain(TOKEN)
   })
 
+  it.each(CREDENTIAL_PATHS)(
+    'sends the gallery’s three headers with the refusal for %s',
+    async (_label, path) => {
+      // The page at such an address is served with them so that no referrer carries the
+      // token off, no crawler indexes it and no cache keeps it. The router refused before
+      // the handler that sets them ran, and a refusal is still a response at that address.
+      const response = await request(serve(new RecordingLogger()).app).get(path)
+
+      expect(response.headers['referrer-policy']).toBe('no-referrer')
+      expect(response.headers['x-robots-tag']).toBe('noindex, nofollow')
+      expect(response.headers['cache-control']).toBe('no-store')
+    },
+  )
+
+  it('leaves an address with no credential in it without them', async () => {
+    const response = await request(serve(new RecordingLogger()).app).get(
+      `/api/events/${BROKEN}/wall`,
+    )
+
+    expect(response.headers['x-robots-tag']).toBeUndefined()
+  })
+
   it('is logged as the request a client got wrong, and as nothing more', async () => {
     const logger = new RecordingLogger()
 

@@ -59,12 +59,16 @@ contract:
   (the limit is 40); a 121-character one never reaches the domain and is
   `400 request.invalid`.
 
-- **A path that is not valid percent-encoding is `400 request.invalid` too**, on any route,
-  with no `details`: `/api/events/%E0%A4%A/wall`, `/g/%E0%A4%A`, a link copied with its last
-  escape cut in half. The router refuses it before any handler, guard or lookup runs, so it
-  is the same answer for every address and tells the caller nothing about whether the thing
-  it names exists. It never echoes the parameter, which on a gallery, invitation or
-  password-reset address is the credential, and it is not written to the log as a failure.
+- **A path that is not valid percent-encoding is `400 request.invalid` too**, with no
+  `details`: `/api/events/%E0%A4%A/wall`, `/g/%E0%A4%A`, a link copied with its last escape
+  cut in half. The router refuses it when it matches the address to a route, before that
+  route's handlers and before any lookup, so it is the same answer for every address and
+  tells the caller nothing about whether the thing it names exists. (The gates mounted ahead
+  of the routers — CSRF on a state-changing method, the session and the password-change
+  gate — still answer first, as they do for any path.) It never echoes the parameter, which
+  on a gallery, invitation or password-reset address is the credential, and it is not
+  written to the log as a failure. On an address that carries a credential it goes out with
+  the gallery's three headers (below).
 
 ### Errors
 
@@ -773,7 +777,10 @@ SPA shell, served with the headers below; the five routes here are what it calls
 **One refusal for every dead link.** A malformed token, an unknown one, an expired or
 revoked link, a link whose creator has been switched off or is no longer an owner of the
 event, and a purged event all answer **`404 gallery.notAvailable`**, byte for byte, on
-every route here. The host's console is where the reason is shown.
+every route here. The host's console is where the reason is shown. "Malformed" means a
+token of the wrong shape once decoded; a path that cannot be decoded at all is not a token
+and never reaches a route — it is the `400 request.invalid` of §1, the same for every
+address and with no lookup behind it.
 
 **Headers on every response, refusals included:** `Referrer-Policy: no-referrer`,
 `X-Robots-Tag: noindex, nofollow`, and `Cache-Control: no-store` — relaxed only for an

@@ -123,6 +123,15 @@ export const errorHandler = (): ErrorRequestHandler => (error, req, res, _next) 
   // with nothing from the error itself — see `isUndecodablePath` for why not its message.
   if (isUndecodablePath(error)) {
     logger?.debug('request rejected', { code: 'request.invalid', kind: 'invalid', status: 400 })
+    // An address whose last segment is a credential goes out with the headers the page it
+    // names would have had, refusal included: the router refused before the handler that
+    // sets them ran. The same three as `setGalleryHeaders`, and the same test of "is this
+    // address a credential's" as the log — `loggablePath` changing the path is the answer.
+    if (loggablePath(req.path) !== req.path) {
+      res.setHeader('Referrer-Policy', 'no-referrer')
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow')
+      res.setHeader('Cache-Control', 'no-store')
+    }
     sendError(res, DomainError.invalid('request.invalid'))
     return
   }

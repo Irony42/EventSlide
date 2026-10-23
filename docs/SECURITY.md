@@ -1501,6 +1501,8 @@ asserts none of them appears anywhere a logger wrote. It runs in `npm run verify
 credential in transit: it follows a reset from request to confirmation (and a refused
 confirmation) against a real logger and a real access log and requires that the address, the
 token, the link and the new password appear in none of it.
+**`malformedPathLogCanary.test.ts`** is the other way a credential reaches an error log: a link
+cut in the middle of a percent-escape, whose decode error carries the raw parameter.
 
 ### Data-subject flows a host can actually perform
 
@@ -2540,7 +2542,7 @@ code is `src/application/usecases/gallery/` (the rule is `galleryAccess.ts`),
 | Guests are told before they upload                   | the §5.1 notice names `sharedGallery` as an audience on **every** event: the host may send the published album through a private link, which can be forwarded, until it expires or is withdrawn. Not conditioned on a live link, because a link is usually made after the guest's last upload and a closed event never asks again | `privacyNotice.test.ts`, `noticeVocabulary.test.ts`, the five `upload.noticeAudiences` tables                                                                                                         |
 
 **A link cut in the middle of a percent-escape is a `400 request.invalid`, and says nothing.**
-A token whose last character was cut in half by a chat app or a trailing quote
+A token whose last character was cut in half by a chat app that truncates a link
 (`/g/<token>%E2%80`) cannot be decoded, and Express refuses it before any route runs: the
 link is never looked up, so the answer is the same for every token and no oracle for a real
 one, which is why it is not part of the single dead-link `404` above. It used to be a
@@ -2548,8 +2550,12 @@ one, which is why it is not part of the single dead-link `404` above. It used to
 parameter>'` — the whole credential, in the error log, on a gallery, invitation or
 password-reset address. The error handler now maps it (the class **and** the `status: 400` the
 router stamps, so a `URIError` of ours stays a bug) and writes the request as rejected, with
-nothing from the error. `malformedPath.test.ts` holds the answers and
-`malformedPathLogCanary.test.ts` reads every byte the real logger and the access log write.
+nothing from the error, and sets the gallery's three headers when the address carries a
+credential. `malformedPath.test.ts` holds the answers and `malformedPathLogCanary.test.ts`
+reads every byte the real logger and the access log write for the canonical addresses
+`loggablePath` knows. It does not widen what `loggablePath` recognises: an address with a
+doubled slash or an encoded prefix (`//g/<token>`, `/%67/<token>`) is logged as it came at
+debug level, which is a gap in `loggablePath` that this paragraph does not close.
 
 **A link-preview bot learns nothing.** Messaging apps fetch a pasted URL to draw a preview.
 What they get at `/g/<token>` is the SPA shell — the album is loaded by the page's script —

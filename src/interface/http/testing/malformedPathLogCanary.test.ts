@@ -74,9 +74,10 @@ describe('a link cut in the middle of a percent-escape', () => {
   it('actually wrote something, so "no token found" is not "nothing was captured"', async () => {
     const output = await write()
 
-    // One access line per address, none of them a 5xx — the invitation API is a 404 until
-    // its routes are mounted and a 400 after, which is why it is not counted as either. And
-    // the handler's own line, with the path written as `:token`.
+    // One access line per address, none of them a 5xx. It is a 400 or a 404 and not one of
+    // them: the invitation API is not mounted on this tree, and where it is its router has an
+    // answer of its own for the same error. And the handler's own line, with the path written
+    // as `:token`.
     expect(output).toContain(INSTANCE.instance)
     expect(output.match(/"statusCode":(?:400|404)/g)).toHaveLength(CREDENTIAL_PATHS.length)
     expect(output).not.toMatch(/"statusCode":5dd/)
