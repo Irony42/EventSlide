@@ -57,6 +57,19 @@ const harness = (isProduction = false): Harness =>
         }),
       )
 
+      // No wrapper: Express 5 forwards a handler's rejected promise to the error handler
+      // itself, which is what makes `asyncHandler` belt and braces instead of the only thing
+      // between a failed database read and a process-level `unhandledRejection`.
+      app.get('/bare-async-boom', async () => {
+        await Promise.resolve()
+        throw new Error('rejected asynchronously, with nothing wrapped around it')
+      })
+
+      app.get('/bare-async-domain', async () => {
+        await Promise.resolve()
+        throw DomainError.notFound('photo.notFound')
+      })
+
       app.get('/multer', (_req, _res, next) => {
         const error = Object.assign(new Error('File too large'), { code: 'LIMIT_FILE_SIZE' })
         next(error)
@@ -259,6 +272,27 @@ describe('errorHandler', () => {
 
     expect(response.status).toBe(500)
     expect(response.body.error.code).toBe('server.unexpected')
+  })
+
+  it('catches a bare async handler too, because Express 5 forwards its rejection itself', async () => {
+    // The guard on what `asyncHandler` stopped being the only defence for. Express 4 left
+    // this request hanging and the rejection unhandled; Express 5 hands it to `next(err)`,
+    // so the opaque 500 is the framework's doing and `errorHandler` is where it lands. The
+    // rule that every route is wrapped stands — the wrapper is what a review checks for —
+    // but a handler somebody forgets to wrap is no longer an outage.
+    const response = await request(harness().app).get('/bare-async-boom')
+
+    expect(response.status).toBe(500)
+    expect(response.body.error.code).toBe('server.unexpected')
+  })
+
+  it('maps a DomainError rejected from a bare async handler as it maps one thrown inside a wrapped one', async () => {
+    // The same table, whichever way the rejection arrives: a `notFound` is a 404 with its
+    // own code, never the opaque 500 an unrecognised failure gets.
+    const response = await request(harness().app).get('/bare-async-domain')
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('photo.notFound')
   })
 
   it('translates an oversized upload into a 413 with a code the client can explain', async () => {
