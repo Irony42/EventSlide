@@ -76,6 +76,18 @@ export interface AccountTokenRepository {
   ): Promise<readonly AccountToken[]>
 
   /**
+   * How many invitations into this client are **still waiting to be accepted** at `now` (not
+   * spent, not revoked, not expired), whatever they wait for, **written to an address other than
+   * `except`**. The one fact the operator guard asks of the tokens table (R1, G2-14): an empty
+   * client admits exactly one live operator invitation, and an address that is re-sent its own
+   * link is not a second one, because writing the new link revokes the old.
+   *
+   * A count and not a list, scoped by the client in the statement, and it holds no address or
+   * secret.
+   */
+  countLiveClientInvitations(clientId: ClientId, now: Date, except: EmailAddress): Promise<number>
+
+  /**
    * Spends the token: `true` if this call changed it from usable to spent, `false` if it was
    * already spent, revoked, expired, waiting for approval, or does not exist.
    *

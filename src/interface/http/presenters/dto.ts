@@ -884,3 +884,157 @@ export interface PendingInvitationDto {
 export interface PendingInvitationsDto {
   readonly items: readonly PendingInvitationDto[]
 }
+
+// ------------------------------------------------------------ the operator's namespace --
+//
+// `/api/site` (G2-14 / P3-13). **Server-side declarations only**, until the console (G2-15) reads
+// them: nothing in `web/` consumes these yet, so `dtoContract.test.ts` has no client shape to pair
+// them with. What they may contain is decided upstream, by the closed field vocabulary of
+// `domain/site/siteOverviewRows.ts`, and each is written field by field in
+// `siteOverviewPresenter.ts`, never spread from a row.
+
+/** One client of the box: a name, ceilings and sizes. Never an event, a member or a photograph. */
+export interface SiteClientDto {
+  readonly id: string
+  readonly name: string
+  readonly createdAt: string
+  readonly suspendedAt: string | null
+  readonly purgeAfter: string | null
+  readonly ceilings: CeilingsDto
+  readonly eventsCreatedInPeriod: number
+  readonly usage: {
+    readonly eventCount: number
+    readonly liveEventCount: number
+    readonly memberCount: number
+    readonly usedBytes: number
+  }
+}
+
+export interface SiteClientPageDto {
+  readonly items: readonly SiteClientDto[]
+  /** The `after` of the next page, or `null` when this was the last one. */
+  readonly next: string | null
+}
+
+/** One event of a client, as shapes and sizes: no name, no slug, no join code, no photograph. */
+export interface SiteEventDto {
+  readonly id: string
+  readonly status: string
+  readonly createdAt: string
+  readonly startsAt: string | null
+  readonly openedAt: string | null
+  readonly closedAt: string | null
+  readonly quotaBytes: number
+  readonly usedBytes: number
+  readonly photoCount: number
+}
+
+export interface SiteEventPageDto {
+  readonly items: readonly SiteEventDto[]
+  readonly next: string | null
+}
+
+/** One account: how it is recognised and what it may do. Never its hash, never its display name. */
+export interface SiteAccountDto {
+  readonly id: string
+  readonly email: string
+  readonly siteRole: 'none' | 'operator'
+  readonly createdAt: string
+  readonly lastLoginAt: string | null
+  readonly disabledAt: string | null
+  readonly mustChangePassword: boolean
+  readonly ownedEventCount: number
+  readonly clients: readonly { readonly clientId: string; readonly role: 'owner' | 'member' }[]
+}
+
+export interface SiteAccountPageDto {
+  readonly items: readonly SiteAccountDto[]
+  readonly next: string | null
+}
+
+/**
+ * One line of the log as the **operator** reads it. Unlike the client's view it names the account
+ * behind an `operator` or `member` actor, and it carries `details.reason` where an action has one.
+ */
+export interface SiteAuditEntryDto {
+  readonly seq: number
+  readonly at: string
+  readonly action: string
+  readonly actor: {
+    readonly kind: 'operator' | 'member' | 'system' | 'integration'
+    readonly userId: string | null
+    readonly label: string | null
+  }
+  readonly subject: { readonly type: string; readonly id: string }
+  readonly clientId: string | null
+  /** Numbers, switches, instants and, for `client.ceilingsChanged`, the operator's `reason`. */
+  readonly details: Readonly<Record<string, unknown>>
+}
+
+export interface SiteAuditPageDto {
+  readonly items: readonly SiteAuditEntryDto[]
+  /** The `before` of the next page, or `null` when this was the last one. */
+  readonly next: number | null
+}
+
+/**
+ * An invitation an operator wrote. **`link` is present only when no mail went out**, which is a
+ * fact about the box's relay and never about the address: where a mailer delivers, this answer
+ * holds no token and no link. `pendingApproval` says the link opens nothing until an owner of the
+ * client has approved it (R1).
+ */
+export interface OperatorInvitationByMailDto {
+  readonly id: string
+  readonly delivery: 'mail'
+  readonly expiresAt: string
+  readonly pendingApproval: boolean
+}
+
+export interface OperatorInvitationByLinkDto {
+  readonly id: string
+  readonly delivery: 'link'
+  readonly expiresAt: string
+  readonly pendingApproval: boolean
+  readonly link: string
+}
+
+/** A union, so that `{ delivery: 'mail', link }` is not a value the type can hold. */
+export type OperatorInvitationDto = OperatorInvitationByMailDto | OperatorInvitationByLinkDto
+
+export interface ProvisionedClientDto {
+  readonly clientId: string
+  readonly invitation: OperatorInvitationDto
+}
+
+/** What a changed set of ceilings now is, as the console reads it back. */
+export interface ClientCeilingsChangedDto {
+  readonly ceilings: CeilingsDto
+  readonly eventsCreatedInPeriod: number
+}
+
+/**
+ * What the operator is told of a password reset it asked for (R2). **`mail`** says it went to the
+ * account's own mailbox and nothing else. `pendingApproval` carries the id an owner of the
+ * account's client is asked to approve, which is not a secret. **`link` exists only** on a box
+ * with no mail relay and `copyLinkWithOwnerApproval`, after another owner's approval.
+ */
+export interface OperatorPasswordResetByMailDto {
+  readonly delivery: 'mail'
+  readonly expiresAt: string
+}
+
+export interface OperatorPasswordResetPendingDto {
+  readonly delivery: 'pendingApproval'
+  readonly expiresAt: string
+  readonly approvalId: string
+}
+
+export interface OperatorPasswordResetByLinkDto {
+  readonly delivery: 'link'
+  readonly expiresAt: string
+  readonly link: string
+}
+
+/** A union: the link exists in the type only on the variant that is allowed to carry one. */
+export type OperatorPasswordResetDto =
+  OperatorPasswordResetByMailDto | OperatorPasswordResetPendingDto | OperatorPasswordResetByLinkDto

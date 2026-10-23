@@ -8,10 +8,11 @@ import type { AuditSubjectType } from './auditSubjectType'
  * **Adding an action is adding a line here**, and that is the whole of the process: the
  * subject it is about, and the exact shape of its details. There is no way to record an
  * action that is not in this table, and no way to attach a detail that its entry does not
- * name. See `auditDetails.ts` for why the vocabulary has no free-text kind.
+ * name. See `auditDetails.ts` for why the vocabulary has no free-text kind, and `auditReason.ts` for
+ * the one exception, which exactly one declaration here uses.
  *
  * Only actions with a producer in the tree are declared. The plan names many more
- * (`client.suspended`, `invitation.issued`, `account.termsAccepted`,
+ * (`client.suspended`, `account.termsAccepted`,
  * `event.autoClosed`, ...); each arrives with the use case that writes it, together with the
  * test that proves its details carry nothing a person typed, rather than as a guess made
  * before the use case exists.
@@ -63,11 +64,23 @@ export const AUDIT_ACTIONS = {
    * the second is personal data, and the entry's subject already says which client it is.
    */
   'client.created': { subject: 'client', details: { ceilings: CEILINGS_SNAPSHOT } },
-  /** An operator changed what a client may do (`setClientCeilings`). */
+  /**
+   * An operator changed what a client may do (`setClientCeilings`). `reason` is the operator's
+   * own explanation, **mandatory** (decided 2026-10-23: the route answers 400 without one) and
+   * the one free-text detail the log holds, with a kind and a bound of its own
+   * (`auditReason.ts`). The client's owner is not shown it: the client-readable view drops
+   * every string that is not an instant.
+   */
   'client.ceilingsChanged': {
     subject: 'client',
-    details: { before: CEILINGS_SNAPSHOT, after: CEILINGS_SNAPSHOT },
+    details: { before: CEILINGS_SNAPSHOT, after: CEILINGS_SNAPSHOT, reason: detail.reason },
   },
+  /**
+   * An operator renamed a client (`renameClient`, G2-14). The entry says that it happened and
+   * to which client, **not what the name was or became**: a name is the client's own text, and
+   * the log has no word for one.
+   */
+  'client.renamed': { subject: 'client', details: {} },
   /**
    * An operator renewed a client's period, which restarts the count of events created in
    * it. Written beside `client.ceilingsChanged` rather than instead of it, because the

@@ -181,6 +181,22 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
     return revoked
   }
 
+  async countLiveClientInvitations(
+    clientId: ClientId,
+    now: Date,
+    except: EmailAddress,
+  ): Promise<number> {
+    return [...this.rows.values()].filter(
+      (row) =>
+        row.purpose === 'invitation' &&
+        row.clientId === clientId &&
+        !row.email.equals(except) &&
+        row.consumedAt === null &&
+        row.revokedAt === null &&
+        row.expiresAt.getTime() > now.getTime(),
+    ).length
+  }
+
   async revokeOutstandingInvitations(
     email: EmailAddress,
     target: InvitationTarget,

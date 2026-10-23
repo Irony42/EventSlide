@@ -192,9 +192,11 @@ from it.
 
 The namespace for running one box for other people (roadmap §10.9): `/api/site` itself and
 every path below it, at a segment boundary — `/api/sites` is not in it and answers as any
-unknown path does. **One route is mounted in it so far**, `GET /api/site/client-defaults`
-(below); the clients, invitations and ceilings of roadmap §10.2–§10.8 will be, each documented
-here when it ships.
+unknown path does. What it carries is below: the box's **reads** (clients, a client's events, accounts,
+the audit log, the defaults a new client starts with) and the operator's **acts on a client and its
+owner** (open one, rename it, change its ceilings, invite into it, reset a password). Suspension,
+offboarding and the accounts' own acts (switch off, switch on, delete) arrive with their own items
+and are documented here when they ship.
 
 A state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) without a valid token meets
 CSRF (below) first, in both modes — `403 request.csrfMissing` or `request.csrfMismatch` —
@@ -223,21 +225,233 @@ which is derived from the very setting that decides whether the namespace is mou
 the two cannot disagree. (Nothing in the SPA reads it yet: the `/admin/site` screens it
 gates do not exist.)
 
-**No operator route over clients exists yet.** Clients (roadmap §10.2) have a domain, a port, a SQLite
-adapter and use cases (`createClient`, `renameClient`, `setClientCeilings`, `listClients`,
-`deleteEmptyClient`, `provisionClientOwner`, and the operator guard's `inviteToClientAsOperator` and
-`issuePasswordResetForAccount`, docs/SECURITY.md §20), and nothing in this document is an operator route
-for them: the operator API that calls them is a later item (G2-14) and will be mounted under
-`/api/site`, behind `SITE_ADMIN` and `requireOperator`, like everything else in that namespace. Until
-it lands the use cases are built and unreachable from the wire. What a **client** has is
-under `/api/client` (an owner's: approving, the list of what waits, the log) and `/api/me/limits` (every
-member's), documented in §6 and mounted only with `SITE_ADMIN=on`: off, none of them exists and each
-answers as a path nobody wrote.
+**What the namespace is.** Every route below is behind `requireOperator` and, where the box asks for
+one, the second factor (the table above). **Every route that changes something is also behind
+`requireStepUp`** (§5): the session must have confirmed the person with their password, and a fresh code
+where they have an authenticator, within the last five minutes, or the answer is **403
+`auth.stepUpRequired`** — **before the body is read**, so a body is never parsed for a caller who may not
+send it. That is stricter than the plan's table, which names the irreversible acts only; a console prompts
+once before a session of writes. The reads ask for none. A state-changing request meets CSRF first.
 
-**The client reads the audit log; the operator's view is not here yet.** The append-only audit log
-(roadmap §10.8) is written by the use cases that act on a client and pruned by the retention sweep.
-The client-readable view is `GET /api/client/audit` (§6, G2-16): an owner's, scoped to their own
-client. The operator's view, `/api/site/audit`, is G2-14.
+| Route                                            | What it is                                      | Step-up | Audit line(s)                                       |
+| ------------------------------------------------ | ----------------------------------------------- | :-----: | --------------------------------------------------- |
+| `GET /api/site/clients`                          | every client with its ceilings and what it uses |    —    | —                                                   |
+| `GET /api/site/clients/:clientId/events`         | one client's events as shapes and sizes         |    —    | —                                                   |
+| `GET /api/site/accounts`                         | every account, by address                       |    —    | —                                                   |
+| `GET /api/site/audit`                            | the audit log                                   |    —    | —                                                   |
+| `GET /api/site/client-defaults`                  | the ceilings a new client starts with           |    —    | —                                                   |
+| `POST /api/site/clients`                         | open a client and invite its owner              |   yes   | `client.created`, `invitation.issued`               |
+| `PATCH /api/site/clients/:clientId`              | rename a client                                 |   yes   | `client.renamed`                                    |
+| `PUT /api/site/clients/:clientId/ceilings`       | change a client's ceilings, **with a reason**   |   yes   | `client.ceilingsChanged` (and `client.periodReset`) |
+| `POST /api/site/clients/:clientId/invitations`   | invite somebody into a client's account         |   yes   | `invitation.issued`                                 |
+| `POST /api/site/accounts/:userId/password-reset` | reset an account's password                     |   yes   | `account.resetRequested`, `account.resetIssued`     |
+
+**The reads show shapes and sizes, never what a client or a guest made.** A client row is an id, a name,
+its ceilings, the instants it was created, suspended and set to be purged, and four counts and a byte sum;
+an event row is an id, a status, instants, a quota and what is used; an account row is an id, an address, a
+role on the box, instants, whether it must change its password, the number of events it owns and the
+clients it belongs to. There is **no** event name, slug or join code, no photograph or caption, no guest or
+guest's name, no mission prompt, no account display name, no contact address and no hash or token of any
+kind in any answer of the namespace (docs/SECURITY.md §18 and §22). Every read is `Cache-Control: no-store`.
+
+**Pages** are keyset pages, newest first. `limit` is 1 to 200 (50 by default); `after` is the `next` of
+the previous page and is an id. A page ends with `"next": null`. A cursor that names nobody is an **empty
+page**, not the first one again; so is a cursor that names another client's event. The audit log pages with
+`before` (the `next` of the previous page, a number), which is **a bound and not a pointer**: every line
+older than it, so a `before` past the newest line answers the newest page and not an empty one. A key a
+query does not have is `400 request.invalid`.
+
+#### `GET /api/site/clients`
+
+`?after=<clientId>&limit=<1..200>`. **200**
+
+```json
+{
+  "items": [
+    {
+      "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "name": "Camille et Sacha",
+      "createdAt": "2026-06-20T21:00:00.000Z",
+      "suspendedAt": null,
+      "purgeAfter": null,
+      "ceilings": {
+        "maxEvents": 3,
+        "maxTotalBytes": null,
+        "maxEventQuotaBytes": null,
+        "maxRetentionDays": null,
+        "clipsAllowed": true,
+        "liveAllowed": true,
+        "maxLiveDays": null,
+        "maxEventsPerPeriod": null,
+        "periodStartedAt": null
+      },
+      "eventsCreatedInPeriod": 0,
+      "usage": {
+        "eventCount": 1,
+        "liveEventCount": 1,
+        "memberCount": 3,
+        "usedBytes": 0
+      }
+    }
+  ],
+  "next": null
+}
+```
+
+`usedBytes` is the figure the upload paths enforce `maxTotalBytes` against (photographs of every status
+plus the staged source of every clip still waiting to be transcoded), so the number the operator reads is
+the number a guest is refused against.
+
+#### `GET /api/site/clients/:clientId/events`
+
+`?after=<eventId>&limit=<1..200>`. **200** `{ "items": [ { "id", "status", "createdAt", "startsAt",
+"openedAt", "closedAt", "quotaBytes", "usedBytes", "photoCount" } ], "next" }`. **404 `client.notFound`** for
+a client that does not exist, which is **not** a client with no event (an empty page).
+
+#### `GET /api/site/accounts`
+
+`?after=<userId>&limit=<1..200>`. **200** `{ "items": [ { "id", "email", "siteRole", "createdAt",
+"lastLoginAt", "disabledAt", "mustChangePassword", "ownedEventCount", "clients": [ { "clientId", "role" } ] } ],
+"next" }`.
+
+#### `GET /api/site/audit`
+
+`?before=<seq>&limit=<1..200>&clientId=<clientId>`. The **whole log** when no `clientId` is named, which is
+the operator's view and not a client's, and one client's lines when one is. **200**
+
+```json
+{
+  "items": [
+    {
+      "seq": 17,
+      "at": "2026-06-20T21:00:00.000Z",
+      "action": "client.ceilingsChanged",
+      "actor": {
+        "kind": "operator",
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "label": null
+      },
+      "subject": { "type": "client", "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+      "clientId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "details": {
+        "before": { "maxEvents": null },
+        "after": { "maxEvents": 3 },
+        "reason": "Forfait mis à jour"
+      }
+    }
+  ],
+  "next": 16
+}
+```
+
+`details` holds numbers, switches, instants and, **at the top level and under the key `reason`, the
+operator's own sentence**: the one free text the log holds. A row stored under an older allow-list is read
+again at the door and anything else in text is dropped. Unlike the client's own view (`GET /api/client/audit`,
+§6), this one names the account behind an `operator` or a `member` actor and carries the reason.
+
+#### `POST /api/site/clients`
+
+`{ "clientName": string, "ownerEmail": string, "locale"?: "fr"|"en"|"de"|"es"|"it", "ceilings"?: { … } }`.
+Opens a client **with no member and no event** and invites its owner; the owner's account exists only once
+the invitation is accepted. `ceilings` is the operator's own: a ceiling it names is kept, `null` included
+(it lifts the box's `NEW_CLIENT_*` default for this client), and one it leaves out takes the default.
+**201**, `Cache-Control: no-store`
+
+```json
+{
+  "clientId": "…",
+  "invitation": {
+    "id": "…",
+    "delivery": "mail",
+    "expiresAt": "2026-06-27T21:00:00.000Z",
+    "pendingApproval": false
+  }
+}
+```
+
+`delivery` is `mail` or `link`. **`link` — the invitation's URL — is in the answer only where no mail went
+out** (a box with no relay, or a relay that failed), because there is then no other way to get it to the
+owner. Where a mailer delivers, **the answer holds no token and no link**: it is in the owner's inbox and
+nowhere else. `pendingApproval` is `false` by construction.
+
+**400** `request.invalid` (a missing or unknown key, a locale outside the catalogue); `email.malformed`;
+`clientName.empty` and the other name refusals; `clientCeilings.*Invalid`. Nothing is created and no line is
+written for any of them.
+
+#### `PATCH /api/site/clients/:clientId`
+
+`{ "name": string }`. **204**. **404** `client.notFound`; **400** `request.invalid` (a key the contract does not
+have, an id that is not one) or `clientName.*`. Renaming a client to the name it has changes and writes nothing.
+
+#### `PUT /api/site/clients/:clientId/ceilings`
+
+`{ "ceilings": { … }, "reason": string }`. **A patch, not a replacement**: a key left out keeps the client's
+value and an explicit `null` removes that ceiling, so raising one number cannot silently lift the other
+eight. The keys are the nine ceilings of `GET /api/me/limits` (§6) (`periodStartedAt` an ISO-8601 UTC instant); a renewal (a
+`periodStartedAt` that moves) resets the counter of events created in the period, and **a lowered
+`maxRetentionDays` starts the notice clock** (docs/SECURITY.md §5). **200**, `Cache-Control: no-store`
+
+```json
+{
+  "ceilings": { "maxEvents": 3, "maxTotalBytes": null, "…": "…" },
+  "eventsCreatedInPeriod": 0
+}
+```
+
+**The reason is mandatory** (decided 2026-10-23). A body without one is **400 `request.invalid`**; a blank or
+malformed one is **400 `audit.reasonInvalid`** with `details: { "max": 200 }`, **before the client is read or
+anything is written**, even for a patch that would change nothing. A reason is one line of at most 200
+characters, trimmed and NFC-normalised, with no control or invisible character and **no `@`**. It is written
+to the log as `client.ceilingsChanged { before, after, reason }` — the operator's view shows it, **the client's
+owner is not shown it** — and is never echoed back in an error. On the hosted instance only non-financial
+reasons are admitted (the size of an event, capacity, abuse: a policy of the operator and not something the
+route can check).
+
+**404** `client.notFound`; **400** `clientCeilings.*Invalid` for a value the catalogue refuses (`0`, a retention
+outside its bounds). Nothing moves for any of them.
+
+#### `POST /api/site/clients/:clientId/invitations`
+
+`{ "email": string, "role": "owner"|"member", "locale"?: … }`. Invites somebody into the client's **account** —
+never into an event (docs/SECURITY.md §20, R1 and R4). **201**, `Cache-Control: no-store`
+
+```json
+{
+  "invitation": {
+    "id": "…",
+    "delivery": "mail",
+    "expiresAt": "…",
+    "pendingApproval": true
+  }
+}
+```
+
+`pendingApproval` is **`true` for a client that has an event, a member or another invitation waiting**: the invitation is written, mailed
+and shown as for any other, and **opens nothing until an owner of the client approves it**
+(`POST /api/client/invitations/:id/approve`, §6); the invitee cannot tell it from a link that never existed.
+It is `false` for a client that holds nothing, which is the one case the operator handles alone: **an empty
+client admits exactly one live operator invitation** (the first owner's, which `POST /api/site/clients`
+writes), a second to another address waits, and a person re-sent their own link is not a second one. The operator
+is read **from storage on this call**, not on the route's word. `link` is in the answer **only where no mail went out**:
+a box with no relay, **or a relay that refused this mail**. **404** `client.notFound`; **400** `email.malformed` or `request.invalid`; **429**
+`invitation.tooManyForAddress` once an address has had its five an hour.
+
+#### `POST /api/site/accounts/:userId/password-reset`
+
+`{ "locale"?: …, "approvalId"?: string }`. **200**, `Cache-Control: no-store`
+
+| `delivery`        | When                                                                     | What the answer holds                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mail`            | the box can mail (either mode)                                           | `expiresAt`. The one-hour link went **to the account's own address and nowhere else**: **no token, no link, no address**                             |
+| `pendingApproval` | no relay, `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval`, first call   | `approvalId` (an id, not a secret) and `expiresAt`. The request holds no secret anywhere; **another owner of the account's client** is to approve it |
+| `link`            | the same box, second call carrying `approvalId`, **after** that approval | `link` and `expiresAt`: the one link this route ever returns, spent once                                                                             |
+
+A box with no relay and the default `OPERATOR_RESET_LINKS=mailOnly` answers **409 `reset.mailerRequired`** and
+issues nothing. **409** `reset.mailNotSent` (the relay refused; still no link), `reset.approverUnavailable`
+(the account is in no client or in two: whose consent would it be?), `account.disabled`; **404**
+`user.notFound`, `reset.requestNotFound` (an `approvalId` that is not this operator's approved request for
+this account); **429** `reset.tooManyForAddress` (three an hour to one inbox, however asked for). The
+owner's half is `POST /api/client/password-resets/:requestId/approve` (§6).
 
 #### `GET /api/site/client-defaults`
 
@@ -1878,10 +2092,9 @@ A recovery code is **single use**, decided by one conditional statement, and spe
 
 `code` may be `recoveryCode` instead; **at most one**, and neither for an account with no
 authenticator, which proves itself with the password alone. Stamps the session, for **five minutes**,
-as having confirmed the person at the keyboard. Two routes ask for it today — `2fa/recovery-codes` and
-`2fa/disable`, below — and answer **403 `auth.stepUpRequired`** without a fresh stamp; the operator
-routes that cannot be taken back (offboarding a client, suspending or resuming one, changing a
-ceiling, G2-14) will carry the same gate, `requireStepUp`, when they are mounted. **204**. The code must be of a step **later than
+as having confirmed the person at the keyboard. Two routes of the account ask for it — `2fa/recovery-codes` and
+`2fa/disable`, below — and **so does every route of `/api/site` that changes something** (G2-14, §1), and each
+answers **403 `auth.stepUpRequired`** without a fresh stamp. **204**. The code must be of a step **later than
 the last one spent**, so the code that signed in cannot be reused here: the person waits for the
 app's next one. The stamp is not carried across a renewal of the session id (a password change).
 
@@ -2096,9 +2309,8 @@ create, delete, recreate cannot walk around it. The other
 - **What it may become** — `PATCH /settings` and `POST /status`, below; **what it may hold** —
   uploads, §3; **what it keeps** — the retention purge, below.
 
-Until the operator API exists (roadmap §10.2, G2-14), nothing over HTTP creates a client or
-adds a member, so on a box that sets `clientMembers` today the operator is the only account
-that can create an event; leave the policy at `anyAccount` until clients can be enrolled.
+On a box that sets `clientMembers`, an account can create an event once it belongs to a client: the operator
+opens one (`POST /api/site/clients`, §1) and its owner accepts the invitation; the operator itself is exempt.
 
 **The slug (roadmap G3-05 / P4-09, decision D-14).** Three environment variables govern
 it, all backward-compatible by default:
@@ -3063,6 +3275,28 @@ so the invitee still has to open it and accept.
 | --------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `auth.forbidden`      | 403    | A member of the client who is not an owner; **an operator**, whether or not the client made them an owner. `details.required: "owner"`                                                                                                                               |
 | `invitation.notFound` | 404    | An unknown id; another client's invitation; an invitation to an event, or one that never waited for anyone; a password-reset link; one already spent, revoked or expired; and a caller with no part in the client (an operator included). One answer for all of them |
+
+### `POST /api/client/password-resets/:requestId/approve`
+
+**Another** owner of an account's client lets an operator be handed that account's password-reset link (the
+operator guard's R2, docs/SECURITY.md §20). **Only with `SITE_ADMIN=on`**, like the rest of `/api/client`, and
+only meaningful on a box with no mail relay and `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval`: the request
+is the `approvalId` that `POST /api/site/accounts/:userId/password-reset` (§1) answered, and the operator tells
+the owner the id by whatever channel they already use. It is an id and not a secret.
+
+Approving hands nobody a link. It records who approved and when, which makes the request redeemable **once, by
+the operator who made it**, who is then given a link that did not exist until that moment.
+
+- **Auth:** a signed-in, enabled account (`401 auth.required` otherwise) that is an **owner of the account's
+  client**, **does not operate the box** and **is not the account being reset**. The caller is the session's.
+- **Request:** no body. `:requestId` is a UUID shape (`400 request.invalid` otherwise).
+- **Response:** **204**, also for a request already approved (nothing changes, nothing is written). The line
+  `account.resetApproved` is written before the approval is recorded.
+
+| Code                    | Status | When                                                                                                                                                                                                                                               |
+| ----------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.forbidden`        | 403    | A member of the client who is not an owner; **an operator**, whether or not the client made them an owner; the account the reset is for. `details.required: "owner"`                                                                               |
+| `reset.requestNotFound` | 404    | An unknown id; an invitation's; a request already spent, revoked or expired; a request for an account of **another client**, of **none** or of **two**; and a caller with no part in the client (an operator included). One answer for all of them |
 
 ### `GET /api/me/limits`
 

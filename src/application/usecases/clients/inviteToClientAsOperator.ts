@@ -37,7 +37,10 @@ export interface InviteToClientAsOperatorDeps {
   readonly users: Pick<UserRepository, 'siteRoleFor'>
   readonly clients: Pick<ClientRepository, 'findById' | 'countEvents' | 'countMembers'>
   /** Only the compensation: an invitation the log refused to record is revoked again. */
-  readonly tokens: Pick<AccountTokenRepository, 'revokeOutstandingInvitations'>
+  readonly tokens: Pick<
+    AccountTokenRepository,
+    'revokeOutstandingInvitations' | 'countLiveClientInvitations'
+  >
   readonly issueInvitation: IssueInvitation
   /** Only the writing half of the log: this use case cannot prune it. */
   readonly audit: AuditRecorder
@@ -62,6 +65,12 @@ export type InviteToClientAsOperator = (
  * from raising a member to owner, or sitting beside the customer, before the first wedding is
  * there: the client is the one that says who comes in. (The plan's sentence says "no event"; the
  * member is added for the window that leaves, see `operatorInvitationNeedsApproval`.)
+ *
+ * **A live invitation is something the client holds** (G2-14): an empty client admits exactly one,
+ * the first owner's, and a second one written to another address waits like any other, so that the
+ * operator cannot bring in an account of its own while the customer's invitation is still unspent
+ * and have it approve what follows (`operatorInvitationNeedsApproval` carries the argument). An
+ * address that is re-sent its own link is not a second invitation: writing it revokes the old one.
  *
  * The events are counted in **any status** (an archived wedding is still a wedding in the
  * client's account, and a client that has only ever had one is not "new"), the members in any
@@ -120,6 +129,11 @@ export const makeInviteToClientAsOperator =
     const pendingApproval = operatorInvitationNeedsApproval({
       eventCount: await clients.countEvents(client.id),
       memberCount: await clients.countMembers(client.id),
+      otherLiveInvitationCount: await tokens.countLiveClientInvitations(
+        client.id,
+        clock.now(),
+        address.value,
+      ),
     })
 
     const issued = await issueInvitation({

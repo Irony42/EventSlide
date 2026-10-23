@@ -1,6 +1,7 @@
 import { isTermsVersion } from '../legal/termsOfUse'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
+import { isCanonicalReason } from './auditReason'
 
 /**
  * The payload of an audit entry, and the allow-list that decides what it may hold
@@ -12,8 +13,9 @@ import { err, ok, type Result } from '../shared/result'
  * an entry are numbers, switches and instants, and nothing a person typed: never a caption,
  * a guest's name, an e-mail address, a slug, a filename or a token. That is not a
  * convention reviewers are asked to remember. Each action declares the exact shape of its
- * details in `auditAction.ts`, in a vocabulary with **no free-text kind** (the strings it admits are an instant and the
- * version of the terms of use, each checked as exactly that), and
+ * details in `auditAction.ts`, in a vocabulary with **no free-text kind** (the strings it admits are an
+ * instant, the version of the terms of use, each checked as exactly that, and the one bounded `reason`
+ * of an operator's explanation of their own act, `auditReason.ts`), and
  * {@link validateDetails} refuses a key the declaration does not name and a value that is
  * not the declared kind.
  *
@@ -49,6 +51,10 @@ export interface AuditDetails {
  * - `boolean`: a switch.
  * - `instant`: an ISO-8601 UTC timestamp with milliseconds, exactly what `toISOString`
  *   writes, so it cannot smuggle prose either.
+ * - `reason`: the **one** kind that can carry text a person typed: an operator's reason for an
+ *   act on a client (`client.ceilingsChanged`, G2-14). Its bound and what it refuses are
+ *   {@link parseAuditReason}'s, and `auditAction.test.ts` names the one declaration allowed to
+ *   use it, so a second is a decision in a diff and not a key that rode along.
  * - `termsVersion`: the version of the terms of use that an acceptance agreed to
  *   (`isTermsVersion`: at most 32 characters of letters, digits, dot, underscore and hyphen).
  *   **The one string kind, and not an exception to "no free text":** it is typed to one
@@ -62,6 +68,7 @@ export type DetailKind =
   | { readonly type: 'integer' }
   | { readonly type: 'boolean' }
   | { readonly type: 'instant' }
+  | { readonly type: 'reason' }
   | { readonly type: 'termsVersion' }
   | { readonly type: 'nullable'; readonly of: DetailKind }
   | { readonly type: 'object'; readonly fields: DetailFields }
@@ -74,6 +81,7 @@ export const detail = {
   integer: { type: 'integer' } satisfies DetailKind,
   boolean: { type: 'boolean' } satisfies DetailKind,
   instant: { type: 'instant' } satisfies DetailKind,
+  reason: { type: 'reason' } satisfies DetailKind,
   termsVersion: { type: 'termsVersion' } satisfies DetailKind,
   nullable: (of: DetailKind): DetailKind => ({ type: 'nullable', of }),
   object: (fields: DetailFields): DetailKind => ({ type: 'object', fields }),
@@ -129,6 +137,13 @@ const check = (kind: DetailKind, value: unknown, path: string): Checked => {
       return typeof value === 'boolean' ? pass(value) : fail(path, 'wrongType')
     case 'instant':
       return typeof value === 'string' && isInstantText(value)
+        ? pass(value)
+        : fail(path, 'wrongType')
+    case 'reason':
+      // Already canonical, not merely acceptable: what is stored is exactly what
+      // `parseAuditReason` would have produced, so a reason that arrives with the whitespace
+      // it was typed with is refused here rather than silently reshaped.
+      return typeof value === 'string' && isCanonicalReason(value)
         ? pass(value)
         : fail(path, 'wrongType')
     case 'termsVersion':

@@ -124,7 +124,7 @@ const CLIENT_SHAPES = ((): ReadonlyMap<string, Keys> => {
 
 // ------------------------------------------------------------------- client --
 
-type Verb = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+type Verb = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 /** `transport`'s own vocabulary. `del` carries no body, which is why it has no payload. */
 const VERBS: Readonly<Record<string, Verb>> = {
@@ -393,6 +393,9 @@ interface ServerRoute {
 const ROUTER_VERBS: Readonly<Record<string, Verb>> = {
   get: 'GET',
   post: 'POST',
+  // `PUT /api/site/clients/:clientId/ceilings` (G2-14): the one `put` in the product. The client
+  // side has no `put`, so what this adds is the route being *seen* and its schema named below.
+  put: 'PUT',
   patch: 'PATCH',
   delete: 'DELETE',
 }
@@ -638,6 +641,25 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // or names an account (`invitationRoutes.test.ts`).
   acceptInvitationBody:
     'a union of two strict bodies, which the object-schema pairing cannot read; both shapes are pinned in client.test.ts and invitationRoutes.test.ts',
+  // The operator's namespace (`/api/site`, G2-14): its routes are written, and the console that
+  // calls them (G2-15) is not, so nothing in `web/src` sends any of these yet. Each is held at
+  // ring 4 by `siteRoutes*.test.ts` (a body with a key it does not declare is a 400, a body
+  // without a reason is a 400), and the pairing starts the day `web/src/features/site` exists:
+  // this list is then what shrinks.
+  siteClientsQuery: 'GET /api/site/clients: the operator console (G2-15) is not built yet',
+  siteClientEventsQuery:
+    'GET /api/site/clients/:clientId/events: the operator console (G2-15) is not built yet',
+  siteAccountsQuery: 'GET /api/site/accounts: the operator console (G2-15) is not built yet',
+  siteAuditQuery: 'GET /api/site/audit: the operator console (G2-15) is not built yet',
+  provisionClientBody: 'POST /api/site/clients: the operator console (G2-15) is not built yet',
+  renameClientBody:
+    'PATCH /api/site/clients/:clientId: the operator console (G2-15) is not built yet',
+  setCeilingsBody:
+    'PUT /api/site/clients/:clientId/ceilings: the operator console (G2-15) is not built yet',
+  operatorInvitationBody:
+    'POST /api/site/clients/:clientId/invitations: the operator console (G2-15) is not built yet',
+  operatorPasswordResetBody:
+    'POST /api/site/accounts/:userId/password-reset: the operator console (G2-15) is not built yet',
 }
 
 // --------------------------------------------------------------------- tests --

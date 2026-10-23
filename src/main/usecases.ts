@@ -20,6 +20,7 @@ import type { GuestTokenService } from '../application/ports/guestTokenService'
 import type { ShareLinkRepository } from '../application/ports/shareLinkRepository'
 import type { ClientRepository } from '../application/ports/clientRepository'
 import type { AuditLog } from '../application/ports/auditLog'
+import type { SiteOverview } from '../application/ports/siteOverview'
 import type { AccountTokenRepository } from '../application/ports/accountTokenRepository'
 import type { MfaVault } from '../application/ports/mfaVault'
 import type { SecondFactorRepository } from '../application/ports/secondFactorRepository'
@@ -124,6 +125,10 @@ import { makeInviteToClientAsOperator } from '../application/usecases/clients/in
 import { makeProvisionClientOwner } from '../application/usecases/clients/provisionClientOwner'
 import { makeRenameClient } from '../application/usecases/clients/renameClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
+import { makeListSiteAccounts } from '../application/usecases/site/listSiteAccounts'
+import { makeListSiteAudit } from '../application/usecases/site/listSiteAudit'
+import { makeListSiteClientEvents } from '../application/usecases/site/listSiteClientEvents'
+import { makeListSiteClients } from '../application/usecases/site/listSiteClients'
 import type { NewClientDefaults } from '../domain/clients/newClientCeilings'
 import type { TermsOfUse } from '../domain/legal/termsOfUse'
 import { makePruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
@@ -164,6 +169,8 @@ export interface Adapters {
   readonly gallerySigner: GallerySigner
   /** The append-only audit log (roadmap §10.8). Empty on a box nobody operates. */
   readonly audit: AuditLog
+  /** What the operator may see of the box: ids, statuses, instants and sizes, no content (§10.4). */
+  readonly siteOverview: SiteOverview
   /** One-use links that prove control of a mailbox (roadmap §10.3). Digests only. */
   readonly accountTokens: AccountTokenRepository
   /** The secrets that go in those links, and the digests they are stored as. */
@@ -780,29 +787,32 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     // ---------------------------------------------------------------- clients --
     //
     // Built whatever `SITE_ADMIN` says, like every use case: the mode decides which routes
-    // are mounted (roadmap §10.9), never which use cases exist. **No route calls these yet**
-    // — the operator API is G2-14, behind `SITE_ADMIN` and `requireOperator`. The gate is the
-    // HTTP layer's, as for every operator route, so only `setClientCeilings` takes an actor:
-    // it is the one that writes the audit log (§10.8), and an entry must say who did it.
+    // are mounted (roadmap §10.9), never which use cases exist. The operator's routes call them
+    // (`/api/site`, G2-14), behind `SITE_ADMIN` and `requireOperator`. The gate is the HTTP
+    // layer's, so the use cases that write the audit log (§10.8) take an actor: an entry must say
+    // who did it. `createClient` and `deleteEmptyClient` have no route: the first is what
+    // `provisionClientOwner` builds on, and the second only removes the husk of a failed provisioning.
     createClient: clientCreator(adapters),
     /**
-     * Opens a client and invites its owner (G2-09 / P3-10). The operator API that puts
-     * `requireOperator` in front of it is G2-14; until then nothing calls it.
+     * Opens a client and invites its owner (G2-09 / P3-10), behind `requireOperator` and a
+     * step-up in `POST /api/site/clients` (G2-14).
      */
     provisionClientOwner: makeProvisionClientOwner({
       createClient: clientCreator(adapters),
       issueInvitation,
       clients: adapters.clients,
+      tokens: adapters.accountTokens,
       newClientDefaults: policy.newClientDefaults,
       audit: adapters.audit,
       clock: adapters.clock,
     }),
     /**
-     * The operator guard's use cases (G2-12 / P3-14, rules R1 and R2). **Only
-     * `approveInvitation` has a route** (`POST /api/client/invitations/:id/approve`, the
-     * owner's); the other three are the operator API's to call (G2-14), behind `requireOperator`
-     * and the second factor, and each reads the caller's site role itself rather than trust the
-     * route to have checked it. They write invitations through the box's one issuer, so the
+     * The operator guard's use cases (G2-12 / P3-14, rules R1 and R2). The owner's two have
+     * routes (`POST /api/client/invitations/:id/approve` and
+     * `POST /api/client/password-resets/:id/approve`); the operator's two are called by
+     * `/api/site/clients/:clientId/invitations` and `/api/site/accounts/:userId/password-reset`
+     * (G2-14), behind `requireOperator`, the second factor and a step-up, and each reads the
+     * caller's site role itself rather than trust the route to have checked it. They write invitations through the box's one issuer, so the
      * per-address queue is still one queue.
      */
     inviteToClientAsOperator: makeInviteToClientAsOperator({
@@ -852,7 +862,16 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       mode: policy.operatorResetLinks,
       audit: adapters.audit,
     }),
-    renameClient: makeRenameClient({ clients: adapters.clients }),
+    // The operator's reads (G2-14): the read model and the log, and nothing else.
+    listSiteClients: makeListSiteClients({ overview: adapters.siteOverview }),
+    listSiteClientEvents: makeListSiteClientEvents({ overview: adapters.siteOverview }),
+    listSiteAccounts: makeListSiteAccounts({ overview: adapters.siteOverview }),
+    listSiteAudit: makeListSiteAudit({ audit: adapters.audit }),
+    renameClient: makeRenameClient({
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
     setClientCeilings: makeSetClientCeilings({
       clients: adapters.clients,
       audit: adapters.audit,

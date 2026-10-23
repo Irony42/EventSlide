@@ -9,6 +9,7 @@ import type { DomainError } from '../../../domain/shared/errors'
 import type { ClientId, UserId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 import { EmailAddress } from '../../../domain/users/emailAddress'
+import type { AccountTokenRepository } from '../../ports/accountTokenRepository'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
@@ -44,6 +45,11 @@ export interface ProvisionClientOwnerDeps {
   readonly issueInvitation: IssueInvitation
   /** Only the compensation: an empty client is removed if its invitation could not be written. */
   readonly clients: Pick<ClientRepository, 'deleteIfEmpty'>
+  /**
+   * Only the compensation, again: an invitation the log would not record is revoked before its
+   * client is removed, so it does not depend on a foreign key's cascade to be dead.
+   */
+  readonly tokens: Pick<AccountTokenRepository, 'revokeOutstandingInvitations'>
   /**
    * The ceilings a new client starts with when the operator names none (`NEW_CLIENT_*`, G2-18),
    * read from configuration once at boot. Unlimited on a box that set none, which is every
@@ -109,14 +115,22 @@ const actorOf = (createdBy: UserId | null): AuditActorInput =>
  * client with its full ceilings and no line is left, with no member, no event and no
  * invitation; `deleteEmptyClient` removes it, and the error that is thrown is the log's.
  *
- * **Not here yet.** The `invitation.issued` entry arrives with the operator API that calls
- * this (G2-14), which is also where the console's own audit of an approval lives.
+ * **The invitation has its line too** (G2-14): `invitation.issued {pendingApproval: false}`, the
+ * entry the client's owner reads beside the one the operator guard writes for an invitation into a
+ * client that is in use. It follows the invitation, because the id it is about exists only once
+ * the invitation is written, and **if the log refuses it the invitation is revoked and the client
+ * removed again**, then the failure propagates: a provisioning with no line for its invitation is
+ * the one an audit trail is there to prevent, and a revoked link, whose mail may already be in an
+ * inbox, is merely a dead one. `pendingApproval` is `false` by construction: a client created a
+ * moment ago holds no event and no member, which is the case the operator guard leaves to the
+ * operator.
  */
 export const makeProvisionClientOwner =
   ({
     createClient,
     issueInvitation,
     clients,
+    tokens,
     newClientDefaults,
     audit,
     clock,
@@ -183,6 +197,40 @@ export const makeProvisionClientOwner =
     if (!invitation.ok) {
       await discard()
       return invitation
+    }
+
+    // The invitation exists now, so its line can name it. A log that will not take the line
+    // leaves an invitation the client's owner could never have read about: revoke it, then
+    // remove the client, then let the failure through.
+    const undo = async (): Promise<void> => {
+      try {
+        await tokens.revokeOutstandingInvitations(
+          address.value,
+          { kind: 'client', clientId: client.id, role: 'owner' },
+          clock.now(),
+        )
+      } catch {
+        // The error being reported is the one that mattered.
+      }
+      await discard()
+    }
+    const issuedLine = AuditEntry.create({
+      at: clock.now(),
+      actor: actorOf(createdBy),
+      action: 'invitation.issued',
+      subject: { type: 'invitation', id: invitation.value.invitationId },
+      clientId: client.id,
+      details: { pendingApproval: false },
+    })
+    if (!issuedLine.ok) {
+      await undo()
+      return issuedLine
+    }
+    try {
+      await audit.record(issuedLine.value)
+    } catch (error) {
+      await undo()
+      throw error
     }
 
     return ok({ clientId: client.id, invitation: invitation.value })

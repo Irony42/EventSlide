@@ -11,7 +11,8 @@ import type { AuditDetails } from './auditDetails'
  *
  * - **Nothing changed, nothing written.** A patch that restates the current values is not
  *   an act on the client, and an audit log that records it is a log nobody reads.
- * - **A ceiling changed: `client.ceilingsChanged {before, after}`**, both full snapshots.
+ * - **A ceiling changed: `client.ceilingsChanged {before, after, reason}`**, both full snapshots
+ *   and the operator's reason, which the caller has already parsed (`parseAuditReason`).
  * - **The period moved: `client.periodReset {before, after}`**, written *as well*. A renewal
  *   zeroes the counter of events created in the period, and that zeroing is the part a
  *   client disputes, so it gets a line of its own with the counter on both sides.
@@ -66,7 +67,11 @@ export const describeClientCreation = (client: Client): PlannedAuditEntry => ({
   details: { ceilings: ceilingsSnapshot(client.ceilings.toProps()) },
 })
 
-export const describeCeilingsChange = (before: Client, after: Client): PlannedAuditEntry[] => {
+export const describeCeilingsChange = (
+  before: Client,
+  after: Client,
+  reason: string,
+): PlannedAuditEntry[] => {
   const planned: PlannedAuditEntry[] = []
 
   const ceilingsBefore = ceilingsSnapshot(before.ceilings.toProps())
@@ -74,7 +79,7 @@ export const describeCeilingsChange = (before: Client, after: Client): PlannedAu
   if (!same(ceilingsBefore, ceilingsAfter)) {
     planned.push({
       action: 'client.ceilingsChanged',
-      details: { before: ceilingsBefore, after: ceilingsAfter },
+      details: { before: ceilingsBefore, after: ceilingsAfter, reason },
     })
   }
 

@@ -117,7 +117,7 @@ src/
     audit/         Audit entries, their allow-listed details, retention (roadmap §10.8; an owner reads their client's, G2-16)
     mail/          Outgoing message rules: one mailbox, a one-line subject (roadmap §10.3)
     legal/         The terms of use an invitation's acceptance agrees to: a URL and a short version (G2-20)
-    site/          What the operator may see of the box: the closed field vocabulary and the rows of the content-free overview (roadmap §10.4; no route yet)
+    site/          What the operator may see of the box: the closed field vocabulary and the rows of the content-free overview (roadmap §10.4; served by `/api/site`, G2-14)
   application/
     ports/         Interfaces. One file per port. No implementations.
     usecases/      One file, one exported factory, one responsibility.
