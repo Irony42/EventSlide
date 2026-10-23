@@ -562,6 +562,16 @@ const asObjectSchema = (name: string): z.ZodObject | null => {
   return schema instanceof z.ZodObject ? schema : null
 }
 
+/**
+ * The keys a body must carry. "Required" is what the field says about an absent key: zod 4
+ * dropped `isOptional()` for this exact question, and `safeParse(undefined)` is the answer it
+ * points to.
+ */
+const requiredKeysOf = (schema: z.ZodObject): string[] =>
+  Object.entries(schema.shape)
+    .filter(([, field]) => !field.safeParse(undefined).success)
+    .map(([key]) => key)
+
 interface Pairing {
   readonly name: string
   readonly verb: Verb
@@ -681,9 +691,7 @@ describe('the request contract', () => {
   it('can tell a required field from an optional one', () => {
     // The check below filters to the fields a schema requires; against a schema read as having
     // none it would be vacuously green, the way an empty map makes every assertion true.
-    const required = PAIRINGS.flatMap(({ schema }) =>
-      Object.values(schema.shape).filter((field) => !field.safeParse(undefined).success),
-    )
+    const required = PAIRINGS.flatMap(({ schema }) => requiredKeysOf(schema))
 
     expect(required.length).toBeGreaterThanOrEqual(10)
   })
@@ -697,12 +705,7 @@ describe('the request contract', () => {
         [...keys].flatMap(([key, presence]) => (presence === 'always' ? [key] : [])),
       )
 
-      // "Required" is what the field says about an absent key: zod 4 dropped `isOptional()`
-      // for this exact question, and `safeParse(undefined)` is the answer it points to.
-      const missing = Object.entries(schema.shape)
-        .filter(([, field]) => !field.safeParse(undefined).success)
-        .map(([key]) => key)
-        .filter((key) => !always.has(key))
+      const missing = requiredKeysOf(schema).filter((key) => !always.has(key))
 
       expect(missing, `${schemaName} requires fields ${name} does not always send`).toEqual([])
     },
