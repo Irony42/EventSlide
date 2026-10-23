@@ -1912,11 +1912,12 @@ authorization decision**.
 the vulnerable code on a default install. Everything else names the thing that stops it.
 
 **This table is the audit's own snapshot, at the `sharp` version installed on
-2026-09-18.** `package.json` has since moved to `^0.35.4` (shipped in #47); the two rows
+2026-09-18.** `package.json` has since moved to `^0.35.5` (0.35.4 shipped in #47, 0.35.5
+in #137); the two rows
 below are kept as the record of what the reachability analysis found and why — the
 _reasoning_ (which loaders the allow-list admits) still holds against the current
 version, but the CVSS scores and advisory ids are only verified against 0.34.5. Re-run
-this table's analysis against the advisories open for 0.35.4 before relying on it as a
+this table's analysis against the advisories open for 0.35.5 before relying on it as a
 current statement rather than a historical one.
 
 | Package (installed)                                                                                                               | Advisory                                                                                                          | Scope       | Verdict                                                                                                                            | The line that decides it                                                                                                                                                                                                                   |
