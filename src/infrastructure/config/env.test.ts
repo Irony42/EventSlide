@@ -2991,6 +2991,8 @@ describe('loadConfig', () => {
         ['a bare hash after a path prefix', 'https://example.com/eventslide#'],
         ['a query string and a fragment', 'https://photos.example.com/?a=1#top'],
         ['a fragment that holds a question mark', 'https://photos.example.com/#/route?x=1'],
+        ['a query string that holds a slash', 'https://photos.example.com/?next=/join/ABC123'],
+        ['a fragment that is a route', 'https://photos.example.com/#/route'],
         ['an uppercase scheme', 'HTTPS://photos.example.com/?ref=x'],
         ['a port', 'https://photos.example.com:8443/?ref=x'],
         ['localhost, which production exempts from https', 'http://localhost:4300/?ref=x'],
@@ -3001,6 +3003,13 @@ describe('loadConfig', () => {
         expect(refusalIssues({ ...DEV, PUBLIC_URL: typed })).toEqual([
           expect.stringMatching(REFUSED),
         ])
+      })
+
+      it('tells the operator how to keep a ? or a # that belongs in a path prefix', () => {
+        const [issue] = refusalIssues({ ...DEV, PUBLIC_URL: 'https://photos.example.com/?x' })
+
+        expect(issue).toContain('%3F')
+        expect(issue).toContain('%23')
       })
 
       it('refuses them in a maintenance command too, which parses the same address', () => {

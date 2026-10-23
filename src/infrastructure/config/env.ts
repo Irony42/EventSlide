@@ -254,7 +254,7 @@ const publicUrl = z
   // accepted. Never the value in the message, as above: it may be where a token was pasted.
   .refine((value) => !/[?#]/.test(value), {
     error:
-      'PUBLIC_URL must not contain a query string or a fragment (a ? or a #): every link is made by appending a path to it, so the join link and its QR code would end up inside the query. Write a ? or a # that belongs in the path as %3F or %23',
+      'PUBLIC_URL must not contain a query string or a fragment (a ? or a #): every link is made by appending a path to it, so the join link and its QR code would end up inside the query or the fragment. Write a ? or a # that belongs in the path as %3F or %23',
   })
 
 /**
