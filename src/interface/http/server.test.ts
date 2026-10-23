@@ -5,8 +5,10 @@ import { join } from 'node:path'
 import { brotliCompressSync, gzipSync } from 'node:zlib'
 import request from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { aGuest, anEvent } from '../../application/testing/builders'
+import { AT, aGuest, anEvent, aUser } from '../../application/testing/builders'
 import { DomainError } from '../../domain/shared/errors'
+import { asEventId, asUserId } from '../../domain/shared/ids'
+import { err } from '../../domain/shared/result'
 import { GUEST_COOKIE } from './middleware/authz'
 import { CSRF_COOKIE, CSRF_HEADER } from './middleware/csrf'
 import {
@@ -14,6 +16,7 @@ import {
   buildServerHarness,
   type ServerHarness,
 } from './testing/serverHarness'
+import { signedInAs, signInByAddress } from './testing/signIn'
 
 /**
  * What `buildServer()` decides, and nothing else: **the order the middleware runs in**.
@@ -782,6 +785,38 @@ describe('buildServer: a request that carries no body still has an empty one', (
       expect(response.body.error.details).toEqual({ fields: 'joinCode' })
     },
   )
+
+  it('lets a body-less request reach a route whose body is optional, as on Express 4', async () => {
+    // `shareLinkBody` is every-field-optional, so `{}` is a link with the defaults and a
+    // client that sends nothing means the same. `undefined` is not an object, and the
+    // schema refuses it: without the empty body this request is a 400 `request.invalid`
+    // and the use case is never asked.
+    const OWNER = '11111111-1111-4111-8111-111111111111'
+    let asked = false
+    const subject = buildServerHarness({
+      usecases: {
+        authenticateUser: signInByAddress({ 'host@example.test': OWNER }),
+        createShareLink: async () => {
+          asked = true
+          return err(DomainError.invalid('test.theUseCaseWasAsked'))
+        },
+      },
+    })
+    subject.users.seed(aUser({ id: OWNER, email: 'host@example.test' }))
+    subject.events.seed(anEvent({ id: 'evt-1', slug: 'mariage', ownerId: OWNER, status: 'live' }))
+    subject.memberships.seed({
+      eventId: asEventId('evt-1'),
+      userId: asUserId(OWNER),
+      role: 'owner',
+      grantedAt: AT,
+    })
+    const { agent, csrf } = await signedInAs(subject.app, 'host@example.test')
+
+    const response = await agent.post('/api/events/mariage/share-link').set(CSRF_HEADER, csrf)
+
+    expect(asked).toBe(true)
+    expect(response.body.error.code).toBe('test.theUseCaseWasAsked')
+  })
 })
 
 describe('buildServer: the API 404 in front of the SPA fallback', () => {

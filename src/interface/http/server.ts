@@ -128,8 +128,10 @@ export const buildServer = ({
   // Every handler parses `req.body` with a zod schema, and `{}` fails it field by field
   // while `undefined` fails it once, at the root, naming none: `POST /api/join` with no
   // body answered `details.fields: "joinCode"` and would answer `""`, which is not what
-  // docs/API.md §1 promises. Restoring the empty object keeps the answer the contract
-  // describes. Multer, on the upload routes, sets its own `req.body` after this.
+  // docs/API.md §1 promises. Worse, `shareLinkBody` and `updateSettingsBody` accept `{}` and
+  // refuse `undefined`, so a body-less `POST /api/events/:slug/share-link` would be a 400 where
+  // it used to make the link. Restoring the empty object keeps both answers. Multer, on the
+  // upload routes, sets its own `req.body` after this.
   app.use((req, _res, next) => {
     req.body ??= {}
     next()
@@ -324,7 +326,9 @@ const mountClient = (app: Express, clientDir: string, isProduction: boolean): vo
       // Said rather than inherited. Express 4 only looked at the last segment of a path, so
       // `/.hidden/file.txt` was served from inside the client directory; Express 5 refuses
       // a dot-directory anywhere in it, and a request for one falls through to the SPA
-      // shell. Nothing here ships a dotfile, and nothing should start to by default.
+      // shell. Nothing here ships a dotfile, and nothing should start to by default. A test
+      // holds the behaviour, not this line: the line only keeps a later default from
+      // deciding it.
       dotfiles: 'ignore',
       setHeaders: (res, path) => {
         if (path.endsWith('.html')) {
