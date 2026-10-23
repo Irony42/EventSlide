@@ -15,6 +15,8 @@ import type {
   GuestListResponse,
   GuestMissionListResponse,
   GuestPhotoDto,
+  InvitationAcceptedDto,
+  InvitationPreviewDto,
   JoinResponse,
   MissionDto,
   MissionListResponse,
@@ -183,6 +185,18 @@ export interface ModeratorInviteResponse {
   readonly expiresAt: string
   readonly link?: string
 }
+
+/**
+ * What accepting an invitation sends (`POST /api/invitations/:token/accept`): a person
+ * choosing how to sign in, or — from a session the link is for — nothing at all.
+ *
+ * Two shapes and no third. The server's body is `.strict()`, so a field that could name an
+ * account (an address, an id) is a 400: the account an acceptance attaches is the one in the
+ * session, never one the request names.
+ */
+export type InvitationAcceptance =
+  | { readonly kind: 'newAccount'; readonly displayName: string; readonly password: string }
+  | { readonly kind: 'signedInAccount' }
 
 export const createApi = (transport: Transport) => ({
   // ------------------------------------------------------------------ public --
@@ -359,6 +373,54 @@ export const createApi = (transport: Transport) => ({
 
   changePassword: (currentPassword: string, newPassword: string): Promise<void> =>
     transport.post('/api/auth/password', { currentPassword, newPassword }),
+
+  /**
+   * "Forgot your password?" (G2-08 / P3-09). `202 {}` for **every** address — an account, a
+   * stranger, a malformed one — so the page says the same thing whatever was typed; `404
+   * feature.unavailable` only on a box that cannot send mail, whatever the address. The
+   * locale is the page's, because it is the language the mail is written in.
+   */
+  requestPasswordReset: (email: string, locale: Locale): Promise<void> =>
+    transport.post('/api/auth/password-reset/request', { email, locale }),
+
+  /**
+   * The mailed link's token and the password chosen with it. `204`: the password is set and
+   * **every session is signed out**, none started. The token travels in the body, never in a
+   * URL the client builds. A refused password does not spend the link (`400 password.*`).
+   */
+  confirmPasswordReset: (token: string, password: string): Promise<void> =>
+    transport.post('/api/auth/password-reset/confirm', { token, password }),
+
+  /**
+   * Signs out every other session of this account. The caller's own is replaced and stays
+   * in, so "sign out everywhere" is this call and then {@link Api.logout}.
+   */
+  revokeOtherSessions: (): Promise<void> => transport.post('/api/auth/sessions/revoke-others'),
+
+  // ------------------------------------------------------------- invitations --
+
+  /**
+   * What the link in front of the reader offers, spending nothing. `404 invitation.notFound`
+   * for every dead link alike — unknown, malformed, spent, replaced, expired — and the page
+   * says one thing for all of them.
+   */
+  invitation: (token: string, signal?: AbortSignal): Promise<InvitationPreviewDto> =>
+    transport.get(`/api/invitations/${encode(token)}`, undefined, signal),
+
+  /**
+   * Accepts it. A new account starts a session in the same answer; a signed-in account
+   * sends `{}` and its session is the only thing that names it.
+   */
+  acceptInvitation: (
+    token: string,
+    acceptance: InvitationAcceptance,
+  ): Promise<InvitationAcceptedDto> =>
+    transport.post(
+      `/api/invitations/${encode(token)}/accept`,
+      acceptance.kind === 'newAccount'
+        ? { displayName: acceptance.displayName, password: acceptance.password }
+        : {},
+    ),
 
   // ------------------------------------------------------------------ events --
 

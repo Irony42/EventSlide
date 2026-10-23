@@ -19,6 +19,8 @@ import type {
   GalleryPhotoDto,
   GuestPhotoDto,
   GuestMissionDto,
+  InvitationAcceptedDto,
+  InvitationPreviewDto,
   JoinResponse,
   MissionDto,
   ModerationPhotoDto,
@@ -76,7 +78,7 @@ export const anAbout = (overrides: Partial<About> = {}): About => ({
   license: 'AGPL-3.0-only',
   sourceUrl: 'https://git.example.org/me/eventslide/tree/v9.9.9-server',
   links: {},
-  features: { siteAdmin: false },
+  features: { siteAdmin: false, forgotPassword: false },
   ...overrides,
 })
 
@@ -368,6 +370,29 @@ export const aClipJob = (overrides: Partial<ClipJobDto> = {}): ClipJobDto => ({
   ...overrides,
 })
 
+/** What a link to moderate "Camille & Sacha" shows its holder (G2-09). */
+export const anInvitationPreview = (
+  overrides: Partial<InvitationPreviewDto> = {},
+): InvitationPreviewDto => ({
+  kind: 'event',
+  role: 'moderator',
+  targetName: 'Camille & Sacha',
+  expiresAt: '2026-06-27T21:00:00.000Z',
+  ...overrides,
+})
+
+/** The answer to accepting it, for an event: where to go is the slug. */
+export const anInvitationAccepted = (
+  overrides: Partial<InvitationAcceptedDto> = {},
+): InvitationAcceptedDto => ({
+  status: 'accepted',
+  kind: 'event',
+  role: 'moderator',
+  targetName: 'Camille & Sacha',
+  eventSlug: 'camille-et-sacha',
+  ...overrides,
+})
+
 export const aSessionUser = (overrides: Partial<CurrentUserDto> = {}): CurrentUserDto => ({
   userId: 'user-1',
   email: 'organisation@example.com',
@@ -424,6 +449,12 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   // so a test that forgets to log in exercises the redirect rather than a 401 branch.
   session: vi.fn(async (): Promise<SessionResponse> => ({ authenticated: false })),
   changePassword: vi.fn(async () => undefined),
+  // The same answer for every address, which is what the server gives.
+  requestPasswordReset: vi.fn(async () => undefined),
+  confirmPasswordReset: vi.fn(async () => undefined),
+  revokeOtherSessions: vi.fn(async () => undefined),
+  invitation: vi.fn(async () => anInvitationPreview()),
+  acceptInvitation: vi.fn(async () => anInvitationAccepted()),
   loginSecondFactor: vi.fn(async () => aSessionUser()),
   enrollSecondFactor: vi.fn(async () => ({
     otpauthUri: 'otpauth://totp/EventSlide:organisation%40example.com?secret=JBSWY3DPEHPK3PXP',

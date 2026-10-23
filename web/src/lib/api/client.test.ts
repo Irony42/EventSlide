@@ -354,6 +354,38 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.revokeGuest(SLUG, 'guest-1'),
   },
 
+  // account tokens: the reset and "sign out everywhere" (G2-08), the invitation (G2-09)
+  {
+    name: 'requestPasswordReset',
+    verb: 'post',
+    path: '/api/auth/password-reset/request',
+    invoke: (client) => client.requestPasswordReset('camille@example.com', 'fr'),
+  },
+  {
+    name: 'confirmPasswordReset',
+    verb: 'post',
+    path: '/api/auth/password-reset/confirm',
+    invoke: (client) => client.confirmPasswordReset(GALLERY_TOKEN, 'une-phrase-de-passe-longue'),
+  },
+  {
+    name: 'revokeOtherSessions',
+    verb: 'post',
+    path: '/api/auth/sessions/revoke-others',
+    invoke: (client) => client.revokeOtherSessions(),
+  },
+  {
+    name: 'invitation',
+    verb: 'get',
+    path: `/api/invitations/${GALLERY_TOKEN}`,
+    invoke: (client) => client.invitation(GALLERY_TOKEN),
+  },
+  {
+    name: 'acceptInvitation',
+    verb: 'post',
+    path: `/api/invitations/${GALLERY_TOKEN}/accept`,
+    invoke: (client) => client.acceptInvitation(GALLERY_TOKEN, { kind: 'signedInAccount' }),
+  },
+
   // moderators
   {
     name: 'listModerators',
@@ -576,6 +608,49 @@ describe('request bodies', () => {
     await subject().inviteModerator(SLUG, { email: 'sacha@example.com', locale: 'en' })
 
     expect(only().body).toEqual({ email: 'sacha@example.com', locale: 'en' })
+  })
+})
+
+describe('the account-token requests', () => {
+  it('sends the address and the language of the page with a reset request', async () => {
+    // The language is the one the mail is written in; the server's body is `.strict()`.
+    await subject().requestPasswordReset('camille@example.com', 'de')
+
+    expect(only().body).toEqual({ email: 'camille@example.com', locale: 'de' })
+  })
+
+  it('sends the token in the body of a reset, never in a URL the client builds', async () => {
+    await subject().confirmPasswordReset(GALLERY_TOKEN, 'une-phrase-de-passe-longue')
+
+    expect(only()).toMatchObject({
+      path: '/api/auth/password-reset/confirm',
+      body: { token: GALLERY_TOKEN, password: 'une-phrase-de-passe-longue' },
+    })
+  })
+
+  it('sends a name and a password to create an account, and nothing that names one', async () => {
+    // `acceptInvitationBody` is `.strict()`: no field can name the account an acceptance
+    // attaches, so the client has no way to send one.
+    await subject().acceptInvitation(GALLERY_TOKEN, {
+      kind: 'newAccount',
+      displayName: 'Camille',
+      password: 'une-phrase-de-passe-longue',
+    })
+
+    expect(only().body).toEqual({ displayName: 'Camille', password: 'une-phrase-de-passe-longue' })
+  })
+
+  it('sends an empty body for the account that is already signed in', async () => {
+    await subject().acceptInvitation(GALLERY_TOKEN, { kind: 'signedInAccount' })
+
+    expect(only().body).toEqual({})
+  })
+
+  it('escapes a token before it becomes a path segment', async () => {
+    // The token comes out of the address bar, which is whatever somebody typed.
+    await subject().invitation('a/b?c')
+
+    expect(only().path).toBe('/api/invitations/a%2Fb%3Fc')
   })
 })
 
