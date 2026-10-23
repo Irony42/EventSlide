@@ -788,6 +788,8 @@ export interface ClientDefaultsDto {
     readonly maxLiveDays: number | null
     readonly clipsAllowed: boolean
   }
+}
+
 // ----------------------------------------------------------------- client space --
 
 /**
