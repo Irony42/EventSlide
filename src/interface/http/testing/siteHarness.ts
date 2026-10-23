@@ -3,6 +3,7 @@ import type { Express } from 'express'
 import type { OperatorResetLinks } from '../../../domain/clients/operatorGuard'
 import type { NewClientDefaults } from '../../../domain/clients/newClientCeilings'
 import { asUserId } from '../../../domain/shared/ids'
+import { EmailAddress } from '../../../domain/users/emailAddress'
 import type { User } from '../../../domain/users/user'
 import { makeAcceptInvitation } from '../../../application/usecases/auth/acceptInvitation'
 import { makeIssueInvitation } from '../../../application/usecases/auth/issueInvitation'
@@ -11,6 +12,9 @@ import { makePreviewInvitation } from '../../../application/usecases/auth/previe
 import { makeApproveInvitation } from '../../../application/usecases/clients/approveInvitation'
 import { makeApprovePasswordReset } from '../../../application/usecases/clients/approvePasswordReset'
 import { makeCreateClient } from '../../../application/usecases/clients/createClient'
+import { makeGetClientLimits } from '../../../application/usecases/clients/getClientLimits'
+import { makeListClientAudit } from '../../../application/usecases/clients/listClientAudit'
+import { makeListPendingInvitations } from '../../../application/usecases/clients/listPendingInvitations'
 import { makeInviteToClientAsOperator } from '../../../application/usecases/clients/inviteToClientAsOperator'
 import { makeProvisionClientOwner } from '../../../application/usecases/clients/provisionClientOwner'
 import { makeRenameClient } from '../../../application/usecases/clients/renameClient'
@@ -35,6 +39,7 @@ import { SqliteEventRepository } from '../../../infrastructure/db/sqliteEventRep
 import { SqliteGuestRepository } from '../../../infrastructure/db/sqliteGuestRepository'
 import { SqliteInvitationAcceptance } from '../../../infrastructure/db/sqliteInvitationAcceptance'
 import { SqliteMembershipRepository } from '../../../infrastructure/db/sqliteMembershipRepository'
+import { SqlitePhotoRepository } from '../../../infrastructure/db/sqlitePhotoRepository'
 import { SqliteSecondFactorRepository } from '../../../infrastructure/db/sqliteSecondFactorRepository'
 import { SqliteSiteOverview } from '../../../infrastructure/db/sqliteSiteOverview'
 import { SqliteUserRepository } from '../../../infrastructure/db/sqliteUserRepository'
@@ -134,6 +139,11 @@ export interface SiteHarness {
   }
   /** Seeds an account and makes it one the stub sign-in knows by its address. */
   addAccount(user: User): Promise<void>
+  /**
+   * Makes an account the server created itself (by accepting an invitation) one the stub
+   * sign-in knows by its address. `false` when there is no such account.
+   */
+  recognise(address: string): Promise<boolean>
   /** Signed in as the account behind this address, and nothing stamped on the session. */
   signIn(address: string): Promise<Caller>
   /** Writes the second-factor and step-up facts into every session this account has. */
@@ -155,6 +165,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
   const events = new SqliteEventRepository(db)
   const guests = new SqliteGuestRepository(db)
   const memberships = new SqliteMembershipRepository(db)
+  const photos = new SqlitePhotoRepository(db)
   const tokens = new SqliteAccountTokenRepository(db)
   const audit = new SqliteAuditLog(db)
   const overview = new SqliteSiteOverview(db)
@@ -233,6 +244,10 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
         audit,
       }),
       approveInvitation: makeApproveInvitation({ users, clients, tokens, audit, clock }),
+      // What the client's own space reads (G2-16), so a case can say what the owner sees of an act.
+      getClientLimits: makeGetClientLimits({ clients, photos }),
+      listClientAudit: makeListClientAudit({ clients, audit }),
+      listPendingInvitations: makeListPendingInvitations({ clients, tokens, clock }),
       approvePasswordReset: makeApprovePasswordReset({ users, clients, tokens, audit, clock }),
 
       previewInvitation: makePreviewInvitation({ ...readers, clock }),
@@ -249,6 +264,15 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
   const addAccount = async (user: User): Promise<void> => {
     await world.addAccount(user)
     accounts[user.email.value] = user.id
+  }
+
+  const recognise = async (address: string): Promise<boolean> => {
+    const parsed = EmailAddress.create(address)
+    if (!parsed.ok) return false
+    const found = await users.findByEmail(parsed.value)
+    if (found === null) return false
+    accounts[found.email.value] = found.id
+    return true
   }
 
   const stamp = (userId: string, stamps: SessionStamps): Promise<void> =>
@@ -305,6 +329,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
     sessions,
     repos: { clients, events, memberships, tokens, users, audit },
     addAccount,
+    recognise,
     signIn: (address) => signedInAs(harness.app, address),
     stamp,
     signInAsOperator,
