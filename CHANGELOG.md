@@ -160,7 +160,7 @@ Read these before you upgrade, and back up with the version you run now.
   `https://photos.example.com`, a trailing slash is still dropped and a path prefix is kept,
   spelled as a browser would (`/my event` is `/my%20event`, its case is kept). There was no
   warning first, because the old behaviour put a stray character, or a password, into every link.
-- **A `PUBLIC_URL` with a query string or a fragment is refused** (#NNN). Every link is made by
+- **A `PUBLIC_URL` with a query string or a fragment is refused** (#158). Every link is made by
   appending a path to it, so `PUBLIC_URL=https://photos.example.com/?ref=x` used to boot and give
   every guest `https://photos.example.com/?ref=x/join/ABC123`: a QR code that opens the wrong page,
   with no error anywhere. A `?` or a `#` anywhere in the value, even a bare one
