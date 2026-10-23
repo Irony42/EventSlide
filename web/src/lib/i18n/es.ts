@@ -336,7 +336,7 @@ export const es: UiText = {
     'invitation.signInRequired':
       'Ya hay una cuenta que usa esta dirección. Inicie sesión con esa cuenta y vuelva a abrir el enlace.',
     'invitation.wrongAccount':
-      'Esta invitación se escribió para una dirección de correo distinta de la de esta cuenta.',
+      'Esta invitación estaba destinada a una dirección de correo distinta de la de esta cuenta.',
     'invitation.credentialsRequired':
       'Inicie sesión con la cuenta invitada, o elija un nombre y una contraseña.',
 
@@ -753,10 +753,12 @@ export const es: UiText = {
     moderatorInviteSent: (email: string) => `Se ha enviado una invitación a ${email}.`,
     /** No mail relay, or it refused: the link is for the host to pass on, once. */
     inviteLinkCreated: (email: string) =>
-      `No se ha podido enviar ningún correo. Transmita este enlace a ${email}: sirve una sola vez y durante siete días.`,
-    inviteLinkUrl: 'Enlace de invitación',
+      `Este enlace no se ha enviado por correo. Transmítalo usted mismo a ${email}: solo sirve una vez y es válido durante siete días.`,
+    inviteLinkUrl: 'Enlace para transmitir',
     inviteLinkCopy: 'Copiar el enlace',
     inviteLinkCopied: 'Enlace copiado.',
+    /** No clipboard (an address that is not secure) or a refusal: the field is selectable. */
+    inviteLinkCopyFailed: 'No se puede copiar aquí: seleccione el enlace y cópielo usted mismo.',
     revokeModerator: 'Retirar',
     revokeModeratorTitle: '¿Retirar a este moderador?',
     revokeModeratorHint: 'Perderá el acceso a este evento. Sus decisiones anteriores se conservan.',

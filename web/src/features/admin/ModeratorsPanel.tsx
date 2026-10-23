@@ -87,11 +87,17 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
   const copyLink = () => {
     if (pending === null) return
     // The address is also selectable in the field beside this button, so a browser that
-    // refuses the clipboard costs the host a long-press rather than the link.
-    void navigator.clipboard?.writeText(pending.link).then(
-      () => toast.show(t.admin.inviteLinkCopied, { tone: 'success' }),
-      () => undefined,
-    )
+    // refuses the clipboard costs the host a long-press rather than the link — and says so.
+    // `navigator.clipboard` does not exist on an address that is not a secure context, which
+    // includes the plain-HTTP LAN deployment this product is at home on.
+    const failed = () => toast.show(t.admin.inviteLinkCopyFailed, { tone: 'danger' })
+    if (navigator.clipboard === undefined) {
+      failed()
+      return
+    }
+    void navigator.clipboard
+      .writeText(pending.link)
+      .then(() => toast.show(t.admin.inviteLinkCopied, { tone: 'success' }), failed)
   }
 
   const confirmRevoke = () => {
@@ -160,6 +166,10 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
               <TextInput
                 {...control}
                 readOnly
+                // Focus lands on the link and selects it (below), so a screen reader reads what
+                // appeared and a long-press or Ctrl+C copies it: the block would otherwise
+                // appear silently above the form, behind the button that was just pressed.
+                autoFocus
                 value={pending.link}
                 onFocus={(focused) => focused.target.select()}
               />

@@ -921,10 +921,12 @@ export const fr = {
     moderatorInviteSent: (email: string) => `Une invitation a été envoyée à ${email}.`,
     /** No mail relay, or it refused: the link is for the host to pass on, once. */
     inviteLinkCreated: (email: string) =>
-      `Aucun e-mail n’a pu être envoyé. Transmettez ce lien à ${email} : il ne sert qu’une fois et vaut sept jours.`,
-    inviteLinkUrl: 'Lien d’invitation',
+      `Ce lien n’a pas été envoyé par e-mail. Transmettez-le vous-même à ${email} : il ne sert qu’une fois et reste valable sept jours.`,
+    inviteLinkUrl: 'Lien à transmettre',
     inviteLinkCopy: 'Copier le lien',
     inviteLinkCopied: 'Lien copié.',
+    /** No clipboard (an address that is not secure) or a refusal: the field is selectable. */
+    inviteLinkCopyFailed: 'Copie impossible ici : sélectionnez le lien et copiez-le vous-même.',
     revokeModerator: 'Retirer',
     revokeModeratorTitle: 'Retirer ce modérateur ?',
     revokeModeratorHint:
@@ -1224,7 +1226,7 @@ export const fr = {
     'invitation.signInRequired':
       'Un compte utilise déjà cette adresse. Connectez-vous avec ce compte, puis rouvrez le lien.',
     'invitation.wrongAccount':
-      'Cette invitation a été écrite pour une autre adresse e-mail que celle de ce compte.',
+      'Cette invitation est destinée à une autre adresse e-mail que celle de ce compte.',
     'invitation.credentialsRequired':
       'Connectez-vous avec le compte invité, ou choisissez un nom et un mot de passe.',
 

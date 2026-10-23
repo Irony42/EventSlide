@@ -204,6 +204,41 @@ describe('ModeratorsPanel', () => {
       expect(await screen.findByText(fr.admin.inviteLinkCopied)).toBeVisible()
     })
 
+    it('puts the focus on the link, selected, so it is read out and ready to copy', async () => {
+      renderPanel(noMail())
+      await fillInvitation('sacha@example.com')
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
+
+      const field = await screen.findByLabelText(fr.admin.inviteLinkUrl)
+
+      expect(field).toHaveFocus()
+    })
+
+    it('says so when it cannot copy, rather than doing nothing', async () => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
+      renderPanel(noMail())
+      await fillInvitation('sacha@example.com')
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
+
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.inviteLinkCopy }))
+
+      expect(await screen.findByText(fr.admin.inviteLinkCopyFailed)).toBeVisible()
+    })
+
+    it('says so when the browser refuses the clipboard', async () => {
+      const writeText = vi.fn(async () => {
+        throw new Error('denied')
+      })
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      renderPanel(noMail())
+      await fillInvitation('sacha@example.com')
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
+
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.inviteLinkCopy }))
+
+      expect(await screen.findByText(fr.admin.inviteLinkCopyFailed)).toBeVisible()
+    })
+
     it('forgets the link when the next invitation is sent', async () => {
       const api = noMail()
       renderPanel(api)

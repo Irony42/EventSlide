@@ -758,10 +758,13 @@ export const de: UiText = {
     moderatorInviteSent: (email: string) => `Eine Einladung wurde an ${email} gesendet.`,
     /** No mail relay, or it refused: the link is for the host to pass on, once. */
     inviteLinkCreated: (email: string) =>
-      `Es konnte keine E-Mail gesendet werden. Geben Sie diesen Link an ${email} weiter: Er funktioniert einmal und sieben Tage lang.`,
-    inviteLinkUrl: 'Einladungslink',
+      `Dieser Link wurde nicht per E-Mail versendet. Geben Sie ihn selbst an ${email} weiter: Er ist nur einmal verwendbar und sieben Tage gültig.`,
+    inviteLinkUrl: 'Link zum Weitergeben',
     inviteLinkCopy: 'Link kopieren',
     inviteLinkCopied: 'Link kopiert.',
+    /** No clipboard (an address that is not secure) or a refusal: the field is selectable. */
+    inviteLinkCopyFailed:
+      'Kopieren ist hier nicht möglich: Markieren Sie den Link und kopieren Sie ihn selbst.',
     revokeModerator: 'Entfernen',
     revokeModeratorTitle: 'Diesen Moderator entfernen?',
     revokeModeratorHint:

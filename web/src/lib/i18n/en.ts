@@ -719,10 +719,12 @@ export const en: UiText = {
     moderatorInviteSent: (email: string) => `An invitation was sent to ${email}.`,
     /** No mail relay, or it refused: the link is for the host to pass on, once. */
     inviteLinkCreated: (email: string) =>
-      `No email could be sent. Pass this link on to ${email}: it works once, for seven days.`,
-    inviteLinkUrl: 'Invitation link',
+      `This link was not sent by email. Pass it on to ${email} yourself: it works once and stays valid for seven days.`,
+    inviteLinkUrl: 'Link to pass on',
     inviteLinkCopy: 'Copy the link',
     inviteLinkCopied: 'Link copied.',
+    /** No clipboard (an address that is not secure) or a refusal: the field is selectable. */
+    inviteLinkCopyFailed: 'Copying is not possible here: select the link and copy it yourself.',
     revokeModerator: 'Remove',
     revokeModeratorTitle: 'Remove this moderator?',
     revokeModeratorHint: 'They will lose access to this event. Their past decisions are kept.',
