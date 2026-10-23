@@ -15,7 +15,18 @@ import type { RevokeOtherSessions } from '../../application/usecases/auth/revoke
 import type { StepUp } from '../../application/usecases/auth/stepUp'
 import type { VerifySecondFactor } from '../../application/usecases/auth/verifySecondFactor'
 
+import type { IssuePasswordResetForAccount } from '../../application/usecases/auth/issuePasswordResetForAccount'
+
 import type { ApproveInvitation } from '../../application/usecases/clients/approveInvitation'
+import type { ApprovePasswordReset } from '../../application/usecases/clients/approvePasswordReset'
+import type { InviteToClientAsOperator } from '../../application/usecases/clients/inviteToClientAsOperator'
+import type { ProvisionClientOwner } from '../../application/usecases/clients/provisionClientOwner'
+import type { RenameClient } from '../../application/usecases/clients/renameClient'
+import type { SetClientCeilings } from '../../application/usecases/clients/setClientCeilings'
+import type { ListSiteAccounts } from '../../application/usecases/site/listSiteAccounts'
+import type { ListSiteAudit } from '../../application/usecases/site/listSiteAudit'
+import type { ListSiteClientEvents } from '../../application/usecases/site/listSiteClientEvents'
+import type { ListSiteClients } from '../../application/usecases/site/listSiteClients'
 import type { GetClientLimits } from '../../application/usecases/clients/getClientLimits'
 import type { ListClientAudit } from '../../application/usecases/clients/listClientAudit'
 import type { ListPendingInvitations } from '../../application/usecases/clients/listPendingInvitations'
@@ -120,6 +131,24 @@ export interface HttpUseCases {
   readonly getClientLimits: GetClientLimits
   readonly listClientAudit: ListClientAudit
   readonly listPendingInvitations: ListPendingInvitations
+
+  // the owner's half of R2 (G2-14 / P3-13): another owner of an account's client lets an operator be
+  // handed its password-reset link, on a box with no mail relay and `copyLinkWithOwnerApproval`
+  readonly approvePasswordReset: ApprovePasswordReset
+
+  // the operator's namespace, `/api/site` (G2-14 / P3-13), behind `requireOperator`: what it reads of
+  // the box, content-free (`SiteOverview`) ...
+  readonly listSiteClients: ListSiteClients
+  readonly listSiteClientEvents: ListSiteClientEvents
+  readonly listSiteAccounts: ListSiteAccounts
+  readonly listSiteAudit: ListSiteAudit
+  // ... and what it does to a client and its owner, each audited and each reading the caller's site
+  // role again for itself where the operator guard (R1, R2) is concerned
+  readonly provisionClientOwner: ProvisionClientOwner
+  readonly renameClient: RenameClient
+  readonly setClientCeilings: SetClientCeilings
+  readonly inviteToClientAsOperator: InviteToClientAsOperator
+  readonly issuePasswordResetForAccount: IssuePasswordResetForAccount
 
   // events
   readonly createEvent: CreateEvent

@@ -60,9 +60,20 @@ export const notWiredUseCases = (): HttpUseCases => ({
   acceptInvitation: notWired('acceptInvitation'),
 
   approveInvitation: notWired('approveInvitation'),
+  approvePasswordReset: notWired('approvePasswordReset'),
   getClientLimits: notWired('getClientLimits'),
   listClientAudit: notWired('listClientAudit'),
   listPendingInvitations: notWired('listPendingInvitations'),
+
+  listSiteClients: notWired('listSiteClients'),
+  listSiteClientEvents: notWired('listSiteClientEvents'),
+  listSiteAccounts: notWired('listSiteAccounts'),
+  listSiteAudit: notWired('listSiteAudit'),
+  provisionClientOwner: notWired('provisionClientOwner'),
+  renameClient: notWired('renameClient'),
+  setClientCeilings: notWired('setClientCeilings'),
+  inviteToClientAsOperator: notWired('inviteToClientAsOperator'),
+  issuePasswordResetForAccount: notWired('issuePasswordResetForAccount'),
 
   createEvent: notWired('createEvent'),
   getEventBySlug: notWired('getEventBySlug'),

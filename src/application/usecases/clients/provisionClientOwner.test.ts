@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { NewClientDefaults } from '../../../domain/clients/newClientCeilings'
-import { asClientId, asUserId } from '../../../domain/shared/ids'
+import { asAccountTokenId, asClientId, asUserId } from '../../../domain/shared/ids'
 import { err } from '../../../domain/shared/result'
 import { INVITATION_MAX_PER_ADDRESS_PER_HOUR } from '../../../domain/users/accountToken'
 import { EmailAddress } from '../../../domain/users/emailAddress'
@@ -67,7 +67,7 @@ describe('provisionClientOwner', () => {
   let audit: FakeAuditLog
   let clock: FakeClock
   let ids: SequentialIdGenerator
-  let issueWith: (mailerToUse: Mailer) => IssueInvitation
+  let issueWith: (mailerToUse: Mailer, idGenerator?: SequentialIdGenerator) => IssueInvitation
 
   const provision = (
     overrides: Partial<ProvisionClientOwnerInput> = {},
@@ -84,6 +84,7 @@ describe('provisionClientOwner', () => {
       createClient: makeCreateClient({ clients, ids: deps.ids ?? ids, clock }),
       issueInvitation: deps.issue ?? issueWith(deps.mailer ?? mailer),
       clients: deps.clientsPort ?? clients,
+      tokens,
       newClientDefaults: deps.defaults ?? NO_DEFAULTS,
       audit: deps.audit ?? audit,
       clock,
@@ -106,12 +107,12 @@ describe('provisionClientOwner', () => {
     clock = new FakeClock(AT)
     ids = new SequentialIdGenerator()
     const secrets = new FakeSecretTokens()
-    issueWith = (mailerToUse) =>
+    issueWith = (mailerToUse, idGenerator = ids) =>
       makeIssueInvitation({
         tokens,
         secrets,
         mailer: mailerToUse,
-        ids,
+        ids: idGenerator,
         clock,
         logger: quietLogger,
         publicUrl: PUBLIC_URL,
@@ -226,7 +227,7 @@ describe('provisionClientOwner', () => {
       const result = await provision({ ceilings: { maxEvents: 5 } }, { defaults: A_TIER })
 
       const [entry, ...others] = audit.all()
-      expect(others).toEqual([])
+      expect(others.map((row) => row.action)).toEqual(['invitation.issued'])
       expect(entry).toMatchObject({
         action: 'client.created',
         subject: { type: 'client', id: result.ok ? result.value.clientId : null },
@@ -250,28 +251,28 @@ describe('provisionClientOwner', () => {
     it('is written for a client with no ceiling too, which is the fact that it was never limited', async () => {
       await provision()
 
-      expect(audit.all().map((row) => row.action)).toEqual(['client.created'])
+      expect(audit.all().map((row) => row.action)).toEqual(['client.created', 'invitation.issued'])
     })
 
     it('is the operator act, by id, when an operator provisions', async () => {
       await provision()
 
-      expect(audit.all()[0]?.actor).toEqual({
-        kind: 'operator',
-        userId: asUserId(OPERATOR),
-        label: null,
-      })
-      expect(audit.all()[0]?.at).toEqual(AT)
+      for (const row of audit.all()) {
+        expect(row.actor).toEqual({ kind: 'operator', userId: asUserId(OPERATOR), label: null })
+        expect(row.at).toEqual(AT)
+      }
     })
 
     it('is the system act, under a label, when nobody provisions', async () => {
       await provision({ createdBy: null })
 
-      expect(audit.all()[0]?.actor).toEqual({
-        kind: 'system',
-        userId: null,
-        label: 'provision-client-owner',
-      })
+      for (const row of audit.all()) {
+        expect(row.actor).toEqual({
+          kind: 'system',
+          userId: null,
+          label: 'provision-client-owner',
+        })
+      }
     })
 
     it('carries no name and no address: the log is read by people who may read neither', async () => {
@@ -292,6 +293,26 @@ describe('provisionClientOwner', () => {
       await provision({}, { issue })
 
       expect(entriesWhenInvited).toBe(1)
+    })
+
+    it('is followed, once the invitation exists, by invitation.issued naming that invitation and saying it waits for nobody', async () => {
+      const result = await provision()
+
+      expect(audit.all().map((row) => row.action)).toEqual(['client.created', 'invitation.issued'])
+      expect(audit.all()[1]).toMatchObject({
+        subject: {
+          type: 'invitation',
+          id: result.ok ? result.value.invitation.invitationId : null,
+        },
+        clientId: result.ok ? result.value.clientId : null,
+        details: { pendingApproval: false },
+      })
+    })
+
+    it('says nothing of the address the invitation went to', async () => {
+      await provision()
+
+      expect(JSON.stringify(audit.all())).not.toContain(OWNER)
     })
 
     it('removes the client and sends nothing when the log cannot be written', async () => {
@@ -330,6 +351,36 @@ describe('provisionClientOwner', () => {
 
       expect(await allClients()).toEqual([])
       expect(audit.all().map((row) => row.action)).toEqual(['client.created'])
+    })
+
+    it('revokes the invitation and removes the client when the log will not take the invitation’s own line', async () => {
+      // The first line (client.created) goes in; the second is the one the log refuses.
+      let calls = 0
+      const failsOnTheSecond: AuditRecorder = {
+        record: async (entry) => {
+          calls += 1
+          if (calls === 2) throw new Error('database is locked')
+          await audit.record(entry)
+        },
+      }
+
+      await expect(provision({}, { audit: failsOnTheSecond })).rejects.toThrow('database is locked')
+
+      expect(await allClients()).toEqual([])
+      expect(tokens.all.filter((token) => token.revokedAt === null)).toEqual([])
+    })
+
+    it('revokes the invitation and removes the client when the line is one the log refuses', async () => {
+      // An invitation id outside the log's alphabet: the second entry cannot name its subject.
+      const unnameable = Object.assign(Object.create(ids) as SequentialIdGenerator, {
+        accountTokenId: () => asAccountTokenId('not a valid id!'),
+      })
+
+      const result = await provision({}, { issue: issueWith(mailer, unnameable) })
+
+      expect(!result.ok && result.error.code).toBe('audit.subjectIdInvalid')
+      expect(await allClients()).toEqual([])
+      expect(tokens.all.filter((token) => token.revokedAt === null)).toEqual([])
     })
   })
 

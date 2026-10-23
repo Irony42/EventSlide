@@ -20,6 +20,7 @@ import type { GuestTokenService } from '../application/ports/guestTokenService'
 import type { ShareLinkRepository } from '../application/ports/shareLinkRepository'
 import type { ClientRepository } from '../application/ports/clientRepository'
 import type { AuditLog } from '../application/ports/auditLog'
+import type { SiteOverview } from '../application/ports/siteOverview'
 import type { AccountTokenRepository } from '../application/ports/accountTokenRepository'
 import type { MfaVault } from '../application/ports/mfaVault'
 import type { SecondFactorRepository } from '../application/ports/secondFactorRepository'
@@ -124,6 +125,10 @@ import { makeInviteToClientAsOperator } from '../application/usecases/clients/in
 import { makeProvisionClientOwner } from '../application/usecases/clients/provisionClientOwner'
 import { makeRenameClient } from '../application/usecases/clients/renameClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
+import { makeListSiteAccounts } from '../application/usecases/site/listSiteAccounts'
+import { makeListSiteAudit } from '../application/usecases/site/listSiteAudit'
+import { makeListSiteClientEvents } from '../application/usecases/site/listSiteClientEvents'
+import { makeListSiteClients } from '../application/usecases/site/listSiteClients'
 import type { NewClientDefaults } from '../domain/clients/newClientCeilings'
 import { makePruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import { makeUnlockGallery } from '../application/usecases/gallery/unlockGallery'
@@ -163,6 +168,8 @@ export interface Adapters {
   readonly gallerySigner: GallerySigner
   /** The append-only audit log (roadmap §10.8). Empty on a box nobody operates. */
   readonly audit: AuditLog
+  /** What the operator may see of the box: ids, statuses, instants and sizes, no content (§10.4). */
+  readonly siteOverview: SiteOverview
   /** One-use links that prove control of a mailbox (roadmap §10.3). Digests only. */
   readonly accountTokens: AccountTokenRepository
   /** The secrets that go in those links, and the digests they are stored as. */
@@ -783,6 +790,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       createClient: clientCreator(adapters),
       issueInvitation,
       clients: adapters.clients,
+      tokens: adapters.accountTokens,
       newClientDefaults: policy.newClientDefaults,
       audit: adapters.audit,
       clock: adapters.clock,
@@ -842,6 +850,11 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       mode: policy.operatorResetLinks,
       audit: adapters.audit,
     }),
+    // The operator's reads (G2-14): the read model and the log, and nothing else.
+    listSiteClients: makeListSiteClients({ overview: adapters.siteOverview }),
+    listSiteClientEvents: makeListSiteClientEvents({ overview: adapters.siteOverview }),
+    listSiteAccounts: makeListSiteAccounts({ overview: adapters.siteOverview }),
+    listSiteAudit: makeListSiteAudit({ audit: adapters.audit }),
     renameClient: makeRenameClient({
       clients: adapters.clients,
       audit: adapters.audit,
