@@ -64,9 +64,10 @@ export const makeExportAlbum = ({
     /**
      * Both the size and the stream, or `null` when the file is not there.
      *
-     * The archive needs the size up front to write an entry without buffering it, and
-     * the two calls are separate, so the file can legitimately disappear between them:
-     * the retention purge is allowed to run while a host is downloading.
+     * The size rides on the entry, but the `archiver` adapter does not read it: it streams
+     * the bytes without knowing their length. The two calls are separate, so the file can
+     * legitimately disappear between them: the retention purge is allowed to run while a
+     * host is downloading.
      */
     const open = async (photo: Photo): Promise<Omit<ArchiveEntry, 'name'> | null> => {
       const metadata = await media.stat(eventId, photo.contentHash, ALBUM_VARIANT)

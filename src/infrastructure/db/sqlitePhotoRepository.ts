@@ -481,7 +481,7 @@ export class SqlitePhotoRepository implements PhotoRepository {
   }
 
   /**
-   * One page of the album, newest first, ties broken by ascending id.
+   * One page of the album, newest first, ties broken by descending id.
    *
    * The total order matters beyond tidiness: without the id tie-break two moderators'
    * screens can disagree about what comes next, which is 1.0's per-browser slideshow
