@@ -7,7 +7,10 @@ import { describe, expect, it } from 'vitest'
  * The files a self-hoster copies, held to the promise the operator keys make (roadmap
  * G2-17 / P3-18): **`OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`, `LEGAL_TERMS_URL`,
  * `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SUPPORT_URL` and `REPORT_URL` are empty unless the
- * operator sets them**, so a box that never named an operator names none, links to nothing,
+ * operator sets them**, and so is `LEGAL_TERMS_VERSION` (G2-20), whose default would be worse than
+ * any of them: a version pinned in `compose.yaml` is a version with no address on every box that
+ * set none, which the boot refuses, and one pinned beside an address would ask every guest of an
+ * installation that never chose it to accept terms, so a box that never named an operator names none, links to nothing,
  * and shows its guests the notice they have always been shown.
  *
  * `env.test.ts` proves the schema has no default and `container.test.ts` proves a booted box
@@ -32,6 +35,7 @@ const VARIABLES = [
   'OPERATOR_NAME',
   'OPERATOR_CONTACT_EMAIL',
   'LEGAL_TERMS_URL',
+  'LEGAL_TERMS_VERSION',
   'LEGAL_PRIVACY_URL',
   'LEGAL_NOTICE_URL',
   'SUPPORT_URL',
@@ -96,7 +100,7 @@ describe('the documents and the promise that an empty box changes nothing', () =
     expect(prose).toContain('exactly what it answered before')
   })
 
-  it('the README names all seven keys in one line, with the same promise', () => {
+  it('the README names all the keys in one line, with the same promise', () => {
     const line = read('README.md')
       .split('\n')
       .find((candidate) => candidate.includes('OPERATOR_NAME'))

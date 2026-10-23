@@ -128,7 +128,7 @@ export type AcceptInvitation = (
  * came after the address was looked at would answer differently for an address that has an
  * account, and a stranger holding a link would learn who is on the box from the status. And it
  * is judged after the link, never before it, so that a dead link is the one `404` whatever the
- * form holds, and the tick is no way to tell a live link from a dead one.
+ * form holds: a dead link is never answered with the form error.
  *
  * The agreement is written **in the transaction that spends the link**
  * (`InvitationAcceptance`): the audit entry `account.termsAccepted {version}`, as the account

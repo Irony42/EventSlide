@@ -19,6 +19,10 @@ describe('isTermsVersion', () => {
     ['a path', '2027/01'],
     ['a line break', '2027-01\n'],
     ['a leading hyphen', '-2027'],
+    // The owner's door of the audit log drops every string that is not an instant, which is
+    // what keeps the version out of what a client reads; a colon is what would let one in.
+    ['an instant', '2027-01-01T00:00:00.000Z'],
+    ['a colon', 'cgu:2027'],
     ['a leading dot', '.2027'],
     ['a letter with an accent', 'édition-1'],
     ['a token as long as a real one', 'Z7q-Mx0Ld3Tn9VbRk2YcHs8WfAe5GuJi4PoXz1NvB6E'],

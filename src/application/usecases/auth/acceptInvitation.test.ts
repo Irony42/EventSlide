@@ -861,6 +861,42 @@ describe('acceptInvitation: the terms of use', () => {
     })
   })
 
+  describe('on a box whose version the log would refuse', () => {
+    // The boot refuses such a version (`isTermsVersion`), so no real box gets here. What the use
+    // case does if a composition ever hands it one anyway is decided here: it fails closed, and
+    // does not accept a person and write nothing down about what they agreed to.
+    const BROKEN = { url: TERMS.url, version: 'not a version!' }
+
+    it('refuses a new account with the log refusal, creates nothing and leaves the link usable', async () => {
+      const accept = buildWith(BROKEN)
+      const { token } = await world.invite()
+
+      const result = await accept({ token, credentials, termsAccepted: true })
+
+      expect(!result.ok && result.error.code).toBe('audit.detailsInvalid')
+      expect(await accountAt(NEWCOMER)).toBeNull()
+      expect(world.tokens.all[0]?.consumedAt).toBeNull()
+      expect(await logged()).toEqual([])
+    })
+
+    it('refuses a signed-in account the same way, and does not spend the link', async () => {
+      const accept = buildWith(BROKEN)
+      const { token } = await world.invite({ email: EXISTING_EMAIL })
+
+      const result = await accept({
+        token,
+        signedInUserId: asUserId(EXISTING_ID),
+        termsAccepted: true,
+      })
+
+      expect(!result.ok && result.error.code).toBe('audit.detailsInvalid')
+      expect(world.tokens.all[0]?.consumedAt).toBeNull()
+      expect(
+        await world.memberships.membershipFor(asEventId(EVENT_ID), asUserId(EXISTING_ID)),
+      ).toBeNull()
+    })
+  })
+
   describe('on a box that asks for none, which is every self-hosted box', () => {
     it.each([
       ['no terms given at all', undefined],
