@@ -95,8 +95,9 @@ jobs:
     runs-on: ubuntu-latest
     # A job that hangs is held for GitHub's default 360 minutes and blocks the pull request
     # all that time. On 2026-10-23 four end-to-end jobs sat for 20 to 50 minutes in the
-    # browser download below. No run of this job has needed half of this bound.
-    timeout-minutes: 40
+    # browser download below. A warm run takes about ten minutes; the bound leaves room
+    # for a cold run that fills the system-package cache on a slow mirror.
+    timeout-minutes: 55
     needs: quality
     strategy:
       fail-fast: false
@@ -141,29 +142,44 @@ jobs:
         # because a genuinely broken lockfile fails both times.
         run: npm ci || npm ci
 
+      # The browser's system packages come from the Ubuntu mirror, and on 2026-10-23 that
+      # mirror took 2 to 30 seconds a package: a WebKit job ran out of its 30 minutes in apt.
+      # The .deb files are kept between runs, so only the first run of a given project and
+      # lockfile depends on the mirror; every later one installs from the cache.
+      - name: Restore the browser's system packages
+        id: apt-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/apt-archives
+          key: apt-debs-${{ runner.os }}-${{ matrix.project }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: apt-debs-${{ runner.os }}-${{ matrix.project }}-
+
       - name: Install the project's browser
         # Only the engine this project runs (chromium-*, webkit-mobile, firefox-desktop: the
-        # prefix is the engine), with its system packages. Installing all three made every
-        # job depend on the apt packages of the other two: on 2026-10-23 a chromium job
-        # failed on apt's exit code 100 while installing WebKit's libraries.
-        # Bounded and retried once, like `npm ci` above: the download and apt both come
-        # from hosts outside the npm cache, and that day they hung rather than failed.
-        # `timeout` turns a hang into a failure the second attempt can recover from.
-        timeout-minutes: 30
+        # prefix is the engine). System packages first, in one apt run with no outer timeout:
+        # `timeout` once killed npx but not the `sudo apt-get` under it, and the retry then
+        # waited on that orphan's dpkg lock until it gave up (exit code 100). apt retries each
+        # download itself, waits for a lock held by the runner's boot-time apt-get, keeps the
+        # .deb files for the cache, and the step's `timeout-minutes` is the bound. The browser
+        # comes from Playwright's CDN, not apt, so it keeps a bounded retry.
+        timeout-minutes: 40
         env:
           PROJECT: ${{ matrix.project }}
-        # System packages first, then the browser alone. The packages get no `timeout` and no
-        # second attempt of our own: on 2026-10-23 a slow mirror took the first attempt past
-        # its bound, `timeout` killed npx but not the `sudo apt-get` under it, and the second
-        # attempt waited on that orphan's dpkg lock until it gave up (exit code 100). apt
-        # retries each download itself, waits for a lock held by the runner's boot-time
-        # apt-get, and the step's own `timeout-minutes` is the bound. The browser download
-        # comes from Playwright's CDN, not apt, so it keeps its bounded retry.
         run: |
-          echo 'DPkg::Lock::Timeout "300"; Acquire::Retries "5"; Acquire::http::Timeout "60";' | sudo tee /etc/apt/apt.conf.d/99-ci-apt > /dev/null
+          echo 'DPkg::Lock::Timeout "300"; Acquire::Retries "5"; Acquire::http::Timeout "60"; Binary::apt::APT::Keep-Downloaded-Packages "true"; APT::Keep-Downloaded-Packages "true";' | sudo tee /etc/apt/apt.conf.d/99-ci-apt > /dev/null
+          sudo rm -f /etc/apt/apt.conf.d/docker-clean
+          if [ -d ~/apt-archives ]; then sudo cp ~/apt-archives/*.deb /var/cache/apt/archives/ 2>/dev/null || true; fi
           engine="${PROJECT%%-*}"
           npx playwright install-deps "$engine"
+          mkdir -p ~/apt-archives && cp /var/cache/apt/archives/*.deb ~/apt-archives/ 2>/dev/null || true
           timeout 6m npx playwright install "$engine" || timeout 6m npx playwright install "$engine"
+
+      - name: Keep the browser's system packages
+        if: steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/apt-archives
+          key: apt-debs-${{ runner.os }}-${{ matrix.project }}-${{ hashFiles('package-lock.json') }}
 
       - name: Build
         run: npm run build
