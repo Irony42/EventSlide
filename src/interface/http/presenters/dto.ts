@@ -893,13 +893,6 @@ export interface PendingInvitationsDto {
 // `domain/site/siteOverviewRows.ts`, and each is written field by field in
 // `siteOverviewPresenter.ts`, never spread from a row.
 
-export interface SiteClientUsageDto {
-  readonly eventCount: number
-  readonly liveEventCount: number
-  readonly memberCount: number
-  readonly usedBytes: number
-}
-
 /** One client of the box: a name, ceilings and sizes. Never an event, a member or a photograph. */
 export interface SiteClientDto {
   readonly id: string
@@ -909,7 +902,12 @@ export interface SiteClientDto {
   readonly purgeAfter: string | null
   readonly ceilings: CeilingsDto
   readonly eventsCreatedInPeriod: number
-  readonly usage: SiteClientUsageDto
+  readonly usage: {
+    readonly eventCount: number
+    readonly liveEventCount: number
+    readonly memberCount: number
+    readonly usedBytes: number
+  }
 }
 
 export interface SiteClientPageDto {
@@ -936,11 +934,6 @@ export interface SiteEventPageDto {
   readonly next: string | null
 }
 
-export interface SiteAccountClientDto {
-  readonly clientId: string
-  readonly role: 'owner' | 'member'
-}
-
 /** One account: how it is recognised and what it may do. Never its hash, never its display name. */
 export interface SiteAccountDto {
   readonly id: string
@@ -951,7 +944,7 @@ export interface SiteAccountDto {
   readonly disabledAt: string | null
   readonly mustChangePassword: boolean
   readonly ownedEventCount: number
-  readonly clients: readonly SiteAccountClientDto[]
+  readonly clients: readonly { readonly clientId: string; readonly role: 'owner' | 'member' }[]
 }
 
 export interface SiteAccountPageDto {
