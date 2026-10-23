@@ -430,6 +430,8 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
       }[]
       expect(logged.map((row) => [row.action, row.actor_kind])).toEqual([
         ['client.created', 'system'],
+        // The invitation's own line (G2-14), written once it exists.
+        ['invitation.issued', 'system'],
       ])
       expect(JSON.parse(logged[0]?.details ?? '{}')).toMatchObject({
         ceilings: { maxEvents: 1, maxLiveDays: 3, clipsAllowed: false },
@@ -2032,12 +2034,110 @@ describe('createContainer: the operator guard', () => {
       .prepare('SELECT action, details FROM audit_log WHERE client_id = ? ORDER BY seq')
       .all(clientId) as { action: string; details: string }[]
     expect(lines.map((line) => line.action)).toEqual([
-      // The client's first line, written by `provisionClientOwner` (G2-18): its ceilings.
+      // The client's first two lines, written by `provisionClientOwner` (G2-18, G2-14): its
+      // ceilings, and the owner's invitation; then the operator's own invitation into it, waiting.
       'client.created',
+      'invitation.issued',
       'invitation.issued',
       'invitation.approved',
       'account.resetRequested',
     ])
     expect(JSON.stringify(lines)).not.toMatch(/example\.org|\/invite\/|\/password\/reset\//)
+  })
+})
+
+/**
+ * The operator's namespace, end to end, through the **real** container (G2-14 / P3-13): the real
+ * session, gate and step-up, the real use cases and the real SQLite adapters, including the
+ * read model, which no other test reaches through the composition root.
+ *
+ * `siteRoutes.*.test.ts` hold every rule at ring 4 over a harness that wires the use cases
+ * itself; what only this boot can break is **the wiring**: a use case left out of the bag the
+ * routes read, `SqliteSiteOverview` never given to the listings, a step-up the real session does
+ * not carry. One journey, in the order an operator lives it: confirm, open a client, read it
+ * back, change a ceiling with a reason, read the log.
+ */
+describe('createContainer: the operator’s API is wired end to end (G2-14)', () => {
+  const OPERATOR = 'operateur@example.org'
+  const PASSWORD = 'un-mot-de-passe-solide'
+
+  const signedInOperator = async (booted: Container) => {
+    // A bootstrapped owner must choose a new password before anything else; not what is under test.
+    booted.db.prepare('UPDATE users SET must_change_password = 0').run()
+    const agent = request.agent(booted.app)
+    const first = await agent.get('/api/auth/me')
+    const cookie = (first.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+      c.startsWith(`${CSRF_COOKIE}=`),
+    )
+    let csrf = decodeURIComponent(cookie?.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? '')
+    const login = await agent
+      .post('/api/auth/login')
+      .set(CSRF_HEADER, csrf)
+      .send({ email: OPERATOR, password: PASSWORD })
+    expect(login.status, JSON.stringify(login.body)).toBe(200)
+    // The login rotates the token: the one that follows it is the one to echo.
+    const rotated = (login.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+      c.startsWith(`${CSRF_COOKIE}=`),
+    )
+    csrf = decodeURIComponent(rotated?.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? csrf)
+    return { agent, csrf }
+  }
+
+  it('opens a client, reads it back through the real read model, and logs a ceiling change with its reason', async () => {
+    const booted = await boot({
+      SITE_ADMIN: 'on',
+      BOOTSTRAP_OWNER_EMAIL: OPERATOR,
+      BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+    })
+    const { agent, csrf } = await signedInOperator(booted)
+
+    // A write before any confirmation is refused, and says why.
+    const unconfirmed = await agent
+      .post('/api/site/clients')
+      .set(CSRF_HEADER, csrf)
+      .send({ clientName: 'Atelier Lumière', ownerEmail: 'proprietaire@example.org' })
+    expect([unconfirmed.status, unconfirmed.body.error.code]).toEqual([403, 'auth.stepUpRequired'])
+
+    const confirmed = await agent
+      .post('/api/auth/step-up')
+      .set(CSRF_HEADER, csrf)
+      .send({ password: PASSWORD })
+    expect(confirmed.status, JSON.stringify(confirmed.body)).toBeLessThan(300)
+
+    const opened = await agent
+      .post('/api/site/clients')
+      .set(CSRF_HEADER, csrf)
+      .send({ clientName: 'Atelier Lumière', ownerEmail: 'proprietaire@example.org' })
+    expect(opened.status, JSON.stringify(opened.body)).toBe(201)
+    // No relay on this box: the operator is handed the link to pass on.
+    expect(opened.body.invitation.delivery).toBe('link')
+
+    const listed = await agent.get('/api/site/clients')
+    expect(listed.body.items).toHaveLength(1)
+    expect(listed.body.items[0]).toMatchObject({
+      id: opened.body.clientId,
+      name: 'Atelier Lumière',
+      usage: { eventCount: 0, memberCount: 0, usedBytes: 0 },
+    })
+
+    const changed = await agent
+      .put(`/api/site/clients/${opened.body.clientId as string}/ceilings`)
+      .set(CSRF_HEADER, csrf)
+      .send({ ceilings: { maxEvents: 3 }, reason: 'Forfait mis à jour' })
+    expect(changed.status, JSON.stringify(changed.body)).toBe(200)
+
+    const refused = await agent
+      .put(`/api/site/clients/${opened.body.clientId as string}/ceilings`)
+      .set(CSRF_HEADER, csrf)
+      .send({ ceilings: { maxEvents: 4 } })
+    expect([refused.status, refused.body.error.code]).toEqual([400, 'request.invalid'])
+
+    const log = await agent.get('/api/site/audit')
+    expect(log.body.items.map((entry: { action: string }) => entry.action)).toEqual([
+      'client.ceilingsChanged',
+      'invitation.issued',
+      'client.created',
+    ])
+    expect(log.body.items[0].details.reason).toBe('Forfait mis à jour')
   })
 })
