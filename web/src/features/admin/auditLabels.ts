@@ -30,6 +30,10 @@ export const auditSentence = (entry: ClientAuditEntryDto, t: UiText): string => 
       return text.actionResetRequested
     case 'account.resetApproved':
       return text.actionResetApproved
+    case 'account.termsAccepted':
+      // The version is in the log and not in what an owner reads here: the owner's door lets
+      // through numbers, switches and instants only (`readableDetails`, G2-16).
+      return text.actionTermsAccepted
     case 'account.resetIssued':
       return entry.details['linkShown'] === true ? text.actionResetShown : text.actionResetMailed
     default:

@@ -1085,6 +1085,7 @@ export const es: UiText = {
     actionResetApproved: 'Se ha aprobado un restablecimiento de contraseña.',
     actionResetMailed: 'Se ha enviado un enlace de restablecimiento al miembro.',
     actionResetShown: 'Se ha entregado un enlace de restablecimiento al operador.',
+    actionTermsAccepted: 'Una persona aceptó las condiciones de uso al aceptar una invitación.',
     actionOther: 'Se ha registrado una acción.',
     liveWindowEnd: (date: string) => `La ventana en directo termina el ${date}.`,
   },

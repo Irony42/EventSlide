@@ -1044,6 +1044,7 @@ export const en: UiText = {
     actionResetApproved: 'A password reset was approved.',
     actionResetMailed: 'A reset link was sent to the member.',
     actionResetShown: 'A reset link was handed to the operator.',
+    actionTermsAccepted: 'A person accepted the terms of use by accepting an invitation.',
     actionOther: 'An action was recorded.',
     liveWindowEnd: (date: string) => `The live window ends on ${date}.`,
   },

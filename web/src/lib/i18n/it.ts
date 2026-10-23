@@ -1050,6 +1050,7 @@ export const it: UiText = {
     actionResetApproved: 'Un ripristino della password è stato approvato.',
     actionResetMailed: 'Un link di ripristino è stato inviato al membro.',
     actionResetShown: 'Un link di ripristino è stato consegnato all’operatore.',
+    actionTermsAccepted: 'Una persona ha accettato le condizioni d’uso accettando un invito.',
     actionOther: 'È stata registrata un’azione.',
     liveWindowEnd: (date: string) => `La finestra in diretta termina il ${date}.`,
   },

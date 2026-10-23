@@ -1090,6 +1090,8 @@ export const de: UiText = {
     actionResetApproved: 'Ein Zurücksetzen des Passworts wurde genehmigt.',
     actionResetMailed: 'Ein Link zum Zurücksetzen wurde an das Mitglied gesendet.',
     actionResetShown: 'Ein Link zum Zurücksetzen wurde dem Betreiber übergeben.',
+    actionTermsAccepted:
+      'Eine Person hat die Nutzungsbedingungen akzeptiert, indem sie eine Einladung angenommen hat.',
     actionOther: 'Eine Aktion wurde aufgezeichnet.',
     liveWindowEnd: (date: string) => `Das Live-Fenster endet am ${date}.`,
   },

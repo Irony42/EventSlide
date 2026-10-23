@@ -1670,6 +1670,8 @@ export const fr = {
     actionResetApproved: 'Une réinitialisation de mot de passe a été approuvée.',
     actionResetMailed: 'Un lien de réinitialisation a été envoyé au membre.',
     actionResetShown: 'Un lien de réinitialisation a été remis à l’opérateur.',
+    actionTermsAccepted:
+      'Une personne a accepté les conditions d’utilisation en acceptant une invitation.',
     actionOther: 'Une action a été enregistrée.',
     liveWindowEnd: (date: string) => `Le direct se termine le ${date}.`,
   },

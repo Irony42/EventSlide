@@ -502,6 +502,32 @@ describe('toClientAuditPageDto', () => {
     expect(dto.items[0]?.subject).toEqual({ type: 'invitation', id: 'inv-1' })
   })
 
+  it('lets the owner read that a person accepted the terms, and shows neither who nor the version', () => {
+    // The entry names the account twice (as the actor and as the subject) and carries the box's
+    // version. The owner's door passes numbers, switches and instants only, so it reads the line
+    // and not the string: the version stays in the log, where the operator can say it.
+    const dto = toClientAuditPageDto({
+      items: [
+        record({
+          actor: { kind: 'member', userId: asUserId('user-camille'), label: null },
+          action: 'account.termsAccepted',
+          subject: { type: 'account', id: 'user-camille' },
+          details: { version: '2027-01' },
+        }),
+      ],
+      next: null,
+    })
+
+    expect(dto.items[0]).toMatchObject({
+      action: 'account.termsAccepted',
+      actor: { kind: 'member', label: null },
+      subject: { type: 'account' },
+      details: {},
+    })
+    expect(JSON.stringify(dto)).not.toContain('user-camille')
+    expect(JSON.stringify(dto)).not.toContain('2027-01')
+  })
+
   it('drops the id of an account, which identifies a person and means nothing to its reader', () => {
     const dto = toClientAuditPageDto({
       items: [
