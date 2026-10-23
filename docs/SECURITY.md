@@ -2541,17 +2541,19 @@ code is `src/application/usecases/gallery/` (the rule is `galleryAccess.ts`),
 | The token stays out of the logs                      | every request is logged under `loggablePath`, which writes `/g/<token>` and `/api/gallery/<token>/…` as `:token`, in any letter case, since Express routes them all the same; the media URLs carry a link id and a signature and are logged as they are                                                                           | `errorHandler.test.ts` ("never carries a gallery token")                                                                                                                                              |
 | Guests are told before they upload                   | the §5.1 notice names `sharedGallery` as an audience on **every** event: the host may send the published album through a private link, which can be forwarded, until it expires or is withdrawn. Not conditioned on a live link, because a link is usually made after the guest's last upload and a closed event never asks again | `privacyNotice.test.ts`, `noticeVocabulary.test.ts`, the five `upload.noticeAudiences` tables                                                                                                         |
 
-**A link cut in the middle of a percent-escape is a `400 request.invalid`, and says nothing.**
+**A link cut in the middle of a percent-escape is answered, and says nothing.**
 A token whose last character was cut in half by a chat app that truncates a link
-(`/g/<token>%E2%80`) cannot be decoded, and Express refuses it before any route runs: the
-link is never looked up, so the answer is the same for every token and no oracle for a real
-one, which is why it is not part of the single dead-link `404` above. It used to be a
+(`/g/<token>%E2%80`) cannot be decoded, and Express refuses it when it matches the address
+to a route: the link is never looked up. On the gallery's API that is one more malformed token,
+the single dead-link `404 gallery.notAvailable` above, byte for byte, from the gallery router
+(the invitation API does the same with its own refusal); anywhere else, the pages included, it
+is the error handler's `400 request.invalid`, the same for every address and no oracle for a real
+token. It used to be a
 `500` whose log line carried Express's own message, `Failed to decode param '<the raw
 parameter>'` — the whole credential, in the error log, on a gallery, invitation or
-password-reset address. The error handler now maps it (the class **and** the `status: 400` the
-router stamps, so a `URIError` of ours stays a bug) and writes the request as rejected, with
-nothing from the error, and sets the gallery's three headers when the address carries a
-credential. `malformedPath.test.ts` holds the answers and `malformedPathLogCanary.test.ts`
+password-reset address. Both answer it by the class **and** the `status: 400` the router stamps, so a
+`URIError` of ours stays a bug, with nothing from the error in the log, and the error handler
+sets the gallery's three headers when the address carries a credential. `malformedPath.test.ts` holds the answers and `malformedPathLogCanary.test.ts`
 reads every byte the real logger and the access log write for the canonical addresses
 `loggablePath` knows. It does not widen what `loggablePath` recognises: an address with a
 doubled slash or an encoded prefix (`//g/<token>`, `/%67/<token>`) is logged as it came at

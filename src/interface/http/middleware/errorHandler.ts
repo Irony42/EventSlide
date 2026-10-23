@@ -200,7 +200,7 @@ export const errorHandler = (): ErrorRequestHandler => (error, req, res, _next) 
  * the whole token into the error log through exactly this line. `loggablePath` hides the
  * token in the path binding, and this is what keeps it out of the message.
  */
-const isUndecodablePath = (error: unknown): boolean =>
+export const isUndecodablePath = (error: unknown): boolean =>
   error instanceof URIError && (error as { status?: unknown }).status === 400
 
 /**
