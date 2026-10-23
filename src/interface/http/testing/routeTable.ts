@@ -60,10 +60,13 @@ const propertiesOf = (value: unknown): Record<string, unknown> | null =>
     ? (value as Record<string, unknown>)
     : null
 
-/** The path each `router.use` was handed, by the layer it built. See the header. */
-const pathsHandedToUse = new WeakMap<object, unknown>()
-
-/** Marks the router prototype as already wrapped, so importing this twice wraps it once. */
+/**
+ * Where the router prototype keeps what it has recorded, once wrapped. The record lives on
+ * the prototype rather than in this module so that a second evaluation of the module in one
+ * process — `vi.resetModules()`, a runner that does not isolate files — finds the wrapper
+ * already installed **and** the paths it has collected, instead of wrapping nothing and
+ * reading an empty record.
+ */
 const RECORDING = Symbol.for('eventslide.routeTable.recordsMountPaths')
 
 /**
@@ -80,10 +83,11 @@ const pathOfUse = (args: readonly unknown[]): unknown => {
 
 /**
  * Wraps `use` on Express's router prototype so that every layer it builds remembers the
- * path it was built for. `app.use` goes through the app's router's `use`, so this one hook
- * sees the app's own mounts and every nested router's.
+ * path it was built for, and returns what it has remembered, by layer. `app.use` goes
+ * through the app's router's `use`, so this one hook sees the app's own mounts and every
+ * nested router's.
  */
-const recordMountPaths = (): void => {
+const recordMountPaths = (): WeakMap<object, unknown> => {
   const prototype = propertiesOf(propertiesOf(express.Router)?.['prototype'])
   const original = prototype?.['use']
   if (prototype === null || typeof original !== 'function') {
@@ -92,8 +96,10 @@ const recordMountPaths = (): void => {
         'a router is mounted; teach it the new shape',
     )
   }
-  if (Reflect.get(prototype, RECORDING) === true) return
+  const installed: unknown = Reflect.get(prototype, RECORDING)
+  if (installed instanceof WeakMap) return installed as WeakMap<object, unknown>
 
+  const recorded = new WeakMap<object, unknown>()
   Object.defineProperty(prototype, 'use', {
     configurable: true,
     writable: true,
@@ -104,16 +110,18 @@ const recordMountPaths = (): void => {
       if (Array.isArray(stack)) {
         const path = pathOfUse(args)
         for (const layer of stack.slice(before) as unknown[]) {
-          if (typeof layer === 'object' && layer !== null) pathsHandedToUse.set(layer, path)
+          if (typeof layer === 'object' && layer !== null) recorded.set(layer, path)
         }
       }
       return result
     },
   })
-  Object.defineProperty(prototype, RECORDING, { value: true })
+  Object.defineProperty(prototype, RECORDING, { value: recorded })
+  return recorded
 }
 
-recordMountPaths()
+/** The path each `router.use` was handed, by the layer it built. See the header. */
+const pathsHandedToUse = recordMountPaths()
 
 /** The path a mounted layer was built for, or a loud failure if it was built unrecorded. */
 const pathOf = (layer: Record<string, unknown>): unknown => {
@@ -146,7 +154,8 @@ const LITERAL_MOUNT = /^(?:\/[A-Za-z0-9_-]+)+$/
 /** What a layer was built for, for a refusal to quote. */
 const sourceOf = (layer: Record<string, unknown>): string => {
   const path = pathOf(layer)
-  return typeof path === 'string' ? path : JSON.stringify(path)
+  if (typeof path === 'string') return path
+  return Array.isArray(path) ? JSON.stringify(path) : String(path)
 }
 
 /**

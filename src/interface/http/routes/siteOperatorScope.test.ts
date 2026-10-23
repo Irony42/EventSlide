@@ -635,6 +635,37 @@ describe('the stack walk', () => {
     ])
   })
 
+  it('reads an array of middleware at the root of a router the same way', () => {
+    // `router.use([a, b])` has no path either; the router reads its first argument to tell,
+    // and the recorder has to read it the way the router does.
+    const app = express()
+    const site = express.Router()
+    const pass: express.RequestHandler = (_req, _res, next) => next()
+    site.use([pass, pass])
+    site.get('/clients', answer)
+    app.use('/api/site', site)
+
+    expect(mountedRoutes(app)).toEqual([
+      { method: 'get', path: '/api/site/clients', mount: '/api/site' },
+    ])
+  })
+
+  it.each([
+    ['a regular expression', /^\/api/, String.raw`/^\/api/`],
+    ['an array of paths', ['/a', '/b'], '["/a","/b"]'],
+    ['a parameter', '/api/:version', '/api/:version'],
+    ['an optional segment', '/api{/v1}', '/api{/v1}'],
+  ])('refuses to guess a router mounted at %s', (_label, mount, quoted) => {
+    // A mount point the walk cannot read as literal segments would file every route under
+    // it at the wrong prefix, and a request for the wrong prefix 404s and passes.
+    const app = express()
+    const api = express.Router()
+    api.get('/events', answer)
+    app.use(mount, api)
+
+    expect(() => mountedRoutes(app)).toThrow(`cannot read the mount point ${quoted}`)
+  })
+
   it.each([
     [
       'on the app, at /api',
