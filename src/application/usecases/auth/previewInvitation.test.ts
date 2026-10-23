@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
+import { Event } from '../../../domain/events/event'
 import { AT, aUser, anAccountToken, anEvent, atPlus } from '../../testing/builders'
 import {
   CLIENT_ID,
@@ -242,6 +243,43 @@ describe('previewInvitation', () => {
   })
 
   // ----------------------------------------------- the inviter's authority --
+
+  describe('a suspended client opens no invitation (roadmap §10.7, G2-14)', () => {
+    const NOT_FOUND = {
+      ok: false,
+      error: expect.objectContaining({ kind: 'notFound', code: 'invitation.notFound' }),
+    }
+
+    const freezeTheClient = async (): Promise<void> => {
+      const client = await world.clients.findById(asClientId(CLIENT_ID))
+      if (client === null) throw new Error('fixture')
+      await world.clients.save(client.suspend(AT))
+    }
+
+    it('answers invitation.notFound for an invitation into the client, and opens it again once resumed', async () => {
+      const { token } = await world.invite({ to: 'client-owner' })
+      await freezeTheClient()
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+
+      const client = await world.clients.findById(asClientId(CLIENT_ID))
+      if (client === null) throw new Error('fixture')
+      await world.clients.save(client.reinstate())
+      expect((await preview({ token })).ok).toBe(true)
+    })
+
+    it('answers invitation.notFound for a moderator invitation to one of its events, whatever the status of the event', async () => {
+      const { token } = await world.invite()
+      await world.events.save(
+        Event.restore({
+          ...anEvent({ id: EVENT_ID, ownerId: HOST_ID, status: 'archived' }).toProps(),
+          clientSuspendedAt: AT,
+        }),
+      )
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+    })
+  })
 
   describe('the authority of whoever wrote an invitation to an event', () => {
     it('is read now, not when the link was written: an owner who was removed no longer invites', async () => {

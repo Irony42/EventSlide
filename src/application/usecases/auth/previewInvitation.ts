@@ -114,7 +114,9 @@ export const makeResolveInvitation = ({
 
     if (target.kind === 'client') {
       const client = await clients.findById(target.clientId)
-      if (client === null) return err(invitationNotFound())
+      // A suspended client opens no invitation, and says nothing of why (G2-14): the link is as dead
+      // as one that was never written, and it opens again the day the client is resumed.
+      if (client === null || client.isSuspended()) return err(invitationNotFound())
 
       // Both read now: an approval is worth what the owner who gave it still is, and so is an
       // owner's own invitation. An author the box no longer has (`null`) is nobody.
@@ -148,7 +150,8 @@ export const makeResolveInvitation = ({
     }
 
     const event = await events.findById(target.eventId)
-    if (event === null) return err(invitationNotFound())
+    // Before the status is judged, so that a frozen event's state is not what the answer tells.
+    if (event === null || event.isClientSuspended()) return err(invitationNotFound())
     if (!isMutable(event.status)) {
       return err(DomainError.conflict('event.immutable', { status: event.status }))
     }
