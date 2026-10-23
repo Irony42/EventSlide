@@ -2125,9 +2125,9 @@ O(4^N) on consecutive `*`, `brace-expansion` building unbounded intermediate arr
 need an attacker-supplied pattern.
 
 `readdir-glob` is only ever entered through `Archiver.prototype.glob` and
-`Archiver.prototype.directory` (`node_modules/archiver/lib/core.js:9`, used at `:720`).
+`Archiver.prototype.directory` (`node_modules/archiver/lib/core.js:3`, used at `:632` and `:694`).
 **EventSlide calls neither.** The only `archiver` usage in the tree appends one
-pre-resolved stream per photo, at `infrastructure/media/archiverWriter.ts:146`:
+pre-resolved stream per photo, at `infrastructure/media/archiverWriter.ts:154`:
 
 ```
 archive.append(source, { name: entry.name, date: entry.modifiedAt })
