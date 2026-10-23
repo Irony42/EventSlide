@@ -541,7 +541,9 @@ describe('EventSettingsPage', () => {
       await userEvent.click(await screen.findByRole('button', { name: fr.admin.scheduleSave }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['event.scheduleInPast'])
-      expect(getEvent.mock.calls.length).toBeGreaterThan(1)
+      // The sentence and the re-read are one update, but the read is an effect that runs after
+      // the commit that shows the sentence, so the second read is waited for.
+      await waitFor(() => expect(getEvent.mock.calls.length).toBeGreaterThan(1))
     })
 
     it('re-reads the event when the host comes back to the tab', async () => {
