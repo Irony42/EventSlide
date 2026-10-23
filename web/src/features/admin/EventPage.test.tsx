@@ -190,7 +190,11 @@ describe('EventPage', () => {
     renderPage(api)
 
     expect(await screen.findByRole('heading', { name: fr.admin.shareLink })).toBeVisible()
-    expect(api.shareLink).toHaveBeenCalledWith('camille-et-sacha', expect.any(AbortSignal))
+    // The heading is there from the panel's first render, and the read is an effect that runs
+    // after that commit: waiting for the heading is not waiting for the call.
+    await waitFor(() =>
+      expect(api.shareLink).toHaveBeenCalledWith('camille-et-sacha', expect.any(AbortSignal)),
+    )
   })
 
   it('hides the owner-only controls from a moderator', async () => {
