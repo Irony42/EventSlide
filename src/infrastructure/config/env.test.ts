@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ConfigError, loadConfig, loadMaintenanceConfig, resolveSourceUrl } from './env'
+import { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { OPERATOR_NAME_MAX_LENGTH } from '../../domain/privacy/privacyNotice'
 import { Password } from '../../domain/users/password'
 
@@ -177,6 +178,16 @@ describe('loadConfig', () => {
         // A development boot never gets a warning: every case below is production-only.
         warnings: [],
         audit: { retentionDays: 1095 },
+        // No ceiling for a client, and clips allowed: a box that sets none of them is unchanged.
+        newClientCeilings: {
+          maxEvents: null,
+          maxEventsPerPeriod: null,
+          maxTotalBytes: null,
+          maxEventQuotaBytes: null,
+          maxRetentionDays: null,
+          maxLiveDays: null,
+          clipsAllowed: true,
+        },
         // Nobody has set a key, and nobody is required to hold a second factor.
         mfa: { encryptionKey: null, requireOperatorSecondFactor: false },
       })
@@ -767,6 +778,290 @@ describe('loadConfig', () => {
       const config = loadConfig({ ...DEV, MAX_EVENT_QUOTA_BYTES: '' })
 
       expect(config.uploads.maxEventQuotaBytes).toBeNull()
+    })
+  })
+
+  /**
+   * The ceilings a new client starts with (G2-18 / roadmap §10.5): seven optional variables,
+   * parsed at boot and refused, naming the variable, when they do not fit.
+   *
+   * The posture is the one `MAX_EVENT_QUOTA_BYTES` has, and it is the whole point: **a box
+   * that sets none of them is unchanged**, and one that sets them with `SITE_ADMIN=off` does
+   * not boot, because there is no way to create a client for them to apply to.
+   */
+  describe('NEW_CLIENT_*, the ceilings a new client starts with (G2-18)', () => {
+    /** Every numeric variable: its field in the config, and the bounds of its `CHECK`. */
+    const NUMERIC = [
+      ['NEW_CLIENT_MAX_EVENTS', 'maxEvents', 1, Number.MAX_SAFE_INTEGER],
+      ['NEW_CLIENT_MAX_EVENTS_PER_PERIOD', 'maxEventsPerPeriod', 1, Number.MAX_SAFE_INTEGER],
+      ['NEW_CLIENT_MAX_TOTAL_BYTES', 'maxTotalBytes', 1, Number.MAX_SAFE_INTEGER],
+      ['NEW_CLIENT_MAX_EVENT_QUOTA_BYTES', 'maxEventQuotaBytes', 1, Number.MAX_SAFE_INTEGER],
+      ['NEW_CLIENT_MAX_RETENTION_DAYS', 'maxRetentionDays', 1, 3650],
+      ['NEW_CLIENT_MAX_LIVE_DAYS', 'maxLiveDays', 1, 365],
+    ] as const
+
+    /** Every variable of the family, which is what `SITE_ADMIN=off` refuses. */
+    const ALL = [...NUMERIC.map(([name]) => name), 'NEW_CLIENT_CLIPS_ALLOWED'] as const
+
+    /** A box that has an operator, which is the only kind that may set any of them. */
+    const hosted = (overrides: Source = {}): Source =>
+      aProductionEnv({ SITE_ADMIN: 'on', ...overrides })
+
+    const UNLIMITED = {
+      maxEvents: null,
+      maxEventsPerPeriod: null,
+      maxTotalBytes: null,
+      maxEventQuotaBytes: null,
+      maxRetentionDays: null,
+      maxLiveDays: null,
+      clipsAllowed: true,
+    }
+
+    it('is no ceiling at all on a box that never mentions them, so a self-hosted box is unchanged', () => {
+      expect(loadConfig({ ...DEV }).newClientCeilings).toEqual(UNLIMITED)
+      expect(loadConfig(aProductionEnv()).newClientCeilings).toEqual(UNLIMITED)
+      expect(loadConfig(hosted()).newClientCeilings).toEqual(UNLIMITED)
+    })
+
+    it('is what the domain calls unlimited, so the two cannot drift apart', () => {
+      // `liveAllowed` and `periodStartedAt` have no variable: a new client is always allowed
+      // to open, and its period starts when it is provisioned.
+      expect(ClientCeilings.unlimited().toProps()).toMatchObject(UNLIMITED)
+    })
+
+    it.each(NUMERIC)('carries %s as the number it was given', (name, field) => {
+      const config = loadConfig(hosted({ [name]: '12' }))
+
+      expect(config.newClientCeilings).toEqual({ ...UNLIMITED, [field]: 12 })
+    })
+
+    it.each(NUMERIC)(
+      'accepts %s at both ends of its range, and nothing past either',
+      (name, field, min, max) => {
+        expect(loadConfig(hosted({ [name]: String(min) })).newClientCeilings).toMatchObject({
+          [field]: min,
+        })
+        expect(loadConfig(hosted({ [name]: String(max) })).newClientCeilings).toMatchObject({
+          [field]: max,
+        })
+        expect(refusalIssues(hosted({ [name]: String(min - 1) })).join('\n')).toContain(`${name}: `)
+        // `max + 1` is not representable for the byte counts, so the first value past a safe
+        // integer stands for it there; for the day counts it is simply the next integer.
+        const past = max === Number.MAX_SAFE_INTEGER ? '9007199254740993' : String(max + 1)
+        expect(refusalIssues(hosted({ [name]: past })).join('\n')).toContain(`${name}: `)
+      },
+    )
+
+    it('accepts every variable at the edge of its range together, and the domain accepts what they produce', () => {
+      const config = loadConfig(
+        hosted({
+          NEW_CLIENT_MAX_EVENTS: '1',
+          NEW_CLIENT_MAX_EVENTS_PER_PERIOD: String(Number.MAX_SAFE_INTEGER),
+          NEW_CLIENT_MAX_TOTAL_BYTES: '1',
+          NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '1',
+          NEW_CLIENT_MAX_RETENTION_DAYS: '3650',
+          NEW_CLIENT_MAX_LIVE_DAYS: '365',
+          NEW_CLIENT_CLIPS_ALLOWED: 'false',
+        }),
+      )
+
+      // The refusal at boot and the refusal of `ClientCeilings.create` are one rule, or a
+      // default that boots would fail on the first client an operator provisions.
+      expect(ClientCeilings.create(config.newClientCeilings).ok).toBe(true)
+    })
+
+    it.each(ALL)(
+      'reads a blank %s as absent, so an empty compose variable is no ceiling of zero',
+      (name) => {
+        expect(loadConfig(hosted({ [name]: '' })).newClientCeilings).toEqual(UNLIMITED)
+        // Blank is absent for the mode check too: a compose file that passes every variable
+        // empty must not stop a box that has no operator.
+        expect(loadConfig({ ...DEV, [name]: '' }).newClientCeilings).toEqual(UNLIMITED)
+      },
+    )
+
+    it.each([
+      ['0', false],
+      ['false', false],
+      ['1', true],
+      ['true', true],
+    ])('reads NEW_CLIENT_CLIPS_ALLOWED=%s as clipsAllowed %s', (given, expected) => {
+      const config = loadConfig(hosted({ NEW_CLIENT_CLIPS_ALLOWED: given }))
+
+      expect(config.newClientCeilings.clipsAllowed).toBe(expected)
+    })
+
+    it.each(['yes', 'no', 'on', 'off', 'TRUE', 'False', '2', '-1', 'allowed', ' true'])(
+      'refuses NEW_CLIENT_CLIPS_ALLOWED=%j rather than guess which way it was meant',
+      (given) => {
+        const issues = refusalIssues(hosted({ NEW_CLIENT_CLIPS_ALLOWED: given }))
+
+        expect(issues.some((issue) => issue.startsWith('NEW_CLIENT_CLIPS_ALLOWED: '))).toBe(true)
+      },
+    )
+
+    describe.each(NUMERIC)('%s, hostile values', (name) => {
+      it.each([
+        '0',
+        '-1',
+        '1.5',
+        '0.5',
+        'abc',
+        'one',
+        'NaN',
+        'Infinity',
+        '-Infinity',
+        '1e999',
+        ' ',
+        '1 2',
+        '12abc',
+        '9007199254740993',
+        '99999999999999999999',
+      ])('refuses %j, naming the variable', (given) => {
+        const issues = refusalIssues(hosted({ [name]: given }))
+
+        expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
+      })
+
+      it('names itself in the message too, so a log line read without its prefix still says which', () => {
+        const issue =
+          refusalIssues(hosted({ [name]: 'abc' })).find((line) => line.startsWith(`${name}: `)) ??
+          ''
+
+        expect(issue.slice(name.length + 2)).toContain(name)
+      })
+    })
+
+    describe('with SITE_ADMIN off, which is its default', () => {
+      it.each(ALL)('refuses %s, naming it and the setting that would allow it', (name) => {
+        // `1` is a valid value for every variable of the family: the refusal is that the
+        // variable is set at all, whatever it says.
+        const issues = refusalIssues({ ...DEV, [name]: '1' })
+        const issue = issues.find((line) => line.startsWith(`${name}: `)) ?? ''
+
+        expect(issue).toContain('SITE_ADMIN=on')
+      })
+
+      it.each(ALL)('refuses %s beside an explicit SITE_ADMIN=off, in production too', (name) => {
+        const issues = refusalIssues(aProductionEnv({ SITE_ADMIN: 'off', [name]: '1' }))
+
+        expect(issues.some((line) => line.startsWith(`${name}: `))).toBe(true)
+      })
+
+      it('refuses a permissive value as much as a restrictive one: setting it is the error', () => {
+        const issues = refusalIssues({ ...DEV, NEW_CLIENT_CLIPS_ALLOWED: 'true' })
+
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_CLIPS_ALLOWED: '))).toBe(true)
+      })
+
+      it('lists every variable that is set, instead of stopping at the first', () => {
+        const issues = refusalIssues({
+          ...DEV,
+          NEW_CLIENT_MAX_EVENTS: '1',
+          NEW_CLIENT_MAX_LIVE_DAYS: '3',
+          NEW_CLIENT_CLIPS_ALLOWED: 'false',
+        })
+
+        const named = ALL.filter((name) => issues.some((line) => line.startsWith(`${name}: `)))
+        expect(named).toEqual([
+          'NEW_CLIENT_MAX_EVENTS',
+          'NEW_CLIENT_MAX_LIVE_DAYS',
+          'NEW_CLIENT_CLIPS_ALLOWED',
+        ])
+      })
+
+      it('refuses every NEW_CLIENT_ key the schema declares, found from env.ts rather than from a list here', () => {
+        // The refusal reads the family by its prefix so that a key added later is covered
+        // without anybody remembering to extend a list. This holds the other half: the
+        // family this file lists is the family the schema has, so a new variable that
+        // arrives with no test of its own still meets the mode check.
+        const declared = [
+          ...readFileSync(resolve(__dirname, 'env.ts'), 'utf8').matchAll(
+            /^ {6}(NEW_CLIENT_[A-Z0-9_]+):/gm,
+          ),
+        ].map((match) => match[1] ?? '')
+
+        expect(declared.length).toBeGreaterThan(0)
+        expect([...declared].sort()).toEqual([...ALL].sort())
+        for (const name of declared) {
+          expect(
+            refusalIssues({ ...DEV, [name]: '1' }).some((line) => line.startsWith(`${name}: `)),
+            name,
+          ).toBe(true)
+        }
+      })
+
+      it('is refused by a maintenance command too, since db:migrate loads the same configuration', () => {
+        expect(() =>
+          loadMaintenanceConfig({ NODE_ENV: 'production', NEW_CLIENT_MAX_EVENTS: '1' }),
+        ).toThrow(ConfigError)
+      })
+    })
+
+    describe('against the box-wide ceiling, MAX_EVENT_QUOTA_BYTES', () => {
+      const BOX = '5000000000'
+
+      it('accepts a default equal to the box-wide ceiling: it is the most a client could ever have', () => {
+        const config = loadConfig(
+          hosted({ MAX_EVENT_QUOTA_BYTES: BOX, NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: BOX }),
+        )
+
+        expect(config.newClientCeilings.maxEventQuotaBytes).toBe(5_000_000_000)
+      })
+
+      it('accepts a default below it', () => {
+        const config = loadConfig(
+          hosted({ MAX_EVENT_QUOTA_BYTES: BOX, NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '1000000000' }),
+        )
+
+        expect(config.newClientCeilings.maxEventQuotaBytes).toBe(1_000_000_000)
+      })
+
+      it('refuses a default one byte above it, naming both variables', () => {
+        const issues = refusalIssues(
+          hosted({ MAX_EVENT_QUOTA_BYTES: BOX, NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '5000000001' }),
+        )
+        const issue =
+          issues.find((line) => line.startsWith('NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: ')) ?? ''
+
+        expect(issue).toContain('MAX_EVENT_QUOTA_BYTES')
+        expect(issue).toContain('5000000001')
+        expect(issue).toContain(BOX)
+      })
+
+      it('compares nothing when the box has no ceiling, which is every self-hosted box', () => {
+        const config = loadConfig(hosted({ NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '900000000000' }))
+
+        expect(config.newClientCeilings.maxEventQuotaBytes).toBe(900_000_000_000)
+      })
+
+      it('lets a default sit below DEFAULT_EVENT_QUOTA_BYTES: a new event is lowered to it, not refused', () => {
+        // The reverse of the rule `MAX_EVENT_QUOTA_BYTES` is held to, on purpose: that ceiling
+        // refuses a request, and `createEvent` clamps an event's default quota to a client's.
+        const config = loadConfig(
+          hosted({
+            DEFAULT_EVENT_QUOTA_BYTES: '5000000000',
+            NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '1000000000',
+          }),
+        )
+
+        expect(config.newClientCeilings.maxEventQuotaBytes).toBe(1_000_000_000)
+      })
+
+      it('is listed beside every other problem, not instead of them', () => {
+        const issues = refusalIssues(
+          hosted({
+            MAX_EVENT_QUOTA_BYTES: BOX,
+            NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '9000000000',
+            NEW_CLIENT_MAX_LIVE_DAYS: '366',
+          }),
+        )
+
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '))).toBe(
+          true,
+        )
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_MAX_LIVE_DAYS: '))).toBe(true)
+      })
     })
   })
 

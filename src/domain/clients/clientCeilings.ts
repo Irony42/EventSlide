@@ -76,10 +76,16 @@ export interface EventCreationRefusal {
  */
 export type OpeningRefusal = 'liveNotAllowed' | 'liveWindowOver'
 
-const MIN_RETENTION_DAYS = 1
-const MAX_RETENTION_DAYS = 3650
-const MIN_LIVE_DAYS = 1
-const MAX_LIVE_DAYS = 365
+/**
+ * The bounds of the two ceilings that are a number of days. Exported so that `env.ts`
+ * validates the defaults of a new client (`NEW_CLIENT_*`, G2-18) against **these** numbers
+ * instead of restating them: a default the domain would refuse must be a boot refusal, not
+ * a first provisioning that fails.
+ */
+export const MIN_RETENTION_DAYS = 1
+export const MAX_RETENTION_DAYS = 3650
+export const MIN_LIVE_DAYS = 1
+export const MAX_LIVE_DAYS = 365
 const MS_PER_DAY = 24 * 60 * 60 * 1_000
 
 const isPositiveInteger = (value: number): boolean => Number.isInteger(value) && value > 0
