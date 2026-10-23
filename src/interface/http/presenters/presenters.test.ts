@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   joinUrl,
   mediaUrl,
+  toClientAuditPageDto,
   toEventDto,
   toEventSettingsDto,
   toGuestDto,
@@ -14,7 +15,9 @@ import {
   toSessionUserDto,
   type PresenterContext,
 } from './presenters'
+import type { AuditRecord } from '../../../application/ports/auditLog'
 import { AT, aGuest, aPhoto, aUser, anEvent } from '../../../application/testing/builders'
+import { asClientId, asUserId } from '../../../domain/shared/ids'
 
 const context: PresenterContext = {
   publicUrl: 'https://photos.example.com',
@@ -442,5 +445,76 @@ describe('toSessionUserDto', () => {
     const user = aUser({ mustChangePassword: true })
 
     expect(toSessionUserDto(user).mustChangePassword).toBe(true)
+  })
+})
+
+describe('toClientAuditPageDto', () => {
+  const record = (over: Partial<AuditRecord> = {}): AuditRecord => ({
+    seq: 7,
+    at: AT,
+    actor: { kind: 'operator', userId: asUserId('user-operator'), label: null },
+    action: 'invitation.issued',
+    subject: { type: 'invitation', id: 'inv-1' },
+    clientId: asClientId('client-1'),
+    details: { pendingApproval: true },
+    ...over,
+  })
+
+  it('names the kind of actor and never the account behind it', () => {
+    const dto = toClientAuditPageDto({ items: [record()], next: null })
+
+    expect(dto.items[0]?.actor).toEqual({ kind: 'operator', label: null })
+    expect(JSON.stringify(dto)).not.toContain('user-operator')
+  })
+
+  it('keeps the label of an integration, which is a constant and not a person', () => {
+    const dto = toClientAuditPageDto({
+      items: [
+        record({ actor: { kind: 'integration', userId: null, label: 'cloud:stripe-webhook' } }),
+      ],
+      next: null,
+    })
+
+    expect(dto.items[0]?.actor).toEqual({ kind: 'integration', label: 'cloud:stripe-webhook' })
+  })
+
+  it('keeps the id of an invitation, which the owner matches against their own list', () => {
+    const dto = toClientAuditPageDto({ items: [record()], next: null })
+
+    expect(dto.items[0]?.subject).toEqual({ type: 'invitation', id: 'inv-1' })
+  })
+
+  it('drops the id of an account, which identifies a person and means nothing to its reader', () => {
+    const dto = toClientAuditPageDto({
+      items: [
+        record({ action: 'account.resetIssued', subject: { type: 'account', id: 'user-member' } }),
+      ],
+      next: null,
+    })
+
+    expect(dto.items[0]?.subject).toEqual({ type: 'account' })
+    expect(JSON.stringify(dto)).not.toContain('user-member')
+  })
+
+  it('carries the instant, the sequence, the details and the cursor as they are', () => {
+    const dto = toClientAuditPageDto({ items: [record()], next: 6 })
+
+    expect(dto).toMatchObject({
+      items: [
+        {
+          seq: 7,
+          at: AT.toISOString(),
+          action: 'invitation.issued',
+          details: { pendingApproval: true },
+        },
+      ],
+      next: 6,
+    })
+  })
+
+  it('does not carry the client the entry belongs to, which the caller named or is the only one of', () => {
+    const dto = toClientAuditPageDto({ items: [record()], next: null })
+
+    expect(Object.keys(dto.items[0] ?? {})).not.toContain('clientId')
   })
 })
