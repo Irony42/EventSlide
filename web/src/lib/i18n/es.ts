@@ -954,7 +954,8 @@ export const es: UiText = {
       'Elija una contraseña que no use en ningún otro sitio. Se cerrará su sesión en todos sus dispositivos.',
     resetSubmit: 'Cambiar la contraseña',
     resetDoneTitle: 'Contraseña cambiada',
-    resetDone: 'Se ha cerrado la sesión en todos sus dispositivos. Inicie sesión con su nueva contraseña.',
+    resetDone:
+      'Se ha cerrado la sesión en todos sus dispositivos. Inicie sesión con su nueva contraseña.',
     resetAskAgain: 'Solicitar un nuevo enlace',
     accountMenu: 'Cuenta',
     accountSignedInAs: (email: string) => `Sesión iniciada como ${email}`,

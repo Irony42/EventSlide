@@ -629,17 +629,14 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // ring 4, but nothing in `web/src` calls it yet; the console reads the moderation
   // queue instead. `dtoContract.test.ts` records the same gap from the response side.
   photoListQuery: 'GET /api/events/:eventSlug/photos has no client method',
-  // The forgotten-password pages (roadmap G2-10 / P3-11) are the first caller of these two
-  // routes. The server half ships first so the pages have something to call; until they land
-  // the only clients are the ring-4 and container tests.
-  passwordResetRequestBody:
-    'POST /api/auth/password-reset/request has no client method yet (G2-10)',
-  passwordResetConfirmBody:
-    'POST /api/auth/password-reset/confirm has no client method yet (G2-10)',
-  // The invitation page is the first caller of the two invitee routes (G2-10 / P3-11). Their
-  // server half ships first, with the host's side, so the page has something to call.
+  // `POST /api/invitations/:token/accept` has a client method (G2-10, `acceptInvitation`), but its
+  // body is a **union** of two strict shapes — `{}` from a signed-in account, `{ displayName,
+  // password }` from a person choosing how to sign in — and this pairing reads object schemas
+  // only. Both shapes are pinned where they can be: the client sends exactly one of them
+  // (`client.test.ts`, "the account-token requests") and the server refuses a body that mixes them
+  // or names an account (`invitationRoutes.test.ts`).
   acceptInvitationBody:
-    'POST /api/invitations/:token/accept has no client method yet (G2-10, the acceptance page)',
+    'a union of two strict bodies, which the object-schema pairing cannot read; both shapes are pinned in client.test.ts and invitationRoutes.test.ts',
 }
 
 // --------------------------------------------------------------------- tests --

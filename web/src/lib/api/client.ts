@@ -15,8 +15,6 @@ import type {
   GuestListResponse,
   GuestMissionListResponse,
   GuestPhotoDto,
-  InvitationAcceptedDto,
-  InvitationPreviewDto,
   JoinResponse,
   MissionDto,
   MissionListResponse,
@@ -197,6 +195,36 @@ export interface ModeratorInviteResponse {
 export type InvitationAcceptance =
   | { readonly kind: 'newAccount'; readonly displayName: string; readonly password: string }
   | { readonly kind: 'signedInAccount' }
+
+/*
+ * The two answers of the invitation routes, declared here and not in `dto.ts` for the reason
+ * `ModeratorInviteResponse` is: the response envelope of one route is not one of the shapes
+ * the wall and the console share, and the server's presenters for them live beside the route.
+ */
+/**
+ * What a link offers, as `GET /api/invitations/:token` answers it (G2-09 / P3-10): the kind
+ * of thing it opens, the role, the name of the event or client, and when it ends. Nothing
+ * about who invited, nor about the address — and so nothing about whether it has an account.
+ * `targetName` is content (an event's or a client's name): printed as written, never translated.
+ */
+export interface InvitationPreviewDto {
+  readonly kind: 'event' | 'client'
+  readonly role: 'moderator' | 'owner' | 'member'
+  readonly targetName: string
+  readonly expiresAt: string
+}
+
+/**
+ * What accepting answers (`POST /api/invitations/:token/accept`). `eventSlug` is `null` for a
+ * client: there is no event to open yet. No address and no account id, by design.
+ */
+export interface InvitationAcceptedDto {
+  readonly status: 'accepted'
+  readonly kind: 'event' | 'client'
+  readonly role: 'moderator' | 'owner' | 'member'
+  readonly targetName: string
+  readonly eventSlug: string | null
+}
 
 export const createApi = (transport: Transport) => ({
   // ------------------------------------------------------------------ public --

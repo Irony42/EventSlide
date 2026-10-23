@@ -7,7 +7,12 @@ import { ToastProvider } from '../design-system/components/ToastProvider'
 import { DEFAULT_EVENT_THEME } from '../design-system/eventTheme'
 import { LocaleProvider } from '../lib/i18n/LocaleProvider'
 import { installDialogStub } from './dialogStub'
-import type { Api, ModeratorInviteResponse } from '../lib/api/client'
+import type {
+  Api,
+  InvitationAcceptedDto,
+  InvitationPreviewDto,
+  ModeratorInviteResponse,
+} from '../lib/api/client'
 import type { Locale } from '../lib/i18n/locale'
 import type {
   About,
@@ -19,8 +24,6 @@ import type {
   GalleryPhotoDto,
   GuestPhotoDto,
   GuestMissionDto,
-  InvitationAcceptedDto,
-  InvitationPreviewDto,
   JoinResponse,
   MissionDto,
   ModerationPhotoDto,

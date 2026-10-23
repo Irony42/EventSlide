@@ -1,10 +1,12 @@
 import { csrfHeaders, expect, test } from '../fixtures/app'
 import { tokenOf } from '../fixtures/clients'
+import { SUITE_LOCALE } from '../fixtures/suiteLocale'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
  * The host hands the console to somebody else by **a link**, and that somebody makes their
- * account by opening it (docs/ROADMAP.md §10.3; free plan G2-09, paid plan P3-10).
+ * account by opening it (docs/ROADMAP.md §10.3; free plan G2-09 and G2-10, paid plan P3-10 and
+ * P3-11).
  *
  * What this replaced is a password read out loud: the host typed a credential, the box created
  * an account with it, and the invitee signed in with it and was forced to change it. That
@@ -14,10 +16,10 @@ import { fr } from '../../../web/src/lib/i18n/fr'
  *
  * Two browser contexts, because it is two people: the host's laptop and the moderator's own
  * machine, with its own cookie jar. The e2e box has no mail relay, so the invitation comes back
- * as a link the host copies — which is exactly what a self-hoster with no SMTP sees. Accepting
- * it is driven over the API in the second context: the page that does it from a browser is
- * roadmap G2-10, and this journey asserts the part that only real infrastructure can break —
- * an invitation, a bcrypt hash, a session and a membership, end to end.
+ * as a link the host copies — which is exactly what a self-hoster with no SMTP sees. The invitee
+ * opens it **in the browser**, on the page G2-10 added (`/invite/:token`), chooses a name and a
+ * password there, and arrives on the event: an invitation, a bcrypt hash, a session, a
+ * membership and the SPA fallback that serves the page, end to end.
  */
 
 const CHOSEN_PASSWORD = 'phrase-que-seul-le-moderateur-connait'
@@ -56,40 +58,54 @@ test('a moderator invited by link accepts it on their own machine and can modera
   const theirContext = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     baseURL: app.baseUrl,
+    // Stated, not inherited: a manual `newContext()` does not get `use.locale` (suiteLocale.ts).
+    locale: SUITE_LOCALE,
   })
   const theirPage = await theirContext.newPage()
 
   try {
     // An address that is not an account yet: the link is what makes it one.
-    const preview = await theirContext.request.get(app.url(`/api/invitations/${tokenOf(link)}`))
-    expect(preview.status()).toBe(200)
-    expect(await preview.json()).toMatchObject({
-      kind: 'event',
-      role: 'moderator',
-      targetName: 'Camille & Sacha',
-    })
+    const opened = await theirPage.goto(link)
 
-    const accepted = await theirContext.request.post(
-      app.url(`/api/invitations/${tokenOf(link)}/accept`),
-      {
-        headers: await csrfHeaders(theirContext.request, app),
-        data: { password: CHOSEN_PASSWORD, displayName: 'Le modérateur' },
-      },
-    )
-    expect(accepted.status()).toBe(200)
-    expect(await accepted.json()).toMatchObject({ status: 'accepted', eventSlug: event.slug })
+    // The page is served with the headers that keep the token where it was put: nothing is
+    // cached or indexed, and no referrer carries it to whatever the page links to.
+    expect(opened?.status()).toBe(200)
+    expect(opened?.headers()['cache-control']).toBe('no-store')
+    expect(opened?.headers()['x-robots-tag']).toBe('noindex, nofollow')
+    expect(opened?.headers()['referrer-policy']).toBe('no-referrer')
 
-    // Signed in by the acceptance itself, with the password they just chose: no rotation
-    // gate, because nobody else ever knew it. And they moderate **this** event, only because
-    // of the invitation — no membership was written by a fixture.
+    await expect(
+      theirPage.getByText(fr.auth.invitationToModerate('Camille & Sacha'), { exact: false }),
+    ).toBeVisible()
+    // The token is in the address bar and nowhere else the page controls.
+    expect(await theirPage.title()).not.toContain(tokenOf(link))
+    await expect(theirPage.getByText(tokenOf(link))).toHaveCount(0)
+
+    await theirPage.getByLabel(fr.auth.invitationName).fill('Le modérateur')
+    await theirPage.getByLabel(fr.auth.password, { exact: true }).fill(CHOSEN_PASSWORD)
+    await theirPage
+      .getByLabel(fr.auth.invitationConfirmPassword, { exact: true })
+      .fill(CHOSEN_PASSWORD)
+    await theirPage.getByRole('button', { name: fr.auth.invitationSubmit }).click()
+
+    // On the event, signed in by the acceptance itself with the password they just chose: no
+    // rotation gate, because nobody else ever knew it. And they moderate **this** event, only
+    // because of the invitation — no membership was written by a fixture.
+    await expect(theirPage).toHaveURL(new RegExp(`/admin/events/${event.slug}$`))
+    await expect(theirPage.getByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+    await expect(theirPage.getByRole('button', { name: fr.auth.accountMenu })).toBeVisible()
+
     await theirPage.goto(app.url(`/admin/events/${event.slug}/moderation`))
     await expect(theirPage.getByRole('heading', { name: fr.moderation.title })).toBeVisible()
     await expect(theirPage.getByText(fr.moderation.empty)).toBeVisible()
     await expect(theirPage.getByText(fr.moderation.loadFailed)).toHaveCount(0)
 
-    // The link is spent: it opens nothing a second time, for anybody.
-    const again = await theirContext.request.get(app.url(`/api/invitations/${tokenOf(link)}`))
-    expect(again.status()).toBe(404)
+    // The link is spent: it opens nothing a second time, for anybody, and says so in one
+    // sentence — the same one an unknown link gets.
+    await theirPage.goto(link)
+    await expect(theirPage.getByRole('heading', { name: fr.auth.deadLinkTitle })).toBeVisible()
+    await expect(theirPage.getByText(fr.errors['invitation.notFound'])).toBeVisible()
+    await expect(theirPage.getByLabel(fr.auth.invitationName)).toHaveCount(0)
   } finally {
     await theirContext.close()
   }
@@ -98,6 +114,25 @@ test('a moderator invited by link accepts it on their own machine and can modera
 
   await host.reload()
   await expect(host.getByRole('listitem').filter({ hasText: moderator })).toBeVisible()
+})
+
+test('a link that never existed is the same dead end as a spent one', async ({ app, browser }) => {
+  // No oracle: a stranger who guesses a token learns nothing the holder of a spent link does
+  // not. 43 characters of the right alphabet, which no invitation was ever issued for.
+  const context = await browser.newContext({ baseURL: app.baseUrl, locale: SUITE_LOCALE })
+  try {
+    const page = await context.newPage()
+
+    await page.goto(app.url(`/invite/${'Q'.repeat(43)}`))
+
+    await expect(page.getByRole('heading', { name: fr.auth.deadLinkTitle })).toBeVisible()
+    await expect(page.getByText(fr.errors['invitation.notFound'])).toBeVisible()
+    // And a path with no token is the application's own 404, not a form.
+    await page.goto(app.url('/invite'))
+    await expect(page.getByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
+  } finally {
+    await context.close()
+  }
 })
 
 test('an address that already has an account is invited exactly like one that has not, and keeps its own password', async ({
@@ -165,5 +200,74 @@ test('an address that already has an account is invited exactly like one that ha
   } finally {
     await theirContext.close()
     await strangerContext.close()
+  }
+})
+
+test('a person who already has an account is sent to sign in, comes back to the same link, and accepts with it', async ({
+  app,
+  browser,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const first = await app.seedEvent({ slug: 'connu-1', name: 'Premier évènement' })
+  const second = await app.seedEvent({ slug: 'connu-2', name: 'Second évènement' })
+  const moderator = `connu-${app.baseUrl.split(':').at(-1) ?? '0'}@eventslide.test`
+
+  const invite = async (slug: string): Promise<string> => {
+    await host.goto(app.url(`/admin/events/${slug}`))
+    await host.getByLabel(fr.admin.moderatorEmail).fill(moderator)
+    await host.getByRole('button', { name: fr.admin.inviteSubmit }).click()
+    await expect(host.getByText(fr.admin.inviteLinkCreated(moderator))).toBeVisible()
+    return host.getByLabel(fr.admin.inviteLinkUrl).inputValue()
+  }
+
+  const accountContext = await browser.newContext({ baseURL: app.baseUrl, locale: SUITE_LOCALE })
+  const newMachine = await browser.newContext({ baseURL: app.baseUrl, locale: SUITE_LOCALE })
+  try {
+    // The account exists already, made by an earlier invitation (over the API: this journey is
+    // about the second link).
+    const firstLink = await invite(first.slug)
+    const made = await accountContext.request.post(
+      app.url(`/api/invitations/${tokenOf(firstLink)}/accept`),
+      {
+        headers: await csrfHeaders(accountContext.request, app),
+        data: { password: CHOSEN_PASSWORD, displayName: 'Déjà inscrit' },
+      },
+    )
+    expect(made.status()).toBe(200)
+
+    // A second link, opened on a machine with no session: the page cannot know the address has
+    // an account, so it offers to make one.
+    const secondLink = await invite(second.slug)
+    const page = await newMachine.newPage()
+    await page.goto(secondLink)
+    await page.getByLabel(fr.auth.invitationName).fill('Déjà inscrit')
+    await page.getByLabel(fr.auth.password, { exact: true }).fill('une-autre-phrase-de-passe-2026')
+    await page
+      .getByLabel(fr.auth.invitationConfirmPassword, { exact: true })
+      .fill('une-autre-phrase-de-passe-2026')
+    await page.getByRole('button', { name: fr.auth.invitationSubmit }).click()
+
+    // And the box says to sign in instead, having created nothing.
+    await expect(page.getByRole('alert')).toContainText(fr.auth.invitationSignInRequired)
+
+    await page.getByRole('link', { name: fr.auth.submit }).click()
+    await expect(page).toHaveURL(/\/login$/)
+    await page.getByLabel(fr.auth.email).fill(moderator)
+    await page.getByLabel(fr.auth.password, { exact: true }).fill(CHOSEN_PASSWORD)
+    await page.getByRole('button', { name: fr.auth.submit }).click()
+
+    // Back on the very link, signed in, with nothing to choose.
+    await expect(page).toHaveURL(secondLink)
+    await expect(page.getByText(fr.auth.invitationSignedInAs(moderator))).toBeVisible()
+    await expect(page.getByLabel(fr.auth.password, { exact: true })).toHaveCount(0)
+
+    await page.getByRole('button', { name: fr.auth.invitationAcceptAs }).click()
+
+    await expect(page).toHaveURL(new RegExp(`/admin/events/${second.slug}$`))
+    await expect(page.getByRole('heading', { name: 'Second évènement' })).toBeVisible()
+  } finally {
+    await accountContext.close()
+    await newMachine.close()
   }
 })

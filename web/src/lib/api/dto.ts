@@ -556,31 +556,6 @@ export interface RecoveryCodesDto {
   readonly recoveryCodes: readonly string[]
 }
 
-/**
- * What a link offers, as `GET /api/invitations/:token` answers it (G2-09 / P3-10): the kind
- * of thing it opens, the role, the name of the event or client, and when it ends. Nothing
- * about who invited, nor about the address — and so nothing about whether it has an account.
- * `targetName` is content (an event's or a client's name): printed as written, never translated.
- */
-export interface InvitationPreviewDto {
-  readonly kind: 'event' | 'client'
-  readonly role: 'moderator' | 'owner' | 'member'
-  readonly targetName: string
-  readonly expiresAt: string
-}
-
-/**
- * What accepting answers (`POST /api/invitations/:token/accept`). `eventSlug` is `null` for a
- * client: there is no event to open yet. No address and no account id, by design.
- */
-export interface InvitationAcceptedDto {
-  readonly status: 'accepted'
-  readonly kind: 'event' | 'client'
-  readonly role: 'moderator' | 'owner' | 'member'
-  readonly targetName: string
-  readonly eventSlug: string | null
-}
-
 export type SessionResponse =
   | { readonly authenticated: true; readonly user: CurrentUserDto }
   | { readonly authenticated: false }
