@@ -139,7 +139,7 @@ Read these before you upgrade, and back up with the version you run now.
   someone who only holds the link: that account signs in and accepts as itself. Until the page that
   opens `/invite/<token>` ships, accepting is the API call.
 - **A plain-`http` `PUBLIC_URL` is refused in production whatever the case of its scheme**
-  (#PR). `PUBLIC_URL=HTTP://photos.example.com` used to boot and hand guests join links that
+  (#146). `PUBLIC_URL=HTTP://photos.example.com` used to boot and hand guests join links that
   the `Secure` session cookie is never sent over; it now stops the boot like
   `http://photos.example.com`. The `localhost` exemption is read from the host as well, and it
   is the host `localhost` and nothing that merely starts with it: `http://localhost.example.com`
