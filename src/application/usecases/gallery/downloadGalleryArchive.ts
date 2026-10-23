@@ -87,12 +87,20 @@ export const makeDownloadGalleryArchive =
      * One entry's bytes — opened, and the link re-read, only when the writer pulls them.
      *
      * **Lazy, and that is the revocation guarantee rather than a tidy-up.** The real
-     * writer (`archiverWriter`) queues entries as fast as it is handed them and writes them
-     * one by one afterwards, so a check made while *listing* the entries ran for the whole
-     * album before the first byte left the box: measured, a link revoked after the first
-     * chunk of a 200-photograph archive still delivered all 52 MB. Here the check runs at
-     * the moment an entry's bytes are consumed, so a revoke stops the download at the next
-     * photograph. It also means one file descriptor is open at a time, not one per entry.
+     * writer (`archiverWriter`) used to queue entries as fast as it was handed them and
+     * write them one by one afterwards, so a check made while *listing* the entries ran for
+     * the whole album before the first byte left the box: measured, a link revoked after
+     * the first chunk of a 200-photograph archive still delivered all 52 MB. Here the check
+     * runs at the moment an entry's bytes are consumed, so a revoke stops the download at
+     * the next photograph.
+     *
+     * It also means one file descriptor is open at a time, not one per entry. That is true
+     * of the pair, not of this function alone: the descriptor is opened here, when the
+     * entry's bytes are first asked for, and the writer asks for them one entry at a time,
+     * only once it has written the previous one, and closes what it was handed when the
+     * client goes away. `archiverWriter.test.ts` and `galleryArchive.test.ts` count the
+     * sources and the real files, so a writer that went back to taking the album at once
+     * would turn this sentence false in a red test rather than in a production incident.
      *
      * Bytes that vanish between being sized and being read — a retention purge running
      * under a download — abort the archive rather than leave an empty entry in it: the

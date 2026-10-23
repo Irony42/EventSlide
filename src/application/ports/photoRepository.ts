@@ -220,9 +220,15 @@ export interface PhotoRepository {
   ): Promise<readonly PhotoId[]>
 
   /**
-   * Streams the album for the ZIP export, one row at a time. Materialising a
-   * four-thousand-photo album into an array before writing the archive is how a
-   * self-hosted box runs out of memory.
+   * Streams the album, one row at a time. Materialising a four-thousand-photo album into an
+   * array before writing the archive is how a self-hosted box runs out of memory.
+   *
+   * **Do not read it at the pace of a client.** The row stream keeps one statement
+   * iterating across every `await` of its consumer, and while a statement is iterating the
+   * connection refuses every write, for every event on the box. The album downloads no
+   * longer use it: the archive writer asks for an entry only when it is about to write it,
+   * so a slow download would hold the statement for as long as it lasts, and both read in
+   * pages of `list` instead. Nothing calls this today.
    */
   streamForExport(eventId: EventId, statuses: readonly PhotoStatus[]): AsyncIterable<Photo>
 }
