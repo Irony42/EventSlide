@@ -91,6 +91,15 @@ describe('AUDIT_ACTIONS', () => {
     expect(declared.type === 'object' && Object.keys(declared.fields).sort()).toEqual(ceilingKeys)
   })
 
+  it('holds the snapshot of client.created to the same keys, so a client is never opened with a ceiling the log does not name', () => {
+    const declared = AUDIT_ACTIONS['client.created'].details.ceilings
+    const ceilingKeys = Object.keys(ClientCeilings.unlimited().toProps()).sort()
+
+    expect(declared.type).toBe('object')
+    expect(declared.type === 'object' && Object.keys(declared.fields).sort()).toEqual(ceilingKeys)
+    expect(declared).toEqual(AUDIT_ACTIONS['client.ceilingsChanged'].details.before)
+  })
+
   it('declares the same snapshot before and after, so the two sides are always comparable', () => {
     for (const action of ACTIONS) {
       const details: DetailFields = AUDIT_ACTIONS[action].details

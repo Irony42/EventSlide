@@ -756,3 +756,23 @@ export interface AboutDto {
   readonly links: AboutLinksDto
   readonly features: AboutFeaturesDto
 }
+
+/**
+ * `GET /api/site/client-defaults` (free plan G2-18): the ceilings a client is created with
+ * when the operator names none, which the console pre-fills its provisioning form with.
+ *
+ * **Seven of a client's nine ceilings**, the ones `NEW_CLIENT_*` can set: `liveAllowed` has no
+ * default (a new client is allowed to open) and `periodStartedAt` is the day of provisioning,
+ * supplied by the server. `null` is "no ceiling", which is every value on a box that set none.
+ */
+export interface ClientDefaultsDto {
+  readonly ceilings: {
+    readonly maxEvents: number | null
+    readonly maxEventsPerPeriod: number | null
+    readonly maxTotalBytes: number | null
+    readonly maxEventQuotaBytes: number | null
+    readonly maxRetentionDays: number | null
+    readonly maxLiveDays: number | null
+    readonly clipsAllowed: boolean
+  }
+}

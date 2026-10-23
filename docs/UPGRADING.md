@@ -283,8 +283,12 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
    `SMTP_URL`, `MAIL_FROM`, `EVENT_CREATION`, `AUDIT_RETENTION_DAYS`, `MIN_FREE_DISK_BYTES`,
    `MAX_CONCURRENT_UPLOAD_REQUESTS`, `MAX_QUEUED_CLIPS_PER_EVENT`, `MAX_STREAMS_PER_CLIENT`,
    `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`, `RETENTION_CAP_NOTICE_DAYS`,
-   `SQLITE_SHUTDOWN_CHECKPOINT`, `MFA_ENCRYPTION_KEY` and `REQUIRE_OPERATOR_2FA`. The
-   CHANGELOG says what each accepts.
+   `SQLITE_SHUTDOWN_CHECKPOINT`, `MFA_ENCRYPTION_KEY`, `REQUIRE_OPERATOR_2FA`,
+   `NEW_CLIENT_MAX_EVENTS`, `NEW_CLIENT_MAX_EVENTS_PER_PERIOD`, `NEW_CLIENT_MAX_TOTAL_BYTES`,
+   `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES`, `NEW_CLIENT_MAX_RETENTION_DAYS`, `NEW_CLIENT_MAX_LIVE_DAYS`
+   and `NEW_CLIENT_CLIPS_ALLOWED`. The CHANGELOG says what each accepts. A `NEW_CLIENT_*` setting
+   also stops a box that runs with `SITE_ADMIN=off`, which is the default, and so does any other name
+   that starts with `NEW_CLIENT_`.
 4. **Check the scripts and clients that call the API.**
    - An account that must change its password gets `403 auth.passwordChangeRequired` on every
      route but the three that let it see who it is, change the password and sign out.

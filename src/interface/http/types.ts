@@ -1,3 +1,4 @@
+import type { NewClientDefaults } from '../../domain/clients/newClientCeilings'
 import type { Event } from '../../domain/events/event'
 import type { EventRole } from '../../domain/events/eventRole'
 import type { Guest } from '../../domain/guests/guest'
@@ -127,6 +128,14 @@ export interface HttpConfig {
    * nothing to anybody who is not the operator. It decides how much surface exists.
    */
   readonly siteAdmin: boolean
+  /**
+   * What `provisionClientOwner` gives a client whose operator named no ceiling (`NEW_CLIENT_*`,
+   * G2-18). Read by one route, `GET /api/site/client-defaults`, which shows it to the operator's
+   * console as the form's starting values; the use case holds its own copy from the same
+   * configuration, so what the form shows is what a blank form provisions. No ceiling at all
+   * on a box that set none.
+   */
+  readonly newClientCeilings: NewClientDefaults
   /**
    * The operator's second factor (G2-13 / P3-15). Read by `buildServer` and the authorization
    * middleware, and by nothing that can be talked into widening it: turning `requiredForOperators`

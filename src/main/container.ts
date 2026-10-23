@@ -438,6 +438,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     mediaSweepMinimumAgeMs: MEDIA_SWEEP_MIN_AGE_MS,
     mediaSweepMaxDigestsPerPass: MEDIA_SWEEP_MAX_DIGESTS,
     auditRetentionDays: config.audit.retentionDays,
+    newClientDefaults: config.newClientCeilings,
     operatorName: config.operator.name,
     mfaIssuer: config.operator.name ?? 'EventSlide',
     clips: {
@@ -609,6 +610,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secureCookie: config.session.secureCookie,
     e2eHooks: config.e2eHooks,
     siteAdmin: config.siteAdmin,
+    newClientCeilings: config.newClientCeilings,
     secondFactor: {
       available: config.mfa.encryptionKey !== null,
       requiredForOperators: config.mfa.requireOperatorSecondFactor,

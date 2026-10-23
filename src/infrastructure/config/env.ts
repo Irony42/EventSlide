@@ -6,6 +6,12 @@ import {
   AUDIT_RETENTION_MIN_DAYS,
 } from '../../domain/audit/auditRetention'
 import {
+  MAX_LIVE_DAYS as CLIENT_MAX_LIVE_DAYS,
+  MAX_RETENTION_DAYS as CLIENT_MAX_RETENTION_DAYS,
+  MIN_LIVE_DAYS as CLIENT_MIN_LIVE_DAYS,
+  MIN_RETENTION_DAYS as CLIENT_MIN_RETENTION_DAYS,
+} from '../../domain/clients/clientCeilings'
+import {
   DEFAULT_OPERATOR_RESET_LINKS,
   OPERATOR_RESET_LINK_MODES,
   type OperatorResetLinks,
@@ -640,6 +646,42 @@ const auditRetentionDays = z.preprocess(
 )
 
 /**
+ * One of the `NEW_CLIENT_*` ceilings that is a number (roadmap §10.5; free plan G2-18): what a
+ * client created by `provisionClientOwner` starts with when nobody says otherwise.
+ *
+ * **Absent is "no ceiling", and absent is what a box that never heard of it has.** The
+ * variable is `undefined` here, not a number, so a self-hosted box that sets none of them
+ * provisions every client exactly as `createClient` always did. Blank is absent, for the
+ * reason written on {@link blankAsAbsent}: a dangling `NEW_CLIENT_MAX_EVENTS=` must not be
+ * read as a ceiling of zero, which would forbid a client its first event.
+ *
+ * **The bounds are the domain's own** (`clientCeilings.ts`, copied from the `CHECK`s of the
+ * `clients` table), so a default that boots is a default `ClientCeilings.create` accepts: the
+ * alternative is a refusal on the first client an operator provisions, hours or weeks after
+ * the box was configured, which is the shape of failure this file exists to prevent. Whole
+ * and safe, because a byte count above 2^53 is not a number the audit log or SQLite can hold
+ * exactly.
+ */
+const newClientCeiling = (variable: string, min = 1, max = Number.MAX_SAFE_INTEGER) => {
+  const whole = { error: `${variable} must be a whole number` }
+  return z.preprocess(
+    blankAsAbsent,
+    z.coerce
+      .number(whole)
+      .int(whole)
+      .min(min, { error: `${variable} must be at least ${min}` })
+      .max(max, { error: `${variable} must be at most ${max}` })
+      .optional(),
+  )
+}
+
+/**
+ * `NEW_CLIENT_CLIPS_ALLOWED`: `true`, `false`, `1` or `0`, absent meaning "allowed" — which is
+ * also what a client with no ceiling at all has. Blank is absent, as for its siblings.
+ */
+const newClientClipsAllowed = z.preprocess(blankAsAbsent, boolish.optional())
+
+/**
  * `SMTP_URL`: the relay outgoing mail goes through (roadmap §10.3, G2-07 / P3-08), as
  * `smtp://host:587` (a plain connection upgraded with STARTTLS) or `smtps://host:465` (TLS
  * from the first byte), with `user:password@` in front when the relay wants a login. Absent
@@ -1171,6 +1213,27 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /** See {@link auditRetentionDays}. Three years unless the box says otherwise. */
       AUDIT_RETENTION_DAYS: auditRetentionDays,
 
+      /**
+       * The ceilings a client is created with (G2-18), one variable per ceiling. All
+       * optional, and all refused with `SITE_ADMIN=off`: see the refinement below, and
+       * {@link newClientCeiling} for what absent and blank mean.
+       */
+      NEW_CLIENT_MAX_EVENTS: newClientCeiling('NEW_CLIENT_MAX_EVENTS'),
+      NEW_CLIENT_MAX_EVENTS_PER_PERIOD: newClientCeiling('NEW_CLIENT_MAX_EVENTS_PER_PERIOD'),
+      NEW_CLIENT_MAX_TOTAL_BYTES: newClientCeiling('NEW_CLIENT_MAX_TOTAL_BYTES'),
+      NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: newClientCeiling('NEW_CLIENT_MAX_EVENT_QUOTA_BYTES'),
+      NEW_CLIENT_MAX_RETENTION_DAYS: newClientCeiling(
+        'NEW_CLIENT_MAX_RETENTION_DAYS',
+        CLIENT_MIN_RETENTION_DAYS,
+        CLIENT_MAX_RETENTION_DAYS,
+      ),
+      NEW_CLIENT_MAX_LIVE_DAYS: newClientCeiling(
+        'NEW_CLIENT_MAX_LIVE_DAYS',
+        CLIENT_MIN_LIVE_DAYS,
+        CLIENT_MAX_LIVE_DAYS,
+      ),
+      NEW_CLIENT_CLIPS_ALLOWED: newClientClipsAllowed,
+
       /** See {@link smtpUrl}. Absent means no mail: the composition root wires `NullMailer`. */
       SMTP_URL: smtpUrl,
       /** See {@link mailFrom}. Required whenever `SMTP_URL` is set. */
@@ -1234,6 +1297,41 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
           code: 'custom',
           path: ['MAX_EVENT_QUOTA_BYTES'],
           message: `MAX_EVENT_QUOTA_BYTES (${raw.MAX_EVENT_QUOTA_BYTES}) must be at least DEFAULT_EVENT_QUOTA_BYTES (${raw.DEFAULT_EVENT_QUOTA_BYTES}), or every event created with no opinion would already be above the ceiling`,
+        })
+      }
+
+      // G2-18, and §10.9 once more: the ceilings a new client starts with mean something only
+      // on a box that creates clients, and nobody can on a box with `SITE_ADMIN=off`. Refused
+      // **variable by variable**, so the operator is told every one to remove at once, and
+      // found by the `NEW_CLIENT_` prefix of the parsed keys rather than from a list: a key
+      // added to the schema and forgotten in a list would be silently accepted with the mode
+      // off, which is precisely the configuration this refusal exists to stop.
+      if (raw.SITE_ADMIN !== 'on') {
+        for (const [name, value] of Object.entries(raw)) {
+          if (name.startsWith('NEW_CLIENT_') && value !== undefined) {
+            ctx.addIssue({
+              code: 'custom',
+              path: [name],
+              message: `${name} requires SITE_ADMIN=on: the ceilings a new client starts with only mean something on a box that creates clients, and with SITE_ADMIN=off there is no way to create one (docs/ROADMAP.md §10.9)`,
+            })
+          }
+        }
+      }
+
+      // A default above the box-wide ceiling would promise every new client a quota that
+      // `createEvent` refuses (`event.quotaAboveCeiling`, G3-02): the client's own number is
+      // not what bounds it, `MAX_EVENT_QUOTA_BYTES` is, and the page that shows the operator
+      // the default would show one nobody can reach. Not production-gated, for the reason the
+      // ceiling check above is not.
+      if (
+        raw.NEW_CLIENT_MAX_EVENT_QUOTA_BYTES !== undefined &&
+        raw.MAX_EVENT_QUOTA_BYTES !== undefined &&
+        raw.NEW_CLIENT_MAX_EVENT_QUOTA_BYTES > raw.MAX_EVENT_QUOTA_BYTES
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['NEW_CLIENT_MAX_EVENT_QUOTA_BYTES'],
+          message: `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES (${raw.NEW_CLIENT_MAX_EVENT_QUOTA_BYTES}) must not exceed MAX_EVENT_QUOTA_BYTES (${raw.MAX_EVENT_QUOTA_BYTES}): the box-wide ceiling binds every event whatever a client's own says, so the default would promise a quota that is refused`,
         })
       }
 
@@ -1651,6 +1749,23 @@ export interface AppConfig {
      */
     readonly retentionDays: number
   }
+
+  /**
+   * The ceilings a client is created with (G2-18), from the `NEW_CLIENT_*` variables and shaped
+   * as the `ClientCeilingsInput` that `createClient` takes, so the composition root hands it
+   * over unchanged. `null` is "no ceiling" and `true` is "clips allowed", which is what every
+   * client of a box that set none of them has: the schema refuses a variable of this family
+   * with `SITE_ADMIN=off`, so a solo box can only ever carry the unlimited value.
+   */
+  readonly newClientCeilings: {
+    readonly maxEvents: number | null
+    readonly maxEventsPerPeriod: number | null
+    readonly maxTotalBytes: number | null
+    readonly maxEventQuotaBytes: number | null
+    readonly maxRetentionDays: number | null
+    readonly maxLiveDays: number | null
+    readonly clipsAllowed: boolean
+  }
 }
 
 /**
@@ -1744,16 +1859,39 @@ const computeWarnings = ({
   return warnings
 }
 
+/**
+ * The `NEW_CLIENT_` names in `source` that this version does not read, sorted.
+ *
+ * A misspelt ceiling (`NEW_CLIENT_MAX_EVENT=3`) is not a setting, and zod drops a key its schema
+ * does not declare without a word: the box would boot with no ceiling at all for every new
+ * client, which is the one outcome the family exists to prevent, and nothing would say so. The
+ * prefix is this feature's own, so a name under it that is not a key of the schema is a typo, not
+ * somebody else's variable. Checked against the schema's keys, so a variable added later is known
+ * the moment it is declared. A value is never read here, only the name: this list is printed.
+ */
+const unknownNewClientNames = (schema: typeof serverSchema, source: Source): readonly string[] =>
+  Object.keys(source)
+    .filter((name) => name.startsWith('NEW_CLIENT_') && !Object.hasOwn(schema.shape, name))
+    .sort()
+
 const load = (schema: typeof serverSchema, source: Source): AppConfig => {
   const parsed = schema.safeParse(source)
-  if (!parsed.success) {
-    // Every issue this schema can raise names a variable: an object-shape failure
-    // carries its key, and each `addIssue` above sets `path` explicitly. There is no
-    // path-less case to format around, so there is no branch here either.
-    throw new ConfigError(
-      parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
-    )
-  }
+  // Every issue this schema can raise names a variable: an object-shape failure carries its key,
+  // and each `addIssue` above sets `path` explicitly. There is no path-less case to format
+  // around, so there is no branch here either. A name this version does not know is listed
+  // beside them, so one restart shows every problem.
+  const known = Object.keys(schema.shape).filter((name) => name.startsWith('NEW_CLIENT_'))
+  const unknown = unknownNewClientNames(schema, source).map(
+    (name) =>
+      `${name}: not a setting of this version; the ceilings a new client starts with are ${known.join(', ')}`,
+  )
+  const problems = [
+    ...(parsed.success
+      ? []
+      : parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)),
+    ...unknown,
+  ]
+  if (!parsed.success || problems.length > 0) throw new ConfigError(problems)
 
   const raw = parsed.data
   const isProduction = raw.NODE_ENV === 'production'
@@ -1940,6 +2078,16 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
 
     audit: {
       retentionDays: raw.AUDIT_RETENTION_DAYS,
+    },
+
+    newClientCeilings: {
+      maxEvents: raw.NEW_CLIENT_MAX_EVENTS ?? null,
+      maxEventsPerPeriod: raw.NEW_CLIENT_MAX_EVENTS_PER_PERIOD ?? null,
+      maxTotalBytes: raw.NEW_CLIENT_MAX_TOTAL_BYTES ?? null,
+      maxEventQuotaBytes: raw.NEW_CLIENT_MAX_EVENT_QUOTA_BYTES ?? null,
+      maxRetentionDays: raw.NEW_CLIENT_MAX_RETENTION_DAYS ?? null,
+      maxLiveDays: raw.NEW_CLIENT_MAX_LIVE_DAYS ?? null,
+      clipsAllowed: raw.NEW_CLIENT_CLIPS_ALLOWED ?? true,
     },
 
     mfa: {

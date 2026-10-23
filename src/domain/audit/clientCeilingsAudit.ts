@@ -18,7 +18,10 @@ import type { AuditDetails } from './auditDetails'
  */
 
 export interface PlannedAuditEntry {
-  readonly action: Extract<AuditAction, 'client.ceilingsChanged' | 'client.periodReset'>
+  readonly action: Extract<
+    AuditAction,
+    'client.created' | 'client.ceilingsChanged' | 'client.periodReset'
+  >
   readonly details: AuditDetails
 }
 
@@ -51,6 +54,17 @@ const periodSnapshot = (client: Client): AuditDetails => ({
 /** Equal snapshots serialise equal: both come out of the same function, key order fixed. */
 const same = (left: AuditDetails, right: AuditDetails): boolean =>
   JSON.stringify(left) === JSON.stringify(right)
+
+/**
+ * The entry for a client that has just been opened: **always written**, unlike a change, and
+ * carrying the full snapshot of the ceilings it starts with (G2-18). A client created with no
+ * ceiling at all says so, with seven `null`s and two `true`s, because "it was never limited" is
+ * as much a fact about the day it was opened as any number.
+ */
+export const describeClientCreation = (client: Client): PlannedAuditEntry => ({
+  action: 'client.created',
+  details: { ceilings: ceilingsSnapshot(client.ceilings.toProps()) },
+})
 
 export const describeCeilingsChange = (before: Client, after: Client): PlannedAuditEntry[] => {
   const planned: PlannedAuditEntry[] = []

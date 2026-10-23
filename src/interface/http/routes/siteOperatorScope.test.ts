@@ -191,10 +191,15 @@ const CLIENT_SPACE_ROUTES: Readonly<Record<string, string>> = {
  * sweep excludes an entry only where it really sits on that mount.
  *
  * Each one is declared in `siteRoutes.ts`, below its router-level gate; no other router may
- * declare a path in the namespace, which {@link trespassersOn} holds. Empty today, because
- * the namespace carries no route yet: the first one adds its line here in the same diff.
+ * declare a path in the namespace, which {@link trespassersOn} holds. Each new route adds its
+ * line here in the same diff.
  */
-const OPERATOR_ROUTES: Readonly<Record<string, string>> = {}
+const OPERATOR_ROUTES: Readonly<Record<string, string>> = {
+  'get /api/site/client-defaults':
+    'the ceilings a new client starts with (`NEW_CLIENT_*`, G2-18): the box’s own configuration, ' +
+    'read from nothing but the process’s settings, naming no client, no event and no account — ' +
+    'so there is no evening behind it for an operator to reach',
+}
 
 /** Where `buildServer` mounts `siteRoutes`, the one router that may declare a route here. */
 const SITE_NAMESPACE = '/api/site'
@@ -955,9 +960,8 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
     })
 
     // `it.each` over an empty table registers zero cases, in either mode, and says nothing:
-    // while `OPERATOR_ROUTES` is empty this line is not a skipped case but an absent one,
-    // and the report lists no "refuses …" line at all. The first entry is what makes one
-    // appear, so its absence from a green run today is expected, not a gap.
+    // were `OPERATOR_ROUTES` empty this line would not be a skipped case but an absent one,
+    // and the report would list no "refuses …" line at all.
     it.runIf(siteAdmin).each(Object.keys(OPERATOR_ROUTES))(
       'refuses %s to a signed-in account that does not operate the box, with requireOperator’s 403',
       async (name) => {

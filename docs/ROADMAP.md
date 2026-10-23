@@ -726,6 +726,13 @@ that one client's 4K video habit should not fill the disk the other four wedding
 > retention purge. The table, and the argument for each choice (one byte sum in the write
 > transaction, the live window counted from the first opening, a purge that no `NULL` can disable),
 > is in [SECURITY.md](SECURITY.md) §5; the wire contract is in [API.md](API.md) §2, §3 and §6.
+>
+> **Defaults for a new client (G2-18)**: seven optional settings, `NEW_CLIENT_*`, give a client the
+> operator did not limit a starting set of ceilings (absent is none, so a box that sets none is
+> unchanged; refused at boot with `SITE_ADMIN=off`, with a quota above `MAX_EVENT_QUOTA_BYTES`, or misspelt).
+> `provisionClientOwner` applies them, `GET /api/site/client-defaults` shows them to the console, and
+> the ceilings a client starts with are written to the audit log. **Not built**: the mandatory reason
+> for a later change of ceilings (see [SECURITY.md](SECURITY.md) §5).
 
 ### 10.6 Support access, with the audit trail that makes it acceptable (P2, effort M, risk: medium)
 
@@ -757,7 +764,8 @@ three together are what let an operator stop a relationship without a database c
 > and `AUDIT_RETENTION_DAYS` (1095 by default, 365 at least) is honoured by the retention sweep
 > through `pruneAuditLog`. `setClientCeilings` is the first writer, write-ahead (the entry is
 > recorded before the client is saved): `client.ceilingsChanged {before, after}`, and
-> `client.periodReset {before, after}` when a renewal zeroes the period counter. **Not built**: any route that reads the log (the operator's
+> `client.periodReset {before, after}` when a renewal zeroes the period counter, and
+> `provisionClientOwner` writes `client.created {ceilings}` (G2-18). **Not built**: any route that reads the log (the operator's
 > `/api/site` view, G2-14, and the client-readable view, G2-16), the other operator actions'
 > entries, pruning from `npm run purge`, and a transaction shared with the act being recorded.
 > See [SECURITY.md §17](SECURITY.md).

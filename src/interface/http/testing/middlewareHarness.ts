@@ -48,6 +48,16 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   // product a solo install runs. A test about the operator's namespace passes
   // `{ siteAdmin: true }` through `config`, the same way it would any other setting.
   siteAdmin: false,
+  // No ceiling for a new client, as on a box that set no `NEW_CLIENT_*`.
+  newClientCeilings: {
+    maxEvents: null,
+    maxEventsPerPeriod: null,
+    maxTotalBytes: null,
+    maxEventQuotaBytes: null,
+    maxRetentionDays: null,
+    maxLiveDays: null,
+    clipsAllowed: true,
+  },
   // Off, as on a box that never set a key: no enrolment is offered and nothing is required of an
   // operator. A test about the second factor passes `secondFactor` through `config`.
   secondFactor: { available: false, requiredForOperators: false },

@@ -192,8 +192,9 @@ from it.
 
 The namespace for running one box for other people (roadmap §10.9): `/api/site` itself and
 every path below it, at a segment boundary — `/api/sites` is not in it and answers as any
-unknown path does. **No route is mounted in it yet**; the clients, invitations and
-ceilings of roadmap §10.2–§10.8 will be, each documented here when it ships.
+unknown path does. **One route is mounted in it so far**, `GET /api/site/client-defaults`
+(below); the clients, invitations and ceilings of roadmap §10.2–§10.8 will be, each documented
+here when it ships.
 
 A state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) without a valid token meets
 CSRF (below) first, in both modes — `403 request.csrfMissing` or `request.csrfMismatch` —
@@ -235,6 +236,39 @@ has is under `/api/client` (§6, `POST /api/client/invitations/:invitationId/app
 **No audit route exists yet either.** The append-only audit log (roadmap §10.8) is written by
 `setClientCeilings` and pruned by the retention sweep, and nothing reads it over the wire: the
 operator's view is G2-14 and the client-readable view is G2-16, both behind their own gates.
+
+#### `GET /api/site/client-defaults`
+
+The ceilings a new client is created with when its operator names none: the `NEW_CLIENT_*`
+settings of `.env.example`, read once at boot. The console pre-fills the form that provisions a
+client with it, so what the form shows is what a form left blank would provision. It is the box's
+own configuration and reads no storage: it names no client, no event and no account.
+
+Behind the namespace's gate like everything under `/api/site`: `404 route.notFound` with
+`SITE_ADMIN=off`, `401 auth.required`, `403 auth.forbidden` for an account that does not operate the
+box, and `403 auth.secondFactorRequired` where a second factor is required and not yet given.
+
+**200**, `Cache-Control: no-store`
+
+```json
+{
+  "ceilings": {
+    "maxEvents": 1,
+    "maxEventsPerPeriod": 6,
+    "maxTotalBytes": 5000000000,
+    "maxEventQuotaBytes": 5000000000,
+    "maxRetentionDays": 30,
+    "maxLiveDays": 3,
+    "clipsAllowed": true
+  }
+}
+```
+
+A number is a ceiling and `null` is none; `clipsAllowed` is `true` unless `NEW_CLIENT_CLIPS_ALLOWED`
+says otherwise. A box that set no `NEW_CLIENT_*` answers `null` for the six numbers and `"clipsAllowed": true`,
+which is what every client of such a box has. These are seven of
+a client's nine ceilings: `liveAllowed` has no default (a new client may open), and the period's
+start is the day the client is provisioned.
 
 ### CSRF
 
