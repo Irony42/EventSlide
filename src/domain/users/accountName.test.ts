@@ -36,16 +36,19 @@ describe('AccountName', () => {
     expect(!parsed.ok && parsed.error.code).toBe('accountName.empty')
   })
 
-  it('accepts exactly the longest name and refuses one character more', () => {
-    expect(AccountName.create('a'.repeat(AccountName.maxLength)).ok).toBe(true)
+  it('accepts a one-character name and a name of exactly eighty, and refuses the eighty-first', () => {
+    // The numbers are written out, not read from the constants under test: a bound that moved
+    // would otherwise move its own test with it.
+    expect(AccountName.create('a').ok).toBe(true)
+    expect(AccountName.create('a'.repeat(80)).ok).toBe(true)
 
-    const parsed = AccountName.create('a'.repeat(AccountName.maxLength + 1))
+    const parsed = AccountName.create('a'.repeat(81))
     expect(!parsed.ok && parsed.error.code).toBe('accountName.tooLong')
-    expect(!parsed.ok && parsed.error.details).toEqual({ max: AccountName.maxLength })
+    expect(!parsed.ok && parsed.error.details).toEqual({ max: 80 })
   })
 
   it('counts the length after normalising, not before', () => {
-    expect(AccountName.create(`${'a'.repeat(AccountName.maxLength)}${ZWSP}${ZWSP}`).ok).toBe(true)
+    expect(AccountName.create(`${'a'.repeat(80)}${ZWSP}${ZWSP}`).ok).toBe(true)
   })
 
   it('compares by value', () => {

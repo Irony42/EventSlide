@@ -1,4 +1,5 @@
 import { DomainError } from '../shared/errors'
+import { toSingleLine } from '../shared/plainText'
 import { err, ok, type Result } from '../shared/result'
 
 /**
@@ -10,7 +11,8 @@ import { err, ok, type Result } from '../shared/result'
  * addresses is how a host cannot tell their cousin from a stranger. Eighty characters: a
  * full name with a middle one, not a signature block.
  *
- * Normalised on the way in rather than refused for it, as `DisplayName` and `Caption` are: a
+ * Normalised on the way in rather than refused for it, by the same `toSingleLine` as a caption
+ * and a mission prompt, so there is one copy of the set of characters that corrupt a line: a
  * paste drags in line breaks and zero-width characters, and a name that is "Léa" plus an
  * invisible character is "Léa" to everyone who reads it — except the one who wants two
  * accounts that look identical, or one bidirectional override that flips the rest of the
@@ -20,21 +22,11 @@ import { err, ok, type Result } from '../shared/result'
 const MIN_LENGTH = 1
 const MAX_LENGTH = 80
 
-const LINE_BREAKS = /[\t\n\r\f\v]+/g
-const INVISIBLE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/gu
-
-const normalise = (raw: string): string =>
-  raw
-    .replace(LINE_BREAKS, ' ')
-    .replace(INVISIBLE, '')
-    .replace(/\s{2,}/gu, ' ')
-    .trim()
-
 export class AccountName {
   private constructor(readonly value: string) {}
 
   static create(raw: string): Result<AccountName, DomainError> {
-    const cleaned = normalise(raw)
+    const cleaned = toSingleLine(raw)
 
     if (cleaned.length < MIN_LENGTH) return err(DomainError.invalid('accountName.empty'))
     if (cleaned.length > MAX_LENGTH) {
