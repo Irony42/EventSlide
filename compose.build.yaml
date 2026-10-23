@@ -1,0 +1,25 @@
+# Build EventSlide from this checkout instead of pulling the published image.
+#
+#   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+#
+# For a copy you modified, a commit that no release names, or a machine that cannot reach
+# ghcr.io. Everything else about the service (ports, volume, hardening, settings) stays what
+# compose.yaml says: this file only changes where the image comes from.
+#
+# Pass both files every time, `down`, `logs` and `exec` included: Compose reads compose.yaml
+# alone otherwise, and then looks for the published image.
+#
+# The image is named `eventslide:<version>`, not the published name, so that a local build can
+# never be mistaken for the signed one in `docker image ls`. It is not signed, and
+# `cosign verify` (docs/IMAGE-SOURCES.md) does not apply to it.
+#
+# A modified build also owes the source of the modification to the people who use it:
+# set SOURCE_CODE_URL (docs/LICENSING-FAQ.md).
+
+services:
+  eventslide:
+    build: .
+    image: eventslide:3.0.0 # x-release-please-version
+    # `up` without `--build` uses the image this checkout built last time and never goes to
+    # the registry for the name above, which is not a published one.
+    pull_policy: never
