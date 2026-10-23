@@ -1656,7 +1656,7 @@ an existing minor.
 `PUBLIC_URL` is refused in every environment, too, when it contains a tab or a line break,
 ends in whitespace, a control character or an invisible one, carries a user name or a
 password, or carries a query string or a fragment (a `?` or a `#` anywhere, even a bare one: every
-link is made by appending a path to the address, so the join link would end up inside the query;
+link is made by appending a path to the address, so the join link would end up inside the query or the fragment;
 written as `%3F` or `%23` in a path prefix they are accepted). The refusal names the variable and
 never prints the value, which may be the password, and `http://user:pw@localhost` is no
 way round production's `localhost` exemption. What is accepted is handed on in its
