@@ -106,7 +106,8 @@ Read these before you upgrade, and back up with the version you run now.
     without `OPERATOR_NAME`, `REQUIRE_OPERATOR_2FA=true` without a valid
     `MFA_ENCRYPTION_KEY` or without `SITE_ADMIN=on`, an `MFA_ENCRYPTION_KEY` equal to
     `SESSION_SECRET` or `GUEST_TOKEN_SECRET`, any `NEW_CLIENT_*` setting without
-    `SITE_ADMIN=on` (which is the default), and `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` above
+    `SITE_ADMIN=on` (which is the default), any other name that starts with `NEW_CLIENT_`, and
+    `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` above
     `MAX_EVENT_QUOTA_BYTES`.
 - **An account that must change its password is stopped by the server** (#108), with
   `403 auth.passwordChangeRequired` on every `/api` route except `GET /api/auth/me`,

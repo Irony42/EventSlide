@@ -210,6 +210,17 @@ which is derived from the very setting that decides whether the namespace is mou
 the two cannot disagree. (Nothing in the SPA reads it yet: the `/admin/site` screens it
 gates do not exist.)
 
+**No client route exists yet.** Clients (roadmap §10.2) have a domain, a port, a SQLite
+adapter and five use cases (`createClient`, `renameClient`, `setClientCeilings`,
+`listClients`, `deleteEmptyClient`), and nothing in this document is a route for them: the
+operator API that calls them is a later item (G2-14) and will be mounted under `/api/site`,
+behind `SITE_ADMIN` and `requireOperator`, like everything else in that namespace. Until it
+lands the use cases are built and unreachable from the wire.
+
+**No audit route exists yet either.** The append-only audit log (roadmap §10.8) is written by
+`setClientCeilings` and pruned by the retention sweep, and nothing reads it over the wire: the
+operator's view is G2-14 and the client-readable view is G2-16, both behind their own gates.
+
 #### `GET /api/site/client-defaults`
 
 The ceilings a new client is created with when its operator names none: the `NEW_CLIENT_*`
@@ -242,17 +253,6 @@ says otherwise. A box that set no `NEW_CLIENT_*` answers `null` for the six numb
 which is what every client of such a box has. These are seven of
 a client's nine ceilings: `liveAllowed` has no default (a new client may open), and the period's
 start is the day the client is provisioned.
-
-**No client route exists yet.** Clients (roadmap §10.2) have a domain, a port, a SQLite
-adapter and five use cases (`createClient`, `renameClient`, `setClientCeilings`,
-`listClients`, `deleteEmptyClient`), and nothing in this document is a route for them: the
-operator API that calls them is a later item (G2-14) and will be mounted under `/api/site`,
-behind `SITE_ADMIN` and `requireOperator`, like everything else in that namespace. Until it
-lands the use cases are built and unreachable from the wire.
-
-**No audit route exists yet either.** The append-only audit log (roadmap §10.8) is written by
-`setClientCeilings` and pruned by the retention sweep, and nothing reads it over the wire: the
-operator's view is G2-14 and the client-readable view is G2-16, both behind their own gates.
 
 ### CSRF
 

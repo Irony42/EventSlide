@@ -287,7 +287,8 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
    `NEW_CLIENT_MAX_EVENTS`, `NEW_CLIENT_MAX_EVENTS_PER_PERIOD`, `NEW_CLIENT_MAX_TOTAL_BYTES`,
    `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES`, `NEW_CLIENT_MAX_RETENTION_DAYS`, `NEW_CLIENT_MAX_LIVE_DAYS`
    and `NEW_CLIENT_CLIPS_ALLOWED`. The CHANGELOG says what each accepts. A `NEW_CLIENT_*` setting
-   also stops a box that runs with `SITE_ADMIN=off`, which is the default.
+   also stops a box that runs with `SITE_ADMIN=off`, which is the default, and so does any other name
+   that starts with `NEW_CLIENT_`.
 4. **Check the scripts and clients that call the API.**
    - An account that must change its password gets `403 auth.passwordChangeRequired` on every
      route but the three that let it see who it is, change the password and sign out.

@@ -580,7 +580,8 @@ disabled. It never walks to the next-oldest row. That distinction is the point: 
 account that is not disabled" reads like the same rule and stops being the same rule the
 moment the installer's login is switched off, at which point it names the first person
 somebody _invited_ — a moderator from one wedding, handed the box. A box with no operator
-costs nothing today, because `requireOperator` guards no route yet and §10.4 is both the
+costs nothing today, because `requireOperator` guards one route (`GET /api/site/client-defaults`,
+which holds configuration and no client's data) and §10.4 is both the
 first item that needs an operator and the item that ships a way to appoint one; a box with
 the wrong one holds a grant nothing can revoke. The two cases the migration cannot
 distinguish — a first account **deleted** rather than disabled — is written down in the
@@ -1245,8 +1246,9 @@ it always did.
   explicit `null` included (which lifts the default for that one client), and takes the default for each
   one it leaves out. The other reading — defaults only when the operator names nothing at all — makes a
   console form that forgets one field a client with no storage ceiling on a box that meant to have one.
-  `startingCeilings` is the rule and `newClientCeilings.test.ts` holds it; a default per-period count
-  starts its period on the day of provisioning, so a renewal has a date to move.
+  `startingCeilings` is the rule and `newClientCeilings.test.ts` holds it; a per-period count, from the
+  defaults or named by the operator (a form pre-filled from the defaults sends it back named), starts
+  its period on the day of provisioning unless the operator dated it, so a renewal has a date to move.
 - **They bind new clients only.** Changing a setting and restarting touches no client that exists:
   `setClientCeilings` is the way to move one, audited, and it never reads these settings. What a client
   was promised on its first day is recorded, not recomputed: `provisionClientOwner` writes
@@ -1256,7 +1258,10 @@ it always did.
   own `CHECK`s (the day counts are the domain's constants, not a second copy), and a `NEW_CLIENT_*` of any
   kind with `SITE_ADMIN=off` — nothing can create a client on a box with no operator namespace, so the
   setting would be one its owner believes is in force and nothing ever reads (roadmap §10.9). The refusal
-  finds the family by its prefix, so a variable added later is covered without a list to extend.
+  finds the family by its prefix, so a variable added later is covered without a list to extend. A name
+  under the prefix that this version does not read (`NEW_CLIENT_MAX_EVENT`) is refused too, with the
+  seven it may have meant and never its value: a schema drops a key it does not declare in silence, and a
+  hosted box with a misspelt ceiling would boot with none.
 - **Against the box-wide ceiling.** `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` may not exceed
   `MAX_EVENT_QUOTA_BYTES` (G3-02): the box's number binds every event whatever a client's own says
   (`quotaBound`), so a larger default would promise a quota `createEvent` refuses. It may be **below**
@@ -1274,7 +1279,8 @@ block of `container.test.ts` and `siteClientDefaults.test.ts`.
 **reason**, carried by the audit entry (`client.ceilingsChanged {before, after, reason}`), and refused
 without one. It is not built: the audit vocabulary has no free-text kind, on purpose (§17), so a reason
 needs one of its own, with a bound and a decision about what an operator may write there, and the `PUT`
-route that would refuse its absence is G2-14's. Until then `setClientCeilings` records who changed what and
+route that would refuse its absence is G2-14's. For the same reason G2-14's route must provision through
+`provisionClientOwner`: `createClient`, which is also built, applies no default and writes no line. Until then `setClientCeilings` records who changed what and
 from what, and no why.
 
 ## 6. Session security
@@ -2603,10 +2609,12 @@ opaque id that becomes `NULL` when the account is deleted; there is nothing else
 and only then saves the client, so a ceiling cannot move without a line saying who moved it, and an
 entry the log refuses (an actor that is not an account) refuses the change. `provisionClientOwner`
 (G2-18) does the same for `client.created`, which carries the whole snapshot of the ceilings a client
-starts with and nothing else (no name, no address): the entry is recorded after the client is created
-and **before** the invitation is issued, so a log that cannot be written removes the client and sends
-no mail, and an invitation that then fails removes the client but leaves its line — an intent that
-failed, visible, which is the lesser error for the reason below. The two writes are not
+starts with and nothing else (no name, no address). It is **not** write-ahead in the same sense: the
+entry names the client, so the client is saved first, and the entry is recorded before the invitation
+is issued. A log that cannot be written removes the client and sends no mail; an invitation that then
+fails removes the client but leaves its line, an intent that failed, visible, which is the lesser error
+for the reason below. The gap: if the log cannot be written and the removal fails too, an empty client
+with no line is left (no member, no event, no invitation) for `deleteEmptyClient` to remove. The two writes are not
 one transaction: if the save fails after the entry was recorded, the log holds a line for a change
 that did not happen, and the retry writes a second. That is the lesser error, and a visible one.
 Closing it needs a unit-of-work port that no use case has yet; G2-20 asks for the same atomicity for

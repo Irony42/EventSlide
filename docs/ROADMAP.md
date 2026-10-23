@@ -705,7 +705,7 @@ that one client's 4K video habit should not fill the disk the other four wedding
 >
 > **Defaults for a new client (G2-18)**: seven optional settings, `NEW_CLIENT_*`, give a client the
 > operator did not limit a starting set of ceilings (absent is none, so a box that sets none is
-> unchanged; refused at boot with `SITE_ADMIN=off`, and a quota above `MAX_EVENT_QUOTA_BYTES`).
+> unchanged; refused at boot with `SITE_ADMIN=off`, with a quota above `MAX_EVENT_QUOTA_BYTES`, or misspelt).
 > `provisionClientOwner` applies them, `GET /api/site/client-defaults` shows them to the console, and
 > the ceilings a client starts with are written to the audit log. **Not built**: the mandatory reason
 > for a later change of ceilings (see [SECURITY.md](SECURITY.md) §5).
