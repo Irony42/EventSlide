@@ -47,7 +47,7 @@ const LAST_GPL_RELEASE = 'v2.1.0'
  * test pins both halves, so narrowing the pattern cannot quietly widen what is allowed.
  */
 const HOSTED_SERVICE =
-  /(?<!self-)\bhost(?:ed|ing)\b|\bSaaS\b|\bmanaged\b|\binstances?\b|\binvit(?:ation|e)-only\b|\bas a service\b|\bcloud\b/i
+  /(?<!self-)\bhost(?:ed|ing)\b|\bSaaS\b|\bmanaged\b|\binstances?\b|\binvit(?:ation|e)[- ]only\b|\bby invitation\b|\bas a service\b|\bcloud\b/i
 
 /** The GPL, and not the AGPL: `AGPL-3.0` contains the characters `GPL-3.0`. */
 const GPL = /(?<!A)GPL-3\.0/
@@ -169,6 +169,9 @@ describe('what counts as announcing a service', () => {
   it.each([
     'an invitation-only hosted service',
     'free, invite-only access',
+    'open by invitation only',
+    'available by invitation',
+    'an invitation only instance',
     'EventSlide as a service',
     'a managed instance',
     'our cloud',

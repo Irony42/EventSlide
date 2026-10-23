@@ -266,7 +266,9 @@ const anInvitedAccount = async (app: TestApp, label: string): Promise<Account> =
     throw new Error(`inviting the account failed with ${invited.status} ${codeOf(invited) ?? ''}`)
   }
   const link = invited.body['link']
-  if (typeof link !== 'string') throw new Error('the box has no relay, so the invitation is a link')
+  if (typeof link !== 'string') {
+    throw new Error('the invitation carried no link: this box is meant to have no mail relay')
+  }
 
   // Accepting is the person's own act, on their own machine: a session of its own, a name and
   // a password of their choosing. It signs them in, so there is nothing more to do.

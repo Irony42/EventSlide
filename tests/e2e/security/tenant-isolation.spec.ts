@@ -635,7 +635,9 @@ const anInvitedAccount = async (app: TestApp, browser: Browser): Promise<Invited
   )
   if (!invited.ok()) throw new Error(`inviting the client failed with ${invited.status()}`)
   const { link } = (await invited.json()) as { link?: string }
-  if (link === undefined) throw new Error('the box has no relay, so the invitation is a link')
+  if (link === undefined) {
+    throw new Error('the invitation carried no link: this box is meant to have no mail relay')
+  }
   await operator.dispose()
 
   // The client's own machine: a context of its own, which accepting signs in.
