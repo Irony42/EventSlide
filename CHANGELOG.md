@@ -126,7 +126,7 @@ Read these before you upgrade, and back up with the version you run now.
   failures an hour across every network, each attempt is held for two seconds and never
   refused. A script that retries a wrong password must back off.
 - **A moderator is invited by a link, and the box no longer makes an account for them**
-  (#139, #NNN). `POST /api/events/:slug/moderators` takes `{ "email" }` (and an optional
+  (#139, #141). `POST /api/events/:slug/moderators` takes `{ "email" }` (and an optional
   `locale`) and answers `201 { "status": "invited", "expiresAt", "link"? }`. It no longer takes
   `temporaryPassword` or `displayName`: a client that sends either gets `400 request.invalid`. It no
   longer answers `created` or `userId`, which said whether the address was already on the box, and it
@@ -180,7 +180,7 @@ Read these before you upgrade, and back up with the version you run now.
   (default 1095, never below 365) (#118); and a content-free overview of a box, shapes and
   sizes and never what guests made (#126). No HTTP route reaches the clients, the audit log or
   the overview yet. `GET /api/auth/me` reports `canOperateSite`, whatever `SITE_ADMIN` says.
-- **Invitations by link** (#139, #NNN). A moderator is invited by a single-use link that lives
+- **Invitations by link** (#139, #141). A moderator is invited by a single-use link that lives
   seven days, mailed when the box has a relay and otherwise handed to the host. The account is made by
   the invitee, with a password they choose, when they accept it; an account that already uses the
   address signs in and accepts as itself. Writing an invitation to the same address and event replaces
