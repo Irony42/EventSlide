@@ -366,6 +366,7 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
     const changed = await usecases.setClientCeilings({
       clientId: created.value.id,
       ceilings: { maxEvents: 3 },
+      reason: 'Essai de câblage',
       actor: { kind: 'integration', label: 'test:wiring' },
     })
 

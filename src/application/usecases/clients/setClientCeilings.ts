@@ -1,5 +1,6 @@
 import type { AuditActorInput } from '../../../domain/audit/auditActor'
 import { AuditEntry } from '../../../domain/audit/auditEntry'
+import { parseAuditReason } from '../../../domain/audit/auditReason'
 import { describeCeilingsChange } from '../../../domain/audit/clientCeilingsAudit'
 import type { Client } from '../../../domain/clients/client'
 import { ClientCeilings, type ClientCeilingsInput } from '../../../domain/clients/clientCeilings'
@@ -31,8 +32,13 @@ import type { Clock } from '../../ports/clock'
  * `RETENTION_CAP_NOTICE_DAYS` of warning instead of purging it the same night. It is a column
  * of its own, not a ceiling, so the audit entry's `before` / `after` do not carry it.
  *
+ * **A change carries a reason, and one is mandatory** (decided 2026-10-23; `parseAuditReason`
+ * holds its bound and what it refuses). A blank or malformed one is `400 audit.reasonInvalid`
+ * **before anything is read or written**, even for a patch that would change nothing: the rule is
+ * about the operator's act, and an act with no stated why is the one the log is there to prevent.
+ *
  * **What is written.** `describeCeilingsChange` decides, as a pure function: nothing when
- * the patch changed nothing, `client.ceilingsChanged {before, after}` when a ceiling
+ * the patch changed nothing, `client.ceilingsChanged {before, after, reason}` when a ceiling
  * moved, and `client.periodReset {before, after}` as well when the period did. The actor is
  * a required input, so there is no way to change a ceiling that does not name who did it:
  * `createClient` and `renameClient` have none because they are not yet audited, and this
@@ -58,6 +64,11 @@ import type { Clock } from '../../ports/clock'
 export interface SetClientCeilingsInput {
   readonly clientId: ClientId
   readonly ceilings: ClientCeilingsInput
+  /**
+   * Why: the operator's own sentence, parsed here (`parseAuditReason`) and written to the entry.
+   * Required, with no default, so that there is no call of this use case that omits it.
+   */
+  readonly reason: string
   /** Who is changing them: the operator, normally, or an integration acting for one. */
   readonly actor: AuditActorInput
 }
@@ -76,7 +87,10 @@ export type SetClientCeilings = (
 
 export const makeSetClientCeilings =
   ({ clients, audit, clock }: SetClientCeilingsDeps): SetClientCeilings =>
-  async ({ clientId, ceilings, actor }) => {
+  async ({ clientId, ceilings, reason, actor }) => {
+    const why = parseAuditReason(reason)
+    if (!why.ok) return why
+
     const client = await clients.findById(clientId)
     if (client === null) return err(DomainError.notFound('client.notFound'))
 
@@ -87,7 +101,7 @@ export const makeSetClientCeilings =
     const updated = client.withCeilings(next.value, at)
 
     const entries: AuditEntry[] = []
-    for (const planned of describeCeilingsChange(client, updated)) {
+    for (const planned of describeCeilingsChange(client, updated, why.value)) {
       const entry = AuditEntry.create({
         at,
         actor,

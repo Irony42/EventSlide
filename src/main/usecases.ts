@@ -842,7 +842,11 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       mode: policy.operatorResetLinks,
       audit: adapters.audit,
     }),
-    renameClient: makeRenameClient({ clients: adapters.clients }),
+    renameClient: makeRenameClient({
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
     setClientCeilings: makeSetClientCeilings({
       clients: adapters.clients,
       audit: adapters.audit,

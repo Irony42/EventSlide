@@ -6,6 +6,7 @@ import { AUDIT_ID_PATTERN, AuditEntry, type NewAuditEntry } from './auditEntry'
 
 const AT = new Date('2026-06-20T21:00:00.000Z')
 const CLIENT = asClientId('client-1')
+const REASON = 'Capacité du disque revue à la baisse'
 
 const CEILINGS = {
   maxEvents: 5,
@@ -25,7 +26,7 @@ const entryInput = (overrides: Partial<NewAuditEntry> = {}): NewAuditEntry => ({
   action: 'client.ceilingsChanged',
   subject: { type: 'client', id: 'client-1' },
   clientId: CLIENT,
-  details: { before: CEILINGS, after: { ...CEILINGS, maxEvents: 6 } },
+  details: { before: CEILINGS, after: { ...CEILINGS, maxEvents: 6 }, reason: REASON },
   ...overrides,
 })
 
@@ -43,6 +44,8 @@ const sampleOf = (kind: DetailKind): AuditDetailValue => {
       return true
     case 'instant':
       return '2026-06-20T21:00:00.000Z'
+    case 'reason':
+      return REASON
     case 'nullable':
       return sampleOf(kind.of)
     case 'object':
@@ -67,7 +70,7 @@ describe('AuditEntry.create', () => {
       action: 'client.ceilingsChanged',
       subject: { type: 'client', id: 'client-1' },
       clientId: CLIENT,
-      details: { before: CEILINGS, after: { ...CEILINGS, maxEvents: 6 } },
+      details: { before: CEILINGS, after: { ...CEILINGS, maxEvents: 6 }, reason: REASON },
     })
   })
 
@@ -81,7 +84,7 @@ describe('AuditEntry.create', () => {
   })
 
   it('keeps its own copy of the details, so editing them after the check cannot change what is recorded', () => {
-    const details = { before: { ...CEILINGS }, after: { ...CEILINGS } }
+    const details = { before: { ...CEILINGS }, after: { ...CEILINGS }, reason: REASON }
 
     const result = AuditEntry.create(entryInput({ details }))
     details.after.maxEvents = 999_999
@@ -89,6 +92,7 @@ describe('AuditEntry.create', () => {
     expect(result.ok && result.value.toProps().details).toEqual({
       before: CEILINGS,
       after: CEILINGS,
+      reason: REASON,
     })
   })
 
@@ -192,7 +196,9 @@ describe('AuditEntry.create', () => {
 
   it('refuses details outside the action’s allow-list, naming where and never what', () => {
     const result = AuditEntry.create(
-      entryInput({ details: { before: CEILINGS, after: CEILINGS, caption: 'Une belle photo' } }),
+      entryInput({
+        details: { before: CEILINGS, after: CEILINGS, reason: REASON, caption: 'Une belle photo' },
+      }),
     )
 
     expect(!result.ok && result.error.code).toBe('audit.detailsInvalid')
@@ -272,7 +278,11 @@ describe('what an audit entry may never carry (roadmap 10.8: no photo content, c
   it('refuses a declared key that holds text where a number is declared, so a caption cannot ride in a count', () => {
     const result = AuditEntry.create(
       entryInput({
-        details: { before: CEILINGS, after: { ...CEILINGS, maxEvents: 'Camille & Sacha' } },
+        details: {
+          before: CEILINGS,
+          after: { ...CEILINGS, maxEvents: 'Camille & Sacha' },
+          reason: REASON,
+        },
       }),
     )
 
@@ -282,7 +292,11 @@ describe('what an audit entry may never carry (roadmap 10.8: no photo content, c
   it('refuses a declared instant that holds a guest’s name', () => {
     const result = AuditEntry.create(
       entryInput({
-        details: { before: CEILINGS, after: { ...CEILINGS, periodStartedAt: 'Camille Dupont' } },
+        details: {
+          before: CEILINGS,
+          after: { ...CEILINGS, periodStartedAt: 'Camille Dupont' },
+          reason: REASON,
+        },
       }),
     )
 

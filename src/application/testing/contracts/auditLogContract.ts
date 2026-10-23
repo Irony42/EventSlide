@@ -65,6 +65,7 @@ export const auditLogContract = (
               periodStartedAt: '2026-06-01T00:00:00.000Z',
             }),
             after: aCeilingsSnapshot({ maxEvents: null, clipsAllowed: false }),
+            reason: 'Capacité du disque revue à la baisse',
           },
         }),
       )
@@ -82,6 +83,7 @@ export const auditLogContract = (
         details: {
           before: aCeilingsSnapshot({ maxEvents: 5, periodStartedAt: '2026-06-01T00:00:00.000Z' }),
           after: aCeilingsSnapshot({ maxEvents: null, clipsAllowed: false }),
+          reason: 'Capacité du disque revue à la baisse',
         },
       })
     })
@@ -127,7 +129,11 @@ export const auditLogContract = (
     })
 
     it('does not change a stored entry when the caller edits the details afterwards', async () => {
-      const details = { before: aCeilingsSnapshot(), after: aCeilingsSnapshot({ maxEvents: 6 }) }
+      const details = {
+        before: aCeilingsSnapshot(),
+        after: aCeilingsSnapshot({ maxEvents: 6 }),
+        reason: 'Demande du client',
+      }
       await log.record(anAuditEntry({ details }))
 
       ;(details.after as { maxEvents: number | null }).maxEvents = 999
@@ -136,6 +142,7 @@ export const auditLogContract = (
       expect(items[0]?.details).toEqual({
         before: aCeilingsSnapshot(),
         after: aCeilingsSnapshot({ maxEvents: 6 }),
+        reason: 'Demande du client',
       })
     })
 
