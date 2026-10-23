@@ -14,6 +14,7 @@ import {
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
 import { aboutRoutes } from './routes/aboutRoutes'
 import { authRoutes } from './routes/authRoutes'
+import { invitationRoutes } from './routes/invitationRoutes'
 import { clipRoutes } from './routes/clipRoutes'
 import { eventRoutes } from './routes/eventRoutes'
 import { galleryHeaders, galleryRoutes, setGalleryHeaders } from './routes/galleryRoutes'
@@ -219,6 +220,10 @@ export const buildServer = ({
 
   app.use('/api', publicRoutes(routeDeps))
   app.use('/api', authRoutes(routeDeps))
+  // The invitee's side of an invitation link: what it offers, and accepting it. Public, and
+  // after the auth routes because accepting with a password starts a session the same way a
+  // sign-in does.
+  app.use('/api', invitationRoutes(routeDeps))
 
   /**
    * **One upload bucket, built here and shared by both upload routes.**

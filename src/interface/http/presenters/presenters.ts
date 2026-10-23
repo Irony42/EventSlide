@@ -692,7 +692,9 @@ export const toWallResponseDto = (
 // that route modules being written against this file at the same time merge cleanly.
 // Type-only, so nothing is added to the bundle.
 import type { MembershipWithUser } from '../../../application/ports/userRepository'
-import type { RegisterModeratorResult } from '../../../application/usecases/auth/registerModerator'
+import type { AcceptedInvitation } from '../../../application/usecases/auth/acceptInvitation'
+import type { IssuedInvitation } from '../../../application/usecases/auth/issueInvitation'
+import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
 import type { ModeratorDto } from './dto'
 
 /**
@@ -712,21 +714,65 @@ export const toModeratorDto = (membership: MembershipWithUser): ModeratorDto => 
 })
 
 /**
- * The answer to an invitation.
+ * The answer to an invitation (docs/API.md, `POST /api/events/:slug/moderators`): that it was
+ * written, and until when it works — and, **only when no mail went out**, the link for the
+ * inviter to pass on.
  *
- * `created` is the useful half: it says whether the temporary password the host just
- * typed is worth reading out. An address that already had an account keeps its own
- * password — an invitation that reset it would let one host take over a colleague's
- * account, and with it every other event that colleague runs.
+ * What is deliberately absent, and was the whole of the 2.x answer: whether an account was
+ * created, and its id. They said whether the address was already on the box, to whoever typed
+ * it. The answer is now the same for an address that has an account and one that has not, and
+ * `link` is a fact about the box and its relay, never about the address.
  */
-export interface ModeratorInviteDto {
-  readonly userId: string
-  readonly created: boolean
+export interface InvitationIssuedDto {
+  readonly status: 'invited'
+  readonly expiresAt: string
+  readonly link?: string
 }
 
-export const toModeratorInviteDto = (result: RegisterModeratorResult): ModeratorInviteDto => ({
-  userId: result.userId,
-  created: result.created,
+export const toInvitationIssuedDto = (issued: IssuedInvitation): InvitationIssuedDto => ({
+  status: 'invited',
+  expiresAt: iso(issued.expiresAt),
+  ...(issued.delivery === 'link' ? { link: issued.link } : {}),
+})
+
+/**
+ * What a link would do, for the page that asks its holder to accept: the purpose, the target's
+ * name and when it ends. Nothing about the inviter, the address, or whether the address has an
+ * account (`previewInvitation` says why).
+ */
+export interface InvitationPreviewDto {
+  readonly kind: 'event' | 'client'
+  readonly role: 'moderator' | 'owner' | 'member'
+  readonly targetName: string
+  readonly expiresAt: string
+}
+
+export const toInvitationPreviewDto = (preview: InvitationPreview): InvitationPreviewDto => ({
+  kind: preview.kind,
+  role: preview.role,
+  targetName: preview.targetName,
+  expiresAt: iso(preview.expiresAt),
+})
+
+/**
+ * What was accepted and where the person lands: for an event its slug, which the page opens.
+ * **No address and no account id**: the person who accepted has them, and a response that
+ * carried the address would tell whoever holds a link whose mailbox it was.
+ */
+export interface InvitationAcceptedDto {
+  readonly status: 'accepted'
+  readonly kind: 'event' | 'client'
+  readonly role: 'moderator' | 'owner' | 'member'
+  readonly targetName: string
+  readonly eventSlug: string | null
+}
+
+export const toInvitationAcceptedDto = (accepted: AcceptedInvitation): InvitationAcceptedDto => ({
+  status: 'accepted',
+  kind: accepted.target.kind,
+  role: accepted.target.role,
+  targetName: accepted.place.name,
+  eventSlug: accepted.place.kind === 'event' ? accepted.place.slug : null,
 })
 
 // --------------------------------------------------------------- missions --

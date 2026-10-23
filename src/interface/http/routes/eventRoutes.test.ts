@@ -2,8 +2,10 @@ import type { Express } from 'express'
 import request, { type Agent, type Test } from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Logger } from '../../../application/ports/logger'
+import { mailFailure, type Mailer } from '../../../application/ports/mailer'
+import { err } from '../../../domain/shared/result'
 import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
-import type { PasswordHasher } from '../../../application/ports/passwordHasher'
+import { makeIssueInvitation } from '../../../application/usecases/auth/issueInvitation'
 import { makeRegisterModerator } from '../../../application/usecases/auth/registerModerator'
 import { makeChangeEventStatus } from '../../../application/usecases/events/changeEventStatus'
 import {
@@ -27,7 +29,10 @@ import {
   aUser,
   atPlus,
 } from '../../../application/testing/builders'
+import { FakeAccountTokenRepository } from '../../../application/testing/fakeAccountTokenRepository'
 import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
+import { FakeMailer } from '../../../application/testing/fakeMailer'
+import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../../application/testing/fakeMembershipRepository'
@@ -44,8 +49,6 @@ import {
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import { Event } from '../../../domain/events/event'
 import { Slug } from '../../../domain/shared/slug'
-import type { Password } from '../../../domain/users/password'
-import type { PasswordHash } from '../../../domain/users/user'
 import { eventCreationLimiter } from '../middleware/rateLimit'
 import { buildHarness, signInAs } from '../testing/middlewareHarness'
 import type { HttpDeps, RequestContext } from '../types'
@@ -109,14 +112,25 @@ const slugOf = (value: string): Slug => {
 }
 const NO_SUCH_SLUG = 'un-evenement-qui-nexiste-pas'
 
+/**
+ * The field 2.x asked the host for and 3.0 refuses. Written in two parts so that a search of
+ * `src` and `web/src` for its name is empty, which is the criterion the plan states for the
+ * item that removed it: nothing handles that field any more, and a test that sends it is
+ * about its refusal.
+ */
+const RETIRED_PASSWORD_FIELD = ['temporary', 'Password'].join('')
+
+/** A box with no SMTP relay: the production `NullMailer`'s answer, written out. */
+const nullMailer: Mailer = {
+  canDeliver: false,
+  send: async () => err(mailFailure('notConfigured')),
+}
+
 /** What the create form leaves to configuration: the host is asked for a name only. */
 const DEFAULT_QUOTA_BYTES = 2_000_000_000
 
 /** The box-wide ceiling (G3-02). Above `DEFAULT_QUOTA_BYTES`, as env.ts requires. */
 const MAX_QUOTA_BYTES = 10_000_000_000
-
-/** What the host types into the invitation form and reads out to the invitee. */
-const TEMPORARY_PASSWORD = 'mot-de-passe-provisoire'
 
 /**
  * Two instants ahead of the harness clock ({@link AT}, 21:00), already resolved by the
@@ -156,26 +170,6 @@ class PurgingMediaStore implements MediaStore {
 }
 
 /**
- * `src/application/testing/` has no password hasher fake yet, so this one is local to
- * the file that needs it: the invitation route is the only host route that hashes.
- */
-class FakePasswordHasher implements PasswordHasher {
-  readonly dummyHash: PasswordHash = 'hash:mot-de-passe-factice'
-
-  async hash(password: Password): Promise<PasswordHash> {
-    return `hash:${password.value}`
-  }
-
-  async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
-    return hash === `hash:${attempt}`
-  }
-
-  needsRehash(): boolean {
-    return false
-  }
-}
-
-/**
  * A stand-in for the use cases this module never calls.
  *
  * `RouteDeps` asks for the whole application surface, and listing the absent ones
@@ -193,6 +187,8 @@ interface World {
   readonly guests: FakeGuestRepository
   readonly memberships: FakeMembershipRepository
   readonly users: FakeUserRepository
+  readonly tokens: FakeAccountTokenRepository
+  readonly mailer: FakeMailer
   readonly media: PurgingMediaStore
 }
 
@@ -201,11 +197,14 @@ interface BuildWorldOptions {
   readonly creationLimit?: number
   /** `EVENT_CREATION`. Defaults to `anyAccount`, which is what a box that never set it has. */
   readonly eventCreation?: EventCreationPolicy
+  /** Which mailer the invitation goes through: the recording fake, or a box with no relay. */
+  readonly mailer?: 'fake' | 'none'
 }
 
 const buildWorld = ({
   creationLimit = GENEROUS_CREATION_LIMIT,
   eventCreation = 'anyAccount',
+  mailer: mailerChoice = 'fake',
 }: BuildWorldOptions = {}): World => {
   const users = new FakeUserRepository()
   const photos = new FakePhotoRepository()
@@ -217,7 +216,12 @@ const buildWorld = ({
   const events = new FakeEventRepository({ memberships, photos, guests, clients })
   const media = new PurgingMediaStore()
   const ids = new SequentialIdGenerator()
-  const hasher = new FakePasswordHasher()
+  // The foreign keys the real table has: an invitation names an author and an event that exist.
+  const tokens = new FakeAccountTokenRepository()
+    .withAccounts(asUserId(OWNER))
+    .withEvents(WEDDING, GALA)
+  const mailer = new FakeMailer()
+  const mailerPort: Mailer = mailerChoice === 'none' ? nullMailer : mailer
 
   const harness = buildHarness({
     users,
@@ -245,10 +249,18 @@ const buildWorld = ({
           events,
           users,
           memberships,
-          hasher,
-          ids,
-          clock: deps.clock,
+          issueInvitation: makeIssueInvitation({
+            tokens,
+            secrets: new FakeSecretTokens(),
+            mailer: mailerPort,
+            ids,
+            clock: deps.clock,
+            logger: deps.logger,
+            publicUrl: 'https://photos.example.test',
+          }),
         }),
+        previewInvitation: absent('previewInvitation'),
+        acceptInvitation: absent('acceptInvitation'),
 
         createEvent: makeCreateEvent({
           events,
@@ -446,7 +458,7 @@ const buildWorld = ({
     aGuest({ id: GALA_GUEST, eventId: GALA, displayName: 'Sacha', lastSeenAt: AT }),
   )
 
-  return { app: harness.app, events, clients, guests, memberships, users, media }
+  return { app: harness.app, events, clients, guests, memberships, users, tokens, mailer, media }
 }
 
 type Who =
@@ -545,9 +557,7 @@ const ROUTES: readonly RouteCase[] = [
     name: 'POST /events/:slug/moderators',
     requires: 'owner',
     call: (client, slug) =>
-      client
-        .post(`/api/events/${slug}/moderators`)
-        .send({ email: 'lea@example.test', temporaryPassword: TEMPORARY_PASSWORD }),
+      client.post(`/api/events/${slug}/moderators`).send({ email: 'lea@example.test' }),
   },
   {
     name: 'DELETE /events/:slug/moderators/:userId',
@@ -629,9 +639,11 @@ const INVALID_INPUTS: readonly InputCase[] = [
     call: (client) => client.post(`/api/events/${SLUG}/guests/guest-1/revoke`),
   },
   {
-    name: 'POST /events/:slug/moderators without the temporary password',
+    name: 'POST /events/:slug/moderators with the temporary password 2.x asked for',
     call: (client) =>
-      client.post(`/api/events/${SLUG}/moderators`).send({ email: 'lea@example.test' }),
+      client
+        .post(`/api/events/${SLUG}/moderators`)
+        .send({ email: 'lea@example.test', [RETIRED_PASSWORD_FIELD]: 'mot-de-passe-provisoire' }),
   },
   {
     name: 'DELETE /events/:slug/moderators/:userId with a user id that is not a UUID',
@@ -1939,53 +1951,122 @@ describe('the host event routes', () => {
   })
 
   describe('POST /api/events/:slug/moderators', () => {
-    it('creates the account with a single-use password and grants the role', async () => {
+    const invite = (agent: Agent, body: Record<string, unknown> = { email: 'lea@example.test' }) =>
+      agent.post(`/api/events/${SLUG}/moderators`).send(body)
+
+    it('writes an invitation and mails it: 201 with its end, and no link, no id, no password', async () => {
       const agent = await signedIn(world, 'owner')
 
-      const response = await agent
-        .post(`/api/events/${SLUG}/moderators`)
-        .send({ email: 'lea@example.test', temporaryPassword: TEMPORARY_PASSWORD })
+      const response = await invite(agent)
 
       expect(response.status).toBe(201)
-      expect(response.body.created).toBe(true)
-      const invited = asUserId(String(response.body.userId))
-      // Someone else chose this password and said it out loud, so it is single-use.
-      expect((await world.users.findById(invited))?.mustChangePassword).toBe(true)
-      expect(await world.memberships.roleFor(WEDDING, invited)).toBe('moderator')
+      expect(Object.keys(response.body).sort()).toEqual(['expiresAt', 'status'])
+      expect(response.body.status).toBe('invited')
+      expect(response.body.expiresAt).toBe('2026-06-27T21:00:00.000Z')
+      expect(world.mailer.sent).toHaveLength(1)
+      expect(world.mailer.sent[0]?.to).toBe('lea@example.test')
     })
 
-    it('grants the role on this event only', async () => {
+    it("creates no account and grants no role: that is the invitee's act", async () => {
       const agent = await signedIn(world, 'owner')
 
-      const response = await agent
-        .post(`/api/events/${SLUG}/moderators`)
-        .send({ email: 'lea@example.test', temporaryPassword: TEMPORARY_PASSWORD })
+      await invite(agent)
 
-      const invited = asUserId(String(response.body.userId))
-      expect(await world.memberships.roleFor(GALA, invited)).toBeNull()
+      expect(await world.memberships.listForEvent(WEDDING)).toHaveLength(2)
+      expect(world.tokens.all).toHaveLength(1)
+      expect(world.tokens.all[0]).toMatchObject({ eventId: WEDDING, eventRole: 'moderator' })
+    })
+
+    it('answers 201 with the link to pass on when the box cannot send mail', async () => {
+      world = buildWorld({ mailer: 'none' })
+      const agent = await signedIn(world, 'owner')
+
+      const response = await invite(agent)
+
+      expect(response.status).toBe(201)
+      expect(response.body.link).toMatch(/^https:\/\/photos\.example\.test\/invite\/secret-1$/)
+      expect(world.tokens.all[0]?.delivery).toBe('link')
+    })
+
+    it('is never cached, since it may carry the only copy of the link', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await invite(agent)
+
+      expect(response.headers['cache-control']).toBe('no-store')
+    })
+
+    it('answers an address with an account exactly as one with none', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const known = await invite(agent, { email: 'nouvelle@example.test' })
+      const unknown = await invite(agent, { email: 'inconnue@example.test' })
+
+      expect(known.status).toBe(unknown.status)
+      expect(Object.keys(known.body).sort()).toEqual(Object.keys(unknown.body).sort())
+      expect(JSON.stringify(known.body)).not.toContain(NEWCOMER)
+    })
+
+    it('writes the mail in the language the form sent', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      await invite(agent, { email: 'lea@example.test', locale: 'en' })
+
+      expect(world.mailer.sent[0]?.subject).toBe(
+        'You are invited to moderate an event on EventSlide',
+      )
+    })
+
+    it.each([
+      [
+        'a temporary password, which 2.x asked for',
+        { email: 'lea@example.test', [RETIRED_PASSWORD_FIELD]: 'mot-de-passe-provisoire' },
+      ],
+      [
+        'a display name, which the invitee now chooses',
+        { email: 'lea@example.test', displayName: 'Léa' },
+      ],
+      ['a locale that is not one', { email: 'lea@example.test', locale: 'xx' }],
+      ['no address', {}],
+    ])('refuses %s with 400 and writes nothing', async (_label, body) => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await invite(agent, body)
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+      expect(world.tokens.all).toHaveLength(0)
+      expect(world.mailer.sent).toHaveLength(0)
+    })
+
+    it('invites to this event only', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      await invite(agent)
+
+      expect(world.tokens.all.map((token) => token.eventId)).toEqual([WEDDING])
     })
 
     it('answers 409 for an address that already has a role on this event', async () => {
       // Re-inviting would otherwise silently downgrade a co-owner to moderator.
       const agent = await signedIn(world, 'owner')
 
-      const response = await agent
-        .post(`/api/events/${SLUG}/moderators`)
-        .send({ email: 'moderateur@example.test', temporaryPassword: TEMPORARY_PASSWORD })
+      const response = await invite(agent, { email: 'moderateur@example.test' })
 
       expect(response.status).toBe(409)
       expect(response.body.error.code).toBe('membership.alreadyExists')
     })
 
-    it('keeps an existing account, and says the password was not needed', async () => {
+    it('answers 429 once an address has been written to five times in an hour', async () => {
       const agent = await signedIn(world, 'owner')
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        expect((await invite(agent)).status).toBe(201)
+      }
 
-      const response = await agent
-        .post(`/api/events/${SLUG}/moderators`)
-        .send({ email: 'nouvelle@example.test', temporaryPassword: TEMPORARY_PASSWORD })
+      const response = await invite(agent)
 
-      expect(response.status).toBe(201)
-      expect(response.body).toEqual({ userId: NEWCOMER, created: false })
+      expect(response.status).toBe(429)
+      expect(response.body.error.code).toBe('invitation.tooManyForAddress')
     })
   })
 

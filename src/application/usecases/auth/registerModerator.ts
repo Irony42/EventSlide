@@ -1,63 +1,60 @@
+import type { ClientLocale } from '../../../domain/clients/clientLocale'
 import { canInviteModerators } from '../../../domain/events/eventRole'
 import { isMutable } from '../../../domain/events/eventStatus'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
-import { err, ok, type Result } from '../../../domain/shared/result'
+import { err, type Result } from '../../../domain/shared/result'
 import { EmailAddress } from '../../../domain/users/emailAddress'
-import { Password, type PasswordContext } from '../../../domain/users/password'
-import { User } from '../../../domain/users/user'
-import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
-import type { IdGenerator } from '../../ports/idGenerator'
-import type { PasswordHasher } from '../../ports/passwordHasher'
 import type { MembershipRepository, UserRepository } from '../../ports/userRepository'
+import type { IssueInvitation, IssuedInvitation } from './issueInvitation'
 
 export interface RegisterModeratorInput {
   readonly eventId: EventId
   /** The signed-in host doing the inviting. Their role is checked on this event only. */
   readonly actorId: UserId
   readonly email: string
-  readonly displayName: string | null
-  /**
-   * Used only when the address has no account yet. The host reads it out to the person
-   * they are handing the laptop to, and `mustChangePassword` makes it single-use.
-   */
-  readonly temporaryPassword: string
-}
-
-export interface RegisterModeratorResult {
-  readonly userId: UserId
-  /** Tells the caller whether the temporary password is worth showing the host. */
-  readonly created: boolean
+  /** The language of the host's page: the language the invitation is written in. */
+  readonly locale: ClientLocale
 }
 
 export interface RegisterModeratorDeps {
   readonly events: EventRepository
-  readonly users: UserRepository
+  /** Only the lookup by address, for "is this person already a member of the event". */
+  readonly users: Pick<UserRepository, 'findByEmail'>
   readonly memberships: MembershipRepository
-  readonly hasher: PasswordHasher
-  readonly ids: IdGenerator
-  readonly clock: Clock
+  readonly issueInvitation: IssueInvitation
 }
 
 export type RegisterModerator = (
   input: RegisterModeratorInput,
-) => Promise<Result<RegisterModeratorResult, DomainError>>
-
-/** `exactOptionalPropertyTypes` forbids handing the context an explicit `undefined`. */
-const passwordContext = (email: EmailAddress, displayName: string | null): PasswordContext =>
-  displayName === null ? { email: email.value } : { email: email.value, displayName }
+) => Promise<Result<IssuedInvitation, DomainError>>
 
 /**
- * An owner invites one person to moderate one event.
+ * An owner invites one person to moderate one event — **by a link they will accept**, not by
+ * an account made for them (docs/ROADMAP.md §10.3; free plan G2-09, paid plan P3-10).
  *
- * The role is granted for the event in the input and nowhere else: 1.0 had a single
- * shared admin password, so lending the moderation screen for one wedding handed over
- * every other event on the box.
+ * What used to happen here, and why it stopped: the host typed a password, the box created
+ * an account with it, and the host read it out loud. That made a third party choose the
+ * credential of an account in someone else's name, attached an existing account to an event
+ * without its owner's say, and answered "was an account created?" — which is whether the
+ * address was already on the box. Now nothing is created and nothing is attached: an
+ * invitation is written (`issueInvitation`), the invitee accepts it, and only then does an
+ * account exist or a role appear. The answer is the same for an address that has an account
+ * and one that has not.
+ *
+ * The role is offered for the event in the input and nowhere else: 1.0 had a single shared
+ * admin password, so lending the moderation screen for one wedding handed over every other
+ * event on the box.
+ *
+ * **Authority is read here, from storage, on this request**, and only an owner of this event
+ * may invite: `canInviteModerators` is asked rather than the qualifying roles being listed,
+ * so a role added later is refused by default. It is read **again** when the invitation is
+ * accepted, a week later at the latest (`resolveInvitation`).
  */
 export const makeRegisterModerator =
-  ({ events, users, memberships, hasher, ids, clock }: RegisterModeratorDeps): RegisterModerator =>
-  async ({ eventId, actorId, email, displayName, temporaryPassword }) => {
+  ({ events, users, memberships, issueInvitation }: RegisterModeratorDeps): RegisterModerator =>
+  async ({ eventId, actorId, email, locale }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
@@ -70,14 +67,13 @@ export const makeRegisterModerator =
     // scope, and `requireRole` makes the same choice at the HTTP boundary.
     if (actorRole === null) return err(DomainError.notFound('event.notFound'))
     // A moderator is nobody's recruiter: one who could invite moderators would be an
-    // owner with extra steps. `canInviteModerators` is asked rather than the
-    // qualifying roles being listed, so a role added later is refused by default.
+    // owner with extra steps.
     if (!canInviteModerators(actorRole)) {
       return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
     }
 
     // An archived event is a record, not a live object: it allows no moderation, so a
-    // console handed out for it would have nothing to act on.
+    // link handed out for it would have nothing to act on.
     if (!isMutable(event.status)) {
       return err(DomainError.conflict('event.immutable', { status: event.status }))
     }
@@ -85,61 +81,26 @@ export const makeRegisterModerator =
     // Parsed after authorization, never before: an unauthorized caller learns nothing,
     // not even whether their input was well-formed. The reason reaches the host though —
     // this is their own invitation form, not a login.
-    const parsedEmail = EmailAddress.create(email)
-    if (!parsedEmail.ok) return parsedEmail
+    const address = EmailAddress.create(email)
+    if (!address.ok) return address
 
-    const existing = await users.findByEmail(parsedEmail.value)
-    const now = clock.now()
-
+    // The one thing asked about the address: is it already on this event's own list. The
+    // owner can read that list, so it tells them nothing they cannot see, and it keeps a
+    // co-owner from being "invited" back down to moderator. The **row**, not the authority:
+    // `roleFor` refuses a disabled account, which would make a disabled co-owner look like a
+    // stranger. Nothing about an address that is not a member of this event is revealed.
+    const existing = await users.findByEmail(address.value)
     if (existing !== null) {
-      // The **row**, not the authority. `roleFor` refuses a disabled account, which is
-      // right where authority is the question and wrong here: a disabled co-owner would
-      // have looked like a stranger and been re-granted as a moderator, so re-enabling
-      // them later would have given back the wrong role. See `MembershipRepository`.
       const held = await memberships.membershipFor(eventId, existing.id)
-      // Re-inviting would otherwise silently downgrade a co-owner to moderator.
       if (held !== null) {
         return err(DomainError.conflict('membership.alreadyExists', { role: held.role }))
       }
-
-      // The existing account keeps its own password. An invitation that reset it would
-      // let one host take over a colleague's account, and with it every other event
-      // that colleague runs.
-      await memberships.grant({ eventId, userId: existing.id, role: 'moderator', grantedAt: now })
-      return ok({ userId: existing.id, created: false })
     }
 
-    const password = Password.create(
-      temporaryPassword,
-      passwordContext(parsedEmail.value, displayName),
-    )
-    if (!password.ok) return password
-
-    const created = User.create(
-      {
-        email: parsedEmail.value,
-        displayName,
-        passwordHash: await hasher.hash(password.value),
-        // Someone else chose this password and said it out loud. The invitee replaces
-        // it before they can do anything with the account.
-        mustChangePassword: true,
-        // Never the inviter's. This is a person handed a laptop for one evening, and the
-        // host doing the inviting may well be the operator of the box — an invitation
-        // that carried that across would hand the box to a moderator (docs/ROADMAP.md
-        // §10.1). Written out rather than defaulted, and asserted by name.
-        siteRole: 'none',
-      },
-      ids.userId(),
-      now,
-    )
-    if (!created.ok) return created
-
-    await users.save(created.value)
-    await memberships.grant({
-      eventId,
-      userId: created.value.id,
-      role: 'moderator',
-      grantedAt: now,
+    return issueInvitation({
+      email: address.value.value,
+      locale,
+      place: { kind: 'event', eventId, role: 'moderator', name: event.name.value },
+      createdBy: actorId,
     })
-    return ok({ userId: created.value.id, created: true })
   }

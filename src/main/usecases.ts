@@ -389,9 +389,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     events: adapters.events,
     users: adapters.users,
     memberships: adapters.memberships,
-    hasher: adapters.passwordHasher,
-    ids: adapters.ids,
-    clock: adapters.clock,
+    issueInvitation: invitationIssuer(adapters, policy),
   }),
   bootstrapOwner: makeBootstrapOwner({
     users: adapters.users,

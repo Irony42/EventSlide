@@ -56,6 +56,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   regenerateRecoveryCodes: notWired('regenerateRecoveryCodes'),
   disableSecondFactor: notWired('disableSecondFactor'),
   registerModerator: notWired('registerModerator'),
+  previewInvitation: notWired('previewInvitation'),
+  acceptInvitation: notWired('acceptInvitation'),
 
   createEvent: notWired('createEvent'),
   getEventBySlug: notWired('getEventBySlug'),

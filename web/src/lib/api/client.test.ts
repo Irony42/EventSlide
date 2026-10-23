@@ -366,10 +366,7 @@ const ENDPOINTS: readonly EndpointCase[] = [
     verb: 'post',
     path: `/api/events/${SLUG}/moderators`,
     invoke: (client) =>
-      client.inviteModerator(SLUG, {
-        email: 'moderateur@example.com',
-        temporaryPassword: 'phrase-de-passe-temporaire',
-      }),
+      client.inviteModerator(SLUG, { email: 'moderateur@example.com', locale: 'fr' }),
   },
   {
     name: 'revokeModerator',
@@ -572,19 +569,13 @@ describe('request bodies', () => {
     expect(only().body).toEqual({ moderation: 'auto' })
   })
 
-  it('sends the temporary password with the invitation, not just the address', async () => {
-    // The body that shipped was `{ email }`, and `moderatorInvitationBody` is `.strict()`
-    // and requires the password, so every invitation a host ever sent came back
-    // `400 request.invalid`. There is no mailer here: the credential is the invitation.
-    await subject().inviteModerator(SLUG, {
-      email: 'sacha@example.com',
-      temporaryPassword: 'phrase-de-passe-temporaire',
-    })
+  it('sends the address and the page language with an invitation, and no password', async () => {
+    // The body that shipped in 2.x carried a temporary password, and `moderatorInvitationBody`
+    // is `.strict()`: since 3.0 it refuses one. The invitation is a link the invitee accepts,
+    // and the form sends an address and the language of the page, nothing else.
+    await subject().inviteModerator(SLUG, { email: 'sacha@example.com', locale: 'en' })
 
-    expect(only().body).toEqual({
-      email: 'sacha@example.com',
-      temporaryPassword: 'phrase-de-passe-temporaire',
-    })
+    expect(only().body).toEqual({ email: 'sacha@example.com', locale: 'en' })
   })
 })
 

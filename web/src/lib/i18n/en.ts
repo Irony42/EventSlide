@@ -320,6 +320,16 @@ export const en: UiText = {
     'email.malformed': 'This email address is not valid.',
     'user.notFound': 'No account matches this email address.',
     'membership.alreadyExists': 'This person already moderates this event.',
+    'invitation.tooManyForAddress':
+      'This address has already received several invitations. Try again in an hour.',
+    'invitation.notFound':
+      'This invitation is no longer valid. Ask the person who sent it for a new one.',
+    'invitation.signInRequired':
+      'An account already uses this address. Sign in with that account, then open the link again.',
+    'invitation.wrongAccount':
+      'This invitation was written for a different email address than this account’s.',
+    'invitation.credentialsRequired':
+      'Sign in with the invited account, or choose a name and a password.',
 
     'displayName.tooLong': 'First name too long.',
     'joinCode.wrongLength': 'This code has the wrong number of characters.',
@@ -702,15 +712,17 @@ export const en: UiText = {
     guestRevoked: 'The access has been withdrawn.',
     moderatorsEmpty: 'You are the only person moderating this event.',
     moderatorEmail: 'Moderator’s email address',
-    moderatorEmailHint: 'They will get rights on this event only.',
-    moderatorPassword: 'Temporary password',
-    moderatorPasswordHint: (min: number) =>
-      `At least ${min} characters. No email is sent: read this password out to the moderator. They will choose another one when they first sign in.`,
+    moderatorEmailHint:
+      'They will get an invitation, valid for seven days, to moderate this event only.',
     inviteSubmit: 'Invite',
-    moderatorInvited: (email: string) =>
-      `${email} can now moderate this event. Give them the temporary password.`,
-    moderatorInvitedExisting: (email: string) =>
-      `${email} can now moderate this event. This account already existed: it keeps its usual password.`,
+    /** An invitation went out by e-mail: nothing to copy. */
+    moderatorInviteSent: (email: string) => `An invitation was sent to ${email}.`,
+    /** No mail relay, or it refused: the link is for the host to pass on, once. */
+    inviteLinkCreated: (email: string) =>
+      `No email could be sent. Pass this link on to ${email}: it works once, for seven days.`,
+    inviteLinkUrl: 'Invitation link',
+    inviteLinkCopy: 'Copy the link',
+    inviteLinkCopied: 'Link copied.',
     revokeModerator: 'Remove',
     revokeModeratorTitle: 'Remove this moderator?',
     revokeModeratorHint: 'They will lose access to this event. Their past decisions are kept.',

@@ -21,7 +21,7 @@ import {
   toEventSummaryDto,
   toGuestDto,
   toModeratorDto,
-  toModeratorInviteDto,
+  toInvitationIssuedDto,
 } from '../presenters/presenters'
 import type { GuestListResponseDto } from '../presenters/dto'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
@@ -429,18 +429,18 @@ export const eventRoutes = ({
         eventId: scope.event.id,
         actorId: scope.user.userId,
         email: body.email,
-        // `null` is a supported choice, not a missing value: the console lists the
-        // address when there is no name.
-        displayName: body.displayName ?? null,
-        temporaryPassword: body.temporaryPassword,
+        locale: body.locale,
       })
 
-      // 201: a membership now exists, and an account may have been created with it.
-      // Whether it was is the response's only interesting field — `mustChangePassword`
-      // is set on a created account, so the password the host typed is single-use.
-      return sendResult(res, result, (response, invited) =>
-        sendJson(response, toModeratorInviteDto(invited), 201),
-      )
+      // 201: an invitation now exists. **Nothing else does** — no account, no role — until
+      // the person it is for accepts it, so the answer says when it ends and, if no mail went
+      // out, hands the host the link to pass on. It is the same for an address that has an
+      // account and one that has not. `no-store`: when there is a link, this is the only
+      // time it exists outside the host's own message.
+      return sendResult(res, result, (response, invited) => {
+        response.setHeader('Cache-Control', 'no-store')
+        sendJson(response, toInvitationIssuedDto(invited), 201)
+      })
     }),
   )
 

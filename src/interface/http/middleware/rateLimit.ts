@@ -105,6 +105,19 @@ export const passwordResetLimiter = (perMinute: number): RateLimitRequestHandler
   limiter(perMinute, 'rate.limited')
 
 /**
+ * The two public doors of an invitation link: looking at what it offers, and accepting it
+ * (G2-09 / P3-10).
+ *
+ * The sign-in budget again, for the reason {@link passwordResetLimiter} gives, and **one
+ * limiter per route**: each is built by its own call, so a stranger who tries links on the
+ * preview does not spend the allowance of the person accepting one. The link is 256 random
+ * bits, so this is about cost — a hash and a lookup per attempt, and a bcrypt hash per
+ * acceptance with a password — and not about guessing.
+ */
+export const invitationLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited')
+
+/**
  * Uploads, keyed by IP **and** event.
  *
  * A whole table of guests at a wedding shares one access point and therefore one

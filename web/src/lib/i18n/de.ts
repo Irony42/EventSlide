@@ -345,6 +345,16 @@ export const de: UiText = {
     'email.malformed': 'Diese E-Mail-Adresse ist nicht gültig.',
     'user.notFound': 'Zu dieser E-Mail-Adresse gibt es kein Konto.',
     'membership.alreadyExists': 'Diese Person moderiert diese Veranstaltung bereits.',
+    'invitation.tooManyForAddress':
+      'An diese Adresse wurden bereits mehrere Einladungen gesendet. Versuchen Sie es in einer Stunde erneut.',
+    'invitation.notFound':
+      'Diese Einladung ist nicht mehr gültig. Bitten Sie die Person, die sie geschickt hat, um eine neue.',
+    'invitation.signInRequired':
+      'Ein Konto verwendet diese Adresse bereits. Melden Sie sich mit diesem Konto an und öffnen Sie den Link erneut.',
+    'invitation.wrongAccount':
+      'Diese Einladung wurde für eine andere E-Mail-Adresse als die dieses Kontos ausgestellt.',
+    'invitation.credentialsRequired':
+      'Melden Sie sich mit dem eingeladenen Konto an oder wählen Sie einen Namen und ein Passwort.',
 
     'displayName.tooLong': 'Vorname zu lang.',
     'joinCode.wrongLength': 'Dieser Code hat nicht die richtige Anzahl an Zeichen.',
@@ -741,15 +751,17 @@ export const de: UiText = {
     guestRevoked: 'Der Zugang wurde entzogen.',
     moderatorsEmpty: 'Sie moderieren diese Veranstaltung allein.',
     moderatorEmail: 'E-Mail-Adresse des Moderators',
-    moderatorEmailHint: 'Die Rechte gelten nur für diese Veranstaltung.',
-    moderatorPassword: 'Vorläufiges Passwort',
-    moderatorPasswordHint: (min: number) =>
-      `Mindestens ${min} Zeichen. Es wird keine E-Mail versendet: Nennen Sie dem Moderator dieses Passwort. Bei der ersten Anmeldung wählt er ein eigenes.`,
+    moderatorEmailHint:
+      'Die Person erhält eine Einladung, sieben Tage gültig, nur für diese Veranstaltung.',
     inviteSubmit: 'Einladen',
-    moderatorInvited: (email: string) =>
-      `${email} kann diese Veranstaltung ab jetzt moderieren. Geben Sie dieser Person das vorläufige Passwort weiter.`,
-    moderatorInvitedExisting: (email: string) =>
-      `${email} kann diese Veranstaltung ab jetzt moderieren. Dieses Konto gab es bereits: Es behält sein bisheriges Passwort.`,
+    /** An invitation went out by e-mail: nothing to copy. */
+    moderatorInviteSent: (email: string) => `Eine Einladung wurde an ${email} gesendet.`,
+    /** No mail relay, or it refused: the link is for the host to pass on, once. */
+    inviteLinkCreated: (email: string) =>
+      `Es konnte keine E-Mail gesendet werden. Geben Sie diesen Link an ${email} weiter: Er funktioniert einmal und sieben Tage lang.`,
+    inviteLinkUrl: 'Einladungslink',
+    inviteLinkCopy: 'Link kopieren',
+    inviteLinkCopied: 'Link kopiert.',
     revokeModerator: 'Entfernen',
     revokeModeratorTitle: 'Diesen Moderator entfernen?',
     revokeModeratorHint:

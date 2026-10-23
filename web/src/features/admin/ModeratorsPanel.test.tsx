@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ModeratorsPanel } from './ModeratorsPanel'
-import { PASSWORD_MIN_LENGTH } from '../auth/passwordPolicy'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import { fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
@@ -35,13 +34,9 @@ const renderPanel = (api: Api) =>
 
 const listOf = (...items: readonly ModeratorDto[]) => vi.fn(async () => ({ items }))
 
-/** Long enough for the policy the server enforces, and obviously a fixture. */
-const A_TEMPORARY_PASSWORD = 'phrase-de-passe-temporaire'
-
-/** The invitation form, both fields, as a host fills it. */
-const fillInvitation = async (email: string, temporaryPassword: string): Promise<void> => {
+/** The invitation form, as a host fills it: an address, and nothing else. */
+const fillInvitation = async (email: string): Promise<void> => {
   await userEvent.type(await screen.findByLabelText(fr.admin.moderatorEmail), email)
-  await userEvent.type(screen.getByLabelText(fr.admin.moderatorPassword), temporaryPassword)
 }
 
 /**
@@ -121,78 +116,106 @@ describe('ModeratorsPanel', () => {
     expect(screen.getAllByRole('button', { name: fr.admin.revokeModerator })).toHaveLength(2)
   })
 
-  it('invites a moderator with an address and a temporary password, then clears both', async () => {
-    // Both fields, because the server requires both: `moderatorInvitationBody` is
-    // `.strict()` and `temporaryPassword` is not optional. The panel that shipped had
-    // only the address, so every invitation came back `400 request.invalid`.
+  it('invites a moderator with an address and the page language, and nothing else, then clears the field', async () => {
+    // No password and no name: the invitee chooses both when they accept. The server's
+    // `moderatorInvitationBody` is `.strict()`, so a field the form still sent would be a 400.
     const api = fakeApi({ listModerators: listOf(aModerator()) })
 
     renderPanel(api)
-    await fillInvitation('sacha@example.com', A_TEMPORARY_PASSWORD)
+    await fillInvitation('sacha@example.com')
     await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
 
     expect(api.inviteModerator).toHaveBeenCalledWith('camille-et-sacha', {
       email: 'sacha@example.com',
-      temporaryPassword: A_TEMPORARY_PASSWORD,
+      locale: 'fr',
     })
-    expect(await screen.findByText(fr.admin.moderatorInvited('sacha@example.com'))).toBeVisible()
+    expect(await screen.findByText(fr.admin.moderatorInviteSent('sacha@example.com'))).toBeVisible()
     expect(screen.getByLabelText(fr.admin.moderatorEmail)).toHaveValue('')
-    expect(screen.getByLabelText(fr.admin.moderatorPassword)).toHaveValue('')
   })
 
-  it('tells the host to read the password out when an account was created', async () => {
+  it('has no password field: nobody reads a password out any more', async () => {
+    renderPanel(fakeApi())
+
+    await screen.findByLabelText(fr.admin.moderatorEmail)
+    expect(screen.queryByLabelText(/mot de passe/i)).toBeNull()
+  })
+
+  it('shows no link when the invitation was mailed', async () => {
     const api = fakeApi({ listModerators: listOf(aModerator()) })
 
     renderPanel(api)
-    await fillInvitation('sacha@example.com', A_TEMPORARY_PASSWORD)
+    await fillInvitation('sacha@example.com')
     await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
 
-    expect(await screen.findByText(fr.admin.moderatorInvited('sacha@example.com'))).toBeVisible()
+    await screen.findByText(fr.admin.moderatorInviteSent('sacha@example.com'))
+    expect(screen.queryByLabelText(fr.admin.inviteLinkUrl)).toBeNull()
   })
 
-  it('says the password was not used when the address already had an account', async () => {
-    // An existing account keeps its own password — an invitation that reset it would let
-    // one host take over a colleague's account. A host told otherwise would read out a
-    // credential that does not work and blame the product.
-    const api = fakeApi({
-      listModerators: listOf(aModerator()),
-      inviteModerator: vi.fn(async () => ({ userId: 'user-9', created: false })),
+  describe('on a box that could not mail it', () => {
+    const LINK = 'https://photos.example.org/invite/AbC-123_xyz'
+    const noMail = () =>
+      fakeApi({
+        listModerators: listOf(aModerator()),
+        inviteModerator: vi.fn(async () => ({
+          status: 'invited' as const,
+          expiresAt: '2026-06-27T21:00:00.000Z',
+          link: LINK,
+        })),
+      })
+
+    it('hands the host the link to pass on, and says who it is for', async () => {
+      renderPanel(noMail())
+      await fillInvitation('sacha@example.com')
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
+
+      expect(await screen.findByLabelText(fr.admin.inviteLinkUrl)).toHaveValue(LINK)
+      expect(screen.getByText(fr.admin.inviteLinkCreated('sacha@example.com'))).toBeVisible()
+      expect(screen.queryByText(fr.admin.moderatorInviteSent('sacha@example.com'))).toBeNull()
     })
 
-    renderPanel(api)
-    await fillInvitation('sacha@example.com', A_TEMPORARY_PASSWORD)
-    await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
+    it('copies it', async () => {
+      const writeText = vi.fn(async () => undefined)
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      renderPanel(noMail())
+      await fillInvitation('sacha@example.com')
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
 
-    expect(
-      await screen.findByText(fr.admin.moderatorInvitedExisting('sacha@example.com')),
-    ).toBeVisible()
-    expect(screen.queryByText(fr.admin.moderatorInvited('sacha@example.com'))).toBeNull()
-  })
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.inviteLinkCopy }))
 
-  it('says how long the temporary password has to be, before the host types one', async () => {
-    // The server is the only judge of a password, but a host who learns the rule from a
-    // refused invitation has already read the wrong one out loud.
-    renderPanel(fakeApi())
+      expect(writeText).toHaveBeenCalledWith(LINK)
+      expect(await screen.findByText(fr.admin.inviteLinkCopied)).toBeVisible()
+    })
 
-    expect(
-      await screen.findByText(fr.admin.moderatorPasswordHint(PASSWORD_MIN_LENGTH)),
-    ).toBeVisible()
+    it('forgets the link when the next invitation is sent', async () => {
+      const api = noMail()
+      renderPanel(api)
+      await fillInvitation('sacha@example.com')
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
+      await screen.findByLabelText(fr.admin.inviteLinkUrl)
+      vi.mocked(api.inviteModerator).mockImplementationOnce(() => new Promise(() => {}))
+
+      await fillInvitation('autre@example.com')
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
+
+      expect(screen.queryByLabelText(fr.admin.inviteLinkUrl)).toBeNull()
+    })
   })
 
   it('says why an invitation was refused, next to the field', async () => {
     const api = fakeApi({
       listModerators: listOf(aModerator()),
-      inviteModerator: vi.fn(() => Promise.reject(new ApiError(404, 'user.notFound'))),
+      inviteModerator: vi.fn(() => Promise.reject(new ApiError(409, 'membership.alreadyExists'))),
     })
 
     renderPanel(api)
-    await fillInvitation('inconnu@example.com', A_TEMPORARY_PASSWORD)
+    await fillInvitation('camille@example.com')
     await userEvent.click(screen.getByRole('button', { name: fr.admin.inviteSubmit }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['user.notFound'])
-    // Both entries stay, so the host can correct a typo rather than retype the pair.
-    expect(screen.getByLabelText(fr.admin.moderatorEmail)).toHaveValue('inconnu@example.com')
-    expect(screen.getByLabelText(fr.admin.moderatorPassword)).toHaveValue(A_TEMPORARY_PASSWORD)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      fr.errors['membership.alreadyExists'],
+    )
+    // The entry stays, so the host can correct a typo rather than retype it.
+    expect(screen.getByLabelText(fr.admin.moderatorEmail)).toHaveValue('camille@example.com')
   })
 
   it('asks before revoking, and says what the person keeps', async () => {

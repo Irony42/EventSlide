@@ -914,21 +914,17 @@ export const fr = {
     guestRevoked: 'L’accès a été retiré.',
     moderatorsEmpty: 'Vous êtes seul à modérer cet évènement.',
     moderatorEmail: 'Adresse e-mail du modérateur',
-    moderatorEmailHint: 'Il recevra des droits sur cet évènement uniquement.',
-    moderatorPassword: 'Mot de passe temporaire',
-    /**
-     * Said plainly because the host *is* the delivery mechanism: rien n'est envoyé par
-     * e-mail, so a host who types a password and waits for something to happen has
-     * already lost the invitee.
-     */
-    moderatorPasswordHint: (min: number) =>
-      `Au moins ${min} caractères. Aucun e-mail n’est envoyé : lisez ce mot de passe au modérateur. Il en choisira un autre à sa première connexion.`,
+    moderatorEmailHint:
+      'Il recevra une invitation, valable sept jours, pour modérer cet évènement uniquement.',
     inviteSubmit: 'Inviter',
-    moderatorInvited: (email: string) =>
-      `${email} peut désormais modérer cet évènement. Communiquez-lui le mot de passe temporaire.`,
-    /** The address already had an account, so the password just typed was not used. */
-    moderatorInvitedExisting: (email: string) =>
-      `${email} peut désormais modérer cet évènement. Ce compte existait déjà : il garde son mot de passe habituel.`,
+    /** An invitation went out by e-mail: nothing to copy. */
+    moderatorInviteSent: (email: string) => `Une invitation a été envoyée à ${email}.`,
+    /** No mail relay, or it refused: the link is for the host to pass on, once. */
+    inviteLinkCreated: (email: string) =>
+      `Aucun e-mail n’a pu être envoyé. Transmettez ce lien à ${email} : il ne sert qu’une fois et vaut sept jours.`,
+    inviteLinkUrl: 'Lien d’invitation',
+    inviteLinkCopy: 'Copier le lien',
+    inviteLinkCopied: 'Lien copié.',
     revokeModerator: 'Retirer',
     revokeModeratorTitle: 'Retirer ce modérateur ?',
     revokeModeratorHint:
@@ -1221,6 +1217,16 @@ export const fr = {
     'email.malformed': 'Cette adresse e-mail n’est pas valide.',
     'user.notFound': 'Aucun compte ne correspond à cette adresse e-mail.',
     'membership.alreadyExists': 'Cette personne modère déjà cet évènement.',
+    'invitation.tooManyForAddress':
+      'Cette adresse a déjà reçu plusieurs invitations. Réessayez dans une heure.',
+    'invitation.notFound':
+      'Cette invitation n’est plus valable. Demandez-en une nouvelle à la personne qui vous l’a envoyée.',
+    'invitation.signInRequired':
+      'Un compte utilise déjà cette adresse. Connectez-vous avec ce compte, puis rouvrez le lien.',
+    'invitation.wrongAccount':
+      'Cette invitation a été écrite pour une autre adresse e-mail que celle de ce compte.',
+    'invitation.credentialsRequired':
+      'Connectez-vous avec le compte invité, ou choisissez un nom et un mot de passe.',
 
     'displayName.tooLong': 'Prénom trop long.',
     // Not "six caractères": JOIN_CODE_LENGTH is configurable (6 à 10), so the one thing
