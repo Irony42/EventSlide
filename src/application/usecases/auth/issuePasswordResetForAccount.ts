@@ -23,6 +23,7 @@ import type { Logger } from '../../ports/logger'
 import type { Mailer } from '../../ports/mailer'
 import type { SecretTokens } from '../../ports/secretTokens'
 import type { UserRepository } from '../../ports/userRepository'
+import { makeIsStandingOwner } from '../clients/approvalGate'
 
 export interface IssuePasswordResetForAccountInput {
   /** The operator asking. Their site role is read from storage, here. */
@@ -55,7 +56,7 @@ export type OperatorResetOutcome =
 
 export interface IssuePasswordResetForAccountDeps {
   readonly users: Pick<UserRepository, 'findById' | 'siteRoleFor'>
-  readonly clients: Pick<ClientRepository, 'membershipsForUser'>
+  readonly clients: Pick<ClientRepository, 'membershipsForUser' | 'memberRole'>
   readonly tokens: AccountTokenRepository
   readonly secrets: SecretTokens
   readonly mailer: Mailer
@@ -122,8 +123,9 @@ export type IssuePasswordResetForAccount = (
  * The token is the same kind (`passwordReset`, one hour, `resetPassword` spends it), so the
  * account holder's own password change, the credentials epoch and "one live link per address"
  * are unchanged, and the hourly cap per address counts these too: three mails an hour to one
- * inbox, however they were asked for. It carries the operator as its author, and the claim in
- * case 3 is the only token anywhere with `delivery: 'link'` for a reset.
+ * inbox, however they were asked for. It carries the operator as its author. The claim in case 3
+ * is the only token a reset is ever **spent with** that was handed to a person on a screen; the
+ * request before it has `delivery: 'link'` too and holds no secret.
  */
 export const makeIssuePasswordResetForAccount = ({
   users,
@@ -140,6 +142,7 @@ export const makeIssuePasswordResetForAccount = ({
 }: IssuePasswordResetForAccountDeps): IssuePasswordResetForAccount => {
   /** A request is an hour old at most, so a claim cannot outlive the mail it replaces. */
   const lifetimeMinutes = ACCOUNT_TOKEN_LIFETIME_MS.passwordReset / 60_000
+  const isStandingOwner = makeIsStandingOwner({ users, clients })
 
   const auditLines = async (
     action: 'account.resetIssued' | 'account.resetRequested',
@@ -196,6 +199,19 @@ export const makeIssuePasswordResetForAccount = ({
         request.createdBy !== actorId ||
         !request.requiresApproval ||
         !isAccountTokenUsable(request, now)
+      ) {
+        return err(DomainError.notFound('reset.requestNotFound'))
+      }
+      // The consent is read again, as authority always is: the owner who gave it still stands,
+      // and the account is still in the one client it was given for. An approval from an owner
+      // who has since left or been switched off, or for an account that has since joined a
+      // second client, is not one.
+      const only = accountClients.length === 1 ? accountClients[0] : undefined
+      if (
+        only === undefined ||
+        request.approvedBy === null ||
+        request.approvedBy === user.id ||
+        !(await isStandingOwner(only, request.approvedBy))
       ) {
         return err(DomainError.notFound('reset.requestNotFound'))
       }

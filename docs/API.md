@@ -2956,7 +2956,7 @@ An owner of a client lets an operator's invitation into that client in (the oper
 docs/SECURITY.md §20). **Only with `SITE_ADMIN=on`**: off, the whole `/api/client` space is unmounted and
 every path in it is `404 route.notFound`, status, body and headers exactly as for a path nobody wrote.
 
-An operator's invitation into a client **that has an event** is written as waiting (`pendingApproval`),
+An operator's invitation into a client **that has an event or a member** is written as waiting (`pendingApproval`),
 and opens nothing, as a link or a mail, until an owner of that client approves it here. Approving
 records who approved and when and does nothing else: the link is not spent and no account is created,
 so the invitee still has to open it and accept.
@@ -2969,10 +2969,10 @@ so the invitee still has to open it and accept.
 - **Response:** `204`, also when the invitation was already approved (nothing changes and nothing is
   written). The line `invitation.approved` is written to the audit log before the approval is recorded.
 
-| Code                  | Status | When                                                                                                                                                                                                                                                                                                   |
-| --------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `auth.forbidden`      | 403    | A member of the client who is not an owner; **an operator**, whether or not the client made them an owner. `details.required: "owner"`                                                                                                                                                                 |
-| `invitation.notFound` | 404    | An unknown id; another client's invitation; an invitation to an event, or one that never waited for anyone; a password-reset link; one already spent, revoked or expired; and a caller with no part in the client (an operator included), or whose account is switched off. One answer for all of them |
+| Code                  | Status | When                                                                                                                                                                                                                                                                 |
+| --------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.forbidden`      | 403    | A member of the client who is not an owner; **an operator**, whether or not the client made them an owner. `details.required: "owner"`                                                                                                                               |
+| `invitation.notFound` | 404    | An unknown id; another client's invitation; an invitation to an event, or one that never waited for anyone; a password-reset link; one already spent, revoked or expired; and a caller with no part in the client (an operator included). One answer for all of them |
 
 ## 7. Realtime
 

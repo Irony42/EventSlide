@@ -2816,14 +2816,14 @@ sign in. Each of those is also a way to end up holding a client's account, and f
 The guard is six rules (the plan's numbering, which the tests and the code comments use), held where the
 use cases are, and not in a route that might forget them.
 
-| Rule | In one line                                                                                             | Held by                                                                                                                                                                                                                 |
-| ---- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1   | An operator's invitation into a client **that has an event** waits for one of its owners.               | `inviteToClientAsOperator` (writes `requires_approval`), `approveInvitation` (the owner's consent), `makeResolveInvitation` (judged again when the link is spent)                                                       |
-| R2   | An operator's password reset is **mailed**, and nothing the operator receives holds a token or a link.  | `issuePasswordResetForAccount` and `operatorResetPlan`, under `OPERATOR_RESET_LINKS`                                                                                                                                    |
-| R3   | Ownership of a client moves only by an owner's decision.                                                | Today, the one door there is: an owner invitation, which for a client with events an operator cannot make usable and a member cannot approve. The transfer itself (P9-02) is not built, and will have no operator route |
-| R4   | No operator action grants an event role, opens a session for another account, or impersonates a client. | An operator's use cases write client invitations only; an event invitation an operator wrote is never honoured (`makeResolveInvitation`); a reset changes nothing about the account until its holder uses the link      |
-| R5   | Every action under R1 to R4 writes an audit line the client can read.                                   | Each use case below, **before** the act it records                                                                                                                                                                      |
-| R6   | Inviting a moderator to an event stays the event owner's.                                               | `registerModerator`, unchanged: an operator is nobody in the event, and a client owner is no part of it either                                                                                                          |
+| Rule | In one line                                                                                             | Held by                                                                                                                                                                                                                               |
+| ---- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1   | An operator's invitation into a client **with an event or a member** waits for one of its owners.       | `inviteToClientAsOperator` (writes `requires_approval`), `approveInvitation` (the owner's consent), `makeResolveInvitation` (judged again when the link is spent)                                                                     |
+| R2   | An operator's password reset is **mailed**, and nothing the operator receives holds a token or a link.  | `issuePasswordResetForAccount` and `operatorResetPlan`, under `OPERATOR_RESET_LINKS`                                                                                                                                                  |
+| R3   | Ownership of a client moves only by an owner's decision.                                                | Today, the one door there is: an owner invitation, which for a client with an event or a member an operator cannot make usable and a member cannot approve. The transfer itself (P9-02) is not built, and will have no operator route |
+| R4   | No operator action grants an event role, opens a session for another account, or impersonates a client. | An operator's use cases write client invitations only; an event invitation an operator wrote is never honoured (`makeResolveInvitation`); a reset changes nothing about the account until its holder uses the link                    |
+| R5   | Every action under R1 to R4 writes an audit line the client can read.                                   | Each use case below, **before** the act it records                                                                                                                                                                                    |
+| R6   | Inviting a moderator to an event stays the event owner's.                                               | `registerModerator`, unchanged: an operator is nobody in the event, and a client owner is no part of it either                                                                                                                        |
 
 The rules are one named spec, `src/application/usecases/clients/operatorGuard.test.ts`, which drives the
 real use cases over the in-memory fakes, one `describe` per rule. Each use case has its own file for the
@@ -2831,11 +2831,16 @@ finer cases (who may approve, what a refused log does, the races).
 
 ### R1: the invitation, and the owner's consent
 
-- **The count.** `ClientRepository.countEvents` is every event of the client, in any status: a client
-  with one archived wedding is not new. An operator's invitation into a client with none is usable at
-  once, which is the case the operator has to handle alone (a customer who has just signed up, whose
-  first owner is the operator's own invitation).
-- **Approval.** An invitation into a client with events is written with `requires_approval`, so
+- **The count.** `ClientRepository.countEvents` is every event of the client, in any status (a client
+  with one archived wedding is not new; `sqliteClientRepository.test.ts` holds draft, live, closed and
+  archived), and `countMembers` is every account in its roster, whether or not it can sign in today. An
+  operator's invitation into a client with **neither** is usable at once, which is the case the operator
+  has to handle alone: a customer who has just been created, whose first owner is the operator's own
+  invitation. **This adds "no member" to the plan's sentence, which says "no event".** Without it the
+  window stays open for every client between its owner's sign-up and its first event, and for every
+  client whose events retention has purged, and an operator could raise a member to owner, or sit beside
+  the customer as a second owner, with nobody's say. It costs the provisioning flow nothing.
+- **Approval.** An invitation into a client with an event or a member is written with `requires_approval`, so
   `findUsable` and the acceptance's spend refuse it until an owner of that client has approved it
   (`POST /api/client/invitations/:invitationId/approve`, API.md §6). Approving changes one column pair
   and nothing else: it does not spend the link and it creates nobody.
@@ -2845,13 +2850,21 @@ finer cases (who may approve, what a refused log does, the races).
   it to their own invitation would have removed the one thing R1 stands on (`403`). A member who is not
   an owner is refused (`403`). Everything else is `404 invitation.notFound`, one answer: an unknown id,
   another client's invitation, an invitation to an event, a reset link, one already spent, revoked or
-  expired, an account that is no part of the client, an operator who is no part of it, a disabled owner.
+  expired, an account that is no part of the client, an operator who is no part of it. (A **disabled**
+  owner with a live session never reaches the use case: `requireUser` answers `401 auth.required` first,
+  and the use case's own refusal for one is the same `404`.)
 - **Judged again when it is spent.** The week an invitation lives is long enough for an empty client to
-  grow its first event, and an operator who wrote a second invitation (to themselves) in the meantime
-  would be let in without anybody's say. So `makeResolveInvitation`, which the preview and the
-  acceptance share, honours an unapproved client invitation only while the client **still has no
-  event**, unless an owner of the client or the system (`null`) wrote it. Otherwise it is a dead link,
-  and the operator writes a new one, which now waits.
+  grow a member or an event, and an operator who wrote a second invitation (to themselves) in the
+  meantime would be let in without anybody's say. The same is true of the count taken when it was
+  written: it precedes the mail, which waits on the relay. So `makeResolveInvitation`, which the preview
+  and the acceptance share, honours an unapproved client invitation only while the client **still holds
+  no event and no member**, unless an owner **who still stands** approved it or wrote it. "Standing" is
+  read now (`makeIsStandingOwner`): an account that can sign in, that is not an operator, and that is
+  still an owner of that client. So an approval from an owner who has since left or been switched off
+  is not one; an operator the client made an owner is not exempt from R1 for what they write; and **an
+  author the box no longer has (`created_by` is `NULL` once the account is deleted) is not read as "the
+  system"**, which would have made deleting an operator's account an approval. Otherwise it is a dead
+  link, and the operator writes a new one, which now waits.
 - **What the invitee sees.** The mail still goes out, and on a box with no relay the operator is still
   shown the link, with `pendingApproval: true`. The link opens nothing until approved, and answers
   exactly as every dead link does: the invitee cannot tell "waiting for an owner" from "never existed",
@@ -2872,11 +2885,13 @@ whether the box can mail, and whether an owner approved this very request:
 - **`copyLinkWithOwnerApproval` weakens the invariant, and is documented as doing so.** With it, an
   operator on a box with no relay can hold a link that resets the password of an account in a client,
   after **another owner of that client** said yes. The approval is bound to its request: same operator,
-  same account, unspent, unexpired (an hour, the reset's own lifetime). The owner who approves cannot be
-  the account itself, and an account in no client, or in two, has no such approval (whose consent would
-  it be?), so those are `409 reset.approverUnavailable` and fall to the mail, or to the break-glass
-  command below. The two audit lines (`account.resetRequested`, `account.resetIssued {linkShown: true}`)
-  are in the client's own log.
+  same account, unspent, unexpired (an hour, the reset's own lifetime), and **read again when it is
+  redeemed**: the owner who approved it must still stand (an account that can sign in, not an operator,
+  still an owner of the client), and the account must still be in exactly the one client it was given
+  for. The owner who approves cannot be the account itself, and an account in no client, or in two, has
+  no such approval (whose consent would it be?), so those are `409 reset.approverUnavailable` and fall
+  to the mail, or to the break-glass command below. The two audit lines (`account.resetRequested`,
+  `account.resetIssued {linkShown: true}`) are in the client's own log.
 - **The configuration fails closed.** The two words are exact; a blank is `mailOnly`, the less
   permissive; anything else stops the boot naming the variable, so a typo is never read as the opt-in;
   and `copyLinkWithOwnerApproval` needs `SITE_ADMIN=on` (`env.test.ts`, which lists the refusal beside
@@ -2938,9 +2953,15 @@ reset.tooManyForAddress`.
   (`disableAccount`). If that is the only owner of a client, nothing that waits for an owner can be
   approved, which is a lock and not an escalation: R1 and R2 fail closed. Who may disable whom, and the
   step-up it needs, are G2-14's.
-- **Owners do not write client invitations yet.** The accept-time check treats an invitation written by
-  "an owner of the client" as the client's own, from the roster (`client_members`), which a disabled
-  account's row stays in. No use case lets an owner write one today, so nothing reaches that branch
-  from the wire; whoever adds it reads the account's state too, as an approval already does.
+- **Owners do not write client invitations yet.** The exemption for "an owner who still stands wrote
+  it" is written and tested, and no use case lets an owner write one today, so nothing reaches it from
+  the wire.
+- **The check and the spend are two reads.** `acceptInvitation` judges the link (`makeResolveInvitation`),
+  hashes the password, judges it again, and then `InvitationAcceptance.accept` spends it in one
+  transaction that re-checks only what the link itself says (spent, revoked, expired, waiting for an
+  approval it has not had). Nothing in this process yields between the last judgement and the
+  transaction (SQLite is synchronous here), so there is
+  no window today; the invariant rests on that, and a second writer to the same file would be the first
+  thing to break it.
 - **R3 has no use case to hold yet.** There is no ownership transfer to guard (P9-02); the rule is
   held at the only door that confers ownership today, an owner invitation, and is a named test there.

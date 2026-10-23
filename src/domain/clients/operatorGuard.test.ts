@@ -4,45 +4,63 @@ import {
   OPERATOR_RESET_LINK_MODES,
   approvalVerdictFor,
   clientInvitationStillHonourable,
-  isOperatorResetLinks,
   operatorInvitationNeedsApproval,
   operatorResetPlan,
 } from './operatorGuard'
 
-describe('R1: an operator invitation into a client that has events waits for an owner', () => {
-  it('needs no approval while the client has no event, the case the operator handles alone', () => {
-    expect(operatorInvitationNeedsApproval(0)).toBe(false)
+describe('R1: an operator invitation into a client with an event or a member waits for an owner', () => {
+  it('needs no approval for a client that holds nothing, the case the operator handles alone', () => {
+    expect(operatorInvitationNeedsApproval({ eventCount: 0, memberCount: 0 })).toBe(false)
   })
 
   it('needs approval from the first event, whatever its status', () => {
-    expect(operatorInvitationNeedsApproval(1)).toBe(true)
-    expect(operatorInvitationNeedsApproval(40)).toBe(true)
+    expect(operatorInvitationNeedsApproval({ eventCount: 1, memberCount: 0 })).toBe(true)
+    expect(operatorInvitationNeedsApproval({ eventCount: 40, memberCount: 3 })).toBe(true)
+  })
+
+  it('needs approval from the first member, before there is any event to take', () => {
+    expect(operatorInvitationNeedsApproval({ eventCount: 0, memberCount: 1 })).toBe(true)
   })
 })
 
-describe('R1 again, when the invitation is spent: the client may have grown a first event since', () => {
-  const base = { approved: false, writtenByOwnerOrSystem: false, clientEventCount: 0 }
+describe('R1 again, when the invitation is spent: the client may have grown a member or an event since', () => {
+  const base = {
+    approvedByAStandingOwner: false,
+    writtenByAStandingOwner: false,
+    eventCount: 0,
+    memberCount: 0,
+  }
 
-  it('honours one nobody had to approve while the client still has no event', () => {
+  it('honours one nobody had to approve while the client still holds nothing', () => {
     expect(clientInvitationStillHonourable(base)).toBe(true)
   })
 
   it('stops honouring one nobody approved once the client has an event', () => {
-    expect(clientInvitationStillHonourable({ ...base, clientEventCount: 1 })).toBe(false)
+    expect(clientInvitationStillHonourable({ ...base, eventCount: 1 })).toBe(false)
   })
 
-  it('keeps honouring one an owner approved, however many events the client has', () => {
-    expect(clientInvitationStillHonourable({ ...base, approved: true, clientEventCount: 9 })).toBe(
-      true,
-    )
+  it('stops honouring one nobody approved once the client has a member', () => {
+    expect(clientInvitationStillHonourable({ ...base, memberCount: 1 })).toBe(false)
   })
 
-  it('keeps honouring one an owner or the system wrote, which R1 is not about', () => {
+  it('keeps honouring one an owner who still stands approved, whatever the client holds', () => {
     expect(
       clientInvitationStillHonourable({
         ...base,
-        writtenByOwnerOrSystem: true,
-        clientEventCount: 9,
+        approvedByAStandingOwner: true,
+        eventCount: 9,
+        memberCount: 4,
+      }),
+    ).toBe(true)
+  })
+
+  it('keeps honouring one an owner who still stands wrote, which R1 is not about', () => {
+    expect(
+      clientInvitationStillHonourable({
+        ...base,
+        writtenByAStandingOwner: true,
+        eventCount: 9,
+        memberCount: 4,
       }),
     ).toBe(true)
   })
@@ -73,16 +91,9 @@ describe('OPERATOR_RESET_LINKS', () => {
     expect(DEFAULT_OPERATOR_RESET_LINKS).toBe('mailOnly')
   })
 
-  it.each(OPERATOR_RESET_LINK_MODES)('accepts %s', (mode) => {
-    expect(isOperatorResetLinks(mode)).toBe(true)
+  it('has the two words the configuration names, and the default is the first', () => {
+    expect(OPERATOR_RESET_LINK_MODES).toEqual(['mailOnly', 'copyLinkWithOwnerApproval'])
   })
-
-  it.each(['', 'MAILONLY', 'copyLink', 'on', 'true', undefined, null, 1])(
-    'refuses %j, which is never a guess at what was meant',
-    (value) => {
-      expect(isOperatorResetLinks(value)).toBe(false)
-    },
-  )
 })
 
 describe('R2: what an operator-initiated reset does', () => {

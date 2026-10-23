@@ -154,6 +154,72 @@ describe('the operator guard', () => {
       expect((await accepts(token)).ok).toBe(false)
     })
 
+    it('is judged again when it is spent in the other direction too: the customer signing up kills the second invitation an operator wrote in the meantime', async () => {
+      const { token: firstOwner } = await operatorInvites(NEW_CLIENT_ID)
+      const { token: accomplice } = await operatorInvites(
+        NEW_CLIENT_ID,
+        'owner',
+        'inconnu@example.test',
+      )
+
+      // The customer accepts, and the client has a member.
+      expect((await accepts(firstOwner)).ok).toBe(true)
+
+      expect(await opens(accomplice)).toBe(false)
+    })
+
+    it('does not let an operator raise a member to owner, or add themselves beside the customer, in a client that has no event yet', async () => {
+      world = makeOperatorGuardWorld({ mailer: noRelay, clientHasEvents: false })
+      await world.seatTheClient()
+
+      const promote = await operatorInvites(CLIENT_ID, 'owner', 'membre@example.test')
+      const beside = await operatorInvites(CLIENT_ID, 'owner', 'operateur@example.test')
+
+      expect(
+        (
+          await world.useCases.acceptInvitation({
+            token: promote.token,
+            signedInUserId: asUserId(MEMBER_ID),
+          })
+        ).ok,
+      ).toBe(false)
+      expect(
+        (
+          await world.useCases.acceptInvitation({
+            token: beside.token,
+            signedInUserId: asUserId(OPERATOR_ID),
+          })
+        ).ok,
+      ).toBe(false)
+      expect(await world.clients.memberRole(asClientId(CLIENT_ID), asUserId(MEMBER_ID))).toBe(
+        'member',
+      )
+    })
+
+    it('does not exempt an operator the client made an owner: what they write waits, and dies with the first event', async () => {
+      // The one thing an owner's own invitation is exempt from is R1, and an operator who is an
+      // owner by the client's choice is still who R1 is about.
+      await world.clients.grantMember({
+        clientId: asClientId(CLIENT_ID),
+        userId: asUserId(OPERATOR_ID),
+        role: 'owner',
+        grantedAt: AT,
+      })
+      const written = await world.useCases.issueInvitation({
+        email: 'inconnu@example.test',
+        locale: 'fr',
+        place: { kind: 'client', clientId: asClientId(CLIENT_ID), role: 'owner', name: 'Camille' },
+        createdBy: asUserId(OPERATOR_ID),
+      })
+      if (!written.ok || written.value.delivery !== 'link') throw new Error('fixture')
+
+      expect(await opens(tokenOf(written.value.link))).toBe(false)
+      expect(
+        (await world.useCases.acceptInvitation({ token: tokenOf(written.value.link), credentials }))
+          .ok,
+      ).toBe(false)
+    })
+
     it('lets the operator write the invitation again after that, and it now waits for an owner', async () => {
       await operatorInvites(NEW_CLIENT_ID)
       await world.events.save(

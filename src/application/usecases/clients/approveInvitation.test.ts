@@ -253,6 +253,10 @@ describe('approveInvitation', () => {
       )
 
       expect(notFound(await approve(OWNER_ID, asAccountTokenId('tok-dead')))).toBe(true)
+      // Nothing was approved, so the log must not say an owner approved it.
+      expect(
+        (await world.logged()).filter((line) => line.action === 'invitation.approved'),
+      ).toEqual([])
     })
   })
 

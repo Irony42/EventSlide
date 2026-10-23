@@ -664,7 +664,7 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 > **The operator guard is built** (G2-12 / P3-14, [ADR 0009](adr/0009-operator-cannot-grant-itself-access.md),
 > [SECURITY.md §20](SECURITY.md)): the rules that stop the operator from using these invitations, and
 > the password reset that goes with them, to become somebody's client. An operator's invitation into a
-> client that has an event waits for one of its owners (`POST /api/client/invitations/:id/approve`,
+> client that has an event or a member waits for one of its owners (`POST /api/client/invitations/:id/approve`,
 > mounted with `SITE_ADMIN=on`), and is judged again when it is spent; an operator's reset is mailed and
 > never shown, `OPERATOR_RESET_LINKS=mailOnly` by default, with an opt-in for a box with no relay that
 > needs another owner's approval. Each leaves a line in the audit log. **Not built**: the operator routes

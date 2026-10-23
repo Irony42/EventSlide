@@ -33,9 +33,11 @@ most of them.
 **Six rules, held in the use cases and not in the routes** (the plan's table; the tests, the code
 comments and this ADR use its numbering):
 
-1. An operator's invitation into a client **that has an event** is written as waiting, and opens
-   nothing until an owner of that client approves it. A client with no event is the case the operator
-   handles alone, and the rule is judged again when the link is spent.
+1. An operator's invitation into a client **with an event or a member** is written as waiting, and opens
+   nothing until an owner of that client approves it. A client with no event **and no member** is the
+   case the operator handles alone (the plan says "no event"; the member is added because a client with a
+   member and no event yet is somebody's account already), and the rule is judged again when the link
+   is spent, against the owners who still stand.
 2. An operator's password reset is **mailed to the address on record**, and the answer never carries a
    link. `OPERATOR_RESET_LINKS=mailOnly` is the default of every box, hosted or not.
 3. Ownership moves only by an owner's decision.

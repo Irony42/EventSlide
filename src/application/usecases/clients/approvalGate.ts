@@ -31,6 +31,37 @@ export type ApprovalGate = (
   notFoundCode: string,
 ) => Promise<Result<void, DomainError>>
 
+export interface StandingOwnerDeps {
+  readonly users: Pick<UserRepository, 'findById'>
+  readonly clients: Pick<ClientRepository, 'memberRole'>
+}
+
+/**
+ * Whether this account is **right now** an owner of this client who may act as one: it exists,
+ * it can sign in, it does not operate the box, and the client's roster still has it as an owner.
+ * `null` (an author the box no longer has) is nobody.
+ *
+ * What an approval and an owner's own invitation are worth when they are **spent**, a week or an
+ * hour after they were made, as opposed to when they were made: authority is read on the request
+ * that uses it (CLAUDE.md §8), and an owner who was removed or switched off in between no longer
+ * has consent to give. The same verdict as the gate's (`approvalVerdictFor`), as a yes or a no.
+ */
+export type IsStandingOwner = (clientId: ClientId, userId: UserId | null) => Promise<boolean>
+
+export const makeIsStandingOwner =
+  ({ users, clients }: StandingOwnerDeps): IsStandingOwner =>
+  async (clientId, userId) => {
+    if (userId === null) return false
+    const account = await users.findById(userId)
+    if (account === null || !account.canSignIn()) return false
+    return (
+      approvalVerdictFor({
+        siteRole: account.siteRole,
+        clientRole: await clients.memberRole(clientId, userId),
+      }) === 'ok'
+    )
+  }
+
 export const makeApprovalGate =
   ({ users, clients }: ApprovalGateDeps): ApprovalGate =>
   async (actorId, clientId, notFoundCode) => {

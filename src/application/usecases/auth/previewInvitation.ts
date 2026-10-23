@@ -14,7 +14,8 @@ import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { SecretTokens } from '../../ports/secretTokens'
-import type { MembershipRepository } from '../../ports/userRepository'
+import type { MembershipRepository, UserRepository } from '../../ports/userRepository'
+import { makeIsStandingOwner } from '../clients/approvalGate'
 
 /**
  * The code every way of holding a link that cannot be used answers with: unknown, malformed,
@@ -43,8 +44,13 @@ export interface ResolveInvitationDeps {
   readonly tokens: AccountTokenRepository
   readonly secrets: SecretTokens
   readonly events: Pick<EventRepository, 'findById'>
-  readonly clients: Pick<ClientRepository, 'findById' | 'memberRole' | 'countEvents'>
+  readonly clients: Pick<
+    ClientRepository,
+    'findById' | 'memberRole' | 'countEvents' | 'countMembers'
+  >
   readonly memberships: Pick<MembershipRepository, 'roleFor'>
+  /** Only the lookup by id, for R1's "is the owner who approved or wrote this still one". */
+  readonly users: Pick<UserRepository, 'findById'>
 }
 
 export type ResolveInvitation = (
@@ -80,9 +86,17 @@ export type ResolveInvitation = (
  *    new one, which now waits for an owner. A client's invitation has no inviter authority to
  *    re-read beyond that: the operator who writes one holds no membership to read.
  */
-export const makeResolveInvitation =
-  ({ tokens, secrets, events, clients, memberships }: ResolveInvitationDeps): ResolveInvitation =>
-  async (token, now) => {
+export const makeResolveInvitation = ({
+  tokens,
+  secrets,
+  events,
+  clients,
+  memberships,
+  users,
+}: ResolveInvitationDeps): ResolveInvitation => {
+  const isStandingOwner = makeIsStandingOwner({ users, clients })
+
+  return async (token, now) => {
     const record = await tokens.findUsable(secrets.digestOf(token), 'invitation', now)
     if (record === null) return err(invitationNotFound())
     if (!secrets.verify(token, record.tokenDigest)) return err(invitationNotFound())
@@ -94,15 +108,25 @@ export const makeResolveInvitation =
       const client = await clients.findById(target.clientId)
       if (client === null) return err(invitationNotFound())
 
-      const approved = record.approvedAt !== null
-      const writtenByOwnerOrSystem =
-        record.createdBy === null ||
-        (await clients.memberRole(target.clientId, record.createdBy)) === 'owner'
-      // Counted only when the answer depends on it: an approved link, or an owner's, does not.
-      const clientEventCount =
-        approved || writtenByOwnerOrSystem ? 0 : await clients.countEvents(target.clientId)
+      // Both read now: an approval is worth what the owner who gave it still is, and so is an
+      // owner's own invitation. An author the box no longer has (`null`) is nobody.
+      const approvedByAStandingOwner =
+        record.approvedAt !== null && (await isStandingOwner(target.clientId, record.approvedBy))
+      const writtenByAStandingOwner = await isStandingOwner(target.clientId, record.createdBy)
+      // Counted only when the answer depends on it.
+      const exempt = approvedByAStandingOwner || writtenByAStandingOwner
+      const holdings = exempt
+        ? { eventCount: 0, memberCount: 0 }
+        : {
+            eventCount: await clients.countEvents(target.clientId),
+            memberCount: await clients.countMembers(target.clientId),
+          }
       if (
-        !clientInvitationStillHonourable({ approved, writtenByOwnerOrSystem, clientEventCount })
+        !clientInvitationStillHonourable({
+          ...holdings,
+          approvedByAStandingOwner,
+          writtenByAStandingOwner,
+        })
       ) {
         return err(invitationNotFound())
       }
@@ -128,6 +152,7 @@ export const makeResolveInvitation =
       place: { kind: 'event', slug: event.slug.value, name: event.name.value },
     })
   }
+}
 
 export interface InvitationPreview {
   readonly kind: 'event' | 'client'

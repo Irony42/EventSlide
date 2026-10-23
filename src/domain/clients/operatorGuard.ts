@@ -14,7 +14,7 @@ import type { ClientRole } from './clientRole'
  *
  * | Rule | In one line |
  * | --- | --- |
- * | R1 | An operator's invitation into a client **with events** waits for an owner's approval. |
+ * | R1 | An operator's invitation into a client **with an event or a member** waits for an owner's approval. |
  * | R2 | An operator's password reset is **mailed**; the answer never carries a link. |
  * | R3 | Ownership moves only by an owner's decision, never by an operator's. |
  * | R4 | No operator action grants an event role, opens a session, or impersonates a client. |
@@ -30,42 +30,63 @@ import type { ClientRole } from './clientRole'
 // ---------------------------------------------------------------------------- R1 ---
 
 /**
+ * What of a client an operator's invitation could take: how many events it has, in any status,
+ * and how many accounts belong to it, whether or not they can sign in today.
+ */
+export interface ClientHoldings {
+  readonly eventCount: number
+  readonly memberCount: number
+}
+
+/**
  * R1, at the moment the invitation is written: **does it have to wait for an owner?**
  *
- * It does as soon as the client has anything to take. A client with no event is the case the
- * operator has to be able to handle alone (a customer who has just signed up, and whose first
- * owner is the operator's own invitation), and there is nothing in it yet that anybody could
- * be handed. A client with even one event, in any status, is somebody's evening, and the
- * people who may let a new person in are its owners.
+ * It does as soon as the client is somebody's. **A client with no event and no member** is the
+ * case the operator has to be able to handle alone (a customer who has just signed up, whose
+ * first owner is the operator's own invitation), and there is nothing in it and nobody in it
+ * yet. A client with even one event, in any status, is somebody's evening; and a client with a
+ * member and no event yet is somebody's account, where an operator's invitation (to sit beside
+ * the customer as an owner, or to raise a member to owner) is the same thing R1 stops, a week
+ * before the first event instead of a week after.
+ *
+ * The plan's sentence says "no event" and this adds "and no member": the first alone leaves that
+ * window open for every client between its owner's sign-up and its first event, and for every
+ * client whose events retention has purged. It costs the provisioning flow nothing, which is a
+ * client with neither.
  */
-export const operatorInvitationNeedsApproval = (clientEventCount: number): boolean =>
-  clientEventCount > 0
+export const operatorInvitationNeedsApproval = (client: ClientHoldings): boolean =>
+  client.eventCount > 0 || client.memberCount > 0
 
 /**
  * R1, at the moment the invitation is **spent**: is it still good?
  *
- * An invitation that needed no approval was written for a client that had no events, and the
+ * An invitation that needed no approval was written for a client that held nothing, and the
  * week it lives is long enough for that to stop being true: the customer's first owner signs
- * up and creates a wedding. An operator who wrote a second invitation (to themselves) in the
+ * up, or creates a wedding. An operator who wrote a second invitation (to themselves) in the
  * meantime would otherwise be let in without anybody's say. So it is judged again, and it is
  * honoured when:
  *
- * - an owner approved it, which is the whole of R1's remedy; or
- * - it was written by an owner of that client, or by the system (`null`: a provisioning, with
- *   no account behind it), who are not who R1 is about; or
- * - the client still has no events, which is the case that never needed anyone.
+ * - an owner **still standing** approved it, which is the whole of R1's remedy; or
+ * - it was written by an owner of that client **who still stands** and does not operate the box
+ *   (who is not who R1 is about); or
+ * - the client still holds nothing, which is the case that never needed anyone.
  *
- * Anything else is **dead**, and answers like every other dead link: the operator writes a new
- * invitation, which now waits for an owner.
+ * "Standing" is read now, on this request, as authority always is: an account that can sign in,
+ * that is not an operator, and that is still an owner of this client. **An author the box no
+ * longer has (`null`, once the account was deleted) is not an owner**: reading it as "the
+ * system" would turn the deletion of an operator's account into an approval. Anything else is
+ * **dead**, and answers like every other dead link: the operator writes a new invitation, which
+ * now waits for an owner.
  */
-export const clientInvitationStillHonourable = (facts: {
-  readonly approved: boolean
-  readonly writtenByOwnerOrSystem: boolean
-  readonly clientEventCount: number
-}): boolean =>
-  facts.approved ||
-  facts.writtenByOwnerOrSystem ||
-  !operatorInvitationNeedsApproval(facts.clientEventCount)
+export const clientInvitationStillHonourable = (
+  facts: ClientHoldings & {
+    readonly approvedByAStandingOwner: boolean
+    readonly writtenByAStandingOwner: boolean
+  },
+): boolean =>
+  facts.approvedByAStandingOwner ||
+  facts.writtenByAStandingOwner ||
+  !operatorInvitationNeedsApproval(facts)
 
 /**
  * Who may approve something that waits for an owner (R1's invitation, R2's reset link), as the
@@ -114,9 +135,6 @@ export const OPERATOR_RESET_LINK_MODES = ['mailOnly', 'copyLinkWithOwnerApproval
 export type OperatorResetLinks = (typeof OPERATOR_RESET_LINK_MODES)[number]
 
 export const DEFAULT_OPERATOR_RESET_LINKS: OperatorResetLinks = 'mailOnly'
-
-export const isOperatorResetLinks = (value: unknown): value is OperatorResetLinks =>
-  typeof value === 'string' && (OPERATOR_RESET_LINK_MODES as readonly string[]).includes(value)
 
 /**
  * What an operator-initiated reset does (R2).

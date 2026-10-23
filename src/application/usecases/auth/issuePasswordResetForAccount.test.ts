@@ -8,7 +8,7 @@ import {
 } from '../../../domain/shared/ids'
 import { PASSWORD_RESET_MAX_REQUESTS_PER_HOUR } from '../../../domain/users/accountToken'
 import { mailFailure, type Mailer } from '../../ports/mailer'
-import { AT, aUser } from '../../testing/builders'
+import { AT, aUser, anAccountToken } from '../../testing/builders'
 import { FakeAuditLog } from '../../testing/fakeAuditLog'
 import type { FakeMailer } from '../../testing/fakeMailer'
 import {
@@ -388,6 +388,56 @@ describe('issuePasswordResetForAccount', () => {
       const invitation = invited.ok ? invited.value.invitationId : asAccountTokenId('x')
       const wrong = await reset(MEMBER_ID, { approvalId: invitation })
       expect(!wrong.ok && wrong.error.code).toBe('reset.requestNotFound')
+    })
+
+    it('does not redeem a request whose approver has left the client since', async () => {
+      const requestId = await approvedRequest()
+      await world.clients.revokeMember(asClientId(CLIENT_ID), asUserId(OWNER_ID))
+
+      const result = await reset(MEMBER_ID, { approvalId: requestId })
+
+      expect(!result.ok && result.error.code).toBe('reset.requestNotFound')
+    })
+
+    it('does not redeem a request whose approver has been switched off since', async () => {
+      const requestId = await approvedRequest()
+      const owner = await world.users.findById(asUserId(OWNER_ID))
+      await world.users.save(owner!.disable(AT))
+
+      const result = await reset(MEMBER_ID, { approvalId: requestId })
+
+      expect(!result.ok && result.error.code).toBe('reset.requestNotFound')
+    })
+
+    it('does not redeem a request once the account has joined a second client, whose consent was never asked', async () => {
+      const requestId = await approvedRequest()
+      await world.clients.grantMember({
+        clientId: asClientId(NEW_CLIENT_ID),
+        userId: asUserId(MEMBER_ID),
+        role: 'member',
+        grantedAt: AT,
+      })
+
+      const result = await reset(MEMBER_ID, { approvalId: requestId })
+
+      expect(!result.ok && result.error.code).toBe('reset.requestNotFound')
+    })
+
+    it('does not redeem a link nobody had to approve, such as one the operator already had mailed: its id is not an approval', async () => {
+      await world.tokens.save(
+        anAccountToken({
+          id: 'tok-mailed',
+          userId: MEMBER_ID,
+          createdBy: OPERATOR_ID,
+          requiresApproval: false,
+          delivery: 'mail',
+        }),
+      )
+
+      const result = await reset(MEMBER_ID, { approvalId: asAccountTokenId('tok-mailed') })
+
+      expect(!result.ok && result.error.code).toBe('reset.requestNotFound')
+      expect(JSON.stringify(result)).not.toContain('/password/reset/')
     })
 
     it('does not redeem a request that has expired', async () => {

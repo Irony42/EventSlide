@@ -1647,3 +1647,182 @@ describe('createContainer: an invitation', () => {
     expect(accountRow(booted)?.email_verified_at).toBeNull()
   })
 })
+
+/**
+ * `OPERATOR_RESET_LINKS` and the operator guard's use cases, over the real adapters (G2-12 /
+ * P3-14).
+ *
+ * What `env.test.ts` and the use cases' own files cannot see is the two lines that hand the
+ * parsed word to `issuePasswordResetForAccount`: `container.ts` building the policy and
+ * `usecases.ts` reading it. A mode written there as a constant passes both of those suites, and
+ * the one that matters is the default: `mailOnly` on every box. So each case below boots a box
+ * and drives a reset through it, and the two modes answer differently.
+ */
+describe('createContainer: the operator guard', () => {
+  const OPERATOR = 'operateur@example.org'
+  const CAMILLE = 'camille@example.org'
+  const SACHA = 'sacha@example.org'
+  const PASSWORD = 'un-mot-de-passe-solide-2026'
+
+  const bootBox = async (extra: Record<string, string> = {}): Promise<Container> => {
+    const booted = await boot({
+      SITE_ADMIN: 'on',
+      PUBLIC_URL: 'https://photos.example.org',
+      BOOTSTRAP_OWNER_EMAIL: OPERATOR,
+      BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+      ...extra,
+    })
+    booted.db.prepare('UPDATE users SET must_change_password = 0').run()
+    return booted
+  }
+
+  const idOf = (booted: Container, email: string) =>
+    asUserId(
+      (booted.db.prepare('SELECT id FROM users WHERE email = ?').get(email) as { id: string }).id,
+    )
+
+  const tokenOf = (link: string): string => link.split('/invite/')[1] ?? ''
+
+  /** A client whose first owner, Camille, has accepted the operator's invitation. */
+  const clientWithOwner = async (booted: Container) => {
+    const provisioned = await booted.usecases.provisionClientOwner({
+      clientName: 'Camille et Sacha',
+      ownerEmail: CAMILLE,
+      locale: 'fr',
+      createdBy: idOf(booted, OPERATOR),
+    })
+    if (!provisioned.ok || provisioned.value.invitation.delivery !== 'link') {
+      throw new Error('fixture')
+    }
+    const accepted = await booted.usecases.acceptInvitation({
+      token: tokenOf(provisioned.value.invitation.link),
+      credentials: { password: PASSWORD, displayName: 'Camille' },
+    })
+    if (!accepted.ok) throw new Error('fixture')
+    return { clientId: provisioned.value.clientId, camille: accepted.value.userId }
+  }
+
+  /** Sacha, a second owner, let in the way R1 says: invited by the operator, approved by Camille. */
+  const secondOwner = async (booted: Container) => {
+    const { clientId, camille } = await clientWithOwner(booted)
+    const invited = await booted.usecases.inviteToClientAsOperator({
+      actorId: idOf(booted, OPERATOR),
+      clientId,
+      email: SACHA,
+      role: 'owner',
+      locale: 'fr',
+    })
+    if (!invited.ok || invited.value.delivery !== 'link') throw new Error('fixture')
+    const token = tokenOf(invited.value.link)
+
+    const early = await booted.usecases.acceptInvitation({
+      token,
+      credentials: { password: PASSWORD, displayName: 'Sacha' },
+    })
+    await booted.usecases.approveInvitation({
+      actorId: camille,
+      invitationId: invited.value.invitationId,
+    })
+    const accepted = await booted.usecases.acceptInvitation({
+      token,
+      credentials: { password: PASSWORD, displayName: 'Sacha' },
+    })
+    if (!accepted.ok) throw new Error('fixture')
+    return { clientId, camille, sacha: accepted.value.userId, early, pending: invited.value }
+  }
+
+  it('R1: an invitation into a client that already has a member waits for its owner, and opens when the owner approves it', async () => {
+    const booted = await bootBox()
+
+    const { early, pending, sacha, clientId } = await secondOwner(booted)
+
+    expect(pending.pendingApproval).toBe(true)
+    expect(!early.ok && early.error.code).toBe('invitation.notFound')
+    expect(
+      booted.db
+        .prepare('SELECT role FROM client_members WHERE client_id = ? AND user_id = ?')
+        .get(clientId, sacha),
+    ).toEqual({ role: 'owner' })
+  })
+
+  it('R2: with nothing set, a box with no mail relay issues no link for an operator, and writes no reset', async () => {
+    const booted = await bootBox()
+    const { camille } = await clientWithOwner(booted)
+
+    const result = await booted.usecases.issuePasswordResetForAccount({
+      actorId: idOf(booted, OPERATOR),
+      userId: camille,
+      locale: 'fr',
+    })
+
+    expect(!result.ok && result.error.code).toBe('reset.mailerRequired')
+    expect(
+      booted.db
+        .prepare("SELECT COUNT(*) AS n FROM account_tokens WHERE purpose = 'passwordReset'")
+        .get(),
+    ).toEqual({ n: 0 })
+  })
+
+  it('R2: with OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval the operator is handed a link only after another owner approved, and only once', async () => {
+    const booted = await bootBox({ OPERATOR_RESET_LINKS: 'copyLinkWithOwnerApproval' })
+    const { camille, sacha } = await secondOwner(booted)
+    const operator = idOf(booted, OPERATOR)
+
+    const asked = await booted.usecases.issuePasswordResetForAccount({
+      actorId: operator,
+      userId: camille,
+      locale: 'fr',
+    })
+    expect(asked.ok && asked.value.delivery).toBe('pendingApproval')
+    const approvalId =
+      asked.ok && asked.value.delivery === 'pendingApproval' ? asked.value.approvalId : null
+    if (approvalId === null) throw new Error('fixture')
+
+    const redeem = () =>
+      booted.usecases.issuePasswordResetForAccount({
+        actorId: operator,
+        userId: camille,
+        locale: 'fr',
+        approvalId,
+      })
+    const early = await redeem()
+    const byTheAccount = await booted.usecases.approvePasswordReset({
+      actorId: camille,
+      requestId: approvalId,
+    })
+    await booted.usecases.approvePasswordReset({ actorId: sacha, requestId: approvalId })
+    const handed = await redeem()
+    const again = await redeem()
+
+    expect(!early.ok && early.error.code).toBe('reset.requestNotFound')
+    expect(!byTheAccount.ok && byTheAccount.error.kind).toBe('forbidden')
+    expect(handed.ok && handed.value.delivery).toBe('link')
+    expect(!again.ok && again.error.code).toBe('reset.requestNotFound')
+    const link = handed.ok && handed.value.delivery === 'link' ? handed.value.link : ''
+    const reset = await booted.usecases.resetPassword({
+      token: link.split('/password/reset/')[1] ?? '',
+      newPassword: 'un-tout-nouveau-mot-de-passe',
+    })
+    expect(reset.ok).toBe(true)
+  })
+
+  it('writes the lines a client reads, in its own log, and none of them holds an address or a link', async () => {
+    const booted = await bootBox({ OPERATOR_RESET_LINKS: 'copyLinkWithOwnerApproval' })
+    const { clientId, camille } = await secondOwner(booted)
+    await booted.usecases.issuePasswordResetForAccount({
+      actorId: idOf(booted, OPERATOR),
+      userId: camille,
+      locale: 'fr',
+    })
+
+    const lines = booted.db
+      .prepare('SELECT action, details FROM audit_log WHERE client_id = ? ORDER BY seq')
+      .all(clientId) as { action: string; details: string }[]
+    expect(lines.map((line) => line.action)).toEqual([
+      'invitation.issued',
+      'invitation.approved',
+      'account.resetRequested',
+    ])
+    expect(JSON.stringify(lines)).not.toMatch(/example\.org|\/invite\/|\/password\/reset\//)
+  })
+})

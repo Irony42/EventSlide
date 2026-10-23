@@ -35,7 +35,7 @@ export type OperatorInvitation = IssuedInvitation & {
 
 export interface InviteToClientAsOperatorDeps {
   readonly users: Pick<UserRepository, 'siteRoleFor'>
-  readonly clients: Pick<ClientRepository, 'findById' | 'countEvents'>
+  readonly clients: Pick<ClientRepository, 'findById' | 'countEvents' | 'countMembers'>
   /** Only the compensation: an invitation the log refused to record is revoked again. */
   readonly tokens: Pick<AccountTokenRepository, 'revokeOutstandingInvitations'>
   readonly issueInvitation: IssueInvitation
@@ -54,20 +54,24 @@ export type InviteToClientAsOperator = (
  *
  * ## The rule
  *
- * **An invitation an operator writes is usable at once only if the client has no event.**
- * Otherwise it is written with `requires_approval` and opens nothing until an owner of the
- * client approves it (`approveInvitation`, `POST /api/client/invitations/:id/approve`). This is
- * what stops an operator from inviting themselves, or an address they control, into a client
- * that has somebody's wedding in it: the client is the one that says who comes in.
+ * **An invitation an operator writes is usable at once only if the client holds nothing: no
+ * event and no member.** Otherwise it is written with `requires_approval` and opens nothing until
+ * an owner of the client approves it (`approveInvitation`,
+ * `POST /api/client/invitations/:id/approve`). This is what stops an operator from inviting
+ * themselves, or an address they control, into a client that has somebody's wedding in it, or
+ * from raising a member to owner, or sitting beside the customer, before the first wedding is
+ * there: the client is the one that says who comes in. (The plan's sentence says "no event"; the
+ * member is added for the window that leaves, see `operatorInvitationNeedsApproval`.)
  *
- * The count is **every event of the client, in any status**: an archived wedding is still a
- * wedding in the client's account, and a client that has only ever had one is not "new".
- * Nothing about the events is read but their number (`ClientRepository.countEvents`).
+ * The events are counted in **any status** (an archived wedding is still a wedding in the
+ * client's account, and a client that has only ever had one is not "new"), the members in any
+ * role and whether or not they can sign in. Nothing about either is read but its number
+ * (`ClientRepository.countEvents`, `countMembers`).
  *
  * The same rule is held a second time when the invitation is **spent**
  * (`makeResolveInvitation`): the week it lives is long enough for the client to grow its first
- * event, and an invitation that needed no approval when it was written does not get to skip it
- * afterwards.
+ * member or event, and the mail that precedes the write waits on the relay, so an invitation
+ * that needed no approval when it was written does not get to skip it afterwards.
  *
  * ## What is checked here, and what is not
  *
@@ -113,7 +117,10 @@ export const makeInviteToClientAsOperator =
     const address = EmailAddress.create(email)
     if (!address.ok) return address
 
-    const pendingApproval = operatorInvitationNeedsApproval(await clients.countEvents(client.id))
+    const pendingApproval = operatorInvitationNeedsApproval({
+      eventCount: await clients.countEvents(client.id),
+      memberCount: await clients.countMembers(client.id),
+    })
 
     const issued = await issueInvitation({
       email: address.value.value,

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { err } from '../../../domain/shared/result'
 import { asAccountTokenId, asClientId, asUserId } from '../../../domain/shared/ids'
 import { mailFailure } from '../../ports/mailer'
-import { anEvent } from '../../testing/builders'
 import { FakeAuditLog } from '../../testing/fakeAuditLog'
 import type { FakeMailer } from '../../testing/fakeMailer'
 import {
@@ -59,22 +58,17 @@ describe('inviteToClientAsOperator', () => {
       })
     })
 
-    it('counts an archived event as an event, since the client is still somebody’s account', async () => {
-      world = makeOperatorGuardWorld({ clientHasEvents: false })
-      await world.events.save(
-        anEvent({
-          id: 'event-old',
-          ownerId: OWNER_ID,
-          clientId: CLIENT_ID,
-          status: 'archived',
-          name: 'Ancien mariage',
-          slug: 'ancien-mariage',
-        }),
-      )
+    // That an archived or a closed event counts is the adapter's to hold, in
+    // `sqliteClientRepository.test.ts`: this fake links events and has no status to ignore.
 
-      const result = await invite()
+    it('waits for an owner too in a client that has a member and no event yet, where the customer has just signed up', async () => {
+      world = makeOperatorGuardWorld({ clientHasEvents: false })
+      await world.seatTheClient()
+
+      const result = await invite({ email: 'membre@example.test', role: 'owner' })
 
       expect(result.ok && result.value.pendingApproval).toBe(true)
+      expect(world.tokens.all[0]?.requiresApproval).toBe(true)
     })
 
     it('does the same for a member invitation as for an owner one', async () => {

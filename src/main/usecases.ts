@@ -261,6 +261,7 @@ const invitationReaders = (adapters: Adapters) => ({
   events: adapters.events,
   clients: adapters.clients,
   memberships: adapters.memberships,
+  users: adapters.users,
 })
 
 const invitationIssuer = (adapters: Adapters, policy: UseCasePolicy) =>

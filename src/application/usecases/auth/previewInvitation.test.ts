@@ -5,6 +5,7 @@ import {
   CLIENT_ID,
   EVENT_ID,
   EXISTING_EMAIL,
+  EXISTING_ID,
   HOST_ID,
   NEWCOMER,
   makeInvitationWorld,
@@ -24,6 +25,7 @@ describe('previewInvitation', () => {
       events: world.events,
       clients: world.clients,
       memberships: world.memberships,
+      users: world.users,
       clock: world.clock,
     })
   })
@@ -171,6 +173,7 @@ describe('previewInvitation', () => {
         events: world.events,
         clients: world.clients,
         memberships: world.memberships,
+        users: world.users,
         clock: world.clock,
       })
 
@@ -189,6 +192,7 @@ describe('previewInvitation', () => {
         events: world.events,
         clients: world.clients,
         memberships: world.memberships,
+        users: world.users,
         clock: world.clock,
       })
 
@@ -205,8 +209,10 @@ describe('previewInvitation', () => {
           findById: async () => null,
           memberRole: async () => null,
           countEvents: async () => 0,
+          countMembers: async () => 0,
         },
         memberships: world.memberships,
+        users: world.users,
         clock: world.clock,
       })
 
@@ -290,8 +296,9 @@ describe('previewInvitation', () => {
     })
   })
 
-  describe('R1 of the operator guard, held again when the link is read: an invitation into a client that nobody had to approve is good only while the client has no event', () => {
+  describe('R1 of the operator guard, held again when the link is read: an invitation into a client that nobody had to approve is good only while the client holds nothing', () => {
     const wedding = asEventId('event-wedding')
+    const OPERATOR = 'user-operator'
     const NOT_FOUND = {
       ok: false,
       error: expect.objectContaining({ kind: 'notFound', code: 'invitation.notFound' }),
@@ -302,7 +309,23 @@ describe('previewInvitation', () => {
       world.clients.linkEvent(wedding, asClientId(CLIENT_ID))
     }
 
-    it('still opens while the client has no event', async () => {
+    const seat = (userId: string, role: 'owner' | 'member') =>
+      world.clients.grantMember({
+        clientId: asClientId(CLIENT_ID),
+        userId: asUserId(userId),
+        role,
+        grantedAt: AT,
+      })
+
+    /** An account that operates the box, which the invitation world has none of. */
+    const anOperator = (): void => {
+      world.users.seed(
+        aUser({ id: OPERATOR, email: 'operateur@example.test', siteRole: 'operator' }),
+      )
+      world.tokens.withAccounts(asUserId(OPERATOR))
+    }
+
+    it('still opens while the client has no event and no member', async () => {
       const { token } = await world.invite({ to: 'client-owner' })
 
       expect((await preview({ token })).ok).toBe(true)
@@ -315,21 +338,49 @@ describe('previewInvitation', () => {
       expect(await preview({ token })).toMatchObject(NOT_FOUND)
     })
 
+    it('stops opening once the client has a member, which is what the customer accepting is', async () => {
+      const { token } = await world.invite({ to: 'client-owner' })
+      await seat(EXISTING_ID, 'member')
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+    })
+
     it('keeps opening once an owner approved it, whatever the client holds', async () => {
-      const { token, id } = await world.invite({ to: 'client-owner', requiresApproval: true })
+      await seat(HOST_ID, 'owner')
+      const { token, id } = await world.invite({
+        to: 'client-owner',
+        requiresApproval: true,
+        createdBy: null,
+      })
       await world.tokens.approve(id as never, asUserId(HOST_ID), AT)
       clientGrowsAnEvent()
 
       expect((await preview({ token })).ok).toBe(true)
     })
 
-    it('keeps opening when an owner of the client wrote it, who is not who R1 is about', async () => {
-      await world.clients.grantMember({
-        clientId: asClientId(CLIENT_ID),
-        userId: asUserId(HOST_ID),
-        role: 'owner',
-        grantedAt: AT,
-      })
+    it('stops opening when the owner who approved it has left the client since', async () => {
+      await seat(HOST_ID, 'owner')
+      const { token, id } = await world.invite({ to: 'client-owner', requiresApproval: true })
+      await world.tokens.approve(id as never, asUserId(HOST_ID), AT)
+      clientGrowsAnEvent()
+      await world.clients.revokeMember(asClientId(CLIENT_ID), asUserId(HOST_ID))
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+    })
+
+    it('stops opening when the owner who approved it has been switched off since', async () => {
+      await seat(HOST_ID, 'owner')
+      const { token, id } = await world.invite({ to: 'client-owner', requiresApproval: true })
+      await world.tokens.approve(id as never, asUserId(HOST_ID), AT)
+      clientGrowsAnEvent()
+      const host = await world.users.findById(asUserId(HOST_ID))
+      await world.users.save(host!.disable(AT))
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+    })
+
+    it('keeps opening when an owner of the client who still stands wrote it, who is not who R1 is about', async () => {
+      await seat(HOST_ID, 'owner')
       const { token } = await world.invite({ to: 'client-member', createdBy: HOST_ID })
       clientGrowsAnEvent()
 
@@ -337,21 +388,41 @@ describe('previewInvitation', () => {
     })
 
     it('stops opening when it was written by a mere member of the client', async () => {
-      await world.clients.grantMember({
-        clientId: asClientId(CLIENT_ID),
-        userId: asUserId(HOST_ID),
-        role: 'member',
-        grantedAt: AT,
-      })
+      await seat(HOST_ID, 'member')
       const { token } = await world.invite({ to: 'client-owner', createdBy: HOST_ID })
       clientGrowsAnEvent()
 
       expect(await preview({ token })).toMatchObject(NOT_FOUND)
     })
 
-    it('keeps opening when the system wrote it, with no account behind it', async () => {
+    it('stops opening when it was written by an owner who is also an operator, whom the client may have let in but who is who R1 is about', async () => {
+      anOperator()
+      await seat(OPERATOR, 'owner')
+      const { token } = await world.invite({ to: 'client-member', createdBy: OPERATOR })
+      clientGrowsAnEvent()
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+    })
+
+    it('stops opening when it was written by an owner who has been switched off since', async () => {
+      await seat(HOST_ID, 'owner')
+      const { token } = await world.invite({ to: 'client-member', createdBy: HOST_ID })
+      clientGrowsAnEvent()
+      const host = await world.users.findById(asUserId(HOST_ID))
+      await world.users.save(host!.disable(AT))
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+    })
+
+    it('does not read an author the box no longer has as the system: that would make deleting an operator an approval', async () => {
       const { token } = await world.invite({ to: 'client-owner', createdBy: null })
       clientGrowsAnEvent()
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+    })
+
+    it('opens an invitation with no author while the client holds nothing, as a provisioning does', async () => {
+      const { token } = await world.invite({ to: 'client-owner', createdBy: null })
 
       expect((await preview({ token })).ok).toBe(true)
     })

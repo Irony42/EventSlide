@@ -236,6 +236,7 @@ export class SqliteClientRepository implements ClientRepository {
   private readonly selectContextForEvent: Database.Statement<[string], ContextRow>
   private readonly deleteIfEmptyStatement: Database.Statement<[string]>
   private readonly countEventsStatement: Database.Statement<[string], { readonly events: number }>
+  private readonly countMembersStatement: Database.Statement<[string], { readonly members: number }>
 
   constructor(db: Db) {
     this.selectById = db.prepare<[string], ClientRow>(
@@ -351,6 +352,10 @@ export class SqliteClientRepository implements ClientRepository {
     this.countEventsStatement = db.prepare<[string], { readonly events: number }>(
       `SELECT COUNT(*) AS events FROM events WHERE client_id = ?`,
     )
+
+    this.countMembersStatement = db.prepare<[string], { readonly members: number }>(
+      `SELECT COUNT(*) AS members FROM client_members WHERE client_id = ?`,
+    )
   }
 
   async save(client: Client): Promise<void> {
@@ -419,5 +424,9 @@ export class SqliteClientRepository implements ClientRepository {
 
   async countEvents(clientId: ClientId): Promise<number> {
     return this.countEventsStatement.get(clientId)?.events ?? 0
+  }
+
+  async countMembers(clientId: ClientId): Promise<number> {
+    return this.countMembersStatement.get(clientId)?.members ?? 0
   }
 }

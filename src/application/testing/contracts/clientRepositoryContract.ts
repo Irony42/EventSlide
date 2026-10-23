@@ -479,6 +479,37 @@ export const clientRepositoryContract = (
       expect(await repo.countEvents(asClientId('ghost'))).toBe(0)
     })
 
+    // ------------------------------------------------------------ countMembers --
+
+    it('counts the members of a client in any role, and of no other', async () => {
+      await repo.save(aClient({ id: 'client-1' }))
+      await repo.save(aClient({ id: 'client-2' }))
+      await repo.grantMember(aMembership(asClientId('client-1'), OWNER, 'owner'))
+      await repo.grantMember(aMembership(asClientId('client-1'), MEMBER, 'member'))
+      await repo.grantMember(aMembership(asClientId('client-2'), OWNER, 'owner'))
+
+      expect(await repo.countMembers(asClientId('client-1'))).toBe(2)
+      expect(await repo.countMembers(asClientId('client-2'))).toBe(1)
+    })
+
+    it('counts a membership once however often it was granted, and not after it is revoked', async () => {
+      await repo.save(aClient({ id: 'client-1' }))
+      await repo.grantMember(aMembership(asClientId('client-1'), OWNER, 'member'))
+      await repo.grantMember(aMembership(asClientId('client-1'), OWNER, 'owner'))
+      expect(await repo.countMembers(asClientId('client-1'))).toBe(1)
+
+      await repo.revokeMember(asClientId('client-1'), OWNER)
+
+      expect(await repo.countMembers(asClientId('client-1'))).toBe(0)
+    })
+
+    it('counts none for a client with no member, and for one that does not exist', async () => {
+      await repo.save(aClient({ id: 'client-1' }))
+
+      expect(await repo.countMembers(asClientId('client-1'))).toBe(0)
+      expect(await repo.countMembers(asClientId('ghost'))).toBe(0)
+    })
+
     // ------------------------------------------------------------- deleteIfEmpty --
 
     it('deletes a client with no member and no event', async () => {

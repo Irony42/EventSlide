@@ -153,7 +153,7 @@ export const makeOperatorGuardWorld = (options: OperatorGuardWorldOptions = {}) 
     publicUrl: PUBLIC_URL,
   })
 
-  const readers = { tokens, secrets, events, clients, memberships }
+  const readers = { tokens, secrets, events, clients, memberships, users }
 
   const useCases = {
     issueInvitation,
