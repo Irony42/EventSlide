@@ -2966,6 +2966,160 @@ describe('loadConfig', () => {
         }
       })
     })
+
+    describe('a query string or a fragment', () => {
+      // Every link is built by appending a path to PUBLIC_URL (join link and QR, invitation,
+      // password reset, shared gallery, wall response), so `https://photos.example.com/?ref=x`
+      // used to give `https://photos.example.com/?ref=x/join/ABC123`: a QR code that opens the
+      // wrong page, and no error anywhere. It is read from the text as typed, never from
+      // `url.search` / `url.hash`, which are both `''` for a bare `?` and a bare `#`.
+      const REFUSED = /^PUBLIC_URL: PUBLIC_URL must not contain a query string or a fragment/
+
+      it.each([
+        ['a query string', 'https://photos.example.com/?ref=x'],
+        ['a query string straight after the host', 'https://photos.example.com?ref=x'],
+        ['a bare question mark', 'https://photos.example.com?'],
+        ['a bare question mark after a slash', 'https://photos.example.com/?'],
+        ['a query string after a path prefix', 'https://example.com/eventslide/?ref=x'],
+        ['a bare question mark after a path prefix', 'https://example.com/eventslide?'],
+        ['a bare question mark after a path prefix and a slash', 'https://example.com/photos/?'],
+        ['a fragment', 'https://photos.example.com/#frag'],
+        ['a fragment straight after the host', 'https://photos.example.com#frag'],
+        ['a bare hash', 'https://photos.example.com#'],
+        ['a bare hash after a slash', 'https://photos.example.com/#'],
+        ['a fragment after a path prefix', 'https://example.com/eventslide/#frag'],
+        ['a bare hash after a path prefix', 'https://example.com/eventslide#'],
+        ['a query string and a fragment', 'https://photos.example.com/?a=1#top'],
+        ['a fragment that holds a question mark', 'https://photos.example.com/#/route?x=1'],
+        ['an uppercase scheme', 'HTTPS://photos.example.com/?ref=x'],
+        ['a port', 'https://photos.example.com:8443/?ref=x'],
+        ['localhost, which production exempts from https', 'http://localhost:4300/?ref=x'],
+      ])('refuses %s, naming the variable, in production and outside it', (_name, typed) => {
+        expect(refusalIssues(aProductionEnv({ PUBLIC_URL: typed }))).toEqual([
+          expect.stringMatching(REFUSED),
+        ])
+        expect(refusalIssues({ ...DEV, PUBLIC_URL: typed })).toEqual([
+          expect.stringMatching(REFUSED),
+        ])
+      })
+
+      it('refuses them in a maintenance command too, which parses the same address', () => {
+        try {
+          loadMaintenanceConfig({ PUBLIC_URL: 'https://photos.example.com/#frag' })
+        } catch (error) {
+          expect(error instanceof ConfigError ? error.issues : []).toEqual([
+            expect.stringMatching(REFUSED),
+          ])
+          return
+        }
+        throw new Error('loadMaintenanceConfig accepted a PUBLIC_URL with a fragment')
+      })
+
+      describe('what is not one: a ? or a # percent-encoded in the path', () => {
+        // `%3F` and `%23` are characters of a path segment, not the start of a query or a
+        // fragment: the join link stays under its prefix, which is the one thing a proxy
+        // routes on. They stay accepted, and the parser keeps them as typed.
+        it.each([
+          ['an encoded question mark', 'https://example.com/what%3Fever', '/what%3Fever'],
+          ['a lower-case encoded question mark', 'https://example.com/what%3fever', '/what%3fever'],
+          ['an encoded hash', 'https://example.com/room%2342/', '/room%2342'],
+          ['a lower-case encoded hash', 'https://example.com/room%2342', '/room%2342'],
+          ['both, in two segments', 'https://example.com/a%3Fb/c%23d/', '/a%3Fb/c%23d'],
+          [
+            'an encoded question mark ending the prefix',
+            'https://example.com/eventslide%3F',
+            '/eventslide%3F',
+          ],
+        ])('accepts %s, and a join link built on it stays in the path', (_name, typed, path) => {
+          for (const source of [
+            aProductionEnv({ PUBLIC_URL: typed }),
+            { ...DEV, PUBLIC_URL: typed },
+          ]) {
+            const { publicUrl } = loadConfig(source)
+            const joinLink = new URL(`${publicUrl}/join/ABC123`)
+
+            expect(publicUrl).toBe(`https://example.com${path}`)
+            expect(joinLink.pathname).toBe(`${path}/join/ABC123`)
+            expect(joinLink.search).toBe('')
+            expect(joinLink.hash).toBe('')
+          }
+        })
+
+        it('still refuses the same address once the ? or the # is written out', () => {
+          expect(
+            refusalIssues(aProductionEnv({ PUBLIC_URL: 'https://example.com/what%3Fever?x' })),
+          ).toEqual([expect.stringMatching(REFUSED)])
+          expect(
+            refusalIssues(aProductionEnv({ PUBLIC_URL: 'https://example.com/room%2342#x' })),
+          ).toEqual([expect.stringMatching(REFUSED)])
+        })
+      })
+
+      it('names it beside the other problems when the value has more than one', () => {
+        // Every boot problem at once, as everywhere else in this file: the operator does not
+        // learn about a second mistake only after fixing the first and restarting.
+        const plainHttp = refusalIssues(
+          aProductionEnv({ PUBLIC_URL: 'http://photos.example.com/?x=1' }),
+        )
+        expect(plainHttp).toHaveLength(2)
+        expect(plainHttp).toContainEqual(expect.stringMatching(REFUSED))
+        expect(plainHttp).toContainEqual(
+          expect.stringContaining('PUBLIC_URL must use https in production'),
+        )
+
+        const trailingSpace = refusalIssues({
+          ...DEV,
+          PUBLIC_URL: 'https://photos.example.com/?x ',
+        })
+        expect(trailingSpace).toHaveLength(2)
+        expect(trailingSpace).toContainEqual(expect.stringMatching(REFUSED))
+        expect(trailingSpace).toContainEqual(
+          expect.stringMatching(/^PUBLIC_URL: PUBLIC_URL must not contain a tab or a line break/),
+        )
+
+        const credentials = refusalIssues({
+          ...DEV,
+          PUBLIC_URL: 'https://camille:secret@photos.example.com/#frag',
+        })
+        expect(credentials).toHaveLength(2)
+        expect(credentials).toContainEqual(expect.stringMatching(REFUSED))
+        expect(credentials).toContainEqual(
+          expect.stringMatching(
+            /^PUBLIC_URL: PUBLIC_URL must not contain a user name or a password/,
+          ),
+        )
+      })
+
+      it('names it beside a problem in another variable, in one refusal', () => {
+        const issues = refusalIssues(
+          aProductionEnv({ PUBLIC_URL: 'https://photos.example.com/?x=1', E2E_HOOKS: '1' }),
+        )
+
+        expect(issues.map((issue) => issue.split(':')[0]).sort()).toEqual([
+          'E2E_HOOKS',
+          'PUBLIC_URL',
+        ])
+      })
+
+      it('never repeats what was typed, because a query string is where a token gets pasted', () => {
+        for (const value of [
+          `https://photos.example.com/?key=${A_PASSWORD}`,
+          `https://photos.example.com/#${A_PASSWORD}`,
+          `https://photos.example.com/eventslide?${A_PASSWORD}`,
+          `https://camille:${A_PASSWORD}@photos.example.com/?x`,
+        ]) {
+          for (const source of [
+            aProductionEnv({ PUBLIC_URL: value }),
+            { ...DEV, PUBLIC_URL: value },
+          ]) {
+            const message = refusalText(source)
+
+            expect(message, value).toContain('PUBLIC_URL')
+            expect(message).not.toContain(A_PASSWORD)
+          }
+        }
+      })
+    })
   })
 
   describe('config warnings', () => {

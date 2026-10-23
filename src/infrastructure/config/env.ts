@@ -245,6 +245,17 @@ const publicUrl = z
         'PUBLIC_URL must not contain a user name or a password: the address is printed in every join link, QR code and mail',
     },
   )
+  // Never a query string or a fragment. Every link is made by appending a path to this value
+  // (`${publicUrl}/join/CODE`), so `https://photos.example.com/?ref=x` would give
+  // `https://photos.example.com/?ref=x/join/CODE`: a QR code that opens the wrong page, with no
+  // error anywhere. The test reads the text as typed, because a bare `?` or `#` is a real
+  // mistake and leaves `url.search` and `url.hash` empty. A `?` or `#` percent-encoded in the
+  // path (`%3F`, `%23`) is a character of a path segment, is not typed as either, and stays
+  // accepted. Never the value in the message, as above: it may be where a token was pasted.
+  .refine((value) => !/[?#]/.test(value), {
+    error:
+      'PUBLIC_URL must not contain a query string or a fragment (a ? or a #): every link is made by appending a path to it, so the join link and its QR code would end up inside the query. Write a ? or a # that belongs in the path as %3F or %23',
+  })
 
 /**
  * `PUBLIC_URL` as the rest of the application sees it: the parsed URL's own spelling
@@ -256,7 +267,8 @@ const publicUrl = z
  *
  * `joinUrl`, `galleryUrl`, the mail links and the wall response all concatenate this onto a
  * path, so what `loadConfig` returns is what a guest's phone is sent to. Only for a value
- * {@link publicUrl} has accepted, which `new URL` therefore parses.
+ * {@link publicUrl} has accepted, which `new URL` therefore parses and which carries no query
+ * string and no fragment: the trailing-slash trim would otherwise cut the wrong end.
  */
 const canonicalPublicUrl = (accepted: string): string => new URL(accepted).href.replace(/\/+$/, '')
 
