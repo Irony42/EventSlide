@@ -7,20 +7,23 @@ import { errorBody, sendError, statusForKind } from '../presenters/send'
 
 /**
  * Where a link's token sits in a path: a shared gallery's `/g/<token>` and
- * `/api/gallery/<token>/…`, and a password-reset link's `/password/reset/<token>` (G2-08 /
+ * `/api/gallery/<token>/…`, a password-reset link's `/password/reset/<token>` (G2-08 /
  * P3-09 — the page the mailed link opens, served by the SPA fallback, so the path is
- * exactly what `requestContext` stamps on every line written while it is served).
+ * exactly what `requestContext` stamps on every line written while it is served), and an
+ * invitation's `/invite/<token>` and `/api/invitations/<token>/…` (G2-09 / P3-10, the same
+ * page and the routes it calls).
  * Case-insensitive, as Express's routing is — `/API/Gallery/<token>` reaches the same
  * route. `/api/gallery-media/…` does not match: it carries a link's id and a signature,
  * neither of which opens anything alone.
  */
-const TOKEN_IN_PATH = /^(\/api\/gallery|\/g|\/password\/reset)\/[^/]+/i
+const TOKEN_IN_PATH = /^(\/api\/gallery|\/g|\/password\/reset|\/invite|\/api\/invitations)\/[^/]+/i
 
 /**
  * The request path as it may be logged: a link's token written as `:token`.
  *
  * That token is the credential itself — whoever reads a gallery's reads the album, whoever
- * reads a reset link's chooses the account's password — and a log line is read by whoever
+ * reads a reset link's chooses the account's password, whoever reads an invitation's chooses
+ * the password of an account that does not exist yet — and a log line is read by whoever
  * operates the box and by whatever ships its logs, long after the link was sent. Every
  * other path is logged as it is.
  */
