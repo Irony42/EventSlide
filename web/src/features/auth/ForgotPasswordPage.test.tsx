@@ -76,14 +76,27 @@ describe('ForgotPasswordPage', () => {
     expect(fr.auth.forgotSent.startsWith('Si un compte')).toBe(true)
   })
 
-  it('sends nothing for a string that cannot be an address, and says so', async () => {
+  it.each([
+    ['no @ at all', 'camille.example.org'],
+    ['a domain with no dot, which the server refuses too', 'camille@gmail'],
+    ['a space inside', 'camille dupont@example.org'],
+    ['two @', 'camille@@example.org'],
+  ])('sends nothing for %s, and says so', async (_name, typed) => {
+    // The server answers 202 for a string that cannot be an address, so without this the person
+    // would be told to check an inbox that no relay was ever asked to write to.
     const api = fakeApi()
     renderForgot(api)
 
-    await ask('camille.example.org')
+    await ask(typed)
 
     expect(await screen.findByText(fr.errors['email.malformed'])).toBeVisible()
     expect(api.requestPasswordReset).not.toHaveBeenCalled()
+  })
+
+  it('does not take the keyboard when it opens: a form that is simply the page navigated to', async () => {
+    renderForgot(fakeApi())
+
+    expect(screen.getByRole('heading', { name: fr.auth.forgotTitle })).not.toHaveFocus()
   })
 
   it('says the box cannot send mail, in words, when the server says so', async () => {

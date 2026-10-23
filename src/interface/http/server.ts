@@ -329,7 +329,7 @@ const apiNotFound: RequestHandler = (_req, res) => {
  * The addresses whose last segment is a one-time credential. `loggablePath` redacts the same
  * two families in a log line (`middleware/errorHandler.ts`); the two lists are one fact.
  */
-const TOKEN_PAGES = /^\/(?:invite|password\/reset)(?:\/|$)/i
+const TOKEN_PAGES = ['/invite', '/invite/*splat', '/password/reset', '/password/reset/*splat']
 
 /**
  * Serves the built web app.
@@ -373,9 +373,9 @@ const mountClient = (app: Express, clientDir: string, isProduction: boolean): vo
   // reset, `/password/reset/<token>`. The same shell with the same headers as the gallery's, for
   // the same reason — the token is in this address, so no referrer may carry it off, no crawler
   // may index it and no cache may keep the page it opened. `/password/forgot` carries no token
-  // and is an ordinary client route. A regular expression rather than a path pattern, because
-  // the shape of a wildcard changed between Express 4 and 5 and this should not have to follow;
-  // case-insensitive, because Express routes `/INVITE/<token>` to the same fallback.
+  // and is an ordinary client route. A string pattern, like the gallery's, so that the access log
+  // names the route (`/invite/*splat`) instead of `(unmatched)`; Express matches it without regard
+  // to case, so `/INVITE/<token>` gets the same headers as it reaches the same page.
   app.get(TOKEN_PAGES, (_req, res) => {
     setGalleryHeaders(res)
     res.sendFile('index.html', { root: clientDir, headers: { 'Cache-Control': 'no-store' } })

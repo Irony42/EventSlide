@@ -334,7 +334,7 @@ export const es: UiText = {
     'invitation.notFound':
       'Esta invitación ya no es válida. Pida una nueva a la persona que se la envió.',
     'invitation.signInRequired':
-      'Ya hay una cuenta que usa esta dirección. Inicie sesión con esa cuenta y vuelva a abrir el enlace.',
+      'Ya existe una cuenta con la dirección de esta invitación. Inicie sesión con esa cuenta: volverá aquí para aceptarla.',
     'invitation.wrongAccount':
       'Esta invitación estaba destinada a una dirección de correo distinta de la de esta cuenta.',
     'invitation.credentialsRequired':
@@ -931,9 +931,7 @@ export const es: UiText = {
     invitationConfirmPassword: 'Confirmar la contraseña',
     invitationSubmit: 'Crear mi cuenta y aceptar',
     invitationAccepted: 'Invitación aceptada.',
-    invitationHaveAccount: '¿Ya tiene una cuenta con esta dirección?',
-    invitationSignInRequired:
-      'Ya existe una cuenta con la dirección de esta invitación. Inicie sesión con esa cuenta: volverá aquí para aceptarla.',
+    invitationHaveAccount: '¿Ya tiene una cuenta?',
     invitationSignedInAs: (email: string) => `Ha iniciado sesión como ${email}.`,
     invitationAcceptAs: 'Aceptar con esta cuenta',
     invitationUseAnother: 'Usar otra cuenta',

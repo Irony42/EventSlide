@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { AcceptInvitationPage } from './AcceptInvitationPage'
+import { LanguagePicker } from '../../app/LanguagePicker'
 import { formatDateTime } from '../../lib/format'
 import { ApiError } from '../../lib/http'
 import { de } from '../../lib/i18n/de'
@@ -62,10 +63,12 @@ const fillIn = async (
   confirmation = CHOSEN_PASSWORD,
 ) => {
   const nameBox = await screen.findByLabelText(fr.auth.invitationName)
-  // `type` refuses an empty string, and an empty name is a case worth driving.
+  // `type` refuses an empty string, and an empty box is a case worth driving.
   if (name !== '') await userEvent.type(nameBox, name)
-  await userEvent.type(screen.getByLabelText(fr.auth.password), password)
-  await userEvent.type(screen.getByLabelText(fr.auth.invitationConfirmPassword), confirmation)
+  if (password !== '') await userEvent.type(screen.getByLabelText(fr.auth.password), password)
+  if (confirmation !== '') {
+    await userEvent.type(screen.getByLabelText(fr.auth.invitationConfirmPassword), confirmation)
+  }
 }
 
 const submit = () => userEvent.click(screen.getByRole('button', { name: fr.auth.invitationSubmit }))
@@ -209,17 +212,48 @@ describe('AcceptInvitationPage: creating the account', () => {
     expect(accept).toHaveBeenCalledTimes(2)
   })
 
-  it('says what is wrong with the name in words, not as an unknown error', async () => {
+  it('says what is wrong with a name the server refuses, in words and not as an unknown error', async () => {
     const api = fakeApi({
-      acceptInvitation: vi.fn(() => Promise.reject(new ApiError(400, 'accountName.empty'))),
+      acceptInvitation: vi.fn(() => Promise.reject(new ApiError(400, 'accountName.tooLong'))),
     })
     renderInvitation(api)
 
-    await fillIn('', CHOSEN_PASSWORD, CHOSEN_PASSWORD)
+    await fillIn('Camille', CHOSEN_PASSWORD, CHOSEN_PASSWORD)
     await submit()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['accountName.empty'])
-    expect(fr.errors['accountName.empty']).not.toBe(fr.errors.unknown)
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['accountName.tooLong'])
+    expect(fr.errors['accountName.tooLong']).not.toBe(fr.errors.unknown)
+  })
+
+  it.each([
+    ['an empty name', ['', CHOSEN_PASSWORD, CHOSEN_PASSWORD], fr.errors['accountName.empty']],
+    ['a name of spaces', ['   ', CHOSEN_PASSWORD, CHOSEN_PASSWORD], fr.errors['accountName.empty']],
+    ['an empty password', ['Camille', '', ''], fr.errors['password.tooShort']],
+  ] as const)(
+    'does not send %s, and says which box is empty',
+    async (_name, [name, password, confirmation], sentence) => {
+      // The server's schema refuses an empty string with the generic `request.invalid`, before
+      // the rules that have a sentence of their own: the page says which box instead.
+      const api = fakeApi()
+      renderInvitation(api)
+
+      await fillIn(name, password, confirmation)
+      await submit()
+
+      expect(await screen.findByText(sentence)).toBeVisible()
+      expect(api.acceptInvitation).not.toHaveBeenCalled()
+    },
+  )
+
+  it('takes the empty-box message away as soon as the box is touched', async () => {
+    renderInvitation(fakeApi())
+    await fillIn('', CHOSEN_PASSWORD, CHOSEN_PASSWORD)
+    await submit()
+    await screen.findByText(fr.errors['accountName.empty'])
+
+    await userEvent.type(screen.getByLabelText(fr.auth.invitationName), 'C')
+
+    expect(screen.queryByText(fr.errors['accountName.empty'])).toBeNull()
   })
 
   it('says what to do when the venue network dropped, and keeps the form', async () => {
@@ -258,7 +292,9 @@ describe('AcceptInvitationPage: an address that already has an account', () => {
     await fillIn()
     await submit()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.auth.invitationSignInRequired)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      fr.errors['invitation.signInRequired'],
+    )
     expect(screen.queryByText(/Évènement à/)).toBeNull()
   })
 
@@ -313,6 +349,28 @@ describe('AcceptInvitationPage: an address that already has an account', () => {
     expect(await screen.findByLabelText(fr.auth.invitationName)).toBeVisible()
     expect(api.logout).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('asks again who is signed in when the session lapsed under the page, and shows the form', async () => {
+    // The page said "accept as <this account>", the session ended in the minute it was open,
+    // and the server answers that it has no account to attach. A sentence over a form with no
+    // fields would be a dead end.
+    const session = vi
+      .fn<Api['session']>()
+      .mockResolvedValueOnce({ authenticated: true, user: aSessionUser() })
+      .mockResolvedValue({ authenticated: false })
+    const api = fakeApi({
+      session,
+      acceptInvitation: vi.fn(() =>
+        Promise.reject(new ApiError(400, 'invitation.credentialsRequired')),
+      ),
+    })
+    renderInvitation(api)
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.auth.invitationAcceptAs }))
+
+    expect(await screen.findByLabelText(fr.auth.invitationName)).toBeVisible()
+    expect(screen.getByRole('alert')).toHaveTextContent(fr.errors['invitation.credentialsRequired'])
   })
 
   it('says so when it cannot sign the person out of the account', async () => {
@@ -474,6 +532,128 @@ describe('AcceptInvitationPage: accessibility', () => {
 
     expect(screen.getByRole('heading', { name: fr.auth.invitationTitle })).toHaveFocus()
   })
+})
+
+describe('AcceptInvitationPage: while the page is open', () => {
+  it('changes language without asking the server about the link again, and keeps what was typed', async () => {
+    // The picker is the invitee's remedy for not reading French. Re-asking would spend the
+    // preview's rate limit, and an answer that failed the second time would replace the form.
+    const invitation = vi
+      .fn<Api['invitation']>()
+      .mockResolvedValueOnce(anInvitationPreview())
+      .mockRejectedValue(ApiError.network())
+    renderWithProviders(
+      <>
+        <LanguagePicker />
+        <Routes>
+          <Route path="/invite/:token" element={<AcceptInvitationPage />} />
+        </Routes>
+      </>,
+      { api: fakeApi({ invitation }), route: `/invite/${TOKEN}` },
+    )
+    await fillIn('Camille')
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: fr.app.language }), 'en')
+
+    expect(
+      await screen.findByRole('button', { name: 'Create my account and accept' }),
+    ).toBeVisible()
+    expect(screen.getByDisplayValue('Camille')).toBeVisible()
+    expect(invitation).toHaveBeenCalledTimes(1)
+  })
+
+  it('words a failure to ask in the language the page is in by then', async () => {
+    const invitation = vi.fn<Api['invitation']>().mockRejectedValue(ApiError.network())
+    renderWithProviders(
+      <>
+        <LanguagePicker />
+        <Routes>
+          <Route path="/invite/:token" element={<AcceptInvitationPage />} />
+        </Routes>
+      </>,
+      { api: fakeApi({ invitation }), route: `/invite/${TOKEN}` },
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: fr.app.language }), 'de')
+
+    expect(screen.getByRole('alert')).toHaveTextContent(de.errors.network)
+    expect(invitation).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the wait, and not the previous link, when the address changes to another link', async () => {
+    let answerSecond: (value: ReturnType<typeof anInvitationPreview>) => void = () => undefined
+    const invitation = vi
+      .fn<Api['invitation']>()
+      .mockResolvedValueOnce(anInvitationPreview({ targetName: 'Premier évènement' }))
+      .mockImplementationOnce(() => new Promise((resolve) => (answerSecond = resolve)))
+    renderWithProviders(
+      <>
+        <Link to="/invite/AUTRE-LIEN">autre</Link>
+        <Routes>
+          <Route path="/invite/:token" element={<AcceptInvitationPage />} />
+        </Routes>
+      </>,
+      { api: fakeApi({ invitation }), route: `/invite/${TOKEN}` },
+    )
+    expect(await screen.findByText(/Premier évènement/)).toBeVisible()
+
+    await userEvent.click(screen.getByRole('link', { name: 'autre' }))
+
+    // Not another person's invitation under this address while the right one is on its way.
+    expect(screen.queryByText(/Premier évènement/)).toBeNull()
+    expect(screen.queryByLabelText(fr.auth.invitationName)).toBeNull()
+    answerSecond(anInvitationPreview({ targetName: 'Second évènement' }))
+    expect(await screen.findByText(/Second évènement/)).toBeVisible()
+    expect(invitation).toHaveBeenLastCalledWith('AUTRE-LIEN', expect.any(AbortSignal))
+  })
+
+  it.each([
+    ['a link that was dead', () => Promise.reject(new ApiError(404, 'invitation.notFound'))],
+    ['a dropped connection', () => Promise.reject(ApiError.network())],
+    [
+      'another invitation',
+      () => Promise.resolve(anInvitationPreview({ targetName: 'Évènement périmé' })),
+    ],
+  ])(
+    'ignores the late answer of a request it has already left behind: %s',
+    async (_name, lateAnswer) => {
+      // The first link is slow, the person moves on to the second, and the second answers.
+      // What the first one eventually says is about a read nobody is waiting for any more, and
+      // it must not take the second one's place on the screen.
+      const settlers: (() => void)[] = []
+      const invitation = vi
+        .fn<Api['invitation']>()
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve, reject) => {
+              settlers.push(() => {
+                lateAnswer().then(resolve, reject)
+              })
+            }),
+        )
+        .mockResolvedValue(anInvitationPreview({ targetName: 'Évènement frais' }))
+      renderWithProviders(
+        <>
+          <Link to="/invite/AUTRE-LIEN">autre</Link>
+          <Routes>
+            <Route path="/invite/:token" element={<AcceptInvitationPage />} />
+          </Routes>
+        </>,
+        { api: fakeApi({ invitation }), route: `/invite/${TOKEN}` },
+      )
+      await userEvent.click(screen.getByRole('link', { name: 'autre' }))
+      expect(await screen.findByText(/Évènement frais/)).toBeVisible()
+
+      settlers.forEach((settle) => settle())
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      expect(screen.getByText(/Évènement frais/)).toBeVisible()
+      expect(screen.queryByText(/Évènement périmé/)).toBeNull()
+      expect(screen.queryByRole('heading', { name: fr.auth.deadLinkTitle })).toBeNull()
+      expect(screen.queryByRole('alert')).toBeNull()
+    },
+  )
 })
 
 describe('AcceptInvitationPage: the token stays where it was put', () => {

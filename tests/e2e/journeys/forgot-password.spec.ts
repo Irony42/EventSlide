@@ -93,12 +93,12 @@ test('a host who forgot their password asks for a link, chooses a new one with i
     await page.getByLabel(fr.auth.password, { exact: true }).fill(NEW_PASSWORD)
     await page.getByRole('button', { name: fr.auth.submit }).click()
     await expect(page).toHaveURL(/\/admin$/)
-    await expect(page.getByRole('button', { name: fr.auth.accountMenu })).toBeVisible()
+    await expect(page.getByRole('button', { name: fr.auth.accountMenu, exact: true })).toBeVisible()
 
     // ---- and out again, from the menu that had no caller before this ---------------------
 
-    await page.getByRole('button', { name: fr.auth.accountMenu }).click()
-    await page.getByRole('button', { name: fr.auth.logout }).click()
+    await page.getByRole('button', { name: fr.auth.accountMenu, exact: true }).click()
+    await page.getByRole('button', { name: fr.auth.logout, exact: true }).click()
     await expect(page).toHaveURL(/\/login$/)
     const afterwards = await context.request.get(app.url('/api/auth/me'))
     expect(await afterwards.json()).toEqual({ authenticated: false })
@@ -124,7 +124,17 @@ test('a box with no mail relay offers no way to ask, and says so if asked anyway
     await expect(page.getByLabel(fr.auth.email)).toBeVisible()
     // Let `/api/about` answer before asserting an absence: an absence checked first is true of
     // every version of this page.
-    await answered
+    const about = (await (await answered).json()) as { features: { forgotPassword: boolean } }
+    // The premise, read off the wire: this box says it cannot mail.
+    expect(about.features.forgotPassword).toBe(false)
+    // The response arrives before React has drawn what it says; two frames let it commit, so
+    // that the absence below is an absence of the page and not of the time it takes to draw it.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    )
     await expect(page.getByRole('link', { name: fr.auth.forgotLink })).toHaveCount(0)
 
     // A bookmark or an old mail can still land on the page: the server is the judge.

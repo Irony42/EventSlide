@@ -340,7 +340,7 @@ export const it: UiText = {
     'invitation.notFound':
       'Questo invito non è più valido. Ne chieda uno nuovo alla persona che lo ha inviato.',
     'invitation.signInRequired':
-      'Un account usa già questo indirizzo. Acceda con quell’account, poi riapra il link.',
+      'Un account usa già l’indirizzo di questo invito. Acceda con quell’account: tornerà qui per accettare.',
     'invitation.wrongAccount':
       'Questo invito è stato scritto per un indirizzo e-mail diverso da quello di questo account.',
     'invitation.credentialsRequired':
@@ -898,9 +898,7 @@ export const it: UiText = {
     invitationConfirmPassword: 'Conferma la password',
     invitationSubmit: 'Crea il mio account e accetta',
     invitationAccepted: 'Invito accettato.',
-    invitationHaveAccount: 'Ha già un account con questo indirizzo?',
-    invitationSignInRequired:
-      'Un account usa già l’indirizzo di questo invito. Acceda con quell’account: tornerà qui per accettare.',
+    invitationHaveAccount: 'Ha già un account?',
     invitationSignedInAs: (email: string) => `Ha effettuato l’accesso come ${email}.`,
     invitationAcceptAs: 'Accetta con questo account',
     invitationUseAnother: 'Usa un altro account',

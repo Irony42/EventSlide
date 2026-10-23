@@ -177,9 +177,10 @@ Read these before you upgrade, and back up with the version you run now.
   `/password/forgot` and `/password/reset/:token` are the two halves of a forgotten password: the
   sign-in page links to the first only when `features.forgotPassword` is true. Every screen on
   `/admin/**` has an account menu with _Sign out_ (nothing in the app called `logout` before),
-  _Sign out everywhere_ behind a confirmation, and _Change password_. The three pages are served
-  with `Cache-Control: no-store`, `X-Robots-Tag: noindex` and no referrer, because the token is in
-  their address; they are in the five languages.
+  _Sign out everywhere_ behind a confirmation, and _Change password_. The two pages that
+  carry a token (`/invite/:token`, `/password/reset/:token`) are served with
+  `Cache-Control: no-store`, `X-Robots-Tag: noindex` and no referrer, because the token is in their
+  address; all the screens are in the five languages.
 - **Password reset, and sign out everywhere** (#125). `POST /api/auth/password-reset/request`
   and `POST /api/auth/password-reset/confirm`, by a mailed link that lasts an hour (at most
   three mails per address per hour), and `POST /api/auth/sessions/revoke-others`, which ends

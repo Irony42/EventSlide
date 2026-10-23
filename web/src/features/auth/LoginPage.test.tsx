@@ -12,7 +12,7 @@ import {
   renderWithProviders,
 } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
-import type { SessionUserDto } from '../../lib/api/dto'
+import type { About, SessionUserDto } from '../../lib/api/dto'
 
 const DASHBOARD = 'Tableau de bord'
 const MODERATION = 'Console de modération'
@@ -266,7 +266,9 @@ describe("LoginPage: 'Mot de passe oublié ?'", () => {
 
   it('offers no link when the server never says, which is what a server older than the flag does', async () => {
     const api = fakeApi({
-      about: vi.fn(async () => ({ ...anAbout(), features: { siteAdmin: true } }) as never),
+      about: vi.fn(
+        async () => ({ ...anAbout(), features: { siteAdmin: true } }) as unknown as About,
+      ),
     })
     renderLogin(api)
 

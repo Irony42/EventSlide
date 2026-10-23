@@ -32,8 +32,12 @@ export type InvitationView =
   | { readonly kind: 'ready'; readonly preview: InvitationPreviewDto }
   /** Dead, whatever killed it. */
   | { readonly kind: 'dead' }
-  /** Could not be asked, which is not the same as dead: the link may be perfectly good. */
-  | { readonly kind: 'failed'; readonly message: string }
+  /**
+   * Could not be asked, which is not the same as dead: the link may be perfectly good. Carries
+   * the cause and not a sentence: the page words it when it renders, so a person who changes
+   * the page's language is answered in it without the link being asked about again.
+   */
+  | { readonly kind: 'failed'; readonly cause: unknown }
 
 export interface InvitationPreviewState {
   readonly view: InvitationView
@@ -51,7 +55,6 @@ export interface InvitationPreviewState {
  */
 export const useInvitationPreview = (token: string): InvitationPreviewState => {
   const api = useApi()
-  const t = useTranslations()
   // The token the answer is for travels with it, so a navigation from one link to another
   // shows the wait again instead of the previous link's invitation for a moment.
   const [answer, setAnswer] = useState<{
@@ -72,15 +75,13 @@ export const useInvitationPreview = (token: string): InvitationPreviewState => {
         if (controller.signal.aborted) return
         setAnswer({
           token,
-          view: isDeadLink(cause)
-            ? { kind: 'dead' }
-            : { kind: 'failed', message: errorMessage(cause, t) },
+          view: isDeadLink(cause) ? { kind: 'dead' } : { kind: 'failed', cause },
         })
       },
     )
 
     return () => controller.abort()
-  }, [api, t, token, attempt])
+  }, [api, token, attempt])
 
   const reload = useCallback(() => {
     setAnswer(null)

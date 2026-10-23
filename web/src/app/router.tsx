@@ -221,7 +221,7 @@ const LazyGuestPage = () => (
 )
 
 /**
- * The host layout's header: the account menu where there is an account, and the picker.
+ * The host layout's header: the picker, and the account menu where there is an account.
  *
  * The menu is mounted on `/admin/**` and nowhere else, which is the signed-in area by
  * construction (`RequireAuth` guards exactly that subtree). Mounting it there rather than on
@@ -233,8 +233,8 @@ const HostHeader = () => {
   const signedInArea = pathname === '/admin' || pathname.startsWith('/admin/')
   return (
     <div className={styles['hostHeader']}>
-      {signedInArea ? <AccountMenu /> : null}
       <LanguagePicker />
+      {signedInArea ? <AccountMenu /> : null}
     </div>
   )
 }

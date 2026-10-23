@@ -111,6 +111,16 @@ describe('AccountMenu: what it offers', () => {
     expect(screen.queryByRole('button', { name: fr.auth.logout })).toBeNull()
   })
 
+  it('names no list while it is closed, because an id that names nothing is a dangling reference', async () => {
+    renderMenu(signedIn())
+    const button = await trigger()
+
+    expect(button).not.toHaveAttribute('aria-controls')
+
+    await userEvent.click(button)
+    expect(button).toHaveAttribute('aria-controls')
+  })
+
   it('closes on Escape and gives the keyboard back to the control that opened it', async () => {
     renderMenu(signedIn())
     await open()
@@ -244,6 +254,59 @@ describe('AccountMenu: signing out everywhere', () => {
     expect(api.revokeOtherSessions).not.toHaveBeenCalled()
     expect(api.logout).not.toHaveBeenCalled()
     expect(screen.queryByText('Écran de connexion')).toBeNull()
+  })
+
+  it('hands the keyboard back to the entry that asked the question when it is cancelled', async () => {
+    // The menu stays open behind the question precisely so that there is somewhere to go back
+    // to: closing it first left the dialog's opener unmounted and the keyboard on the document.
+    renderMenu(signedIn())
+    const dialog = await choose()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.app.cancel }))
+
+    expect(screen.getByRole('button', { name: fr.auth.logoutEverywhere })).toHaveFocus()
+  })
+
+  it('keeps the menu open, and the keyboard on that entry, when the others could not be revoked', async () => {
+    const api = signedIn({
+      revokeOtherSessions: vi.fn(() => Promise.reject(new ApiError(500, 'unknown'))),
+    })
+    renderMenu(api)
+    const dialog = await choose()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.auth.logoutEverywhere }))
+
+    await screen.findByText(fr.errors.unknown)
+    expect(screen.queryByRole('dialog', { name: fr.auth.logoutEverywhereTitle })).toBeNull()
+    expect(screen.getByRole('button', { name: fr.auth.logoutEverywhere })).toHaveFocus()
+  })
+
+  it('asks the server once, however often the confirmation is pressed while it answers', async () => {
+    let finish: () => void = () => undefined
+    const api = signedIn({
+      revokeOtherSessions: vi.fn(() => new Promise<void>((resolve) => (finish = resolve))),
+    })
+    renderMenu(api)
+    const dialog = await choose()
+    const confirm = within(dialog).getByRole('button', { name: fr.auth.logoutEverywhere })
+
+    await userEvent.click(confirm)
+    await userEvent.click(confirm)
+    await userEvent.click(confirm)
+
+    expect(api.revokeOtherSessions).toHaveBeenCalledTimes(1)
+    finish()
+    expect(await screen.findByText('Écran de connexion')).toBeVisible()
+    expect(api.logout).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves the menu alone while the question is up: only the question answers a press outside it', async () => {
+    renderMenu(signedIn())
+    await choose()
+
+    await userEvent.click(document.body)
+
+    expect(screen.getByRole('button', { name: fr.auth.logout })).toBeVisible()
   })
 
   it('revokes every other session, then ends this one, in that order, then goes to the sign-in', async () => {

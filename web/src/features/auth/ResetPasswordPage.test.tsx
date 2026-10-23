@@ -94,6 +94,24 @@ describe('ResetPasswordPage', () => {
     expect(confirm).toHaveBeenCalledTimes(2)
   })
 
+  it('sends nothing for an empty password, and says so on the box', async () => {
+    // The server's schema refuses an empty string with the generic request.invalid; the policy
+    // that has a sentence for it never sees it.
+    const api = fakeApi()
+    renderReset(api)
+
+    await userEvent.click(screen.getByRole('button', { name: fr.auth.resetSubmit }))
+
+    expect(await screen.findByText(fr.errors['password.tooShort'])).toBeVisible()
+    expect(api.confirmPasswordReset).not.toHaveBeenCalled()
+  })
+
+  it('does not take the keyboard when it opens: a form that is simply the page navigated to', async () => {
+    renderReset(fakeApi())
+
+    expect(screen.getByRole('heading', { name: fr.auth.resetTitle })).not.toHaveFocus()
+  })
+
   it('sends nothing when the two passwords disagree', async () => {
     const api = fakeApi()
     renderReset(api)

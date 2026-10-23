@@ -1131,9 +1131,7 @@ export const fr = {
     invitationConfirmPassword: 'Confirmer le mot de passe',
     invitationSubmit: 'Créer mon compte et accepter',
     invitationAccepted: 'Invitation acceptée.',
-    invitationHaveAccount: 'Vous avez déjà un compte avec cette adresse ?',
-    invitationSignInRequired:
-      'Un compte utilise déjà l’adresse de cette invitation. Connectez-vous avec ce compte : vous reviendrez ici pour accepter.',
+    invitationHaveAccount: 'Vous avez déjà un compte ?',
     invitationSignedInAs: (email: string) => `Vous êtes connecté avec ${email}.`,
     invitationAcceptAs: 'Accepter avec ce compte',
     invitationUseAnother: 'Utiliser un autre compte',
@@ -1274,7 +1272,7 @@ export const fr = {
     'invitation.notFound':
       'Cette invitation n’est plus valable. Demandez-en une nouvelle à la personne qui vous l’a envoyée.',
     'invitation.signInRequired':
-      'Un compte utilise déjà cette adresse. Connectez-vous avec ce compte, puis rouvrez le lien.',
+      'Un compte utilise déjà l’adresse de cette invitation. Connectez-vous avec ce compte : vous reviendrez ici pour accepter.',
     'invitation.wrongAccount':
       'Cette invitation est destinée à une autre adresse e-mail que celle de ce compte.',
     'invitation.credentialsRequired':

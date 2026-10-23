@@ -8,6 +8,7 @@ import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
 import { useLocale } from '../../lib/i18n/useTranslations'
+import { errorMessage } from './errorMessage'
 import { AuthActions, AuthPage } from './components/AuthPage'
 import { AuthAlert, AuthForm } from './components/AuthForm'
 import { useSignOut } from './hooks/useAuthActions'
@@ -71,6 +72,8 @@ export function AcceptInvitationPage() {
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [mismatch, setMismatch] = useState(false)
+  // Which required boxes were left empty when the form was sent. See `createAccount`.
+  const [blank, setBlank] = useState({ name: false, password: false })
   const [refusal, setRefusal] = useState<string | null>(null)
   // The link was good when the page read it and is not any more: spent by the person it was
   // for, or replaced by a newer one, in the minute this page has been open.
@@ -87,7 +90,7 @@ export function AcceptInvitationPage() {
   if (view.kind === 'failed') {
     return (
       <AuthPage title={t.auth.invitationTitle} focusTitle>
-        <AuthAlert>{view.message}</AuthAlert>
+        <AuthAlert>{errorMessage(view.cause, t)}</AuthAlert>
         <AuthActions>
           <Button type="button" variant="primary" onClick={reload}>
             {t.app.retry}
@@ -125,17 +128,27 @@ export function AcceptInvitationPage() {
         setDiedUnderUs(true)
         return
       case 'signInRequired':
-        setRefusal(t.auth.invitationSignInRequired)
+        setRefusal(t.errors['invitation.signInRequired'])
         return
       case 'refused':
         setRefusal(outcome.message)
+        // The session this page was drawn for is gone: it said "accept as <this account>" and
+        // the server has no account to attach. Ask who is signed in again, and the page answers
+        // with the form for somebody who is not — under the sentence the server gave.
+        if (outcome.code === 'invitation.credentialsRequired') refresh()
     }
   }
 
   const createAccount = () => {
-    // The one rule checked here, as in `ChangePasswordPage`: two boxes disagreeing is a typing
-    // accident the client can see, and nobody can reset a password they mistyped on a box
-    // with no mail relay. Everything else — length, "too common", the name — is the server's.
+    // Two things are checked here, and neither is a rule about names or passwords. Two boxes
+    // disagreeing is a typing accident the client can see (as in `ChangePasswordPage`), and
+    // nobody can reset a password they mistyped on a box with no mail relay. A box left empty is
+    // not sent: the server's schema refuses an empty string before its own rules see it, with
+    // the generic `request.invalid`, which says nothing about which box. Everything else —
+    // length, "too common", how long a name may be — is the server's.
+    const missing = { name: displayName.trim() === '', password: password === '' }
+    setBlank(missing)
+    if (missing.name || missing.password) return
     if (password !== confirmation) {
       setMismatch(true)
       return
@@ -201,7 +214,11 @@ export function AcceptInvitationPage() {
         </span>
       }
     >
-      <Field label={t.auth.invitationName} hint={t.auth.invitationNameHint}>
+      <Field
+        label={t.auth.invitationName}
+        hint={t.auth.invitationNameHint}
+        {...(blank.name ? { error: t.errors['accountName.empty'] } : {})}
+      >
         {(control) => (
           <TextInput
             {...control}
@@ -210,12 +227,19 @@ export function AcceptInvitationPage() {
             autoComplete="name"
             required
             value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
+            onChange={(event) => {
+              setDisplayName(event.target.value)
+              setBlank((current) => ({ ...current, name: false }))
+            }}
           />
         )}
       </Field>
 
-      <Field label={t.auth.password} hint={t.auth.newPasswordHint(PASSWORD_MIN_LENGTH)}>
+      <Field
+        label={t.auth.password}
+        hint={t.auth.newPasswordHint(PASSWORD_MIN_LENGTH)}
+        {...(blank.password ? { error: t.errors['password.tooShort'] } : {})}
+      >
         {(control) => (
           <TextInput
             {...control}
@@ -225,7 +249,10 @@ export function AcceptInvitationPage() {
             autoComplete="new-password"
             required
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              setPassword(event.target.value)
+              setBlank((current) => ({ ...current, password: false }))
+            }}
           />
         )}
       </Field>

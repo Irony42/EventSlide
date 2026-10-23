@@ -965,6 +965,19 @@ describe('the account menu', () => {
     expect(screen.getByRole('combobox', { name: fr.app.language })).toBeVisible()
   })
 
+  it('is after the language picker, at the end of the line, so its list stays on a phone', async () => {
+    // The list is anchored to the menu's end edge: put before the picker, the trigger is a
+    // picker's width from the edge and a list as wide as its longest entry hangs off the other
+    // side of a 360 px screen. jsdom has no geometry, so the order is what can be asserted here
+    // and tests/e2e/journeys/moderator-invitation.spec.ts measures the box.
+    renderWithProviders(<AppRoutes />, { api: signedInApi(), route: '/admin' })
+
+    const menu = await screen.findByRole('button', { name: fr.auth.accountMenu })
+    const picker = screen.getByRole('combobox', { name: fr.app.language })
+
+    expect(picker.compareDocumentPosition(menu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('is not on the sign-in screen, even for a browser that still holds a session', async () => {
     renderWithProviders(<AppRoutes />, { api: signedInApi(), route: '/login' })
 

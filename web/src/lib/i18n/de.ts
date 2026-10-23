@@ -350,7 +350,7 @@ export const de: UiText = {
     'invitation.notFound':
       'Diese Einladung ist nicht mehr gültig. Bitten Sie die Person, die sie geschickt hat, um eine neue.',
     'invitation.signInRequired':
-      'Ein Konto verwendet diese Adresse bereits. Melden Sie sich mit diesem Konto an und öffnen Sie den Link erneut.',
+      'Die Adresse dieser Einladung gehört bereits zu einem Konto. Melden Sie sich mit diesem Konto an: Sie kehren dann hierher zurück, um die Einladung anzunehmen.',
     'invitation.wrongAccount':
       'Diese Einladung wurde für eine andere E-Mail-Adresse als die dieses Kontos ausgestellt.',
     'invitation.credentialsRequired':
@@ -937,9 +937,7 @@ export const de: UiText = {
     invitationConfirmPassword: 'Passwort bestätigen',
     invitationSubmit: 'Konto anlegen und annehmen',
     invitationAccepted: 'Einladung angenommen.',
-    invitationHaveAccount: 'Sie haben bereits ein Konto mit dieser Adresse?',
-    invitationSignInRequired:
-      'Die Adresse dieser Einladung gehört bereits zu einem Konto. Melden Sie sich mit diesem Konto an: Sie kehren dann hierher zurück, um die Einladung anzunehmen.',
+    invitationHaveAccount: 'Sie haben bereits ein Konto?',
     invitationSignedInAs: (email: string) => `Sie sind als ${email} angemeldet.`,
     invitationAcceptAs: 'Mit diesem Konto annehmen',
     invitationUseAnother: 'Anderes Konto verwenden',

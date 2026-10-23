@@ -10,8 +10,8 @@
   color: var(--text-secondary);
 }
 
-/* The account menu and the language picker, side by side at the end of the line. The picker
-   brings its own inset, so the row adds none. */
+/* The language picker and the account menu, side by side at the end of the line. Each brings
+   its own inset, so the row adds none. */
 .hostHeader {
   display: flex;
   align-items: flex-start;

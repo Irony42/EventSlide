@@ -93,7 +93,22 @@ test('a moderator invited by link accepts it on their own machine and can modera
     // because of the invitation — no membership was written by a fixture.
     await expect(theirPage).toHaveURL(new RegExp(`/admin/events/${event.slug}$`))
     await expect(theirPage.getByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
-    await expect(theirPage.getByRole('button', { name: fr.auth.accountMenu })).toBeVisible()
+    await expect(
+      theirPage.getByRole('button', { name: fr.auth.accountMenu, exact: true }),
+    ).toBeVisible()
+
+    // On a phone's width the menu's list stays on the screen: it is anchored to the end of the
+    // header, and a list as wide as its longest entry used to hang off the left edge at 360 px.
+    await theirPage.setViewportSize({ width: 360, height: 740 })
+    await theirPage.getByRole('button', { name: fr.auth.accountMenu, exact: true }).click()
+    const widest = await theirPage
+      .getByRole('button', { name: fr.auth.logoutEverywhere, exact: true })
+      .boundingBox()
+    expect(widest, 'the menu lists its entries').not.toBeNull()
+    expect(widest?.x ?? -1).toBeGreaterThanOrEqual(0)
+    expect((widest?.x ?? 0) + (widest?.width ?? 0)).toBeLessThanOrEqual(360)
+    await theirPage.keyboard.press('Escape')
+    await theirPage.setViewportSize({ width: 1280, height: 800 })
 
     await theirPage.goto(app.url(`/admin/events/${event.slug}/moderation`))
     await expect(theirPage.getByRole('heading', { name: fr.moderation.title })).toBeVisible()
@@ -249,7 +264,7 @@ test('a person who already has an account is sent to sign in, comes back to the 
     await page.getByRole('button', { name: fr.auth.invitationSubmit }).click()
 
     // And the box says to sign in instead, having created nothing.
-    await expect(page.getByRole('alert')).toContainText(fr.auth.invitationSignInRequired)
+    await expect(page.getByRole('alert')).toContainText(fr.errors['invitation.signInRequired'])
 
     await page.getByRole('link', { name: fr.auth.submit }).click()
     await expect(page).toHaveURL(/\/login$/)

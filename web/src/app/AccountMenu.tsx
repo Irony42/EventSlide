@@ -50,7 +50,10 @@ export function AccountMenu() {
   const trigger = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    if (!open) return
+    // Not while the confirmation is up: it is modal, and its own Escape and its own backdrop are
+    // the ones that answer. Closing the menu under it would unmount the button the dialog hands
+    // the keyboard back to.
+    if (!open || confirming) return
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.target instanceof Node && root.current?.contains(event.target) === false) {
@@ -70,7 +73,7 @@ export function AccountMenu() {
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open])
+  }, [open, confirming])
 
   if (session === null || !session.authenticated) return null
 
@@ -116,7 +119,9 @@ export function AccountMenu() {
         variant="secondary"
         size="sm"
         aria-expanded={open}
-        aria-controls={panelId}
+        // Only while there is something to control: an id that names no element is a dangling
+        // reference, and a collapsed disclosure has no list.
+        aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((current) => !current)}
       >
         {t.auth.accountMenu}
@@ -128,18 +133,12 @@ export function AccountMenu() {
           <Link className={styles['item']} to="/admin/password" onClick={() => setOpen(false)}>
             {t.auth.changePassword}
           </Link>
-          <button type="button" className={styles['item']} disabled={busy} onClick={handleSignOut}>
+          <button type="button" className={styles['item']} onClick={handleSignOut}>
             {t.auth.logout}
           </button>
-          <button
-            type="button"
-            className={styles['item']}
-            disabled={busy}
-            onClick={() => {
-              setOpen(false)
-              setConfirming(true)
-            }}
-          >
+          {/* The menu stays open behind the question, so that cancelling hands the keyboard back
+              to this very button instead of to a document whose opener has been unmounted. */}
+          <button type="button" className={styles['item']} onClick={() => setConfirming(true)}>
             {t.auth.logoutEverywhere}
           </button>
         </div>

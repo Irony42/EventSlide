@@ -36,11 +36,19 @@ export function ResetPasswordPage() {
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [mismatch, setMismatch] = useState(false)
+  const [blank, setBlank] = useState(false)
   const [outcome, setOutcome] = useState<'asking' | 'done' | 'dead'>('asking')
 
   const handleSubmit = () => {
-    // The only rule checked here (see `ChangePasswordPage`): two boxes disagreeing is a typing
-    // accident, and on a box with no relay a mistyped password is a locked account.
+    // Two things are checked here (see `ChangePasswordPage`). Two boxes disagreeing is a typing
+    // accident, and on a box with no relay a mistyped password is a locked account. An empty box
+    // is not sent: the server's schema refuses an empty string with the generic
+    // `request.invalid`, before the policy that has a sentence for it ever sees it.
+    if (password === '') {
+      setBlank(true)
+      return
+    }
+    setBlank(false)
     if (password !== confirmation) {
       setMismatch(true)
       return
@@ -81,7 +89,11 @@ export function ResetPasswordPage() {
       submitLabel={t.auth.resetSubmit}
       onSubmit={handleSubmit}
     >
-      <Field label={t.auth.newPassword} hint={t.auth.newPasswordHint(PASSWORD_MIN_LENGTH)}>
+      <Field
+        label={t.auth.newPassword}
+        hint={t.auth.newPasswordHint(PASSWORD_MIN_LENGTH)}
+        {...(blank ? { error: t.errors['password.tooShort'] } : {})}
+      >
         {(control) => (
           <TextInput
             {...control}
@@ -90,7 +102,10 @@ export function ResetPasswordPage() {
             autoComplete="new-password"
             required
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              setPassword(event.target.value)
+              setBlank(false)
+            }}
           />
         )}
       </Field>

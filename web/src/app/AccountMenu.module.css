@@ -1,10 +1,14 @@
 /**
- * The menu sits beside the language picker, which carries its own top inset
- * (`LanguagePicker.module.css`): the same value here keeps the two on one baseline.
+ * The menu sits **after** the language picker, at the end of the line, so that its list can be
+ * anchored to its own end edge and still be on the screen: put before the picker, the trigger
+ * is a picker's width from the edge and a list as wide as its content hangs off the other side
+ * of a phone. The picker carries its own top inset (`LanguagePicker.module.css`): the same
+ * value here keeps the two on one baseline, and the end inset is the picker's.
  */
 .root {
   position: relative;
   padding-block-start: var(--space-2);
+  padding-inline-end: var(--space-4);
 }
 
 /**
@@ -14,12 +18,15 @@
  */
 .panel {
   position: absolute;
-  inset-inline-end: 0;
+  /* The trigger's end edge, which is the root's end padding in. */
+  inset-inline-end: var(--space-4);
   z-index: var(--z-dialog);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  min-inline-size: 16rem;
+  /* As wide as its longest entry, never wider than the screen less its two insets: a width and
+     not a minimum, because a minimum beats the maximum and an address has no break to give. */
+  inline-size: max-content;
   max-inline-size: calc(100vw - var(--space-6));
   margin-block-start: var(--space-2);
   padding: var(--space-2);
