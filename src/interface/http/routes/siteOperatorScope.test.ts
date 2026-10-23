@@ -297,6 +297,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   kind: 'love',
   token: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   linkId: A_PHOTO,
+  invitationId: A_PHOTO,
 }
 
 /**
