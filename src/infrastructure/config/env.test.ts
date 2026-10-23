@@ -541,6 +541,9 @@ describe('loadConfig', () => {
       ['a localhost user name in front of another host', 'http://localhost@photos.example.com'],
       ['a localhost user name, in capitals', 'HTTP://localhost:4300@photos.example.com'],
       ['a loopback address, which was never exempt', 'http://127.0.0.1:4300'],
+      ['an IPv6 loopback address, which was never exempt', 'http://[::1]:4300'],
+      ['a .localhost name, which was never exempt', 'http://app.localhost:4300'],
+      ['the localhost name with a trailing dot', 'http://localhost.:4300'],
     ])('does not extend the localhost exemption to %s', (_name, url) => {
       const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: url }))
 

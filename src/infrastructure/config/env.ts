@@ -222,7 +222,9 @@ const publicUrl = z
  * and `http://localhost@example.com`, whose host is somewhere else entirely.
  *
  * A value that does not parse is not this rule's to report: `publicUrl` refuses it, and zod
- * hands the object-level refinement the text as typed even then.
+ * hands the object-level refinement the text as typed even then. One that parses and that
+ * `publicUrl` refuses anyway (` http://x`, `http:x`) may be named by both; the boot is refused
+ * either way.
  */
 const isPlainHttpBeyondLocalhost = (value: string): boolean => {
   if (!URL.canParse(value)) return false
