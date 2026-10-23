@@ -634,6 +634,8 @@ describe('the instants a request may carry', () => {
     '2026-06-20T18:00:00ZZ',
     '2026-06-20T18:00:00+02:000',
     '2026-06-20T18:00:00+02:00x',
+    '2026-06-20T18:00:00+02000',
+    '2026-06-20T18:00:00+020000',
   ])('rejects the scheduled instant %s, which is neither Z nor an offset', (value) => {
     expect(eventScheduleBody.safeParse(body(value)).success).toBe(false)
   })
