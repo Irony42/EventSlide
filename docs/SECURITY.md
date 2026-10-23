@@ -2118,7 +2118,7 @@ need an attacker-supplied pattern.
 `readdir-glob` is only ever entered through `Archiver.prototype.glob` and
 `Archiver.prototype.directory` (`node_modules/archiver/lib/core.js:9`, used at `:720`).
 **EventSlide calls neither.** The only `archiver` usage in the tree appends one
-pre-resolved stream per photo, at `infrastructure/media/archiverWriter.ts:57`:
+pre-resolved stream per photo, at `infrastructure/media/archiverWriter.ts:67`:
 
 ```
 archive.append(source, { name: entry.name, date: entry.modifiedAt })
@@ -2127,10 +2127,20 @@ archive.append(source, { name: entry.name, date: entry.modifiedAt })
 No glob pattern is constructed anywhere in `src/`, so none can be attacker-supplied. The
 module is loaded and its vulnerable function is never called.
 
+**Update, `archiver` 8.0.0 (#94).** The versions above are the 2026-09 audit's. `main`'s
+lockfile had since moved the chain to `minimatch@5.1.9` and `brace-expansion@2.1.7`, and
+`archiver@8.0.0` replaces it with `readdir-glob@3.0.0`, which resolves `minimatch@10.2.6` and
+`brace-expansion@5.0.12` (`npm ls --omit=dev minimatch brace-expansion readdir-glob`);
+`archiver-utils`, `glob@10` and `lodash` leave the production tree with it. `npm audit
+--omit=dev` lists neither package, before or after. `readdir-glob` is still entered only
+through `Archiver.prototype.directory` (`core.js:570`) and `.glob` (`core.js:672`), and the
+call site above is unchanged apart from its line, so the argument below holds as written.
+
 Stated as a rule rather than a coincidence, because this is the part that could change:
 **if anyone adds `archive.glob()` or `archive.directory()` to `archiverWriter.ts`, or
-introduces any glob whose pattern is derived from a request, these eight advisories become
-live.** That is the trigger to reopen this row.
+introduces any glob whose pattern is derived from a request, any glob advisory in this
+chain becomes reachable, which is what the eight above would have been.** That is the
+trigger to reopen this row.
 
 ### 14.5 The dev-only ones, and where they stop
 
