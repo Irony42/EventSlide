@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
+import { createReadStream, type ReadStream } from 'node:fs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { albumEntryName, archiverWriter } from './archiverWriter'
 import type { ArchiveEntry } from '../../application/ports/archiveWriter'
 
@@ -339,50 +343,87 @@ describe('archiverWriter, sources and a client that goes away', () => {
     expect({ opened: counts.opened, closed: counts.closed }).toEqual({ opened: 3, closed: 3 })
   })
 
-  it('closes the source of an entry that arrives after the client has gone', async () => {
-    // The listing is a database read and takes its time, so the client can leave while
-    // the next entry is still being fetched. An entry whose bytes were opened when it was
-    // built — what the host's export used to hand over — would otherwise be appended to
-    // an archive nobody reads, or dropped with its descriptor.
-    const counts = { opened: 0, closed: 0 }
-    let arrive = (): void => undefined
-    const late = new Promise<void>((resolve) => {
-      arrive = resolve
-    })
-    let waiting = (): void => undefined
-    const listingIsWaiting = new Promise<void>((resolve) => {
-      waiting = resolve
-    })
-    const openedAtBuild: AsyncIterable<Uint8Array> = {
-      [Symbol.asyncIterator]() {
-        counts.opened += 1
-        return {
-          next: async () => ({ done: false, value: CHUNK }),
-          return: async () => {
-            counts.closed += 1
-            return { done: true, value: undefined }
-          },
-        }
-      },
-    }
-    const slowListing: AsyncIterable<ArchiveEntry> = {
-      async *[Symbol.asyncIterator]() {
-        yield entry('first.jpg')
-        waiting()
-        await late
-        yield { ...entry('second.jpg'), bytes: openedAtBuild }
-      },
-    }
+  describe('an entry that is already open when it arrives', () => {
+    // What the host's export hands over: the media store opens the file as it builds the
+    // entry, and a `ReadStream` has its descriptor from the moment it exists. Nothing has
+    // read from it yet, so closing it means destroying that stream itself — a wrapper
+    // destroyed before its first read closes nothing, which is how one file was left open
+    // for the life of the process.
+    let directory: string
+    let file: string
 
-    const iterator = archiverWriter.stream(slowListing)[Symbol.asyncIterator]()
-    await iterator.next()
-    // Only now is the writer waiting on the listing, which is the moment this is about.
-    await listingIsWaiting
-    await iterator.return?.(undefined)
-    arrive()
+    beforeEach(async () => {
+      directory = await mkdtemp(join(tmpdir(), 'eventslide-archiver-writer-'))
+      file = join(directory, 'photo.jpg')
+      await writeFile(file, new Uint8Array(1024 * 1024))
+    })
 
-    await vi.waitFor(() => expect(counts.opened).toBe(1), { timeout: 2_000 })
-    await vi.waitFor(() => expect(counts.closed).toBe(1), { timeout: 2_000 })
+    afterEach(async () => {
+      await rm(directory, { recursive: true, force: true })
+    })
+
+    /** Resolves when the file's descriptor is released, which `close` is the event for. */
+    const closing = (stream: ReadStream): Promise<void> =>
+      new Promise<void>((resolve) => {
+        if (stream.closed) resolve()
+        else stream.once('close', () => resolve())
+      })
+
+    it('closes the file of an entry that arrives after the client has gone', async () => {
+      // The listing is a database read and takes its time, so the client can leave while
+      // the next entry is still being fetched — a few milliseconds per photograph, which
+      // over a long album and many abandoned downloads is a descriptor now and then.
+      let arrive = (): void => undefined
+      const late = new Promise<void>((resolve) => {
+        arrive = resolve
+      })
+      let waiting = (): void => undefined
+      const listingIsWaiting = new Promise<void>((resolve) => {
+        waiting = resolve
+      })
+      let stream: ReadStream | undefined
+      const slowListing: AsyncIterable<ArchiveEntry> = {
+        async *[Symbol.asyncIterator]() {
+          yield entry('first.jpg')
+          waiting()
+          await late
+          stream = createReadStream(file)
+          yield { ...entry('second.jpg'), bytes: stream }
+        },
+      }
+
+      const iterator = archiverWriter.stream(slowListing)[Symbol.asyncIterator]()
+      await iterator.next()
+      // Only now is the writer waiting on the listing, which is the moment this is about.
+      await listingIsWaiting
+      await iterator.return?.(undefined)
+      arrive()
+
+      await vi.waitFor(() => expect(stream).toBeDefined(), { timeout: 2_000 })
+      await expect(
+        Promise.race([
+          closing(stream as ReadStream).then(() => 'closed'),
+          new Promise((resolve) => setTimeout(() => resolve('still open'), 2_000)),
+        ]),
+      ).resolves.toBe('closed')
+    })
+
+    it('closes the file of an entry that archiver refuses', async () => {
+      // An entry with no name is refused by `archiver` after its source was made. Names are
+      // server-generated, so no route reaches this today; the cleanup does not depend on why
+      // an entry was not written.
+      const stream = createReadStream(file)
+      const nameless: ArchiveEntry = { ...entry('x.jpg'), name: '', bytes: stream }
+
+      await expect(collect(archiverWriter.stream(entries(nameless)))).rejects.toThrow()
+
+      await expect(
+        Promise.race([
+          closing(stream).then(() => 'closed'),
+          new Promise((resolve) => setTimeout(() => resolve('still open'), 2_000)),
+        ]),
+      ).resolves.toBe('closed')
+    })
   })
 })
 

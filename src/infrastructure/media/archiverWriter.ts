@@ -63,9 +63,10 @@ export const archiverWriter: ArchiveWriter = {
      * `for await` that is reading the archive, which is what the HTTP layer needs in
      * order to abort the response.
      *
-     * The flag stops the recursion `destroy` would otherwise cause through the
-     * `error` listener below, and ignores what a stopped download raises afterwards: a
-     * source destroyed on purpose is not a failure anybody is waiting to hear about.
+     * The first reason wins: once the download has stopped, whatever else it raises — a
+     * source destroyed on purpose, a late error from `archiver` — is not a failure anybody
+     * is waiting to hear about. (The recursion `destroy` causes through the `error`
+     * listener below is already cut by the `destroyed` check.)
      */
     const fail = (cause: unknown): void => {
       if (stopped) return
@@ -80,11 +81,13 @@ export const archiverWriter: ArchiveWriter = {
     archive.on('error', fail)
 
     /**
-     * The sources handed to `archiver` that are not finished with, so a download that
-     * ends early can close what it opened. A source leaves the set when it closes, which
-     * is also what a stream that has been read to its end does.
+     * The source `archiver` was handed last, so a download that ends early can close what
+     * it opened. One is enough, and that is the rule above rather than a shortcut: an entry
+     * is appended only once the previous has been written, so there is never an older source
+     * still being read, and a reference per entry would only be a list that grows with the
+     * album.
      */
-    const queued = new Set<Readable>()
+    let current: Readable | undefined
 
     // How many entries `archiver` has finished writing, as against how many it was handed.
     let appended = 0
@@ -129,15 +132,20 @@ export const archiverWriter: ArchiveWriter = {
           if (next.done === true) break
           const entry = next.value
 
-          const source = Readable.from(entry.bytes)
+          // A stream is used as it is: the filesystem store hands out a `ReadStream`, which
+          // has its descriptor open from the moment it was made, and destroying that very
+          // object is what closes the file. Wrapped, destroying the wrapper before it was
+          // first read would never reach the stream inside.
+          const source =
+            entry.bytes instanceof Readable ? entry.bytes : Readable.from(entry.bytes)
           // A media file that has gone missing surfaces here, on the entry's own
           // stream, not on the archive.
           source.on('error', fail)
-          queued.add(source)
-          source.once('close', () => queued.delete(source))
-          // The client may have left while the entry was being fetched. Its bytes may
-          // already be open — an entry can be built with its file opened — so the source
-          // wrapping them is destroyed rather than the entry dropped.
+          current = source
+          // The client may have left while the entry was being fetched. Its bytes may already
+          // be open — an entry can be built with its file opened — so it is the source that
+          // is destroyed, not the entry that is dropped. (An entry `archiver` refuses is the
+          // same case, and `current` below is what closes it.)
           if (stopped) {
             source.destroy()
             return
@@ -166,7 +174,7 @@ export const archiverWriter: ArchiveWriter = {
       // failing, or the consumer leaving it half read when the response aborts.
       stopped = true
       nudge()
-      for (const source of queued) source.destroy()
+      current?.destroy()
     }
   },
 }
