@@ -428,6 +428,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   const usecases = buildUseCases(adapters, {
     publicUrl: config.publicUrl,
+    operatorResetLinks: config.operatorResetLinks,
     defaultEventQuotaBytes: config.uploads.defaultEventQuotaBytes,
     maxEventQuotaBytes: config.uploads.maxEventQuotaBytes,
     maxImagePixels: config.uploads.maxPixels,

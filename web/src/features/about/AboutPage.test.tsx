@@ -308,6 +308,7 @@ describe('AboutPage, the operator section', () => {
   it.each([
     ['a javascript: URI', 'javascript:alert(1)'],
     ['plain http', 'http://hosted.example.org/legal'],
+    ['an uppercase HTTP scheme', 'HTTP://hosted.example.org/legal'],
     ['a protocol-relative address', '//evil.example/legal'],
     ['credentials in the address', 'https://user:secret@hosted.example.org/legal'],
   ])('never puts %s behind a link, whatever the response says', async (_why, hostile) => {

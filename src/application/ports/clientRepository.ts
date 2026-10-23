@@ -96,4 +96,28 @@ export interface ClientRepository {
    * for "is it empty".
    */
   deleteIfEmpty(id: ClientId): Promise<boolean>
+
+  /**
+   * How many events belong to this client, **in any status** (archived and purged-pending
+   * included: a client with one archived wedding still has a wedding in it). `0` for a client
+   * with none and for one that does not exist.
+   *
+   * It is the one fact the operator guard asks of the events table (R1, G2-12 / P3-14): an
+   * operator's invitation into a client **with events** waits for an owner, and one into a
+   * client with none does not. A count and not a list, because nothing here may read what an
+   * event holds, and not a boolean because the audit and a test can say how many.
+   */
+  countEvents(clientId: ClientId): Promise<number>
+
+  /**
+   * How many accounts belong to this client, in any role and **whether or not they can sign in
+   * today** (a row is a membership, and a switched-off account keeps its row). `0` for a client
+   * with none and for one that does not exist.
+   *
+   * The other fact the operator guard asks (R1): a client with no event but with a member is
+   * somebody's account already, and an invitation an operator writes into it (to be an owner
+   * beside the customer, or to raise a member to owner) is the same thing R1 exists to stop. A
+   * count and not a roster: nothing here reads who the members are.
+   */
+  countMembers(clientId: ClientId): Promise<number>
 }

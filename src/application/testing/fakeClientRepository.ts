@@ -219,6 +219,15 @@ export class FakeClientRepository implements ClientRepository, ClientEventSource
     return { clientId, ceilings: client.ceilings, suspended: client.isSuspended() }
   }
 
+  async countEvents(clientId: ClientId): Promise<number> {
+    return this.eventsOf(clientId).length
+  }
+
+  async countMembers(clientId: ClientId): Promise<number> {
+    return [...this.memberships.values()].filter((membership) => membership.clientId === clientId)
+      .length
+  }
+
   /**
    * Empty means no membership row and no linked event, mirroring the adapter's atomic
    * `DELETE … WHERE NOT EXISTS (…)`. `Map.delete` already reports "did a row exist and

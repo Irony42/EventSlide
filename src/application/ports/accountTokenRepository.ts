@@ -44,6 +44,21 @@ export interface AccountTokenRepository {
   findUsable(digest: string, purpose: AccountTokenPurpose, now: Date): Promise<AccountToken | null>
 
   /**
+   * The token with this id, **whatever state it is in** (spent, revoked, expired, or still
+   * waiting for approval), or `null` if there is none.
+   *
+   * It exists for people who act on a token without holding its secret: an owner approving an
+   * invitation or a reset request is told its **id**, never its link, and the use case has to
+   * read what it is, which client it concerns and who wrote it before it decides whether this
+   * owner may approve it (G2-12 / P3-14). It answers for a dead token too, so the caller
+   * decides what to tell the owner and the repository has no view on it.
+   *
+   * The record carries the digest and never the secret, which is stored nowhere, so no method
+   * of this port can hand a secret out.
+   */
+  findById(id: AccountTokenId): Promise<AccountToken | null>
+
+  /**
    * Spends the token: `true` if this call changed it from usable to spent, `false` if it was
    * already spent, revoked, expired, waiting for approval, or does not exist.
    *

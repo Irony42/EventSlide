@@ -107,8 +107,7 @@ Read these before you upgrade, and back up with the version you run now.
     `MFA_ENCRYPTION_KEY` or without `SITE_ADMIN=on`, an `MFA_ENCRYPTION_KEY` equal to
     `SESSION_SECRET` or `GUEST_TOKEN_SECRET`, any `NEW_CLIENT_*` setting without
     `SITE_ADMIN=on` (which is the default), any other name that starts with `NEW_CLIENT_`, and
-    `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` above
-    `MAX_EVENT_QUOTA_BYTES`.
+    `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` above `MAX_EVENT_QUOTA_BYTES`.
 - **An account that must change its password is stopped by the server** (#108), with
   `403 auth.passwordChangeRequired` on every `/api` route except `GET /api/auth/me`,
   `POST /api/auth/password` and `POST /api/auth/logout` (and the health and readiness
@@ -147,6 +146,13 @@ Read these before you upgrade, and back up with the version you run now.
   person. An address that already has an account is never given a second one and is never attached by
   someone who only holds the link: that account signs in and accepts as itself. Until the page that
   opens `/invite/<token>` ships, accepting is the API call.
+- **A plain-`http` `PUBLIC_URL` is refused in production whatever the case of its scheme**
+  (#146). `PUBLIC_URL=HTTP://photos.example.com` used to boot and hand guests join links that
+  the `Secure` session cookie is never sent over; it now stops the boot like
+  `http://photos.example.com`. The `localhost` exemption is read from the host as well, and it
+  is the host `localhost` and nothing that merely starts with it: `http://localhost.example.com`
+  and `http://localhost6` are refused. There was no warning first, because keeping the old
+  behaviour kept the hole.
 
 ### Behaviour changes to check before upgrading
 

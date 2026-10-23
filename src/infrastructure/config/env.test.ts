@@ -156,6 +156,7 @@ describe('loadConfig', () => {
         bootstrap: { ownerEmail: null, ownerPassword: null },
         e2eHooks: false,
         siteAdmin: false,
+        operatorResetLinks: 'mailOnly',
         source: { url: null, ref: null },
         support: { donationUrl: null, budgetUrl: null },
         operator: {
@@ -508,6 +509,57 @@ describe('loadConfig', () => {
       const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: 'http://photos.example.com' }))
 
       expect(issues.some((issue) => issue.startsWith('PUBLIC_URL: '))).toBe(true)
+    })
+
+    it.each([
+      'HTTP://photos.example.com',
+      'Http://photos.example.com',
+      'hTtP://photos.example.com',
+      'HTTP://photos.example.com:8080/',
+    ])(
+      'refuses a plain-http PUBLIC_URL however its scheme is cased (%s), because a scheme is not case-sensitive',
+      (url) => {
+        // The scheme check that admits the value is case-insensitive; this one read the
+        // typed prefix, so `HTTP://` got past it and guests were handed an http join link
+        // that a Secure session cookie is never sent over.
+        const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: url }))
+
+        expect(issues).toEqual([expect.stringContaining('PUBLIC_URL must use https in production')])
+      },
+    )
+
+    it.each([
+      'HTTPS://photos.example.com',
+      'Https://Photos.Example.com/',
+      'hTTpS://photos.example.com:8443',
+    ])('accepts an https PUBLIC_URL however its scheme is cased (%s)', (url) => {
+      const config = loadConfig(aProductionEnv({ PUBLIC_URL: url }))
+
+      expect(config.isProduction).toBe(true)
+    })
+
+    it.each(['HTTP://localhost:4300', 'Http://localhost:4300', 'http://LOCALHOST:4300'])(
+      'keeps the localhost exemption whatever the case of the scheme or the host (%s)',
+      (url) => {
+        const config = loadConfig(aProductionEnv({ PUBLIC_URL: url }))
+
+        expect(config.isProduction).toBe(true)
+      },
+    )
+
+    it.each([
+      ['a host that only starts with localhost', 'http://localhost.example.com'],
+      ['a host that merely continues the word', 'http://localhostx:4300'],
+      ['a localhost user name in front of another host', 'http://localhost@photos.example.com'],
+      ['a localhost user name, in capitals', 'HTTP://localhost:4300@photos.example.com'],
+      ['a loopback address, which was never exempt', 'http://127.0.0.1:4300'],
+      ['an IPv6 loopback address, which was never exempt', 'http://[::1]:4300'],
+      ['a .localhost name, which was never exempt', 'http://app.localhost:4300'],
+      ['the localhost name with a trailing dot', 'http://localhost.:4300'],
+    ])('does not extend the localhost exemption to %s', (_name, url) => {
+      const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: url }))
+
+      expect(issues).toEqual([expect.stringContaining('PUBLIC_URL must use https in production')])
     })
 
     it('accepts an explicitly disabled E2E_HOOKS in production, since only enabling it is the hazard', () => {
@@ -2087,6 +2139,94 @@ describe('loadConfig', () => {
 
       it.each(['ClientMembers', 'client_members', 'members', 'true', 'any', 'ANYACCOUNT'])(
         "refuses EVENT_CREATION='%s' rather than guessing which policy was meant",
+        (value) => {
+          const issues = refusalIssues(aProductionEnv({ [NAME]: value, SITE_ADMIN: 'on' }))
+
+          expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+        },
+      )
+    })
+
+    describe('OPERATOR_RESET_LINKS (G2-12 / P3-14, D-16)', () => {
+      const NAME = 'OPERATOR_RESET_LINKS'
+
+      it('is mailOnly on a box that never mentions it, so no link is ever shown to an operator', () => {
+        expect(loadConfig({ ...DEV }).operatorResetLinks).toBe('mailOnly')
+        expect(loadConfig(aProductionEnv()).operatorResetLinks).toBe('mailOnly')
+      })
+
+      it('reads a blank value as absent, which lands on the less permissive of the two words', () => {
+        expect(loadConfig(aProductionEnv({ [NAME]: '' })).operatorResetLinks).toBe('mailOnly')
+      })
+
+      it('accepts mailOnly spelled out, with or without the site administration', () => {
+        expect(
+          loadConfig(aProductionEnv({ [NAME]: 'mailOnly', SITE_ADMIN: 'off' })).operatorResetLinks,
+        ).toBe('mailOnly')
+        expect(
+          loadConfig(aProductionEnv({ [NAME]: 'mailOnly', SITE_ADMIN: 'on' })).operatorResetLinks,
+        ).toBe('mailOnly')
+      })
+
+      it('is copyLinkWithOwnerApproval only when the box says so, with SITE_ADMIN on', () => {
+        const config = loadConfig(
+          aProductionEnv({ [NAME]: 'copyLinkWithOwnerApproval', SITE_ADMIN: 'on' }),
+        )
+
+        expect(config.operatorResetLinks).toBe('copyLinkWithOwnerApproval')
+      })
+
+      it('refuses the opt-in while SITE_ADMIN is off, which is its default, naming both variables', () => {
+        const issues = refusalIssues(aProductionEnv({ [NAME]: 'copyLinkWithOwnerApproval' }))
+        const issue = issues.find((candidate) => candidate.startsWith(`${NAME}: `)) ?? ''
+
+        expect(issue).toContain('SITE_ADMIN=on')
+        expect(issue).toContain('copyLinkWithOwnerApproval')
+      })
+
+      it('refuses the opt-in beside an explicit SITE_ADMIN=off, in development too', () => {
+        const issues = refusalIssues({
+          ...DEV,
+          [NAME]: 'copyLinkWithOwnerApproval',
+          SITE_ADMIN: 'off',
+        })
+
+        expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+      })
+
+      it('lists the refusal beside every other problem, instead of stopping at it', () => {
+        const issues = refusalIssues({
+          ...DEV,
+          [NAME]: 'copyLinkWithOwnerApproval',
+          DEFAULT_EVENT_QUOTA_BYTES: '2000',
+          MAX_EVENT_QUOTA_BYTES: '1000',
+        })
+
+        expect(issues.some((issue) => issue.startsWith(`${NAME}: `))).toBe(true)
+        expect(issues.some((issue) => issue.startsWith('MAX_EVENT_QUOTA_BYTES: '))).toBe(true)
+      })
+
+      it('names both accepted words when it refuses, and does not repeat what was typed', () => {
+        const issues = refusalIssues(
+          aProductionEnv({ [NAME]: 'copyLink-secret-typo', SITE_ADMIN: 'on' }),
+        )
+        const issue = issues.find((candidate) => candidate.startsWith(`${NAME}: `)) ?? ''
+
+        expect(issue).toContain("'mailOnly'")
+        expect(issue).toContain("'copyLinkWithOwnerApproval'")
+        expect(issue).not.toContain('secret-typo')
+      })
+
+      it.each([
+        'copyLink',
+        'copylinkwithownerapproval',
+        'COPYLINKWITHOWNERAPPROVAL',
+        'mailonly',
+        'true',
+        'on',
+        'copy',
+      ])(
+        "refuses OPERATOR_RESET_LINKS='%s' rather than guessing: a typo is not the opt-in",
         (value) => {
           const issues = refusalIssues(aProductionEnv({ [NAME]: value, SITE_ADMIN: 'on' }))
 

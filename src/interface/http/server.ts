@@ -14,6 +14,7 @@ import {
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
 import { aboutRoutes } from './routes/aboutRoutes'
 import { authRoutes } from './routes/authRoutes'
+import { clientRoutes } from './routes/clientRoutes'
 import { invitationRoutes } from './routes/invitationRoutes'
 import { clipRoutes } from './routes/clipRoutes'
 import { eventRoutes } from './routes/eventRoutes'
@@ -216,6 +217,13 @@ export const buildServer = ({
   // `apiNotFound`.)
   if (config.siteAdmin) {
     app.use('/api/site', siteRoutes(routeDeps))
+  }
+
+  // The client's own space (roadmap §10.9): with the operator's namespace, not without it. A
+  // box that never asked for administration has no clients, nothing waits for an owner, and
+  // every path here is an unknown route, as `/api/site` is.
+  if (config.siteAdmin) {
+    app.use('/api', clientRoutes(routeDeps))
   }
 
   app.use('/api', publicRoutes(routeDeps))

@@ -329,12 +329,12 @@ every link that proves control of a mailbox (`account_tokens`, migration 010 and
 feature.unavailable`, `features.forgotPassword = false` on `/api/about`. The link is **never**
   shown to the person who typed the address — that would let anyone take over any account. This
   is the difference from an invitation, where the person holding the screen is the host who
-  created it. **There is no supported way to recover a password on such a box yet**: the
-  operator's reset of another account (roadmap G2-12 / P3-14, with its own guard rules and
-  a break-glass command) is the answer, and until it lands the only way is to replace
-  `users.password_hash` by hand with a bcrypt hash the operator generated. (The "copy the
-  link" fallback of `NullMailer` is for invitations, and for that operator reset; neither
-  exists yet.)
+  created it. **There is still no supported way to recover a password on such a box**, which is the price of
+  the default: the operator's reset of another account (§20) is mailed and nothing else, so it needs
+  a relay too, and the break-glass command that would cover this case is not built. Until it is the
+  only way is to replace `users.password_hash` by hand with a bcrypt hash the operator generated.
+  (The "copy the link" fallback of `NullMailer` is for invitations; for a reset it exists only under
+  the opt-in `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval`, §20.)
 - **The link carries the token in the path** (`/password/reset/<token>`), not the query string:
   the access log writes route patterns, the request logger writes the path with the token
   replaced by `:token` (`loggablePath` — a review found the reset page was not in its list, so
@@ -1553,6 +1553,8 @@ asserts none of them appears anywhere a logger wrote. It runs in `npm run verify
 credential in transit: it follows a reset from request to confirmation (and a refused
 confirmation) against a real logger and a real access log and requires that the address, the
 token, the link and the new password appear in none of it.
+**`malformedPathLogCanary.test.ts`** is the other way a credential reaches an error log: a link
+cut in the middle of a percent-escape, whose decode error carries the raw parameter.
 
 ### Data-subject flows a host can actually perform
 
@@ -1605,6 +1607,7 @@ once with zod at startup, exported as a frozen typed object.
 | `SOURCE_REF`                       | no                                          | none                                  | Docker build argument behind the same link: a git tag, branch or commit                                                                                                     |
 | `EVENT_CREATION`                   | no                                          | `anyAccount`                          | `clientMembers`: members of a client and the operator only; needs `SITE_ADMIN=on`                                                                                           |
 | `NEW_CLIENT_*` (seven)             | no                                          | none: no ceiling, clips allowed       | the ceilings a new client starts with (§5); **refused with `SITE_ADMIN=off`**; `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` at most `MAX_EVENT_QUOTA_BYTES`                           |
+| `OPERATOR_RESET_LINKS`             | no                                          | `mailOnly`                            | `copyLinkWithOwnerApproval` hands an operator a reset link on a box with no relay, after another owner approves; **weakens §20**; needs `SITE_ADMIN=on`                     |
 | `AUDIT_RETENTION_DAYS`             | no                                          | `1095`                                | how long the audit log keeps a row, 365 to 3650 (§17)                                                                                                                       |
 | `DONATION_URL` / `BUDGET_URL`      | no                                          | empty                                 | optional support links: https only, no credentials, off guest screens and the wall (API.md §2)                                                                              |
 | `SMTP_URL`                         | no                                          | none: no mail is sent                 | the SMTP relay; **holds the password**, never logged — see "Outgoing mail" below                                                                                            |
@@ -2592,6 +2595,24 @@ code is `src/application/usecases/gallery/` (the rule is `galleryAccess.ts`),
 | The token stays out of the logs                      | every request is logged under `loggablePath`, which writes `/g/<token>` and `/api/gallery/<token>/…` as `:token`, in any letter case, since Express routes them all the same; the media URLs carry a link id and a signature and are logged as they are                                                                           | `errorHandler.test.ts` ("never carries a gallery token")                                                                                                                                              |
 | Guests are told before they upload                   | the §5.1 notice names `sharedGallery` as an audience on **every** event: the host may send the published album through a private link, which can be forwarded, until it expires or is withdrawn. Not conditioned on a live link, because a link is usually made after the guest's last upload and a closed event never asks again | `privacyNotice.test.ts`, `noticeVocabulary.test.ts`, the five `upload.noticeAudiences` tables                                                                                                         |
 
+**A link cut in the middle of a percent-escape is answered, and says nothing.**
+A token whose last character was cut in half by a chat app that truncates a link
+(`/g/<token>%E2%80`) cannot be decoded, and Express refuses it when it matches the address
+to a route: the link is never looked up. On the gallery's API that is one more malformed token,
+the single dead-link `404 gallery.notAvailable` above, byte for byte, from the gallery router
+(the invitation API does the same with its own refusal); anywhere else, the pages included, it
+is the error handler's `400 request.invalid`, the same for every address and no oracle for a real
+token. It used to be a
+`500` whose log line carried Express's own message, `Failed to decode param '<the raw
+parameter>'` — the whole credential, in the error log, on a gallery, invitation or
+password-reset address. Both answer it by the class **and** the `status: 400` the router stamps, so a
+`URIError` of ours stays a bug, with nothing from the error in the log, and the error handler
+sets the gallery's three headers when the address carries a credential. `malformedPath.test.ts` holds the answers and `malformedPathLogCanary.test.ts`
+reads every byte the real logger and the access log write for the canonical addresses
+`loggablePath` knows. It does not widen what `loggablePath` recognises: an address with a
+doubled slash or an encoded prefix (`//g/<token>`, `/%67/<token>`) is logged as it came at
+debug level, which is a gap in `loggablePath` that this paragraph does not close.
+
 **A link-preview bot learns nothing.** Messaging apps fetch a pasted URL to draw a preview.
 What they get at `/g/<token>` is the SPA shell — the album is loaded by the page's script —
 with `noindex` on it, so the preview is the product's generic card and nothing of the
@@ -2865,3 +2886,162 @@ and the vault refuses a version it holds no key for, but there is one key and on
   shows a last sign-in. Nothing reads it for authorization.
 - _The audit line for an enrolment is written before the factor is confirmed_, like `disableAccount`'s
   (§17): a line for a confirmation that then lost a race is the lesser, visible error.
+
+## 20. The operator guard
+
+Roadmap §10.1 and §10.6; free plan G2-12, paid plan P3-14 and D-16; the argument is
+[adr/0009-operator-cannot-grant-itself-access.md](adr/0009-operator-cannot-grant-itself-access.md). The
+operator creates clients, invites their owners and is asked to reset a password when a client cannot
+sign in. Each of those is also a way to end up holding a client's account, and from it their events.
+The guard is six rules (the plan's numbering, which the tests and the code comments use), held where the
+use cases are, and not in a route that might forget them.
+
+| Rule | In one line                                                                                             | Held by                                                                                                                                                                                                                               |
+| ---- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1   | An operator's invitation into a client **with an event or a member** waits for one of its owners.       | `inviteToClientAsOperator` (writes `requires_approval`), `approveInvitation` (the owner's consent), `makeResolveInvitation` (judged again when the link is spent)                                                                     |
+| R2   | An operator's password reset is **mailed**, and nothing the operator receives holds a token or a link.  | `issuePasswordResetForAccount` and `operatorResetPlan`, under `OPERATOR_RESET_LINKS`                                                                                                                                                  |
+| R3   | Ownership of a client moves only by an owner's decision.                                                | Today, the one door there is: an owner invitation, which for a client with an event or a member an operator cannot make usable and a member cannot approve. The transfer itself (P9-02) is not built, and will have no operator route |
+| R4   | No operator action grants an event role, opens a session for another account, or impersonates a client. | An operator's use cases write client invitations only; an event invitation an operator wrote is never honoured (`makeResolveInvitation`); a reset changes nothing about the account until its holder uses the link                    |
+| R5   | Every action under R1 to R4 writes an audit line the client can read.                                   | Each use case below, **before** the act it records                                                                                                                                                                                    |
+| R6   | Inviting a moderator to an event stays the event owner's.                                               | `registerModerator`, unchanged: an operator is nobody in the event, and a client owner is no part of it either                                                                                                                        |
+
+The rules are one named spec, `src/application/usecases/clients/operatorGuard.test.ts`, which drives the
+real use cases over the in-memory fakes, one `describe` per rule. Each use case has its own file for the
+finer cases (who may approve, what a refused log does, the races).
+
+### R1: the invitation, and the owner's consent
+
+- **The count.** `ClientRepository.countEvents` is every event of the client, in any status (a client
+  with one archived wedding is not new; `sqliteClientRepository.test.ts` holds draft, live, closed and
+  archived), and `countMembers` is every account in its roster, whether or not it can sign in today. An
+  operator's invitation into a client with **neither** is usable at once, which is the case the operator
+  has to handle alone: a customer who has just been created, whose first owner is the operator's own
+  invitation. **This adds "no member" to the plan's sentence, which says "no event".** Without it the
+  window stays open for every client between its owner's sign-up and its first event, and for every
+  client whose events retention has purged, and an operator could raise a member to owner, or sit beside
+  the customer as a second owner, with nobody's say. It costs the provisioning flow nothing.
+- **Approval.** An invitation into a client with an event or a member is written with `requires_approval`, so
+  `findUsable` and the acceptance's spend refuse it until an owner of that client has approved it
+  (`POST /api/client/invitations/:invitationId/approve`, API.md §6). Approving changes one column pair
+  and nothing else: it does not spend the link and it creates nobody.
+- **Who may approve** (`approvalVerdictFor`, one reading for both approvals): a signed-in, enabled
+  **owner of that client who does not operate the box**. An operator is refused whether or not the
+  client made them an owner, because an approval is the client's consent and an operator who could give
+  it to their own invitation would have removed the one thing R1 stands on (`403`). A member who is not
+  an owner is refused (`403`). Everything else is `404 invitation.notFound`, one answer: an unknown id,
+  another client's invitation, an invitation to an event, a reset link, one already spent, revoked or
+  expired, an account that is no part of the client, an operator who is no part of it. (A **disabled**
+  owner with a live session never reaches the use case: `requireUser` answers `401 auth.required` first,
+  and the use case's own refusal for one is the same `404`.)
+- **Judged again when it is spent.** The week an invitation lives is long enough for an empty client to
+  grow a member or an event, and an operator who wrote a second invitation (to themselves) in the
+  meantime would be let in without anybody's say. The same is true of the count taken when it was
+  written: it precedes the mail, which waits on the relay. So `makeResolveInvitation`, which the preview
+  and the acceptance share, honours an unapproved client invitation only while the client **still holds
+  no event and no member**, unless an owner **who still stands** approved it or wrote it. "Standing" is
+  read now (`makeIsStandingOwner`): an account that can sign in, that is not an operator, and that is
+  still an owner of that client. So an approval from an owner who has since left or been switched off
+  is not one; an operator the client made an owner is not exempt from R1 for what they write; and **an
+  author the box no longer has (`created_by` is `NULL` once the account is deleted) is not read as "the
+  system"**, which would have made deleting an operator's account an approval. Otherwise it is a dead
+  link, and the operator writes a new one, which now waits.
+- **What the invitee sees.** The mail still goes out, and on a box with no relay the operator is still
+  shown the link, with `pendingApproval: true`. The link opens nothing until approved, and answers
+  exactly as every dead link does: the invitee cannot tell "waiting for an owner" from "never existed",
+  and neither can a stranger holding the link.
+
+### R2: the reset, and `OPERATOR_RESET_LINKS`
+
+`issuePasswordResetForAccount` does one of four things, decided by `operatorResetPlan` from the mode,
+whether the box can mail, and whether an owner approved this very request:
+
+| The box can mail | `OPERATOR_RESET_LINKS`                                | What happens                                                                                                                                                                      |
+| ---------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| yes              | either                                                | The link is **mailed** to the address on record. The answer is `{delivery: 'mail', expiresAt}`: no token, no link, no address.                                                    |
+| no               | `mailOnly` (the default)                              | **Nothing is issued.** `409 reset.mailerRequired`. The operator cannot reset a password on a box with no relay.                                                                   |
+| no               | `copyLinkWithOwnerApproval`, request not yet approved | A **request** is written (`{delivery: 'pendingApproval', approvalId}`), with no secret anywhere: the one minted for its row is dropped, so nobody can spend it, approved or not.  |
+| no               | `copyLinkWithOwnerApproval`, request approved         | The operator's second call, carrying `approvalId`, spends the request **once** and issues a link, which is the only link this use case ever returns (`{delivery: 'link', link}`). |
+
+- **`copyLinkWithOwnerApproval` weakens the invariant, and is documented as doing so.** With it, an
+  operator on a box with no relay can hold a link that resets the password of an account in a client,
+  after **another owner of that client** said yes. The approval is bound to its request: same operator,
+  same account, unspent, unexpired (an hour, the reset's own lifetime), and **read again when it is
+  redeemed**: the owner who approved it must still stand (an account that can sign in, not an operator,
+  still an owner of the client), and the account must still be in exactly the one client it was given
+  for. The owner who approves cannot be the account itself, and an account in no client, or in two, has
+  no such approval (whose consent would it be?), so those are `409 reset.approverUnavailable` and fall
+  to the mail, or to the break-glass command below. The two audit lines (`account.resetRequested`,
+  `account.resetIssued {linkShown: true}`) are in the client's own log.
+- **The configuration fails closed.** The two words are exact; a blank is `mailOnly`, the less
+  permissive; anything else stops the boot naming the variable, so a typo is never read as the opt-in;
+  and `copyLinkWithOwnerApproval` needs `SITE_ADMIN=on` (`env.test.ts`, which lists the refusal beside
+  every other problem).
+- **The caller is an operator, read from storage on this call.** A rule about operators that applied to
+  whoever the route said was one would apply to nobody the day a route forgot the gate. A non-operator
+  is `403 auth.forbidden`, and so is an operator whose account is switched off.
+- **The hourly cap on one inbox is shared** with the self-service reset (`PASSWORD_RESET_MAX_REQUESTS_PER_HOUR`,
+  three): however a mail was asked for, an address receives at most three an hour. A refusal is `429
+reset.tooManyForAddress`.
+- **A mail the relay refused is said, not hidden:** `409 reset.mailNotSent`, and still no link in the
+  answer. (The self-service reset swallows it because its caller must not learn anything; this caller
+  is an authenticated operator who needs to know to try again.)
+
+### R5: the lines
+
+| Action                   | Written by                                 | Actor                          | Details             | Visible to |
+| ------------------------ | ------------------------------------------ | ------------------------------ | ------------------- | ---------- |
+| `invitation.issued`      | `inviteToClientAsOperator`                 | the operator                   | `{pendingApproval}` | the client |
+| `invitation.approved`    | `approveInvitation`                        | the approving owner (`member`) | none                | the client |
+| `account.resetRequested` | `issuePasswordResetForAccount`, the opt-in | the operator                   | none                | the client |
+| `account.resetApproved`  | `approvePasswordReset`                     | the approving owner (`member`) | none                | the client |
+| `account.resetIssued`    | `issuePasswordResetForAccount`             | the operator                   | `{linkShown}`       | the client |
+
+- **The line comes first.** Each entry is built, and so validated, and **recorded before the act it
+  describes**: a reset link is saved and mailed, a request written, an approval recorded, only after
+  the log took the line, so a log that refuses stops the act (the actor is not an account, an id the log
+  would not name). The one exception is the invitation, whose id exists only once it is written: there
+  the line follows, and **if the log refuses it the invitation is revoked again** and the failure
+  propagates. A line for an act that then failed (the mail did not go) is the lesser, visible error.
+- **One line per client of the account**, so that each owner finds it in their own log, and one with no
+  client for an account that belongs to none.
+- **No word for an address, a link or a role.** The vocabulary of `auditAction.ts` has no string kind
+  but an instant, so these lines cannot carry them: `pendingApproval` and `linkShown` are the facts a
+  client's owner reads them for. The tests plant the address, the token and the link and sweep the log.
+- **The client reads them with G2-16** (`GET /api/client/audit`, which is not built). Until then the
+  lines are written and nothing over the wire reads them.
+
+### What it does not do
+
+- **The operator's routes are not here.** `POST /api/site/clients/:clientId/invitations` and
+  `POST /api/site/accounts/:userId/password-reset` are G2-14; the use cases are built, wired and
+  unreachable from the wire, and each re-reads the caller's site role itself. G2-14's response sweep
+  (that no `/api/site` answer carries a token or a link when a mailer delivers, and that the operator
+  gets a stranger's answer on every event route after any mutation) is the net under a route that
+  forgets a rule; this guard is the rule under a route that remembers.
+- **The break-glass command of D-16 (`eventslide reset-link --user <id> --reason <text>`) is not
+  built.** On a box with no relay and `mailOnly`, the one way to recover an account is, as before this
+  item, replacing `users.password_hash` by hand with a bcrypt hash the operator generated, which the
+  audit log does not see. That is the gap the command is for, and it is its own change: it needs a
+  composition-root entry and a notification mail to the account, in five languages.
+- **An owner cannot yet see what waits for them, or approve a reset.** The list of what waits
+  (`GET /api/client/…`, G2-16) and the route that approves a reset request are not built: an owner
+  knows an invitation's id only if told, and `approvePasswordReset` has no route. The invitation's
+  approval route exists because the plan names it, and so the guard is complete at the use-case level
+  and incomplete as a product until the owner's space lands. **`copyLinkWithOwnerApproval` is therefore
+  fail-closed and unusable end to end today**: a request is written and nobody can approve it.
+- **Disabling the last owner is not one of the six rules.** An operator can switch an account off
+  (`disableAccount`). If that is the only owner of a client, nothing that waits for an owner can be
+  approved, which is a lock and not an escalation: R1 and R2 fail closed. Who may disable whom, and the
+  step-up it needs, are G2-14's.
+- **Owners do not write client invitations yet.** The exemption for "an owner who still stands wrote
+  it" is written and tested, and no use case lets an owner write one today, so nothing reaches it from
+  the wire.
+- **The check and the spend are two reads.** `acceptInvitation` judges the link (`makeResolveInvitation`),
+  hashes the password, judges it again, and then `InvitationAcceptance.accept` spends it in one
+  transaction that re-checks only what the link itself says (spent, revoked, expired, waiting for an
+  approval it has not had). Nothing in this process yields between the last judgement and the
+  transaction (SQLite is synchronous here), so there is
+  no window today; the invariant rests on that, and a second writer to the same file would be the first
+  thing to break it.
+- **R3 has no use case to hold yet.** There is no ownership transfer to guard (P9-02); the rule is
+  held at the only door that confers ownership today, an owner invitation, and is a named test there.

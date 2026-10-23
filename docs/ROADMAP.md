@@ -659,7 +659,17 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 >
 > **Still to come:** the page that opens `/invite/:token` (G2-10 / P3-11) — until it lands, accepting
 > is an API call, and every link a box mails ends on the "not found" page, so **3.0.0 should not be
-> tagged before it** — and the operator's invitations to a client (G2-12 to G2-14).
+> tagged before it** — and the operator routes that write an invitation to a client (G2-14).
+>
+> **The operator guard is built** (G2-12 / P3-14, [ADR 0009](adr/0009-operator-cannot-grant-itself-access.md),
+> [SECURITY.md §20](SECURITY.md)): the rules that stop the operator from using these invitations, and
+> the password reset that goes with them, to become somebody's client. An operator's invitation into a
+> client that has an event or a member waits for one of its owners (`POST /api/client/invitations/:id/approve`,
+> mounted with `SITE_ADMIN=on`), and is judged again when it is spent; an operator's reset is mailed and
+> never shown, `OPERATOR_RESET_LINKS=mailOnly` by default, with an opt-in for a box with no relay that
+> needs another owner's approval. Each leaves a line in the audit log. **Not built**: the operator routes
+> that call them (G2-14), the owner's list of what waits (G2-16), the break-glass command, and
+> the ownership transfer (P9-02).
 
 The flow of 2.x — create the account, read the password aloud — is what this replaces: a
 single-use, expiring, signed link that lets a client set their own password and lands them

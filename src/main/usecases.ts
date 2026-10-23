@@ -1,3 +1,4 @@
+import type { OperatorResetLinks } from '../domain/clients/operatorGuard'
 import type { Clock } from '../application/ports/clock'
 import type { IdGenerator } from '../application/ports/idGenerator'
 import type { Logger } from '../application/ports/logger'
@@ -38,6 +39,7 @@ import { makeDisableSecondFactor } from '../application/usecases/auth/disableSec
 import { makeEnrollTotp } from '../application/usecases/auth/enrollTotp'
 import { makeRegenerateRecoveryCodes } from '../application/usecases/auth/regenerateRecoveryCodes'
 import { makeIssueInvitation } from '../application/usecases/auth/issueInvitation'
+import { makeIssuePasswordResetForAccount } from '../application/usecases/auth/issuePasswordResetForAccount'
 import { makePreviewInvitation } from '../application/usecases/auth/previewInvitation'
 import { makeRegisterModerator } from '../application/usecases/auth/registerModerator'
 import { makeRequestPasswordReset } from '../application/usecases/auth/requestPasswordReset'
@@ -112,6 +114,9 @@ import { makeRevokeShareLink } from '../application/usecases/gallery/revokeShare
 import { makeCreateClient } from '../application/usecases/clients/createClient'
 import { makeDeleteEmptyClient } from '../application/usecases/clients/deleteEmptyClient'
 import { makeListClients } from '../application/usecases/clients/listClients'
+import { makeApproveInvitation } from '../application/usecases/clients/approveInvitation'
+import { makeApprovePasswordReset } from '../application/usecases/clients/approvePasswordReset'
+import { makeInviteToClientAsOperator } from '../application/usecases/clients/inviteToClientAsOperator'
 import { makeProvisionClientOwner } from '../application/usecases/clients/provisionClientOwner'
 import { makeRenameClient } from '../application/usecases/clients/renameClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
@@ -172,6 +177,8 @@ export interface Adapters {
 
 /** The policy values a use case needs, drawn from validated configuration. */
 export interface UseCasePolicy {
+  /** `OPERATOR_RESET_LINKS`: whether an operator's reset may ever be handed to them as a link (G2-12 / P3-14). */
+  readonly operatorResetLinks: OperatorResetLinks
   /** `PUBLIC_URL`, without a trailing slash: the origin a mailed link points at. */
   readonly publicUrl: string
   readonly defaultEventQuotaBytes: number
@@ -260,6 +267,7 @@ const invitationReaders = (adapters: Adapters) => ({
   events: adapters.events,
   clients: adapters.clients,
   memberships: adapters.memberships,
+  users: adapters.users,
 })
 
 const invitationIssuer = (adapters: Adapters, policy: UseCasePolicy) =>
@@ -773,6 +781,49 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       newClientDefaults: policy.newClientDefaults,
       audit: adapters.audit,
       clock: adapters.clock,
+    }),
+    /**
+     * The operator guard's use cases (G2-12 / P3-14, rules R1 and R2). **Only
+     * `approveInvitation` has a route** (`POST /api/client/invitations/:id/approve`, the
+     * owner's); the other three are the operator API's to call (G2-14), behind `requireOperator`
+     * and the second factor, and each reads the caller's site role itself rather than trust the
+     * route to have checked it. They write invitations through the box's one issuer, so the
+     * per-address queue is still one queue.
+     */
+    inviteToClientAsOperator: makeInviteToClientAsOperator({
+      users: adapters.users,
+      clients: adapters.clients,
+      tokens: adapters.accountTokens,
+      issueInvitation,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    approveInvitation: makeApproveInvitation({
+      users: adapters.users,
+      clients: adapters.clients,
+      tokens: adapters.accountTokens,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    approvePasswordReset: makeApprovePasswordReset({
+      users: adapters.users,
+      clients: adapters.clients,
+      tokens: adapters.accountTokens,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    issuePasswordResetForAccount: makeIssuePasswordResetForAccount({
+      users: adapters.users,
+      clients: adapters.clients,
+      tokens: adapters.accountTokens,
+      secrets: adapters.secretTokens,
+      mailer: adapters.mailer,
+      ids: adapters.ids,
+      clock: adapters.clock,
+      logger: adapters.logger,
+      publicUrl: policy.publicUrl,
+      mode: policy.operatorResetLinks,
+      audit: adapters.audit,
     }),
     renameClient: makeRenameClient({ clients: adapters.clients }),
     setClientCeilings: makeSetClientCeilings({

@@ -1,4 +1,5 @@
 import type { ClientRole } from '../../../domain/clients/clientRole'
+import { clientInvitationStillHonourable } from '../../../domain/clients/operatorGuard'
 import { canInviteModerators } from '../../../domain/events/eventRole'
 import { isMutable } from '../../../domain/events/eventStatus'
 import { DomainError } from '../../../domain/shared/errors'
@@ -13,7 +14,8 @@ import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { SecretTokens } from '../../ports/secretTokens'
-import type { MembershipRepository } from '../../ports/userRepository'
+import type { MembershipRepository, UserRepository } from '../../ports/userRepository'
+import { makeIsStandingOwner } from '../clients/approvalGate'
 
 /**
  * The code every way of holding a link that cannot be used answers with: unknown, malformed,
@@ -42,8 +44,13 @@ export interface ResolveInvitationDeps {
   readonly tokens: AccountTokenRepository
   readonly secrets: SecretTokens
   readonly events: Pick<EventRepository, 'findById'>
-  readonly clients: Pick<ClientRepository, 'findById'>
+  readonly clients: Pick<
+    ClientRepository,
+    'findById' | 'memberRole' | 'countEvents' | 'countMembers'
+  >
   readonly memberships: Pick<MembershipRepository, 'roleFor'>
+  /** Only the lookup by id, for R1's "is the owner who approved or wrote this still one". */
+  readonly users: Pick<UserRepository, 'findById'>
 }
 
 export type ResolveInvitation = (
@@ -70,13 +77,26 @@ export type ResolveInvitation = (
  *    storage on the request that uses it (CLAUDE.md §8), and an invitation is a request
  *    answered a week later. An owner who was removed, or whose account was switched off, or
  *    deleted, no longer has invitations that open anything — the moderator they meant to add
- *    is not added by a person who can no longer add one. A client's invitation carries no
- *    such check yet: the operator who writes one has no membership to read (§10.6 and the
- *    operator guard, G2-12, put their rules there).
+ *    is not added by a person who can no longer add one.
+ * 4. **For a client, R1 of the operator guard is held again** (`clientInvitationStillHonourable`,
+ *    G2-12 / P3-14). An invitation that waited for nobody was written for a client with no
+ *    event, and the week it lives is long enough for the client to grow one: so unless an owner
+ *    approved it, or an owner (or the system) wrote it, it is honoured only while the client
+ *    **still has no event**. Otherwise it answers like any dead link and the operator writes a
+ *    new one, which now waits for an owner. A client's invitation has no inviter authority to
+ *    re-read beyond that: the operator who writes one holds no membership to read.
  */
-export const makeResolveInvitation =
-  ({ tokens, secrets, events, clients, memberships }: ResolveInvitationDeps): ResolveInvitation =>
-  async (token, now) => {
+export const makeResolveInvitation = ({
+  tokens,
+  secrets,
+  events,
+  clients,
+  memberships,
+  users,
+}: ResolveInvitationDeps): ResolveInvitation => {
+  const isStandingOwner = makeIsStandingOwner({ users, clients })
+
+  return async (token, now) => {
     const record = await tokens.findUsable(secrets.digestOf(token), 'invitation', now)
     if (record === null) return err(invitationNotFound())
     if (!secrets.verify(token, record.tokenDigest)) return err(invitationNotFound())
@@ -87,6 +107,30 @@ export const makeResolveInvitation =
     if (target.kind === 'client') {
       const client = await clients.findById(target.clientId)
       if (client === null) return err(invitationNotFound())
+
+      // Both read now: an approval is worth what the owner who gave it still is, and so is an
+      // owner's own invitation. An author the box no longer has (`null`) is nobody.
+      const approvedByAStandingOwner =
+        record.approvedAt !== null && (await isStandingOwner(target.clientId, record.approvedBy))
+      const writtenByAStandingOwner = await isStandingOwner(target.clientId, record.createdBy)
+      // Counted only when the answer depends on it.
+      const exempt = approvedByAStandingOwner || writtenByAStandingOwner
+      const holdings = exempt
+        ? { eventCount: 0, memberCount: 0 }
+        : {
+            eventCount: await clients.countEvents(target.clientId),
+            memberCount: await clients.countMembers(target.clientId),
+          }
+      if (
+        !clientInvitationStillHonourable({
+          ...holdings,
+          approvedByAStandingOwner,
+          writtenByAStandingOwner,
+        })
+      ) {
+        return err(invitationNotFound())
+      }
+
       return ok({ record, target, place: { kind: 'client', name: client.name.value } })
     }
 
@@ -108,6 +152,7 @@ export const makeResolveInvitation =
       place: { kind: 'event', slug: event.slug.value, name: event.name.value },
     })
   }
+}
 
 export interface InvitationPreview {
   readonly kind: 'event' | 'client'
