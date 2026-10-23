@@ -102,7 +102,7 @@ export const makeDownloadGalleryArchive =
      * sources and the real files, so a writer that went back to taking the album at once
      * would turn this sentence false in a red test rather than in a production incident.
      *
-     * Bytes that vanish between being sized and being read — a retention purge running
+     * Bytes that vanish between being found and being read — a retention purge running
      * under a download — abort the archive rather than leave an empty entry in it: the
      * entry's name is already written, and a zero-byte photograph in a ZIP that otherwise
      * looks complete is the failure this file refuses everywhere else.

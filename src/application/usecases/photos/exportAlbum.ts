@@ -64,14 +64,12 @@ export const makeExportAlbum = ({
     /**
      * The stream, or `null` when the file is not there.
      *
-     * The `archiver` adapter streams the bytes without knowing their length, so an entry
-     * carries no size. The two calls are separate, so the file can legitimately disappear
-     * between them: the retention purge is allowed to run while a host is downloading.
+     * One call says both: `openRead` answers `null` for a missing file instead of throwing,
+     * and the `archiver` adapter streams the bytes without knowing their length, so there is
+     * nothing to ask the store beforehand. A file the retention purge removed while a host
+     * is downloading is simply absent when its turn comes.
      */
     const open = async (photo: Photo): Promise<Omit<ArchiveEntry, 'name'> | null> => {
-      const metadata = await media.stat(eventId, photo.contentHash, ALBUM_VARIANT)
-      if (metadata === null) return null
-
       const bytes = await media.openRead(eventId, photo.contentHash, ALBUM_VARIANT)
       if (bytes === null) return null
 

@@ -28,14 +28,6 @@ const BYTES_PER_VARIANT: Readonly<Record<PhotoVariant, number>> = {
 class InMemoryMediaStore implements MediaStore {
   private readonly objects = new Map<string, Uint8Array>()
 
-  private readonly unreadable = new Set<string>()
-
-  /** Models the retention purge removing a file while a host is downloading. */
-  vanishAfterStat(eventId: EventId, hash: ContentHash): this {
-    for (const variant of MEDIA_VARIANTS) this.unreadable.add(this.key(eventId, hash, variant))
-    return this
-  }
-
   private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
     return `${eventId}|${hash.value}|${variant}`
   }
@@ -72,9 +64,8 @@ class InMemoryMediaStore implements MediaStore {
     hash: ContentHash,
     variant: MediaVariant,
   ): Promise<AsyncIterable<Uint8Array> | null> {
-    const key = this.key(eventId, hash, variant)
-    const bytes = this.objects.get(key)
-    if (bytes === undefined || this.unreadable.has(key)) return null
+    const bytes = this.objects.get(this.key(eventId, hash, variant))
+    if (bytes === undefined) return null
     return (async function* () {
       yield bytes
     })()
@@ -301,16 +292,6 @@ describe('exportAlbum', () => {
     await drain(await exportAlbum({ eventId: EVENT }))
 
     expect(archive.entries).toHaveLength(1)
-    expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
-  })
-
-  it('skips a file that disappears between the size check and the open', async () => {
-    const hash = await seedPhoto({ id: 'purged', status: 'published' })
-    media.vanishAfterStat(EVENT, hash)
-
-    await drain(await exportAlbum({ eventId: EVENT }))
-
-    expect(archive.entries).toEqual([])
     expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
   })
 
