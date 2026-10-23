@@ -59,6 +59,13 @@ contract:
   (the limit is 40); a 121-character one never reaches the domain and is
   `400 request.invalid`.
 
+- **A path that is not valid percent-encoding is `400 request.invalid` too**, on any route,
+  with no `details`: `/api/events/%E0%A4%A/wall`, `/g/%E0%A4%A`, a link copied with its last
+  escape cut in half. The router refuses it before any handler, guard or lookup runs, so it
+  is the same answer for every address and tells the caller nothing about whether the thing
+  it names exists. It never echoes the parameter, which on a gallery, invitation or
+  password-reset address is the credential, and it is not written to the log as a failure.
+
 ### Errors
 
 Every failure has the same body:
@@ -130,7 +137,7 @@ generic fallback sentence to a guest, which is why the lists are kept in step.
 
 | Code                          | Status | When                                                                             |
 | ----------------------------- | ------ | -------------------------------------------------------------------------------- |
-| `request.invalid`             | 400    | Any zod failure: wrong type, out of bounds, unexpected field                     |
+| `request.invalid`             | 400    | A zod failure, or a path that is not valid percent-encoding                      |
 | `request.tooLarge`            | 413    | A JSON body over 64 KB                                                           |
 | `request.csrfMissing`         | 403    | No `es_csrf` cookie, or no `X-CSRF-Token` header                                 |
 | `request.csrfMismatch`        | 403    | The header does not equal the cookie                                             |
