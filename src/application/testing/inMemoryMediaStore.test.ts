@@ -42,6 +42,22 @@ describe('InMemoryMediaStore', () => {
     expect((await media.stat(WEDDING, hashOf('aa'), 'display'))?.modifiedAt).toEqual(new Date(0))
   })
 
+  it('moves an object’s write time forward when it is rewritten', async () => {
+    // The sweep re-asks `stat` before it unlinks, so a clip re-uploaded after the listing must
+    // read as fresh. The contract cannot move a clock it does not own; this one can.
+    const clock = new FakeClock()
+    const timed = new InMemoryMediaStore(clock)
+    await timed.put(WEDDING, hashOf('aa'), 'source', Uint8Array.of(1))
+    const first = (await timed.stat(WEDDING, hashOf('aa'), 'source'))?.modifiedAt
+
+    clock.advance(60_000)
+    await timed.put(WEDDING, hashOf('aa'), 'source', Uint8Array.of(2))
+
+    expect((await timed.stat(WEDDING, hashOf('aa'), 'source'))?.modifiedAt.getTime()).toBe(
+      (first?.getTime() ?? Number.NaN) + 60_000,
+    )
+  })
+
   it('lists the renditions it holds for one digest', async () => {
     await media.put(WEDDING, hashOf('aa'), 'poster', Uint8Array.of(1))
     await media.put(WEDDING, hashOf('aa'), 'video', Uint8Array.of(1))

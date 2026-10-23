@@ -166,10 +166,11 @@ export const mediaStoreContract = (
         expect((await store.stat(WEDDING, HASH_A, 'video'))?.byteSize).toBe(1234)
       })
 
-      it('reports when the bytes were written, and never earlier after a rewrite', async () => {
+      it('never reports a write time earlier after a rewrite', async () => {
         // The reconciliation sweep re-asks `stat` right before it unlinks: a guest who
         // re-uploads an abandoned clip rewrites the same content-addressed path, and the
-        // sweep must see the fresh time.
+        // sweep must see the fresh time. A store with no clock of its own cannot show it move,
+        // so the double's own test does, with one; this holds the direction for the adapter.
         await store.put(WEDDING, HASH_A, 'source', Uint8Array.of(1))
         const first = (await store.stat(WEDDING, HASH_A, 'source'))?.modifiedAt
 
@@ -183,14 +184,28 @@ export const mediaStoreContract = (
     })
 
     describe('streaming an object', () => {
-      // Larger than one chunk of the adapter's read stream (64 KiB), so a range that starts
-      // in the second chunk and ends in the third shows an offset that restarts per chunk.
+      // Larger than one chunk of the adapter's read stream (64 KiB), so a range that starts in
+      // the first chunk and ends past it shows an offset that restarts per chunk.
       const BIG = counting(200_000)
 
       it('streams the whole object, in order, when no range is asked for', async () => {
         await store.put(WEDDING, HASH_A, 'video', BIG)
 
         expect(await collect(await store.openRead(WEDDING, HASH_A, 'video'))).toEqual([...BIG])
+      })
+
+      it('streams a copy, so a caller changing a chunk it was handed changes nothing', async () => {
+        await store.put(WEDDING, HASH_A, 'video', Uint8Array.of(0, 1, 2, 3, 4))
+
+        for await (const chunk of (await store.openRead(WEDDING, HASH_A, 'video')) ?? [])
+          chunk.fill(9)
+        for await (const chunk of (await store.openRead(WEDDING, HASH_A, 'video', {
+          start: 1,
+          end: 2,
+        })) ?? [])
+          chunk.fill(9)
+
+        expect([...((await store.read(WEDDING, HASH_A, 'video')) ?? [])]).toEqual([0, 1, 2, 3, 4])
       })
 
       it('serves a range inclusively at both ends, as Range means it', async () => {

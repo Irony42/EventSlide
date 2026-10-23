@@ -7,6 +7,7 @@ import type { EmailAddress } from '../../domain/users/emailAddress'
 import type { AccountTokenId, ClientId, EventId, UserId } from '../../domain/shared/ids'
 import type { AccountTokenPurpose, InvitationTarget } from '../../domain/users/accountToken'
 import type { AccountTokenRepository } from '../ports/accountTokenRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `AccountTokenRepository`.
@@ -128,7 +129,7 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
       )
       .sort(
         (left, right) =>
-          right.createdAt.getTime() - left.createdAt.getTime() || (left.id < right.id ? 1 : -1),
+          right.createdAt.getTime() - left.createdAt.getTime() || compareIds(right.id, left.id),
       )
       .slice(0, limit)
   }
