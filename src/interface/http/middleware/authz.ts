@@ -287,9 +287,11 @@ export const PASSWORD_CHANGE_REQUIRED_CODE = 'auth.passwordChangeRequired'
  * that file's `inSiteNamespace` applies, **and** a trailing slash besides, which that
  * file does not need to collapse and this one does ({@link normalizedApiPath}'s own
  * comment says why). A request that reached this far already matches whatever a
- * downstream router will match — case, double slashes and a trailing one included
- * (`strict routing` is off) — so refusing to normalise any of them here would make the
- * exemption narrower than the route it names.
+ * downstream router will match — case and a trailing slash (`strict routing` is off), and
+ * on Express 4 double slashes too — so refusing to normalise them here would make the
+ * exemption narrower than the route it names. Express 5 hands a double slash to no route
+ * at all (`GET /api//auth/me` is a 404), so collapsing it here is now only generous: it
+ * exempts a request that then meets `apiNotFound`, never one that reaches another route.
  */
 export const PASSWORD_CHANGE_EXEMPT: Readonly<Record<string, string>> = {
   'get /api/auth/me':

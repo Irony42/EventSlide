@@ -550,16 +550,20 @@ and `siteOperatorScope.test.ts` runs its whole sweep once per mode. On, the name
 mounted first among the routers behind the CSRF gate, so a request that reaches the
 `/api/site` mount meets the operator check before any other router sees it. Ordering
 promises no more than that: `GET /api//site/x` never reaches that mount, and the `/api`
-routers are handed it as `/site/x`. What keeps every other router out of the namespace is
+routers are handed it as `//site/x` (as `/site/x` on Express 4, which is how a route
+written `/site/x` elsewhere answered it past the gate until the Express 5 upgrade, §14.8).
+What keeps every other router out of the namespace is
 structural — a case in `siteOperatorScope.test.ts` walks the assembled server in both
 modes and fails on any route at `/api/site` or `/api/site/*` that a router other than the
 one mounted there declares, however it spells the path: `/site`, `//site/x`, `/SITE/x`.
 The walk refuses to guess: a route path that is anything but literal segments and
-`:parameters` (`/(site)/x`, `/sit?e/x`, `/[s]ite/x`, `/s{1}ite/x`, `/sit\e/x`, `/site*` —
-it accepts one known shape rather than listing forbidden characters, a list `{n}` and `\`
-had walked past), a middleware mounted at a path inside a router, and a
-sub-app each make it fail loudly, because each can answer `/api//site/x` without spelling
-`/site` anywhere a walk could read it. The one path-mounted middleware it lets through is
+`:parameters` (`/s{1}ite/x`, `/sit\e/x`, `/{site}/x`, `/*splat` — it accepts one known
+shape rather than listing forbidden characters, a list `{n}` and `\` had walked past; the
+regular-expression spellings Express 4 allowed, `/(site)/x`, `/sit?e/x`, `/[s]ite/x` and
+`/site*`, are refused by `path-to-regexp` 8 when the route is registered, which a test
+says), a middleware mounted at a path inside a router, and a sub-app each make it fail
+loudly, because each can answer `/api/site/x` without spelling `/site` anywhere a walk
+could read it. The one path-mounted middleware it lets through is
 `galleryHeaders`, named with its reason in `testing/routeTable.ts`. Refusing `//` at
 request time would close the same gap from the other side; it is deliberately not done,
 because while the walk holds the double slash reaches no route in the namespace, only the
@@ -2340,6 +2344,38 @@ cannot be traced to a file must be marked, never left standing.
 None of these is a reachable vulnerability on its own. They matter because this document is
 what the next reviewer audits against, and four of them describe a control that is not
 there.
+
+### 14.8 Express 5: what the upgrade changed on this audit's rows
+
+`express` 4.22.3 became 5.3.0 (#93), with `router` 2.2.0, `path-to-regexp` 8.4.2,
+`body-parser` 2.3.0, `send` 1.2.1 and `qs` 6.16.0. Every licence in the new tree is MIT, the
+tree gained 25 entries and lost 5, and none of the 25 carries an install script.
+
+- **`proxy-addr` 2.0.7 became 2.0.8**, which closes `GHSA-jqcg-44mw-7w3h` (IP spoofing through
+  an IPv4-mapped IPv6 trust subnet). `npm audit --omit=dev` read one moderate and one critical
+  on `main` and reads the moderate alone, `ip-address`, afterwards. It was not reachable here:
+  `trust proxy` is a hop count (`TRUST_PROXY_HOPS`), never a subnet.
+- **The two `qs` rows of §14.2 no longer describe the code they cite.** Express 5's default
+  query parser is `simple` (`node:querystring`), so no request's query string reaches
+  `qs.parse` at all; `qs` stays in the tree for the `extended` parser, which nothing sets, and
+  for `express.urlencoded`, which nothing mounts. A bracketed key (`?a[b]=c`) is one flat key
+  now, which a `.strict()` query schema refuses with the same `400 request.invalid`; only
+  `details.fields` can differ, because an unknown key is reported at the root.
+- **A double slash no longer steps round a mount.** On 4.22.3 `GET /api//site/x` was handed
+  to the `/api` routers as `/site/x` and answered by a route written `/site/x` there; on
+  5.3.0 it is handed `//site/x` and answers 404 (`GET /api//health` is a 404 too, where it
+  used to answer the probe). A route _written_ `//site/x` still answers it, which is why the
+  namespace check in `siteOperatorScope.test.ts` still reads `//` as `/`.
+- **`path-to-regexp` 8 refuses to compile `( ) [ ] ? + !` and a bare `*`**, so the
+  regular-expression route spellings that once reached the operator's namespace cannot be
+  registered at all. What it adds is its own syntax — `{…}` optional, `\` escape, `*name`
+  wildcard — which the walk refuses for the same reason it refused the old one.
+- **`express.static` and `res.sendFile` apply `dotfiles` to every segment of the path**, not
+  only the last: a dot-directory inside the client folder was served on Express 4 and falls
+  through to the SPA shell now. The option is set explicitly in `server.ts` and a test holds it.
+- **Request bodies may now be brotli-compressed** (`Content-Encoding: br`), as gzip and deflate
+  already could. The 64 kB limit applies to the inflated body for all three, and a test sends a
+  compressed body that inflates past it for gzip and brotli.
 
 ## 15. The shared gallery — the first public read surface
 
