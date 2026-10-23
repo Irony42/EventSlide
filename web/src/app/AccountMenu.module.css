@@ -1,0 +1,71 @@
+/**
+ * The menu sits beside the language picker, which carries its own top inset
+ * (`LanguagePicker.module.css`): the same value here keeps the two on one baseline.
+ */
+.root {
+  position: relative;
+  padding-block-start: var(--space-2);
+}
+
+/**
+ * Over the page rather than in the flow, so opening it does not push the console down.
+ * `--z-dialog` and not a new layer: it is a popover on the overlay surface, above the
+ * page and below a toast.
+ */
+.panel {
+  position: absolute;
+  inset-inline-end: 0;
+  z-index: var(--z-dialog);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 16rem;
+  max-inline-size: calc(100vw - var(--space-6));
+  margin-block-start: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-md);
+}
+
+.who {
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  /* An address has no spaces to break at. */
+  overflow-wrap: anywhere;
+}
+
+/* A link and two buttons that must look like one list: the same box, the same colour,
+   whatever element carries it. Every one clears the touch floor. */
+.item {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.item:hover:not(:disabled) {
+  background: var(--surface-raised);
+}
+
+.item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}

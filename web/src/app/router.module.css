@@ -9,3 +9,12 @@
   padding: var(--space-6);
   color: var(--text-secondary);
 }
+
+/* The account menu and the language picker, side by side at the end of the line. The picker
+   brings its own inset, so the row adds none. */
+.hostHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

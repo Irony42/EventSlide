@@ -948,3 +948,56 @@ describe('the pages a link opens', () => {
     expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
   })
 })
+
+describe('the account menu', () => {
+  const signedInApi = () =>
+    fakeApi({
+      session: vi.fn(async (): Promise<SessionResponse> => ({
+        authenticated: true,
+        user: aSessionUser({ email: 'camille@example.org' }),
+      })),
+    })
+
+  it('is in the header of the signed-in area, beside the language picker', async () => {
+    renderWithProviders(<AppRoutes />, { api: signedInApi(), route: '/admin' })
+
+    expect(await screen.findByRole('button', { name: fr.auth.accountMenu })).toBeVisible()
+    expect(screen.getByRole('combobox', { name: fr.app.language })).toBeVisible()
+  })
+
+  it('is not on the sign-in screen, even for a browser that still holds a session', async () => {
+    renderWithProviders(<AppRoutes />, { api: signedInApi(), route: '/login' })
+
+    await screen.findByRole('heading', { name: fr.auth.title })
+
+    expect(screen.queryByRole('button', { name: fr.auth.accountMenu })).toBeNull()
+  })
+
+  it('is not on the guest surface', async () => {
+    renderWithProviders(<AppRoutes />, { api: signedInApi(), route: '/join' })
+
+    await screen.findByRole('heading', { name: fr.join.title })
+
+    expect(screen.queryByRole('button', { name: fr.auth.accountMenu })).toBeNull()
+  })
+
+  it('is not offered to an anonymous visitor, who is sent to the sign-in instead', async () => {
+    at('/admin')
+
+    await screen.findByRole('heading', { name: fr.auth.title })
+
+    expect(screen.queryByRole('button', { name: fr.auth.accountMenu })).toBeNull()
+  })
+
+  it('signs out from the console and lands on the sign-in screen', async () => {
+    const api = signedInApi()
+    renderWithProviders(<AppRoutes />, { api, route: '/admin' })
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.auth.accountMenu }))
+    await userEvent.click(screen.getByRole('button', { name: fr.auth.logout }))
+
+    expect(await screen.findByRole('heading', { name: fr.auth.title })).toBeVisible()
+    expect(api.logout).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: fr.auth.accountMenu })).toBeNull()
+  })
+})

@@ -7,6 +7,7 @@ import { useTranslations } from '../lib/i18n/useTranslations'
 import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
 import { JoinPage } from '../features/join/JoinPage'
 import { AppShell } from './AppShell'
+import { AccountMenu } from './AccountMenu'
 import { ErrorBoundary } from './ErrorBoundary'
 import { glassBackdropFor } from './glassBackdrop'
 import { LanguagePicker } from './LanguagePicker'
@@ -220,6 +221,25 @@ const LazyGuestPage = () => (
 )
 
 /**
+ * The host layout's header: the account menu where there is an account, and the picker.
+ *
+ * The menu is mounted on `/admin/**` and nowhere else, which is the signed-in area by
+ * construction (`RequireAuth` guards exactly that subtree). Mounting it there rather than on
+ * every host screen means it appears on arrival and goes with the sign-out's navigation,
+ * with no state to keep in step with a login that happened on a sibling route.
+ */
+const HostHeader = () => {
+  const { pathname } = useLocation()
+  const signedInArea = pathname === '/admin' || pathname.startsWith('/admin/')
+  return (
+    <div className={styles['hostHeader']}>
+      {signedInArea ? <AccountMenu /> : null}
+      <LanguagePicker />
+    </div>
+  )
+}
+
+/**
  * The host console, in the host's own language, re-providing nothing.
  *
  * It used to wrap everything under it in a `FrenchSurface`; a host reading their console
@@ -242,7 +262,7 @@ const HostLayout = () => {
         <AppShell
           surface="host"
           backdrop={backdrop}
-          header={<LanguagePicker />}
+          header={<HostHeader />}
           // The one footer that may carry "Soutenir le projet" (roadmap G4-02) and the
           // operator's help page (G2-17), and only on the host's own screens: nobody on them
           // is mid-upload or in front of the room.
