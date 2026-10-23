@@ -23,11 +23,13 @@ import type { AccountTokenRepository } from '../application/ports/accountTokenRe
 import type { MfaVault } from '../application/ports/mfaVault'
 import type { SecondFactorRepository } from '../application/ports/secondFactorRepository'
 import type { TotpEngine } from '../application/ports/totpEngine'
+import type { InvitationAcceptance } from '../application/ports/invitationAcceptance'
 import type { Mailer } from '../application/ports/mailer'
 import type { SecretTokens } from '../application/ports/secretTokens'
 import type { GallerySigner } from '../application/ports/gallerySigner'
 
 import { makeAuthenticateUser } from '../application/usecases/auth/authenticateUser'
+import { makeAcceptInvitation } from '../application/usecases/auth/acceptInvitation'
 import { makeBootstrapOwner } from '../application/usecases/auth/bootstrapOwner'
 import { makeChangePassword } from '../application/usecases/auth/changePassword'
 import { makeConfirmTotpEnrollment } from '../application/usecases/auth/confirmTotpEnrollment'
@@ -35,6 +37,8 @@ import { makeDisableAccount } from '../application/usecases/auth/disableAccount'
 import { makeDisableSecondFactor } from '../application/usecases/auth/disableSecondFactor'
 import { makeEnrollTotp } from '../application/usecases/auth/enrollTotp'
 import { makeRegenerateRecoveryCodes } from '../application/usecases/auth/regenerateRecoveryCodes'
+import { makeIssueInvitation } from '../application/usecases/auth/issueInvitation'
+import { makePreviewInvitation } from '../application/usecases/auth/previewInvitation'
 import { makeRegisterModerator } from '../application/usecases/auth/registerModerator'
 import { makeRequestPasswordReset } from '../application/usecases/auth/requestPasswordReset'
 import { makeResetPassword } from '../application/usecases/auth/resetPassword'
@@ -108,6 +112,7 @@ import { makeRevokeShareLink } from '../application/usecases/gallery/revokeShare
 import { makeCreateClient } from '../application/usecases/clients/createClient'
 import { makeDeleteEmptyClient } from '../application/usecases/clients/deleteEmptyClient'
 import { makeListClients } from '../application/usecases/clients/listClients'
+import { makeProvisionClientOwner } from '../application/usecases/clients/provisionClientOwner'
 import { makeRenameClient } from '../application/usecases/clients/renameClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
 import { makePruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
@@ -160,6 +165,8 @@ export interface Adapters {
   readonly totpEngine: TotpEngine
   /** Encryption of a secret at rest; `null` on a box with no `MFA_ENCRYPTION_KEY`. */
   readonly mfaVault: MfaVault | null
+  /** Spending an invitation: the link, the account and the grant in one transaction. */
+  readonly invitationAcceptance: InvitationAcceptance
 }
 
 /** The policy values a use case needs, drawn from validated configuration. */
@@ -235,6 +242,36 @@ const verifySecondFactorFrom = (adapters: Adapters) =>
     audit: adapters.audit,
     clock: adapters.clock,
     logger: adapters.logger,
+  })
+
+/**
+ * The ports that read an invitation and judge it, which the preview and the acceptance share
+ * so what a page shows and what an acceptance does are one reading of one link.
+ */
+const invitationReaders = (adapters: Adapters) => ({
+  tokens: adapters.accountTokens,
+  secrets: adapters.secretTokens,
+  events: adapters.events,
+  clients: adapters.clients,
+  memberships: adapters.memberships,
+})
+
+const invitationIssuer = (adapters: Adapters, policy: UseCasePolicy) =>
+  makeIssueInvitation({
+    tokens: adapters.accountTokens,
+    secrets: adapters.secretTokens,
+    mailer: adapters.mailer,
+    ids: adapters.ids,
+    clock: adapters.clock,
+    logger: adapters.logger,
+    publicUrl: policy.publicUrl,
+  })
+
+const clientCreator = (adapters: Adapters) =>
+  makeCreateClient({
+    clients: adapters.clients,
+    ids: adapters.ids,
+    clock: adapters.clock,
   })
 
 /**
@@ -328,6 +365,24 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   disableAccount: makeDisableAccount({
     users: adapters.users,
     audit: adapters.audit,
+    clock: adapters.clock,
+  }),
+  /**
+   * Previewing and accepting an invitation (G2-09 / P3-10): the invitee's, a link in a mail
+   * and the account it creates. Writing one is the mechanism under the callers that decide
+   * who may invite (`registerModerator`, `provisionClientOwner`), which build it for
+   * themselves from `invitationIssuer`: it is not on this bag, so no route can reach it.
+   */
+  previewInvitation: makePreviewInvitation({
+    ...invitationReaders(adapters),
+    clock: adapters.clock,
+  }),
+  acceptInvitation: makeAcceptInvitation({
+    ...invitationReaders(adapters),
+    users: adapters.users,
+    hasher: adapters.passwordHasher,
+    acceptance: adapters.invitationAcceptance,
+    ids: adapters.ids,
     clock: adapters.clock,
   }),
   registerModerator: makeRegisterModerator({
@@ -688,10 +743,15 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
   // — the operator API is G2-14, behind `SITE_ADMIN` and `requireOperator`. The gate is the
   // HTTP layer's, as for every operator route, so only `setClientCeilings` takes an actor:
   // it is the one that writes the audit log (§10.8), and an entry must say who did it.
-  createClient: makeCreateClient({
+  createClient: clientCreator(adapters),
+  /**
+   * Opens a client and invites its owner (G2-09 / P3-10). The operator API that puts
+   * `requireOperator` in front of it is G2-14; until then nothing calls it.
+   */
+  provisionClientOwner: makeProvisionClientOwner({
+    createClient: clientCreator(adapters),
+    issueInvitation: invitationIssuer(adapters, policy),
     clients: adapters.clients,
-    ids: adapters.ids,
-    clock: adapters.clock,
   }),
   renameClient: makeRenameClient({ clients: adapters.clients }),
   setClientCeilings: makeSetClientCeilings({

@@ -3,6 +3,7 @@ import type { AuditActorInput } from '../../domain/audit/auditActor'
 import type { AuditDetails } from '../../domain/audit/auditDetails'
 import { AuditEntry, type AuditSubject } from '../../domain/audit/auditEntry'
 import { Client, type ClientProps } from '../../domain/clients/client'
+import type { ClientRole } from '../../domain/clients/clientRole'
 import { ClientCeilings, type ClientCeilingsProps } from '../../domain/clients/clientCeilings'
 import { ClipJob } from '../../domain/clips/clipJob'
 import { ClipDuration } from '../../domain/clips/clipDuration'
@@ -538,6 +539,8 @@ export interface UserInput {
   readonly disabledAt?: Date | null
   /** Omitted means the account's credentials never changed: no epoch, nothing revoked. */
   readonly credentialsChangedAt?: Date | null
+  /** Omitted means the mailbox was never proved: an account is unverified until told. */
+  readonly emailVerifiedAt?: Date | null
   /** Omitted means an ordinary account: authority on the box is never a default. */
   readonly siteRole?: SiteRole
 }
@@ -567,6 +570,7 @@ export const aUser = (input: UserInput = {}): User => {
     lastLoginAt: pick(input.lastLoginAt, null),
     disabledAt: pick(input.disabledAt, null),
     credentialsChangedAt: pick(input.credentialsChangedAt, null),
+    emailVerifiedAt: pick(input.emailVerifiedAt, null),
   })
 }
 
@@ -581,6 +585,8 @@ export interface AccountTokenInput {
   readonly userId?: string | null
   readonly eventId?: string | null
   readonly eventRole?: AccountTokenEventRole | null
+  readonly clientId?: string | null
+  readonly clientRole?: ClientRole | null
   readonly delivery?: AccountTokenDelivery
   readonly requiresApproval?: boolean
   readonly createdBy?: string | null
@@ -626,6 +632,8 @@ export const anAccountToken = (input: AccountTokenInput = {}): AccountToken => {
         userId: orNull(pick(input.userId, 'user-1'), asUserId),
         eventId: orNull(pick(input.eventId, null), asEventId),
         eventRole: pick(input.eventRole, null),
+        clientId: orNull(pick(input.clientId, null), asClientId),
+        clientRole: pick(input.clientRole, null),
         delivery: pick(input.delivery, 'mail'),
         requiresApproval: pick(input.requiresApproval, false),
         createdBy: orNull(pick(input.createdBy, null), asUserId),

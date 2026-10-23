@@ -7,6 +7,7 @@ import { AT, anAccountToken, atPlus } from '../../application/testing/builders'
 import {
   accountTokenRepositoryContract,
   CONTRACT_ACCOUNTS,
+  CONTRACT_CLIENTS,
   CONTRACT_EVENTS,
 } from '../../application/testing/contracts/accountTokenRepositoryContract'
 import { asAccountTokenId } from '../../domain/shared/ids'
@@ -29,8 +30,14 @@ const seededDatabase = (): Db => {
     db.prepare(
       `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
                            quota_bytes, created_at)
-            VALUES (?, 'user-1', 'Un soir', ?, 'H7K2QM', 'live', '{}', 1000000000, ?)`,
-    ).run(id, id, AT.toISOString())
+            VALUES (?, 'user-1', 'Un soir', ?, ?, 'live', '{}', 1000000000, ?)`,
+    ).run(id, id, `CODE-${id}`, AT.toISOString())
+  }
+  for (const id of CONTRACT_CLIENTS) {
+    db.prepare(`INSERT INTO clients (id, name, created_at) VALUES (?, 'Un client', ?)`).run(
+      id,
+      AT.toISOString(),
+    )
   }
   return db
 }

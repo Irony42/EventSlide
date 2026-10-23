@@ -257,6 +257,44 @@ export const userRepositoryContract = (
       expect(state.credentialsChangedAt?.toISOString()).toBe(atPlus(5_000).toISOString())
     })
 
+    // -------------------------------------------------------- emailVerifiedAt --
+
+    it('stores when the mailbox was proved, and reads it back', async () => {
+      await repo.save(aUser({ id: 'user-host', emailVerifiedAt: atPlus(4_000) }))
+
+      const stored = await repo.findById(asUserId('user-host'))
+
+      expect(stored?.emailVerifiedAt?.toISOString()).toBe(atPlus(4_000).toISOString())
+    })
+
+    it('stores an account whose mailbox was never proved as unverified', async () => {
+      await repo.save(aUser({ id: 'user-host' }))
+
+      expect((await repo.findById(asUserId('user-host')))?.emailVerifiedAt).toBeNull()
+    })
+
+    it('never takes a proof back when a copy read before it is saved after it', async () => {
+      const staleCopy = aUser({ id: 'user-host' })
+      await repo.save(staleCopy)
+      await repo.save(staleCopy.verifyEmail(atPlus(4_000)))
+
+      await repo.save(staleCopy.recordLogin(atPlus(6_000)))
+
+      const stored = await repo.findById(asUserId('user-host'))
+      expect(stored?.emailVerifiedAt?.toISOString()).toBe(atPlus(4_000).toISOString())
+      expect(stored?.lastLoginAt?.toISOString()).toBe(atPlus(6_000).toISOString())
+    })
+
+    it('keeps the first proof when the account is saved with a later one', async () => {
+      const user = aUser({ id: 'user-host' })
+      await repo.save(user.verifyEmail(atPlus(4_000)))
+
+      await repo.save(aUser({ id: 'user-host', emailVerifiedAt: atPlus(9_000) }))
+
+      const stored = await repo.findById(asUserId('user-host'))
+      expect(stored?.emailVerifiedAt?.toISOString()).toBe(atPlus(4_000).toISOString())
+    })
+
     it('keeps the epoch of an account that is switched off and on again', async () => {
       const user = aUser({ id: 'user-host' })
       await repo.save(user.disable(atPlus(3_000)))

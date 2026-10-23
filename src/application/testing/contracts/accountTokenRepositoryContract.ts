@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { asAccountTokenId, asUserId } from '../../../domain/shared/ids'
+import { asAccountTokenId, asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { EmailAddress } from '../../../domain/users/emailAddress'
 import type { AccountTokenRepository } from '../../ports/accountTokenRepository'
 import { AT, anAccountToken, atPlus } from '../builders'
@@ -15,13 +15,15 @@ import { AT, anAccountToken, atPlus } from '../builders'
  * else. A fake that was kinder than the table about any of these would let every use-case
  * test above it pass against a product that was broken.
  *
- * The accounts and the event named here must exist before the suite runs — `user_id`,
- * `created_by`, `approved_by` and `event_id` are foreign keys in the real table, and the fake
- * mirrors them. Both subjects seed {@link CONTRACT_ACCOUNTS} and {@link CONTRACT_EVENTS}.
+ * The accounts, events and clients named here must exist before the suite runs — `user_id`,
+ * `created_by`, `approved_by`, `event_id` and `client_id` are foreign keys in the real table,
+ * and the fake mirrors them. Both subjects seed {@link CONTRACT_ACCOUNTS},
+ * {@link CONTRACT_EVENTS} and {@link CONTRACT_CLIENTS}.
  */
 
 export const CONTRACT_ACCOUNTS = ['user-1', 'user-2', 'user-approver'] as const
-export const CONTRACT_EVENTS = ['event-1'] as const
+export const CONTRACT_EVENTS = ['event-1', 'event-2'] as const
+export const CONTRACT_CLIENTS = ['client-1', 'client-2'] as const
 
 const email = (value: string): EmailAddress => {
   const parsed = EmailAddress.create(value)
@@ -78,6 +80,22 @@ export const accountTokenRepositoryContract = (
       expect(found).toEqual(token)
     })
 
+    it('stores an invitation to a client with its role, and finds it again intact', async () => {
+      const token = anAccountToken({
+        id: 'tok-client',
+        purpose: 'invitation',
+        email: 'nouveau@example.test',
+        userId: null,
+        clientId: 'client-1',
+        clientRole: 'owner',
+        delivery: 'mail',
+        createdBy: 'user-1',
+      })
+      await repo.save(token)
+
+      expect(await repo.findUsable(token.tokenDigest, 'invitation', atPlus(1_000))).toEqual(token)
+    })
+
     it('stores the same token with every optional field empty', async () => {
       const token = anAccountToken({ id: 'tok-plain', createdBy: null })
       await repo.save(token)
@@ -128,6 +146,20 @@ export const accountTokenRepositoryContract = (
             userId: null,
             eventId: 'event-nobody',
             eventRole: 'moderator',
+          }),
+        ),
+      ).rejects.toThrow(/FOREIGN KEY/)
+    })
+
+    it('refuses an invitation to a client that does not exist', async () => {
+      await expect(
+        repo.save(
+          anAccountToken({
+            id: 'tok-1',
+            purpose: 'invitation',
+            userId: null,
+            clientId: 'client-nobody',
+            clientRole: 'owner',
           }),
         ),
       ).rejects.toThrow(/FOREIGN KEY/)
@@ -375,6 +407,151 @@ export const accountTokenRepositoryContract = (
         await repo.save(token)
 
         expect(await repo.revokeOutstanding(HOST, 'passwordReset', atPlus(1_000))).toBe(1)
+        expect(await repo.approve(token.id, asUserId('user-approver'), atPlus(2_000))).toBe(false)
+      })
+    })
+
+    // ------------------------------------------- revokeOutstandingInvitations --
+
+    describe('revokeOutstandingInvitations', () => {
+      const NEWCOMER = email('nouveau@example.test')
+
+      const invite = (id: string, over: Parameters<typeof anAccountToken>[0] = {}) =>
+        anAccountToken({
+          id,
+          purpose: 'invitation',
+          email: 'nouveau@example.test',
+          userId: null,
+          eventId: 'event-1',
+          eventRole: 'moderator',
+          delivery: 'link',
+          createdBy: 'user-1',
+          ...over,
+        })
+
+      const toClient = { eventId: null, eventRole: null } as const
+
+      const event = (id: string) => ({
+        kind: 'event' as const,
+        eventId: asEventId(id),
+        role: 'moderator' as const,
+      })
+      const client = (id: string, role: 'owner' | 'member' = 'owner') => ({
+        kind: 'client' as const,
+        clientId: asClientId(id),
+        role,
+      })
+
+      const stillWorks = async (id: string): Promise<boolean> =>
+        (await repo.findUsable(digestOf(id), 'invitation', atPlus(2_000))) !== null
+
+      it("revokes the address's outstanding invitations to that event, and counts them", async () => {
+        await repo.save(invite('tok-1'))
+        await repo.save(invite('tok-2'))
+
+        expect(
+          await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(1_000)),
+        ).toBe(2)
+        expect(await stillWorks('tok-1')).toBe(false)
+        expect(await stillWorks('tok-2')).toBe(false)
+      })
+
+      it('revokes by client too, and an owner invitation supersedes a member one', async () => {
+        await repo.save(
+          invite('tok-member', { ...toClient, clientId: 'client-1', clientRole: 'member' }),
+        )
+
+        expect(
+          await repo.revokeOutstandingInvitations(
+            NEWCOMER,
+            client('client-1', 'owner'),
+            atPlus(1_000),
+          ),
+        ).toBe(1)
+        expect(await stillWorks('tok-member')).toBe(false)
+      })
+
+      it('leaves another event, another client, another address and a reset exactly as they were', async () => {
+        await repo.save(invite('tok-other-event', { eventId: 'event-2' }))
+        await repo.save(
+          invite('tok-other-client', { ...toClient, clientId: 'client-2', clientRole: 'owner' }),
+        )
+        await repo.save(invite('tok-other-address', { email: 'autre@example.test' }))
+        await repo.save(
+          anAccountToken({ id: 'tok-reset', email: 'nouveau@example.test', userId: 'user-1' }),
+        )
+
+        expect(
+          await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(1_000)),
+        ).toBe(0)
+        expect(
+          await repo.revokeOutstandingInvitations(NEWCOMER, client('client-1'), atPlus(1_000)),
+        ).toBe(0)
+        expect(await stillWorks('tok-other-event')).toBe(true)
+        expect(await stillWorks('tok-other-client')).toBe(true)
+        expect(await stillWorks('tok-other-address')).toBe(true)
+        expect(
+          await repo.findUsable(digestOf('tok-reset'), 'passwordReset', atPlus(2_000)),
+        ).not.toBeNull()
+      })
+
+      it('leaves a token of another purpose alone even when a row gave it the same place', async () => {
+        // Not reachable through the domain, which keeps a place off a reset; the statement
+        // must not rely on that to stay inside invitations.
+        const reset = {
+          ...anAccountToken({ id: 'tok-reset', email: 'nouveau@example.test', userId: 'user-1' }),
+          eventId: asEventId('event-1'),
+          eventRole: 'moderator' as const,
+        }
+        await repo.save(reset)
+
+        expect(
+          await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(1_000)),
+        ).toBe(0)
+        expect(
+          await repo.findUsable(digestOf('tok-reset'), 'passwordReset', atPlus(2_000)),
+        ).not.toBeNull()
+      })
+
+      it('counts only what is still live: not a link that is spent, already revoked or expired', async () => {
+        // One of each dead kind and one live link, all to the same address and event. The
+        // first call must revoke exactly the live one: a statement that forgot to ask whether
+        // a link was spent, or had expired, would count it too and stamp it revoked.
+        await repo.save(invite('tok-revoked'))
+        await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(100))
+        await repo.save(invite('tok-spent', { createdAt: atPlus(200) }))
+        await repo.consume(asAccountTokenId('tok-spent'), atPlus(500))
+        await repo.save(invite('tok-expired', { createdAt: atPlus(200), expiresAt: atPlus(900) }))
+        await repo.save(invite('tok-live', { createdAt: atPlus(200) }))
+
+        const revoked = await repo.revokeOutstandingInvitations(
+          NEWCOMER,
+          event('event-1'),
+          atPlus(1_000),
+        )
+
+        expect(revoked).toBe(1)
+        expect(
+          await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(1_100)),
+        ).toBe(0)
+      })
+
+      it('does not count a link that expired by the time it was asked', async () => {
+        await repo.save(invite('tok-1'))
+        const week = 7 * 24 * 60 * 60 * 1000
+
+        expect(
+          await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(week)),
+        ).toBe(0)
+      })
+
+      it('also revokes an invitation still waiting for approval, which an approval would make live', async () => {
+        const token = invite('tok-1', { requiresApproval: true })
+        await repo.save(token)
+
+        expect(
+          await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(1_000)),
+        ).toBe(1)
         expect(await repo.approve(token.id, asUserId('user-approver'), atPlus(2_000))).toBe(false)
       })
     })

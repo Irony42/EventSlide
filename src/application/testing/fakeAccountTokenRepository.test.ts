@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { asEventId, asUserId } from '../../domain/shared/ids'
+import { asClientId, asEventId, asUserId } from '../../domain/shared/ids'
 import { anAccountToken } from './builders'
 import {
   accountTokenRepositoryContract,
   CONTRACT_ACCOUNTS,
+  CONTRACT_CLIENTS,
   CONTRACT_EVENTS,
 } from './contracts/accountTokenRepositoryContract'
 import { FakeAccountTokenRepository } from './fakeAccountTokenRepository'
@@ -11,7 +12,8 @@ import { FakeAccountTokenRepository } from './fakeAccountTokenRepository'
 accountTokenRepositoryContract('fake', async () => ({
   repo: new FakeAccountTokenRepository()
     .withAccounts(...CONTRACT_ACCOUNTS.map(asUserId))
-    .withEvents(...CONTRACT_EVENTS.map(asEventId)),
+    .withEvents(...CONTRACT_EVENTS.map(asEventId))
+    .withClients(...CONTRACT_CLIENTS.map(asClientId)),
 }))
 
 describe('FakeAccountTokenRepository', () => {

@@ -1,6 +1,8 @@
 import type { AccountTokenRepository } from '../../application/ports/accountTokenRepository'
+import { isClientRole, type ClientRole } from '../../domain/clients/clientRole'
 import {
   asAccountTokenId,
+  asClientId,
   asEventId,
   asUserId,
   type AccountTokenId,
@@ -12,6 +14,7 @@ import {
   type AccountTokenDelivery,
   type AccountTokenEventRole,
   type AccountTokenPurpose,
+  type InvitationTarget,
 } from '../../domain/users/accountToken'
 import { EmailAddress } from '../../domain/users/emailAddress'
 import type { Db } from './connection'
@@ -24,7 +27,7 @@ import {
 } from './rowMapping'
 
 /**
- * `account_tokens` (migration 010).
+ * `account_tokens` (migrations 010 and 012).
  *
  * **Every transition is one conditional statement**, and `better-sqlite3` is synchronous:
  * a statement runs to completion before any other on the connection starts, so two requests
@@ -36,9 +39,9 @@ import {
  * secret itself never reaches this file.
  */
 
-const COLUMNS = `id, purpose, token_digest, email, user_id, event_id, event_role, delivery,
-                 requires_approval, approved_by, approved_at, created_by, created_at,
-                 expires_at, consumed_at, revoked_at`
+const COLUMNS = `id, purpose, token_digest, email, user_id, event_id, event_role, client_id,
+                 client_role, delivery, requires_approval, approved_by, approved_at, created_by,
+                 created_at, expires_at, consumed_at, revoked_at`
 
 interface AccountTokenRow {
   readonly id: string
@@ -48,6 +51,8 @@ interface AccountTokenRow {
   readonly user_id: string | null
   readonly event_id: string | null
   readonly event_role: string | null
+  readonly client_id: string | null
+  readonly client_role: string | null
   readonly delivery: string
   readonly requires_approval: number
   readonly approved_by: string | null
@@ -62,15 +67,16 @@ interface AccountTokenRow {
 /**
  * The definition of "could be spent right now", in SQL, with one placeholder: `now`.
  *
- * Written once and used by both {@link SqliteAccountTokenRepository.findUsable} and
- * {@link SqliteAccountTokenRepository.consume}, so what a lookup calls usable and what a
- * spend accepts cannot drift apart. `expires_at > now` is exclusive on purpose: a token is
+ * Written once and used by {@link SqliteAccountTokenRepository.findUsable},
+ * {@link SqliteAccountTokenRepository.consume} and the invitation's acceptance
+ * (`SqliteInvitationAcceptance`), so what a lookup calls usable and what a spend accepts
+ * cannot drift apart. `expires_at > now` is exclusive on purpose: a token is
  * dead at its expiry. The approval clause is the reason this is not simply "not consumed":
  * a token that needs somebody else's approval is not spendable until it has it.
  *
  * ISO-8601 UTC text sorts as time, which is what makes these string comparisons honest.
  */
-const USABLE = `consumed_at IS NULL
+export const ACCOUNT_TOKEN_USABLE_SQL = `consumed_at IS NULL
                 AND revoked_at IS NULL
                 AND expires_at > ?
                 AND (requires_approval = 0 OR approved_at IS NOT NULL)`
@@ -86,6 +92,14 @@ const eventRoleOf = (raw: string | null): AccountTokenEventRole | null => {
   if (raw === null) return null
   if (raw !== 'moderator') {
     throw new Error(`account_tokens.event_role holds a value the domain rejects (${raw})`)
+  }
+  return raw
+}
+
+const clientRoleOf = (raw: string | null): ClientRole | null => {
+  if (raw === null) return null
+  if (!isClientRole(raw)) {
+    throw new Error(`account_tokens.client_role holds a value the domain rejects (${raw})`)
   }
   return raw
 }
@@ -115,6 +129,8 @@ const toToken = (row: AccountTokenRow): AccountToken => ({
   userId: optionalUser(row.user_id),
   eventId: row.event_id === null ? null : asEventId(row.event_id),
   eventRole: eventRoleOf(row.event_role),
+  clientId: row.client_id === null ? null : asClientId(row.client_id),
+  clientRole: clientRoleOf(row.client_role),
   delivery: deliveryOf(row.delivery),
   requiresApproval: fromSqliteBoolean(row.requires_approval),
   approvedBy: optionalUser(row.approved_by),
@@ -137,7 +153,7 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
     this.db
       .prepare(
         `INSERT INTO account_tokens (${COLUMNS})
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         token.id,
@@ -147,6 +163,8 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
         token.userId,
         token.eventId,
         token.eventRole,
+        token.clientId,
+        token.clientRole,
         token.delivery,
         toSqliteBoolean(token.requiresApproval),
         token.approvedBy,
@@ -167,7 +185,7 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
     const row = this.db
       .prepare<[string, string, string], AccountTokenRow>(
         `SELECT ${COLUMNS} FROM account_tokens
-          WHERE token_digest = ? AND purpose = ? AND ${USABLE}`,
+          WHERE token_digest = ? AND purpose = ? AND ${ACCOUNT_TOKEN_USABLE_SQL}`,
       )
       .get(digest, purpose, toIsoText(now))
 
@@ -179,7 +197,7 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
     const result = this.db
       .prepare<[string, string, string]>(
         `UPDATE account_tokens SET consumed_at = ?
-          WHERE id = ? AND ${USABLE}`,
+          WHERE id = ? AND ${ACCOUNT_TOKEN_USABLE_SQL}`,
       )
       .run(at, id, at)
 
@@ -220,6 +238,29 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
             AND expires_at > ?`,
       )
       .run(at, email.value, purpose, at)
+
+    return result.changes
+  }
+
+  async revokeOutstandingInvitations(
+    email: EmailAddress,
+    target: InvitationTarget,
+    now: Date,
+  ): Promise<number> {
+    const at = toIsoText(now)
+    // The same "outstanding" as above, narrowed to one place: the column is chosen by the
+    // kind of target, so an event's id can never match a client's and neither uses an `OR`.
+    const place = target.kind === 'event' ? 'event_id' : 'client_id'
+    const placeId = target.kind === 'event' ? target.eventId : target.clientId
+    const result = this.db
+      .prepare<[string, string, string, string]>(
+        `UPDATE account_tokens SET revoked_at = ?
+          WHERE email = ? AND purpose = 'invitation' AND ${place} = ?
+            AND consumed_at IS NULL
+            AND revoked_at IS NULL
+            AND expires_at > ?`,
+      )
+      .run(at, email.value, placeId, at)
 
     return result.changes
   }

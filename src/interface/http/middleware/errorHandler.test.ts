@@ -166,6 +166,14 @@ describe('the path a request is logged under', () => {
       `/Password/Reset/${TOKEN}`,
       '/Password/Reset/:token',
     ],
+    ['the page an invitation link opens', `/invite/${TOKEN}`, '/invite/:token'],
+    ['that page in another case', `/Invite/${TOKEN}`, '/Invite/:token'],
+    ['the preview of an invitation', `/api/invitations/${TOKEN}`, '/api/invitations/:token'],
+    [
+      'the acceptance of an invitation',
+      `/api/invitations/${TOKEN}/accept`,
+      '/api/invitations/:token/accept',
+    ],
     ['the album', `/api/gallery/${TOKEN}`, '/api/gallery/:token'],
     ['a page of it', `/api/gallery/${TOKEN}/photos`, '/api/gallery/:token/photos'],
     ['the unlock', `/api/gallery/${TOKEN}/unlock`, '/api/gallery/:token/unlock'],
@@ -188,6 +196,8 @@ describe('the path a request is logged under', () => {
     ['a client route that only starts like the gallery', '/gala/2026'],
     ['the page that asks for a reset, which carries no token', '/password/forgot'],
     ['a route that only starts like the reset page', '/password/reset-help'],
+    ['a path that only starts like the invitation page', '/invited/2026'],
+    ['the invitation routes with no token in them', '/api/invitations'],
   ])('logs %s as it is', (_label, path) => {
     expect(loggablePath(path)).toBe(path)
   })

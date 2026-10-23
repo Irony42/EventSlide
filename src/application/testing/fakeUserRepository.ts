@@ -32,8 +32,16 @@ export class FakeUserRepository implements UserRepository {
     }
     // The adapter's `MAX(stored, incoming)` on the epoch: a save never moves it backwards.
     // `revokeSessionsBefore` on the incoming copy is the same rule in the domain's words.
-    const stored = this.rows.get(user.id)?.credentialsChangedAt ?? null
-    this.rows.set(user.id, stored === null ? user : user.revokeSessionsBefore(stored))
+    const kept = this.rows.get(user.id)
+    const stored = kept?.credentialsChangedAt ?? null
+    const merged = stored === null ? user : user.revokeSessionsBefore(stored)
+    // The adapter's `COALESCE(stored, incoming)`: the first proof of the mailbox stands, and a
+    // copy read before it was given cannot take it back.
+    const verified = kept?.emailVerifiedAt ?? null
+    this.rows.set(
+      user.id,
+      verified === null ? merged : User.restore({ ...merged.toProps(), emailVerifiedAt: verified }),
+    )
   }
 
   async findById(id: UserId): Promise<User | null> {

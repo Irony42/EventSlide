@@ -1,5 +1,6 @@
 import { DomainError } from '../shared/errors'
-import type { AccountTokenId, EventId, UserId } from '../shared/ids'
+import type { ClientRole } from '../clients/clientRole'
+import type { AccountTokenId, ClientId, EventId, UserId } from '../shared/ids'
 import { err, ok, type Result } from '../shared/result'
 import type { EmailAddress } from './emailAddress'
 
@@ -11,9 +12,8 @@ import type { EmailAddress } from './emailAddress'
  * e-mail verification is the same proof with nothing to choose afterwards. So the three
  * purposes share one record, one lifetime rule and one definition of "usable", rather than
  * three near-copies of the code that decides whether a stranger's request may change who can
- * sign in. Only {@link AccountTokenPurpose}`'passwordReset'` is spent by anything yet; the
- * others are here because their columns are (migration 010) and because a rule written once
- * is audited once.
+ * sign in. `passwordReset` and `invitation` are spent today; `emailVerification` is here
+ * because its columns are (migration 010) and because a rule written once is audited once.
  *
  * ## What the record is, and is not
  *
@@ -54,6 +54,25 @@ export const ACCOUNT_TOKEN_LIFETIME_MS: Readonly<Record<AccountTokenPurpose, num
 }
 
 /**
+ * How many invitations one address can be sent in an hour, whoever sends them (G2-09 /
+ * P3-10).
+ *
+ * An invitation is written by a signed-in host or by the operator, so the per-client limit
+ * of the HTTP layer already bounds how fast any one of them can write. It says nothing about
+ * **whom**: a host can invite the same stranger to ten events, and every one of those is a
+ * mail in that stranger's inbox. This is the cap on the recipient's side. Re-inviting the
+ * same address to the same event or client replaces the earlier link, so the common reason to
+ * send a second one (the first was lost) costs a slot but never leaves two links alive.
+ *
+ * Five, because a person who hosts three events with one helper is a real case and ten
+ * invitations in an hour to one inbox is not.
+ */
+export const INVITATION_MAX_PER_ADDRESS_PER_HOUR = 5
+
+/** The window {@link INVITATION_MAX_PER_ADDRESS_PER_HOUR} counts in. */
+export const INVITATION_WINDOW_MS = HOUR_MS
+
+/**
  * How many reset mails one address can be sent in an hour (G2-08 / P3-09).
  *
  * The request is unauthenticated and its answer is the same for every address, so a rate
@@ -90,6 +109,20 @@ export type AccountTokenDelivery = 'mail' | 'link'
 /** The only role an invitation can grant inside an event. */
 export type AccountTokenEventRole = 'moderator'
 
+/**
+ * What an invitation grants, as exactly one of two things (docs/ROADMAP.md §10.3):
+ *
+ * - a role inside **one event**, which is only ever `moderator` — an owner is made by
+ *   creating the event or by a handover, never by a link; or
+ * - a place in **one client's account**, as `owner` or `member` (`domain/clients/clientRole.ts`).
+ *
+ * The two roles are different vocabularies and are not compared with each other. Neither
+ * grants the other: a client's owner is not a moderator of its events by being one.
+ */
+export type InvitationTarget =
+  | { readonly kind: 'event'; readonly eventId: EventId; readonly role: AccountTokenEventRole }
+  | { readonly kind: 'client'; readonly clientId: ClientId; readonly role: ClientRole }
+
 /** SHA-256 as lower-case hex: the only shape a stored digest has. */
 const TOKEN_DIGEST = /^[0-9a-f]{64}$/
 
@@ -106,6 +139,9 @@ export interface AccountToken {
   readonly userId: UserId | null
   readonly eventId: EventId | null
   readonly eventRole: AccountTokenEventRole | null
+  /** The client an invitation admits its holder to, with `clientRole`. Both or neither. */
+  readonly clientId: ClientId | null
+  readonly clientRole: ClientRole | null
   readonly delivery: AccountTokenDelivery
   /** Whether somebody other than the creator has to approve it before it can be spent. */
   readonly requiresApproval: boolean
@@ -126,6 +162,8 @@ export interface NewAccountToken {
   readonly userId: UserId | null
   readonly eventId?: EventId | null
   readonly eventRole?: AccountTokenEventRole | null
+  readonly clientId?: ClientId | null
+  readonly clientRole?: ClientRole | null
   readonly delivery: AccountTokenDelivery
   readonly requiresApproval?: boolean
   readonly createdBy: UserId | null
@@ -140,7 +178,16 @@ export interface NewAccountToken {
  *
  * - **A reset is for an account.** `passwordReset` without a `userId` would be a token the
  *   spending use case cannot apply to anybody.
- * - **A role needs an event.** `eventRole` without `eventId` grants moderation of nothing.
+ * - **A role needs its target, and a target needs its role.** `eventRole` without
+ *   `eventId` grants moderation of nothing; `eventId` without `eventRole` or `clientId`
+ *   without `clientRole` names a place and grants nothing in it.
+ * - **An invitation names exactly one target and no account.** With none it would admit its
+ *   holder to nothing; with two, "which one" would be a question the accepting use case had
+ *   to guess. And it is bound to an *address*, not to an account: whether the address has an
+ *   account is decided when the link is spent, never recorded when it is written, so a
+ *   token cannot be a witness to who already uses the box.
+ * - **Nothing else names a target.** A reset or a verification carrying one would be a link
+ *   that looks like it grants a role and is spent by something that never reads it.
  */
 export const issueAccountToken = (
   input: NewAccountToken,
@@ -158,8 +205,25 @@ export const issueAccountToken = (
   }
   const eventId = input.eventId ?? null
   const eventRole = input.eventRole ?? null
+  const clientId = input.clientId ?? null
+  const clientRole = input.clientRole ?? null
   if (eventRole !== null && eventId === null) {
     return err(DomainError.invalid('accountToken.eventRequired'))
+  }
+  if (clientRole !== null && clientId === null) {
+    return err(DomainError.invalid('accountToken.clientRequired'))
+  }
+  if ((eventId !== null && eventRole === null) || (clientId !== null && clientRole === null)) {
+    return err(DomainError.invalid('accountToken.roleRequired'))
+  }
+  const namesEvent = eventId !== null
+  const namesClient = clientId !== null
+  if (input.purpose === 'invitation') {
+    if (!namesEvent && !namesClient) return err(DomainError.invalid('accountToken.targetRequired'))
+    if (namesEvent && namesClient) return err(DomainError.invalid('accountToken.targetAmbiguous'))
+    if (input.userId !== null) return err(DomainError.invalid('accountToken.userForbidden'))
+  } else if (namesEvent || namesClient) {
+    return err(DomainError.invalid('accountToken.targetForbidden'))
   }
 
   return ok({
@@ -170,6 +234,8 @@ export const issueAccountToken = (
     userId: input.userId,
     eventId,
     eventRole,
+    clientId,
+    clientRole,
     delivery: input.delivery,
     requiresApproval: input.requiresApproval ?? false,
     approvedBy: null,
@@ -198,3 +264,19 @@ export const isAccountTokenUsable = (token: AccountToken, now: Date): boolean =>
   token.revokedAt === null &&
   token.expiresAt.getTime() > now.getTime() &&
   (!token.requiresApproval || token.approvedAt !== null)
+
+/**
+ * What an invitation grants, or `null` for a token that is not an invitation. The one place
+ * the pair of columns is read as a single thing, so the accepting use case and the mail
+ * cannot disagree about which half to look at.
+ */
+export const invitationTargetOf = (token: AccountToken): InvitationTarget | null => {
+  if (token.purpose !== 'invitation') return null
+  if (token.eventId !== null && token.eventRole !== null) {
+    return { kind: 'event', eventId: token.eventId, role: token.eventRole }
+  }
+  if (token.clientId !== null && token.clientRole !== null) {
+    return { kind: 'client', clientId: token.clientId, role: token.clientRole }
+  }
+  return null
+}

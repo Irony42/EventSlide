@@ -2204,7 +2204,10 @@ describe('migration 010, account tokens and the credentials epoch', () => {
 
   it('creates the table with every column the later items rely on', () => {
     const db = freshDb()
-    migrate(db, migrations)
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= 10),
+    )
 
     expect(columnNames(db, 'account_tokens')).toEqual([
       'id',
@@ -2578,6 +2581,160 @@ describe('migration 011, the operator second factor', () => {
       { id: 'u2', email: 'u2@example.test' },
     ])
     expect(db.prepare(`SELECT COUNT(*) AS n FROM user_totp`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+})
+
+describe('migration 012, the client an invitation is for', () => {
+  const AT = '2026-06-20T21:00:00.000Z'
+  const LATER = '2026-06-20T22:00:00.000Z'
+
+  const columnNames = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
+
+  const seed = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'hote@example.test', 'hash:x', '${AT}')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO clients (id, name, created_at) VALUES ('c1', 'Camille et Sacha', '${AT}')`,
+    ).run()
+  }
+
+  let digest = 0
+  /** A row with nothing optional, so a test overrides exactly the one thing it is about. */
+  const insertInvitation = (db: Db, over: Record<string, string | number | null> = {}): void => {
+    digest += 1
+    const row: Record<string, string | number | null> = {
+      id: `t${digest}`,
+      purpose: 'invitation',
+      token_digest: String(digest).padStart(64, 'a'),
+      email: 'nouveau@example.test',
+      delivery: 'link',
+      created_at: AT,
+      expires_at: LATER,
+      ...over,
+    }
+    const names = Object.keys(row)
+    db.prepare(
+      `INSERT INTO account_tokens (${names.join(', ')}) VALUES (${names.map(() => '?').join(', ')})`,
+    ).run(...Object.values(row))
+  }
+
+  const refusalOf = (action: () => unknown): string => {
+    try {
+      action()
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+    return ''
+  }
+
+  it('appends the client and its role to account_tokens, after every column 010 made', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'account_tokens').slice(-2)).toEqual(['client_id', 'client_role'])
+    expect(columnNames(db, 'account_tokens')).toHaveLength(18)
+    closeDatabase(db)
+  })
+
+  it('stores an invitation to a client with the role it grants', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seed(db)
+
+    insertInvitation(db, { client_id: 'c1', client_role: 'owner' })
+
+    expect(db.prepare(`SELECT client_id, client_role FROM account_tokens`).get()).toEqual({
+      client_id: 'c1',
+      client_role: 'owner',
+    })
+    closeDatabase(db)
+  })
+
+  it.each([
+    ['a client role the domain does not have', { client_id: 'c1', client_role: 'moderator' }],
+    [
+      'a client role in the case the domain never writes',
+      { client_id: 'c1', client_role: 'Owner' },
+    ],
+    ['a third client role', { client_id: 'c1', client_role: 'admin' }],
+    ['a client role with no client', { client_id: null, client_role: 'owner' }],
+    ['a client with no role', { client_id: 'c1', client_role: null }],
+  ])('refuses %s, in the database rather than only in code', (_label, over) => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seed(db)
+
+    expect(refusalOf(() => insertInvitation(db, over))).toMatch(/CHECK constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('refuses an invitation to a client that does not exist', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seed(db)
+
+    expect(
+      refusalOf(() => insertInvitation(db, { client_id: 'no-such-client', client_role: 'owner' })),
+    ).toMatch(/FOREIGN KEY constraint failed/)
+    closeDatabase(db)
+  })
+
+  it('takes an invitation with the client it was for, since it opens nothing without it', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seed(db)
+    insertInvitation(db, { client_id: 'c1', client_role: 'owner' })
+    insertInvitation(db, { client_id: null, client_role: null })
+
+    db.prepare(`DELETE FROM clients WHERE id = 'c1'`).run()
+
+    // The one that named no client is untouched: the cascade is the client's, not the table's.
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM account_tokens`).get()).toEqual({ n: 1 })
+    closeDatabase(db)
+  })
+
+  it('serves the cascade from an index rather than a scan of every token', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    const plan = (
+      db
+        .prepare(`EXPLAIN QUERY PLAN SELECT id FROM account_tokens WHERE client_id = 'c1'`)
+        .all() as { detail: string }[]
+    )
+      .map((row) => row.detail)
+      .join(' ')
+
+    expect(plan).toContain('idx_account_tokens_client')
+    closeDatabase(db)
+  })
+
+  it('keeps the tokens a box already held, with no client, when it upgrades', () => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= 11),
+    )
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'hote@example.test', 'hash:x', '${AT}')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO account_tokens (id, purpose, token_digest, email, user_id, delivery,
+                                   created_at, expires_at)
+            VALUES ('old', 'passwordReset', '${'b'.repeat(64)}', 'hote@example.test', 'u1',
+                    'mail', '${AT}', '${LATER}')`,
+    ).run()
+
+    migrate(db, migrations)
+
+    expect(
+      db.prepare(`SELECT id, purpose, client_id, client_role FROM account_tokens`).all(),
+    ).toEqual([{ id: 'old', purpose: 'passwordReset', client_id: null, client_role: null }])
     closeDatabase(db)
   })
 })

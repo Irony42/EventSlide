@@ -1435,3 +1435,174 @@ describe('createContainer: the operator’s second factor', () => {
     ])
   })
 })
+
+/**
+ * An invitation, end to end through the real composition root (roadmap §10.3; free plan
+ * G2-09, paid plan P3-10): a client is provisioned, its owner's address receives a link
+ * through a relay in this process, and opening it creates the account — in SQLite, with the
+ * real hasher — and nothing creates it sooner.
+ *
+ * Every ring below this one proves a piece against a fake or against one table. What only
+ * this shows is that the pieces are the ones the box wires: that the acceptance transaction
+ * is the SQLite adapter's, that the mail the relay received carries a token the database
+ * holds only as a digest, and that the password chosen with it is the one the box signs in with.
+ */
+describe('createContainer: an invitation', () => {
+  const OWNER = 'proprietaire@example.org'
+  const PASSWORD = 'une-phrase-de-passe-neuve'
+
+  const relays: SmtpSink[] = []
+  afterEach(async () => {
+    await Promise.all(relays.splice(0).map((relay) => relay.close()))
+  })
+
+  const bootWithRelay = async (): Promise<{ booted: Container; relay: SmtpSink }> => {
+    const relay = await startSmtpSink()
+    relays.push(relay)
+    const booted = await boot({
+      SMTP_URL: `smtp://127.0.0.1:${relay.port}`,
+      MAIL_FROM: 'no-reply@photos.example.org',
+      PUBLIC_URL: 'https://photos.example.org',
+    })
+    return { booted, relay }
+  }
+
+  const accountRow = (booted: Container) =>
+    booted.db
+      .prepare(
+        'SELECT id, email_verified_at, must_change_password, site_role FROM users WHERE email = ?',
+      )
+      .get(OWNER) as
+      | {
+          id: string
+          email_verified_at: string | null
+          must_change_password: number
+          site_role: string
+        }
+      | undefined
+
+  const tokenIn = (relay: SmtpSink): string => {
+    const text = parseMessage(relay.messages.at(-1)?.raw ?? '').text ?? ''
+    const token = /\/invite\/([A-Za-z0-9_-]+)/.exec(text)?.[1]
+    if (token === undefined) throw new Error('the relay received no invitation link')
+    return token
+  }
+
+  it('mails the owner a link, creates no account until it is accepted, and then creates exactly one', async () => {
+    const { booted, relay } = await bootWithRelay()
+
+    const provisioned = await booted.usecases.provisionClientOwner({
+      clientName: 'Camille et Sacha',
+      ownerEmail: OWNER,
+      locale: 'en',
+      createdBy: null,
+    })
+
+    expect(provisioned.ok && provisioned.value.invitation.delivery).toBe('mail')
+    await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+    expect(relay.messages[0]?.envelopeTo).toEqual([OWNER])
+    expect(parseMessage(relay.messages[0]?.raw ?? '').subject).toBe('You are invited to EventSlide')
+    expect(accountRow(booted)).toBeUndefined()
+
+    const token = tokenIn(relay)
+    const preview = await booted.usecases.previewInvitation({ token })
+    expect(preview.ok && preview.value).toMatchObject({ kind: 'client', role: 'owner' })
+    expect(accountRow(booted)).toBeUndefined()
+
+    const accepted = await booted.usecases.acceptInvitation({
+      token,
+      credentials: { password: PASSWORD, displayName: 'Camille' },
+    })
+
+    expect(accepted.ok).toBe(true)
+    const account = accountRow(booted)
+    expect(account).toMatchObject({ must_change_password: 0, site_role: 'none' })
+    // A link that came through the mailbox proves the mailbox.
+    expect(account?.email_verified_at).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/)
+    expect(
+      booted.db.prepare('SELECT role FROM client_members WHERE user_id = ?').all(account?.id),
+    ).toEqual([{ role: 'owner' }])
+  })
+
+  it('signs the new account in with the password it chose, and refuses the link a second time', async () => {
+    const { booted, relay } = await bootWithRelay()
+    await booted.usecases.provisionClientOwner({
+      clientName: 'Camille et Sacha',
+      ownerEmail: OWNER,
+      locale: 'fr',
+      createdBy: null,
+    })
+    await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+    const token = tokenIn(relay)
+
+    await booted.usecases.acceptInvitation({
+      token,
+      credentials: { password: PASSWORD, displayName: 'Camille' },
+    })
+    const again = await booted.usecases.acceptInvitation({
+      token,
+      credentials: { password: 'un-autre-mot-de-passe-2026', displayName: 'Intrus' },
+    })
+
+    const signedIn = await booted.usecases.authenticateUser({ email: OWNER, password: PASSWORD })
+    expect(signedIn.ok).toBe(true)
+    expect(!again.ok && again.error.code).toBe('invitation.notFound')
+  })
+
+  it('keeps the token and the chosen password out of every table: the database holds only the digest', async () => {
+    const { booted, relay } = await bootWithRelay()
+    await booted.usecases.provisionClientOwner({
+      clientName: 'Camille et Sacha',
+      ownerEmail: OWNER,
+      locale: 'fr',
+      createdBy: null,
+    })
+    await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+    const token = tokenIn(relay)
+    await booted.usecases.acceptInvitation({
+      token,
+      credentials: { password: PASSWORD, displayName: 'Camille' },
+    })
+
+    const rows = booted.db.prepare('SELECT * FROM account_tokens').all() as Record<
+      string,
+      unknown
+    >[]
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ purpose: 'invitation', delivery: 'mail', client_role: 'owner' })
+
+    const tables = booted.db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all() as {
+      name: string
+    }[]
+    for (const { name } of tables) {
+      const dump = JSON.stringify(booted.db.prepare(`SELECT * FROM "${name}"`).all())
+      expect(dump, `table ${name}`).not.toContain(token)
+      expect(dump, `table ${name}`).not.toContain(PASSWORD)
+    }
+  })
+
+  it('on a box with no relay hands the link to the operator, and accepting it proves nothing about the mailbox', async () => {
+    const booted = await boot({ PUBLIC_URL: 'https://photos.example.org' })
+
+    const provisioned = await booted.usecases.provisionClientOwner({
+      clientName: 'Camille et Sacha',
+      ownerEmail: OWNER,
+      locale: 'fr',
+      createdBy: null,
+    })
+
+    const invitation = provisioned.ok ? provisioned.value.invitation : null
+    expect(invitation?.delivery).toBe('link')
+    const link = invitation !== null && 'link' in invitation ? invitation.link : ''
+    expect(link).toMatch(/^https:\/\/photos\.example\.org\/invite\/[A-Za-z0-9_-]{43}$/)
+
+    await booted.usecases.acceptInvitation({
+      token: link.split('/invite/')[1] ?? '',
+      credentials: { password: PASSWORD, displayName: 'Camille' },
+    })
+
+    expect(accountRow(booted)?.email_verified_at).toBeNull()
+  })
+})

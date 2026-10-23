@@ -1,4 +1,8 @@
-import type { AccountToken, AccountTokenPurpose } from '../../domain/users/accountToken'
+import type {
+  AccountToken,
+  AccountTokenPurpose,
+  InvitationTarget,
+} from '../../domain/users/accountToken'
 import type { EmailAddress } from '../../domain/users/emailAddress'
 import type { AccountTokenId, UserId } from '../../domain/shared/ids'
 
@@ -66,6 +70,26 @@ export interface AccountTokenRepository {
    * Tokens already spent, revoked or expired are left exactly as they were.
    */
   revokeOutstanding(email: EmailAddress, purpose: AccountTokenPurpose, now: Date): Promise<number>
+
+  /**
+   * Revokes every invitation written to this address **for this event or this client** that
+   * could still be spent (or is waiting for the approval that would make it so), and says how
+   * many it was. Issuing an invitation calls this first, so an address has one live link to a
+   * given place and the newest one is it: the inviter who lost a link, or sent it to the wrong
+   * channel, can replace it and know the first no longer opens anything.
+   *
+   * The match is on the **place** — the event, or the client — and not on the role: inviting
+   * someone as an owner supersedes the link that invited them as a member. It is also
+   * confined to that place and to invitations. Another event's link to the same address, a
+   * pending reset, a spent or expired link are left exactly as they were: this is not
+   * {@link AccountTokenRepository.revokeOutstanding}, which revokes by purpose and would
+   * cancel an invitation to a different wedding.
+   */
+  revokeOutstandingInvitations(
+    email: EmailAddress,
+    target: InvitationTarget,
+    now: Date,
+  ): Promise<number>
 
   /**
    * How many tokens for this address and purpose were issued **after** `since` (exclusive),

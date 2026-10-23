@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { asAccountTokenId, asUserId } from '../../../domain/shared/ids'
+import { asAccountTokenId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { issueAccountToken } from '../../../domain/users/accountToken'
 import type { Password } from '../../../domain/users/password'
 import type { PasswordHash } from '../../../domain/users/user'
@@ -218,6 +218,10 @@ describe('resetPassword', () => {
         tokenDigest: digest,
         email: anAccountToken().email,
         userId: null,
+        // An invitation must name what it grants to be issued at all; the fixture then
+        // relabels it as a reset, which is the shape this test is about.
+        eventId: asEventId('event-1'),
+        eventRole: 'moderator',
         delivery: 'link',
         createdBy: null,
       },
@@ -225,7 +229,12 @@ describe('resetPassword', () => {
       AT,
     )
     if (!record.ok) throw new Error('invalid fixture')
-    await tokens.save({ ...record.value, purpose: 'passwordReset' })
+    await tokens.save({
+      ...record.value,
+      purpose: 'passwordReset',
+      eventId: null,
+      eventRole: null,
+    })
 
     const result = await reset(token)
 

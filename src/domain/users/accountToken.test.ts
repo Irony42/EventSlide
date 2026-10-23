@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { DomainError } from '../shared/errors'
-import { asAccountTokenId, asEventId, asUserId } from '../shared/ids'
+import { asAccountTokenId, asClientId, asEventId, asUserId } from '../shared/ids'
 import type { Result } from '../shared/result'
 import {
   ACCOUNT_TOKEN_LIFETIME_MS,
   ACCOUNT_TOKEN_PURPOSES,
+  INVITATION_MAX_PER_ADDRESS_PER_HOUR,
+  INVITATION_WINDOW_MS,
+  invitationTargetOf,
   isAccountTokenPurpose,
   isAccountTokenUsable,
   isTokenDigest,
@@ -36,6 +39,25 @@ const input = (overrides: Partial<NewAccountToken> = {}): NewAccountToken => ({
   ...overrides,
 })
 
+/** An invitation as an owner issues it: to an address, for one event, with no account behind it. */
+const eventInvitation = (overrides: Partial<NewAccountToken> = {}): NewAccountToken =>
+  input({
+    purpose: 'invitation',
+    userId: null,
+    eventId: asEventId('event-1'),
+    eventRole: 'moderator',
+    ...overrides,
+  })
+
+const clientInvitation = (overrides: Partial<NewAccountToken> = {}): NewAccountToken =>
+  input({
+    purpose: 'invitation',
+    userId: null,
+    clientId: asClientId('client-1'),
+    clientRole: 'owner',
+    ...overrides,
+  })
+
 const issue = (overrides: Partial<NewAccountToken> = {}, at = NOW): AccountToken =>
   unwrap(issueAccountToken(input(overrides), ID, at))
 
@@ -65,7 +87,10 @@ describe('issueAccountToken', () => {
     ['passwordReset', HOUR],
     ['emailVerification', 24 * HOUR],
   ] as const)('lets a %s live exactly as long as its purpose says', (purpose, lifetime) => {
-    const token = issue({ purpose, userId: asUserId('user-1') })
+    // An invitation is for an address and a target; the other two are for an account.
+    const token = unwrap(
+      issueAccountToken(purpose === 'invitation' ? eventInvitation() : input({ purpose }), ID, NOW),
+    )
 
     expect(token.expiresAt.getTime() - NOW.getTime()).toBe(lifetime)
   })
@@ -93,6 +118,68 @@ describe('issueAccountToken', () => {
     expect(token.eventRole).toBe('moderator')
   })
 
+  it('carries an invitation to a client with the role it grants', () => {
+    const token = unwrap(issueAccountToken(clientInvitation({ clientRole: 'member' }), ID, NOW))
+
+    expect(token.clientId).toBe('client-1')
+    expect(token.clientRole).toBe('member')
+    expect(token.eventId).toBeNull()
+  })
+
+  it('refuses an invitation that grants nothing, since its holder would be admitted to nowhere', () => {
+    const result = issueAccountToken(input({ purpose: 'invitation', userId: null }), ID, NOW)
+
+    expect(!result.ok && result.error.code).toBe('accountToken.targetRequired')
+  })
+
+  it('refuses an invitation to an event and a client at once, which no one could choose between', () => {
+    const result = issueAccountToken(
+      eventInvitation({ clientId: asClientId('client-1'), clientRole: 'owner' }),
+      ID,
+      NOW,
+    )
+
+    expect(!result.ok && result.error.code).toBe('accountToken.targetAmbiguous')
+  })
+
+  it('refuses an invitation that names an account: whether the address has one is decided when the link is spent', () => {
+    const result = issueAccountToken(eventInvitation({ userId: asUserId('user-1') }), ID, NOW)
+
+    expect(!result.ok && result.error.code).toBe('accountToken.userForbidden')
+  })
+
+  it.each([
+    ['a client without a role', { clientId: asClientId('client-1') }, 'accountToken.roleRequired'],
+    ['an event without a role', { eventId: asEventId('event-1') }, 'accountToken.roleRequired'],
+    [
+      'a client role without a client',
+      { clientRole: 'owner' as const },
+      'accountToken.clientRequired',
+    ],
+  ])('refuses %s', (_label, overrides, code) => {
+    const result = issueAccountToken(
+      input({ purpose: 'invitation', userId: null, ...overrides }),
+      ID,
+      NOW,
+    )
+
+    expect(!result.ok && result.error.code).toBe(code)
+  })
+
+  it.each(['passwordReset', 'emailVerification'] as const)(
+    'refuses a %s that names an event or a client, since nothing that spends it would read one',
+    (purpose) => {
+      for (const target of [
+        { eventId: asEventId('event-1'), eventRole: 'moderator' as const },
+        { clientId: asClientId('client-1'), clientRole: 'owner' as const },
+      ]) {
+        const result = issueAccountToken(input({ purpose, ...target }), ID, NOW)
+
+        expect(!result.ok && result.error.code).toBe('accountToken.targetForbidden')
+      }
+    },
+  )
+
   it('refuses a digest that is not a SHA-256 in lower-case hex, so a token cannot be stored as one', () => {
     for (const tokenDigest of ['', 'abc', 'AB'.repeat(32), 'zz'.repeat(32), 'ab'.repeat(33)]) {
       const result = issueAccountToken(input({ tokenDigest }), ID, NOW)
@@ -114,7 +201,7 @@ describe('issueAccountToken', () => {
   })
 
   it('accepts an invitation that names no account, because none exists yet', () => {
-    expect(issueAccountToken(input({ purpose: 'invitation', userId: null }), ID, NOW).ok).toBe(true)
+    expect(issueAccountToken(eventInvitation(), ID, NOW).ok).toBe(true)
   })
 
   it('refuses a role without an event, which would grant moderation of nothing', () => {
@@ -183,5 +270,59 @@ describe('the vocabularies', () => {
     expect(isTokenDigest(DIGEST)).toBe(true)
     expect(isTokenDigest(DIGEST.toUpperCase())).toBe(false)
     expect(isTokenDigest(42)).toBe(false)
+  })
+})
+
+describe('invitationTargetOf', () => {
+  it('reads an event invitation as a moderator of that event', () => {
+    const token = unwrap(issueAccountToken(eventInvitation(), ID, NOW))
+
+    expect(invitationTargetOf(token)).toEqual({
+      kind: 'event',
+      eventId: 'event-1',
+      role: 'moderator',
+    })
+  })
+
+  it('reads a client invitation as a place in that client, with its role', () => {
+    const token = unwrap(issueAccountToken(clientInvitation({ clientRole: 'member' }), ID, NOW))
+
+    expect(invitationTargetOf(token)).toEqual({
+      kind: 'client',
+      clientId: 'client-1',
+      role: 'member',
+    })
+  })
+
+  it('reads nothing from a token that is not an invitation', () => {
+    expect(invitationTargetOf(issue())).toBeNull()
+  })
+
+  it('reads nothing from a reset that a row somehow gave a target, which is not a grant', () => {
+    // Not reachable through `issueAccountToken`, which refuses it; a hand-edited row could be.
+    const reset = {
+      ...issue(),
+      eventId: asEventId('event-1'),
+      eventRole: 'moderator' as const,
+      clientId: asClientId('client-1'),
+      clientRole: 'owner' as const,
+    }
+
+    expect(invitationTargetOf(reset)).toBeNull()
+  })
+
+  it('reads nothing from an invitation row that names no complete target', () => {
+    // Not reachable through `issueAccountToken`; a row the database holds could be, and the
+    // answer must be "nothing to grant" rather than a half-built grant.
+    const token = unwrap(issueAccountToken(eventInvitation(), ID, NOW))
+
+    expect(invitationTargetOf({ ...token, eventRole: null })).toBeNull()
+  })
+})
+
+describe('the invitation cap', () => {
+  it('is five an hour per address, counted over an hour', () => {
+    expect(INVITATION_MAX_PER_ADDRESS_PER_HOUR).toBe(5)
+    expect(INVITATION_WINDOW_MS).toBe(HOUR)
   })
 })
