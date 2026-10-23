@@ -2621,13 +2621,14 @@ A token whose last character was cut in half by a chat app that truncates a link
 (`/g/<token>%E2%80`) cannot be decoded, and Express refuses it when it matches the address
 to a route: the link is never looked up. On the gallery's API that is one more malformed token,
 the single dead-link `404 gallery.notAvailable` above, byte for byte, from the gallery router
-(the invitation API does the same with its own refusal); anywhere else, the pages included, it
+(the invitation API does the same, `404 invitation.notFound`, from its own router; `invitationRoutes.test.ts` and `invitationUndecodablePath.test.ts` hold it); anywhere else, the pages included, it
 is the error handler's `400 request.invalid`, the same for every address and no oracle for a real
 token. It used to be a
 `500` whose log line carried Express's own message, `Failed to decode param '<the raw
 parameter>'` — the whole credential, in the error log, on a gallery, invitation or
-password-reset address. Both answer it by the class **and** the `status: 400` the router stamps, so a
-`URIError` of ours stays a bug, with nothing from the error in the log, and the error handler
+password-reset address. The error handler and both routers answer it by the class **and** the `status: 400` the router
+stamps, so a `URIError` of ours stays a bug (a 500 with its own line and stack in the log; the refusal itself
+logs nothing from the error), and the error handler
 sets the gallery's three headers when the address carries a credential. `malformedPath.test.ts` holds the answers and `malformedPathLogCanary.test.ts`
 reads every byte the real logger and the access log write for the canonical addresses
 `loggablePath` knows.
