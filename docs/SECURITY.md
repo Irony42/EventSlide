@@ -1231,6 +1231,52 @@ the sweep does not write one, and the e-mail to the host when a window closes an
 (G2-07); the sweep already reports the closed ids as `autoClosed` and logs them, which is the seam both will use. An event already live when its client's `live_allowed` becomes 0 is not
 force-closed: `max_live_days` bounds it, and quarantine is about opening.
 
+### What a new client starts with (`NEW_CLIENT_*`, G2-18)
+
+The ceilings above are a client's own. A **new** client gets them from two places: the operator who
+provisions it, and, for every ceiling the operator leaves out, seven optional settings of the box —
+`NEW_CLIENT_MAX_EVENTS`, `_MAX_EVENTS_PER_PERIOD`, `_MAX_TOTAL_BYTES`, `_MAX_EVENT_QUOTA_BYTES`,
+`_MAX_RETENTION_DAYS`, `_MAX_LIVE_DAYS` and `NEW_CLIENT_CLIPS_ALLOWED`. They exist so that a box run for
+other people cannot hand out an unlimited client by forgetting to type a number, and they change
+nothing for anybody else: **absent is no ceiling**, so a box that sets none provisions every client as
+it always did.
+
+- **Named wins, omitted defaults.** `provisionClientOwner` keeps every ceiling the operator names, an
+  explicit `null` included (which lifts the default for that one client), and takes the default for each
+  one it leaves out. The other reading — defaults only when the operator names nothing at all — makes a
+  console form that forgets one field a client with no storage ceiling on a box that meant to have one.
+  `startingCeilings` is the rule and `newClientCeilings.test.ts` holds it; a default per-period count
+  starts its period on the day of provisioning, so a renewal has a date to move.
+- **They bind new clients only.** Changing a setting and restarting touches no client that exists:
+  `setClientCeilings` is the way to move one, audited, and it never reads these settings. What a client
+  was promised on its first day is recorded, not recomputed: `provisionClientOwner` writes
+  `client.created` with the full snapshot of the ceilings it started with, **before** the invitation is
+  sent (§17), because the settings are configuration and change at the next boot.
+- **Refused at boot, naming the variable, exit 78**: a value outside the bounds of the `clients` table's
+  own `CHECK`s (the day counts are the domain's constants, not a second copy), and a `NEW_CLIENT_*` of any
+  kind with `SITE_ADMIN=off` — nothing can create a client on a box with no operator namespace, so the
+  setting would be one its owner believes is in force and nothing ever reads (roadmap §10.9). The refusal
+  finds the family by its prefix, so a variable added later is covered without a list to extend.
+- **Against the box-wide ceiling.** `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` may not exceed
+  `MAX_EVENT_QUOTA_BYTES` (G3-02): the box's number binds every event whatever a client's own says
+  (`quotaBound`), so a larger default would promise a quota `createEvent` refuses. It may be **below**
+  `DEFAULT_EVENT_QUOTA_BYTES`, which the box-wide one may not: `createEvent` lowers a new event's default
+  quota to its client's ceiling, and refuses only a quota a host asked for by name.
+- **The route shows them, and only to the operator.** `GET /api/site/client-defaults` (API.md §1) answers
+  the seven values for the console's form, behind the namespace's gate (`requireOperator`, and the second
+  factor where required), `no-store`. It reads the process's settings and no table.
+
+Named tests: the `NEW_CLIENT_*` block of `env.test.ts`, `newClientCeilings.test.ts`,
+`provisionClientOwner.test.ts` (the ceilings it starts with, and the entry it writes), the `NEW_CLIENT_*`
+block of `container.test.ts` and `siteClientDefaults.test.ts`.
+
+**Not here yet, and said plainly.** The plan asks that an operator changing a client's ceilings give a
+**reason**, carried by the audit entry (`client.ceilingsChanged {before, after, reason}`), and refused
+without one. It is not built: the audit vocabulary has no free-text kind, on purpose (§17), so a reason
+needs one of its own, with a bound and a decision about what an operator may write there, and the `PUT`
+route that would refuse its absence is G2-14's. Until then `setClientCeilings` records who changed what and
+from what, and no why.
+
 ## 6. Session security
 
 | Property                       | Value                                                                                                                                                                                        | Why                                                                                                           |
@@ -1466,6 +1512,7 @@ once with zod at startup, exported as a frozen typed object.
 | `SOURCE_CODE_URL`                  | no                                          | upstream tag of this version          | the AGPL §13 source link: https only, no credentials, never hidden (API.md §2)                                                                                              |
 | `SOURCE_REF`                       | no                                          | none                                  | Docker build argument behind the same link: a git tag, branch or commit                                                                                                     |
 | `EVENT_CREATION`                   | no                                          | `anyAccount`                          | `clientMembers`: members of a client and the operator only; needs `SITE_ADMIN=on`                                                                                           |
+| `NEW_CLIENT_*` (seven)             | no                                          | none: no ceiling, clips allowed       | the ceilings a new client starts with (§5); **refused with `SITE_ADMIN=off`**; `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` at most `MAX_EVENT_QUOTA_BYTES`                           |
 | `AUDIT_RETENTION_DAYS`             | no                                          | `1095`                                | how long the audit log keeps a row, 365 to 3650 (§17)                                                                                                                       |
 | `DONATION_URL` / `BUDGET_URL`      | no                                          | empty                                 | optional support links: https only, no credentials, off guest screens and the wall (API.md §2)                                                                              |
 | `SMTP_URL`                         | no                                          | none: no mail is sent                 | the SMTP relay; **holds the password**, never logged — see "Outgoing mail" below                                                                                            |
@@ -2554,7 +2601,12 @@ opaque id that becomes `NULL` when the account is deleted; there is nothing else
 
 **Write-ahead, and a known gap.** `setClientCeilings` builds and validates its entries, records them,
 and only then saves the client, so a ceiling cannot move without a line saying who moved it, and an
-entry the log refuses (an actor that is not an account) refuses the change. The two writes are not
+entry the log refuses (an actor that is not an account) refuses the change. `provisionClientOwner`
+(G2-18) does the same for `client.created`, which carries the whole snapshot of the ceilings a client
+starts with and nothing else (no name, no address): the entry is recorded after the client is created
+and **before** the invitation is issued, so a log that cannot be written removes the client and sends
+no mail, and an invitation that then fails removes the client but leaves its line — an intent that
+failed, visible, which is the lesser error for the reason below. The two writes are not
 one transaction: if the save fails after the entry was recorded, the log holds a line for a change
 that did not happen, and the retry writes a second. That is the lesser error, and a visible one.
 Closing it needs a unit-of-work port that no use case has yet; G2-20 asks for the same atomicity for

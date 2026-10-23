@@ -95,11 +95,19 @@ Read these before you upgrade, and back up with the version you run now.
     `MAX_CONCURRENT_UPLOAD_REQUESTS`, `MAX_QUEUED_CLIPS_PER_EVENT`, `MAX_STREAMS_PER_CLIENT`,
     `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT` and `RETENTION_CAP_NOTICE_DAYS`.
     `SQLITE_SHUTDOWN_CHECKPOINT` takes `truncate`, `passive` or `none`.
+  - The ceilings a new client starts with, all optional and all for a box that has clients
+    (`SITE_ADMIN=on`): `NEW_CLIENT_MAX_EVENTS`, `NEW_CLIENT_MAX_EVENTS_PER_PERIOD`,
+    `NEW_CLIENT_MAX_TOTAL_BYTES` and `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` take positive whole
+    numbers, `NEW_CLIENT_MAX_RETENTION_DAYS` a whole number from 1 to 3650,
+    `NEW_CLIENT_MAX_LIVE_DAYS` one from 1 to 365, and `NEW_CLIENT_CLIPS_ALLOWED` `true`, `false`,
+    `1` or `0`.
   - These combinations are refused too: `SMTP_URL` without `MAIL_FROM`,
     `EVENT_CREATION=clientMembers` without `SITE_ADMIN=on`, `OPERATOR_CONTACT_EMAIL`
     without `OPERATOR_NAME`, `REQUIRE_OPERATOR_2FA=true` without a valid
-    `MFA_ENCRYPTION_KEY` or without `SITE_ADMIN=on`, and an `MFA_ENCRYPTION_KEY` equal to
-    `SESSION_SECRET` or `GUEST_TOKEN_SECRET`.
+    `MFA_ENCRYPTION_KEY` or without `SITE_ADMIN=on`, an `MFA_ENCRYPTION_KEY` equal to
+    `SESSION_SECRET` or `GUEST_TOKEN_SECRET`, any `NEW_CLIENT_*` setting without
+    `SITE_ADMIN=on` (which is the default), and `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` above
+    `MAX_EVENT_QUOTA_BYTES`.
 - **An account that must change its password is stopped by the server** (#108), with
   `403 auth.passwordChangeRequired` on every `/api` route except `GET /api/auth/me`,
   `POST /api/auth/password` and `POST /api/auth/logout` (and the health and readiness
@@ -165,8 +173,11 @@ Read these before you upgrade, and back up with the version you run now.
   enforced on every write path, a live window that closes an event, and a purge that is safe
   when a ceiling is unset (#121); an append-only audit log, with `AUDIT_RETENTION_DAYS`
   (default 1095, never below 365) (#118); and a content-free overview of a box, shapes and
-  sizes and never what guests made (#126). No HTTP route reaches the clients, the audit log or
-  the overview yet. `GET /api/auth/me` reports `canOperateSite`, whatever `SITE_ADMIN` says.
+  sizes and never what guests made (#126); and the ceilings a new client starts with,
+  `NEW_CLIENT_*` (unset means no ceiling), applied when the operator provisions one and recorded
+  in the audit log. The one HTTP route in that namespace is `GET /api/site/client-defaults`, which
+  shows those defaults to the operator; no route reaches the clients, the audit log or the
+  overview yet. `GET /api/auth/me` reports `canOperateSite`, whatever `SITE_ADMIN` says.
 - **Mail, optional** (#120). A `Mailer` port, a `NullMailer` that sends nothing and is the
   default, and an SMTP adapter on `nodemailer` (a new dependency) switched on by `SMTP_URL`
   and `MAIL_FROM`. The password reset is the first thing that sends mail.
