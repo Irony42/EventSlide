@@ -339,6 +339,8 @@ export const es: UiText = {
       'Esta invitación estaba destinada a una dirección de correo distinta de la de esta cuenta.',
     'invitation.credentialsRequired':
       'Inicie sesión con la cuenta invitada, o elija un nombre y una contraseña.',
+    'accountName.empty': 'Indique su nombre.',
+    'accountName.tooLong': 'Este nombre es demasiado largo.',
 
     'displayName.tooLong': 'El nombre es demasiado largo.',
     'joinCode.wrongLength': 'Este código no tiene el número correcto de caracteres.',
@@ -912,6 +914,54 @@ export const es: UiText = {
     recoveryCodesRegenerate: 'Generar nuevos códigos de recuperación',
     secondFactorDisable: 'Desactivar la verificación',
     secondFactorDisabled: 'Verificación en dos pasos desactivada.',
+
+    /* ---- Added by G2-10: the invitation page, the reset by e-mail and the account menu. ---- */
+    invitationTitle: 'Invitación',
+    invitationToModerate: (name: string) =>
+      `Ha recibido una invitación para moderar el evento «${name}».`,
+    invitationToOwn: (name: string) =>
+      `Ha recibido una invitación para crear y gestionar los eventos de «${name}».`,
+    invitationToJoin: (name: string) =>
+      `Ha recibido una invitación para unirse al equipo de «${name}».`,
+    invitationExpires: (when: string) => `Válida hasta el ${when}.`,
+    invitationChoose:
+      'Elija su nombre y una contraseña: su cuenta se crea al enviar este formulario.',
+    invitationName: 'Su nombre',
+    invitationNameHint: 'Aparece en la lista de personas con acceso.',
+    invitationConfirmPassword: 'Confirmar la contraseña',
+    invitationSubmit: 'Crear mi cuenta y aceptar',
+    invitationAccepted: 'Invitación aceptada.',
+    invitationHaveAccount: '¿Ya tiene una cuenta con esta dirección?',
+    invitationSignInRequired:
+      'Ya existe una cuenta con la dirección de esta invitación. Inicie sesión con esa cuenta: volverá aquí para aceptarla.',
+    invitationSignedInAs: (email: string) => `Ha iniciado sesión como ${email}.`,
+    invitationAcceptAs: 'Aceptar con esta cuenta',
+    invitationUseAnother: 'Usar otra cuenta',
+    deadLinkTitle: 'Este enlace no es válido',
+    forgotLink: '¿Ha olvidado su contraseña?',
+    forgotTitle: 'Contraseña olvidada',
+    forgotIntro:
+      'Introduzca la dirección de correo de su cuenta. Si una cuenta la utiliza, recibirá un enlace para elegir una nueva contraseña.',
+    forgotSubmit: 'Enviar el enlace',
+    forgotSentTitle: 'Revise su correo',
+    forgotSent:
+      'Si una cuenta utiliza esta dirección, se acaba de enviar un mensaje con un enlace. El enlace es válido durante una hora y solo funciona una vez.',
+    forgotUnavailable:
+      'Este servidor no puede enviar correos, así que aquí no se puede restablecer la contraseña de este modo. Pregunte a la persona que lo administra.',
+    backToLogin: 'Volver al inicio de sesión',
+    resetTitle: 'Nueva contraseña',
+    resetIntro:
+      'Elija una contraseña que no use en ningún otro sitio. Se cerrará su sesión en todos sus dispositivos.',
+    resetSubmit: 'Cambiar la contraseña',
+    resetDoneTitle: 'Contraseña cambiada',
+    resetDone: 'Se ha cerrado la sesión en todos sus dispositivos. Inicie sesión con su nueva contraseña.',
+    resetAskAgain: 'Solicitar un nuevo enlace',
+    accountMenu: 'Cuenta',
+    accountSignedInAs: (email: string) => `Sesión iniciada como ${email}`,
+    logoutEverywhere: 'Cerrar sesión en todas partes',
+    logoutEverywhereTitle: '¿Cerrar sesión en todas partes?',
+    logoutEverywhereHint:
+      'Se cerrará su sesión en todos los dispositivos, también en este, y tendrá que volver a iniciarla. Útil si ha perdido un dispositivo o ha usado un ordenador compartido.',
   },
 
   mobileModeration: {

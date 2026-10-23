@@ -345,6 +345,8 @@ export const it: UiText = {
       'Questo invito è stato scritto per un indirizzo e-mail diverso da quello di questo account.',
     'invitation.credentialsRequired':
       'Acceda con l’account invitato, oppure scelga un nome e una password.',
+    'accountName.empty': 'Inserisca il suo nome.',
+    'accountName.tooLong': 'Questo nome è troppo lungo.',
 
     'displayName.tooLong': 'Nome troppo lungo.',
     'joinCode.wrongLength': 'Questo codice non ha il numero corretto di caratteri.',
@@ -881,6 +883,52 @@ export const it: UiText = {
     recoveryCodesRegenerate: 'Genera nuovi codici di recupero',
     secondFactorDisable: 'Disattiva la verifica',
     secondFactorDisabled: 'Verifica in due passaggi disattivata.',
+
+    /* ---- Added by G2-10: the invitation page, the reset by e-mail and the account menu. ---- */
+    invitationTitle: 'Invito',
+    invitationToModerate: (name: string) => `Ha ricevuto un invito a moderare l’evento «${name}».`,
+    invitationToOwn: (name: string) =>
+      `Ha ricevuto un invito a creare e gestire gli eventi di «${name}».`,
+    invitationToJoin: (name: string) => `Ha ricevuto un invito a unirsi al team di «${name}».`,
+    invitationExpires: (when: string) => `Valido fino al ${when}.`,
+    invitationChoose:
+      'Scelga il suo nome e una password: l’account viene creato quando invia questo modulo.',
+    invitationName: 'Il suo nome',
+    invitationNameHint: 'Compare nell’elenco delle persone con accesso.',
+    invitationConfirmPassword: 'Conferma la password',
+    invitationSubmit: 'Crea il mio account e accetta',
+    invitationAccepted: 'Invito accettato.',
+    invitationHaveAccount: 'Ha già un account con questo indirizzo?',
+    invitationSignInRequired:
+      'Un account usa già l’indirizzo di questo invito. Acceda con quell’account: tornerà qui per accettare.',
+    invitationSignedInAs: (email: string) => `Ha effettuato l’accesso come ${email}.`,
+    invitationAcceptAs: 'Accetta con questo account',
+    invitationUseAnother: 'Usa un altro account',
+    deadLinkTitle: 'Questo link non è valido',
+    forgotLink: 'Password dimenticata?',
+    forgotTitle: 'Password dimenticata',
+    forgotIntro:
+      'Inserisca l’indirizzo e-mail del suo account. Se un account lo usa, riceverà un link per scegliere una nuova password.',
+    forgotSubmit: 'Invia il link',
+    forgotSentTitle: 'Controlli la posta',
+    forgotSent:
+      'Se un account usa questo indirizzo, è appena stato inviato un messaggio con un link. Il link vale un’ora e si usa una sola volta.',
+    forgotUnavailable:
+      'Questo server non può inviare e-mail, quindi qui la password non si può reimpostare in questo modo. Chieda a chi lo gestisce.',
+    backToLogin: 'Torna all’accesso',
+    resetTitle: 'Nuova password',
+    resetIntro:
+      'Scelga una password che non usa altrove. Verrà disconnesso da tutti i suoi dispositivi.',
+    resetSubmit: 'Cambia la password',
+    resetDoneTitle: 'Password cambiata',
+    resetDone: 'Tutte le sue sessioni sono state chiuse. Acceda con la nuova password.',
+    resetAskAgain: 'Richiedi un nuovo link',
+    accountMenu: 'Account',
+    accountSignedInAs: (email: string) => `Connesso come ${email}`,
+    logoutEverywhere: 'Disconnetti ovunque',
+    logoutEverywhereTitle: 'Disconnettersi ovunque?',
+    logoutEverywhereHint:
+      'La sua sessione verrà chiusa su tutti i dispositivi, questo compreso, e dovrà accedere di nuovo. Utile se ha perso un dispositivo o usato un computer condiviso.',
   },
 
   mobileModeration: {

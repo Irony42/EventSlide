@@ -1114,6 +1114,56 @@ export const fr = {
     recoveryCodesRegenerate: 'Générer de nouveaux codes de secours',
     secondFactorDisable: 'Désactiver la vérification',
     secondFactorDisabled: 'Vérification en deux étapes désactivée.',
+
+    /* ---- Added by G2-10: the invitation page, the reset by e-mail and the account menu. ---- */
+    invitationTitle: 'Invitation',
+    invitationToModerate: (name: string) =>
+      `Vous avez reçu une invitation à modérer l’évènement « ${name} ».`,
+    invitationToOwn: (name: string) =>
+      `Vous avez reçu une invitation à créer et gérer les évènements de « ${name} ».`,
+    invitationToJoin: (name: string) =>
+      `Vous avez reçu une invitation à rejoindre l’équipe de « ${name} ».`,
+    invitationExpires: (when: string) => `Valable jusqu’au ${when}.`,
+    invitationChoose:
+      'Choisissez votre nom et un mot de passe : votre compte est créé en validant ce formulaire.',
+    invitationName: 'Votre nom',
+    invitationNameHint: 'Il s’affiche dans la liste des personnes qui ont accès.',
+    invitationConfirmPassword: 'Confirmer le mot de passe',
+    invitationSubmit: 'Créer mon compte et accepter',
+    invitationAccepted: 'Invitation acceptée.',
+    invitationHaveAccount: 'Vous avez déjà un compte avec cette adresse ?',
+    invitationSignInRequired:
+      'Un compte utilise déjà l’adresse de cette invitation. Connectez-vous avec ce compte : vous reviendrez ici pour accepter.',
+    invitationSignedInAs: (email: string) => `Vous êtes connecté avec ${email}.`,
+    invitationAcceptAs: 'Accepter avec ce compte',
+    invitationUseAnother: 'Utiliser un autre compte',
+    /** The title of every dead link, invitation or reset: one sentence, whatever killed it. */
+    deadLinkTitle: 'Ce lien n’est pas valable',
+    forgotLink: 'Mot de passe oublié ?',
+    forgotTitle: 'Mot de passe oublié',
+    forgotIntro:
+      'Saisissez l’adresse e-mail de votre compte. Si un compte l’utilise, vous recevrez un lien pour choisir un nouveau mot de passe.',
+    forgotSubmit: 'Envoyer le lien',
+    forgotSentTitle: 'Consultez votre messagerie',
+    forgotSent:
+      'Si un compte utilise cette adresse, un message avec un lien vient d’être envoyé. Le lien est valable une heure et ne sert qu’une fois.',
+    forgotUnavailable:
+      'Ce serveur ne peut pas envoyer d’e-mail : le mot de passe ne peut pas y être réinitialisé de cette façon. Demandez à la personne qui l’administre.',
+    backToLogin: 'Retour à la connexion',
+    resetTitle: 'Nouveau mot de passe',
+    resetIntro:
+      'Choisissez un mot de passe que vous n’utilisez pas ailleurs. Vous serez déconnecté de tous vos appareils.',
+    resetSubmit: 'Changer le mot de passe',
+    resetDoneTitle: 'Mot de passe changé',
+    resetDone:
+      'Toutes vos sessions ont été fermées. Connectez-vous avec votre nouveau mot de passe.',
+    resetAskAgain: 'Demander un nouveau lien',
+    accountMenu: 'Compte',
+    accountSignedInAs: (email: string) => `Connecté en tant que ${email}`,
+    logoutEverywhere: 'Se déconnecter partout',
+    logoutEverywhereTitle: 'Se déconnecter partout ?',
+    logoutEverywhereHint:
+      'Votre session sera fermée sur tous vos appareils, celui-ci compris, et il faudra vous reconnecter. Utile si vous avez perdu un appareil ou utilisé un ordinateur partagé.',
   },
 
   /**
@@ -1229,6 +1279,8 @@ export const fr = {
       'Cette invitation est destinée à une autre adresse e-mail que celle de ce compte.',
     'invitation.credentialsRequired':
       'Connectez-vous avec le compte invité, ou choisissez un nom et un mot de passe.',
+    'accountName.empty': 'Indiquez votre nom.',
+    'accountName.tooLong': 'Ce nom est trop long.',
 
     'displayName.tooLong': 'Prénom trop long.',
     // Not "six caractères": JOIN_CODE_LENGTH is configurable (6 à 10), so the one thing
