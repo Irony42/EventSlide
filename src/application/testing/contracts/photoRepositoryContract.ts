@@ -14,6 +14,7 @@ import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type {
   PhotoAdmission,
   PhotoAdmissionLimits,
+  PhotoQuery,
   PhotoRepository,
 } from '../../ports/photoRepository'
 import { ContentHash } from '../../../domain/photos/contentHash'
@@ -71,6 +72,33 @@ const AUTOMATIC: PhotoReview = { kind: 'automatic', at: AT }
 const requireCursor = (page: { readonly nextCursor: string | null }): string => {
   if (page.nextCursor === null) throw new Error('expected a page to report a next cursor')
   return page.nextCursor
+}
+
+/**
+ * Every id of a listing, read one page at a time with the cursor each page handed back.
+ *
+ * Bounded, so a cursor that never advances ends in a failure naming the repeat rather
+ * than in a test that hangs until the runner's timeout: a paging bug has to be reported
+ * as a paging bug.
+ */
+const pageThrough = async (
+  repo: PhotoRepository,
+  eventId: EventId,
+  limit: number,
+  query: Omit<PhotoQuery, 'limit' | 'cursor'> = {},
+): Promise<readonly string[]> => {
+  const seen: string[] = []
+  let cursor: string | undefined
+  for (let pages = 0; pages < 50; pages += 1) {
+    const page = await repo.list(
+      eventId,
+      cursor === undefined ? { ...query, limit } : { ...query, limit, cursor },
+    )
+    seen.push(...page.items.map((photo) => photo.id))
+    if (page.nextCursor === null) return seen
+    cursor = page.nextCursor
+  }
+  throw new Error(`paging with limit ${limit} never reached the last page; saw ${seen.join(', ')}`)
 }
 
 /**
@@ -430,6 +458,98 @@ export const photoRepositoryContract = (
 
       expect(first.items.map((photo) => photo.id)).toEqual(['p3', 'p2'])
       expect(second.items.map((photo) => photo.id)).toEqual(['p1'])
+    })
+
+    /**
+     * Ties are routine, not an edge case: a multi-file upload stamps every file of the
+     * batch with one `createdAt`, so a page boundary landing inside a run of equal
+     * timestamps is the ordinary case for the album's first big upload. The keyset is
+     * `(createdAt, id)` in `createdAt DESC, id DESC` order, so the cursor's own row is
+     * excluded and every row that sorts after it — the tied ones with a *smaller* id
+     * included — is not. A predicate that gets the id comparison backwards passes every
+     * test with distinct timestamps, which is how one shipped.
+     */
+    describe('paging through photos that share a timestamp', () => {
+      const MIXED = [
+        aPhoto({ id: 'p-1', eventId: WEDDING, createdAt: atPlus(0) }),
+        aPhoto({ id: 'p-b', eventId: WEDDING, createdAt: atPlus(1_000) }),
+        aPhoto({ id: 'p-a', eventId: WEDDING, createdAt: atPlus(1_000) }),
+        aPhoto({ id: 'p-c', eventId: WEDDING, createdAt: atPlus(1_000) }),
+        aPhoto({ id: 'p-2', eventId: WEDDING, createdAt: atPlus(2_000) }),
+        aPhoto({ id: 'p-e', eventId: WEDDING, createdAt: atPlus(3_000) }),
+        aPhoto({ id: 'p-d', eventId: WEDDING, createdAt: atPlus(3_000) }),
+      ]
+      // Newest first, and inside each tie by id descending.
+      const IN_ORDER = ['p-e', 'p-d', 'p-2', 'p-c', 'p-b', 'p-a', 'p-1']
+
+      it.each([1, 2, 3])(
+        'returns every photo once, in order, with a page of %i among ties and other timestamps',
+        async (limit) => {
+          await saveAll(MIXED)
+
+          expect(await pageThrough(repo, WEDDING, limit)).toEqual(IN_ORDER)
+        },
+      )
+
+      it.each([1, 2, 3])(
+        'returns every photo once, in order, when all of them share one timestamp and the page is %i',
+        async (limit) => {
+          // Four, so that a page of three still ends inside the run instead of swallowing it.
+          await saveAll([
+            aPhoto({ id: 'p-b', eventId: WEDDING, createdAt: AT }),
+            aPhoto({ id: 'p-a', eventId: WEDDING, createdAt: AT }),
+            aPhoto({ id: 'p-d', eventId: WEDDING, createdAt: AT }),
+            aPhoto({ id: 'p-c', eventId: WEDDING, createdAt: AT }),
+          ])
+
+          expect(await pageThrough(repo, WEDDING, limit)).toEqual(['p-d', 'p-c', 'p-b', 'p-a'])
+        },
+      )
+
+      it('resumes at the tied photo that sorts next, neither repeating the first page nor skipping the last row', async () => {
+        await saveAll([
+          aPhoto({ id: 'p-b', eventId: WEDDING, createdAt: AT }),
+          aPhoto({ id: 'p-a', eventId: WEDDING, createdAt: AT }),
+          aPhoto({ id: 'p-c', eventId: WEDDING, createdAt: AT }),
+        ])
+
+        const first = await repo.list(WEDDING, { limit: 2 })
+        const second = await repo.list(WEDDING, { limit: 2, cursor: requireCursor(first) })
+
+        expect(first.items.map((photo) => photo.id)).toEqual(['p-c', 'p-b'])
+        expect(second.items.map((photo) => photo.id)).toEqual(['p-a'])
+        expect(second.nextCursor).toBeNull()
+      })
+
+      it.each([1, 2])(
+        'keeps the status filter across a boundary inside a tie, with a page of %i',
+        async (limit) => {
+          await saveAll([
+            aPhoto({ id: 'p-a', eventId: WEDDING, status: 'published', createdAt: AT }),
+            aPhoto({ id: 'p-b', eventId: WEDDING, status: 'pending', createdAt: AT }),
+            aPhoto({ id: 'p-c', eventId: WEDDING, status: 'published', createdAt: AT }),
+            aPhoto({ id: 'p-d', eventId: WEDDING, status: 'published', createdAt: AT }),
+          ])
+
+          expect(await pageThrough(repo, WEDDING, limit, { statuses: ['published'] })).toEqual([
+            'p-d',
+            'p-c',
+            'p-a',
+          ])
+        },
+      )
+
+      it('never lets a tied photo of another event into the page', async () => {
+        await saveAll([
+          aPhoto({ id: 'p-a', eventId: WEDDING, createdAt: AT }),
+          aPhoto({ id: 'p-b', eventId: GALA, createdAt: AT }),
+          aPhoto({ id: 'p-c', eventId: WEDDING, createdAt: AT }),
+          aPhoto({ id: 'p-d', eventId: GALA, createdAt: AT }),
+        ])
+
+        expect(await pageThrough(repo, WEDDING, 1)).toEqual(['p-c', 'p-a'])
+        expect(await pageThrough(repo, GALA, 1)).toEqual(['p-d', 'p-b'])
+      })
     })
 
     it('reports no cursor on the last page', async () => {

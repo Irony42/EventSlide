@@ -1431,17 +1431,24 @@ Passport is removed. Login is one use case (`authenticateUser`) plus one control
 
 So: **double-submit token**, on top of Lax.
 
-| Element      | Value                                                                                                       |
-| ------------ | ----------------------------------------------------------------------------------------------------------- |
-| Cookie       | `es_csrf`, 32 random bytes base64url, readable by JS, `SameSite=Lax`, `Secure` in prod                      |
-| Header       | `X-EventSlide-CSRF`                                                                                         |
-| Issued       | on session creation, on guest join, and by `GET /api/csrf` for a cold page load                             |
-| Enforced     | `middleware/csrf.ts` on every request whose method is not GET/HEAD/OPTIONS, **including multipart uploads** |
-| Compared     | `crypto.timingSafeEqual` on the raw bytes; mismatch or absence → 403 `request.csrfInvalid`                  |
-| Also checked | `Origin` (or `Referer` when absent) against `PUBLIC_URL`, as defence in depth                               |
+| Element  | Value                                                                                                                              |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Cookie   | `es_csrf`, 32 random bytes base64url, readable by JS, `SameSite=Lax`, `Secure` in prod                                             |
+| Header   | `X-CSRF-Token`                                                                                                                     |
+| Issued   | on any request that arrives without one, so a cold page load gets it; replaced when a login or a logout changes who the browser is |
+| Enforced | `middleware/csrf.ts` on every request whose method is not GET/HEAD/OPTIONS, **including multipart uploads**                        |
+| Compared | `crypto.timingSafeEqual` on the raw bytes; absence → 403 `request.csrfMissing`, mismatch → 403 `request.csrfMismatch`              |
 
 A cross-site attacker can make the browser _send_ the cookie but cannot _read_ it to set
 the header — the same-origin policy governs reading, not sending.
+
+**There is no `Origin` or `Referer` check**, against `PUBLIC_URL` or anything else: an earlier
+version of this table listed one as defence in depth, and the code never had it
+(`middleware/csrf.ts` reads a cookie and a header and nothing more). What stands where it was
+supposed to is the preflight. `X-CSRF-Token` is not a CORS-safelisted header, so a page on
+another origin may not send it unless the server says it may, and this server mounts no CORS
+middleware and emits no `Access-Control-Allow-*` header. **If CORS is ever added, this section
+is reopened**, and an `Origin` check is one of the things to weigh then.
 
 Consequence for the frontend: **no native `<form method="post">` submissions**. Every
 mutation goes through `web/src/lib/http.ts`, which attaches the header, so no endpoint
@@ -1612,7 +1619,7 @@ once with zod at startup, exported as a frozen typed object.
 | `SESSION_SECRET`                   | **yes in production**                       | none                                  | signs `es_sid`                                                                                                                                                              |
 | `GUEST_TOKEN_SECRET`               | **yes in production**                       | none                                  | HMAC key for guest tokens                                                                                                                                                   |
 | `NODE_ENV`                         | no                                          | **`production`**                      | gates `Secure` cookies, HSTS, strict CSP, and both secrets — see below                                                                                                      |
-| `PUBLIC_URL`                       | no, but **warned** if unset in production   | `http://localhost:5173`               | join links, QR codes, `Origin` check — production refuses `http://` except on `localhost`; see below                                                                        |
+| `PUBLIC_URL`                       | no, but **warned** if unset in production   | `http://localhost:5173`               | join links, QR codes, the links in mailed invitations and password resets — production refuses `http://` except on `localhost`; see below                                   |
 | `DATABASE_PATH` / `MEDIA_ROOT`     | no                                          | `./data/eventslide.sqlite`, `./media` | see file permissions in §11                                                                                                                                                 |
 | `TRUST_PROXY_HOPS`                 | no                                          | `0`                                   | see §11 — wrong values break rate limiting, and warned below                                                                                                                |
 | `MAX_UPLOAD_BYTES`                 | no                                          | `25000000`                            | multer's per-photo limit                                                                                                                                                    |
@@ -2439,7 +2446,8 @@ route would reach for a middleware that does not compile.
 > it answers an unauthenticated caller. `scripts/verify-image.sh` drives the refusal
 > against the built image with `NODE_ENV=` blanked. The two smaller divergences in the last
 > paragraph — the secrets not being required to differ, and the missing `Origin`/`Referer`
-> check — are **unchanged and still true**. See §10.
+> check — are **unchanged and still true**; §7 and §10 now say the check is missing
+> instead of listing it. See §10.
 
 `SESSION_SECRET` and `GUEST_TOKEN_SECRET` are held to 32 characters and a placeholder
 blocklist by `config/env.ts:36-42`, environment-independently, and
@@ -2456,7 +2464,8 @@ which arrangement is in force.
 
 Two smaller divergences. The two secrets are **not** required to differ — §2 says
 "separate from `SESSION_SECRET`" and no code compares them. And the `Origin`/`Referer`
-check that §7 lists as "also checked" and §10 credits to `PUBLIC_URL` **does not exist**:
+check that §7 listed as "also checked" and §10 credited to `PUBLIC_URL` **does not exist**
+(both sections now say so):
 `middleware/csrf.ts:147-165` reads a cookie and a header and nothing else. The
 double-submit token itself is correctly built — `timingSafeEqual` at `csrf.ts:138-145`,
 mounted globally at `server.ts:116` **ahead of both multer instances** (`:133`, `:137`), so
@@ -2522,7 +2531,7 @@ cannot be traced to a file must be marked, never left standing.
 | §8                       | `base-uri 'none'`                                                                 | `baseUri: ["'self'"]` — `securityHeaders.ts:43`                                                                                                                                                                                                                                                                                                                                    |
 | §8                       | helmet lives in `server.ts`                                                       | `middleware/securityHeaders.ts:15-74`, mounted at `server.ts:65`                                                                                                                                                                                                                                                                                                                   |
 | §8                       | HSTS 180 days                                                                     | 365 days — `securityHeaders.ts:66`. Here the code is stricter than the doc                                                                                                                                                                                                                                                                                                         |
-| §7, §10                  | an `Origin` / `Referer` check against `PUBLIC_URL`                                | Does not exist — `middleware/csrf.ts:147-165`                                                                                                                                                                                                                                                                                                                                      |
+| §7, §10                  | an `Origin` / `Referer` check against `PUBLIC_URL`                                | Does not exist — `middleware/csrf.ts:147-165`. §7 and §10 no longer claim it                                                                                                                                                                                                                                                                                                       |
 | §5                       | `GET /api/join/:code` limited per code as well as per IP                          | **That route does not exist.** The code is resolved inside `POST /api/join`, limited per IP only — `routes/publicRoutes.ts:94`                                                                                                                                                                                                                                                     |
 | §5                       | the SSE hub "drops the oldest idle connection rather than refusing"               | It **refuses**, cleanly and before headers — `middleware/rateLimit.ts:156-168`, `routes/streamRoutes.ts:295`. The per-IP and per-event numbers in that table are also wrong: the code is 12 per client, 200 per event, 500 per process                                                                                                                                             |
 | §8                       | "fonts are bundled, self-hosted"                                                  | No font is shipped; `CLAUDE.md` §8 already corrected this. `font-src 'self'` is right, the note beside it is not                                                                                                                                                                                                                                                                   |
