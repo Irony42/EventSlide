@@ -127,6 +127,13 @@ DELETE CASCADE`. That cascade is what makes "delete this event and everything in
   CREATE INDEX idx_photos_event_status_created
     ON photos (event_id, status, created_at DESC);
   ```
+- **Every foreign-key column leads an index**, unless its parent is never deleted. Deleting a
+  parent row makes SQLite look its children up by that column; with no index leading with it
+  the lookup is a scan of the whole child table, across every event, once per deleted parent
+  (purging one event of thirty took 320 ms for want of three of them; migration 013).
+  `event_id` first in a composite index does not count. `migrator.test.ts` plans the lookup
+  for every foreign key and fails by name; its `PARENTS_NEVER_DELETED` map is the one
+  allow-list, and it holds `users`, because an account is switched off and never deleted.
 - `created_at TEXT NOT NULL` everywhere. `updated_at` where it is actually read.
 - Uniqueness is enforced in the database, not only in code:
   ```sql
@@ -182,6 +189,8 @@ it('adds the perceptual hash column and its partial index', () => {
 - [ ] `IF NOT EXISTS` / additive; safe on a fresh database.
 - [ ] `event_id` FK with `ON DELETE CASCADE` on any event-scoped table.
 - [ ] Index leading with `event_id` for every query path added.
+- [ ] A new foreign key has an index leading with its column (or its parent joins
+      `PARENTS_NEVER_DELETED` in `migrator.test.ts`, with the reason).
 - [ ] Uniqueness and `CHECK` constraints in the schema, not only in the domain.
 - [ ] Timestamps as ISO-8601 UTC `TEXT`.
 - [ ] Repository mapping updated both directions.
