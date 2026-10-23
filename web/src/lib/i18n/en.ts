@@ -325,11 +325,13 @@ export const en: UiText = {
     'invitation.notFound':
       'This invitation is no longer valid. Ask the person who sent it for a new one.',
     'invitation.signInRequired':
-      'An account already uses this address. Sign in with that account, then open the link again.',
+      'An account already uses the address this invitation was written to. Sign in with that account: you will come back here to accept.',
     'invitation.wrongAccount':
       'This invitation was written for a different email address than this account’s.',
     'invitation.credentialsRequired':
       'Sign in with the invited account, or choose a name and a password.',
+    'accountName.empty': 'Enter your name.',
+    'accountName.tooLong': 'That name is too long.',
 
     'displayName.tooLong': 'First name too long.',
     'joinCode.wrongLength': 'This code has the wrong number of characters.',
@@ -874,6 +876,51 @@ export const en: UiText = {
     recoveryCodesRegenerate: 'Make new recovery codes',
     secondFactorDisable: 'Switch verification off',
     secondFactorDisabled: 'Two-step verification switched off.',
+
+    /* ---- Added by G2-10: the invitation page, the reset by e-mail and the account menu. ---- */
+    invitationTitle: 'Invitation',
+    invitationToModerate: (name: string) =>
+      `You have been invited to moderate the event “${name}”.`,
+    invitationToOwn: (name: string) =>
+      `You have been invited to create and manage the events of “${name}”.`,
+    invitationToJoin: (name: string) => `You have been invited to join the team of “${name}”.`,
+    invitationExpires: (when: string) => `Valid until ${when}.`,
+    invitationChoose:
+      'Choose your name and a password: your account is created when you submit this form.',
+    invitationName: 'Your name',
+    invitationNameHint: 'It appears in the list of people who have access.',
+    invitationConfirmPassword: 'Confirm the password',
+    invitationSubmit: 'Create my account and accept',
+    invitationAccepted: 'Invitation accepted.',
+    invitationHaveAccount: 'Already have an account?',
+    invitationSignedInAs: (email: string) => `You are signed in as ${email}.`,
+    invitationAcceptAs: 'Accept with this account',
+    invitationUseAnother: 'Use another account',
+    deadLinkTitle: 'This link is not valid',
+    forgotLink: 'Forgot your password?',
+    forgotTitle: 'Forgot your password',
+    forgotIntro:
+      'Enter the e-mail address of your account. If an account uses it, you will receive a link to choose a new password.',
+    forgotSubmit: 'Send the link',
+    forgotSentTitle: 'Check your inbox',
+    forgotSent:
+      'If an account uses this address, a message with a link has just been sent. The link is valid for one hour and works once.',
+    forgotUnavailable:
+      'This server cannot send e-mail, so passwords cannot be reset here this way. Ask whoever runs it.',
+    backToLogin: 'Back to sign-in',
+    resetTitle: 'New password',
+    resetIntro:
+      'Choose a password you do not use anywhere else. You will be signed out on all your devices.',
+    resetSubmit: 'Change the password',
+    resetDoneTitle: 'Password changed',
+    resetDone: 'All your sessions were closed. Sign in with your new password.',
+    resetAskAgain: 'Ask for a new link',
+    accountMenu: 'Account',
+    accountSignedInAs: (email: string) => `Signed in as ${email}`,
+    logoutEverywhere: 'Sign out everywhere',
+    logoutEverywhereTitle: 'Sign out everywhere?',
+    logoutEverywhereHint:
+      'Your session will be closed on every device, this one included, and you will have to sign in again. Useful if you lost a device or used a shared computer.',
   },
 
   mobileModeration: {

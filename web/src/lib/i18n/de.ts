@@ -350,11 +350,13 @@ export const de: UiText = {
     'invitation.notFound':
       'Diese Einladung ist nicht mehr gültig. Bitten Sie die Person, die sie geschickt hat, um eine neue.',
     'invitation.signInRequired':
-      'Ein Konto verwendet diese Adresse bereits. Melden Sie sich mit diesem Konto an und öffnen Sie den Link erneut.',
+      'Die Adresse dieser Einladung gehört bereits zu einem Konto. Melden Sie sich mit diesem Konto an: Sie kehren dann hierher zurück, um die Einladung anzunehmen.',
     'invitation.wrongAccount':
       'Diese Einladung wurde für eine andere E-Mail-Adresse als die dieses Kontos ausgestellt.',
     'invitation.credentialsRequired':
       'Melden Sie sich mit dem eingeladenen Konto an oder wählen Sie einen Namen und ein Passwort.',
+    'accountName.empty': 'Geben Sie Ihren Namen ein.',
+    'accountName.tooLong': 'Dieser Name ist zu lang.',
 
     'displayName.tooLong': 'Vorname zu lang.',
     'joinCode.wrongLength': 'Dieser Code hat nicht die richtige Anzahl an Zeichen.',
@@ -918,6 +920,52 @@ export const de: UiText = {
     recoveryCodesRegenerate: 'Neue Wiederherstellungscodes erzeugen',
     secondFactorDisable: 'Bestätigung ausschalten',
     secondFactorDisabled: 'Bestätigung in zwei Schritten ausgeschaltet.',
+
+    /* ---- Added by G2-10: the invitation page, the reset by e-mail and the account menu. ---- */
+    invitationTitle: 'Einladung',
+    invitationToModerate: (name: string) =>
+      `Sie wurden eingeladen, die Veranstaltung „${name}“ zu moderieren.`,
+    invitationToOwn: (name: string) =>
+      `Sie wurden eingeladen, die Veranstaltungen von „${name}“ zu erstellen und zu verwalten.`,
+    invitationToJoin: (name: string) =>
+      `Sie wurden eingeladen, dem Team von „${name}“ beizutreten.`,
+    invitationExpires: (when: string) => `Gültig bis ${when}.`,
+    invitationChoose:
+      'Wählen Sie Ihren Namen und ein Passwort: Mit dem Absenden dieses Formulars wird Ihr Konto angelegt.',
+    invitationName: 'Ihr Name',
+    invitationNameHint: 'Er erscheint in der Liste der Personen mit Zugriff.',
+    invitationConfirmPassword: 'Passwort bestätigen',
+    invitationSubmit: 'Konto anlegen und annehmen',
+    invitationAccepted: 'Einladung angenommen.',
+    invitationHaveAccount: 'Sie haben bereits ein Konto?',
+    invitationSignedInAs: (email: string) => `Sie sind als ${email} angemeldet.`,
+    invitationAcceptAs: 'Mit diesem Konto annehmen',
+    invitationUseAnother: 'Anderes Konto verwenden',
+    deadLinkTitle: 'Dieser Link ist ungültig',
+    forgotLink: 'Passwort vergessen?',
+    forgotTitle: 'Passwort vergessen',
+    forgotIntro:
+      'Geben Sie die E-Mail-Adresse Ihres Kontos ein. Wenn ein Konto sie verwendet, erhalten Sie einen Link, um ein neues Passwort zu wählen.',
+    forgotSubmit: 'Link senden',
+    forgotSentTitle: 'Prüfen Sie Ihr Postfach',
+    forgotSent:
+      'Wenn ein Konto diese Adresse verwendet, wurde soeben eine Nachricht mit einem Link gesendet. Der Link ist eine Stunde gültig und funktioniert nur einmal.',
+    forgotUnavailable:
+      'Dieser Server kann keine E-Mails senden, daher lässt sich das Passwort hier nicht auf diesem Weg zurücksetzen. Fragen Sie die Person, die ihn betreibt.',
+    backToLogin: 'Zurück zur Anmeldung',
+    resetTitle: 'Neues Passwort',
+    resetIntro:
+      'Wählen Sie ein Passwort, das Sie sonst nirgends verwenden. Sie werden auf allen Ihren Geräten abgemeldet.',
+    resetSubmit: 'Passwort ändern',
+    resetDoneTitle: 'Passwort geändert',
+    resetDone: 'Alle Ihre Sitzungen wurden beendet. Melden Sie sich mit Ihrem neuen Passwort an.',
+    resetAskAgain: 'Neuen Link anfordern',
+    accountMenu: 'Konto',
+    accountSignedInAs: (email: string) => `Angemeldet als ${email}`,
+    logoutEverywhere: 'Überall abmelden',
+    logoutEverywhereTitle: 'Überall abmelden?',
+    logoutEverywhereHint:
+      'Ihre Sitzung wird auf allen Geräten beendet, auch auf diesem, und Sie müssen sich erneut anmelden. Sinnvoll, wenn Sie ein Gerät verloren oder einen gemeinsam genutzten Computer verwendet haben.',
   },
 
   mobileModeration: {

@@ -431,6 +431,9 @@ describe('the source offer', () => {
     ['a dead end under an event', '/e/camille-et-sacha/nothing/here'],
     ['the shared gallery', '/g/a-token'],
     ['the login screen', '/login'],
+    ['an invitation', '/invite/a-token'],
+    ['the forgotten-password form', '/password/forgot'],
+    ['a reset link', '/password/reset/a-token'],
     ['an address that does not exist', '/nowhere'],
   ])('is offered on %s', async (_name, route) => {
     at(route)
@@ -870,5 +873,144 @@ describe('the operator’s links', () => {
 
       expect(inFooter().getAllByRole('link')).toHaveLength(2)
     })
+  })
+})
+
+describe('the pages a link opens', () => {
+  const TOKEN = 'Z7q-Mx0Ld3Tn9VbRk2YcHs8WfAe5GuJi4PoXz1NvB6E'
+
+  it('serves the invitation to somebody with no session, who is not sent to the sign-in', async () => {
+    // The link is the credential: a gate in front of it would make every invitation end on a
+    // sign-in page for an account that does not exist yet.
+    const api = fakeApi()
+    renderWithProviders(<AppRoutes />, { api, route: `/invite/${TOKEN}` })
+
+    expect(await screen.findByLabelText(fr.auth.invitationName)).toBeVisible()
+    expect(api.invitation).toHaveBeenCalledWith(TOKEN, expect.any(AbortSignal))
+    expect(screen.queryByRole('heading', { name: fr.auth.title })).toBeNull()
+  })
+
+  it('serves the invitation in the host layout, with the language picker and the source offer', async () => {
+    at(`/invite/${TOKEN}`)
+
+    await screen.findByLabelText(fr.auth.invitationName)
+
+    expect(screen.getByRole('combobox', { name: fr.app.language })).toBeVisible()
+    // The AGPL offer is on every screen with a footer, and these are screens with one.
+    expect(
+      await screen.findByRole('link', {
+        name: new RegExp(fr.about.sourceCode.replace(/[()]/g, '\\$&'), 'i'),
+      }),
+    ).toBeVisible()
+  })
+
+  it('answers a dead invitation with the one sentence, inside the same layout', async () => {
+    const api = fakeApi({
+      invitation: vi.fn(() => Promise.reject(new ApiError(404, 'invitation.notFound'))),
+    })
+    renderWithProviders(<AppRoutes />, { api, route: `/invite/${TOKEN}` })
+
+    expect(await screen.findByRole('heading', { name: fr.auth.deadLinkTitle })).toBeVisible()
+    expect(screen.getByRole('combobox', { name: fr.app.language })).toBeVisible()
+  })
+
+  it('serves the forgotten-password form with no session', async () => {
+    at('/password/forgot')
+
+    expect(await screen.findByRole('heading', { name: fr.auth.forgotTitle })).toBeVisible()
+  })
+
+  it('serves the reset form for the token in the path, with no session', async () => {
+    const api = fakeApi()
+    renderWithProviders(<AppRoutes />, { api, route: `/password/reset/${TOKEN}` })
+
+    await userEvent.type(await screen.findByLabelText(fr.auth.newPassword), 'une-phrase-longue-1')
+    await userEvent.type(screen.getByLabelText(fr.auth.confirmPassword), 'une-phrase-longue-1')
+    await userEvent.click(screen.getByRole('button', { name: fr.auth.resetSubmit }))
+
+    await waitFor(() =>
+      expect(api.confirmPasswordReset).toHaveBeenCalledWith(TOKEN, 'une-phrase-longue-1'),
+    )
+  })
+
+  it.each(['/invite', '/invite/', '/password', '/password/reset', '/password/reset/'])(
+    'answers %s, which carries no token, with the 404 rather than a form',
+    async (route) => {
+      at(route)
+
+      expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
+    },
+  )
+
+  it('answers a token with a segment too many with the 404 too', async () => {
+    at(`/invite/${TOKEN}/extra`)
+
+    expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
+  })
+})
+
+describe('the account menu', () => {
+  const signedInApi = () =>
+    fakeApi({
+      session: vi.fn(async (): Promise<SessionResponse> => ({
+        authenticated: true,
+        user: aSessionUser({ email: 'camille@example.org' }),
+      })),
+    })
+
+  it('is in the header of the signed-in area, beside the language picker', async () => {
+    renderWithProviders(<AppRoutes />, { api: signedInApi(), route: '/admin' })
+
+    expect(await screen.findByRole('button', { name: fr.auth.accountMenu })).toBeVisible()
+    expect(screen.getByRole('combobox', { name: fr.app.language })).toBeVisible()
+  })
+
+  it('is after the language picker, at the end of the line, so its list stays on a phone', async () => {
+    // The list is anchored to the menu's end edge: put before the picker, the trigger is a
+    // picker's width from the edge and a list as wide as its longest entry hangs off the other
+    // side of a 360 px screen. jsdom has no geometry, so the order is what can be asserted here
+    // and tests/e2e/journeys/moderator-invitation.spec.ts measures the box.
+    renderWithProviders(<AppRoutes />, { api: signedInApi(), route: '/admin' })
+
+    const menu = await screen.findByRole('button', { name: fr.auth.accountMenu })
+    const picker = screen.getByRole('combobox', { name: fr.app.language })
+
+    expect(picker.compareDocumentPosition(menu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('is not on the sign-in screen, even for a browser that still holds a session', async () => {
+    renderWithProviders(<AppRoutes />, { api: signedInApi(), route: '/login' })
+
+    await screen.findByRole('heading', { name: fr.auth.title })
+
+    expect(screen.queryByRole('button', { name: fr.auth.accountMenu })).toBeNull()
+  })
+
+  it('is not on the guest surface', async () => {
+    renderWithProviders(<AppRoutes />, { api: signedInApi(), route: '/join' })
+
+    await screen.findByRole('heading', { name: fr.join.title })
+
+    expect(screen.queryByRole('button', { name: fr.auth.accountMenu })).toBeNull()
+  })
+
+  it('is not offered to an anonymous visitor, who is sent to the sign-in instead', async () => {
+    at('/admin')
+
+    await screen.findByRole('heading', { name: fr.auth.title })
+
+    expect(screen.queryByRole('button', { name: fr.auth.accountMenu })).toBeNull()
+  })
+
+  it('signs out from the console and lands on the sign-in screen', async () => {
+    const api = signedInApi()
+    renderWithProviders(<AppRoutes />, { api, route: '/admin' })
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.auth.accountMenu }))
+    await userEvent.click(screen.getByRole('button', { name: fr.auth.logout }))
+
+    expect(await screen.findByRole('heading', { name: fr.auth.title })).toBeVisible()
+    expect(api.logout).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: fr.auth.accountMenu })).toBeNull()
   })
 })

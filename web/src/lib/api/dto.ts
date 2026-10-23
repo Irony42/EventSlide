@@ -636,6 +636,13 @@ export interface AboutFeatures {
    * mode and 404 in the other.
    */
   readonly siteAdmin: boolean
+  /**
+   * The box can send mail, so `POST /api/auth/password-reset/request` is not
+   * `404 feature.unavailable` and the sign-in page may offer "Forgot your password?"
+   * (G2-08 / P3-09). Read with `false` for a server that does not say, which is the one
+   * that must not offer a link to a page that cannot work.
+   */
+  readonly forgotPassword: boolean
 }
 
 /**

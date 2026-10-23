@@ -20,7 +20,7 @@ const BUILD_ABOUT: About = {
   links: {},
   // Off until the server says otherwise: the strict reading, and the one that offers no
   // operator surface to a box that never asked for one.
-  features: { siteAdmin: false },
+  features: { siteAdmin: false, forgotPassword: false },
 }
 
 /**
@@ -159,8 +159,8 @@ const laidOver = (answer: unknown): About => {
   const features: unknown = Reflect.get(answer, 'features')
   const links: unknown = Reflect.get(answer, 'links')
   const operator = trustedOperator(Reflect.get(answer, 'operator'))
-  const siteAdmin: unknown =
-    typeof features === 'object' && features !== null ? Reflect.get(features, 'siteAdmin') : null
+  const flag = (name: string): unknown =>
+    typeof features === 'object' && features !== null ? Reflect.get(features, name) : null
 
   return {
     ...BUILD_ABOUT,
@@ -170,7 +170,12 @@ const laidOver = (answer: unknown): About => {
       : {}),
     ...(operator === undefined ? {} : { operator }),
     links: trustedLinks(links),
-    features: { siteAdmin: siteAdmin === true },
+    // Each flag is true only when the server says exactly `true`: an absent field, a string
+    // and a `1` are all "no", which is the answer that offers nothing that cannot work.
+    features: {
+      siteAdmin: flag('siteAdmin') === true,
+      forgotPassword: flag('forgotPassword') === true,
+    },
   }
 }
 

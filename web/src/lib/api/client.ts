@@ -184,6 +184,48 @@ export interface ModeratorInviteResponse {
   readonly link?: string
 }
 
+/**
+ * What accepting an invitation sends (`POST /api/invitations/:token/accept`): a person
+ * choosing how to sign in, or — from a session the link is for — nothing at all.
+ *
+ * Two shapes and no third. The server's body is `.strict()`, so a field that could name an
+ * account (an address, an id) is a 400: the account an acceptance attaches is the one in the
+ * session, never one the request names.
+ */
+export type InvitationAcceptance =
+  | { readonly kind: 'newAccount'; readonly displayName: string; readonly password: string }
+  | { readonly kind: 'signedInAccount' }
+
+/*
+ * The two answers of the invitation routes, declared here and not in `dto.ts` for the reason
+ * `ModeratorInviteResponse` is: the response envelope of one route is not one of the shapes
+ * the wall and the console share, and the server's presenters for them live beside the route.
+ */
+/**
+ * What a link offers, as `GET /api/invitations/:token` answers it (G2-09 / P3-10): the kind
+ * of thing it opens, the role, the name of the event or client, and when it ends. Nothing
+ * about who invited, nor about the address — and so nothing about whether it has an account.
+ * `targetName` is content (an event's or a client's name): printed as written, never translated.
+ */
+export interface InvitationPreviewDto {
+  readonly kind: 'event' | 'client'
+  readonly role: 'moderator' | 'owner' | 'member'
+  readonly targetName: string
+  readonly expiresAt: string
+}
+
+/**
+ * What accepting answers (`POST /api/invitations/:token/accept`). `eventSlug` is `null` for a
+ * client: there is no event to open yet. No address and no account id, by design.
+ */
+export interface InvitationAcceptedDto {
+  readonly status: 'accepted'
+  readonly kind: 'event' | 'client'
+  readonly role: 'moderator' | 'owner' | 'member'
+  readonly targetName: string
+  readonly eventSlug: string | null
+}
+
 export const createApi = (transport: Transport) => ({
   // ------------------------------------------------------------------ public --
 
@@ -359,6 +401,54 @@ export const createApi = (transport: Transport) => ({
 
   changePassword: (currentPassword: string, newPassword: string): Promise<void> =>
     transport.post('/api/auth/password', { currentPassword, newPassword }),
+
+  /**
+   * "Forgot your password?" (G2-08 / P3-09). `202 {}` for **every** address — an account, a
+   * stranger, a malformed one — so the page says the same thing whatever was typed; `404
+   * feature.unavailable` only on a box that cannot send mail, whatever the address. The
+   * locale is the page's, because it is the language the mail is written in.
+   */
+  requestPasswordReset: (email: string, locale: Locale): Promise<void> =>
+    transport.post('/api/auth/password-reset/request', { email, locale }),
+
+  /**
+   * The mailed link's token and the password chosen with it. `204`: the password is set and
+   * **every session is signed out**, none started. The token travels in the body, never in a
+   * URL the client builds. A refused password does not spend the link (`400 password.*`).
+   */
+  confirmPasswordReset: (token: string, password: string): Promise<void> =>
+    transport.post('/api/auth/password-reset/confirm', { token, password }),
+
+  /**
+   * Signs out every other session of this account. The caller's own is replaced and stays
+   * in, so "sign out everywhere" is this call and then {@link Api.logout}.
+   */
+  revokeOtherSessions: (): Promise<void> => transport.post('/api/auth/sessions/revoke-others'),
+
+  // ------------------------------------------------------------- invitations --
+
+  /**
+   * What the link in front of the reader offers, spending nothing. `404 invitation.notFound`
+   * for every dead link alike — unknown, malformed, spent, replaced, expired — and the page
+   * says one thing for all of them.
+   */
+  invitation: (token: string, signal?: AbortSignal): Promise<InvitationPreviewDto> =>
+    transport.get(`/api/invitations/${encode(token)}`, undefined, signal),
+
+  /**
+   * Accepts it. A new account starts a session in the same answer; a signed-in account
+   * sends `{}` and its session is the only thing that names it.
+   */
+  acceptInvitation: (
+    token: string,
+    acceptance: InvitationAcceptance,
+  ): Promise<InvitationAcceptedDto> =>
+    transport.post(
+      `/api/invitations/${encode(token)}/accept`,
+      acceptance.kind === 'newAccount'
+        ? { displayName: acceptance.displayName, password: acceptance.password }
+        : {},
+    ),
 
   // ------------------------------------------------------------------ events --
 

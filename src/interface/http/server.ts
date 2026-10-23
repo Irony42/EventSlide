@@ -326,6 +326,12 @@ const apiNotFound: RequestHandler = (_req, res) => {
 }
 
 /**
+ * The addresses whose last segment is a one-time credential. `loggablePath` redacts the same
+ * two families in a log line (`middleware/errorHandler.ts`); the two lists are one fact.
+ */
+const TOKEN_PAGES = ['/invite', '/invite/*splat', '/password/reset', '/password/reset/*splat']
+
+/**
  * Serves the built web app.
  *
  * Assets are content-hashed by Vite, so they can be cached for a year; `index.html`
@@ -359,6 +365,18 @@ const mountClient = (app: Express, clientDir: string, isProduction: boolean): vo
   // in this address, so no referrer may carry it off, no crawler may index it and no
   // cache may keep the page it opened. `no-store` rather than the shell's `no-cache`.
   app.get(['/g', '/g/*splat'], (_req, res) => {
+    setGalleryHeaders(res)
+    res.sendFile('index.html', { root: clientDir, headers: { 'Cache-Control': 'no-store' } })
+  })
+
+  // The pages a mailed link opens (G2-10): an invitation, `/invite/<token>`, and a password
+  // reset, `/password/reset/<token>`. The same shell with the same headers as the gallery's, for
+  // the same reason — the token is in this address, so no referrer may carry it off, no crawler
+  // may index it and no cache may keep the page it opened. `/password/forgot` carries no token
+  // and is an ordinary client route. A string pattern, like the gallery's, so that the access log
+  // names the route (`/invite/*splat`) instead of `(unmatched)`; Express matches it without regard
+  // to case, so `/INVITE/<token>` gets the same headers as it reaches the same page.
+  app.get(TOKEN_PAGES, (_req, res) => {
     setGalleryHeaders(res)
     res.sendFile('index.html', { root: clientDir, headers: { 'Cache-Control': 'no-store' } })
   })
