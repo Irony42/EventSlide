@@ -188,6 +188,42 @@ const SURFACES: readonly Surface[] = [
     }),
   },
   {
+    name: 'a published photograph, by slug, with the device cookie of a guest',
+    method: 'get',
+    asks: async (s) => ({
+      real: s.guest,
+      path: `/api/events/${SLUG}/photos/33333333-3333-4333-8333-333333333333/display`,
+    }),
+    unknown: (s) => ({
+      browser: s.guest,
+      path: `/api/events/${NO_SUCH}/photos/33333333-3333-4333-8333-333333333333/display`,
+    }),
+  },
+  {
+    name: 'a photograph whose id is not an id, which is a 400 for an event that serves',
+    method: 'get',
+    asks: async (s) => ({
+      real: s.stranger,
+      path: `/api/events/${SLUG}/photos/not-a-uuid/display`,
+    }),
+    unknown: (s) => ({
+      browser: s.stranger,
+      path: `/api/events/${NO_SUCH}/photos/not-a-uuid/display`,
+    }),
+  },
+  {
+    name: 'a photograph whose variant is not one, which is a 400 for an event that serves',
+    method: 'get',
+    asks: async (s) => ({
+      real: s.stranger,
+      path: `/api/events/${SLUG}/photos/33333333-3333-4333-8333-333333333333/bogus`,
+    }),
+    unknown: (s) => ({
+      browser: s.stranger,
+      path: `/api/events/${NO_SUCH}/photos/33333333-3333-4333-8333-333333333333/bogus`,
+    }),
+  },
+  {
     name: 'the join, by its printed code',
     method: 'post',
     body: (s) => ({ joinCode: s.joinCode, displayName: 'Nouvel invité' }),
@@ -242,7 +278,7 @@ const send = (browser: Browser, method: 'get' | 'post', path: string, body?: obj
 
 describe('a suspended client, through the real composition root', () => {
   it('names every surface of the plan that has to be a 404: the wall, the feed, the media, the join, a guest, a link', () => {
-    expect(SURFACES.map((surface) => surface.name)).toHaveLength(9)
+    expect(SURFACES.map((surface) => surface.name)).toHaveLength(12)
   })
 
   it.each(SURFACES.map((surface) => [surface.name, surface] as const))(
