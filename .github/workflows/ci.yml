@@ -93,6 +93,10 @@ jobs:
   e2e:
     name: End-to-end (${{ matrix.project }})
     runs-on: ubuntu-latest
+    # A job that hangs is held for GitHub's default 360 minutes and blocks the pull request
+    # all that time. On 2026-10-23 four end-to-end jobs sat for 20 to 50 minutes in the
+    # browser download below. No run of this job has needed half of this bound.
+    timeout-minutes: 40
     needs: quality
     strategy:
       fail-fast: false
@@ -138,7 +142,11 @@ jobs:
         run: npm ci || npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        # Bounded and retried once, like `npm ci` above: the download comes from a CDN
+        # outside the npm cache, and on 2026-10-23 it hung rather than failed. `timeout`
+        # turns a hang into a failure the second attempt can recover from.
+        timeout-minutes: 20
+        run: timeout 8m npx playwright install --with-deps || timeout 8m npx playwright install --with-deps
 
       - name: Build
         run: npm run build
@@ -249,7 +257,8 @@ jobs:
       # install for nothing.
       - name: Install Chromium
         if: env.COMPARABLE == '1'
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 20
+        run: timeout 8m npx playwright install --with-deps chromium || timeout 8m npx playwright install --with-deps chromium
 
       - name: Build
         if: env.COMPARABLE == '1'
@@ -304,7 +313,8 @@ jobs:
 
       - name: Install Chromium
         if: env.COMPARABLE == '1'
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 20
+        run: timeout 8m npx playwright install --with-deps chromium || timeout 8m npx playwright install --with-deps chromium
 
       - name: Build
         if: env.COMPARABLE == '1'
