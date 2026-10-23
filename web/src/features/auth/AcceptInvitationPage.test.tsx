@@ -429,6 +429,38 @@ describe('AcceptInvitationPage: a link that opens nothing', () => {
     expect(screen.queryByLabelText(fr.auth.password)).toBeNull()
   })
 
+  it('says the same thing for a client invitation that waits for an owner, or whose approval was withdrawn', async () => {
+    // The operator guard (G2-12): an invitation into a client that has an event or a member opens
+    // nothing until one of its owners approves it, and is judged again when it is spent. The
+    // server answers `404 invitation.notFound` for both, at the preview and at the press, so the
+    // page has one sentence for "waiting", "withdrawn" and "never existed" — which is the
+    // property: a stranger holding the link learns nothing about the client, and the person it
+    // was written for is told to ask the person who sent it.
+    const client = anInvitationPreview({ kind: 'client', role: 'owner', targetName: 'Studio Lune' })
+    const waiting = renderInvitation(
+      fakeApi({
+        invitation: vi.fn(() => Promise.reject(new ApiError(404, 'invitation.notFound'))),
+      }),
+    )
+    await screen.findByRole('heading', { name: fr.auth.deadLinkTitle })
+    const atThePreview = waiting.container.innerHTML
+    waiting.unmount()
+
+    const withdrawn = renderInvitation(
+      fakeApi({
+        invitation: vi.fn(async () => client),
+        acceptInvitation: vi.fn(() => Promise.reject(new ApiError(404, 'invitation.notFound'))),
+      }),
+    )
+    await fillIn()
+    await submit()
+    await screen.findByRole('heading', { name: fr.auth.deadLinkTitle })
+
+    expect(withdrawn.container.innerHTML).toBe(atThePreview)
+    expect(screen.getByText(fr.errors['invitation.notFound'])).toBeVisible()
+    expect(document.body.textContent).not.toContain('Studio Lune')
+  })
+
   it('does not call a dropped connection a dead link, and offers to ask again', async () => {
     const invitation = vi
       .fn<Api['invitation']>()
