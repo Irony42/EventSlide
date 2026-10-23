@@ -100,7 +100,7 @@ Read these before you upgrade, and back up with the version you run now.
     `NEW_CLIENT_MAX_TOTAL_BYTES` and `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` take positive whole
     numbers, `NEW_CLIENT_MAX_RETENTION_DAYS` a whole number from 1 to 3650,
     `NEW_CLIENT_MAX_LIVE_DAYS` one from 1 to 365, and `NEW_CLIENT_CLIPS_ALLOWED` `true`, `false`,
-    `1` or `0`.
+    `1` or `0` (#145).
   - These combinations are refused too: `SMTP_URL` without `MAIL_FROM`,
     `EVENT_CREATION=clientMembers` without `SITE_ADMIN=on`, `OPERATOR_CONTACT_EMAIL`
     without `OPERATOR_NAME`, `REQUIRE_OPERATOR_2FA=true` without a valid
@@ -174,7 +174,7 @@ Read these before you upgrade, and back up with the version you run now.
   enforced on every write path, a live window that closes an event, and a purge that is safe
   when a ceiling is unset (#121); an append-only audit log, with `AUDIT_RETENTION_DAYS`
   (default 1095, never below 365) (#118); and a content-free overview of a box, shapes and
-  sizes and never what guests made (#126); and the ceilings a new client starts with,
+  sizes and never what guests made (#126); and the ceilings a new client starts with (#145),
   `NEW_CLIENT_*` (unset means no ceiling), applied when the operator provisions one and recorded
   in the audit log. The one HTTP route in that namespace is `GET /api/site/client-defaults`, which
   shows those defaults to the operator; no route reaches the clients, the audit log or the
