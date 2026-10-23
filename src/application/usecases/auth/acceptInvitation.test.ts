@@ -65,6 +65,14 @@ describe('acceptInvitation', () => {
       expect(account?.createdAt).toEqual(world.clock.now())
     })
 
+    it("answers with the address the account was made for, which is the link's and not the request's", async () => {
+      const { token } = await world.invite()
+
+      const result = await accept({ token, credentials })
+
+      expect(result.ok && result.value.email).toBe(NEWCOMER)
+    })
+
     it('makes the password the person chose the one they keep: nothing forces them to change it', async () => {
       const { token } = await world.invite()
       await accept({ token, credentials })
@@ -364,6 +372,14 @@ describe('acceptInvitation', () => {
         before?.passwordHash,
       )
       expect((await world.users.findById(asUserId(EXISTING_ID)))?.siteRole).toBe(before?.siteRole)
+    })
+
+    it('answers with the address of the account that accepted', async () => {
+      const { token } = await world.invite({ email: EXISTING_EMAIL })
+
+      const result = await accept({ token, signedInUserId: asUserId(EXISTING_ID) })
+
+      expect(result.ok && result.value.email).toBe(EXISTING_EMAIL)
     })
 
     it('spends the link', async () => {
