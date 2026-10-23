@@ -76,8 +76,8 @@ test.describe('a guest whose phone is in German', () => {
     app,
     page,
   }) => {
-    // The decision this reversed, end to end: a moderator invited by e-mail and handed a
-    // temporary password reads their console in their own language, and the picker is
+    // The decision this reversed, end to end: a moderator invited by a link they
+    // open reads their console in their own language, and the picker is
     // there so a borrowed phone can be put right in one tap.
     await page.goto(app.url('/login'))
 
