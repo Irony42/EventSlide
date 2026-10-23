@@ -141,12 +141,20 @@ jobs:
         # because a genuinely broken lockfile fails both times.
         run: npm ci || npm ci
 
-      - name: Install Playwright browsers
-        # Bounded and retried once, like `npm ci` above: the download comes from a CDN
-        # outside the npm cache, and on 2026-10-23 it hung rather than failed. `timeout`
-        # turns a hang into a failure the second attempt can recover from.
+      - name: Install the project's browser
+        # Only the engine this project runs (chromium-*, webkit-mobile, firefox-desktop: the
+        # prefix is the engine), with its system packages. Installing all three made every
+        # job depend on the apt packages of the other two: on 2026-10-23 a chromium job
+        # failed on apt's exit code 100 while installing WebKit's libraries.
+        # Bounded and retried once, like `npm ci` above: the download and apt both come
+        # from hosts outside the npm cache, and that day they hung rather than failed.
+        # `timeout` turns a hang into a failure the second attempt can recover from.
         timeout-minutes: 20
-        run: timeout 8m npx playwright install --with-deps || timeout 8m npx playwright install --with-deps
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: |
+          engine="${PROJECT%%-*}"
+          timeout 8m npx playwright install --with-deps "$engine" || timeout 8m npx playwright install --with-deps "$engine"
 
       - name: Build
         run: npm run build
