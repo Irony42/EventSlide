@@ -4,6 +4,7 @@ import request from 'supertest'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import * as clientSchemas from '../schemas/clientSchemas'
 import * as requestSchemas from '../schemas/requestSchemas'
 import { buildServerHarness } from '../testing/serverHarness'
 
@@ -556,7 +557,7 @@ const routeFor = (call: ClientCall): ServerRoute | null => {
 
 // ------------------------------------------------------------------ pairing --
 
-const SCHEMAS: Readonly<Record<string, unknown>> = { ...requestSchemas }
+const SCHEMAS: Readonly<Record<string, unknown>> = { ...requestSchemas, ...clientSchemas }
 
 const asObjectSchema = (name: string): z.ZodObject | null => {
   const schema = SCHEMAS[name]

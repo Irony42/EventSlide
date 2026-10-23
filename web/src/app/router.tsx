@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { Spinner } from '../design-system/components/Spinner'
 import { ToastProvider } from '../design-system/components/ToastProvider'
 import { DeferredLocale } from '../lib/i18n/LocaleProvider'
+import { useAbout } from './useAbout'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
 import { JoinPage } from '../features/join/JoinPage'
@@ -91,6 +92,13 @@ const GalleryPage = lazy(async () => ({
  */
 const AboutPage = lazy(async () => ({
   default: (await import('../features/about/AboutPage')).AboutPage,
+}))
+
+/**
+ * The client's own space (G2-16 / P3-17): lazy, and registered only on a box that has one.
+ */
+const ClientSpacePage = lazy(async () => ({
+  default: (await import('../features/admin/ClientSpacePage')).ClientSpacePage,
 }))
 
 const ChangePasswordPage = lazy(async () => ({
@@ -304,6 +312,10 @@ const WallLayout = () => (
 )
 
 export function AppRoutes() {
+  // Read once the box has said so: with `SITE_ADMIN=off` there is no client space, so no route is
+  // registered and a direct visit to its address is the not-found screen, as for any address
+  // nobody wrote (G2-00 / P3-21).
+  const siteAdmin = useAbout().features.siteAdmin
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
@@ -364,6 +376,7 @@ export function AppRoutes() {
                 element={<MobileModerationPage />}
               />
               <Route path="/admin/events/:slug/settings" element={<EventSettingsPage />} />
+              {siteAdmin ? <Route path="/admin/client" element={<ClientSpacePage />} /> : null}
               <Route path="/admin/password" element={<ChangePasswordPage />} />
               {/* The operator's second factor (G2-13). Not linked from a menu yet: the console
                   that will link it (G2-15) does not exist, and the address is the entry. */}

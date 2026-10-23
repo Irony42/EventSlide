@@ -7,7 +7,10 @@ import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { slugify } from '../../lib/slugify'
+import { CeilingBanner } from './components/CeilingBanner'
 import { EventTemplatePicker } from './components/EventTemplatePicker'
+import { SuspensionScreen } from './components/SuspensionScreen'
+import { useClientLimits } from './hooks/useClientLimits'
 import { useCreateEvent } from './hooks/useEventActions'
 import styles from './NewEventPage.module.css'
 import type { EventTemplateKey } from '../../lib/api/dto'
@@ -17,6 +20,8 @@ export function NewEventPage() {
   const t = useTranslations()
   const { locale } = useLocale()
   const create = useCreateEvent()
+  const { clients, contact } = useClientLimits()
+  const suspended = clients.some((client) => client.suspended)
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -69,74 +74,86 @@ export function NewEventPage() {
     <div className={styles['page']}>
       <h1 className={styles['title']}>{t.admin.newEvent}</h1>
 
-      <form className={styles['form']} onSubmit={handleSubmit} noValidate>
-        <Field label={t.admin.eventName} hint={t.admin.eventNameHint}>
-          {(control) => (
-            <TextInput
-              {...control}
-              name="name"
-              autoComplete="off"
-              required
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          )}
-        </Field>
+      {/* A suspended account cannot create: it is told so here, before it fills a form the server
+          would refuse (`403 client.suspended`), and the form is not offered. Otherwise the limits
+          that are close come first, because the refusal of a ceiling is a `409` after the fact. */}
+      {suspended ? <SuspensionScreen contact={contact} /> : null}
+      {suspended
+        ? null
+        : clients.map((client) => (
+            <CeilingBanner key={client.id} limits={client} contact={contact} />
+          ))}
 
-        {/* The hint already opens with "Facultatif", so `Field`'s own optional marker
+      {suspended ? null : (
+        <form className={styles['form']} onSubmit={handleSubmit} noValidate>
+          <Field label={t.admin.eventName} hint={t.admin.eventNameHint}>
+            {(control) => (
+              <TextInput
+                {...control}
+                name="name"
+                autoComplete="off"
+                required
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            )}
+          </Field>
+
+          {/* The hint already opens with "Facultatif", so `Field`'s own optional marker
             would say it twice in the same breath. */}
-        <Field label={t.admin.slug} hint={t.admin.slugHint}>
-          {(control) => (
-            <TextInput
-              {...control}
-              name="slug"
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              value={slug}
-              onChange={(event) => setSlug(event.target.value)}
-            />
-          )}
-        </Field>
+          <Field label={t.admin.slug} hint={t.admin.slugHint}>
+            {(control) => (
+              <TextInput
+                {...control}
+                name="slug"
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                value={slug}
+                onChange={(event) => setSlug(event.target.value)}
+              />
+            )}
+          </Field>
 
-        {/*
+          {/*
           The region is mounted from the start, empty or not: a live region announces
           changes to content it already had, and one created at the same moment as its
           text is silent.
         */}
-        <div className={styles['preview']} aria-live="polite">
-          <span className={styles['previewLabel']}>{t.admin.slugPreviewLabel}</span>
-          {preview.length === 0 ? (
-            <span className={styles['previewEmpty']}>{t.admin.slugPreviewEmpty}</span>
-          ) : (
-            <span className={styles['previewValue']}>{`/e/${preview}`}</span>
-          )}
-        </div>
+          <div className={styles['preview']} aria-live="polite">
+            <span className={styles['previewLabel']}>{t.admin.slugPreviewLabel}</span>
+            {preview.length === 0 ? (
+              <span className={styles['previewEmpty']}>{t.admin.slugPreviewEmpty}</span>
+            ) : (
+              <span className={styles['previewValue']}>{`/e/${preview}`}</span>
+            )}
+          </div>
 
-        {/*
+          {/*
           After the address rather than before it: the name is what the form is for and
           the address is derived from it, so the two stay together at the top and the
           policy decision — which is optional, and which the host may not have an opinion
           about — comes last.
         */}
-        <EventTemplatePicker value={template} disabled={create.busy} onChange={setTemplate} />
+          <EventTemplatePicker value={template} disabled={create.busy} onChange={setTemplate} />
 
-        {failure === null ? null : (
-          <p className={styles['alert']} role="alert">
-            <span className={styles['alertGlyph']}>
-              <StatusIcon tone="danger" />
-            </span>
-            {failure}
-          </p>
-        )}
+          {failure === null ? null : (
+            <p className={styles['alert']} role="alert">
+              <span className={styles['alertGlyph']}>
+                <StatusIcon tone="danger" />
+              </span>
+              {failure}
+            </p>
+          )}
 
-        <div className={styles['actions']}>
-          <Button type="submit" variant="primary" loading={create.busy}>
-            {t.admin.create}
-          </Button>
-          <Link to="/admin">{t.app.cancel}</Link>
-        </div>
-      </form>
+          <div className={styles['actions']}>
+            <Button type="submit" variant="primary" loading={create.busy}>
+              {t.admin.create}
+            </Button>
+            <Link to="/admin">{t.app.cancel}</Link>
+          </div>
+        </form>
+      )}
     </div>
   )
 }

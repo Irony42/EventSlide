@@ -863,8 +863,11 @@ export const fr = {
     loadFailed: 'Chargement impossible',
     eventLoading: 'Chargement de l’évènement…',
     eventsEmpty: 'Aucun évènement pour le moment.',
-    eventsEmptyHint:
-      'Créez votre premier évènement, puis imprimez son QR code pour le poser sur les tables.',
+    eventsEmptyHint: 'Trois étapes pour être prêt le jour J.',
+    emptyStepCreate: 'Créez l’évènement.',
+    emptyStepTest:
+      'Testez le mur sur le réseau du lieu, depuis un téléphone qui n’est pas le vôtre.',
+    emptyStepPrint: 'Imprimez le QR code et posez-le sur les tables.',
     create: 'Créer l’évènement',
     slugHint: 'Facultatif. Laissez vide pour la déduire du nom.',
     slugPreviewLabel: 'Adresse de la galerie',
@@ -1206,6 +1209,7 @@ export const fr = {
     'event.quotaAboveCeiling': 'Ce quota dépasse la limite que ce serveur autorise.',
     'event.creationNotAllowed': 'Votre compte ne peut pas créer d’évènement sur ce serveur.',
     'client.notFound': 'Ce compte client est introuvable.',
+    'client.ownerRequired': 'Seul un propriétaire du compte peut consulter cette page.',
     'client.ceilingReached': 'Votre compte a atteint le nombre d’évènements autorisé.',
     'client.storageFull': 'La galerie a atteint sa capacité. Prévenez l’organisateur.',
     'client.liveNotAllowed': 'Votre compte ne peut pas ouvrir d’évènement pour le moment.',
@@ -1607,6 +1611,62 @@ export const fr = {
      * operator's own name, which is content and is never translated.
      */
     operatorHostedBy: 'Hébergé par',
+  },
+  /**
+   * The client's own space (roadmap §10.9; G2-16 / P3-17): the banner over a ceiling, the screen
+   * of a suspended account, and the page where an owner reads their limits, what waits for
+   * their approval and what the operator did on their account. Only on a box with `SITE_ADMIN=on`.
+   *
+   * **No name of a person or of a client is interpolated into a phrase here**: the client's name
+   * is content and is printed beside the sentence, never inside it.
+   */
+  clientSpace: {
+    bannerLabel: 'Limites de votre compte',
+    warningTitle: 'Vous approchez d’une limite de votre compte',
+    reachedTitle: 'Une limite de votre compte est atteinte',
+    eventsMeter: (used: number, max: number) => `Évènements : ${used} sur ${max}`,
+    eventsPerPeriodMeter: (used: number, max: number) =>
+      `Évènements créés sur la période : ${used} sur ${max}`,
+    storageMeter: (used: string, max: string) => `Stockage : ${used} sur ${max}`,
+    liveNotAllowed: 'L’ouverture de nouveaux évènements est suspendue sur votre compte.',
+    contactHint: 'Pour lever une limite, contactez votre opérateur.',
+    contactAction: 'Contacter l’opérateur',
+    suspendedTitle: 'Votre compte est suspendu',
+    suspendedBody:
+      'Vos albums restent consultables et exportables. Tant que la suspension dure, vous ne pouvez ni créer, ni ouvrir, ni modifier un évènement, et le public ne voit plus vos murs.',
+    spaceLink: 'Espace client',
+    spaceTitle: 'Espace client',
+    limitsTitle: 'Limites et usage',
+    noLimits: 'Votre opérateur n’a fixé aucune limite à votre compte.',
+    roleOwner: 'Propriétaire',
+    roleMember: 'Membre',
+    pendingTitle: 'En attente de votre accord',
+    pendingHint:
+      'Votre opérateur a invité ces personnes dans votre compte. Elles n’y entrent qu’avec l’accord d’un propriétaire.',
+    pendingEmpty: 'Rien n’attend votre accord.',
+    pendingValidUntil: (date: string) => `Valable jusqu’au ${date}`,
+    approve: 'Approuver',
+    approved: 'Invitation approuvée.',
+    auditTitle: 'Journal des actions',
+    auditHint:
+      'Tout ce que votre opérateur, le système ou votre équipe a fait sur votre compte, du plus récent au plus ancien.',
+    auditEmpty: 'Aucune action enregistrée pour le moment.',
+    auditMore: 'Voir les actions plus anciennes',
+    actorOperator: 'Opérateur',
+    actorMember: 'Votre équipe',
+    actorSystem: 'Système',
+    actorIntegration: 'Intégration',
+    actionCeilingsChanged: 'Vos limites ont été modifiées.',
+    actionPeriodReset: 'Votre période a été renouvelée.',
+    actionInvitationIssued: 'Une invitation a été émise.',
+    actionInvitationIssuedPending: 'Une invitation a été émise ; elle attend votre accord.',
+    actionInvitationApproved: 'Une invitation a été approuvée.',
+    actionResetRequested: 'Une réinitialisation de mot de passe a été demandée pour un membre.',
+    actionResetApproved: 'Une réinitialisation de mot de passe a été approuvée.',
+    actionResetMailed: 'Un lien de réinitialisation a été envoyé au membre.',
+    actionResetShown: 'Un lien de réinitialisation a été remis à l’opérateur.',
+    actionOther: 'Une action a été enregistrée.',
+    liveWindowEnd: (date: string) => `Le direct se termine le ${date}.`,
   },
 } as const
 

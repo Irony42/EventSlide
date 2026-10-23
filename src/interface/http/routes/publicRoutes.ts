@@ -130,7 +130,7 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
           displayName: joined.displayName,
           // Not the event entity: a guest learns the name and what they may do. No join
           // code echoed back, no quota, no owner, no counts.
-          event: toPublicEventDto(joined.event, presenter),
+          event: toPublicEventDto(joined.event, presenter, joined.clipsAccepted),
           // So the upload screen knows before its first frame whether to show the
           // picker or the notice (roadmap §5.1), with no second round trip on venue Wi-Fi.
           privacyNotice: toPrivacyNoticeStateDto(joined.privacyNotice),

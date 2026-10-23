@@ -643,6 +643,32 @@ export class Event {
     return remainingQuota(this.effectiveQuotaBytes(ceilings), usedBytes)
   }
 
+  /**
+   * Whether a guest may be offered, and may send, a video here: the host's switch **and** the
+   * client's plan (`clips_allowed`), the same two conditions `uploadClip` refuses on.
+   *
+   * It is the rule behind the `allowClips` a guest reads when they join. Without it the join
+   * answered from the host's switch alone, and a downgraded client's guest was offered a video
+   * control that said no only after the upload (G2-05's review, finding 4; G2-16). `null` is no
+   * client, and no client has no plan to refuse with: the host's switch decides.
+   */
+  acceptsClips(ceilings: ClientCeilings | null): boolean {
+    return this.props.settings.allowClips && (ceilings === null || ceilings.clipsAllowed)
+  }
+
+  /**
+   * When this event's live window closes, for a host who wants to know: `opened_at +
+   * max_live_days`, or `null` when there is none to know — no client, no `max_live_days`, or an
+   * event that has never opened (its window has not started).
+   *
+   * It asks `ClientCeilings.liveDeadline`, the arithmetic the sweep and `liveWindowOver` use,
+   * so the date a host is shown is the date the box acts on.
+   */
+  liveWindowEnd(ceilings: ClientCeilings | null): Date | null {
+    if (ceilings === null || this.props.openedAt === null) return null
+    return ceilings.liveDeadline(this.props.openedAt)
+  }
+
   // ------------------------------------------------------------------ retention --
 
   /**

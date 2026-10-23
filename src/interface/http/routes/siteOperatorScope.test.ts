@@ -163,6 +163,15 @@ const CLIENT_SPACE_ROUTES: Readonly<Record<string, string>> = {
     'an owner letting an operator’s invitation into the client’s **account** (R1 of the ' +
     'operator guard): the answer is decided by the client’s own roster, so an operator who ' +
     'is no part of the client is answered as a stranger is, and no event is read',
+  'get /api/client/audit':
+    'an owner reading the log of their own **client** (R5): scoped by the caller’s roster, so ' +
+    'an operator who is no part of the client is answered as a stranger is, and no event is read',
+  'get /api/client/invitations':
+    'an owner reading what waits for their approval: the client’s roster decides, an operator ' +
+    'who is no part of the client is answered as a stranger is, and no event is read',
+  'get /api/me/limits':
+    'the caller’s own clients’ ceilings and usage, from their own memberships: it takes no id, ' +
+    'so there is nothing to name another client with, and no event is read',
 }
 
 /**

@@ -16,6 +16,10 @@ import type { StepUp } from '../../application/usecases/auth/stepUp'
 import type { VerifySecondFactor } from '../../application/usecases/auth/verifySecondFactor'
 
 import type { ApproveInvitation } from '../../application/usecases/clients/approveInvitation'
+import type { GetClientLimits } from '../../application/usecases/clients/getClientLimits'
+import type { ListClientAudit } from '../../application/usecases/clients/listClientAudit'
+import type { ListPendingInvitations } from '../../application/usecases/clients/listPendingInvitations'
+import type { GetEventLimits } from '../../application/usecases/events/getEventLimits'
 
 import type { ChangeEventStatus } from '../../application/usecases/events/changeEventStatus'
 import type { CreateEvent } from '../../application/usecases/events/createEvent'
@@ -112,10 +116,15 @@ export interface HttpUseCases {
 
   // the client's own space (G2-12 / P3-14): the owner's half of R1
   readonly approveInvitation: ApproveInvitation
+  // ... and what it reads of its own space (G2-16 / P3-17), each scoped by the caller's roster
+  readonly getClientLimits: GetClientLimits
+  readonly listClientAudit: ListClientAudit
+  readonly listPendingInvitations: ListPendingInvitations
 
   // events
   readonly createEvent: CreateEvent
   readonly getEventBySlug: GetEventBySlug
+  readonly getEventLimits: GetEventLimits
   readonly listEventsForHost: ListEventsForHost
   readonly resolveJoinCode: ResolveJoinCode
   readonly updateEventSettings: UpdateEventSettings

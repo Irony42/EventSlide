@@ -130,7 +130,14 @@ export const eventRoutes = ({
       return
     }
     const counts = await countsFor(actor.userId, result.value.id)
-    sendJson(res, toEventDto({ event: result.value, role: actor.role, counts }, presenter), status)
+    // The quota the box will actually hold the event to, and its live window: what its client
+    // makes of the event (G2-16 / P3-17). Nothing is read for an event with no client.
+    const limits = await usecases.getEventLimits({ event: result.value })
+    sendJson(
+      res,
+      toEventDto({ event: result.value, role: actor.role, counts, limits }, presenter),
+      status,
+    )
   }
 
   // ---------------------------------------------------------------- dashboard --

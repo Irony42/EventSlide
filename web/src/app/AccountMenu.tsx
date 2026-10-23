@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../design-system/components/Button'
 import { ConfirmDialog } from '../design-system/components/ConfirmDialog'
 import { useToast } from '../design-system/components/useToast'
+import { useClientLimits } from '../features/admin/hooks/useClientLimits'
 import { useSignOut } from '../features/auth/hooks/useAuthActions'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { useSession } from './useSession'
@@ -33,7 +34,8 @@ import styles from './AccountMenu.module.css'
  * itself, because this is mounted in a layout that also serves `/login`: a menu that assumed a
  * session would flash on the way in.
  *
- * Not here yet: the operator's console entry (`canOperateSite`). There is no console to open
+ * **The client space** (G2-16 / P3-17) is offered above them to a member of a client, on a box
+ * that has one. Not here yet: the operator's console entry (`canOperateSite`). There is no console to open
  * until G2-15, and an entry pointing at the not-found page would be a defect, not a feature.
  */
 export function AccountMenu() {
@@ -43,6 +45,10 @@ export function AccountMenu() {
   const toast = useToast()
   const { signOut, signOutEverywhere, busy } = useSignOut()
   const panelId = useId()
+  // The client's own space is offered to a member of a client, and to nobody else: the entry
+  // exists only when the box has a client space (`features.siteAdmin`, read by the hook) and
+  // the account is in one.
+  const { clients } = useClientLimits(session?.authenticated === true)
 
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -130,6 +136,11 @@ export function AccountMenu() {
       {open ? (
         <div id={panelId} className={styles['panel']}>
           <p className={styles['who']}>{t.auth.accountSignedInAs(session.user.email)}</p>
+          {clients.length > 0 ? (
+            <Link className={styles['item']} to="/admin/client" onClick={() => setOpen(false)}>
+              {t.clientSpace.spaceLink}
+            </Link>
+          ) : null}
           <Link className={styles['item']} to="/admin/password" onClick={() => setOpen(false)}>
             {t.auth.changePassword}
           </Link>

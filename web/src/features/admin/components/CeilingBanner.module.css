@@ -1,0 +1,44 @@
+.banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+/* The border carries the tone; the glyph and the words say the same thing, so colour is never
+   the only signal. */
+.warning {
+  border-color: var(--warning);
+}
+
+.reached {
+  border-color: var(--danger);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.glyph {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.lines {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.action {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

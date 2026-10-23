@@ -2678,8 +2678,8 @@ is future work, and nothing here claims it is done.
 ## 17. The audit log
 
 Roadmap §10.8. Who changed which ceiling, and when, recorded by the application in a table that its
-own code cannot rewrite by accident. There is **no route** that reads it yet: the operator's view is
-G2-14 (`/api/site`) and the client's own is G2-16, and neither is described here until it exists.
+own code cannot rewrite by accident. The client's own view is `GET /api/client/audit` (§21); the
+operator's view is G2-14 (`/api/site`) and is not described here until it exists.
 
 **What a row holds.** An instant, the actor (`operator`, `member`, `system` or `integration`, with
 an account id for an operator or a member, and a constant label, never both, for a process or an
@@ -3025,8 +3025,8 @@ reset.tooManyForAddress`.
 - **No word for an address, a link or a role.** The vocabulary of `auditAction.ts` has no string kind
   but an instant, so these lines cannot carry them: `pendingApproval` and `linkShown` are the facts a
   client's owner reads them for. The tests plant the address, the token and the link and sweep the log.
-- **The client reads them with G2-16** (`GET /api/client/audit`, which is not built). Until then the
-  lines are written and nothing over the wire reads them.
+- **The client reads them** with `GET /api/client/audit` (§21): an owner reads every line about their
+  client, with no account named.
 
 ### What it does not do
 
@@ -3041,12 +3041,10 @@ reset.tooManyForAddress`.
   item, replacing `users.password_hash` by hand with a bcrypt hash the operator generated, which the
   audit log does not see. That is the gap the command is for, and it is its own change: it needs a
   composition-root entry and a notification mail to the account, in five languages.
-- **An owner cannot yet see what waits for them, or approve a reset.** The list of what waits
-  (`GET /api/client/…`, G2-16) and the route that approves a reset request are not built: an owner
-  knows an invitation's id only if told, and `approvePasswordReset` has no route. The invitation's
-  approval route exists because the plan names it, and so the guard is complete at the use-case level
-  and incomplete as a product until the owner's space lands. **`copyLinkWithOwnerApproval` is therefore
-  fail-closed and unusable end to end today**: a request is written and nobody can approve it.
+- **An owner can see what waits for them, and cannot yet approve a reset.** The list of invitations
+  that wait is `GET /api/client/invitations` (§21). The route that approves a reset request is still not
+  built: `approvePasswordReset` has no route. **`copyLinkWithOwnerApproval` is therefore fail-closed and
+  unusable end to end today**: a request is written and nobody can approve it.
 - **Disabling the last owner is not one of the six rules.** An operator can switch an account off
   (`disableAccount`). If that is the only owner of a client, nothing that waits for an owner can be
   approved, which is a lock and not an escalation: R1 and R2 fail closed. Who may disable whom, and the
@@ -3063,3 +3061,75 @@ reset.tooManyForAddress`.
   thing to break it.
 - **R3 has no use case to hold yet.** There is no ownership transfer to guard (P9-02); the rule is
   held at the only door that confers ownership today, an owner invitation, and is a named test there.
+
+## 21. The client's own space
+
+Roadmap §10.9, G2-16 / P3-17. What an account that belongs to a client reads about it: its limits
+(`GET /api/me/limits`), and, for an **owner**, the log of what was done on the client
+(`GET /api/client/audit`) and the invitations that wait for an approval
+(`GET /api/client/invitations`). All three exist only with `SITE_ADMIN=on`; off, none is mounted and each
+answers as a path nobody wrote (`siteAdminMode`-style, held by `clientSpaceRoutes.test.ts`), so a solo box
+exposes nothing here and its other answers are byte-for-byte what they were.
+
+**The audience is the client and nobody else's.** The rule is one sentence and it is held four ways:
+**client A never reads client B's limits, log or invitations.**
+
+- **No identifier the request supplies reaches a query unchecked.** `/api/me/limits` takes no parameter.
+  `/api/client/audit` and `/api/client/invitations` accept a `clientId` only so that an account in several
+  clients can say which, and `resolveOwnedClient` checks it against the **caller's own roster, read on this
+  request**, before anything is read. A client the caller is not in is `404 client.notFound`, the answer
+  for a client that does not exist, so the routes enumerate nobody.
+- **The scope is in the query, not after it.** `AuditLog.list` is always handed the client the roster
+  vouched for (the use case has no path to an unfiltered page), and `listAwaitingApproval` filters by
+  `client_id` in the statement. A contract case holds each of them against a second client's rows.
+- **Owner or nothing for the log and the approvals.** A member who is not an owner is told
+  `403 client.ownerRequired`; they are in the client and know it exists. They read the limits.
+- **Authority is read from storage per request** (CLAUDE.md §8), never from the session: an owner removed or
+  switched off loses these three routes on their next request.
+
+**What the log holds, and what it does not.** It holds the lines that carry the client's id: the
+operator's acts on the client (ceilings, a period renewal, an invitation), the owners' own approvals, and
+the reset lines, which are written once per client of the account. **Account-level lines are not in it
+today**: `disableAccount` and a member's own second-factor lines are written with no client, so an owner
+does not read them. `disableAccount` has no route yet; making it write one line per client, as the
+reset use case does, belongs with the route that mounts it (G2-14), and the plan's "every operator
+action on the client" is complete only then. `seq` and `next` are the box-wide counter, so an owner can
+see gaps between their own lines: they say that other lines were written, never what or for whom.
+The **details** an owner reads are checked again at the door (`readableDetails`): only numbers,
+switches, instants and objects of those, whatever an older row holds.
+
+**What a client's owner never learns from the log.** The audit presenter (`toClientAuditPageDto`) copies
+field by field and drops what identifies a person: the actor is its **kind** (`operator`, `member`,
+`system`, `integration`) and, for an integration, its constant label, never the account id; the id of an
+**account** subject is not copied either (an invitation's and the client's own are, because the owner matches
+them against their own list). The entries themselves already hold no address, slug, name, token or link: the
+allow-list in `auditAction.ts` has no string kind but an instant. `clientSpaceRoutes.test.ts` plants the
+operator's and the owner's ids, their addresses and an event's name, slug, join code and a photograph's
+caption, and sweeps every answer for them. The one place an address does appear is
+`GET /api/client/invitations`, which shows an owner whom an operator wants to add to their account — that is
+the consent R1 asks of them, and it reaches owners of that client only.
+
+**What a limit says is what the box enforces.** `usage` is read the way the write paths read it: events in
+every status, the period counter that never goes down, and the admission byte sum (`clientTotalBytes`). The
+level of each meter (`ok`, `warning` from 90 per cent, `reached` at 100) is decided by one function
+(`ceilingLevel`, whole-number arithmetic, so the line is exactly 90 per cent with no rounding in the question), and
+the screens render the level they are given. The same session closes two findings of G2-05's review: the
+event the host reads (`GET /api/events/:slug`) answers `quotaBytes` as the quota the uploads are **actually**
+judged against (`Event.effectiveQuotaBytes`), and the join a guest reads answers `allowClips` from the
+host's switch **and** the client's plan (`Event.acceptsClips`, the rule `uploadClip` refuses on). Neither
+reads the clients table for an event with no client.
+
+**What this does not do.**
+
+- **It enforces nothing.** The banner and the suspension screen tell; the refusals are the write paths'
+  (`client.ceilingReached` 409, `client.storageFull` 413, `client.suspended` 403, §5). A client whose
+  limits could not be read still creates and moderates, and meets the server's refusal if a ceiling is in the way.
+- **Suspension is displayed, not applied here.** `suspended` reports `clients.suspended_at`; what suspension
+  refuses (`403 client.suspended`, the same 404 as an unknown event on the public surfaces) is `suspendClient`
+  and the routes of G2-14 / P3-13, which this change does not touch.
+- **There is no `links.upgrade`.** The call to action is "contact your operator": a link to the operator's
+  published contact address when there is one, words otherwise. An upgrade address belongs to the paid plan's
+  `UPGRADE_URL` (P3-18) and no box here publishes one.
+- **The operator reads none of this through it.** An operator who is also a member of a client reads that
+  client's space like any other member, which gives them nothing `/api/site` will not. Nothing here grants
+  an operator an event, and `siteOperatorScope.test.ts` sweeps the three routes in both modes.

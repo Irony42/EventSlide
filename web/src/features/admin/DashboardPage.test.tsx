@@ -5,9 +5,14 @@ import { DashboardPage } from './DashboardPage'
 import { ApiError } from '../../lib/http'
 import { formatBytes } from '../../lib/format'
 import { fr } from '../../lib/i18n/fr'
-import { fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
+import {
+  aClientLimits,
+  anAbout,
+  fakeApi,
+  renderWithProviders,
+} from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
-import type { EventSummaryDto } from '../../lib/api/dto'
+import type { ClientLimitsDto, EventSummaryDto } from '../../lib/api/dto'
 
 /** The harness has no summary factory: `GET /api/events` answers with these. */
 const aSummary = (overrides: Partial<EventSummaryDto> = {}): EventSummaryDto => ({
@@ -158,5 +163,108 @@ describe('DashboardPage', () => {
       await screen.findByText(spaced(fr.admin.storage(formatBytes(2_400_000, 'fr')))),
     ).toBeVisible()
     expect(screen.queryByRole('progressbar')).toBeNull()
+  })
+})
+
+/**
+ * The empty dashboard (G2-16 / P3-17): what a first event takes, in the order it is done. It is
+ * generic on purpose and shown to every host, a self-hoster included: nothing in it depends on
+ * `SITE_ADMIN`.
+ */
+describe('DashboardPage: the first event', () => {
+  it('lists the three steps of a first event, in the order they are done', async () => {
+    renderDashboard(fakeApi())
+
+    expect(await screen.findByText(fr.admin.eventsEmpty)).toBeVisible()
+    const steps = screen.getAllByRole('listitem').map((item) => item.textContent)
+    expect(steps).toEqual([
+      fr.admin.emptyStepCreate,
+      fr.admin.emptyStepTest,
+      fr.admin.emptyStepPrint,
+    ])
+  })
+
+  it('does not show the steps once there is an event', async () => {
+    renderDashboard(fakeApi({ listEvents: vi.fn(async () => ({ items: [aSummary()] })) }))
+
+    expect(await screen.findByRole('link', { name: 'Camille & Sacha' })).toBeVisible()
+    expect(screen.queryByText(fr.admin.emptyStepTest)).toBeNull()
+  })
+})
+
+/**
+ * The client's own space on the dashboard (G2-16 / P3-17): the banner, the suspension screen,
+ * and — with `SITE_ADMIN=off` — nothing at all, not even a request.
+ */
+describe('DashboardPage: a client’s limits', () => {
+  const onBox = (limits: readonly ClientLimitsDto[], extra: Partial<Api> = {}) =>
+    fakeApi({
+      about: vi.fn(async () =>
+        anAbout({
+          features: { siteAdmin: true, forgotPassword: false },
+          operator: { name: 'Pierre', contactEmail: 'ops@example.org' },
+        }),
+      ),
+      myLimits: vi.fn(async () => ({ clients: limits })),
+      ...extra,
+    })
+
+  it('asks nothing of a box with no client space, and shows nothing of one', async () => {
+    const api = fakeApi()
+
+    renderDashboard(api)
+
+    expect(await screen.findByText(fr.admin.eventsEmpty)).toBeVisible()
+    expect(api.myLimits).not.toHaveBeenCalled()
+    expect(screen.queryByRole('region', { name: fr.clientSpace.bannerLabel })).toBeNull()
+    expect(screen.queryByRole('link', { name: fr.clientSpace.spaceLink })).toBeNull()
+  })
+
+  it('warns a client that is close to a ceiling, and leads to its space and to its operator', async () => {
+    const limits = aClientLimits({
+      meters: [{ kind: 'events', used: 9, max: 10, level: 'warning' }],
+    })
+
+    renderDashboard(onBox([limits]))
+
+    const banner = await screen.findByRole('region', { name: fr.clientSpace.bannerLabel })
+    expect(banner).toHaveTextContent(fr.clientSpace.eventsMeter(9, 10))
+    expect(screen.getByRole('link', { name: fr.clientSpace.contactAction })).toHaveAttribute(
+      'href',
+      'mailto:ops@example.org',
+    )
+    expect(screen.getByRole('link', { name: fr.clientSpace.spaceLink })).toHaveAttribute(
+      'href',
+      '/admin/client',
+    )
+  })
+
+  it('shows nothing of a client under its lines, but still leads to its space', async () => {
+    renderDashboard(onBox([aClientLimits()]))
+
+    expect(await screen.findByRole('link', { name: fr.clientSpace.spaceLink })).toBeVisible()
+    expect(screen.queryByRole('region', { name: fr.clientSpace.bannerLabel })).toBeNull()
+  })
+
+  it('tells a suspended client so, and no longer offers a new event, while the list stays readable', async () => {
+    const api = onBox([aClientLimits({ suspended: true })], {
+      listEvents: vi.fn(async () => ({ items: [aSummary()] })),
+    })
+
+    renderDashboard(api)
+
+    const title = await screen.findByText(fr.clientSpace.suspendedTitle)
+    expect(title.closest('[role="status"]')).toHaveTextContent(fr.clientSpace.suspendedBody)
+    expect(screen.queryByRole('link', { name: fr.admin.newEvent })).toBeNull()
+    expect(await screen.findByRole('link', { name: 'Camille & Sacha' })).toBeVisible()
+  })
+
+  it('goes on with the dashboard when the limits cannot be read', async () => {
+    const api = onBox([], { myLimits: vi.fn(async () => Promise.reject(ApiError.network())) })
+
+    renderDashboard(api)
+
+    expect(await screen.findByText(fr.admin.eventsEmpty)).toBeVisible()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

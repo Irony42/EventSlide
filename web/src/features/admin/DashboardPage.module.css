@@ -59,3 +59,14 @@
   padding-inline: var(--space-2);
   font-size: var(--text-sm);
 }
+
+/* The first-event checklist of the empty dashboard: three short lines, read in order. */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  text-align: start;
+  color: var(--text-secondary);
+}

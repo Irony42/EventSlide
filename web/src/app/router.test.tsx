@@ -9,6 +9,7 @@ import { it as italian } from '../lib/i18n/it'
 import { SUPPORTED_LOCALES, type Locale } from '../lib/i18n/locale'
 import { TRANSLATIONS } from '../lib/i18n/translations'
 import {
+  aClientLimits,
   anAbout,
   aPrivacyNoticeState,
   aPublicEvent,
@@ -391,6 +392,39 @@ describe('the toast region', () => {
  * the guest layout, so the surface and the width follow the reader as the language
  * already does.
  */
+/**
+ * The client's own space is registered only on a box that has one (G2-16 / P3-17, G2-00 /
+ * P3-21): with `SITE_ADMIN=off` a direct visit to its address is the not-found screen, as for
+ * any address nobody wrote.
+ */
+describe('the client space address', () => {
+  const asHostOnBox = (siteAdmin: boolean) =>
+    renderWithProviders(<AppRoutes />, {
+      route: '/admin/client',
+      api: fakeApi({
+        session: vi.fn(async (): Promise<SessionResponse> => ({
+          authenticated: true,
+          user: aSessionUser(),
+        })),
+        about: vi.fn(async () => anAbout({ features: { siteAdmin, forgotPassword: false } })),
+        myLimits: vi.fn(async () => ({ clients: [aClientLimits()] })),
+      }),
+    })
+
+  it('is the not-found screen when the box has no client space', async () => {
+    asHostOnBox(false)
+
+    expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: fr.clientSpace.spaceTitle })).toBeNull()
+  })
+
+  it('serves the client space when the box has one', async () => {
+    asHostOnBox(true)
+
+    expect(await screen.findByRole('heading', { name: fr.clientSpace.spaceTitle })).toBeVisible()
+  })
+})
+
 describe('an address that no longer exists', () => {
   it('answers a guest in their own language', async () => {
     renderWithProviders(<AppRoutes />, { route: '/join/H7K2QM/extra', locale: 'de' })

@@ -7,14 +7,18 @@ import { useToast } from '../../design-system/components/useToast'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { EventStatusBadge } from './components/EventStatusBadge'
+import { CeilingBanner } from './components/CeilingBanner'
 import { StorageMeter } from './components/StorageMeter'
+import { SuspensionScreen } from './components/SuspensionScreen'
 import { allowsModeration, lifecycleActions, servesWall } from './eventLifecycle'
 import { useEventList } from './hooks/useEventData'
 import { useStatusChange } from './hooks/useEventActions'
+import { useClientLimits } from './hooks/useClientLimits'
 import styles from './DashboardPage.module.css'
 import type { EventStatus, EventSummaryDto } from '../../lib/api/dto'
 
 const NEW_EVENT_PATH = '/admin/events/new'
+const CLIENT_SPACE_PATH = '/admin/client'
 
 /** Surface: the host's laptop. The first screen a new host sees after signing in. */
 export function DashboardPage() {
@@ -22,6 +26,10 @@ export function DashboardPage() {
   const { data: events, loading, error, reload } = useEventList()
   const statusChange = useStatusChange()
   const toast = useToast()
+  // The caller's own clients and their ceilings; empty on a box with no client space, in which
+  // case nothing below renders and the page is what it always was.
+  const { clients, contact } = useClientLimits()
+  const suspended = clients.some((client) => client.suspended)
 
   const changeStatus = (event: EventSummaryDto, to: EventStatus) => {
     void statusChange.run(`${event.slug}:${to}`, event.slug, to).then((result) => {
@@ -41,10 +49,24 @@ export function DashboardPage() {
     <div className={styles['page']}>
       <div className={styles['header']}>
         <h1 className={styles['title']}>{t.admin.events}</h1>
-        <Link className={styles['actionLink']} to={NEW_EVENT_PATH}>
-          {t.admin.newEvent}
-        </Link>
+        {clients.length > 0 ? (
+          <Link className={styles['actionLink']} to={CLIENT_SPACE_PATH}>
+            {t.clientSpace.spaceLink}
+          </Link>
+        ) : null}
+        {suspended ? null : (
+          <Link className={styles['actionLink']} to={NEW_EVENT_PATH}>
+            {t.admin.newEvent}
+          </Link>
+        )}
       </div>
+
+      {suspended ? <SuspensionScreen contact={contact} /> : null}
+      {clients
+        .filter((client) => !client.suspended)
+        .map((client) => (
+          <CeilingBanner key={client.id} limits={client} contact={contact} />
+        ))}
 
       {loading ? <Pending label={t.admin.loading} /> : null}
 
@@ -55,11 +77,22 @@ export function DashboardPage() {
           title={t.admin.eventsEmpty}
           description={t.admin.eventsEmptyHint}
           action={
-            <Link className={styles['actionLink']} to={NEW_EVENT_PATH}>
-              {t.admin.newEvent}
-            </Link>
+            suspended ? undefined : (
+              <Link className={styles['actionLink']} to={NEW_EVENT_PATH}>
+                {t.admin.newEvent}
+              </Link>
+            )
           }
-        />
+        >
+          {/* What a first event takes, in the order it is done: generic, so it is the same for a
+              self-hoster and for a client of a box. The test on the venue's own network is the
+              step that is skipped and regretted. */}
+          <ol className={styles['steps']}>
+            <li>{t.admin.emptyStepCreate}</li>
+            <li>{t.admin.emptyStepTest}</li>
+            <li>{t.admin.emptyStepPrint}</li>
+          </ol>
+        </EmptyState>
       ) : null}
 
       {!loading && error === null && events !== null && events.length > 0 ? (

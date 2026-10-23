@@ -355,7 +355,20 @@ export interface EventDto extends EventSummaryDto {
   readonly joinCode: string
   /** Built from PUBLIC_URL here, so the QR code and the printed card cannot disagree. */
   readonly joinUrl: string
+  /**
+   * The quota the event's uploads are **judged against**: the number it was created with,
+   * lowered to its client's `max_event_quota_bytes` when that is smaller (G2-16 / P3-17). The
+   * host's meter is drawn against this and not against the stored number, which an operator
+   * can have made a promise the box no longer keeps. Equal to the stored quota for an event with
+   * no client, so a box that has none answers exactly as it always did.
+   */
   readonly quotaBytes: number
+  /**
+   * When the event's live window closes (`opened_at + max_live_days`, an ISO-8601 instant), so
+   * the host sees the end of it before the sweep acts. **Absent**, never `null`, for an event
+   * with no window to announce: no client, no `max_live_days`, or one that has not opened yet.
+   */
+  readonly liveWindowEnd?: string
   readonly settings: EventSettingsDto
   readonly startsAt: string | null
   readonly closedAt: string | null
@@ -775,4 +788,99 @@ export interface ClientDefaultsDto {
     readonly maxLiveDays: number | null
     readonly clipsAllowed: boolean
   }
+}
+
+// ----------------------------------------------------------------- client space --
+
+/**
+ * The nine ceilings of a client, as the client reads them in its own space
+ * (`GET /api/me/limits`, G2-16 / P3-17). `null` is "no ceiling". Copied field by field by
+ * `toClientLimitsDto`: a field the domain grows later reaches a client only when somebody
+ * decides it should.
+ */
+export interface CeilingsDto {
+  readonly maxEvents: number | null
+  readonly maxTotalBytes: number | null
+  readonly maxEventQuotaBytes: number | null
+  readonly maxRetentionDays: number | null
+  readonly clipsAllowed: boolean
+  readonly liveAllowed: boolean
+  readonly maxLiveDays: number | null
+  readonly maxEventsPerPeriod: number | null
+  readonly periodStartedAt: string | null
+}
+
+export type CeilingLevelDto = 'ok' | 'warning' | 'reached'
+
+/** One ceiling that has a bound, against what the client has used of it. */
+export interface CeilingMeterDto {
+  readonly kind: 'events' | 'eventsPerPeriod' | 'storage'
+  readonly used: number
+  readonly max: number
+  /** `warning` from 90 per cent, `reached` at 100: decided by the server, once. */
+  readonly level: CeilingLevelDto
+}
+
+/** What a client has used against its ceilings. */
+export interface ClientUsageDto {
+  readonly events: number
+  readonly eventsCreatedInPeriod: number
+  /** The figure the byte ceiling is judged against, clips still queued included. */
+  readonly usedBytes: number
+}
+
+export interface ClientLimitsDto {
+  readonly id: string
+  readonly name: string
+  /** What the caller is in this client. */
+  readonly role: 'owner' | 'member'
+  /** Frozen by the operator: reading and exporting still work, writing does not. */
+  readonly suspended: boolean
+  readonly ceilings: CeilingsDto
+  readonly usage: ClientUsageDto
+  readonly meters: readonly CeilingMeterDto[]
+}
+
+/** `GET /api/me/limits`: the caller's own clients and nobody else's. */
+export interface MyLimitsDto {
+  readonly clients: readonly ClientLimitsDto[]
+}
+
+/**
+ * One line of the log of a client, as its owner reads it (`GET /api/client/audit`).
+ *
+ * **No account is named.** `actor` says what kind of actor did it and, for an integration, its
+ * label; never the id of the operator or of the member behind it. `subject.id` is present for
+ * a client and an invitation, which the owner can match against their own list, and **absent**
+ * for an account, whose id means nothing to its reader and identifies a person.
+ */
+export interface ClientAuditEntryDto {
+  readonly seq: number
+  readonly at: string
+  readonly action: string
+  readonly actor: {
+    readonly kind: 'operator' | 'member' | 'system' | 'integration'
+    readonly label: string | null
+  }
+  readonly subject: { readonly type: string; readonly id?: string }
+  /** Numbers, switches and instants: what the action's allow-list admits, and nothing typed. */
+  readonly details: Readonly<Record<string, unknown>>
+}
+
+export interface ClientAuditPageDto {
+  readonly items: readonly ClientAuditEntryDto[]
+  /** The `before` of the next page, or `null` when this was the last one. */
+  readonly next: number | null
+}
+
+export interface PendingInvitationDto {
+  readonly id: string
+  readonly email: string
+  readonly role: 'owner' | 'member'
+  readonly createdAt: string
+  readonly expiresAt: string
+}
+
+export interface PendingInvitationsDto {
+  readonly items: readonly PendingInvitationDto[]
 }
