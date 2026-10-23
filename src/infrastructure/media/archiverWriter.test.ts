@@ -57,6 +57,28 @@ describe('archiverWriter', () => {
     expect(zip.readUInt16LE(8)).toBe(0)
   })
 
+  it('stamps each entry with the photograph’s own date, not the moment of the download', async () => {
+    // What a host sees in the extracted folder's "date modified" column, and what a
+    // viewer that sorts by date uses to put the evening back in order. The library
+    // falls back to `new Date()` for an entry given no date, so dropping the option
+    // changes nothing visible but this.
+    const zip = await collect(archiverWriter.stream(entries(entry('a.jpg'))))
+
+    // Bytes 10-13 of the local file header are the MS-DOS time then date, little-endian.
+    // UTC by default, so the same bytes on a machine in any time zone; two-second
+    // resolution, hence the 10 for a photograph taken at :11.
+    const time = zip.readUInt16LE(10)
+    const date = zip.readUInt16LE(12)
+    expect({
+      year: 1980 + (date >> 9),
+      month: (date >> 5) & 0b1111,
+      day: date & 0b11111,
+      hour: time >> 11,
+      minute: (time >> 5) & 0b111111,
+      second: (time & 0b11111) * 2,
+    }).toEqual({ year: 2026, month: 6, day: 20, hour: 21, minute: 4, second: 10 })
+  })
+
   it('produces an empty but valid archive for an empty album', async () => {
     // A host whose event has no published photos should get an empty ZIP rather than
     // a stream that never ends or a 500.
