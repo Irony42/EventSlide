@@ -595,12 +595,23 @@ export class Event {
 
   // --------------------------------------------------------------- capabilities --
 
+  /**
+   * Whether a guest's upload is taken: the status says so **and the client is not suspended**
+   * (roadmap §10.7). A suspended client's guests are answered as if the event were not there
+   * (`requireGuest`), so this is the second line, for a caller that reaches a use case another way.
+   */
   acceptsUploads(): boolean {
-    return acceptsUploads(this.props.status)
+    return !this.isClientSuspended() && acceptsUploads(this.props.status)
   }
 
+  /**
+   * Whether a join code opens the event: the status says so **and the client is not suspended**.
+   * One expression feeds `joinEvent`, `resolveJoinCode` and `authenticateGuest`, which answer
+   * `event.notFound` to anything that is false, so a suspended client's printed QR code is the same
+   * dead end as a code nobody ever issued, and says nothing that confirms the event exists.
+   */
   acceptsGuests(): boolean {
-    return acceptsGuests(this.props.status)
+    return !this.isClientSuspended() && acceptsGuests(this.props.status)
   }
 
   servesWall(): boolean {

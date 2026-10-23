@@ -19,10 +19,13 @@ import type { UserRepository } from '../../ports/userRepository'
  *   in the client learns nothing about it.
  * - **An operator, and a member who is not an owner**, are `403 auth.forbidden`: they are in
  *   scope and not entitled.
+ * - **An owner of a suspended client** is `403 client.suspended` (roadmap §10.7; G2-14): an
+ *   approval is a write on the client, and a suspended client's members read and do not write.
+ *   Asked last, so only a caller who is entitled to approve learns that the client is frozen.
  */
 export interface ApprovalGateDeps {
   readonly users: Pick<UserRepository, 'findById' | 'siteRoleFor'>
-  readonly clients: Pick<ClientRepository, 'memberRole'>
+  readonly clients: Pick<ClientRepository, 'memberRole' | 'findById'>
 }
 
 export type ApprovalGate = (
@@ -75,5 +78,9 @@ export const makeApprovalGate =
 
     if (verdict === 'stranger') return err(DomainError.notFound(notFoundCode))
     if (verdict !== 'ok') return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
+
+    if ((await clients.findById(clientId))?.isSuspended() === true) {
+      return err(DomainError.forbidden('client.suspended'))
+    }
     return ok(undefined)
   }

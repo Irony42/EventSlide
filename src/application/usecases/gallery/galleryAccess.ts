@@ -73,7 +73,11 @@ export const eventBehind = async (
   const role = await deps.memberships.roleFor(link.eventId, link.createdBy)
   if (role === null || !canManageEvent(role)) return null
 
-  return deps.events.findById(link.eventId)
+  // A suspended client's links are inert (roadmap §10.7; G2-14): the same dead link, to the byte,
+  // as one that was revoked, so a holder learns nothing about why. The link itself is untouched,
+  // and lives again the day the client does.
+  const event = await deps.events.findById(link.eventId)
+  return event === null || event.isClientSuspended() ? null : event
 }
 
 /** Whether a link still grants anything at `now`, without needing the event itself. */

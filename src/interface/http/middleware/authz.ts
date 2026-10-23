@@ -650,7 +650,10 @@ export const GUEST_COOKIE = 'es_guest'
  * read path cannot reach a draft or archived event at all.
  */
 export const resolvePublicEvent =
-  (deps: HttpDeps): RequestHandler =>
+  (
+    deps: HttpDeps,
+    options: { readonly suspended: 'hidden' | 'visible' } = { suspended: 'hidden' },
+  ): RequestHandler =>
   (req, res, next) => {
     void (async () => {
       const slug = Slug.create(req.params['eventSlug'])
@@ -659,8 +662,11 @@ export const resolvePublicEvent =
         return
       }
       const event = await deps.events.findBySlug(slug.value)
-      // A suspended client's wall is the same 404 as an event that does not exist (G2-14).
-      if (!event || !event.servesWall() || event.isClientSuspended()) {
+      // A suspended client's wall is the same 404 as an event that does not exist (G2-14). The one
+      // route that is also a host's (the media of a photograph, which a moderation grid reads)
+      // asks for `visible` and judges the viewer itself, because members may still read.
+      const hidden = options.suspended === 'hidden' && event?.isClientSuspended() === true
+      if (!event || !event.servesWall() || hidden) {
         sendError(res, DomainError.notFound('event.notFound'))
         return
       }

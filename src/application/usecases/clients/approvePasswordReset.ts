@@ -19,7 +19,7 @@ export interface ApprovePasswordResetInput {
 
 export interface ApprovePasswordResetDeps {
   readonly users: Pick<UserRepository, 'findById' | 'siteRoleFor'>
-  readonly clients: Pick<ClientRepository, 'memberRole' | 'membershipsForUser'>
+  readonly clients: Pick<ClientRepository, 'memberRole' | 'findById' | 'membershipsForUser'>
   readonly tokens: Pick<AccountTokenRepository, 'findById' | 'approve'>
   /** Only the writing half of the log: this use case cannot prune it. */
   readonly audit: AuditRecorder

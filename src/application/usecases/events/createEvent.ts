@@ -262,6 +262,9 @@ const resolveClient = async (
     // with a deletion and not a state. Not found is the honest answer, and skipping the
     // ceilings of a client that just went away would be the dishonest one.
     if (client === null) return err(DomainError.notFound('client.notFound'))
+    // A suspended client's members read and do not write (roadmap §10.7; G2-14): a new event is a
+    // write, the one `requireRole` cannot see because there is no event yet to resolve.
+    if (client.isSuspended()) return err(DomainError.forbidden('client.suspended'))
     return ok({ clientId, ceilings: client.ceilings })
   }
 
