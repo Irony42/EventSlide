@@ -43,6 +43,8 @@ const sampleOf = (kind: DetailKind): AuditDetailValue => {
       return true
     case 'instant':
       return '2026-06-20T21:00:00.000Z'
+    case 'termsVersion':
+      return '2027-01'
     case 'nullable':
       return sampleOf(kind.of)
     case 'object':

@@ -253,6 +253,17 @@ describe('the error codes that docs/UPGRADING.md and the 3.0.0 entry of the CHAN
   })
 })
 
+describe('the setting that switches the terms of use on (G2-20)', () => {
+  // A new boot-checked setting goes into the 3.0.0 list of new settings and into "Upgrading to 3.0"
+  // (docs/UPGRADING.md, the upgrade policy). Nothing else enumerates the names, so this is the
+  // only thing that notices the day one of the two lists loses it.
+  it('is named in the list the 3.0.0 CHANGELOG gives and in the one this page gives', () => {
+    expect(entry).toContain('`LEGAL_TERMS_VERSION` takes at most 32 characters')
+    expect(entry).toContain('`LEGAL_TERMS_VERSION` without `LEGAL_TERMS_URL`')
+    expect(section).toContain('`LEGAL_TERMS_VERSION`')
+  })
+})
+
 describe('the settings and routes docs/UPGRADING.md names', () => {
   it('are documented: every setting in .env.example, every route in docs/API.md', () => {
     const settings = new Set(

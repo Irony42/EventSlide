@@ -576,12 +576,19 @@ export const invitationTokenParams = z.object({ token: z.string().min(1).max(256
  * - `{}`: the signed-in account whose address the link was written to, which the **session**
  *   names. No field here can name an account, and none may: an id the client could send would
  *   attach any account to any link.
+ *
+ * Either form may also carry `acceptTerms`, the tick of "I accept the terms of use" (G2-20). It is
+ * **a boolean and nothing else, and not required here**: whether the box asks for it is the
+ * use case's rule (`400 terms.notAccepted`), so a form with no tick, or an unticked one, is a
+ * refusal that names the terms and not a generic `request.invalid`. It names no version: the
+ * version recorded is the box's own, never one a request could choose.
  */
 export const acceptInvitationBody = z.union([
-  z.strictObject({}),
+  z.strictObject({ acceptTerms: z.boolean().optional() }),
   z.strictObject({
     password: z.string().min(1).max(1_000),
     displayName: z.string().min(1).max(200),
+    acceptTerms: z.boolean().optional(),
   }),
 ])
 

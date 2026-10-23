@@ -1,6 +1,7 @@
 import { asClientId, asEventId, asUserId } from '../../domain/shared/ids'
 import { AT, aClient, aUser, anAccountToken, anEvent } from './builders'
 import { FakeAccountTokenRepository } from './fakeAccountTokenRepository'
+import { FakeAuditLog } from './fakeAuditLog'
 import { FakeClientRepository } from './fakeClientRepository'
 import { FakeClock } from './fakeClock'
 import { FakeEventRepository } from './fakeEventRepository'
@@ -78,7 +79,8 @@ export const makeInvitationWorld = () => {
     .withAccounts(asUserId(HOST_ID), asUserId(EXISTING_ID))
     .withEvents(asEventId(EVENT_ID))
     .withClients(asClientId(CLIENT_ID))
-  const acceptance = new FakeInvitationAcceptance({ tokens, users, memberships, clients })
+  const audit = new FakeAuditLog()
+  const acceptance = new FakeInvitationAcceptance({ tokens, users, memberships, clients, audit })
 
   /** Writes an invitation straight into the store and returns the secret that opens it. */
   const invite = async (
@@ -119,6 +121,8 @@ export const makeInvitationWorld = () => {
     clients,
     tokens,
     acceptance,
+    /** What the acceptances wrote to the log (the terms of use, G2-20). */
+    audit,
     invite,
   }
 }

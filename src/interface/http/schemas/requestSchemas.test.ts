@@ -714,6 +714,28 @@ describe('the two bodies of an invitation (G2-09)', () => {
     expect(acceptInvitationBody.safeParse(body).success).toBe(false)
   })
 
+  // G2-20: the tick of the terms of use rides either form, and is the one key besides the
+  // credentials. It is a boolean and no more; the version recorded is never a request's.
+  it.each([
+    ['the signed-in account, with the tick', { acceptTerms: true }],
+    ['the signed-in account, with the box unticked', { acceptTerms: false }],
+    ['a person choosing how to sign in, with the tick', { ...CHOSEN, acceptTerms: true }],
+    ['a person choosing how to sign in, with the box unticked', { ...CHOSEN, acceptTerms: false }],
+  ])('accepts %s', (_name, body) => {
+    expect(acceptInvitationBody.safeParse(body).success).toBe(true)
+  })
+
+  it.each([
+    ['a word as the tick', { acceptTerms: 'yes' }],
+    ['a number as the tick', { ...CHOSEN, acceptTerms: 1 }],
+    ['null as the tick', { acceptTerms: null }],
+    ['a version the request chose', { ...CHOSEN, acceptTerms: true, version: '1999-01' }],
+    ['a version with the signed-in form', { acceptTerms: true, termsVersion: '1999-01' }],
+    ['an account id beside the tick', { acceptTerms: true, userId: UUID }],
+  ])('refuses %s', (_name, body) => {
+    expect(acceptInvitationBody.safeParse(body).success).toBe(false)
+  })
+
   it('refuses a key the form does not declare, and says which', () => {
     const outcome = moderatorInvitationBody.safeParse({ email: 'a@example.test', zzz: 1 })
 

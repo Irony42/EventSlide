@@ -1736,6 +1736,128 @@ describe('createContainer: an invitation', () => {
     ).toEqual([{ role: 'owner' }])
   })
 
+  describe('with the terms of use (G2-20)', () => {
+    const termsAccepted = (booted: Container) =>
+      booted.db
+        .prepare(
+          "SELECT actor_user_id, actor_kind, subject_type, subject_id, client_id, details FROM audit_log WHERE action = 'account.termsAccepted'",
+        )
+        .all() as Record<string, unknown>[]
+
+    const bootAsking = async (): Promise<{ booted: Container; token: string }> => {
+      const relay = await startSmtpSink()
+      relays.push(relay)
+      const booted = await boot({
+        SMTP_URL: `smtp://127.0.0.1:${relay.port}`,
+        MAIL_FROM: 'no-reply@photos.example.org',
+        PUBLIC_URL: 'https://photos.example.org',
+        LEGAL_TERMS_URL: 'https://photos.example.org/legal/cgu',
+        LEGAL_TERMS_VERSION: '2027-01',
+      })
+      await booted.usecases.provisionClientOwner({
+        clientName: 'Camille et Sacha',
+        ownerEmail: OWNER,
+        locale: 'fr',
+        createdBy: null,
+      })
+      await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+      return { booted, token: tokenIn(relay) }
+    }
+
+    it('is wired from the configuration: the preview names the terms and an acceptance without the tick is refused', async () => {
+      const { booted, token } = await bootAsking()
+
+      const preview = await booted.usecases.previewInvitation({ token })
+      const refused = await booted.usecases.acceptInvitation({
+        token,
+        credentials: { password: PASSWORD, displayName: 'Camille' },
+      })
+
+      expect(preview.ok && preview.value.terms).toEqual({
+        url: 'https://photos.example.org/legal/cgu',
+        version: '2027-01',
+      })
+      expect(!refused.ok && refused.error.code).toBe('terms.notAccepted')
+      expect(accountRow(booted)).toBeUndefined()
+      expect(termsAccepted(booted)).toEqual([])
+    })
+
+    it('records the version in the real log, as the account that accepted, filed under the client it joined', async () => {
+      const { booted, token } = await bootAsking()
+
+      const accepted = await booted.usecases.acceptInvitation({
+        token,
+        credentials: { password: PASSWORD, displayName: 'Camille' },
+        termsAccepted: true,
+      })
+
+      expect(accepted.ok).toBe(true)
+      const account = accountRow(booted)
+      const clientId = (
+        booted.db
+          .prepare('SELECT client_id FROM client_members WHERE user_id = ?')
+          .get(account?.id) as {
+          client_id: string
+        }
+      ).client_id
+      expect(termsAccepted(booted)).toEqual([
+        {
+          actor_user_id: account?.id,
+          actor_kind: 'member',
+          subject_type: 'account',
+          subject_id: account?.id,
+          client_id: clientId,
+          details: JSON.stringify({ version: '2027-01' }),
+        },
+      ])
+    })
+
+    it('asks for nothing on a box that set neither setting, and writes no entry', async () => {
+      const { booted, relay } = await bootWithRelay()
+      await booted.usecases.provisionClientOwner({
+        clientName: 'Camille et Sacha',
+        ownerEmail: OWNER,
+        locale: 'fr',
+        createdBy: null,
+      })
+      await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+
+      const accepted = await booted.usecases.acceptInvitation({
+        token: tokenIn(relay),
+        credentials: { password: PASSWORD, displayName: 'Camille' },
+      })
+
+      expect(accepted.ok).toBe(true)
+      expect(termsAccepted(booted)).toEqual([])
+    })
+
+    it('asks for nothing on a box that set the address only, which is the footer link', async () => {
+      const relay = await startSmtpSink()
+      relays.push(relay)
+      const booted = await boot({
+        SMTP_URL: `smtp://127.0.0.1:${relay.port}`,
+        MAIL_FROM: 'no-reply@photos.example.org',
+        PUBLIC_URL: 'https://photos.example.org',
+        LEGAL_TERMS_URL: 'https://photos.example.org/legal/cgu',
+      })
+      await booted.usecases.provisionClientOwner({
+        clientName: 'Camille et Sacha',
+        ownerEmail: OWNER,
+        locale: 'fr',
+        createdBy: null,
+      })
+      await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+
+      const accepted = await booted.usecases.acceptInvitation({
+        token: tokenIn(relay),
+        credentials: { password: PASSWORD, displayName: 'Camille' },
+      })
+
+      expect(accepted.ok).toBe(true)
+      expect(termsAccepted(booted)).toEqual([])
+    })
+  })
+
   it('signs the new account in with the password it chose, and refuses the link a second time', async () => {
     const { booted, relay } = await bootWithRelay()
     await booted.usecases.provisionClientOwner({

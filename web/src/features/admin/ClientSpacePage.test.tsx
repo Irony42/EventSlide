@@ -126,6 +126,26 @@ describe('ClientSpacePage', () => {
     expect(screen.getByText(fr.clientSpace.actorSystem)).toBeVisible()
   })
 
+  it('says in words that a person accepted the terms of use, whoever it was and whichever version', async () => {
+    const clientAudit = vi.fn(async () => ({
+      items: [
+        anEntry({
+          seq: 1,
+          action: 'account.termsAccepted',
+          actor: { kind: 'member', label: null },
+          subject: { type: 'account' },
+          details: {},
+        }),
+      ],
+      next: null,
+    }))
+
+    open(onBox([aClientLimits()], { clientAudit }))
+
+    expect(await screen.findByText(fr.clientSpace.actionTermsAccepted)).toBeVisible()
+    expect(screen.queryByText(fr.clientSpace.actionOther)).toBeNull()
+  })
+
   it('carries on from the last line when the owner asks for older ones', async () => {
     const clientAudit = vi
       .fn()

@@ -288,6 +288,7 @@ export const startTestApp = async ({
         OPERATOR_NAME: '',
         OPERATOR_CONTACT_EMAIL: '',
         LEGAL_TERMS_URL: '',
+        LEGAL_TERMS_VERSION: '',
         LEGAL_PRIVACY_URL: '',
         LEGAL_NOTICE_URL: '',
         SUPPORT_URL: '',

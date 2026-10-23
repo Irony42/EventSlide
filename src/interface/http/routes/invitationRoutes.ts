@@ -78,11 +78,14 @@ export const invitationRoutes = ({ deps, usecases }: InvitationRouteDeps): Route
         return
       }
       const body = acceptInvitationBody.parse(req.body)
+      // The tick, as the form sent it; whether it is owed is the use case's rule (G2-20).
+      const tick = body.acceptTerms === undefined ? {} : { termsAccepted: body.acceptTerms }
 
       if ('password' in body) {
         const result = await usecases.acceptInvitation({
           token: params.data.token,
           credentials: { password: body.password, displayName: body.displayName },
+          ...tick,
         })
         if (!result.ok) {
           sendError(res, result.error)
@@ -114,6 +117,7 @@ export const invitationRoutes = ({ deps, usecases }: InvitationRouteDeps): Route
       const result = await usecases.acceptInvitation({
         token: params.data.token,
         signedInUserId: user.userId,
+        ...tick,
       })
       sendResult(res, result, (response, accepted) =>
         sendJson(response, toInvitationAcceptedDto(accepted)),
