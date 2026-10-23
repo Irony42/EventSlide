@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { makeGetWallPlaylist, type GetWallPlaylist } from './getWallPlaylist'
-import type { Event } from '../../../domain/events/event'
+import { Event } from '../../../domain/events/event'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { GuestRepository } from '../../ports/guestRepository'
@@ -129,6 +129,20 @@ describe('getWallPlaylist', () => {
     'refuses to serve a %s event, indistinguishably from one that does not exist',
     async (status: EventStatus) => {
       events.seed(anEventWith(status))
+
+      const result = await ask()
+
+      expect(!result.ok && result.error.code).toBe('event.notFound')
+    },
+  )
+
+  it.each(['live', 'closed'] as const)(
+    'refuses to serve a %s event whose client is suspended, indistinguishably from one that does not exist (G2-14)',
+    async (status: EventStatus) => {
+      events.seed(
+        Event.restore({ ...anEventWith(status).toProps(), clientSuspendedAt: atPlus(MINUTE) }),
+      )
+      photos.seed(aPhoto({ id: 'photo-1', eventId: 'event-1', status: 'published' }))
 
       const result = await ask()
 
