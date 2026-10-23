@@ -2386,12 +2386,18 @@ is MIT-licensed and none carries an install script; it lost 5.
 and environment variable (CLAUDE.md §3, rule 3), so the upgrade was measured and not only read:
 the schemas and `env.ts` of `main`, on 3.25.76, and the migrated ones, on 4.6.5, were run over
 the same 28 000 request inputs and 39 000 environment configurations and compared on accepted
-or refused, on the parsed value, and on the fields named.
+or refused, on the parsed value, and on the fields named. That harness was a throwaway and is
+not kept; what is kept is the tests below, each of which was shown to go red when its rule is
+broken.
 
 - **Nothing refused before is accepted now**, on either surface. The one family that went the
-  other way is an integer above 2^53 − 1 (a quota, a link lifetime, a grant's expiry, the byte
-  and pixel settings): zod 4's `.int()` means a safe integer, so `9007199254740993` is refused
-  where 3.25.76 rounded it to `…992` and accepted it.
+  other way is **a decision, not a side effect**: an integer above 2^53 − 1 (a quota, a link
+  lifetime, a grant's expiry, and the seven byte and pixel settings of `env.ts`) is refused,
+  because 3.25.76 rounded `9007199254740993` to `…992` and accepted it, and a quota or a size is
+  no place for a number that cannot tell itself from its neighbour. On the environment side it
+  is a new boot refusal: an operator who wrote `MAX_EVENT_QUOTA_BYTES=99999999999999999999` to
+  mean "no limit" booted before and is told which variable to fix now. It belongs in
+  `docs/UPGRADING.md` at release time.
 - **Unknown keys are decided per schema.** Every body and query is `z.strictObject` (zod 3's
   `.strict()`, which zod 4 keeps only as a legacy method), and a path-parameter schema is a
   plain `z.object`, which strips. The conversion dropped the strictness of `galleryGrantQuery`

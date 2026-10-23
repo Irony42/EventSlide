@@ -1454,6 +1454,13 @@ describe('loadConfig', () => {
           'an address with a newline in it',
           'a@hosted.example.org' + String.fromCharCode(10) + 'bcc:x@y.zz',
         ],
+        // The three above are also refused by the HTML5 pattern, which is the other one zod 4
+        // ships. These four are not: they are what tells `z.email()` from it, and `z.email()`
+        // is what keeps a `?` or an `&` out of the link built from this address.
+        ['a ? in the local part', 'a?bcc=x@y.zz'],
+        ['an ampersand', 'a&b@hosted.example.org'],
+        ['a domain with no dot', 'a@b'],
+        ['two dots in a row', 'a..b@hosted.example.org'],
       ])('refuses %s, naming the variable', (_why, value) => {
         const issues = refusalIssues({
           ...DEV,
@@ -2200,12 +2207,22 @@ describe('loadConfig', () => {
       },
     )
 
-    it.each(['9007199254740993', '1e21'])(
-      'refuses the byte count %s, which no integer in a double can hold, rather than rounding it',
-      (value) => {
-        const issues = refusalIssues({ ...DEV, MAX_UPLOAD_BYTES: value })
+    // zod 3 rounded these and booted; zod 4's `.int()` means a safe integer, and a quota or a
+    // size is not a place for a number that cannot tell itself from its neighbour. Two spellings
+    // of the rule are held, because the optional ceiling does not share `positiveInt`.
+    it.each(
+      [
+        'MAX_UPLOAD_BYTES',
+        'MAX_IMAGE_PIXELS',
+        'DEFAULT_EVENT_QUOTA_BYTES',
+        'MAX_EVENT_QUOTA_BYTES',
+      ].flatMap((name) => ['9007199254740993', '1e21'].map((value) => [name, value] as const)),
+    )(
+      'refuses %s=%s, which no integer in a double can hold, rather than rounding it',
+      (name, value) => {
+        const issues = refusalIssues({ ...DEV, [name]: value })
 
-        expect(issues.some((issue) => issue.startsWith('MAX_UPLOAD_BYTES: '))).toBe(true)
+        expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
       },
     )
   })

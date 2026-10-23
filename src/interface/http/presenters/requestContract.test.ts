@@ -678,6 +678,16 @@ describe('the request contract', () => {
     },
   )
 
+  it('can tell a required field from an optional one', () => {
+    // The check below filters to the fields a schema requires; against a schema read as having
+    // none it would be vacuously green, the way an empty map makes every assertion true.
+    const required = PAIRINGS.flatMap(({ schema }) =>
+      Object.values(schema.shape).filter((field) => !field.safeParse(undefined).success),
+    )
+
+    expect(required.length).toBeGreaterThanOrEqual(10)
+  })
+
   it.each(PAIRINGS)(
     '$name sends every field $schemaName requires of $verb $declared',
     ({ name, schema, schemaName, keys }) => {

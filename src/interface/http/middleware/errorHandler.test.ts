@@ -66,6 +66,18 @@ const harness = (isProduction = false): Harness =>
         )
       })
 
+      // Twelve fields wrong at once, and an unknown key beside a wrong one.
+      app.get('/zod-many', (_req, _res, next) => {
+        const names = Array.from({ length: 12 }, (_unused, at) => `field${at}`)
+        const schema = z.strictObject(Object.fromEntries(names.map((name) => [name, z.string()])))
+        const parsed = schema.safeParse(Object.fromEntries(names.map((name) => [name, 1])))
+        next(parsed.success ? undefined : parsed.error)
+      })
+      app.get('/zod-unknown-and-wrong', (_req, _res, next) => {
+        const parsed = z.strictObject({ name: z.string() }).safeParse({ name: 1, colour: 'red' })
+        next(parsed.success ? undefined : parsed.error)
+      })
+
       // An object that refuses unknown keys reports the unknown one on the object itself, which
       // has no path of its own: the request is refused and no field is named.
       app.get('/zod-unknown-key', (_req, _res, next) => {
@@ -276,6 +288,22 @@ describe('errorHandler', () => {
     expect(response.body.error.details.fields).toContain('status')
     expect(response.body.error.details.fields).toContain('limit')
     expect(JSON.stringify(response.body)).not.toContain('nope')
+  })
+
+  it('names at most ten fields, which docs/API.md §1 promises and a response size depends on', async () => {
+    const response = await request(harness().app).get('/zod-many')
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.details.fields.split(', ')).toHaveLength(10)
+  })
+
+  it('leaves out the empty path of an unknown key when a field is wrong beside it', async () => {
+    // The key sits on the object, which has no path of its own. Counting it would print
+    // `name, ` and spend a slot of the ten on nothing.
+    const response = await request(harness().app).get('/zod-unknown-and-wrong')
+
+    expect(response.body.error.details).toEqual({ fields: 'name' })
+    expect(JSON.stringify(response.body)).not.toContain('colour')
   })
 
   it('names a field once however many rules it broke, and a nested one by its dotted path', async () => {

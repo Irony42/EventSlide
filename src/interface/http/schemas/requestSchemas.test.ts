@@ -628,12 +628,15 @@ describe('the instants a request may carry', () => {
     expect(eventScheduleBody.safeParse(body(value)).success).toBe(true)
   })
 
-  it.each(['2026-06-20T18:00:00+02', '2026-06-20T18:00:00 +02:00', '2026-06-20T18:00:00ZZ'])(
-    'rejects the scheduled instant %s, which is neither Z nor an offset',
-    (value) => {
-      expect(eventScheduleBody.safeParse(body(value)).success).toBe(false)
-    },
-  )
+  it.each([
+    '2026-06-20T18:00:00+02',
+    '2026-06-20T18:00:00 +02:00',
+    '2026-06-20T18:00:00ZZ',
+    '2026-06-20T18:00:00+02:000',
+    '2026-06-20T18:00:00+02:00x',
+  ])('rejects the scheduled instant %s, which is neither Z nor an offset', (value) => {
+    expect(eventScheduleBody.safeParse(body(value)).success).toBe(false)
+  })
 
   it('refuses an offset on a start, which is read as an instant in UTC and nothing else', () => {
     expect(
@@ -647,6 +650,14 @@ describe('the instants a request may carry', () => {
     ['an hour past 23', '2026-06-20T24:00:00Z'],
     ['a minute past 59', '2026-06-20T18:60:00Z'],
     ['a trailing newline', '2026-06-20T18:00:00Z\n'],
+    // The seconds are the only guard a start has: `Event.create` never reads `startsAt`, and
+    // `new Date('2026-06-20T18:00:99Z')` is an Invalid Date that throws when it is written.
+    ['seconds past 59', '2026-06-20T18:00:60Z'],
+    ['seconds that are not seconds', '2026-06-20T18:00:99Z'],
+    ['a fraction with no digits', '2026-06-20T18:00:00.Z'],
+    ['a lower-case z', '2026-06-20T18:00:00z'],
+    ['text before the date', 'junk2026-06-20T18:00:00Z'],
+    ['a leading space', ' 2026-06-20T18:00:00Z'],
   ])('rejects %s', (_label, startsAt) => {
     expect(createEventBody.safeParse({ name: 'X', startsAt }).success).toBe(false)
   })
