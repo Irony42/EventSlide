@@ -11,6 +11,7 @@ import { migration009 } from './009_audit_log'
 import { migration010 } from './010_account_tokens'
 import { migration011 } from './011_user_totp'
 import { migration012 } from './012_account_tokens_client'
+import { migration013 } from './013_foreign_key_indexes'
 
 /**
  * The ordering contract, written out rather than globbed.
@@ -32,4 +33,5 @@ export const migrations: readonly Migration[] = [
   migration010,
   migration011,
   migration012,
+  migration013,
 ]
