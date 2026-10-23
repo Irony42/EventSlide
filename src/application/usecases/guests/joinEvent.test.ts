@@ -653,3 +653,52 @@ describe('joinEvent', () => {
     })
   })
 })
+
+/**
+ * Whether the join says a guest may send a video (G2-16 / P3-17, closing a finding of G2-05's
+ * review): the host's switch **and** the client's plan, the two conditions `uploadClip`
+ * refuses on, so the upload screen does not offer a control that answers 403 after the bytes.
+ */
+describe('joinEvent: clipsAccepted', () => {
+  const joinWith = async (options: {
+    readonly hostAllowsClips: boolean
+    readonly client: ReturnType<typeof aClient> | null
+  }) => {
+    const clients = new FakeClientRepository()
+    if (options.client !== null) clients.seed(options.client)
+    const event = anEvent({
+      id: WEDDING,
+      slug: 'camille-et-sacha',
+      joinCode: WEDDING_CODE,
+      settings: { allowClips: options.hostAllowsClips },
+      ...(options.client === null ? {} : { clientId: options.client.id }),
+    })
+    const result = await makeJoinEvent({
+      events: new FakeEventRepository({ clients }).seed(event),
+      clients,
+      guests: new FakeGuestRepository(),
+      tokens: new FakeGuestTokenService(),
+      ids: new SequentialIdGenerator(),
+      clock: new FakeClock(),
+      bus: new RecordingEventBus(),
+      operatorName: null,
+    })({ joinCode: WEDDING_CODE })
+    if (!result.ok) throw new Error('fixture: the join was refused')
+    return result.value.clipsAccepted
+  }
+
+  it('follows the host’s switch for an event with no client', async () => {
+    expect(await joinWith({ hostAllowsClips: true, client: null })).toBe(true)
+    expect(await joinWith({ hostAllowsClips: false, client: null })).toBe(false)
+  })
+
+  it('is false once the client’s plan lost clips, though the host’s switch still says yes', async () => {
+    const client = aClient({ ceilings: { clipsAllowed: false } })
+
+    expect(await joinWith({ hostAllowsClips: true, client })).toBe(false)
+  })
+
+  it('is true when the host and the client’s plan both allow clips', async () => {
+    expect(await joinWith({ hostAllowsClips: true, client: aClient() })).toBe(true)
+  })
+})

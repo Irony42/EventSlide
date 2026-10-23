@@ -271,6 +271,107 @@ export const accountTokenRepositoryContract = (
       })
     })
 
+    // ---------------------------------------------------- listAwaitingApproval --
+
+    describe('listAwaitingApproval', () => {
+      const waiting = (id: string, over: Parameters<typeof anAccountToken>[0] = {}) =>
+        anAccountToken({
+          id,
+          purpose: 'invitation',
+          email: 'nouveau@example.test',
+          userId: null,
+          eventId: null,
+          eventRole: null,
+          clientId: 'client-1',
+          clientRole: 'member',
+          requiresApproval: true,
+          delivery: 'link',
+          createdBy: 'user-1',
+          ...over,
+        })
+
+      const idsFor = async (clientId: string, now = atPlus(1_000), limit = 50) =>
+        (await repo.listAwaitingApproval(asClientId(clientId), now, limit)).map((t) => t.id)
+
+      it('lists the invitations into the client that wait for an owner, newest first', async () => {
+        await repo.save(waiting('tok-old', { createdAt: atPlus(100) }))
+        await repo.save(waiting('tok-new', { createdAt: atPlus(500) }))
+
+        expect(await idsFor('client-1')).toEqual(['tok-new', 'tok-old'])
+      })
+
+      it('breaks a tie on the creation instant by id, still newest first', async () => {
+        await repo.save(waiting('tok-a', { createdAt: atPlus(100) }))
+        await repo.save(waiting('tok-b', { createdAt: atPlus(100) }))
+
+        expect(await idsFor('client-1')).toEqual(['tok-b', 'tok-a'])
+      })
+
+      it('never lists another client’s invitation, however it is asked', async () => {
+        await repo.save(waiting('tok-mine'))
+        await repo.save(waiting('tok-theirs', { clientId: 'client-2' }))
+
+        expect(await idsFor('client-1')).toEqual(['tok-mine'])
+        expect(await idsFor('client-2')).toEqual(['tok-theirs'])
+      })
+
+      it('leaves out what an owner cannot approve any more: approved, revoked or expired', async () => {
+        await repo.save(waiting('tok-ok'))
+        await repo.save(waiting('tok-approved'))
+        await repo.save(waiting('tok-revoked', { email: 'autre@example.test' }))
+        await repo.save(waiting('tok-expired', { expiresAt: atPlus(500) }))
+        await repo.approve(asAccountTokenId('tok-approved'), asUserId('user-approver'), atPlus(10))
+        await repo.revokeOutstandingInvitations(
+          email('autre@example.test'),
+          { kind: 'client', clientId: asClientId('client-1'), role: 'member' },
+          atPlus(10),
+        )
+
+        expect(await idsFor('client-1')).toEqual(['tok-ok'])
+      })
+
+      it('lists an invitation up to the last millisecond before it expires, and not at that instant', async () => {
+        await repo.save(waiting('tok-edge', { expiresAt: atPlus(500) }))
+
+        expect(await idsFor('client-1', atPlus(499))).toEqual(['tok-edge'])
+        expect(await idsFor('client-1', atPlus(500))).toEqual([])
+      })
+
+      it('leaves out an invitation that never needed approval, an event invitation and a reset', async () => {
+        await repo.save(waiting('tok-free', { requiresApproval: false }))
+        await repo.save(
+          waiting('tok-event', {
+            clientId: null,
+            clientRole: null,
+            eventId: 'event-1',
+            eventRole: 'moderator',
+          }),
+        )
+        await repo.save(
+          anAccountToken({ id: 'tok-reset', purpose: 'passwordReset', requiresApproval: true }),
+        )
+
+        expect(await idsFor('client-1')).toEqual([])
+      })
+
+      it('stops at the limit, keeping the newest', async () => {
+        await repo.save(waiting('tok-1', { createdAt: atPlus(100) }))
+        await repo.save(waiting('tok-2', { createdAt: atPlus(200) }))
+        await repo.save(waiting('tok-3', { createdAt: atPlus(300) }))
+
+        expect(await idsFor('client-1', atPlus(1_000), 2)).toEqual(['tok-3', 'tok-2'])
+      })
+
+      it.each([0, -1, 1.5, Number.NaN])(
+        'rejects a limit of %s rather than guessing',
+        async (limit) => {
+          await expect(
+            repo.listAwaitingApproval(asClientId('client-1'), atPlus(1), limit),
+          ).rejects.toThrow(RangeError)
+        },
+      )
+    })
+
     // ---------------------------------------------------------------- consume --
 
     describe('consume', () => {

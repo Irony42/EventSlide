@@ -4,7 +4,7 @@ import type {
   InvitationTarget,
 } from '../../domain/users/accountToken'
 import type { EmailAddress } from '../../domain/users/emailAddress'
-import type { AccountTokenId, UserId } from '../../domain/shared/ids'
+import type { AccountTokenId, ClientId, UserId } from '../../domain/shared/ids'
 
 /**
  * Account tokens (docs/ROADMAP.md §10.3; free plan G2-08, paid plan P3-09): the stored half
@@ -57,6 +57,23 @@ export interface AccountTokenRepository {
    * of this port can hand a secret out.
    */
   findById(id: AccountTokenId): Promise<AccountToken | null>
+
+  /**
+   * The invitations into this client that are **waiting for an owner's approval** and could
+   * still be spent once they have it: an invitation to the client, written with `requiresApproval`,
+   * not yet approved, not spent, not revoked and not expired at `now`. Newest first, at most
+   * `limit` (a positive integer: an adapter rejects anything else rather than guess).
+   *
+   * It is what an owner is shown of "what waits for my approval" (G2-16 / P3-17). Scoped by the
+   * **client**, in the query and not afterwards: another client's pending invitation is not a
+   * row this call can return, whoever asks. Records carry the digest and never the secret, so
+   * nothing here can hand a link out.
+   */
+  listAwaitingApproval(
+    clientId: ClientId,
+    now: Date,
+    limit: number,
+  ): Promise<readonly AccountToken[]>
 
   /**
    * Spends the token: `true` if this call changed it from usable to spent, `false` if it was

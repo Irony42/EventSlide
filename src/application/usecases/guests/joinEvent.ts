@@ -13,6 +13,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { GuestTokenService } from '../../ports/guestTokenService'
 import type { IdGenerator } from '../../ports/idGenerator'
+import { clientContextOf } from '../clients/clientContextOf'
 import { privacyNoticeOf } from './privacyNoticeOf'
 
 /**
@@ -89,6 +90,12 @@ export interface JoinEventOutput {
   readonly displayName: string | null
   /** Narrowed to what a guest may know by the presenter; a use case owns no wire format. */
   readonly event: Event
+  /**
+   * Whether a guest may send a video here (`Event.acceptsClips`): the host's switch **and** the
+   * client's plan. The presenter reads `allowClips` from this and not from the event's own
+   * setting, so the upload screen does not offer a control the box will refuse (G2-16 / P3-17).
+   */
+  readonly clipsAccepted: boolean
   /**
    * The privacy notice the upload screen shows before a first photo, and where this
    * device stands with it (roadmap §5.1).
@@ -240,11 +247,13 @@ export const makeJoinEvent = ({
     bus.publish({ type: 'guest.joined', eventId: event.id, guestId: guest.id })
 
     const notice = await privacyNoticeOf(clients, event, operatorName)
+    const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
     return ok({
       token,
       guestId: guest.id,
       displayName: guest.label(),
       event,
+      clipsAccepted: event.acceptsClips(ceilings),
       privacyNotice: { notice, acknowledgement: guest.noticeAcknowledgementFor(notice) },
     })
   }

@@ -107,6 +107,32 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
     return this.rows.get(id) ?? null
   }
 
+  async listAwaitingApproval(
+    clientId: ClientId,
+    now: Date,
+    limit: number,
+  ): Promise<readonly AccountToken[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1) {
+      throw new RangeError('limit must be a positive integer')
+    }
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.purpose === 'invitation' &&
+          row.clientId === clientId &&
+          row.requiresApproval &&
+          row.approvedAt === null &&
+          row.consumedAt === null &&
+          row.revokedAt === null &&
+          row.expiresAt.getTime() > now.getTime(),
+      )
+      .sort(
+        (left, right) =>
+          right.createdAt.getTime() - left.createdAt.getTime() || (left.id < right.id ? 1 : -1),
+      )
+      .slice(0, limit)
+  }
+
   async consume(id: AccountTokenId, now: Date): Promise<boolean> {
     const row = this.rows.get(id)
     if (row === undefined || !isAccountTokenUsable(row, now)) return false
