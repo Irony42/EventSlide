@@ -1,5 +1,4 @@
 import { Readable } from 'node:stream'
-import archiver from 'archiver'
 import type { ArchiveEntry, ArchiveWriter } from '../../application/ports/archiveWriter'
 
 /**
@@ -14,10 +13,21 @@ import type { ArchiveEntry, ArchiveWriter } from '../../application/ports/archiv
  * `store: true` — no compression. Photos are already compressed; deflating a JPEG
  * spends CPU on a machine that is simultaneously re-encoding uploads, to gain
  * essentially nothing.
+ *
+ * `archiver` 8 is ESM-only, and this package is CommonJS (`package.json` has no
+ * `"type"`, and the server builds with `module: node16` — CLAUDE.md §9 trap 8), where
+ * a static `import` of it is `error TS1479`. A dynamic `import()` is the one form
+ * Node16 accepts from a CommonJS file and leaves untouched in the emitted JavaScript,
+ * so the library is loaded the first time an album is downloaded rather than at boot.
+ * That is also why `stream` is an async generator: the load is asynchronous, and the
+ * port's signature (a synchronous call returning an iterable) is the one the use case
+ * and its tests are written against.
  */
 export const archiverWriter: ArchiveWriter = {
-  stream: (entries: AsyncIterable<ArchiveEntry>): AsyncIterable<Uint8Array> => {
-    const archive = archiver('zip', { store: true })
+  stream: async function* (entries: AsyncIterable<ArchiveEntry>): AsyncGenerator<Uint8Array> {
+    // `archiver` 8 dropped the `archiver('zip', …)` factory for one class per format.
+    const { ZipArchive } = await import('archiver')
+    const archive = new ZipArchive({ store: true })
 
     /**
      * Turns any failure into a rejection of the returned iterable.
@@ -63,7 +73,9 @@ export const archiverWriter: ArchiveWriter = {
     // truncated ZIP served with a 200 would look like a complete album.
     feed().catch(fail)
 
-    return archive as AsyncIterable<Uint8Array>
+    // `yield*` forwards the consumer's early exit to the archive's own iterator,
+    // which destroys it, exactly as iterating the archive directly did.
+    yield* archive as AsyncIterable<Uint8Array>
   },
 }
 
