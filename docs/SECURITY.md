@@ -2021,6 +2021,9 @@ version, but the CVSS scores and advisory ids are only verified against 0.34.5. 
 this table's analysis against the advisories open for 0.35.5 before relying on it as a
 current statement rather than a historical one.
 
+The two `qs` rows are a snapshot of the same kind: they cite Express 4's own parser and
+`qs` 6.15.3, and §14.8 says what Express 5 changed (the default parser no longer is `qs`).
+
 | Package (installed)                                                                                                               | Advisory                                                                                                          | Scope       | Verdict                                                                                                                            | The line that decides it                                                                                                                                                                                                                   |
 | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **`sharp` 0.34.5** (libheif 1.20.2)                                                                                               | `GHSA-rgj7-g3m4-5g8c`, CVSSv4 **8.9**                                                                             | runtime     | **REACHABLE — from the guest upload form, unauthenticated**                                                                        | `infrastructure/media/magicBytes.ts:74-77` admits it; `sharpImageProcessor.ts:122` and `:181` execute it. See §14.3                                                                                                                        |
@@ -2348,8 +2351,8 @@ there.
 ### 14.8 Express 5: what the upgrade changed on this audit's rows
 
 `express` 4.22.3 became 5.3.0 (#93), with `router` 2.2.0, `path-to-regexp` 8.4.2,
-`body-parser` 2.3.0, `send` 1.2.1 and `qs` 6.16.0. Every licence in the new tree is MIT, the
-tree gained 25 entries and lost 5, and none of the 25 carries an install script.
+`body-parser` 2.3.0, `send` 1.2.1 and `qs` 6.16.0. Every one of the 25 entries the tree gained
+is MIT-licensed and none carries an install script; it lost 5.
 
 - **`proxy-addr` 2.0.7 became 2.0.8**, which closes `GHSA-jqcg-44mw-7w3h` (IP spoofing through
   an IPv4-mapped IPv6 trust subnet). `npm audit --omit=dev` read one moderate and one critical
@@ -2372,7 +2375,7 @@ tree gained 25 entries and lost 5, and none of the 25 carries an install script.
   wildcard — which the walk refuses for the same reason it refused the old one.
 - **`express.static` and `res.sendFile` apply `dotfiles` to every segment of the path**, not
   only the last: a dot-directory inside the client folder was served on Express 4 and falls
-  through to the SPA shell now. The option is set explicitly in `server.ts` and a test holds it.
+  through to the SPA shell now. The option is set explicitly in `server.ts`, and a test holds the behaviour.
 - **Request bodies may now be brotli-compressed** (`Content-Encoding: br`), as gzip and deflate
   already could. The 64 kB limit applies to the inflated body for all three, and a test sends a
   compressed body that inflates past it for gzip and brotli.

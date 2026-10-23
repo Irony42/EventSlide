@@ -225,7 +225,7 @@ type GuestHandler = (scope: GuestScope, req: Request, res: Response) => Promise<
  *
  * The 401 is unreachable behind `requireGuest` — it means the middleware did not run,
  * which is a wiring bug. It fails closed rather than asserting non-null: a `!` here
- * would turn that bug into a `TypeError` on a guest's phone mid-upload, and Express 4
+ * would turn that bug into a `TypeError` on a guest's phone mid-upload, and Express
  * would answer 500 after the fact. Exported so its guard can be exercised without a
  * route in front of it.
  */
