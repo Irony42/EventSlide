@@ -645,11 +645,10 @@ describe('openStream', () => {
 
     it('writes nothing when the connection closes while the check is still being answered', async () => {
       const sink = new SseSink()
-      const real = await world.events.findById(asEventId(WEDDING))
       let answer: () => void = () => undefined
       const slow = Object.assign(Object.create(world.events) as typeof world.events, {
         findById: () =>
-          new Promise<typeof real>((resolve) => {
+          new Promise<Awaited<ReturnType<typeof world.events.findById>>>((resolve) => {
             answer = () => resolve(null)
           }),
       })
