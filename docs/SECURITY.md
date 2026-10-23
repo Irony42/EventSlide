@@ -1431,13 +1431,13 @@ Passport is removed. Login is one use case (`authenticateUser`) plus one control
 
 So: **double-submit token**, on top of Lax.
 
-| Element  | Value                                                                                                                 |
-| -------- | --------------------------------------------------------------------------------------------------------------------- |
-| Cookie   | `es_csrf`, 32 random bytes base64url, readable by JS, `SameSite=Lax`, `Secure` in prod                                |
-| Header   | `X-CSRF-Token`                                                                                                        |
-| Issued   | on session creation, on guest join, and by `GET /api/csrf` for a cold page load                                       |
-| Enforced | `middleware/csrf.ts` on every request whose method is not GET/HEAD/OPTIONS, **including multipart uploads**           |
-| Compared | `crypto.timingSafeEqual` on the raw bytes; absence → 403 `request.csrfMissing`, mismatch → 403 `request.csrfMismatch` |
+| Element  | Value                                                                                                                              |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Cookie   | `es_csrf`, 32 random bytes base64url, readable by JS, `SameSite=Lax`, `Secure` in prod                                             |
+| Header   | `X-CSRF-Token`                                                                                                                     |
+| Issued   | on any request that arrives without one, so a cold page load gets it; replaced when a login or a logout changes who the browser is |
+| Enforced | `middleware/csrf.ts` on every request whose method is not GET/HEAD/OPTIONS, **including multipart uploads**                        |
+| Compared | `crypto.timingSafeEqual` on the raw bytes; absence → 403 `request.csrfMissing`, mismatch → 403 `request.csrfMismatch`              |
 
 A cross-site attacker can make the browser _send_ the cookie but cannot _read_ it to set
 the header — the same-origin policy governs reading, not sending.
@@ -2444,7 +2444,8 @@ route would reach for a middleware that does not compile.
 > it answers an unauthenticated caller. `scripts/verify-image.sh` drives the refusal
 > against the built image with `NODE_ENV=` blanked. The two smaller divergences in the last
 > paragraph — the secrets not being required to differ, and the missing `Origin`/`Referer`
-> check — are **unchanged and still true**. See §10.
+> check — are **unchanged and still true**; §7 and §10 now say the check is missing
+> instead of listing it. See §10.
 
 `SESSION_SECRET` and `GUEST_TOKEN_SECRET` are held to 32 characters and a placeholder
 blocklist by `config/env.ts:36-42`, environment-independently, and
