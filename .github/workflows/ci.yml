@@ -152,9 +152,13 @@ jobs:
         timeout-minutes: 20
         env:
           PROJECT: ${{ matrix.project }}
+        # The runner image starts its own apt-get at boot, and Playwright's apt-get failed on its
+        # dpkg lock (exit 100, "Could not get lock /var/lib/dpkg/lock-frontend") whenever it
+        # got there first: apt is told to wait for the lock instead of giving up at once.
         run: |
+          echo 'DPkg::Lock::Timeout "300";' | sudo tee /etc/apt/apt.conf.d/99-dpkg-lock-wait > /dev/null
           engine="${PROJECT%%-*}"
-          timeout 8m npx playwright install --with-deps "$engine" || timeout 8m npx playwright install --with-deps "$engine"
+          timeout 9m npx playwright install --with-deps "$engine" || timeout 9m npx playwright install --with-deps "$engine"
 
       - name: Build
         run: npm run build
@@ -266,7 +270,10 @@ jobs:
       - name: Install Chromium
         if: env.COMPARABLE == '1'
         timeout-minutes: 20
-        run: timeout 8m npx playwright install --with-deps chromium || timeout 8m npx playwright install --with-deps chromium
+        # apt waits for the runner's own boot-time apt-get, as in the e2e job.
+        run: |
+          echo 'DPkg::Lock::Timeout "300";' | sudo tee /etc/apt/apt.conf.d/99-dpkg-lock-wait > /dev/null
+          timeout 9m npx playwright install --with-deps chromium || timeout 9m npx playwright install --with-deps chromium
 
       - name: Build
         if: env.COMPARABLE == '1'
@@ -322,7 +329,10 @@ jobs:
       - name: Install Chromium
         if: env.COMPARABLE == '1'
         timeout-minutes: 20
-        run: timeout 8m npx playwright install --with-deps chromium || timeout 8m npx playwright install --with-deps chromium
+        # apt waits for the runner's own boot-time apt-get, as in the e2e job.
+        run: |
+          echo 'DPkg::Lock::Timeout "300";' | sudo tee /etc/apt/apt.conf.d/99-dpkg-lock-wait > /dev/null
+          timeout 9m npx playwright install --with-deps chromium || timeout 9m npx playwright install --with-deps chromium
 
       - name: Build
         if: env.COMPARABLE == '1'
