@@ -5,7 +5,13 @@ import { Route, Routes } from 'react-router-dom'
 import { AccountMenu } from './AccountMenu'
 import { ApiError } from '../lib/http'
 import { fr } from '../lib/i18n/fr'
-import { aSessionUser, fakeApi, renderWithProviders } from '../testing/renderWithProviders'
+import {
+  aClientLimits,
+  aSessionUser,
+  anAbout,
+  fakeApi,
+  renderWithProviders,
+} from '../testing/renderWithProviders'
 import type { Api } from '../lib/api/client'
 import type { SessionResponse } from '../lib/api/dto'
 
@@ -350,5 +356,55 @@ describe('AccountMenu: signing out everywhere', () => {
     expect(await screen.findByText(fr.errors.network)).toBeVisible()
     expect(api.revokeOtherSessions).toHaveBeenCalledTimes(1)
     expect(screen.queryByText('Écran de connexion')).toBeNull()
+  })
+})
+
+/** The client space entry (G2-16 / P3-17): a member of a client, on a box that has one. */
+describe('AccountMenu: the client space', () => {
+  const onBox = (clients: ReturnType<typeof aClientLimits>[], siteAdmin = true) =>
+    signedIn({
+      about: vi.fn(async () => anAbout({ features: { siteAdmin, forgotPassword: false } })),
+      myLimits: vi.fn(async () => ({ clients })),
+    })
+
+  it('leads a member of a client to their space', async () => {
+    renderMenu(onBox([aClientLimits()]))
+    await open()
+
+    expect(await screen.findByRole('link', { name: fr.clientSpace.spaceLink })).toHaveAttribute(
+      'href',
+      '/admin/client',
+    )
+  })
+
+  it('offers it to an account that is in no client', async () => {
+    const api = onBox([])
+    renderMenu(api)
+    await waitFor(() => expect(api.myLimits).toHaveBeenCalled())
+    await open()
+
+    expect(screen.queryByRole('link', { name: fr.clientSpace.spaceLink })).toBeNull()
+  })
+
+  it('asks nothing and offers nothing on a box with no client space', async () => {
+    const api = onBox([aClientLimits()], false)
+    renderMenu(api)
+    await open()
+
+    expect(screen.queryByRole('link', { name: fr.clientSpace.spaceLink })).toBeNull()
+    expect(api.myLimits).not.toHaveBeenCalled()
+  })
+
+  it('asks nothing of somebody who is not signed in', async () => {
+    const api = fakeApi({
+      about: vi.fn(async () => anAbout({ features: { siteAdmin: true, forgotPassword: false } })),
+      myLimits: vi.fn(async () => ({ clients: [aClientLimits()] })),
+    })
+    renderMenu(api)
+
+    await waitFor(() => expect(api.session).toHaveBeenCalled())
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+
+    expect(api.myLimits).not.toHaveBeenCalled()
   })
 })

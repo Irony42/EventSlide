@@ -27,10 +27,12 @@ export interface ClientLimits {
  * the server's refusal and the refusal is the enforcement, so a host whose limits could not be
  * read still creates and moderates, and is told by the server if a ceiling is in the way.
  */
-export const useClientLimits = (): ClientLimits => {
+export const useClientLimits = (enabled = true): ClientLimits => {
   const api = useApi()
   const about = useAbout()
-  const siteAdmin = about.features.siteAdmin
+  // `enabled` is for a caller that is mounted before anybody has signed in (the account menu):
+  // asking while signed out would be a `401` for nothing.
+  const siteAdmin = about.features.siteAdmin && enabled
 
   const load = useCallback(
     async (signal: AbortSignal): Promise<readonly ClientLimitsDto[]> =>

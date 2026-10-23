@@ -406,7 +406,7 @@ describe('the client space address', () => {
           authenticated: true,
           user: aSessionUser(),
         })),
-        about: vi.fn(async () => anAbout({ features: { siteAdmin } })),
+        about: vi.fn(async () => anAbout({ features: { siteAdmin, forgotPassword: false } })),
         myLimits: vi.fn(async () => ({ clients: [aClientLimits()] })),
       }),
     })

@@ -201,7 +201,7 @@ describe('DashboardPage: a client’s limits', () => {
     fakeApi({
       about: vi.fn(async () =>
         anAbout({
-          features: { siteAdmin: true },
+          features: { siteAdmin: true, forgotPassword: false },
           operator: { name: 'Pierre', contactEmail: 'ops@example.org' },
         }),
       ),

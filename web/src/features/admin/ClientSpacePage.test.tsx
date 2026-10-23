@@ -40,7 +40,7 @@ const anEntry = (overrides: Partial<ClientAuditEntryDto> = {}): ClientAuditEntry
 
 const onBox = (limits: readonly ClientLimitsDto[], extra: Partial<Api> = {}) =>
   fakeApi({
-    about: vi.fn(async () => anAbout({ features: { siteAdmin: true } })),
+    about: vi.fn(async () => anAbout({ features: { siteAdmin: true, forgotPassword: false } })),
     myLimits: vi.fn(async () => ({ clients: limits })),
     ...extra,
   })
