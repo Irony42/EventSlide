@@ -12,7 +12,8 @@ import { err, ok, type Result } from '../shared/result'
  * an entry are numbers, switches and instants, and nothing a person typed: never a caption,
  * a guest's name, an e-mail address, a slug, a filename or a token. That is not a
  * convention reviewers are asked to remember. Each action declares the exact shape of its
- * details in `auditAction.ts`, in a vocabulary with **no string kind but an instant**, and
+ * details in `auditAction.ts`, in a vocabulary with **no free-text kind** (the strings it admits are an instant and the
+ * version of the terms of use, each checked as exactly that), and
  * {@link validateDetails} refuses a key the declaration does not name and a value that is
  * not the declared kind.
  *
