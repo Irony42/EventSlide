@@ -115,26 +115,66 @@ describe('the commands docs/UPGRADING.md tells a host to type', () => {
     expect(read('Dockerfile')).toContain('BACKUP_DIR=/data/backups')
   })
 
-  it('build the image from the checked-out tag only while compose.yaml builds it', () => {
-    // When compose.yaml points at a published image instead, `--build` does nothing and the
-    // step that says "build" is wrong: this fails then, and the page is rewritten with it.
-    expect(page).toContain('docker compose up -d --build')
-    expect(read('compose.yaml')).toMatch(/^ {4}build: \./m)
-    expect(prose).toContain('no prebuilt image is published')
+  it('pull the image that compose.yaml names, because compose.yaml no longer builds one', () => {
+    // This was the other way round, and held to it from both ends: the page said "no prebuilt
+    // image is published" and told a host to `docker compose up -d --build`, while
+    // compose.yaml said `build: .`. A page that tells a host to build what compose.yaml
+    // pulls, or to pull what it builds, sends them to a stale image or an error on the night
+    // they upgrade, so the page and the file are held to each other.
+    expect(read('compose.yaml')).not.toMatch(/^\s*build:/m)
+    expect(read('compose.yaml')).toMatch(/^ {4}image: ghcr\.io\/irony42\/eventslide:\S+/m)
+    expect(page).toContain('docker compose pull')
+    expect(prose).toContain('ghcr.io/irony42/eventslide:X.Y.Z')
+    expect(prose).not.toContain('no prebuilt image is published')
+    expect(page).not.toMatch(/docker compose up -d --build\s*$/m)
   })
 
-  it('say no prebuilt image is published only while no workflow publishes one', () => {
+  it('keep a way to build from the checkout, which compose.build.yaml is, and say how', () => {
+    expect(page).toContain('docker compose -f compose.yaml -f compose.build.yaml up -d --build')
+    expect(read('compose.build.yaml')).toMatch(/^ {4}build: \.$/m)
+    expect(page).toMatch(/^## Building the image yourself$/m)
+    expect(page).toContain('(#building-the-image-yourself)')
+  })
+
+  it('say an image is published only while the release workflow publishes it, and no other does', () => {
+    // The mirror of the test that used to say no workflow may push: the page now says one is
+    // published, so one has to be, and it has to be the one with the checks and the signature
+    // in front of it. A push from ci.yml or the scan would be an image that skipped them.
     const workflows = readdirSync(join(ROOT, '.github', 'workflows')).filter((file) =>
       /.ya?ml$/.test(file),
     )
+    const pushes =
+      /build-push-action|docker push|imagetools create|push:\s*true|cosign (sign|attest)/
 
-    expect(workflows.length, 'workflows').toBeGreaterThan(0)
+    expect(workflows).toContain('release.yml')
     for (const file of workflows) {
       const text = read('.github', 'workflows', file)
-      expect(text, `${file} pushes an image`).not.toMatch(/build-push-action|ghcr.io|docker push/)
+      if (file === 'release.yml') expect(text, `${file} publishes the image`).toMatch(pushes)
+      else expect(text, `${file} pushes an image`).not.toMatch(pushes)
     }
   })
+
+  it('name the tags the release workflow pushes, and say there is no latest', () => {
+    // The tag policy itself is executed in releasePipeline.test.ts; this holds that the page
+    // describes it: the exact tag, the minor, the major, a candidate on its own, and no latest.
+    const table = section0(page, '## Which image tag')
+
+    expect(table).toMatch(/\| `3\.0\.1`\s+\|/)
+    expect(table).toMatch(/\| `3\.0`\s+\|/)
+    expect(table).toMatch(/\| `3`\s+\|[^|]*never the next major/)
+    expect(table).toMatch(/\| `3\.1\.0-rc\.1`\s+\|[^|]*no other tag ever points at it/)
+    expect(flat(table)).toContain('There is no `latest`')
+    expect(read('.github', 'workflows', 'release.yml')).not.toMatch(/^\s*[^#\s].*:latest\b/m)
+  })
 })
+
+/** The text of the `##` section of `page` that starts with `heading`, to the next one. */
+const section0 = (text: string, heading: string): string => {
+  const start = text.indexOf(`\n${heading}\n`)
+  if (start === -1) throw new Error(`no section ${heading}`)
+  const next = text.indexOf('\n## ', start + 1)
+  return text.slice(start, next === -1 ? undefined : next)
+}
 
 describe('the messages docs/UPGRADING.md says to expect', () => {
   const quoted: readonly { phrase: string; where: readonly string[] }[] = [

@@ -16,8 +16,9 @@ the image.
 - **Read the [CHANGELOG](../CHANGELOG.md) from your version to the one you want.** In a major
   release, `BREAKING` lists what stops working. In any release, "Behaviour changes to check
   before upgrading" lists what to look at before you pull.
-- Then `git fetch --tags && git checkout vX.Y.Z && docker compose up -d --build`. The steps are
-  [below](#upgrading-with-docker).
+- Then `git fetch --tags && git checkout vX.Y.Z && docker compose pull && docker compose up -d`.
+  The steps are [below](#upgrading-with-docker), and the image they pull is
+  [described here](#which-image-tag).
 
 ## What a version number promises
 
@@ -119,8 +120,11 @@ section below.
 
 ## Upgrading with Docker
 
-From the directory holding `compose.yaml`. Today the image is built from the tag you check
-out; no prebuilt image is published.
+From the directory holding `compose.yaml`. The checkout is what chooses the version:
+`compose.yaml` of a release names the image of that release, `ghcr.io/irony42/eventslide:X.Y.Z`,
+and `docker compose pull` fetches it. Nothing is built on your machine. To build the image from
+the checkout anyway (a modified copy, a commit no release names), see
+[Building the image yourself](#building-the-image-yourself), which changes step 4 and nothing else.
 
 1. **Choose the moment**: between events, with nobody about to upload.
 2. **Read the CHANGELOG** for every release between yours and the target. Your version is
@@ -128,8 +132,9 @@ out; no prebuilt image is published.
    [Upgrading to 3.0](#upgrading-to-30)).
 3. **Back up, verify, and take it off the volume.** The server stays up while you do.
    [README](../README.md#backups) has the reasoning and the variants. Keep the archive
-   **outside the checkout**: the next step builds from that directory, and Docker would send
-   an album-sized archive along with the source.
+   **outside the checkout**: it is the one directory you are about to `git checkout` in, and
+   building the image from it ([below](#building-the-image-yourself)) would send an album-sized
+   archive to Docker along with the source.
 
    ```bash
    mkdir -p "$HOME/eventslide-backups"
@@ -146,13 +151,18 @@ out; no prebuilt image is published.
 
    ```bash
    git fetch --tags && git checkout vX.Y.Z
-   docker compose up -d --build
+   docker compose pull
+   docker compose up -d
    ```
+
+   `pull` fetches the image that `compose.yaml` of that release names; `up -d` then recreates
+   the container on it, and keeps the data volume. To check that the image is the one this
+   repository published, see [Checking the signature](IMAGE-SOURCES.md#checking-the-signature).
 
    If `git checkout` refuses because you edited `compose.yaml`, `git stash` the edit, check
    out, and apply it again by hand. A `compose.override.yaml` avoids this next time, with one
    catch: Compose adds to a list such as `ports:` and does not replace it. The data volume
-   survives the rebuild. Never add `-v` to a `docker compose down`: that deletes it.
+   survives the recreation. Never add `-v` to a `docker compose down`: that deletes it.
 
 5. **Watch the first boot.** `docker compose logs --tail 100 eventslide` shows an
    `applied migrations` line with their ids when there were any, and then the listening
@@ -188,12 +198,13 @@ npm start                      # applies the migrations, like the image does
 
 What you can do depends on how far the new version got.
 
-- **It never booted**: the build failed, or it stopped on a refused configuration before it
-  reached the database. Nothing on disk changed. `git checkout <old-tag>` and
-  `docker compose up -d --build`.
+- **It never booted**: the image would not pull, or it stopped on a refused configuration
+  before it reached the database. Nothing on disk changed. `git checkout <old-tag>` and
+  `docker compose up -d`, after `docker compose pull` if the old image is no longer on the
+  machine. An old tag before 3.0.0 names an image that was never published: its `compose.yaml`
+  builds it, so `docker compose up -d --build` is what it takes.
 - **It booted, or began to.** Check out the old tag and start the old version on the data
-  (`git checkout <old-tag>`, then `docker compose up -d --build`). It tells you which case you
-  are in:
+  (`git checkout <old-tag>`, then the same as above). It tells you which case you are in:
   - **It refuses with "downgrading is not supported."** The new version applied a migration,
     including when it applied some and then failed, and the old one will not run on a database
     that holds a migration it does not know. It refuses before it changes your data. The way
@@ -202,7 +213,7 @@ What you can do depends on how far the new version got.
 
     ```bash
     git checkout <old-tag>              # the version you came from
-    docker compose build                # skip if `docker image ls eventslide` lists its tag
+    docker compose pull                 # before 3.0.0, `docker compose build` instead
     docker compose stop eventslide
     A=eventslide-2026-09-12T08-00-00Z   # the archive from step 3
     docker compose run --rm -v "$HOME/eventslide-backups/$A:/restore:ro" eventslide \
@@ -225,6 +236,56 @@ version refuses an archive taken by a newer release ("Restore it with the versio
 produced it"). Restoring an old archive with the **new** version does something different. It
 brings the restored database forward to the new version, which is how you move an installation
 to a new machine, and is not a way back.
+
+## Which image tag
+
+`compose.yaml` runs `ghcr.io/irony42/eventslide:X.Y.Z` for the release you have checked out.
+Each release is published under these tags, for `linux/amd64` and `linux/arm64`:
+
+| Tag          | Follows                                                    | Use it                                         |
+| ------------ | ---------------------------------------------------------- | ---------------------------------------------- |
+| `3.0.1`      | that release, and nothing else                             | **by default**: it is what `compose.yaml` says |
+| `3.0`        | the newest patch of 3.0                                    | if you want fixes without choosing the moment  |
+| `3`          | the newest minor and patch of 3, **never the next major**  | the same, wider                                |
+| `3.1.0-rc.1` | that release candidate, and no other tag ever points at it | to try a release before it is one              |
+
+There is no `latest`, on purpose: it would cross a major, and a major is the release that may
+break something, so it is one you choose. A floating tag (`3.0`, `3`) moves under you the next
+time you `docker compose pull`, **and the migrations of the release it moved to run at the next
+start, in one direction only**: it is a way to upgrade without deciding when, so keep it out of
+the days around an event, and take the backup of step 3 first all the same.
+
+To change the tag without editing `compose.yaml` (which `git checkout` would then refuse to
+move), put it in a `compose.override.yaml` next to it:
+
+```yaml
+services:
+  eventslide:
+    image: ghcr.io/irony42/eventslide:3.0
+```
+
+A tag names a release. The thing that cannot change under you is the **digest**:
+`image: ghcr.io/irony42/eventslide:3.0.1@sha256:…` runs exactly that image or nothing, and it
+is what the signature belongs to ([IMAGE-SOURCES.md](IMAGE-SOURCES.md#checking-the-signature)). The
+release workflow can be run again for a tag whose release failed half way, which pushes that
+tag again; a release that completed is not pushed twice.
+
+## Building the image yourself
+
+For a copy you modified, a commit that no release names, or a machine that cannot reach
+`ghcr.io`. `compose.build.yaml` swaps the published image for a build of the checkout, and every
+other line of `compose.yaml` (the ports, the volume, the hardening, the settings) stays what it is:
+
+```bash
+git fetch --tags && git checkout vX.Y.Z   # or any commit
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
+```
+
+Give both files to every later command as well (`logs`, `exec`, `down`, `run`), or Compose reads
+`compose.yaml` alone and looks for the published image. What you build is named
+`eventslide:X.Y.Z`, so that it is never taken for the signed one, and it is not signed. If you
+changed the code and other people use your copy, the AGPL asks you to offer them your source:
+set `SOURCE_CODE_URL` ([licensing FAQ](LICENSING-FAQ.md)).
 
 ## How a break is announced
 
@@ -314,6 +375,12 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
 
 Then take the steps of [Upgrading with Docker](#upgrading-with-docker), or
 [without](#without-docker), with `vX.Y.Z` as `v3.0.0`.
+
+**The image comes from the registry now.** Up to 2.1.0, `docker compose up -d --build` built it on
+your machine and named it `eventslide:2.0.0`. From 3.0.0, `compose.yaml` pulls
+`ghcr.io/irony42/eventslide:3.0.0`, so step 4 is `pull` and `up -d`; the data volume is the same
+one. The old local image stays on disk until you remove it (`docker image rm eventslide:2.0.0`),
+and you will need it only to go back to 2.1.0.
 
 **How to tell it worked.** The first boot logs `applied migrations` with the ids 8 to 12
 (only the ones your database lacked) and then the listening line; `GET /api/health` answers
