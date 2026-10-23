@@ -81,6 +81,7 @@ describe('the invitation DTOs', () => {
         role: 'member',
         targetName: 'Atelier',
         expiresAt: NOW,
+        terms: null,
       }),
     ).toEqual({
       kind: 'client',
@@ -88,6 +89,23 @@ describe('the invitation DTOs', () => {
       targetName: 'Atelier',
       expiresAt: NOW.toISOString(),
     })
+  })
+
+  it('adds the terms to the preview only when the box asks for them, so a self-hosted body is unchanged', () => {
+    const preview = {
+      kind: 'event' as const,
+      role: 'moderator' as const,
+      targetName: 'Camille',
+      expiresAt: NOW,
+    }
+
+    expect(toInvitationPreviewDto({ ...preview, terms: null })).not.toHaveProperty('terms')
+    expect(
+      toInvitationPreviewDto({
+        ...preview,
+        terms: { url: 'https://hosted.example.org/legal/cgu', version: '2027-01' },
+      }).terms,
+    ).toEqual({ url: 'https://hosted.example.org/legal/cgu', version: '2027-01' })
   })
 })
 
