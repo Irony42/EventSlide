@@ -236,6 +236,8 @@ export interface HarnessOptions {
   readonly users?: FakeUserRepository
   /** Whether the box can mail. Defaults to no relay, like a box that never set SMTP_URL. */
   readonly mailer?: HttpDeps['mailer']
+  /** A logger the test reads back. Defaults to a silent one. */
+  readonly logger?: Logger
 }
 
 /**
@@ -260,10 +262,12 @@ export const buildHarness = ({
   withSession = true,
   users,
   mailer,
+  logger: suppliedLogger,
 }: HarnessOptions): Harness => {
   const world = buildTestWorld(config, {
     ...(users === undefined ? {} : { users }),
     ...(mailer === undefined ? {} : { mailer }),
+    ...(suppliedLogger === undefined ? {} : { logger: suppliedLogger }),
   })
   const { deps } = world
   const httpConfig = deps.config

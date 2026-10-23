@@ -766,6 +766,12 @@ export interface InvitationPreviewDto {
   readonly role: 'moderator' | 'owner' | 'member'
   readonly targetName: string
   readonly expiresAt: string
+  /**
+   * The terms accepting agrees to (G2-20), **present only on a box that asks for them**: a
+   * self-hosted box answers the four keys it always did, byte for byte. `url` is an https
+   * address or a path on this site, and `version` is what the audit entry will say.
+   */
+  readonly terms?: { readonly url: string; readonly version: string }
 }
 
 export const toInvitationPreviewDto = (preview: InvitationPreview): InvitationPreviewDto => ({
@@ -773,6 +779,9 @@ export const toInvitationPreviewDto = (preview: InvitationPreview): InvitationPr
   role: preview.role,
   targetName: preview.targetName,
   expiresAt: iso(preview.expiresAt),
+  ...(preview.terms === null
+    ? {}
+    : { terms: { url: preview.terms.url, version: preview.terms.version } }),
 })
 
 /**

@@ -88,6 +88,32 @@ const toRecord = (row: AuditRow): AuditRecord => {
   }
 }
 
+/**
+ * The one statement that appends a row, and the parameters of an entry for it. Exported so a
+ * use case that has to write an entry **inside another transaction** (the acceptance of an
+ * invitation, G2-20) writes it exactly as `record` does, rather than with a second copy of the
+ * column list that could drift from it.
+ */
+export const INSERT_AUDIT_SQL = `INSERT INTO audit_log (at, actor_user_id, actor_kind, actor_label, action, subject_type,
+                              subject_id, client_id, details)
+            VALUES (@at, @actorUserId, @actorKind, @actorLabel, @action, @subjectType,
+                    @subjectId, @clientId, @details)`
+
+export const auditParams = (entry: AuditEntry) => {
+  const props = entry.toProps()
+  return {
+    at: toIsoText(props.at),
+    actorUserId: props.actor.userId,
+    actorKind: props.actor.kind,
+    actorLabel: props.actor.label,
+    action: props.action,
+    subjectType: props.subject.type,
+    subjectId: props.subject.id,
+    clientId: props.clientId,
+    details: JSON.stringify(props.details),
+  }
+}
+
 export class SqliteAuditLog implements AuditLog {
   private readonly insert: Database.Statement<{
     at: string
@@ -108,12 +134,7 @@ export class SqliteAuditLog implements AuditLog {
   private readonly pruneInOneTransaction: (cutoffText: string) => number
 
   constructor(db: Db) {
-    this.insert = db.prepare(
-      `INSERT INTO audit_log (at, actor_user_id, actor_kind, actor_label, action, subject_type,
-                              subject_id, client_id, details)
-            VALUES (@at, @actorUserId, @actorKind, @actorLabel, @action, @subjectType,
-                    @subjectId, @clientId, @details)`,
-    )
+    this.insert = db.prepare(INSERT_AUDIT_SQL)
 
     // `?` for the cursor is a bound, not a flag: an absent `before` is `Number.MAX_SAFE_INTEGER`
     // at the call site, which keeps each of the two statements a single plan.
@@ -154,18 +175,7 @@ export class SqliteAuditLog implements AuditLog {
   }
 
   async record(entry: AuditEntry): Promise<void> {
-    const props = entry.toProps()
-    this.insert.run({
-      at: toIsoText(props.at),
-      actorUserId: props.actor.userId,
-      actorKind: props.actor.kind,
-      actorLabel: props.actor.label,
-      action: props.action,
-      subjectType: props.subject.type,
-      subjectId: props.subject.id,
-      clientId: props.clientId,
-      details: JSON.stringify(props.details),
-    })
+    this.insert.run(auditParams(entry))
   }
 
   async list(filter: AuditListFilter): Promise<AuditPage> {

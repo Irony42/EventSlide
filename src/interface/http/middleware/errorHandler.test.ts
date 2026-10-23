@@ -248,12 +248,89 @@ describe('the path a request is logged under', () => {
       `/API/Gallery/${TOKEN}`,
       '/API/Gallery/:token',
     ],
+    // The same addresses spelled with a percent-escape of a letter, which is the same
+    // address to a decoder (RFC 3986 section 2.3: an escaped unreserved character is
+    // equivalent to the character).
+    ['the gallery page, its first letter escaped', `/%67/${TOKEN}`, '/g/:token'],
+    ['that page with an escaped capital', `/%47/${TOKEN}`, '/G/:token'],
+    [
+      'the gallery API with escapes in both segments',
+      `/%61p%69/gal%6Cery/${TOKEN}`,
+      '/api/gallery/:token',
+    ],
+    [
+      'a page of the gallery with an escape after the token too',
+      `/api/gallery/${TOKEN}/ph%6Ftos`,
+      '/api/gallery/:token/photos',
+    ],
+    [
+      'a reset page with the escape in lower case',
+      `/password/%72eset/${TOKEN}`,
+      '/password/reset/:token',
+    ],
+    [
+      'a reset page with the escape in upper case',
+      `/%50assword/Reset/${TOKEN}`,
+      '/Password/Reset/:token',
+    ],
+    [
+      'the invitation page, its whole name escaped',
+      `/%69%6e%76%69%74%65/${TOKEN}`,
+      '/invite/:token',
+    ],
+    [
+      'the acceptance of an invitation, escaped and doubled together',
+      `//api//%69nvitations///${TOKEN}/accept`,
+      '/api/invitations/:token/accept',
+    ],
+    ['a token that is itself escaped', `/g/%74oken-%41%42`, '/g/:token'],
+    [
+      'every other unreserved escape, after the token',
+      `/%67/${TOKEN}/a%2Db%2dc%2Ed%5Fe%7Ef%31`,
+      '/g/:token/a-b-c.d_e~f1',
+    ],
+    [
+      'an address spelled with an escape and cut in the middle of another one',
+      `/%67/${TOKEN}%E0%A4%A`,
+      '/g/:token',
+    ],
+    [
+      'an address spelled with an escape, then a bare percent sign after the token',
+      `/%67/${TOKEN}%`,
+      '/g/:token',
+    ],
   ])('never carries a gallery token: %s', async (_label, path, logged) => {
     // The token is the credential: whoever reads a log line holding it reads the album.
     const [bindings] = await bindingsOf(path)
 
     expect(bindings?.['path']).toBe(logged)
     expect(JSON.stringify(bindings)).not.toContain(TOKEN)
+  })
+
+  // These are called directly, not sent: an HTTP client resolves dot segments before it sends
+  // the request (the WHATWG URL parser does), so a test through supertest would never carry one.
+  // `loggablePathLogCanary.test.ts` sends them raw, through a real socket.
+  it.each([
+    ['the gallery page with a dot segment before the token', `/g/./${TOKEN}`, '/g/:token'],
+    ['that dot segment escaped', `/g/%2e/${TOKEN}`, '/g/:token'],
+    ['several dot segments on the invitation page', `/invite/././${TOKEN}`, '/invite/:token'],
+    [
+      'a parent segment in front of the address',
+      `/x/../password/reset/${TOKEN}`,
+      '/password/reset/:token',
+    ],
+    ['a parent segment at the root', `/../g/${TOKEN}`, '/g/:token'],
+    // Resolved, `/g/<t>/..` is `/g` and the token is gone: the path is read unresolved as well.
+    ['a parent segment after the token, which would remove it', `/g/${TOKEN}/..`, '/g/:token/..'],
+    ['two of them', `/invite/${TOKEN}/../..`, '/invite/:token/../..'],
+    [
+      'the gallery API with a dot segment, and a page after the token',
+      `/api/gallery/./${TOKEN}/photos`,
+      '/api/gallery/:token/photos',
+    ],
+  ])('never carries a gallery token: %s', (_label, path, logged) => {
+    expect(loggablePath(path)).toBe(logged)
+    expect(loggablePath(path)).not.toContain(TOKEN)
   })
 
   it.each([
@@ -265,8 +342,42 @@ describe('the path a request is logged under', () => {
     ['a path that only starts like the invitation page', '/invited/2026'],
     ['a path with a doubled slash and no token in it, as it came', '/api//events/camille/photos'],
     ['the invitation routes with no token in them', '/api/invitations'],
+    // Only the match is made on the normalised path: a path that carries no token is
+    // logged as it came, escapes and all, so a host reading a log sees what the client sent.
+    ['an escaped unreserved character in a path with no token', '/api/events/%6Dariage/photos'],
+    ['an escaped space, which is not unreserved', '/api/events/ma%20rie/wall'],
+    ['an escaped slash in front of a name that is a family', `/%2Fg/${TOKEN}`],
+    ['an escaped slash inside the name of a family', `/g%2F${TOKEN}`],
+    ['a double-escaped letter, which is not that letter', `/%2567/${TOKEN}`],
+    ['an escape that is cut', '/api/events/%E0%A4%A/wall'],
+    ['a bare percent sign', '/100%'],
+    ['an escape of a letter that is not the name of a family', '/%67ala/2026'],
+    ['dot segments in a path with no token', '/a/./b/../c'],
   ])('logs %s as it is', (_label, path) => {
     expect(loggablePath(path)).toBe(path)
+  })
+
+  it.each([
+    ['a lone percent sign', '%'],
+    ['a percent sign and one digit', '/g/%4'],
+    ['an escape that is not hexadecimal', '/%ZZ/g/%GG'],
+    ['a cut multi-byte sequence', `/%E0%A4%A/g/${TOKEN}`],
+    ['a name cut by a lone percent sign', `/g%/${TOKEN}`],
+    ['an empty path', ''],
+    ['only dot segments', '/./../..'],
+    ['a parent segment and nothing else', '/..'],
+  ])('does not throw on a path it cannot decode: %s', (_label, path) => {
+    // The decoding it does is of one escape at a time and only of a letter, a digit or one
+    // of `-._~`, so there is no sequence that fails: a `%` that is not an escape is left as
+    // it was, and it cannot spell the name of a family. Held here so a later switch to
+    // `decodeURIComponent` on the whole path, which throws on these, is a red test and not a
+    // 500 from the logger of every request.
+    expect(() => loggablePath(path)).not.toThrow()
+  })
+
+  it('still reads the address in front of an escape it cannot decode, and redacts its token', () => {
+    expect(loggablePath(`/%67/${TOKEN}%E0%A4%A/%`)).toBe('/g/:token/%')
+    expect(loggablePath(`/%67/${TOKEN}/%ZZ/%4`)).toBe('/g/:token/%ZZ/%4')
   })
 })
 

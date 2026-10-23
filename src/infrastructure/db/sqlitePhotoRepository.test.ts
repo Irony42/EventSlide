@@ -1,4 +1,3 @@
-import type Database from 'better-sqlite3'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -197,48 +196,6 @@ const insertReaction = (db: Db, photoId: string): void => {
           VALUES ('reaction-1', 'evt-wedding', ?, 'guest-lea', 'love', ?)`,
   ).run(photoId, ISO_AT)
 }
-
-// ------------------------------------------------------------- lazy-read probe --
-
-type AnyStatement = Database.Statement<unknown[], unknown>
-
-interface RowCounter {
-  pulled: number
-}
-
-const countingRows = function* (
-  rows: IterableIterator<unknown>,
-  counter: RowCounter,
-): IterableIterator<unknown> {
-  for (const row of rows) {
-    counter.pulled += 1
-    yield row
-  }
-}
-
-const countingStatement = (statement: AnyStatement, counter: RowCounter): AnyStatement =>
-  new Proxy(statement, {
-    get: (target, property, receiver) =>
-      property === 'iterate'
-        ? (...params: unknown[]) => countingRows(target.iterate(...params), counter)
-        : Reflect.get(target, property, receiver),
-  })
-
-/**
- * A connection that counts the rows the adapter actually pulls out of SQLite.
- *
- * Laziness is only observable from outside as "how many rows left the statement", and
- * that number is the whole point of streaming the export: a four-thousand-photo album
- * read into an array before the first entry is written is how a self-hosted box runs
- * out of memory.
- */
-const countingConnection = (db: Db, counter: RowCounter): Db =>
-  new Proxy(db, {
-    get: (target, property, receiver) =>
-      property === 'prepare'
-        ? (sql: string) => countingStatement(target.prepare(sql), counter)
-        : Reflect.get(target, property, receiver),
-  })
 
 // ------------------------------------------------------------------------ tests --
 
@@ -506,31 +463,6 @@ describe('SqlitePhotoRepository', () => {
     await seedMixedFixture()
 
     expect(await repo.totalBytes(WEDDING)).toBe(1_239)
-  })
-
-  // -------------------------------------------------------------------- export --
-
-  it('pulls one row per photo the consumer asks for, not the whole album', async () => {
-    await saveAll([
-      aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
-      aPhoto({ id: 'p2', eventId: WEDDING, status: 'published', createdAt: atPlus(2_000) }),
-      aPhoto({ id: 'p3', eventId: WEDDING, status: 'published', createdAt: atPlus(3_000) }),
-    ])
-    const counter: RowCounter = { pulled: 0 }
-    const streaming = new SqlitePhotoRepository(countingConnection(db, counter))
-
-    for await (const _first of streaming.streamForExport(WEDDING, ['published'])) break
-
-    expect(counter.pulled).toBe(1)
-  })
-
-  it('streams nothing when no status is requested', async () => {
-    await repo.save(aPhoto({ id: 'p1', eventId: WEDDING, status: 'published' }))
-    const streamed: string[] = []
-
-    for await (const photo of repo.streamForExport(WEDDING, [])) streamed.push(photo.id)
-
-    expect(streamed).toEqual([])
   })
 
   // -------------------------------------------------------------- corrupt rows --

@@ -178,22 +178,3 @@ export const archiverWriter: ArchiveWriter = {
     }
   },
 }
-
-/**
- * A filename that is unique within the archive and safe to extract.
- *
- * Guest-supplied names never reach this: the media store is content-addressed, so the
- * album is named from the photo's own metadata. The date prefix makes the extracted
- * folder sort chronologically, which is what a host actually wants when they open it.
- */
-export const albumEntryName = (input: {
-  readonly createdAt: Date
-  readonly contentHashShort: string
-  readonly index: number
-}): string => {
-  const stamp = input.createdAt.toISOString().slice(0, 19).replace(/[:T]/g, '-')
-  // The index disambiguates two photos taken in the same second; the hash fragment
-  // keeps the name stable across exports so a re-download overwrites rather than
-  // duplicating.
-  return `${stamp}_${String(input.index).padStart(4, '0')}_${input.contentHashShort}.jpg`
-}

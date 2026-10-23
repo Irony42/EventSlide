@@ -1913,7 +1913,18 @@ What the link offers, for the page that asks its holder to accept it. **200**
 invited, not the address, and not whether the address already has an account — the person holding
 a link may be the one who wrote it, and a preview that said "sign in" for some addresses and
 "choose a password" for others would be an oracle for who is on the box. It spends nothing, so
-a mail client that fetches links to preview them cannot use one up. **Errors** —
+a mail client that fetches links to preview them cannot use one up.
+
+On a box that asks for its terms of use (`LEGAL_TERMS_URL` **and** `LEGAL_TERMS_VERSION` both set,
+G2-20) the answer has one more key, **present only then**, so a self-hosted box answers the four above
+byte for byte:
+
+```json
+{ "terms": { "url": "https://hosted.example.org/legal/cgu", "version": "2027-01" } }
+```
+
+`url` is an https address or a path on this site. It is the same for every link on the box, so it says
+nothing about this one, and a dead link answers the same `404` it always did. **Errors** —
 `404 invitation.notFound`, `409 event.immutable` (the event was archived), `429 rate.limited`.
 
 ### `POST /api/invitations/:token/accept`
@@ -1943,6 +1954,18 @@ Attaches that account (from the **session**, never from the request) and spends 
 password, name and authority on the box are not touched, and a role it already holds there is not
 lowered.
 
+**The terms of use (G2-20).** Either body may carry `"acceptTerms": true`, the tick of "I accept the
+terms of use". It is a boolean and the only key besides the credentials: **no key can name a version**,
+because the version recorded is the box's own. It is read only on a box that asks for terms (the
+preview above says so): there, anything but `true` is `400 terms.notAccepted`, a form error and
+not a dead link; it is judged right after the link is found and before anything about who is accepting,
+so it is the same `400` for an address that has an account as for one that has none, and a dead link
+is the same `404` with or without it. Nothing is created and nothing is spent by that refusal. When the
+acceptance goes through, the audit entry `account.termsAccepted {version}` is written in the same
+transaction, as the account that accepted and filed under the invitation's client (or the client that
+owns its event), for an existing account's acceptance as for a new one's. On a box that asks for no
+terms the key is accepted and ignored, nothing is recorded, and nothing is refused for want of it.
+
 **200**, both forms
 
 ```json
@@ -1961,7 +1984,8 @@ lowered.
 has an account and a password was sent: **nothing is created and the link is not spent**, the
 person signs in as that account and accepts with the empty body; `403 invitation.wrongAccount`
 when the signed-in account is not the one the link was written to; `400 invitation.credentialsRequired`
-when the empty body is sent with no session; `400 password.*` and `400 accountName.*` for a
+when the empty body is sent with no session; `400 terms.notAccepted` on a box that asks for its terms,
+without the tick; `400 password.*` and `400 accountName.*` for a
 password or a name the rules refuse; `400 request.invalid` (an unknown key — no field can name an
 account); `409 event.immutable`; `429 rate.limited`; `403 auth.passwordChangeRequired` for a signed-in account that must
 first choose a password (§1); and the CSRF codes. A path whose token cannot be decoded
@@ -3365,7 +3389,10 @@ vocabulary (`src/domain/audit/auditAction.ts`); a row written under a name a cli
 as "an action was recorded", never hidden. **What a line never carries**: the account behind the actor (the
 operator is "the operator", a member is "a member", never an id), the id of an **account** subject, an
 address, a slug, a join code, a name, a token or a link. `details` is what the action's allow-list admits,
-numbers, switches and instants (a ceilings change is `{ before, after }` snapshots). `actor.label` is
+numbers, switches and instants (a ceilings change is `{ before, after }` snapshots). The one string
+the log holds besides an instant is the version of the terms in `account.termsAccepted` (G2-20), and
+**this door does not pass it**: an owner reads that a person accepted the terms, with `details` empty, and the
+version stays in the log. `actor.label` is
 present only for an integration (`cloud:stripe-webhook`), a constant a programmer chose.
 
 | Code                   | Status | When                                                                                |

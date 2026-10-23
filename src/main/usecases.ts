@@ -130,6 +130,7 @@ import { makeListSiteAudit } from '../application/usecases/site/listSiteAudit'
 import { makeListSiteClientEvents } from '../application/usecases/site/listSiteClientEvents'
 import { makeListSiteClients } from '../application/usecases/site/listSiteClients'
 import type { NewClientDefaults } from '../domain/clients/newClientCeilings'
+import type { TermsOfUse } from '../domain/legal/termsOfUse'
 import { makePruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import { makeUnlockGallery } from '../application/usecases/gallery/unlockGallery'
 
@@ -232,6 +233,13 @@ export interface UseCasePolicy {
    * derive the notice, so a guest's acknowledgement is always compared with the text they saw.
    */
   readonly operatorName: string | null
+  /**
+   * `termsOfUse`: the terms an invitation's acceptance asks the person to agree to, or `null`
+   * on a box that asks for none, which is every self-hosted box (`LEGAL_TERMS_URL` with
+   * `LEGAL_TERMS_VERSION`, G2-20). Required here and not optional, so a composition that forgets
+   * it does not fail open: the test that boots the real container holds it to the config.
+   */
+  readonly termsOfUse: TermsOfUse | null
   readonly clips: {
     readonly maxQueuedClips: number
     /** The same backpressure, scoped to one event. */
@@ -409,6 +417,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     previewInvitation: makePreviewInvitation({
       ...invitationReaders(adapters),
       clock: adapters.clock,
+      terms: policy.termsOfUse,
     }),
     acceptInvitation: makeAcceptInvitation({
       ...invitationReaders(adapters),
@@ -417,6 +426,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       acceptance: adapters.invitationAcceptance,
       ids: adapters.ids,
       clock: adapters.clock,
+      terms: policy.termsOfUse,
     }),
     registerModerator: makeRegisterModerator({
       events: adapters.events,

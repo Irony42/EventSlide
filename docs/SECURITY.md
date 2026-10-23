@@ -420,6 +420,27 @@ was already on the box. What holds now, each rule with the test that holds it:
   operator's invitation to that address wait an hour; that is accepted.
 - **The password is judged before the link is spent**, so a weak password costs the person nothing and
   the same link still works.
+- **The terms of use are agreed to by accepting, when the box says so** (G2-20). With
+  `LEGAL_TERMS_URL` **and** `LEGAL_TERMS_VERSION` set, an acceptance without the tick is
+  `400 terms.notAccepted`. That refusal must not become an oracle, and two rules keep it from being
+  one: it is judged **after the link is found**, so a dead link is the one `404` whatever the form
+  holds, which is to say **a dead link is never answered with the form error** (a live one is a `400`,
+  as it already is for a password the policy refuses); and **before anything about who is
+  accepting**, so an address that has an account gets the same `400` as one that has none rather than
+  `409 invitation.signInRequired` (`acceptInvitation.test.ts`, `invitationRoutes.test.ts`). The agreement is
+  written as `account.termsAccepted {version}` **in the transaction that spends the link**
+  (`AcceptInvitationRecord.audit`; `invitationAcceptanceContract.ts` holds the fake and SQLite to it:
+  nothing for a spent link or a taken address, and an entry the log refuses undoes the whole
+  acceptance). The version is the box's, read from its configuration and never from the request (the
+  body is strict and has no key for it), and the audit vocabulary has a kind of its own for it
+  (`termsVersion`: at most 32 characters of letters, digits, `.`, `_` and `-`) rather than a free-text
+  one. A box that sets neither setting, or only the address, asks nothing and records nothing.
+  Not done, on purpose: a forced re-acceptance when the version changes (the plan e-mails the owners 30
+  days ahead instead, G6-02); a record that outlives the log (the entry goes with the audit log after
+  `AUDIT_RETENTION_DAYS`, 365 at the least, and with the account's deletion it loses the pointer to the
+  person: the record that outlives both is the paid plan's `terms_acceptances`, P6-07); and the page
+  does not send the version it showed, so a version changed while a tab was open is recorded as the
+  new one (the 30-day notice is what keeps that window rare).
 - **The token is in the path and never in a log.** `/invite/<token>` and `/api/invitations/<token>`
   are written `:token` by the request logger (`loggablePath`, `errorHandler.test.ts`); the SPA
   fallback serves the former, so an error logged while serving it would otherwise have carried the
@@ -1563,6 +1584,9 @@ confirmation) against a real logger and a real access log and requires that the 
 token, the link and the new password appear in none of it.
 **`malformedPathLogCanary.test.ts`** is the other way a credential reaches an error log: a link
 cut in the middle of a percent-escape, whose decode error carries the raw parameter.
+**`loggablePathLogCanary.test.ts`** is the third: those same addresses spelled with doubled
+slashes and percent-escaped letters, so that the path the request's logger carries is the one
+under test.
 
 ### Data-subject flows a host can actually perform
 
@@ -1625,6 +1649,7 @@ once with zod at startup, exported as a frozen typed object.
 | `OPERATOR_NAME`                    | no                                          | empty                                 | who runs the box: plain text, 100 characters, no control or bidi character; also named in the guest notice (API.md §2)                                                      |
 | `OPERATOR_CONTACT_EMAIL`           | no                                          | empty                                 | one plain address published beside the name; refused at boot without `OPERATOR_NAME`                                                                                        |
 | `LEGAL_*_URL`                      | no                                          | empty                                 | `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`: https or a path on this site (API.md §2)                                                                        |
+| `LEGAL_TERMS_VERSION`              | no                                          | empty                                 | the short name of the terms at `LEGAL_TERMS_URL` (32 characters of letters, digits, `.`, `_`, `-`); with the URL, accepting an invitation asks for the terms and records it |
 | `SUPPORT_URL` / `REPORT_URL`       | no                                          | empty                                 | help for a host; where to report a content. Same rule: never `javascript:`, `data:`, `http:` or `//host`                                                                    |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
@@ -2618,18 +2643,40 @@ A token whose last character was cut in half by a chat app that truncates a link
 (`/g/<token>%E2%80`) cannot be decoded, and Express refuses it when it matches the address
 to a route: the link is never looked up. On the gallery's API that is one more malformed token,
 the single dead-link `404 gallery.notAvailable` above, byte for byte, from the gallery router
-(the invitation API does the same with its own refusal); anywhere else, the pages included, it
+(the invitation API does the same, `404 invitation.notFound`, from its own router; `invitationRoutes.test.ts` and `invitationUndecodablePath.test.ts` hold it); anywhere else, the pages included, it
 is the error handler's `400 request.invalid`, the same for every address and no oracle for a real
 token. It used to be a
 `500` whose log line carried Express's own message, `Failed to decode param '<the raw
 parameter>'` — the whole credential, in the error log, on a gallery, invitation or
-password-reset address. Both answer it by the class **and** the `status: 400` the router stamps, so a
-`URIError` of ours stays a bug, with nothing from the error in the log, and the error handler
+password-reset address. The error handler and both routers answer it by the class **and** the `status: 400` the router
+stamps, so a `URIError` of ours stays a bug (a 500 with its own line and stack in the log; the refusal itself
+logs nothing from the error), and the error handler
 sets the gallery's three headers when the address carries a credential. `malformedPath.test.ts` holds the answers and `malformedPathLogCanary.test.ts`
 reads every byte the real logger and the access log write for the canonical addresses
-`loggablePath` knows. It does not widen what `loggablePath` recognises: an address with a
-doubled slash or an encoded prefix (`//g/<token>`, `/%67/<token>`) is logged as it came at
-debug level, which is a gap in `loggablePath` that this paragraph does not close.
+`loggablePath` knows.
+
+**The same address spelled another way is redacted too.** `loggablePath` matches on the path
+after three normalisations, so `//g/<token>`, `/%67/<token>`, `/g/./<token>` and
+`/api/%69nvitations/<token>` are logged as `/g/:token` and `/api/invitations/:token`: doubled
+slashes are collapsed, a percent-escape of an unreserved character (a letter, a digit, `-._~`,
+RFC 3986 section 2.3) is replaced by the character, since a decoder, a proxy or a client
+library treats the two as one address, and dot segments are removed (the page routes are
+wildcards, so `/g/./<token>` reaches the page; a browser resolves the dot before it sends, `curl
+--path-as-is` does not). `..` is read both ways, kept and resolved, because resolved
+`/g/<token>/..` has no token left to find. Any other escape (`%2F`, `%20`) is left as written.
+A path with an escape cut in the middle (`%E0%A4%A`) cannot make the normalisation fail, because
+it decodes one escape at a time: the address in front of the break is read as usual and its
+token redacted. A path that carries no token is still logged as it came. The error handler
+sets the gallery's three headers on the refusal by the same test. `errorHandler.test.ts` holds
+what each spelling is logged as, and `loggablePathLogCanary.test.ts` reads every byte the real
+logger and an enabled access log write for the five credential addresses in eight spellings
+each.
+
+**What it does not cover.** A spelling that no router reads as the address: a backslash
+(`/g<token>`), `%2F` or `%5C` for a slash, a `;parameter` in a segment, a NUL. Express sends
+every one of them to the client fallback, never to a token handler, so they matter only behind
+a proxy that rewrites them into the address, and this repository configures none. A path like
+that, with a cut escape after the token, is logged at debug level as it came.
 
 **A link-preview bot learns nothing.** Messaging apps fetch a pasted URL to draw a preview.
 What they get at `/g/<token>` is the SPA shell — the album is loaded by the page's script —
@@ -2688,8 +2735,10 @@ integration), an action, a subject (a type and an opaque id), the client it belo
 `details`, a JSON object. **Never** a photograph, a caption, a guest's name, an address, a slug, a
 filename or a token. That is enforced, not requested: each action declares in
 `src/domain/audit/auditAction.ts` the exact keys and kinds of its `details`, the vocabulary of a
-kind (`integer`, `boolean`, `instant`, and the one bounded `reason`, §22) has **no string member but an
-instant and that**, and `AuditEntry.create` refuses an undeclared key and a value of the wrong kind, naming where and never
+kind (`integer`, `boolean`, `instant`; the version of the terms of use, `termsVersion`: at most 32
+characters of a fixed alphabet, from the box's configuration and never from a request; and the one
+bounded `reason`, §22) has **no free-text member but that one**, and `AuditEntry.create` refuses an
+undeclared key and a value of the wrong kind, naming where and never
 what. There is deliberately **no `id` kind**: a slug, a join code and a token are strings of the same
 alphabet as an id, so a kind that admitted "an id" would admit them while promising otherwise; the
 first action that must name a second entity adds a kind typed to it. An account is named by its id,
@@ -2750,8 +2799,9 @@ for the reason below. The gap: if the log cannot be written and the removal fail
 with no line is left (no member, no event, no invitation) for `deleteEmptyClient` to remove. The two writes are not
 one transaction: if the save fails after the entry was recorded, the log holds a line for a change
 that did not happen, and the retry writes a second. That is the lesser error, and a visible one.
-Closing it needs a unit-of-work port that no use case has yet; G2-20 asks for the same atomicity for
-the acceptance of the terms.
+Closing it needs a unit-of-work port that no use case has yet. G2-20 did not wait for one: the entry that
+records the acceptance of the terms rides the `InvitationAcceptance` transaction instead (see
+"Invitations"), so that entry has no such gap.
 
 ## 18. The operator's overview
 
@@ -3050,8 +3100,8 @@ reset.tooManyForAddress`.
   propagates. A line for an act that then failed (the mail did not go) is the lesser, visible error.
 - **One line per client of the account**, so that each owner finds it in their own log, and one with no
   client for an account that belongs to none.
-- **No word for an address, a link or a role.** The vocabulary of `auditAction.ts` has no string kind
-  but an instant, so these lines cannot carry them: `pendingApproval` and `linkShown` are the facts a
+- **No word for an address, a link or a role.** The vocabulary of `auditAction.ts` has no free-text
+  kind, so these lines cannot carry them: `pendingApproval` and `linkShown` are the facts a
   client's owner reads them for. The tests plant the address, the token and the link and sweep the log.
 - **The client reads them** with `GET /api/client/audit` (§21): an owner reads every line about their
   client, with no account named.
@@ -3135,7 +3185,7 @@ field by field and drops what identifies a person: the actor is its **kind** (`o
 `system`, `integration`) and, for an integration, its constant label, never the account id; the id of an
 **account** subject is not copied either (an invitation's and the client's own are, because the owner matches
 them against their own list). The entries themselves already hold no address, slug, name, token or link: the
-allow-list in `auditAction.ts` has no string kind but an instant. `clientSpaceRoutes.test.ts` plants the
+allow-list in `auditAction.ts` has no free-text kind (an instant, and the box's own version of its terms, are the only strings). `clientSpaceRoutes.test.ts` plants the
 operator's and the owner's ids, their addresses and an event's name, slug, join code and a photograph's
 caption, and sweeps every answer for them. The one place an address does appear is
 `GET /api/client/invitations`, which shows an owner whom an operator wants to add to their account — that is

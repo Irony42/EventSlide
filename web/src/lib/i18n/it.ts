@@ -342,6 +342,7 @@ export const it: UiText = {
       'Questo invito non è più valido. Ne chieda uno nuovo alla persona che lo ha inviato.',
     'invitation.signInRequired':
       'Un account usa già l’indirizzo di questo invito. Acceda con quell’account: tornerà qui per accettare.',
+    'terms.notAccepted': 'Per continuare, spunti la casella che accetta le condizioni d’uso.',
     'invitation.wrongAccount':
       'Questo invito è stato scritto per un indirizzo e-mail diverso da quello di questo account.',
     'invitation.credentialsRequired':
@@ -906,6 +907,10 @@ export const it: UiText = {
     invitationSignedInAs: (email: string) => `Ha effettuato l’accesso come ${email}.`,
     invitationAcceptAs: 'Accetta con questo account',
     invitationUseAnother: 'Usa un altro account',
+    /* ---- Added by G2-20: the terms of use an invitation's acceptance agrees to. ---- */
+    invitationAcceptTerms: (version: string) =>
+      `Accetto le condizioni d’uso (versione ${version}), incluse le clausole sul trattamento dei dati per conto del titolare.`,
+    invitationReadTerms: 'Leggi le condizioni d’uso',
     deadLinkTitle: 'Questo link non è valido',
     forgotLink: 'Password dimenticata?',
     forgotTitle: 'Password dimenticata',
@@ -1045,6 +1050,7 @@ export const it: UiText = {
     actionResetApproved: 'Un ripristino della password è stato approvato.',
     actionResetMailed: 'Un link di ripristino è stato inviato al membro.',
     actionResetShown: 'Un link di ripristino è stato consegnato all’operatore.',
+    actionTermsAccepted: 'Una persona ha accettato le condizioni d’uso accettando un invito.',
     actionOther: 'È stata registrata un’azione.',
     liveWindowEnd: (date: string) => `La finestra in diretta termina il ${date}.`,
   },

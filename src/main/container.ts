@@ -442,6 +442,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     auditRetentionDays: config.audit.retentionDays,
     newClientDefaults: config.newClientCeilings,
     operatorName: config.operator.name,
+    termsOfUse: config.termsOfUse,
     mfaIssuer: config.operator.name ?? 'EventSlide',
     clips: {
       maxQueuedClips: config.clips.maxQueuedClips,

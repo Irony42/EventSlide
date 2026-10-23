@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { siteLinkOnly } from '../../app/useAbout'
 import { useSession } from '../../app/useSession'
 import { Button } from '../../design-system/components/Button'
 import { Field } from '../../design-system/components/Field'
@@ -11,6 +12,7 @@ import { useLocale } from '../../lib/i18n/useTranslations'
 import { errorMessage } from './errorMessage'
 import { AuthActions, AuthPage } from './components/AuthPage'
 import { AuthAlert, AuthForm } from './components/AuthForm'
+import { TermsAgreement } from './components/TermsAgreement'
 import { useSignOut } from './hooks/useAuthActions'
 import { useAcceptInvitation, useInvitationPreview } from './hooks/useInvitation'
 import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
@@ -49,6 +51,11 @@ const destination = (accepted: InvitationAcceptedDto): string =>
  *   must not be able to find out. The one place the server says it is `409
  *   invitation.signInRequired`, to somebody who sent a password and so is, by definition, the
  *   holder.
+ * - **On a box that asks for its terms** (the preview carries `terms`, roadmap G2-20), both ways
+ *   in end with a required, unticked box and a link to read them. Left empty it is a message
+ *   under the box and nothing is sent, and the server's own `terms.notAccepted` is worded the
+ *   same way for a page whose preview was read before the box changed its mind. It is a form
+ *   error and never a dead link: the box is only shown for a link that was read as alive.
  * - **Signed in, it offers that account** — accepting needs no password then, and the session
  *   is the only thing that names the account — and a way to leave it, because the browser may
  *   belong to somebody else.
@@ -75,6 +82,10 @@ export function AcceptInvitationPage() {
   // Which required boxes were left empty when the form was sent. See `createAccount`.
   const [blank, setBlank] = useState({ name: false, password: false })
   const [refusal, setRefusal] = useState<string | null>(null)
+  // The terms box (G2-20): ticked, and whether the form was sent while it was not.
+  const [agreed, setAgreed] = useState(false)
+  const [termsMissing, setTermsMissing] = useState(false)
+  const termsBox = useRef<HTMLInputElement>(null)
   // The link was good when the page read it and is not any more: spent by the person it was
   // for, or replaced by a newer one, in the minute this page has been open.
   const [diedUnderUs, setDiedUnderUs] = useState(false)
@@ -118,6 +129,33 @@ export function AcceptInvitationPage() {
       : `${describe(preview, t)} ${t.auth.invitationExpires(expiry)}`
   const signedInAs = session !== null && session.authenticated ? session.user.email : null
 
+  // What accepting agrees to, on a box that says so. The link is only ever one the server's own
+  // rule would have accepted (`siteLinkOnly`), whatever a rewritten response carried.
+  const terms = preview.terms
+  const termsField =
+    terms === undefined ? null : (
+      <TermsAgreement
+        version={terms.version}
+        href={siteLinkOnly(terms.url)}
+        checked={agreed}
+        boxRef={termsBox}
+        onChange={(checked) => {
+          setAgreed(checked)
+          setTermsMissing(false)
+        }}
+        {...(termsMissing ? { error: t.errors['terms.notAccepted'] } : {})}
+      />
+    )
+
+  /** The tick to send: nothing on a box that asks for none, and nothing sent while it is empty. */
+  const tick = (): { readonly acceptTerms?: boolean } | null => {
+    if (terms === undefined) return {}
+    if (agreed) return { acceptTerms: true }
+    setTermsMissing(true)
+    termsBox.current?.focus()
+    return null
+  }
+
   const settle = (outcome: AcceptOutcome) => {
     switch (outcome.kind) {
       case 'accepted':
@@ -154,13 +192,18 @@ export function AcceptInvitationPage() {
       return
     }
     setMismatch(false)
+    // The terms last, so the first thing wrong with the form is the first thing said.
+    const ticked = tick()
+    if (ticked === null) return
     setRefusal(null)
-    void accepting.submit({ kind: 'newAccount', displayName, password }).then(settle)
+    void accepting.submit({ kind: 'newAccount', displayName, password, ...ticked }).then(settle)
   }
 
   const acceptAsSignedIn = () => {
+    const ticked = tick()
+    if (ticked === null) return
     setRefusal(null)
-    void accepting.submit({ kind: 'signedInAccount' }).then(settle)
+    void accepting.submit({ kind: 'signedInAccount', ...ticked }).then(settle)
   }
 
   const useAnotherAccount = () => {
@@ -189,6 +232,7 @@ export function AcceptInvitationPage() {
         }
       >
         <p>{t.auth.invitationSignedInAs(signedInAs)}</p>
+        {termsField}
       </AuthForm>
     )
   }
@@ -276,6 +320,8 @@ export function AcceptInvitationPage() {
           />
         )}
       </Field>
+
+      {termsField}
     </AuthForm>
   )
 }

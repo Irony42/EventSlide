@@ -15,8 +15,77 @@ import { errorBody, sendError, statusForKind } from '../presenters/send'
  * Case-insensitive, as Express's routing is — `/API/Gallery/<token>` reaches the same
  * route. `/api/gallery-media/…` does not match: it carries a link's id and a signature,
  * neither of which opens anything alone.
+ *
+ * It is anchored, so it is only ever tried on a path that `normalisedForMatch` has put in
+ * one spelling.
  */
 const TOKEN_IN_PATH = /^(\/api\/gallery|\/g|\/password\/reset|\/invite|\/api\/invitations)\/[^/]+/i
+
+/** A letter, a digit or one of `-._~`: the characters RFC 3986 section 2.3 calls unreserved. */
+const UNRESERVED = /^[A-Za-z0-9\-._~]$/
+
+/**
+ * `.` is dropped. `..` is either kept as a segment or takes the segment before it with it,
+ * never the root.
+ */
+const withoutDotSegments = (path: string, resolveParents: boolean): string => {
+  const kept: string[] = []
+  for (const segment of path.split('/')) {
+    if (segment === '.') continue
+    if (segment === '..' && resolveParents) {
+      if (kept.length > 1) kept.pop()
+      continue
+    }
+    kept.push(segment)
+  }
+  return kept.join('/')
+}
+
+/**
+ * The path in the spellings a pattern can be anchored on.
+ *
+ * Two requests can name the same address in different bytes, and the pattern above sees
+ * bytes. Three spellings are undone, each one a way a client, a proxy or Express itself
+ * reads two paths as one:
+ *
+ * - **A doubled slash.** A proxy that merges slashes sends `/api//invitations/<t>` on as
+ *   `/api/invitations/<t>`. Express does not route the doubled form (it falls to the client
+ *   fallback), but a log line carries what the client sent, so it is read as the address.
+ * - **A percent-escape of an unreserved character.** RFC 3986 says `%67` and `g` are the same
+ *   character, so `/%67/<t>` is `/g/<t>` to a decoder, a proxy or a client library.
+ * - **A dot segment.** `/g/./<t>` reaches the gallery page: the page routes are wildcards, so
+ *   Express hands `.` and the token to the handler as two segments. A client that sends the
+ *   path as it was typed (`curl --path-as-is`) gets there; a browser would have removed it.
+ *   RFC 3986 section 5.2.4 says what `.` and `..` mean, and `%2e` is `.`.
+ *
+ * **Only unreserved escapes are decoded, and one at a time.** Any other escape stays as
+ * written (`%2F` is not a slash here, and `%20` is not a space), and so does a `%` that is not
+ * the start of an escape. That is also why this cannot fail the way `decodeURIComponent` does
+ * on a path cut in the middle of an escape (`%E0%A4%A`): there is no decoding step to throw,
+ * and what is left undecoded cannot spell the name of an address, which is made of letters.
+ * So a path that a whole-path decoder would refuse is not logged raw for that reason: the
+ * address in front of the break is read as usual, and its token is redacted. A double-escaped
+ * letter is not that letter: `%2567` is left as written, because `%25` is a `%`, which is not
+ * unreserved.
+ *
+ * **Two readings, because `..` can hide a token.** `/g/<t>/..` reaches the gallery page, and
+ * resolved it is `/g`, with no token left to find. So the path is read twice, once with the
+ * parent segments left in and once resolved (`/x/../g/<t>` is `/g/<t>` to a proxy that
+ * resolves it), and an address found in either is redacted.
+ *
+ * What this does not do is guess at spellings no router reads as the address: a backslash,
+ * `%2F` for a slash, a `;parameter` or a NUL. Express sends every one of those to the client
+ * fallback, never to a token handler.
+ */
+const readingsOf = (path: string): readonly string[] => {
+  const decoded = path
+    .replace(/%([0-9A-Fa-f]{2})/g, (escape: string, hex: string) => {
+      const character = String.fromCharCode(Number.parseInt(hex, 16))
+      return UNRESERVED.test(character) ? character : escape
+    })
+    .replace(/\/{2,}/g, '/')
+  return [withoutDotSegments(decoded, false), withoutDotSegments(decoded, true)]
+}
 
 /**
  * The request path as it may be logged: a link's token written as `:token`.
@@ -25,14 +94,16 @@ const TOKEN_IN_PATH = /^(\/api\/gallery|\/g|\/password\/reset|\/invite|\/api\/in
  * reads a reset link's chooses the account's password, whoever reads an invitation's chooses
  * the password of an account that does not exist yet — and a log line is read by whoever
  * operates the box and by whatever ships its logs, long after the link was sent. Every
- * other path is logged as it is.
+ * other path is logged as it is, in the spelling it came in.
+ *
+ * The match is made on the normalised readings, and a path that carries a token is logged in
+ * the reading that matched, so `//g/<t>`, `/%67/<t>` and `/g/./<t>` are all `/g/:token`.
  */
 export const loggablePath = (path: string): string => {
-  // A doubled slash is how a request steps round an anchored pattern: `/api//invitations/<t>`
-  // is routed exactly like `/api/invitations/<t>`. So the match is made on the path with its
-  // slashes collapsed, and a path that carries no token is logged as it came.
-  const collapsed = path.replace(/\/{2,}/g, '/')
-  return TOKEN_IN_PATH.test(collapsed) ? collapsed.replace(TOKEN_IN_PATH, '$1/:token') : path
+  for (const reading of readingsOf(path)) {
+    if (TOKEN_IN_PATH.test(reading)) return reading.replace(TOKEN_IN_PATH, '$1/:token')
+  }
+  return path
 }
 
 /**

@@ -6,7 +6,9 @@ import {
   asUserId,
   type AccountTokenId,
 } from '../../../domain/shared/ids'
+import { AuditEntry } from '../../../domain/audit/auditEntry'
 import type { InvitationTarget } from '../../../domain/users/accountToken'
+import type { AuditLog } from '../../ports/auditLog'
 import type { AccountTokenRepository } from '../../ports/accountTokenRepository'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { AcceptInvitationRecord, InvitationAcceptance } from '../../ports/invitationAcceptance'
@@ -28,7 +30,8 @@ import { AT, aUser, anAccountToken, atPlus } from '../builders'
  * names the account, and the link says the rest.
  *
  * The subject brings the repositories of the tables it writes, over the same storage, so the
- * suite reads its results through the ports that own them rather than around them. It must
+ * suite reads its results through the ports that own them rather than around them (the audit
+ * log included, for the entry an acceptance may carry: G2-20). It must
  * hold, before the suite runs: the accounts {@link ACCEPTANCE_ACCOUNTS} (each at
  * `<id>@example.test`), the event {@link ACCEPTANCE_EVENT} with {@link ACCEPTANCE_HOST} as its
  * owner, and the client {@link ACCEPTANCE_CLIENT} with no member.
@@ -47,6 +50,8 @@ export interface AcceptanceSubject {
   readonly users: UserRepository
   readonly memberships: MembershipRepository
   readonly clients: ClientRepository
+  /** Reads the log the acceptance writes its entry into, over the same storage. */
+  readonly audit: AuditLog
   readonly dispose?: () => Promise<void>
 }
 
@@ -319,6 +324,122 @@ export const invitationAcceptanceContract = (
     })
 
     // ------------------------------------------------------- an existing account --
+
+    // ---------------------------------------------- the acceptance of the terms --
+
+    /** The entry the use case writes for the terms of use (G2-20), for the account that accepted. */
+    const termsEntry = (userId: string, clientId: string | null = null): AuditEntry => {
+      const entry = AuditEntry.create({
+        at: atPlus(1_000),
+        actor: { kind: 'member', userId: asUserId(userId) },
+        action: 'account.termsAccepted',
+        subject: { type: 'account', id: userId },
+        clientId: clientId === null ? null : asClientId(clientId),
+        details: { version: '2027-01' },
+      })
+      if (!entry.ok) throw new Error('the fixture entry was refused')
+      return entry.value
+    }
+
+    const logged = async () => (await subject.audit.list({ limit: 50 })).items
+
+    describe('with an audit entry (the acceptance of the terms, G2-20)', () => {
+      it('writes nothing to the log when the caller gives no entry, which is every box that asks for no terms', async () => {
+        const id = await issue('tok-1', CLIENT_OWNER)
+
+        expect(await accept(id, { kind: 'new', user: newAccount() })).toBe('accepted')
+
+        expect(await logged()).toEqual([])
+      })
+
+      it('writes the entry the caller built, once, when a new account is accepted', async () => {
+        const id = await issue('tok-1', CLIENT_OWNER)
+
+        const outcome = await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(1_000),
+          account: { kind: 'new', user: newAccount() },
+          audit: termsEntry('user-new', ACCEPTANCE_CLIENT),
+        })
+
+        expect(outcome).toBe('accepted')
+        const rows = await logged()
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({
+          action: 'account.termsAccepted',
+          actor: { kind: 'member', userId: 'user-new' },
+          subject: { type: 'account', id: 'user-new' },
+          clientId: ACCEPTANCE_CLIENT,
+          details: { version: '2027-01' },
+        })
+      })
+
+      it('writes the entry with the acceptance of an existing account too', async () => {
+        const id = await issueForExisting('tok-1')
+
+        const outcome = await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(1_000),
+          account: { kind: 'existing', userId: asUserId('user-existing'), emailVerifiedAt: null },
+          audit: termsEntry('user-existing'),
+        })
+
+        expect(outcome).toBe('accepted')
+        expect((await logged()).map((row) => row.actor.userId)).toEqual(['user-existing'])
+      })
+
+      it('writes no entry for a link that cannot be spent, since nobody agreed to anything', async () => {
+        const id = await issue('tok-1')
+        await accept(id, { kind: 'new', user: newAccount() })
+
+        const outcome = await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(1_000),
+          account: { kind: 'new', user: newAccount('user-other', 'autre@example.test') },
+          audit: termsEntry('user-other'),
+        })
+
+        expect(outcome).toBe('spent')
+        expect(await logged()).toEqual([])
+      })
+
+      it('writes no entry for an address that is taken, and leaves the link usable', async () => {
+        const id = await issueForExisting('tok-1')
+
+        const outcome = await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(1_000),
+          account: {
+            kind: 'new',
+            user: newAccount('user-new', ACCEPTANCE_EXISTING_EMAIL),
+          },
+          audit: termsEntry('user-new'),
+        })
+
+        expect(outcome).toBe('emailTaken')
+        expect(await logged()).toEqual([])
+        expect(await usable('tok-1')).toBe(true)
+      })
+
+      it('undoes the whole acceptance when the log refuses the entry, so nobody holds an account that agreed to nothing on record', async () => {
+        const id = await issue('tok-1')
+
+        await expect(
+          subject.acceptance.accept({
+            tokenId: id,
+            now: atPlus(1_000),
+            account: { kind: 'new', user: newAccount() },
+            // An actor the box has never heard of: the foreign key refuses the row.
+            audit: termsEntry('user-ghost'),
+          }),
+        ).rejects.toThrow()
+
+        expect(await subject.users.findById(asUserId('user-new'))).toBeNull()
+        expect(await roleIn('user-new')).toBeNull()
+        expect(await usable('tok-1')).toBe(true)
+        expect(await logged()).toEqual([])
+      })
+    })
 
     describe('for an existing account', () => {
       const existing = (emailVerifiedAt: Date | null = null) =>

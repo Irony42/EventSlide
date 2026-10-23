@@ -6,11 +6,13 @@ import {
   EVENT_ID,
   EXISTING_EMAIL,
   EXISTING_ID,
+  CLIENT_ID,
   HOST_ID,
   NEWCOMER,
   makeInvitationWorld,
   type InvitationWorld,
 } from '../../testing/invitationWorld'
+import type { EventRepository } from '../../ports/eventRepository'
 import type { InvitationAcceptance } from '../../ports/invitationAcceptance'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import { makeAcceptInvitation, type AcceptInvitation } from './acceptInvitation'
@@ -627,5 +629,310 @@ describe('acceptInvitation', () => {
 
     const account = await accountAt(NEWCOMER)
     expect(await world.memberships.membershipFor(asEventId('event-2'), account!.id)).toBeNull()
+  })
+})
+
+// -------------------------------------------------------- the terms of use --
+
+/**
+ * G2-20: on a box that sets `LEGAL_TERMS_URL` and `LEGAL_TERMS_VERSION`, accepting an invitation
+ * is also agreeing to the terms. Every refusal here is a form error and none of them is a dead
+ * link: the tick must not be an oracle for which links are alive, nor for who is on the box.
+ */
+describe('acceptInvitation: the terms of use', () => {
+  const TERMS = { url: 'https://hosted.example.org/legal/cgu', version: '2027-01' }
+
+  let world: InvitationWorld
+
+  const buildWith = (
+    terms: typeof TERMS | null | undefined,
+    events: Pick<EventRepository, 'findById'> = world.events,
+  ): AcceptInvitation =>
+    makeAcceptInvitation({
+      tokens: world.tokens,
+      secrets: world.secrets,
+      events,
+      clients: world.clients,
+      memberships: world.memberships,
+      users: world.users,
+      hasher: world.hasher,
+      acceptance: world.acceptance,
+      ids: world.ids,
+      clock: world.clock,
+      ...(terms === undefined ? {} : { terms }),
+    })
+
+  const logged = async () => (await world.audit.list({ limit: 50 })).items
+  const accountAt = (email: string) => world.users.findByEmail(emailOf(email))
+
+  beforeEach(() => {
+    world = makeInvitationWorld()
+  })
+
+  describe('on a box that asks for them', () => {
+    it.each([
+      ['no tick at all', {}],
+      ['an unticked box', { termsAccepted: false }],
+    ])(
+      'refuses a new account with %s, creates nothing and leaves the link usable',
+      async (_what, tick) => {
+        const accept = buildWith(TERMS)
+        const { token } = await world.invite()
+
+        const refused = await accept({ token, credentials, ...tick })
+
+        expect(!refused.ok && refused.error.code).toBe('terms.notAccepted')
+        expect(!refused.ok && refused.error.kind).toBe('invalid')
+        expect(await accountAt(NEWCOMER)).toBeNull()
+        expect(world.tokens.all[0]?.consumedAt).toBeNull()
+        expect(await logged()).toEqual([])
+        // The same link, with the box ticked, still opens: nothing was spent by the refusal.
+        const again = await accept({ token, credentials, termsAccepted: true })
+        expect(again.ok).toBe(true)
+      },
+    )
+
+    it('refuses a signed-in account without the tick, and does not spend the link', async () => {
+      const accept = buildWith(TERMS)
+      const { token } = await world.invite({ email: EXISTING_EMAIL })
+
+      const refused = await accept({ token, signedInUserId: asUserId(EXISTING_ID) })
+
+      expect(!refused.ok && refused.error.code).toBe('terms.notAccepted')
+      expect(world.tokens.all[0]?.consumedAt).toBeNull()
+      expect(
+        await world.memberships.membershipFor(asEventId(EVENT_ID), asUserId(EXISTING_ID)),
+      ).toBeNull()
+      expect(await logged()).toEqual([])
+    })
+
+    it('says the same about an address that has an account as about one that has none, so the tick tells nobody who is on the box', async () => {
+      const accept = buildWith(TERMS)
+      const stranger = await world.invite()
+      const known = await world.invite({ email: EXISTING_EMAIL })
+
+      const forStranger = await accept({ token: stranger.token, credentials })
+      const forKnown = await accept({ token: known.token, credentials })
+
+      expect(!forStranger.ok && forStranger.error.code).toBe('terms.notAccepted')
+      expect(!forKnown.ok && forKnown.error.code).toBe('terms.notAccepted')
+    })
+
+    it('says the same to a signed-in account that is not the link owner as to the one that is', async () => {
+      const accept = buildWith(TERMS)
+      const { token } = await world.invite({ email: EXISTING_EMAIL })
+
+      const wrongOne = await accept({ token, signedInUserId: asUserId(HOST_ID) })
+
+      expect(!wrongOne.ok && wrongOne.error.code).toBe('terms.notAccepted')
+    })
+
+    it.each([
+      ['spent', { consumedAt: atPlus(-1) }],
+      ['revoked', { revokedAt: atPlus(-1) }],
+      ['waiting for an approval it has not had', { requiresApproval: true }],
+    ])(
+      'still answers a link that is %s with the one dead-link refusal, whatever the box holds',
+      async (_what, state) => {
+        const accept = buildWith(TERMS)
+        const { token } = await world.invite(state)
+
+        const withoutTick = await accept({ token, credentials })
+        const withTick = await accept({ token, credentials, termsAccepted: true })
+
+        expect(!withoutTick.ok && withoutTick.error.code).toBe('invitation.notFound')
+        expect(!withTick.ok && withTick.error.code).toBe('invitation.notFound')
+      },
+    )
+
+    it('answers a link nobody issued with the dead-link refusal and not the form one', async () => {
+      const accept = buildWith(TERMS)
+
+      const result = await accept({ token: 'secret-99', credentials })
+
+      expect(!result.ok && result.error.code).toBe('invitation.notFound')
+    })
+
+    it('judges a password the policy refuses as it always did, with the tick given', async () => {
+      const accept = buildWith(TERMS)
+      const { token } = await world.invite()
+
+      const result = await accept({
+        token,
+        credentials: { password: 'court', displayName: 'Camille' },
+        termsAccepted: true,
+      })
+
+      expect(!result.ok && result.error.code).toBe('password.tooShort')
+      expect(await logged()).toEqual([])
+    })
+
+    it('records the version of the terms as the person who accepted, in the log the client reads', async () => {
+      const accept = buildWith(TERMS)
+      const { token } = await world.invite({ to: 'client-owner' })
+
+      const result = await accept({ token, credentials, termsAccepted: true })
+
+      expect(result.ok).toBe(true)
+      const account = await accountAt(NEWCOMER)
+      const rows = await logged()
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        action: 'account.termsAccepted',
+        actor: { kind: 'member', userId: account?.id, label: null },
+        subject: { type: 'account', id: account?.id },
+        clientId: CLIENT_ID,
+        details: { version: '2027-01' },
+        at: world.clock.now(),
+      })
+    })
+
+    it('records the version this box is on, whichever it is, and nothing the request said', async () => {
+      const accept = buildWith({ ...TERMS, version: '2028-03' })
+      const { token } = await world.invite()
+
+      await accept({ token, credentials, termsAccepted: true })
+
+      expect((await logged())[0]?.details).toEqual({ version: '2028-03' })
+    })
+
+    it('files the entry under the client that owns the event, when the invitation is to an event', async () => {
+      // The fake event store keeps an event's client for good once it is saved, so the one
+      // that has a client is read through a reader of its own, which is all the use case asks.
+      const ofAClient = anEvent({
+        id: EVENT_ID,
+        ownerId: HOST_ID,
+        slug: 'mariage-de-camille',
+        name: 'Mariage de Camille',
+        clientId: CLIENT_ID,
+      })
+      const accept = buildWith(TERMS, { findById: async () => ofAClient })
+      const { token } = await world.invite()
+
+      await accept({ token, credentials, termsAccepted: true })
+
+      expect((await logged())[0]?.clientId).toBe(CLIENT_ID)
+    })
+
+    it('files the entry under no client when the event belongs to none', async () => {
+      const accept = buildWith(TERMS)
+      const { token } = await world.invite()
+
+      await accept({ token, credentials, termsAccepted: true })
+
+      expect((await logged())[0]?.clientId).toBeNull()
+    })
+
+    it('records it too for an account that already exists and is signed in: it is this invitation that is agreed to', async () => {
+      const accept = buildWith(TERMS)
+      const { token } = await world.invite({ email: EXISTING_EMAIL })
+
+      const result = await accept({
+        token,
+        signedInUserId: asUserId(EXISTING_ID),
+        termsAccepted: true,
+      })
+
+      expect(result.ok).toBe(true)
+      expect((await logged()).map((row) => [row.action, row.actor.userId])).toEqual([
+        ['account.termsAccepted', EXISTING_ID],
+      ])
+    })
+
+    it('records nothing for an address that turned out to have an account, since nothing was accepted', async () => {
+      const accept = buildWith(TERMS)
+      const { token } = await world.invite({ email: EXISTING_EMAIL })
+
+      const result = await accept({ token, credentials, termsAccepted: true })
+
+      expect(!result.ok && result.error.code).toBe('invitation.signInRequired')
+      expect(await logged()).toEqual([])
+    })
+
+    it('records one entry per acceptance, and a link spent twice is agreed to once', async () => {
+      const accept = buildWith(TERMS)
+      const { token } = await world.invite()
+      await accept({ token, credentials, termsAccepted: true })
+
+      const again = await accept({ token, credentials, termsAccepted: true })
+
+      expect(!again.ok && again.error.code).toBe('invitation.notFound')
+      expect(await logged()).toHaveLength(1)
+    })
+  })
+
+  describe('on a box whose version the log would refuse', () => {
+    // The boot refuses such a version (`isTermsVersion`), so no real box gets here. What the use
+    // case does if a composition ever hands it one anyway is decided here: it fails closed, and
+    // does not accept a person and write nothing down about what they agreed to.
+    const BROKEN = { url: TERMS.url, version: 'not a version!' }
+
+    it('refuses a new account with the log refusal, creates nothing and leaves the link usable', async () => {
+      const accept = buildWith(BROKEN)
+      const { token } = await world.invite()
+
+      const result = await accept({ token, credentials, termsAccepted: true })
+
+      expect(!result.ok && result.error.code).toBe('audit.detailsInvalid')
+      expect(await accountAt(NEWCOMER)).toBeNull()
+      expect(world.tokens.all[0]?.consumedAt).toBeNull()
+      expect(await logged()).toEqual([])
+    })
+
+    it('refuses a signed-in account the same way, and does not spend the link', async () => {
+      const accept = buildWith(BROKEN)
+      const { token } = await world.invite({ email: EXISTING_EMAIL })
+
+      const result = await accept({
+        token,
+        signedInUserId: asUserId(EXISTING_ID),
+        termsAccepted: true,
+      })
+
+      expect(!result.ok && result.error.code).toBe('audit.detailsInvalid')
+      expect(world.tokens.all[0]?.consumedAt).toBeNull()
+      expect(
+        await world.memberships.membershipFor(asEventId(EVENT_ID), asUserId(EXISTING_ID)),
+      ).toBeNull()
+    })
+  })
+
+  describe('on a box that asks for none, which is every self-hosted box', () => {
+    it.each([
+      ['no terms given at all', undefined],
+      ['terms given as null', null],
+    ])(
+      'accepts without any tick, records nothing and changes nothing (%s)',
+      async (_what, terms) => {
+        const accept = buildWith(terms)
+        const { token } = await world.invite()
+
+        const result = await accept({ token, credentials })
+
+        expect(result.ok).toBe(true)
+        expect((await accountAt(NEWCOMER))?.email.value).toBe(NEWCOMER)
+        expect(await logged()).toEqual([])
+      },
+    )
+
+    it('records nothing for a tick it was sent anyway, since there is no version to say it agreed to', async () => {
+      const accept = buildWith(null)
+      const { token } = await world.invite()
+
+      const result = await accept({ token, credentials, termsAccepted: true })
+
+      expect(result.ok).toBe(true)
+      expect(await logged()).toEqual([])
+    })
+
+    it('accepts a signed-in account without any tick either', async () => {
+      const accept = buildWith(null)
+      const { token } = await world.invite({ email: EXISTING_EMAIL })
+
+      const result = await accept({ token, signedInUserId: asUserId(EXISTING_ID) })
+
+      expect(result.ok).toBe(true)
+      expect(await logged()).toEqual([])
+    })
   })
 })

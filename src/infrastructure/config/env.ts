@@ -16,6 +16,11 @@ import {
   OPERATOR_RESET_LINK_MODES,
   type OperatorResetLinks,
 } from '../../domain/clients/operatorGuard'
+import {
+  isTermsVersion,
+  TERMS_VERSION_MAX_LENGTH,
+  type TermsOfUse,
+} from '../../domain/legal/termsOfUse'
 import { OPERATOR_NAME_MAX_LENGTH } from '../../domain/privacy/privacyNotice'
 import { JoinCode } from '../../domain/shared/joinCode'
 import { Password } from '../../domain/users/password'
@@ -513,6 +518,31 @@ const legalTermsUrl = optionalSiteLink('LEGAL_TERMS_URL', 'every visitor')
 const legalPrivacyUrl = optionalSiteLink('LEGAL_PRIVACY_URL', 'every visitor')
 /** Legal notice (the editor's and the host's identity, under the LCEN). */
 const legalNoticeUrl = optionalSiteLink('LEGAL_NOTICE_URL', 'every visitor')
+/**
+ * `LEGAL_TERMS_VERSION`: the short name of the terms of use that `LEGAL_TERMS_URL` points at,
+ * as they stand today (`2027-01`), which an invitation's acceptance records (G2-20).
+ *
+ * **Absent by default, and a box that sets neither this nor a terms URL asks nobody for
+ * anything**: that is every self-hosted box. Set together with `LEGAL_TERMS_URL`, accepting an
+ * invitation also means agreeing to the terms (a tick, and an audit entry carrying this
+ * string); see the refinement below for what a version alone does. Changing the text means
+ * changing this string, which is how "which version did they accept?" has an answer.
+ *
+ * Narrow, because it is written into an audit row (`isTermsVersion`): at most
+ * {@link TERMS_VERSION_MAX_LENGTH} characters of letters, digits, `.`, `_` and `-`. The value is
+ * not echoed in a refusal: an environment variable is where a secret ends up when a line is
+ * pasted into the wrong place.
+ */
+const legalTermsVersion = z.preprocess(
+  blankAsAbsent,
+  z
+    .string()
+    .trim()
+    .refine(isTermsVersion, {
+      error: `LEGAL_TERMS_VERSION must be at most ${TERMS_VERSION_MAX_LENGTH} characters of letters, digits, '.', '_' or '-', starting with a letter or a digit, as in 2027-01`,
+    })
+    .optional(),
+)
 /** Where a host gets help. Shown to hosts and on `/about`. */
 const supportUrl = optionalSiteLink('SUPPORT_URL', 'hosts and on the public /about page')
 /** Where to report a piece of content (DSA art. 16). Shown to guests. */
@@ -1233,6 +1263,8 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       OPERATOR_CONTACT_EMAIL: operatorContactEmail,
       /** See {@link legalTermsUrl}. Absent means no terms link anywhere. */
       LEGAL_TERMS_URL: legalTermsUrl,
+      /** See {@link legalTermsVersion}. With `LEGAL_TERMS_URL`, an invitation asks for the terms. */
+      LEGAL_TERMS_VERSION: legalTermsVersion,
       /** See {@link legalPrivacyUrl}. Absent means no privacy-policy link anywhere. */
       LEGAL_PRIVACY_URL: legalPrivacyUrl,
       /** See {@link legalNoticeUrl}. Absent means no legal-notice link anywhere. */
@@ -1409,6 +1441,19 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
           path: ['OPERATOR_CONTACT_EMAIL'],
           message:
             'OPERATOR_CONTACT_EMAIL requires OPERATOR_NAME: a contact address is published beside the name of the operator it belongs to, and with no name it would be published nowhere',
+        })
+      }
+
+      // G2-20: a version of terms nobody can read is a promise, not a rule. The acceptance is
+      // switched on by the pair, so a version with no address to read the terms at would leave an
+      // operator believing every invitation asks for their terms while none does. The other half
+      // of the pair, an address with no version, is the footer link G2-17 made and stays valid.
+      if (raw.LEGAL_TERMS_VERSION !== undefined && raw.LEGAL_TERMS_URL === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['LEGAL_TERMS_VERSION'],
+          message:
+            'LEGAL_TERMS_VERSION requires LEGAL_TERMS_URL: accepting an invitation asks for the terms only when there is a page to read them at, and with a version alone it would ask for nothing and look configured',
         })
       }
 
@@ -1720,6 +1765,14 @@ export interface AppConfig {
     /** `REPORT_URL`: where a piece of content is reported (DSA art. 16). */
     readonly reportUrl: string | null
   }
+
+  /**
+   * The terms an invitation's acceptance asks the person to agree to (G2-20): `LEGAL_TERMS_URL`
+   * **and** `LEGAL_TERMS_VERSION`, both or `null`. `null` is every box that set neither, and the
+   * box that set only the address (the footer link of G2-17), and it asks nobody for anything.
+   * The one place that decides "both": a use case and a presenter read this and never the pair.
+   */
+  readonly termsOfUse: TermsOfUse | null
 
   /**
    * P4-09 / D-14, grouped the way `createEvent` and `rotateJoinCode` consume them. A
@@ -2089,6 +2142,11 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       supportUrl: raw.SUPPORT_URL ?? null,
       reportUrl: raw.REPORT_URL ?? null,
     },
+
+    termsOfUse:
+      raw.LEGAL_TERMS_URL !== undefined && raw.LEGAL_TERMS_VERSION !== undefined
+        ? { url: raw.LEGAL_TERMS_URL, version: raw.LEGAL_TERMS_VERSION }
+        : null,
 
     events: {
       slugSuffix: raw.EVENT_SLUG_SUFFIX,

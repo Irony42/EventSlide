@@ -75,12 +75,12 @@ describe('a link cut in the middle of a percent-escape', () => {
     const output = await write()
 
     // One access line per address, none of them a 5xx. It is a 400 or a 404 and not one of
-    // them: the invitation API is not mounted on this tree, and where it is its router has an
-    // answer of its own for the same error. And the handler's own line, with the path written
-    // as `:token`.
+    // them: the gallery and invitation routers answer the router's decode failure with a 404 of
+    // their own (`gallery.notAvailable`, `invitation.notFound`), and write no line of the app
+    // logger's. And the handler's own line, with the path written as `:token`, for the pages.
     expect(output).toContain(INSTANCE.instance)
     expect(output.match(/"statusCode":(?:400|404)/g)).toHaveLength(CREDENTIAL_PATHS.length)
-    expect(output).not.toMatch(/"statusCode":5dd/)
+    expect(output).not.toMatch(/"statusCode":5\d\d/)
     expect(output).toContain('"path":"/g/:token"')
     expect(output).toContain('"path":"/invite/:token"')
     expect(output).toContain('"path":"/password/reset/:token"')

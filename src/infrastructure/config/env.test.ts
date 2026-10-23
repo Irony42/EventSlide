@@ -168,6 +168,8 @@ describe('loadConfig', () => {
           supportUrl: null,
           reportUrl: null,
         },
+        // Neither the address nor the version: an invitation asks for no terms (G2-20).
+        termsOfUse: null,
         events: {
           slugSuffix: 'none',
           allowCustomSlugs: true,
@@ -1999,6 +2001,96 @@ describe('loadConfig', () => {
       expect(operator.name).toBeNull()
       expect(operator.termsUrl).toBeNull()
       expect(operator.privacyUrl).toBeNull()
+    })
+
+    /**
+     * G2-20: `LEGAL_TERMS_URL` and `LEGAL_TERMS_VERSION` together make accepting an invitation
+     * ask for the terms. Either one alone must leave a self-hosted box exactly as it was.
+     */
+    describe('the terms of use (LEGAL_TERMS_VERSION)', () => {
+      const URL = 'https://hosted.example.org/legal/cgu'
+
+      it('are off by default: a box that sets neither asks nobody for anything', () => {
+        expect(loadConfig({ ...DEV }).termsOfUse).toBeNull()
+        expect(loadConfig(aProductionEnv()).termsOfUse).toBeNull()
+      })
+
+      it('are off when only the address is set, which is the footer link and nothing more', () => {
+        const config = loadConfig({ ...DEV, LEGAL_TERMS_URL: URL })
+
+        expect(config.termsOfUse).toBeNull()
+        expect(config.operator.termsUrl).toBe(URL)
+      })
+
+      it('are on with the address and the version together', () => {
+        expect(
+          loadConfig({ ...DEV, LEGAL_TERMS_URL: URL, LEGAL_TERMS_VERSION: '2027-01' }),
+        ).toMatchObject({
+          termsOfUse: { url: URL, version: '2027-01' },
+        })
+      })
+
+      it('carry the address in its canonical form and the version trimmed', () => {
+        const config = loadConfig({
+          ...DEV,
+          LEGAL_TERMS_URL: '  HTTPS://Hosted.Example.ORG/legal/cgu  ',
+          LEGAL_TERMS_VERSION: '  2027-01  ',
+        })
+
+        expect(config.termsOfUse).toEqual({ url: URL, version: '2027-01' })
+      })
+
+      it('read a blank version as absent, which is what a dangling compose variable renders', () => {
+        const config = loadConfig({ ...DEV, LEGAL_TERMS_URL: URL, LEGAL_TERMS_VERSION: '' })
+
+        expect(config.termsOfUse).toBeNull()
+      })
+
+      it('read a blank pair as absent', () => {
+        const config = loadConfig({ ...DEV, LEGAL_TERMS_URL: '', LEGAL_TERMS_VERSION: '' })
+
+        expect(config.termsOfUse).toBeNull()
+      })
+
+      it('refuse a version with no address, since it would look configured and ask for nothing', () => {
+        const issues = refusalIssues({ ...DEV, LEGAL_TERMS_VERSION: '2027-01' })
+
+        const issue = issues.find((candidate) => candidate.startsWith('LEGAL_TERMS_VERSION: '))
+        expect(issue).toContain('LEGAL_TERMS_URL')
+      })
+
+      it.each([
+        ['a sentence', 'les nouvelles conditions'],
+        ['an address', 'camille@example.org'],
+        ['a path', '2027/01'],
+        ['a leading hyphen', '-2027'],
+        ['more than 32 characters', 'v'.repeat(33)],
+      ])('refuse a version that is %s, and never echo what was typed', (_what, value) => {
+        const issues = refusalIssues({ ...DEV, LEGAL_TERMS_URL: URL, LEGAL_TERMS_VERSION: value })
+
+        const issue = issues.find((candidate) => candidate.startsWith('LEGAL_TERMS_VERSION: '))
+        expect(issue).toBeDefined()
+        expect(issue).not.toContain(value)
+      })
+
+      it('accept the longest version, which is 32 characters', () => {
+        const version = 'v'.repeat(32)
+
+        expect(
+          loadConfig({ ...DEV, LEGAL_TERMS_URL: URL, LEGAL_TERMS_VERSION: version }).termsOfUse,
+        ).toEqual({ url: URL, version })
+      })
+
+      it('are refused beside a refused address in one boot, so both are named at once', () => {
+        const issues = refusalIssues({
+          ...DEV,
+          LEGAL_TERMS_URL: 'http://hosted.example.org/cgu',
+          LEGAL_TERMS_VERSION: 'les nouvelles conditions',
+        })
+
+        expect(issues.some((issue) => issue.startsWith('LEGAL_TERMS_URL: '))).toBe(true)
+        expect(issues.some((issue) => issue.startsWith('LEGAL_TERMS_VERSION: '))).toBe(true)
+      })
     })
   })
 

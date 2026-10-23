@@ -278,7 +278,7 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
 3. **Look for the names of the new settings.** The server now checks them at boot and exits
    with code 78 on a value that does not fit, naming the variable. If your environment already
    sets one of them for another purpose, change or remove it: `SUPPORT_URL`, `REPORT_URL`,
-   `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SOURCE_CODE_URL`,
+   `LEGAL_TERMS_URL`, `LEGAL_TERMS_VERSION`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SOURCE_CODE_URL`,
    `DONATION_URL`, `BUDGET_URL`, `SOURCE_REF`, `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`,
    `SMTP_URL`, `MAIL_FROM`, `EVENT_CREATION`, `AUDIT_RETENTION_DAYS`, `MIN_FREE_DISK_BYTES`,
    `MAX_CONCURRENT_UPLOAD_REQUESTS`, `MAX_QUEUED_CLIPS_PER_EVENT`, `MAX_STREAMS_PER_CLIENT`,

@@ -210,6 +210,7 @@ describe('validateDetails', () => {
       'nullable',
       'object',
       'reason',
+      'termsVersion',
     ])
   })
 
@@ -243,6 +244,33 @@ describe('validateDetails', () => {
       const result = validateDetails(WITH_REASON, { why: 'mon@example.test' })
 
       expect(!result.ok && JSON.stringify(result.error.details)).not.toContain('example')
+    })
+  })
+
+  describe('a terms version', () => {
+    const VERSION_FIELDS = { version: detail.termsVersion }
+
+    it('accepts the version a box is on', () => {
+      expect(validateDetails(VERSION_FIELDS, { version: '2027-01' }).ok).toBe(true)
+    })
+
+    it.each([
+      ['a sentence', 'the new terms apply'],
+      ['an address', 'camille@example.org'],
+      ['a token as long as a real one', 'Z7q-Mx0Ld3Tn9VbRk2YcHs8WfAe5GuJi4PoXz1NvB6E'],
+      ['nothing', ''],
+      ['a number', 3],
+      ['null', null],
+    ])('refuses %s, so the log cannot be made to hold prose under this key', (_what, version) => {
+      const result = validateDetails(VERSION_FIELDS, { version } as unknown as AuditDetails)
+
+      expect(!result.ok && result.error.details['problem']).toBe('wrongType')
+    })
+
+    it('never puts the refused text in the error, only where it was', () => {
+      const result = validateDetails(VERSION_FIELDS, { version: 'camille@example.org' })
+
+      expect(!result.ok && JSON.stringify(result.error.details)).not.toContain('camille')
     })
   })
 })

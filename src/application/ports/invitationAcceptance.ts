@@ -1,3 +1,4 @@
+import type { AuditEntry } from '../../domain/audit/auditEntry'
 import type { AccountTokenId, UserId } from '../../domain/shared/ids'
 import type { User } from '../../domain/users/user'
 
@@ -18,8 +19,11 @@ import type { User } from '../../domain/users/user'
  * `EventRepository.createWithOwner` exists for the same reason. So the adapter does all of it
  * in one write transaction, and nothing here is observable half-done.
  *
- * It also leaves room for the next writer: the acceptance of the terms (G2-20) is an audit
- * entry that has to be in the same transaction, and this is the port it will join.
+ * It is also where the acceptance of the terms of use (G2-20) is written: an audit entry that
+ * has to be in the same transaction, because the two statements are one fact. An entry
+ * written before would claim an agreement that was never made if the link then turned out
+ * spent; one written after could be lost to a crash and leave an account that agreed to
+ * nothing on record. See {@link AcceptInvitationRecord.audit}.
  *
  * ## What it decides, and what it leaves to the caller
  *
@@ -58,6 +62,14 @@ export interface AcceptInvitationRecord {
   /** The instant the link is judged usable at, and the stamp of the spend and the grant. */
   readonly now: Date
   readonly account: AcceptingAccount
+  /**
+   * An entry for the audit log, built and vetted by the caller (`AuditEntry.create`), written
+   * in this transaction **when the answer is `accepted` and never otherwise**: a link that
+   * was spent, an address that was taken and a failure all leave the log as it was. It rides
+   * the transaction, so an entry the log refuses (an actor that is not an account) undoes
+   * the acceptance with it. Absent when the box asks for no terms (G2-20).
+   */
+  readonly audit?: AuditEntry
 }
 
 /**

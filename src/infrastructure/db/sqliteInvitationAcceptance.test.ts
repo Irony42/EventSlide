@@ -12,6 +12,7 @@ import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrations } from './migrations'
 import { migrate } from './migrator'
 import { SqliteAccountTokenRepository } from './sqliteAccountTokenRepository'
+import { SqliteAuditLog } from './sqliteAuditLog'
 import { SqliteClientRepository } from './sqliteClientRepository'
 import { SqliteInvitationAcceptance } from './sqliteInvitationAcceptance'
 import { SqliteMembershipRepository } from './sqliteMembershipRepository'
@@ -57,6 +58,7 @@ invitationAcceptanceContract('sqlite', async () => {
     users: new SqliteUserRepository(db),
     memberships: new SqliteMembershipRepository(db),
     clients: new SqliteClientRepository(db),
+    audit: new SqliteAuditLog(db),
     dispose: async () => {
       closeDatabase(db)
     },

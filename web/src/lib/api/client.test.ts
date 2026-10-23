@@ -670,6 +670,26 @@ describe('the account-token requests', () => {
     expect(only().body).toEqual({})
   })
 
+  it('carries the tick of the terms of use when the page has one to send, for either form (G2-20)', async () => {
+    await subject().acceptInvitation(GALLERY_TOKEN, {
+      kind: 'newAccount',
+      displayName: 'Camille',
+      password: 'une-phrase-de-passe-longue',
+      acceptTerms: true,
+    })
+    expect(only().body).toEqual({
+      displayName: 'Camille',
+      password: 'une-phrase-de-passe-longue',
+      acceptTerms: true,
+    })
+  })
+
+  it('carries the tick alone for the account that is already signed in (G2-20)', async () => {
+    await subject().acceptInvitation(GALLERY_TOKEN, { kind: 'signedInAccount', acceptTerms: true })
+
+    expect(only().body).toEqual({ acceptTerms: true })
+  })
+
   it('escapes a token before it becomes a path segment', async () => {
     // The token comes out of the address bar, which is whatever somebody typed.
     await subject().invitation('a/b?c')

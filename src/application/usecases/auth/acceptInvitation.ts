@@ -1,3 +1,5 @@
+import { AuditEntry } from '../../../domain/audit/auditEntry'
+import type { TermsOfUse } from '../../../domain/legal/termsOfUse'
 import { DomainError } from '../../../domain/shared/errors'
 import type { UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -22,7 +24,15 @@ import {
  * account, or by being signed in as the account that uses the address. Nothing else — in
  * particular, never by *saying* which account they are.
  */
-export type AcceptInvitationInput = { readonly token: string } & (
+export type AcceptInvitationInput = {
+  readonly token: string
+  /**
+   * That the person ticked "I accept the terms of use" (G2-20). Read only on a box that asks
+   * for terms, where anything but `true` is `400 terms.notAccepted`. Ignored, and never
+   * recorded, on a box that asks for none.
+   */
+  readonly termsAccepted?: boolean
+} & (
   | {
       /** The address has no account yet: this is the person it is for, choosing how they sign in. */
       readonly credentials: { readonly password: string; readonly displayName: string }
@@ -58,6 +68,12 @@ export interface AcceptInvitationDeps extends ResolveInvitationDeps {
   readonly acceptance: InvitationAcceptance
   readonly ids: Pick<IdGenerator, 'userId'>
   readonly clock: Clock
+  /**
+   * The terms this box asks the person to agree to (`LEGAL_TERMS_URL` with
+   * `LEGAL_TERMS_VERSION`), or absent / `null` when it asks for none, which is every
+   * self-hosted box (G2-20).
+   */
+  readonly terms?: TermsOfUse | null
 }
 
 export type AcceptInvitation = (
@@ -103,6 +119,24 @@ export type AcceptInvitation = (
  *    address that became taken in the meantime is `409 invitation.signInRequired`, with the
  *    link still alive.
  *
+ * ## The terms of use (G2-20)
+ *
+ * On a box that sets `LEGAL_TERMS_URL` and `LEGAL_TERMS_VERSION`, accepting an invitation is
+ * also agreeing to the terms, and says so: **a missing tick is `400 terms.notAccepted`, a form
+ * error and not a dead link.** It is judged right after the link is found and before anything
+ * about who is accepting, for the same reason the name and the password are: a refusal that
+ * came after the address was looked at would answer differently for an address that has an
+ * account, and a stranger holding a link would learn who is on the box from the status. And it
+ * is judged after the link, never before it, so that a dead link is the one `404` whatever the
+ * form holds: a dead link is never answered with the form error.
+ *
+ * The agreement is written **in the transaction that spends the link**
+ * (`InvitationAcceptance`): the audit entry `account.termsAccepted {version}`, as the account
+ * that accepted, filed under the client the invitation belongs to. The version is the box's
+ * own, from its configuration, never from the request. Every acceptance on such a box writes
+ * one, an existing account's included: it is the acceptance of *this* invitation that is
+ * agreed to, and "it agreed once before" is not a version.
+ *
  * ## What an account made here is
  *
  * - **Its address is the link's**, never the request's.
@@ -123,6 +157,7 @@ export type AcceptInvitation = (
  */
 export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitation => {
   const { users, hasher, acceptance, ids, clock } = deps
+  const terms = deps.terms ?? null
   const resolve = makeResolveInvitation(deps)
 
   return async (input) => {
@@ -130,7 +165,26 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
 
     const resolved = await resolve(input.token, now)
     if (!resolved.ok) return resolved
-    const { record, target, place } = resolved.value
+    const { record, target, place, clientId } = resolved.value
+
+    // After the link and before anyone: see "The terms of use" above.
+    if (terms !== null && input.termsAccepted !== true) {
+      return err(DomainError.invalid('terms.notAccepted'))
+    }
+
+    /** What rides the acceptance of `userId`: the agreement, when the box asks for terms. */
+    const agreement = (userId: UserId): Result<{ readonly audit?: AuditEntry }, DomainError> => {
+      if (terms === null) return ok({})
+      const entry = AuditEntry.create({
+        at: now,
+        actor: { kind: 'member', userId },
+        action: 'account.termsAccepted',
+        subject: { type: 'account', id: userId },
+        clientId,
+        details: { version: terms.version },
+      })
+      return entry.ok ? ok({ audit: entry.value }) : entry
+    }
 
     // Mail proves the mailbox; a link the inviter held proves nothing about it.
     const emailVerifiedAt = record.delivery === 'mail' ? now : null
@@ -142,10 +196,14 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
         return err(DomainError.forbidden('invitation.wrongAccount'))
       }
 
+      const agreed = agreement(account.id)
+      if (!agreed.ok) return agreed
+
       const outcome = await acceptance.accept({
         tokenId: record.id,
         now,
         account: { kind: 'existing', userId: account.id, emailVerifiedAt },
+        ...agreed.value,
       })
       if (outcome !== 'accepted') return err(invitationNotFound())
       return ok({ userId: account.id, email: account.email.value, target, place })
@@ -193,10 +251,14 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
     )
     if (!created.ok) return created
 
+    const agreed = agreement(created.value.id)
+    if (!agreed.ok) return agreed
+
     const outcome = await acceptance.accept({
       tokenId: stillGood.value.record.id,
       now,
       account: { kind: 'new', user: created.value },
+      ...agreed.value,
     })
     if (outcome === 'emailTaken') return err(DomainError.conflict('invitation.signInRequired'))
     if (outcome !== 'accepted') return err(invitationNotFound())

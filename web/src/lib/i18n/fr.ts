@@ -1138,6 +1138,10 @@ export const fr = {
     invitationSignedInAs: (email: string) => `Vous êtes connecté avec ${email}.`,
     invitationAcceptAs: 'Accepter avec ce compte',
     invitationUseAnother: 'Utiliser un autre compte',
+    /* ---- Added by G2-20: the terms of use an invitation's acceptance agrees to. ---- */
+    invitationAcceptTerms: (version: string) =>
+      `J’accepte les conditions d’utilisation (version ${version}), dont les clauses de sous-traitance.`,
+    invitationReadTerms: 'Lire les conditions d’utilisation',
     /** The title of every dead link, invitation or reset: one sentence, whatever killed it. */
     deadLinkTitle: 'Ce lien n’est pas valable',
     forgotLink: 'Mot de passe oublié ?',
@@ -1277,6 +1281,7 @@ export const fr = {
       'Cette invitation n’est plus valable. Demandez-en une nouvelle à la personne qui vous l’a envoyée.',
     'invitation.signInRequired':
       'Un compte utilise déjà l’adresse de cette invitation. Connectez-vous avec ce compte : vous reviendrez ici pour accepter.',
+    'terms.notAccepted': 'Pour continuer, cochez la case qui accepte les conditions d’utilisation.',
     'invitation.wrongAccount':
       'Cette invitation est destinée à une autre adresse e-mail que celle de ce compte.',
     'invitation.credentialsRequired':
@@ -1665,6 +1670,8 @@ export const fr = {
     actionResetApproved: 'Une réinitialisation de mot de passe a été approuvée.',
     actionResetMailed: 'Un lien de réinitialisation a été envoyé au membre.',
     actionResetShown: 'Un lien de réinitialisation a été remis à l’opérateur.',
+    actionTermsAccepted:
+      'Une personne a accepté les conditions d’utilisation en acceptant une invitation.',
     actionOther: 'Une action a été enregistrée.',
     liveWindowEnd: (date: string) => `Le direct se termine le ${date}.`,
   },

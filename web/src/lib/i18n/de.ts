@@ -352,6 +352,7 @@ export const de: UiText = {
       'Diese Einladung ist nicht mehr gültig. Bitten Sie die Person, die sie geschickt hat, um eine neue.',
     'invitation.signInRequired':
       'Die Adresse dieser Einladung gehört bereits zu einem Konto. Melden Sie sich mit diesem Konto an: Sie kehren dann hierher zurück, um die Einladung anzunehmen.',
+    'terms.notAccepted': 'Um fortzufahren, setzen Sie das Häkchen bei den Nutzungsbedingungen.',
     'invitation.wrongAccount':
       'Diese Einladung wurde für eine andere E-Mail-Adresse als die dieses Kontos ausgestellt.',
     'invitation.credentialsRequired':
@@ -945,6 +946,10 @@ export const de: UiText = {
     invitationSignedInAs: (email: string) => `Sie sind als ${email} angemeldet.`,
     invitationAcceptAs: 'Mit diesem Konto annehmen',
     invitationUseAnother: 'Anderes Konto verwenden',
+    /* ---- Added by G2-20: the terms of use an invitation's acceptance agrees to. ---- */
+    invitationAcceptTerms: (version: string) =>
+      `Ich akzeptiere die Nutzungsbedingungen (Version ${version}), einschließlich der Klauseln zur Auftragsverarbeitung.`,
+    invitationReadTerms: 'Nutzungsbedingungen lesen',
     deadLinkTitle: 'Dieser Link ist ungültig',
     forgotLink: 'Passwort vergessen?',
     forgotTitle: 'Passwort vergessen',
@@ -1085,6 +1090,8 @@ export const de: UiText = {
     actionResetApproved: 'Ein Zurücksetzen des Passworts wurde genehmigt.',
     actionResetMailed: 'Ein Link zum Zurücksetzen wurde an das Mitglied gesendet.',
     actionResetShown: 'Ein Link zum Zurücksetzen wurde dem Betreiber übergeben.',
+    actionTermsAccepted:
+      'Eine Person hat die Nutzungsbedingungen akzeptiert, indem sie eine Einladung angenommen hat.',
     actionOther: 'Eine Aktion wurde aufgezeichnet.',
     liveWindowEnd: (date: string) => `Das Live-Fenster endet am ${date}.`,
   },

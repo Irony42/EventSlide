@@ -136,6 +136,16 @@ export const AUDIT_ACTIONS = {
    * line to know which of the two happened to their member.
    */
   'account.resetIssued': { subject: 'account', details: { linkShown: detail.boolean } },
+  /**
+   * A person accepted the terms of use by accepting an invitation (`acceptInvitation`, G2-20),
+   * on a box that sets `LEGAL_TERMS_URL` and `LEGAL_TERMS_VERSION`. The subject is the account
+   * that accepted and the client is the one the invitation was into (or the event's), so the
+   * client's owner reads it (G2-16). `version` is the box's own, as it was when they agreed:
+   * what a dispute needs ("which text did they accept?") and nothing that a person typed.
+   * Written in the transaction that spends the link, so there is no acceptance without it and
+   * no entry without an acceptance.
+   */
+  'account.termsAccepted': { subject: 'account', details: { version: detail.termsVersion } },
   /** An account removed its authenticator and its recovery codes (`disableSecondFactor`). */
   'account.secondFactorDisabled': { subject: 'account', details: {} },
   /** An account replaced its set of recovery codes (`regenerateRecoveryCodes`). */
