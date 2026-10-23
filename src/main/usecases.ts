@@ -282,513 +282,526 @@ const clientCreator = (adapters: Adapters) =>
  * adapter nor decide how one is built — which is what the eslint boundary rules
  * enforce, and what makes the HTTP layer testable with fakes.
  */
-export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
-  // ------------------------------------------------------------------- auth --
-  authenticateUser: makeAuthenticateUser({
-    users: adapters.users,
-    factors: adapters.secondFactors,
-    hasher: adapters.passwordHasher,
-    clock: adapters.clock,
-  }),
-  changePassword: makeChangePassword({
-    users: adapters.users,
-    hasher: adapters.passwordHasher,
-    clock: adapters.clock,
-  }),
-  revokeOtherSessions: makeRevokeOtherSessions({
-    users: adapters.users,
-    clock: adapters.clock,
-  }),
-  requestPasswordReset: makeRequestPasswordReset({
-    users: adapters.users,
-    tokens: adapters.accountTokens,
-    secrets: adapters.secretTokens,
-    mailer: adapters.mailer,
-    ids: adapters.ids,
-    clock: adapters.clock,
-    logger: adapters.logger,
-    publicUrl: policy.publicUrl,
-  }),
-  resetPassword: makeResetPassword({
-    users: adapters.users,
-    tokens: adapters.accountTokens,
-    secrets: adapters.secretTokens,
-    hasher: adapters.passwordHasher,
-    clock: adapters.clock,
-  }),
-  verifySecondFactor: verifySecondFactorFrom(adapters),
-  enrollTotp: makeEnrollTotp({
-    users: adapters.users,
-    factors: adapters.secondFactors,
-    hasher: adapters.passwordHasher,
-    vault: adapters.mfaVault,
-    ids: adapters.ids,
-    clock: adapters.clock,
-    issuer: policy.mfaIssuer,
-  }),
-  confirmTotpEnrollment: makeConfirmTotpEnrollment({
-    users: adapters.users,
-    factors: adapters.secondFactors,
-    vault: adapters.mfaVault,
-    engine: adapters.totpEngine,
-    secrets: adapters.secretTokens,
-    ids: adapters.ids,
-    audit: adapters.audit,
-    clock: adapters.clock,
-    logger: adapters.logger,
-  }),
-  stepUp: makeStepUp({
-    users: adapters.users,
-    factors: adapters.secondFactors,
-    hasher: adapters.passwordHasher,
+export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
+  /**
+   * **One issuer for the whole box.** The per-address queue that keeps the cap and the one-live-link
+   * rule true under concurrency lives inside it, so two instances would be two queues, and a host
+   * inviting an address at the moment the operator opens a client for it would race past both.
+   */
+  const issueInvitation = invitationIssuer(adapters, policy)
+
+  return {
+    // ------------------------------------------------------------------- auth --
+    authenticateUser: makeAuthenticateUser({
+      users: adapters.users,
+      factors: adapters.secondFactors,
+      hasher: adapters.passwordHasher,
+      clock: adapters.clock,
+    }),
+    changePassword: makeChangePassword({
+      users: adapters.users,
+      hasher: adapters.passwordHasher,
+      clock: adapters.clock,
+    }),
+    revokeOtherSessions: makeRevokeOtherSessions({
+      users: adapters.users,
+      clock: adapters.clock,
+    }),
+    requestPasswordReset: makeRequestPasswordReset({
+      users: adapters.users,
+      tokens: adapters.accountTokens,
+      secrets: adapters.secretTokens,
+      mailer: adapters.mailer,
+      ids: adapters.ids,
+      clock: adapters.clock,
+      logger: adapters.logger,
+      publicUrl: policy.publicUrl,
+    }),
+    resetPassword: makeResetPassword({
+      users: adapters.users,
+      tokens: adapters.accountTokens,
+      secrets: adapters.secretTokens,
+      hasher: adapters.passwordHasher,
+      clock: adapters.clock,
+    }),
     verifySecondFactor: verifySecondFactorFrom(adapters),
-  }),
-  regenerateRecoveryCodes: makeRegenerateRecoveryCodes({
-    users: adapters.users,
-    factors: adapters.secondFactors,
-    secrets: adapters.secretTokens,
-    ids: adapters.ids,
-    audit: adapters.audit,
-    clock: adapters.clock,
-  }),
-  disableSecondFactor: makeDisableSecondFactor({
-    users: adapters.users,
-    factors: adapters.secondFactors,
-    audit: adapters.audit,
-    clock: adapters.clock,
-  }),
-  /**
-   * Built, and called by nothing yet: the operator API that puts its authorization in front
-   * of it is its own item. Constructed here rather than there so the dependencies it needs —
-   * the audit log among them — are wired once, with the rest of the auth use cases.
-   */
-  disableAccount: makeDisableAccount({
-    users: adapters.users,
-    audit: adapters.audit,
-    clock: adapters.clock,
-  }),
-  /**
-   * Previewing and accepting an invitation (G2-09 / P3-10): the invitee's, a link in a mail
-   * and the account it creates. Writing one is the mechanism under the callers that decide
-   * who may invite (`registerModerator`, `provisionClientOwner`), which build it for
-   * themselves from `invitationIssuer`: it is not on this bag, so no route can reach it.
-   */
-  previewInvitation: makePreviewInvitation({
-    ...invitationReaders(adapters),
-    clock: adapters.clock,
-  }),
-  acceptInvitation: makeAcceptInvitation({
-    ...invitationReaders(adapters),
-    users: adapters.users,
-    hasher: adapters.passwordHasher,
-    acceptance: adapters.invitationAcceptance,
-    ids: adapters.ids,
-    clock: adapters.clock,
-  }),
-  registerModerator: makeRegisterModerator({
-    events: adapters.events,
-    users: adapters.users,
-    memberships: adapters.memberships,
-    hasher: adapters.passwordHasher,
-    ids: adapters.ids,
-    clock: adapters.clock,
-  }),
-  bootstrapOwner: makeBootstrapOwner({
-    users: adapters.users,
-    hasher: adapters.passwordHasher,
-    ids: adapters.ids,
-    clock: adapters.clock,
-  }),
+    enrollTotp: makeEnrollTotp({
+      users: adapters.users,
+      factors: adapters.secondFactors,
+      hasher: adapters.passwordHasher,
+      vault: adapters.mfaVault,
+      ids: adapters.ids,
+      clock: adapters.clock,
+      issuer: policy.mfaIssuer,
+    }),
+    confirmTotpEnrollment: makeConfirmTotpEnrollment({
+      users: adapters.users,
+      factors: adapters.secondFactors,
+      vault: adapters.mfaVault,
+      engine: adapters.totpEngine,
+      secrets: adapters.secretTokens,
+      ids: adapters.ids,
+      audit: adapters.audit,
+      clock: adapters.clock,
+      logger: adapters.logger,
+    }),
+    stepUp: makeStepUp({
+      users: adapters.users,
+      factors: adapters.secondFactors,
+      hasher: adapters.passwordHasher,
+      verifySecondFactor: verifySecondFactorFrom(adapters),
+    }),
+    regenerateRecoveryCodes: makeRegenerateRecoveryCodes({
+      users: adapters.users,
+      factors: adapters.secondFactors,
+      secrets: adapters.secretTokens,
+      ids: adapters.ids,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    disableSecondFactor: makeDisableSecondFactor({
+      users: adapters.users,
+      factors: adapters.secondFactors,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    /**
+     * Built, and called by nothing yet: the operator API that puts its authorization in front
+     * of it is its own item. Constructed here rather than there so the dependencies it needs —
+     * the audit log among them — are wired once, with the rest of the auth use cases.
+     */
+    disableAccount: makeDisableAccount({
+      users: adapters.users,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    /**
+     * Previewing and accepting an invitation (G2-09 / P3-10): the invitee's, a link in a mail
+     * and the account it creates. Writing one is the mechanism under the callers that decide
+     * who may invite (`registerModerator`, `provisionClientOwner`), which build it for
+     * themselves from `invitationIssuer`: it is not on this bag, so no route can reach it.
+     */
+    previewInvitation: makePreviewInvitation({
+      ...invitationReaders(adapters),
+      clock: adapters.clock,
+    }),
+    acceptInvitation: makeAcceptInvitation({
+      ...invitationReaders(adapters),
+      users: adapters.users,
+      hasher: adapters.passwordHasher,
+      acceptance: adapters.invitationAcceptance,
+      ids: adapters.ids,
+      clock: adapters.clock,
+    }),
+    registerModerator: makeRegisterModerator({
+      events: adapters.events,
+      users: adapters.users,
+      memberships: adapters.memberships,
+      issueInvitation,
+    }),
+    bootstrapOwner: makeBootstrapOwner({
+      users: adapters.users,
+      hasher: adapters.passwordHasher,
+      ids: adapters.ids,
+      clock: adapters.clock,
+    }),
 
-  // ----------------------------------------------------------------- events --
-  createEvent: makeCreateEvent({
-    events: adapters.events,
-    clients: adapters.clients,
-    users: adapters.users,
-    eventCreation: policy.events.creation,
-    ids: adapters.ids,
-    clock: adapters.clock,
-    defaultQuotaBytes: policy.defaultEventQuotaBytes,
-    maxQuotaBytes: policy.maxEventQuotaBytes,
-    slugSuffix: policy.events.slugSuffix,
-    allowCustomSlugs: policy.events.allowCustomSlugs,
-    joinCodeLength: policy.events.joinCodeLength,
-  }),
-  getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
-  listEventsForHost: makeListEventsForHost({ events: adapters.events }),
-  resolveJoinCode: makeResolveJoinCode({ events: adapters.events }),
-  updateEventSettings: makeUpdateEventSettings({
-    events: adapters.events,
-    clients: adapters.clients,
-    memberships: adapters.memberships,
-    bus: adapters.bus,
-  }),
-  rotateJoinCode: makeRotateJoinCode({
-    events: adapters.events,
-    memberships: adapters.memberships,
-    ids: adapters.ids,
-    bus: adapters.bus,
-    joinCodeLength: policy.events.joinCodeLength,
-  }),
-  changeEventStatus: makeChangeEventStatus({
-    events: adapters.events,
-    clients: adapters.clients,
-    memberships: adapters.memberships,
-    bus: adapters.bus,
-    clock: adapters.clock,
-  }),
-  purgeEvent: makePurgeEvent({
-    events: adapters.events,
-    memberships: adapters.memberships,
-    media: adapters.media,
-  }),
-  purgeExpiredEvents: makePurgeExpiredEvents({
-    events: adapters.events,
-    media: adapters.media,
-    clock: adapters.clock,
-    capNoticeDays: policy.retention.capNoticeDays,
-  }),
-  /**
-   * The collector the clip upload, the losing staging attempt and `recoverClipJobs` all
-   * rely on. None of those deletes media itself any more, because deleting by digest can
-   * destroy a byte-identical file somebody else owns.
-   */
-  sweepOrphanedMedia: makeSweepOrphanedMedia({
-    photos: adapters.photos,
-    clips: adapters.clips,
-    media: adapters.media,
-    clock: adapters.clock,
-    logger: adapters.logger,
-    policy: {
-      minimumAgeMs: policy.mediaSweepMinimumAgeMs,
-      maxDigestsPerPass: policy.mediaSweepMaxDigestsPerPass,
-    },
-  }),
-  scheduleEvent: makeScheduleEvent({
-    events: adapters.events,
-    memberships: adapters.memberships,
-    bus: adapters.bus,
-    clock: adapters.clock,
-  }),
-  /** The sweep behind the two scheduled instants. No actor: `src/main` drives it. */
-  applyEventSchedules: makeApplyEventSchedules({
-    events: adapters.events,
-    clients: adapters.clients,
-    bus: adapters.bus,
-    clock: adapters.clock,
-  }),
+    // ----------------------------------------------------------------- events --
+    createEvent: makeCreateEvent({
+      events: adapters.events,
+      clients: adapters.clients,
+      users: adapters.users,
+      eventCreation: policy.events.creation,
+      ids: adapters.ids,
+      clock: adapters.clock,
+      defaultQuotaBytes: policy.defaultEventQuotaBytes,
+      maxQuotaBytes: policy.maxEventQuotaBytes,
+      slugSuffix: policy.events.slugSuffix,
+      allowCustomSlugs: policy.events.allowCustomSlugs,
+      joinCodeLength: policy.events.joinCodeLength,
+    }),
+    getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
+    listEventsForHost: makeListEventsForHost({ events: adapters.events }),
+    resolveJoinCode: makeResolveJoinCode({ events: adapters.events }),
+    updateEventSettings: makeUpdateEventSettings({
+      events: adapters.events,
+      clients: adapters.clients,
+      memberships: adapters.memberships,
+      bus: adapters.bus,
+    }),
+    rotateJoinCode: makeRotateJoinCode({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      ids: adapters.ids,
+      bus: adapters.bus,
+      joinCodeLength: policy.events.joinCodeLength,
+    }),
+    changeEventStatus: makeChangeEventStatus({
+      events: adapters.events,
+      clients: adapters.clients,
+      memberships: adapters.memberships,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    purgeEvent: makePurgeEvent({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      media: adapters.media,
+    }),
+    purgeExpiredEvents: makePurgeExpiredEvents({
+      events: adapters.events,
+      media: adapters.media,
+      clock: adapters.clock,
+      capNoticeDays: policy.retention.capNoticeDays,
+    }),
+    /**
+     * The collector the clip upload, the losing staging attempt and `recoverClipJobs` all
+     * rely on. None of those deletes media itself any more, because deleting by digest can
+     * destroy a byte-identical file somebody else owns.
+     */
+    sweepOrphanedMedia: makeSweepOrphanedMedia({
+      photos: adapters.photos,
+      clips: adapters.clips,
+      media: adapters.media,
+      clock: adapters.clock,
+      logger: adapters.logger,
+      policy: {
+        minimumAgeMs: policy.mediaSweepMinimumAgeMs,
+        maxDigestsPerPass: policy.mediaSweepMaxDigestsPerPass,
+      },
+    }),
+    scheduleEvent: makeScheduleEvent({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    /** The sweep behind the two scheduled instants. No actor: `src/main` drives it. */
+    applyEventSchedules: makeApplyEventSchedules({
+      events: adapters.events,
+      clients: adapters.clients,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
 
-  // ----------------------------------------------------------------- guests --
-  joinEvent: makeJoinEvent({
-    events: adapters.events,
-    clients: adapters.clients,
-    guests: adapters.guests,
-    tokens: adapters.guestTokens,
-    ids: adapters.ids,
-    clock: adapters.clock,
-    bus: adapters.bus,
-    operatorName: policy.operatorName,
-  }),
-  authenticateGuest: makeAuthenticateGuest({
-    events: adapters.events,
-    guests: adapters.guests,
-    tokens: adapters.guestTokens,
-    clock: adapters.clock,
-  }),
-  renameGuest: makeRenameGuest({ guests: adapters.guests }),
-  revokeGuest: makeRevokeGuest({
-    guests: adapters.guests,
-    memberships: adapters.memberships,
-    clock: adapters.clock,
-  }),
-  listGuests: makeListGuests({
-    guests: adapters.guests,
-    memberships: adapters.memberships,
-    clock: adapters.clock,
-  }),
-  getPrivacyNotice: makeGetPrivacyNotice({
-    events: adapters.events,
-    clients: adapters.clients,
-    guests: adapters.guests,
-    operatorName: policy.operatorName,
-  }),
-  acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
-    events: adapters.events,
-    clients: adapters.clients,
-    guests: adapters.guests,
-    clock: adapters.clock,
-    operatorName: policy.operatorName,
-  }),
+    // ----------------------------------------------------------------- guests --
+    joinEvent: makeJoinEvent({
+      events: adapters.events,
+      clients: adapters.clients,
+      guests: adapters.guests,
+      tokens: adapters.guestTokens,
+      ids: adapters.ids,
+      clock: adapters.clock,
+      bus: adapters.bus,
+      operatorName: policy.operatorName,
+    }),
+    authenticateGuest: makeAuthenticateGuest({
+      events: adapters.events,
+      guests: adapters.guests,
+      tokens: adapters.guestTokens,
+      clock: adapters.clock,
+    }),
+    renameGuest: makeRenameGuest({ guests: adapters.guests }),
+    revokeGuest: makeRevokeGuest({
+      guests: adapters.guests,
+      memberships: adapters.memberships,
+      clock: adapters.clock,
+    }),
+    listGuests: makeListGuests({
+      guests: adapters.guests,
+      memberships: adapters.memberships,
+      clock: adapters.clock,
+    }),
+    getPrivacyNotice: makeGetPrivacyNotice({
+      events: adapters.events,
+      clients: adapters.clients,
+      guests: adapters.guests,
+      operatorName: policy.operatorName,
+    }),
+    acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
+      events: adapters.events,
+      clients: adapters.clients,
+      guests: adapters.guests,
+      clock: adapters.clock,
+      operatorName: policy.operatorName,
+    }),
 
-  // ----------------------------------------------------------------- photos --
-  uploadPhotos: makeUploadPhotos({
-    events: adapters.events,
-    clients: adapters.clients,
-    photos: adapters.photos,
-    missions: adapters.missions,
-    media: adapters.media,
-    imageProcessor: adapters.imageProcessor,
-    hasher: adapters.contentHasher,
-    bus: adapters.bus,
-    clock: adapters.clock,
-    ids: adapters.ids,
-    logger: adapters.logger,
-    limits: { maxPixels: policy.maxImagePixels },
-  }),
-  listEventPhotos: makeListEventPhotos({ events: adapters.events, photos: adapters.photos }),
-  listGuestPhotos: makeListGuestPhotos({ events: adapters.events, photos: adapters.photos }),
-  deletePhoto: makeDeletePhoto({
-    events: adapters.events,
-    photos: adapters.photos,
-    clips: adapters.clips,
-    media: adapters.media,
-    bus: adapters.bus,
-    clock: adapters.clock,
-  }),
-  setPhotoCaption: makeSetPhotoCaption({
-    events: adapters.events,
-    photos: adapters.photos,
-    bus: adapters.bus,
-    clock: adapters.clock,
-  }),
-  getPhotoMedia: makeGetPhotoMedia({ photos: adapters.photos, media: adapters.media }),
-  exportAlbum: makeExportAlbum({
-    events: adapters.events,
-    photos: adapters.photos,
-    media: adapters.media,
-    archive: adapters.archive,
-    logger: adapters.logger,
-  }),
+    // ----------------------------------------------------------------- photos --
+    uploadPhotos: makeUploadPhotos({
+      events: adapters.events,
+      clients: adapters.clients,
+      photos: adapters.photos,
+      missions: adapters.missions,
+      media: adapters.media,
+      imageProcessor: adapters.imageProcessor,
+      hasher: adapters.contentHasher,
+      bus: adapters.bus,
+      clock: adapters.clock,
+      ids: adapters.ids,
+      logger: adapters.logger,
+      limits: { maxPixels: policy.maxImagePixels },
+    }),
+    listEventPhotos: makeListEventPhotos({ events: adapters.events, photos: adapters.photos }),
+    listGuestPhotos: makeListGuestPhotos({ events: adapters.events, photos: adapters.photos }),
+    deletePhoto: makeDeletePhoto({
+      events: adapters.events,
+      photos: adapters.photos,
+      clips: adapters.clips,
+      media: adapters.media,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    setPhotoCaption: makeSetPhotoCaption({
+      events: adapters.events,
+      photos: adapters.photos,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    getPhotoMedia: makeGetPhotoMedia({ photos: adapters.photos, media: adapters.media }),
+    exportAlbum: makeExportAlbum({
+      events: adapters.events,
+      photos: adapters.photos,
+      media: adapters.media,
+      archive: adapters.archive,
+      logger: adapters.logger,
+    }),
 
-  // ------------------------------------------------------------------ clips --
-  uploadClip: makeUploadClip({
-    events: adapters.events,
-    clients: adapters.clients,
-    clips: adapters.clips,
-    photos: adapters.photos,
-    media: adapters.media,
-    transcoder: adapters.videoTranscoder,
-    hasher: adapters.contentHasher,
-    bus: adapters.bus,
-    clock: adapters.clock,
-    ids: adapters.ids,
-    logger: adapters.logger,
-    limits: {
-      maxQueuedClips: policy.clips.maxQueuedClips,
-      maxQueuedClipsPerEvent: policy.clips.maxQueuedClipsPerEvent,
-    },
-  }),
-  getClipJob: makeGetClipJob({ clips: adapters.clips }),
-  /**
-   * The two the HTTP layer deliberately does not list.
-   *
-   * Both drain the queue across **every** event on the box, so a route in front of
-   * either would be an endpoint with no tenant to scope it to. `src/main/clipWorker.ts`
-   * is their only caller.
-   */
-  transcodeNextClip: makeTranscodeNextClip({
-    events: adapters.events,
-    clients: adapters.clients,
-    clips: adapters.clips,
-    photos: adapters.photos,
-    media: adapters.media,
-    transcoder: adapters.videoTranscoder,
-    hasher: adapters.contentHasher,
-    bus: adapters.bus,
-    clock: adapters.clock,
-    logger: adapters.logger,
-    policy: {
-      maxHeight: policy.clips.maxHeight,
-      maxDurationMs: policy.clips.maxDurationMs,
-      maxOutputBytes: policy.clips.maxOutputBytes,
-      posterMaxEdge: policy.clips.posterMaxEdge,
-      maxPixels: policy.clips.maxPixels,
-    },
-  }),
-  // **It takes no media store at all, and that is the design rather than an omission.**
-  // It puts a `running` row back on the queue, or gives up on one that has spent its
-  // attempts — and an abandoned job keeps its source: `failed` releases the digest from
-  // the partial unique index, so an unlink after that commit races the guest's own
-  // re-upload for bytes the new reservation now owns. Stale *reservations* are the
-  // reaper's, which deletes the row and leaves the bytes for the same reason. Every
-  // digest either of them leaves behind is `sweepOrphanedMedia`'s to collect, which is
-  // the one caller that re-checks the database with nothing between it and the unlink.
-  recoverClipJobs: makeRecoverClipJobs({
-    clips: adapters.clips,
-    clock: adapters.clock,
-    logger: adapters.logger,
-  }),
+    // ------------------------------------------------------------------ clips --
+    uploadClip: makeUploadClip({
+      events: adapters.events,
+      clients: adapters.clients,
+      clips: adapters.clips,
+      photos: adapters.photos,
+      media: adapters.media,
+      transcoder: adapters.videoTranscoder,
+      hasher: adapters.contentHasher,
+      bus: adapters.bus,
+      clock: adapters.clock,
+      ids: adapters.ids,
+      logger: adapters.logger,
+      limits: {
+        maxQueuedClips: policy.clips.maxQueuedClips,
+        maxQueuedClipsPerEvent: policy.clips.maxQueuedClipsPerEvent,
+      },
+    }),
+    getClipJob: makeGetClipJob({ clips: adapters.clips }),
+    /**
+     * The two the HTTP layer deliberately does not list.
+     *
+     * Both drain the queue across **every** event on the box, so a route in front of
+     * either would be an endpoint with no tenant to scope it to. `src/main/clipWorker.ts`
+     * is their only caller.
+     */
+    transcodeNextClip: makeTranscodeNextClip({
+      events: adapters.events,
+      clients: adapters.clients,
+      clips: adapters.clips,
+      photos: adapters.photos,
+      media: adapters.media,
+      transcoder: adapters.videoTranscoder,
+      hasher: adapters.contentHasher,
+      bus: adapters.bus,
+      clock: adapters.clock,
+      logger: adapters.logger,
+      policy: {
+        maxHeight: policy.clips.maxHeight,
+        maxDurationMs: policy.clips.maxDurationMs,
+        maxOutputBytes: policy.clips.maxOutputBytes,
+        posterMaxEdge: policy.clips.posterMaxEdge,
+        maxPixels: policy.clips.maxPixels,
+      },
+    }),
+    // **It takes no media store at all, and that is the design rather than an omission.**
+    // It puts a `running` row back on the queue, or gives up on one that has spent its
+    // attempts — and an abandoned job keeps its source: `failed` releases the digest from
+    // the partial unique index, so an unlink after that commit races the guest's own
+    // re-upload for bytes the new reservation now owns. Stale *reservations* are the
+    // reaper's, which deletes the row and leaves the bytes for the same reason. Every
+    // digest either of them leaves behind is `sweepOrphanedMedia`'s to collect, which is
+    // the one caller that re-checks the database with nothing between it and the unlink.
+    recoverClipJobs: makeRecoverClipJobs({
+      clips: adapters.clips,
+      clock: adapters.clock,
+      logger: adapters.logger,
+    }),
 
-  /**
-   * Reservations, on a short timer rather than only at boot — see the use case. It is
-   * separate from `recoverClipJobs` because that one may run **only** at startup:
-   * `recoverAbandoned` reads every `running` row as the wreckage of a dead process, which
-   * is true then and false while the encoder is working.
-   */
-  reapStaleReservations: makeReapStaleReservations({
-    clips: adapters.clips,
-    clock: adapters.clock,
-    logger: adapters.logger,
-    policy: { reservationTimeoutMs: policy.clips.reservationTimeoutMs },
-  }),
+    /**
+     * Reservations, on a short timer rather than only at boot — see the use case. It is
+     * separate from `recoverClipJobs` because that one may run **only** at startup:
+     * `recoverAbandoned` reads every `running` row as the wreckage of a dead process, which
+     * is true then and false while the encoder is working.
+     */
+    reapStaleReservations: makeReapStaleReservations({
+      clips: adapters.clips,
+      clock: adapters.clock,
+      logger: adapters.logger,
+      policy: { reservationTimeoutMs: policy.clips.reservationTimeoutMs },
+    }),
 
-  // ------------------------------------------------------------- moderation --
-  getModerationQueue: makeGetModerationQueue({
-    events: adapters.events,
-    photos: adapters.photos,
-    guests: adapters.guests,
-    memberships: adapters.memberships,
-  }),
-  moderatePhoto: makeModeratePhoto({
-    events: adapters.events,
-    photos: adapters.photos,
-    memberships: adapters.memberships,
-    bus: adapters.bus,
-    clock: adapters.clock,
-  }),
-  moderatePhotosBulk: makeModeratePhotosBulk({
-    events: adapters.events,
-    photos: adapters.photos,
-    memberships: adapters.memberships,
-    bus: adapters.bus,
-    clock: adapters.clock,
-  }),
+    // ------------------------------------------------------------- moderation --
+    getModerationQueue: makeGetModerationQueue({
+      events: adapters.events,
+      photos: adapters.photos,
+      guests: adapters.guests,
+      memberships: adapters.memberships,
+    }),
+    moderatePhoto: makeModeratePhoto({
+      events: adapters.events,
+      photos: adapters.photos,
+      memberships: adapters.memberships,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    moderatePhotosBulk: makeModeratePhotosBulk({
+      events: adapters.events,
+      photos: adapters.photos,
+      memberships: adapters.memberships,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
 
-  // -------------------------------------------------------------- slideshow --
-  getWallPlaylist: makeGetWallPlaylist({
-    events: adapters.events,
-    photos: adapters.photos,
-    guests: adapters.guests,
-    missions: adapters.missions,
-  }),
+    // -------------------------------------------------------------- slideshow --
+    getWallPlaylist: makeGetWallPlaylist({
+      events: adapters.events,
+      photos: adapters.photos,
+      guests: adapters.guests,
+      missions: adapters.missions,
+    }),
 
-  // --------------------------------------------------------------- missions --
-  listMissions: makeListMissions({
-    events: adapters.events,
-    missions: adapters.missions,
-    memberships: adapters.memberships,
-  }),
-  createMission: makeCreateMission({
-    events: adapters.events,
-    missions: adapters.missions,
-    memberships: adapters.memberships,
-    ids: adapters.ids,
-    bus: adapters.bus,
-    clock: adapters.clock,
-  }),
-  updateMission: makeUpdateMission({
-    events: adapters.events,
-    missions: adapters.missions,
-    memberships: adapters.memberships,
-    bus: adapters.bus,
-  }),
-  deleteMission: makeDeleteMission({
-    events: adapters.events,
-    missions: adapters.missions,
-    memberships: adapters.memberships,
-    bus: adapters.bus,
-  }),
-  getGuestChecklist: makeGetGuestChecklist({
-    events: adapters.events,
-    missions: adapters.missions,
-  }),
+    // --------------------------------------------------------------- missions --
+    listMissions: makeListMissions({
+      events: adapters.events,
+      missions: adapters.missions,
+      memberships: adapters.memberships,
+    }),
+    createMission: makeCreateMission({
+      events: adapters.events,
+      missions: adapters.missions,
+      memberships: adapters.memberships,
+      ids: adapters.ids,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    updateMission: makeUpdateMission({
+      events: adapters.events,
+      missions: adapters.missions,
+      memberships: adapters.memberships,
+      bus: adapters.bus,
+    }),
+    deleteMission: makeDeleteMission({
+      events: adapters.events,
+      missions: adapters.missions,
+      memberships: adapters.memberships,
+      bus: adapters.bus,
+    }),
+    getGuestChecklist: makeGetGuestChecklist({
+      events: adapters.events,
+      missions: adapters.missions,
+    }),
 
-  // --------------------------------------------------------- shared gallery --
-  //
-  // Every one of the link holder's five goes through `galleryAccess.ts`, which is why
-  // they share one bag of ports: the rule they all ask needs the links, the events, the
-  // memberships (a link lives only as long as its creator's ownership), the signer and
-  // the clock.
-  createShareLink: makeCreateShareLink({
-    events: adapters.events,
-    shareLinks: adapters.shareLinks,
-    memberships: adapters.memberships,
-    hasher: adapters.passwordHasher,
-    signer: adapters.gallerySigner,
-    ids: adapters.ids,
-    clock: adapters.clock,
-  }),
-  getShareLink: makeGetShareLink({
-    events: adapters.events,
-    shareLinks: adapters.shareLinks,
-    memberships: adapters.memberships,
-    clock: adapters.clock,
-  }),
-  revokeShareLink: makeRevokeShareLink({
-    events: adapters.events,
-    shareLinks: adapters.shareLinks,
-    memberships: adapters.memberships,
-    clock: adapters.clock,
-  }),
-  openGallery: makeOpenGallery({ ...galleryAccess(adapters), photos: adapters.photos }),
-  unlockGallery: makeUnlockGallery({ ...galleryAccess(adapters), hasher: adapters.passwordHasher }),
-  listGalleryPhotos: makeListGalleryPhotos({ ...galleryAccess(adapters), photos: adapters.photos }),
-  getGalleryMedia: makeGetGalleryMedia({
-    ...galleryAccess(adapters),
-    photos: adapters.photos,
-    media: adapters.media,
-  }),
-  downloadGalleryArchive: makeDownloadGalleryArchive({
-    ...galleryAccess(adapters),
-    photos: adapters.photos,
-    media: adapters.media,
-    archive: adapters.archive,
-    logger: adapters.logger,
-  }),
+    // --------------------------------------------------------- shared gallery --
+    //
+    // Every one of the link holder's five goes through `galleryAccess.ts`, which is why
+    // they share one bag of ports: the rule they all ask needs the links, the events, the
+    // memberships (a link lives only as long as its creator's ownership), the signer and
+    // the clock.
+    createShareLink: makeCreateShareLink({
+      events: adapters.events,
+      shareLinks: adapters.shareLinks,
+      memberships: adapters.memberships,
+      hasher: adapters.passwordHasher,
+      signer: adapters.gallerySigner,
+      ids: adapters.ids,
+      clock: adapters.clock,
+    }),
+    getShareLink: makeGetShareLink({
+      events: adapters.events,
+      shareLinks: adapters.shareLinks,
+      memberships: adapters.memberships,
+      clock: adapters.clock,
+    }),
+    revokeShareLink: makeRevokeShareLink({
+      events: adapters.events,
+      shareLinks: adapters.shareLinks,
+      memberships: adapters.memberships,
+      clock: adapters.clock,
+    }),
+    openGallery: makeOpenGallery({ ...galleryAccess(adapters), photos: adapters.photos }),
+    unlockGallery: makeUnlockGallery({
+      ...galleryAccess(adapters),
+      hasher: adapters.passwordHasher,
+    }),
+    listGalleryPhotos: makeListGalleryPhotos({
+      ...galleryAccess(adapters),
+      photos: adapters.photos,
+    }),
+    getGalleryMedia: makeGetGalleryMedia({
+      ...galleryAccess(adapters),
+      photos: adapters.photos,
+      media: adapters.media,
+    }),
+    downloadGalleryArchive: makeDownloadGalleryArchive({
+      ...galleryAccess(adapters),
+      photos: adapters.photos,
+      media: adapters.media,
+      archive: adapters.archive,
+      logger: adapters.logger,
+    }),
 
-  // ---------------------------------------------------------------- clients --
-  //
-  // Built whatever `SITE_ADMIN` says, like every use case: the mode decides which routes
-  // are mounted (roadmap §10.9), never which use cases exist. **No route calls these yet**
-  // — the operator API is G2-14, behind `SITE_ADMIN` and `requireOperator`. The gate is the
-  // HTTP layer's, as for every operator route, so only `setClientCeilings` takes an actor:
-  // it is the one that writes the audit log (§10.8), and an entry must say who did it.
-  createClient: clientCreator(adapters),
-  /**
-   * Opens a client and invites its owner (G2-09 / P3-10). The operator API that puts
-   * `requireOperator` in front of it is G2-14; until then nothing calls it.
-   */
-  provisionClientOwner: makeProvisionClientOwner({
+    // ---------------------------------------------------------------- clients --
+    //
+    // Built whatever `SITE_ADMIN` says, like every use case: the mode decides which routes
+    // are mounted (roadmap §10.9), never which use cases exist. **No route calls these yet**
+    // — the operator API is G2-14, behind `SITE_ADMIN` and `requireOperator`. The gate is the
+    // HTTP layer's, as for every operator route, so only `setClientCeilings` takes an actor:
+    // it is the one that writes the audit log (§10.8), and an entry must say who did it.
     createClient: clientCreator(adapters),
-    issueInvitation: invitationIssuer(adapters, policy),
-    clients: adapters.clients,
-  }),
-  renameClient: makeRenameClient({ clients: adapters.clients }),
-  setClientCeilings: makeSetClientCeilings({
-    clients: adapters.clients,
-    audit: adapters.audit,
-    clock: adapters.clock,
-  }),
-  listClients: makeListClients({ clients: adapters.clients }),
-  deleteEmptyClient: makeDeleteEmptyClient({ clients: adapters.clients }),
+    /**
+     * Opens a client and invites its owner (G2-09 / P3-10). The operator API that puts
+     * `requireOperator` in front of it is G2-14; until then nothing calls it.
+     */
+    provisionClientOwner: makeProvisionClientOwner({
+      createClient: clientCreator(adapters),
+      issueInvitation,
+      clients: adapters.clients,
+    }),
+    renameClient: makeRenameClient({ clients: adapters.clients }),
+    setClientCeilings: makeSetClientCeilings({
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    listClients: makeListClients({ clients: adapters.clients }),
+    deleteEmptyClient: makeDeleteEmptyClient({ clients: adapters.clients }),
 
-  // ------------------------------------------------------------------ audit --
-  //
-  // **The only way a row ever leaves the audit log**, and so deliberately not reachable
-  // from any route: `src/main/retentionSweeper.ts` is its one caller. No actor, because
-  // nothing about it is a request.
-  pruneAuditLog: makePruneAuditLog({
-    audit: adapters.audit,
-    clock: adapters.clock,
-    retentionDays: policy.auditRetentionDays,
-  }),
+    // ------------------------------------------------------------------ audit --
+    //
+    // **The only way a row ever leaves the audit log**, and so deliberately not reachable
+    // from any route: `src/main/retentionSweeper.ts` is its one caller. No actor, because
+    // nothing about it is a request.
+    pruneAuditLog: makePruneAuditLog({
+      audit: adapters.audit,
+      clock: adapters.clock,
+      retentionDays: policy.auditRetentionDays,
+    }),
 
-  // -------------------------------------------------------------- reactions --
-  reactToPhoto: makeReactToPhoto({
-    events: adapters.events,
-    photos: adapters.photos,
-    reactions: adapters.reactions,
-    bus: adapters.bus,
-    clock: adapters.clock,
-    ids: adapters.ids,
-    budget: policy.reactionBudget,
-  }),
-  withdrawReaction: makeWithdrawReaction({ reactions: adapters.reactions }),
-  getPhotoReactions: makeGetPhotoReactions({
-    photos: adapters.photos,
-    reactions: adapters.reactions,
-  }),
-  getTopPhotos: makeGetTopPhotos({ photos: adapters.photos, reactions: adapters.reactions }),
-})
+    // -------------------------------------------------------------- reactions --
+    reactToPhoto: makeReactToPhoto({
+      events: adapters.events,
+      photos: adapters.photos,
+      reactions: adapters.reactions,
+      bus: adapters.bus,
+      clock: adapters.clock,
+      ids: adapters.ids,
+      budget: policy.reactionBudget,
+    }),
+    withdrawReaction: makeWithdrawReaction({ reactions: adapters.reactions }),
+    getPhotoReactions: makeGetPhotoReactions({
+      photos: adapters.photos,
+      reactions: adapters.reactions,
+    }),
+    getTopPhotos: makeGetTopPhotos({ photos: adapters.photos, reactions: adapters.reactions }),
+  }
+}
 
 export type UseCases = ReturnType<typeof buildUseCases>

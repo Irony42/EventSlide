@@ -16,8 +16,9 @@ import { buildServerHarness } from '../testing/serverHarness'
  * `schemas/requestSchemas.ts` parses them with.
  *
  * It exists because of a defect the ring mesh let through in full. `inviteModerator`
- * sent `{ email }`; `moderatorInvitationBody` is `.strict()` and requires
- * `temporaryPassword` as well. Every invitation a host sent came back
+ * sent `{ email }`; `moderatorInvitationBody` was `.strict()` and required
+ * a temporary password as well (3.0 removed that field, and the same pairing now holds the
+ * form to `{ email, locale }`). Every invitation a host sent came back
  * `400 request.invalid` — 100% of them. Both sides were tested, and both tests passed:
  * the ring-4 route test posted a complete body of its own, and the ring-5 component
  * test asserted that the panel calls `api.inviteModerator`. Neither could see the other
@@ -635,6 +636,10 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
     'POST /api/auth/password-reset/request has no client method yet (G2-10)',
   passwordResetConfirmBody:
     'POST /api/auth/password-reset/confirm has no client method yet (G2-10)',
+  // The invitation page is the first caller of the two invitee routes (G2-10 / P3-11). Their
+  // server half ships first, with the host's side, so the page has something to call.
+  acceptInvitationBody:
+    'POST /api/invitations/:token/accept has no client method yet (G2-10, the acceptance page)',
 }
 
 // --------------------------------------------------------------------- tests --
@@ -699,7 +704,7 @@ describe('the request contract', () => {
   it.each(PAIRINGS)(
     '$name sends every field $schemaName requires of $verb $declared',
     ({ name, schema, schemaName, keys }) => {
-      // F4 in one assertion: `moderatorInvitationBody` requires `temporaryPassword` and
+      // F4 in one assertion: `moderatorInvitationBody` required a temporary password and
       // `inviteModerator` sent `{ email }`, so every invitation a host sent was refused.
       const always = new Set(
         [...keys].flatMap(([key, presence]) => (presence === 'always' ? [key] : [])),

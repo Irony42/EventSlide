@@ -1,70 +1,48 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { EventRole } from '../../../domain/events/eventRole'
-import { asEventId, asUserId } from '../../../domain/shared/ids'
+import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { EmailAddress } from '../../../domain/users/emailAddress'
-import type { Password } from '../../../domain/users/password'
-import type { PasswordHash } from '../../../domain/users/user'
-import type { PasswordHasher } from '../../ports/passwordHasher'
+import type { Logger } from '../../ports/logger'
 import { AT, anEvent, aUser } from '../../testing/builders'
+import { FakeAccountTokenRepository } from '../../testing/fakeAccountTokenRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeMailer } from '../../testing/fakeMailer'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
+import { FakeSecretTokens } from '../../testing/fakeSecretTokens'
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
+import { makeIssueInvitation, type IssueInvitation } from './issueInvitation'
 import { makeRegisterModerator, type RegisterModeratorInput } from './registerModerator'
 
-/** What the host types into the invitation form and reads out to the invitee. */
-const TEMPORARY = 'mot-de-passe-provisoire'
-
-const hashOf = (plaintext: string): PasswordHash => `hash:${plaintext}`
-
-const defaultProduces = (password: Password): PasswordHash => hashOf(password.value)
-
-/**
- * A hasher whose output a test can dictate.
- *
- * `src/application/testing/` has no password hasher fake yet — it is written by work in
- * flight — and the empty-hash guard on `User.create` is only reachable by choosing what
- * `hash` returns, so this double is local to the file that needs it.
- */
-class ScriptedPasswordHasher implements PasswordHasher {
-  readonly dummyHash: PasswordHash = hashOf('mot-de-passe-factice')
-
-  constructor(private readonly produces: (password: Password) => PasswordHash = defaultProduces) {}
-
-  async hash(password: Password): Promise<PasswordHash> {
-    return this.produces(password)
-  }
-
-  async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
-    return hash === hashOf(attempt)
-  }
-
-  needsRehash(): boolean {
-    return false
-  }
+const quietLogger: Logger = {
+  debug: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+  child: () => quietLogger,
 }
 
 describe('registerModerator', () => {
   let events: FakeEventRepository
   let users: FakeUserRepository
   let memberships: FakeMembershipRepository
-  let hasher: ScriptedPasswordHasher
-  let ids: SequentialIdGenerator
-  let clock: FakeClock
+  let tokens: FakeAccountTokenRepository
+  let mailer: FakeMailer
+
+  let issue: IssueInvitation
 
   const invite = (overrides: Partial<RegisterModeratorInput> = {}) =>
-    makeRegisterModerator({ events, users, memberships, hasher, ids, clock })({
+    makeRegisterModerator({ events, users, memberships, issueInvitation: issue })({
       eventId: asEventId('event-1'),
       actorId: asUserId('owner-1'),
       email: 'lea@example.test',
-      displayName: null,
-      temporaryPassword: TEMPORARY,
+      locale: 'fr',
       ...overrides,
     })
 
-  const storedInvitee = async () => {
-    const email = EmailAddress.create('lea@example.test')
+  const accountAt = async (address: string) => {
+    const email = EmailAddress.create(address)
     return email.ok ? await users.findByEmail(email.value) : null
   }
 
@@ -72,9 +50,22 @@ describe('registerModerator', () => {
     users = new FakeUserRepository()
     memberships = new FakeMembershipRepository({ users })
     events = new FakeEventRepository({ memberships })
-    hasher = new ScriptedPasswordHasher()
-    ids = new SequentialIdGenerator()
-    clock = new FakeClock()
+    mailer = new FakeMailer()
+    tokens = new FakeAccountTokenRepository()
+      .withAccounts(asUserId('owner-1'), asUserId('operator-1'), asUserId('mod-1'))
+      .withEvents(asEventId('event-1'), asEventId('event-2'), asEventId('event-3'))
+      .withClients(asClientId('client-1'))
+
+    // One issuer for the test, as the box has one: its ids and secrets keep counting.
+    issue = makeIssueInvitation({
+      tokens,
+      secrets: new FakeSecretTokens(),
+      mailer,
+      ids: new SequentialIdGenerator(),
+      clock: new FakeClock(AT),
+      logger: quietLogger,
+      publicUrl: 'https://photos.example.test',
+    })
 
     events.seed(
       anEvent({ id: 'event-1', ownerId: 'owner-1' }),
@@ -89,45 +80,94 @@ describe('registerModerator', () => {
     })
   })
 
-  it('creates the account and grants it the moderator role for that event alone', async () => {
+  // ------------------------------------------------------- what it now does --
+
+  it('writes an invitation to that event, authored by the owner, and mails the address', async () => {
     const result = await invite()
 
-    expect(result.ok && result.value).toEqual({ userId: asUserId('user-1'), created: true })
-    expect(await memberships.listForUser(asUserId('user-1'))).toEqual([
-      {
-        eventId: asEventId('event-1'),
-        userId: asUserId('user-1'),
-        role: 'moderator',
-        grantedAt: AT,
-      },
-    ])
+    expect(result.ok && result.value.delivery).toBe('mail')
+    expect(tokens.all).toHaveLength(1)
+    expect(tokens.all[0]).toMatchObject({
+      purpose: 'invitation',
+      eventId: 'event-1',
+      eventRole: 'moderator',
+      createdBy: 'owner-1',
+    })
+    expect(mailer.sent[0]?.to).toBe('lea@example.test')
+    expect(mailer.sent[0]?.text).toContain('/invite/')
   })
+
+  it('creates no account and grants no role: nothing exists until the invitation is accepted', async () => {
+    await invite()
+
+    expect(await accountAt('lea@example.test')).toBeNull()
+    expect(await memberships.listForEvent(asEventId('event-1'))).toHaveLength(1)
+    expect(await memberships.listForUser(asUserId('owner-1'))).toHaveLength(1)
+  })
+
+  it('does not attach an existing account to the event: that account has to accept', async () => {
+    users.seed(aUser({ id: 'user-9', email: 'lea@example.test' }))
+
+    const result = await invite()
+
+    expect(result.ok).toBe(true)
+    expect(await memberships.membershipFor(asEventId('event-1'), asUserId('user-9'))).toBeNull()
+  })
+
+  it('answers an address that has an account exactly as one that has none', async () => {
+    users.seed(aUser({ id: 'user-9', email: 'connue@example.test' }))
+
+    const known = await invite({ email: 'connue@example.test' })
+    const unknown = await invite({ email: 'inconnue@example.test' })
+
+    expect(known.ok && unknown.ok).toBe(true)
+    const shape = (result: typeof known) =>
+      result.ok ? Object.keys(result.value).sort() : ['refused']
+    expect(shape(known)).toEqual(shape(unknown))
+    expect(known.ok && known.value.delivery).toBe(unknown.ok && unknown.value.delivery)
+    expect(mailer.sent.map((sent) => sent.subject)[0]).toBe(
+      mailer.sent.map((sent) => sent.subject)[1],
+    )
+  })
+
+  it('leaves an existing operator account its own site role, which this never touches', async () => {
+    users.seed(aUser({ id: 'user-9', email: 'lea@example.test', siteRole: 'operator' }))
+
+    await invite()
+
+    expect(await users.siteRoleFor(asUserId('user-9'))).toBe('operator')
+  })
+
+  it('writes the invitation in the language of the host page, and names the event', async () => {
+    await invite({ locale: 'en' })
+
+    expect(mailer.sent[0]?.text).toContain('Hello,')
+    expect(mailer.sent[0]?.text).toContain('Camille & Sacha')
+  })
+
+  // ----------------------------------------------------------- who may invite --
 
   /**
    * The escalation that turned a bounded window into permanent access: a disabled owner
-   * reached this use case, `User.create` wrote `disabledAt: null`, and the host read the
-   * temporary password out to themselves. One account switched off, another one on, with
-   * a password the disabled owner knows.
-   *
-   * What stops it is the actor's own role read, not a rule written here: `roleFor`
-   * answers `null` for a disabled account, so this is the ordinary "no part in this
-   * event" path and gets the same 404 a stranger gets.
+   * could mint an enabled account. What stops it is the actor's own role read, not a rule
+   * written here: `roleFor` answers `null` for a disabled account, so this is the ordinary
+   * "no part in this event" path and gets the same 404 a stranger gets.
    */
-  it('refuses an owner whose account has been disabled, so a switched-off host cannot mint an enabled one', async () => {
+  it('refuses an owner whose account has been disabled', async () => {
     const owner = aUser({ id: 'owner-1', email: 'camille@example.test', displayName: 'Camille' })
     await users.save(owner.disable(AT))
 
     const result = await invite()
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
+    expect(tokens.all).toHaveLength(0)
+    expect(mailer.sent).toHaveLength(0)
   })
 
   /**
-   * The mirror image, and the one that bites quietly. `roleFor` refuses a disabled
-   * account, so asking it here would have made a disabled **co-owner** look like a
-   * stranger: the invitation would have re-granted them as a moderator, and re-enabling
-   * the account later would have given back the wrong role, permanently. This is why the
-   * "already a member" question asks for the row rather than for the authority.
+   * The mirror image, and the one that bites quietly. `roleFor` refuses a disabled account,
+   * so asking it here would have made a disabled **co-owner** look like a stranger. This is
+   * why "already a member" asks for the row rather than for the authority.
    */
   it('refuses to re-invite a disabled co-owner rather than downgrading them to moderator', async () => {
     const colleague = aUser({ id: 'owner-2', email: 'lea@example.test' })
@@ -144,65 +184,10 @@ describe('registerModerator', () => {
     expect(!result.ok && result.error.code).toBe('membership.alreadyExists')
     expect(
       await memberships.membershipFor(asEventId('event-1'), asUserId('owner-2')),
-    ).toMatchObject({ role: 'owner' })
-  })
-
-  it('creates no account at all for a disabled owner, so nothing is left to sign in with', async () => {
-    const owner = aUser({ id: 'owner-1', email: 'camille@example.test', displayName: 'Camille' })
-    await users.save(owner.disable(AT))
-
-    await invite()
-
-    expect(await storedInvitee()).toBeNull()
-  })
-
-  it('forces the invitee to replace the password their host chose for them', async () => {
-    await invite()
-
-    const invitee = await storedInvitee()
-    expect(invitee?.mustChangePassword).toBe(true)
-    expect(invitee?.passwordHash).toBe(hashOf(TEMPORARY))
-  })
-
-  it('creates an account with no authority over the box, whoever did the inviting', async () => {
-    // The host doing the inviting may be the box's operator — on a one-operator
-    // instance they usually are. An invitation that carried a site role across would
-    // hand the whole box to someone lent a laptop for one evening (docs/ROADMAP.md
-    // §10.1). Asserted through `siteRoleFor`, which is the read authorization makes.
-    users.seed(aUser({ id: 'operator-1', email: 'ops@example.test', siteRole: 'operator' }))
-    memberships.seed({
-      eventId: asEventId('event-1'),
-      userId: asUserId('operator-1'),
+    ).toMatchObject({
       role: 'owner',
-      grantedAt: AT,
     })
-
-    await invite({ actorId: asUserId('operator-1') })
-
-    expect(await users.siteRoleFor(asUserId('user-1'))).toBe('none')
-  })
-
-  it('leaves an existing operator account its own site role, which this never touches', async () => {
-    // The other direction of the same rule: inviting someone who happens to operate the
-    // box makes them a moderator of one event and changes nothing else about them.
-    users.seed(aUser({ id: 'user-9', email: 'lea@example.test', siteRole: 'operator' }))
-
-    await invite()
-
-    expect(await users.siteRoleFor(asUserId('user-9'))).toBe('operator')
-  })
-
-  it('leaves an existing account its own password when granting it the role', async () => {
-    users.seed(
-      aUser({ id: 'user-9', email: 'lea@example.test', passwordHash: hashOf('son-mot-de-passe') }),
-    )
-
-    const result = await invite()
-
-    expect(result.ok && result.value).toEqual({ userId: asUserId('user-9'), created: false })
-    const invitee = await storedInvitee()
-    expect(invitee?.passwordHash).toBe(hashOf('son-mot-de-passe'))
-    expect(invitee?.mustChangePassword).toBe(false)
+    expect(tokens.all).toHaveLength(0)
   })
 
   it('refuses a moderator who tries to invite another moderator', async () => {
@@ -216,7 +201,7 @@ describe('registerModerator', () => {
     const result = await invite({ actorId: asUserId('mod-1') })
 
     expect(!result.ok && result.error.code).toBe('auth.forbidden')
-    expect(await memberships.listForEvent(asEventId('event-1'))).toHaveLength(2)
+    expect(tokens.all).toHaveLength(0)
   })
 
   it('answers an owner of another event as if this one did not exist', async () => {
@@ -224,7 +209,7 @@ describe('registerModerator', () => {
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
     expect(!result.ok && result.error.kind).toBe('notFound')
-    expect(await memberships.listForEvent(asEventId('event-2'))).toEqual([])
+    expect(tokens.all).toHaveLength(0)
   })
 
   it('tells a caller with no part in the event nothing about their own input', async () => {
@@ -245,7 +230,6 @@ describe('registerModerator', () => {
     const result = await invite()
 
     expect(result.ok).toBe(true)
-    expect(await memberships.roleFor(asEventId('event-1'), asUserId('user-9'))).toBe('moderator')
   })
 
   it.each<EventRole>(['owner', 'moderator'])(
@@ -263,6 +247,7 @@ describe('registerModerator', () => {
 
       expect(!result.ok && result.error.code).toBe('membership.alreadyExists')
       expect(!result.ok && result.error.kind).toBe('conflict')
+      expect(mailer.sent).toHaveLength(0)
     },
   )
 
@@ -292,36 +277,13 @@ describe('registerModerator', () => {
     const result = await invite({ eventId: asEventId('event-3') })
 
     expect(!result.ok && result.error.code).toBe('event.immutable')
+    expect(tokens.all).toHaveLength(0)
   })
 
-  it('refuses an address that is not an address', async () => {
+  it('refuses an address that is not an address, to an owner who is entitled to the reason', async () => {
     const result = await invite({ email: 'lea' })
 
     expect(!result.ok && result.error.code).toBe('email.malformed')
-  })
-
-  it('refuses a temporary password below the password policy', async () => {
-    const result = await invite({ temporaryPassword: 'court' })
-
-    expect(!result.ok && result.error.code).toBe('password.tooShort')
-  })
-
-  it('refuses a temporary password that is only the invitee name', async () => {
-    const result = await invite({
-      displayName: 'Léa Durand-Martin',
-      temporaryPassword: 'Léa Durand-Martin',
-    })
-
-    expect(!result.ok && result.error.code).toBe('password.sameAsName')
-  })
-
-  it('grants nothing when the hasher hands back an empty hash', async () => {
-    hasher = new ScriptedPasswordHasher(() => '')
-
-    const result = await invite()
-
-    expect(!result.ok && result.error.code).toBe('user.passwordHashEmpty')
-    expect(await storedInvitee()).toBeNull()
-    expect(await memberships.listForEvent(asEventId('event-1'))).toHaveLength(1)
+    expect(tokens.all).toHaveLength(0)
   })
 })

@@ -335,6 +335,16 @@ export const it: UiText = {
     'email.malformed': 'Questo indirizzo e-mail non è valido.',
     'user.notFound': 'Nessun account corrisponde a questo indirizzo e-mail.',
     'membership.alreadyExists': 'Questa persona modera già questo evento.',
+    'invitation.tooManyForAddress':
+      'Questo indirizzo ha già ricevuto diversi inviti. Riprovi tra un’ora.',
+    'invitation.notFound':
+      'Questo invito non è più valido. Ne chieda uno nuovo alla persona che lo ha inviato.',
+    'invitation.signInRequired':
+      'Un account usa già questo indirizzo. Acceda con quell’account, poi riapra il link.',
+    'invitation.wrongAccount':
+      'Questo invito è stato scritto per un indirizzo e-mail diverso da quello di questo account.',
+    'invitation.credentialsRequired':
+      'Acceda con l’account invitato, oppure scelga un nome e una password.',
 
     'displayName.tooLong': 'Nome troppo lungo.',
     'joinCode.wrongLength': 'Questo codice non ha il numero corretto di caratteri.',
@@ -709,15 +719,18 @@ export const it: UiText = {
     guestRevoked: 'L’accesso è stato revocato.',
     moderatorsEmpty: 'È l’unica persona a moderare questo evento.',
     moderatorEmail: 'Indirizzo e-mail del moderatore',
-    moderatorEmailHint: 'Riceverà i permessi solo su questo evento.',
-    moderatorPassword: 'Password temporanea',
-    moderatorPasswordHint: (min: number) =>
-      `Almeno ${min} caratteri. Non viene inviata nessuna e-mail: comunichi questa password al moderatore. Ne sceglierà un’altra al primo accesso.`,
+    moderatorEmailHint: 'Riceverà un invito, valido sette giorni, solo per questo evento.',
     inviteSubmit: 'Invita',
-    moderatorInvited: (email: string) =>
-      `${email} può ora moderare questo evento. Comunichi la password temporanea a questa persona.`,
-    moderatorInvitedExisting: (email: string) =>
-      `${email} può ora moderare questo evento. Questo account esisteva già: conserva la password abituale.`,
+    /** An invitation went out by e-mail: nothing to copy. */
+    moderatorInviteSent: (email: string) => `Un invito è stato inviato a ${email}.`,
+    /** No mail relay, or it refused: the link is for the host to pass on, once. */
+    inviteLinkCreated: (email: string) =>
+      `Questo link non è stato inviato per e-mail. Lo inoltri lei stesso a ${email}: funziona una volta sola ed è valido per sette giorni.`,
+    inviteLinkUrl: 'Link da inoltrare',
+    inviteLinkCopy: 'Copia il link',
+    inviteLinkCopied: 'Link copiato.',
+    /** No clipboard (an address that is not secure) or a refusal: the field is selectable. */
+    inviteLinkCopyFailed: 'Copia non possibile qui: selezioni il link e lo copi lei stesso.',
     revokeModerator: 'Rimuovi',
     revokeModeratorTitle: 'Rimuovere questo moderatore?',
     revokeModeratorHint: 'Perderà l’accesso a questo evento. Le decisioni già prese restano.',

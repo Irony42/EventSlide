@@ -50,3 +50,15 @@
   padding-block-start: var(--space-4);
   border-block-start: 1px solid var(--border-subtle);
 }
+
+/* The link of an invitation that was not mailed: shown once, for the host to pass on. */
+.created {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  margin-block-end: var(--space-4);
+}

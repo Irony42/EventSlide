@@ -547,24 +547,43 @@ export const topPhotosQuery = z.strictObject({
 // ------------------------------------------------ event routes (additive) --
 
 /**
- * The invitation form, in full.
+ * The invitation form: an address, and the language of the page it was written from, which is
+ * the language the invitation is mailed in (default French, the product's source language).
  *
- * `inviteModeratorBody` above carries only the address, which is all the table in
- * docs/API.md names — but `registerModerator` also needs the temporary password the
- * host reads out to the person they are handing the laptop to, and there is no mailer
- * in this product to send one instead. It is not generated here: the HTTP layer holds
- * no `IdGenerator`, and a controller inventing a credential is exactly the kind of
- * decision this layer must not make.
- *
- * Bounded only in length, like `loginBody`. The password policy belongs to `Password`,
- * and repeating it here would be a second implementation that drifts — and one that
- * would refuse the host's input before the domain could explain why.
+ * **Strict, and that is the point of the break of 3.0.0.** A client written for 2.x still
+ * sends the temporary password and a display name; an unknown key is a `400 request.invalid`
+ * rather than a field silently ignored, so nobody believes an account was made with the
+ * password they typed.
  */
 export const moderatorInvitationBody = z.strictObject({
   ...inviteModeratorBody.shape,
-  displayName: z.string().max(120).nullish(),
-  temporaryPassword: z.string().min(1).max(1_000),
+  locale: z.enum(CLIENT_LOCALES).default(DEFAULT_CLIENT_LOCALE),
 })
+
+/**
+ * The token of an invitation link, from the path. Bounded far above the 43 characters a real
+ * one has and far below anything that costs to hash. **Parsed with `safeParse` by the routes,
+ * which answer anything else with the same `invitation.notFound` an unknown link gets**: a
+ * malformed link and a dead one must be indistinguishable too.
+ */
+export const invitationTokenParams = z.object({ token: z.string().min(1).max(256) })
+
+/**
+ * Accepting an invitation, either way.
+ *
+ * - `{ password, displayName }`: a person choosing how to sign in, for an address that has no
+ *   account. Bounded in length only; the password policy and the name's rules are the domain's.
+ * - `{}`: the signed-in account whose address the link was written to, which the **session**
+ *   names. No field here can name an account, and none may: an id the client could send would
+ *   attach any account to any link.
+ */
+export const acceptInvitationBody = z.union([
+  z.strictObject({}),
+  z.strictObject({
+    password: z.string().min(1).max(1_000),
+    displayName: z.string().min(1).max(200),
+  }),
+])
 
 // ----------------------------------------------------------- shared gallery --
 

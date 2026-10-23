@@ -228,6 +228,18 @@ describe('the path a request is logged under', () => {
       `/api/invitations/${TOKEN}/accept`,
       '/api/invitations/:token/accept',
     ],
+    [
+      'the preview of an invitation with a doubled slash',
+      `/api//invitations/${TOKEN}`,
+      '/api/invitations/:token',
+    ],
+    [
+      'the acceptance of an invitation with several doubled slashes',
+      `//api///invitations//${TOKEN}/accept`,
+      '/api/invitations/:token/accept',
+    ],
+    ['a gallery with a doubled slash', `/api//gallery/${TOKEN}`, '/api/gallery/:token'],
+    ['a reset page with a doubled slash', `//password//reset/${TOKEN}`, '/password/reset/:token'],
     ['the album', `/api/gallery/${TOKEN}`, '/api/gallery/:token'],
     ['a page of it', `/api/gallery/${TOKEN}/photos`, '/api/gallery/:token/photos'],
     ['the unlock', `/api/gallery/${TOKEN}/unlock`, '/api/gallery/:token/unlock'],
@@ -251,6 +263,7 @@ describe('the path a request is logged under', () => {
     ['the page that asks for a reset, which carries no token', '/password/forgot'],
     ['a route that only starts like the reset page', '/password/reset-help'],
     ['a path that only starts like the invitation page', '/invited/2026'],
+    ['a path with a doubled slash and no token in it, as it came', '/api//events/camille/photos'],
     ['the invitation routes with no token in them', '/api/invitations'],
   ])('logs %s as it is', (_label, path) => {
     expect(loggablePath(path)).toBe(path)

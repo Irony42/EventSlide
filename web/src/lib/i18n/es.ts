@@ -329,6 +329,16 @@ export const es: UiText = {
     'email.malformed': 'Esta dirección de correo no es válida.',
     'user.notFound': 'Ninguna cuenta corresponde a esta dirección de correo.',
     'membership.alreadyExists': 'Esta persona ya modera este evento.',
+    'invitation.tooManyForAddress':
+      'Esta dirección ya ha recibido varias invitaciones. Inténtelo de nuevo dentro de una hora.',
+    'invitation.notFound':
+      'Esta invitación ya no es válida. Pida una nueva a la persona que se la envió.',
+    'invitation.signInRequired':
+      'Ya hay una cuenta que usa esta dirección. Inicie sesión con esa cuenta y vuelva a abrir el enlace.',
+    'invitation.wrongAccount':
+      'Esta invitación estaba destinada a una dirección de correo distinta de la de esta cuenta.',
+    'invitation.credentialsRequired':
+      'Inicie sesión con la cuenta invitada, o elija un nombre y una contraseña.',
 
     'displayName.tooLong': 'El nombre es demasiado largo.',
     'joinCode.wrongLength': 'Este código no tiene el número correcto de caracteres.',
@@ -736,20 +746,19 @@ export const es: UiText = {
     guestRevoked: 'El acceso se ha retirado.',
     moderatorsEmpty: 'Usted es la única persona que modera este evento.',
     moderatorEmail: 'Correo del moderador',
-    moderatorEmailHint: 'Recibirá permisos solo sobre este evento.',
-    moderatorPassword: 'Contraseña temporal',
-    /**
-     * Said plainly, because the host is the delivery mechanism: nothing is sent by
-     * e-mail, and a host who types a password and waits has already lost the invitee.
-     */
-    moderatorPasswordHint: (min: number) =>
-      `Al menos ${min} caracteres. No se envía ningún correo: dígale esta contraseña al moderador. Elegirá otra en su primer inicio de sesión.`,
+    moderatorEmailHint:
+      'Recibirá una invitación, válida durante siete días, solo para este evento.',
     inviteSubmit: 'Invitar',
-    moderatorInvited: (email: string) =>
-      `${email} ya puede moderar este evento. Dígale la contraseña temporal.`,
-    /** The address already had an account, so the password just typed was not used. */
-    moderatorInvitedExisting: (email: string) =>
-      `${email} ya puede moderar este evento. Esta cuenta ya existía: conserva su contraseña habitual.`,
+    /** An invitation went out by e-mail: nothing to copy. */
+    moderatorInviteSent: (email: string) => `Se ha enviado una invitación a ${email}.`,
+    /** No mail relay, or it refused: the link is for the host to pass on, once. */
+    inviteLinkCreated: (email: string) =>
+      `Este enlace no se ha enviado por correo. Transmítalo usted mismo a ${email}: solo sirve una vez y es válido durante siete días.`,
+    inviteLinkUrl: 'Enlace para transmitir',
+    inviteLinkCopy: 'Copiar el enlace',
+    inviteLinkCopied: 'Enlace copiado.',
+    /** No clipboard (an address that is not secure) or a refusal: the field is selectable. */
+    inviteLinkCopyFailed: 'No se puede copiar aquí: seleccione el enlace y cópielo usted mismo.',
     revokeModerator: 'Retirar',
     revokeModeratorTitle: '¿Retirar a este moderador?',
     revokeModeratorHint: 'Perderá el acceso a este evento. Sus decisiones anteriores se conservan.',

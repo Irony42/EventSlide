@@ -1,62 +1,57 @@
-import { expect, test } from '../fixtures/app'
+import { csrfHeaders, expect, test } from '../fixtures/app'
+import { tokenOf } from '../fixtures/clients'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
- * The host hands the console to somebody else, and that somebody signs in.
+ * The host hands the console to somebody else by **a link**, and that somebody makes their
+ * account by opening it (docs/ROADMAP.md §10.3; free plan G2-09, paid plan P3-10).
  *
- * This journey exists because of a defect that every other ring missed. The panel sent
- * `{ email }`; the server's `moderatorInvitationBody` is `.strict()` and requires
- * `temporaryPassword` as well, so **every** invitation ever sent from the admin screen
- * came back `400 request.invalid`. A shipped feature that worked in no case at all.
+ * What this replaced is a password read out loud: the host typed a credential, the box created
+ * an account with it, and the invitee signed in with it and was forced to change it. That
+ * journey is gone, and so is its shape — **no account exists until the link is accepted**, the
+ * person chooses their own password in the same step, and nothing about the invitation says
+ * whether the address was already on the box.
  *
- * Both sides were tested, correctly, and both passed: the ring-4 route test posted a
- * complete body of its own, and the ring-5 panel test asserted that the component calls
- * `api.inviteModerator`. Neither could see the other half. `requestContract.test.ts` now
- * catches that class in milliseconds — but only the *shape*. What it cannot say is that
- * the credential a host reads out actually signs somebody in, because that crosses an
- * invitation, a bcrypt hash, a session, and a forced password rotation. That is what
- * these seconds buy.
- *
- * Two browser contexts, because it is two people: the host's laptop and the moderator's
- * own machine, with its own cookie jar.
+ * Two browser contexts, because it is two people: the host's laptop and the moderator's own
+ * machine, with its own cookie jar. The e2e box has no mail relay, so the invitation comes back
+ * as a link the host copies — which is exactly what a self-hoster with no SMTP sees. Accepting
+ * it is driven over the API in the second context: the page that does it from a browser is
+ * roadmap G2-10, and this journey asserts the part that only real infrastructure can break —
+ * an invitation, a bcrypt hash, a session and a membership, end to end.
  */
 
-/** Long enough for the policy, obviously a fixture, and unique to this spec's worker. */
-const TEMPORARY_PASSWORD = 'mot-de-passe-provisoire-du-soir'
 const CHOSEN_PASSWORD = 'phrase-que-seul-le-moderateur-connait'
 
-test('a moderator invited by the host signs in with the password read out to them', async ({
+test('a moderator invited by link accepts it on their own machine and can moderate the event', async ({
   app,
   browser,
   surfaces,
 }) => {
   const { host } = surfaces
   const event = await app.seedEvent({ slug: 'invitation', name: 'Camille & Sacha' })
-  // Scoped to the worker: the server outlives this test, and an address that already has
-  // an account takes the `created: false` branch and never uses the password below.
+  // Scoped to the worker: the server outlives this test, and an address that already has an
+  // account is told to sign in instead of being given a second one.
   const moderator = `moderateur-${app.baseUrl.split(':').at(-1) ?? '0'}@eventslide.test`
 
   await host.goto(app.url(`/admin/events/${event.slug}`))
 
-  // ---- the host invites, with the credential they are about to read out ----------
+  // ---- the host invites: an address, and nothing else ------------------------------
 
   await host.getByLabel(fr.admin.moderatorEmail).fill(moderator)
-  await host.getByLabel(fr.admin.moderatorPassword).fill(TEMPORARY_PASSWORD)
   await host.getByRole('button', { name: fr.admin.inviteSubmit }).click()
 
-  // The confirmation, not merely the absence of an error: before the fix this screen
-  // showed `Les informations envoyées ne sont pas valides.` every single time.
-  await expect(host.getByText(fr.admin.moderatorInvited(moderator))).toBeVisible()
+  // No relay, so the box hands over the link, once, with who it is for. This is what a
+  // self-hoster in a photographer's office sees, and the link is what they paste into
+  // whatever they already use to talk to their client.
+  await expect(host.getByText(fr.admin.inviteLinkCreated(moderator))).toBeVisible()
+  const link = await host.getByLabel(fr.admin.inviteLinkUrl).inputValue()
+  expect(link).toMatch(/\/invite\/[A-Za-z0-9_-]{43}$/)
 
-  // And the membership itself, in the refreshed list — the toast says what the server
-  // answered, the row says what it stored. Scoped to the row because the address is on
-  // screen twice while the toast is up, and `Modérateur` is a substring of the panel's
-  // own heading.
+  // The invitation is not a membership: nothing is on the list until it is accepted.
   const row = host.getByRole('listitem').filter({ hasText: moderator })
-  await expect(row).toBeVisible()
-  await expect(row.getByText(fr.admin.roleModerator, { exact: true })).toBeVisible()
+  await expect(row).toHaveCount(0)
 
-  // ---- the moderator, on their own machine, uses it -------------------------------
+  // ---- the moderator, on their own machine, opens it -------------------------------
 
   const theirContext = await browser.newContext({
     viewport: { width: 1280, height: 800 },
@@ -65,60 +60,110 @@ test('a moderator invited by the host signs in with the password read out to the
   const theirPage = await theirContext.newPage()
 
   try {
-    await theirPage.goto(app.url('/login'))
-    await theirPage.getByLabel(fr.auth.email).fill(moderator)
-    await theirPage.getByLabel(fr.auth.password).fill(TEMPORARY_PASSWORD)
-    await theirPage.getByRole('button', { name: fr.auth.submit }).click()
+    // An address that is not an account yet: the link is what makes it one.
+    const preview = await theirContext.request.get(app.url(`/api/invitations/${tokenOf(link)}`))
+    expect(preview.status()).toBe(200)
+    expect(await preview.json()).toMatchObject({
+      kind: 'event',
+      role: 'moderator',
+      targetName: 'Camille & Sacha',
+    })
 
-    // Straight to the rotation gate, and that is the assertion: the temporary password
-    // authenticated, and `mustChangePassword` made it single-use. Somebody else chose it
-    // and said it out loud, so it cannot be what guards a screen that publishes photos
-    // to a room.
-    await theirPage.waitForURL(/\/admin\/password$/)
-    await expect(theirPage.getByText(fr.auth.changePasswordIntro)).toBeVisible()
+    const accepted = await theirContext.request.post(
+      app.url(`/api/invitations/${tokenOf(link)}/accept`),
+      {
+        headers: await csrfHeaders(theirContext.request, app),
+        data: { password: CHOSEN_PASSWORD, displayName: 'Le modérateur' },
+      },
+    )
+    expect(accepted.status()).toBe(200)
+    expect(await accepted.json()).toMatchObject({ status: 'accepted', eventSlug: event.slug })
 
-    await theirPage.getByLabel(fr.auth.currentPassword).fill(TEMPORARY_PASSWORD)
-    await theirPage.getByLabel(fr.auth.newPassword, { exact: true }).fill(CHOSEN_PASSWORD)
-    await theirPage.getByLabel(fr.auth.confirmPassword).fill(CHOSEN_PASSWORD)
-    await theirPage.getByRole('button', { name: fr.app.save }).click()
-
-    await theirPage.waitForURL(/\/admin$/)
-
-    // And the point of the whole exercise: they can moderate **this** event, and only
-    // because of the invitation — no membership was written by a fixture. A caller with
-    // a session but no part in the event is answered 404, so the console would show its
-    // load failure here rather than its empty queue.
+    // Signed in by the acceptance itself, with the password they just chose: no rotation
+    // gate, because nobody else ever knew it. And they moderate **this** event, only because
+    // of the invitation — no membership was written by a fixture.
     await theirPage.goto(app.url(`/admin/events/${event.slug}/moderation`))
     await expect(theirPage.getByRole('heading', { name: fr.moderation.title })).toBeVisible()
     await expect(theirPage.getByText(fr.moderation.empty)).toBeVisible()
     await expect(theirPage.getByText(fr.moderation.loadFailed)).toHaveCount(0)
+
+    // The link is spent: it opens nothing a second time, for anybody.
+    const again = await theirContext.request.get(app.url(`/api/invitations/${tokenOf(link)}`))
+    expect(again.status()).toBe(404)
   } finally {
     await theirContext.close()
   }
+
+  // ---- and back on the host's console, the membership the acceptance wrote ---------
+
+  await host.reload()
+  await expect(host.getByRole('listitem').filter({ hasText: moderator })).toBeVisible()
 })
 
-test('an invitation to an address that already has an account keeps its own password', async ({
+test('an address that already has an account is invited exactly like one that has not, and keeps its own password', async ({
   app,
+  browser,
   surfaces,
 }) => {
-  // The other half of the response the panel reads. `created: false` means the account
-  // existed, so the password the host just typed was **not** installed — telling them
-  // otherwise sends them off to read out a credential that does not work.
   const { host } = surfaces
   const first = await app.seedEvent({ slug: 'premier', name: 'Premier' })
   const second = await app.seedEvent({ slug: 'second', name: 'Second' })
   const moderator = `deja-vu-${app.baseUrl.split(':').at(-1) ?? '0'}@eventslide.test`
 
-  await host.goto(app.url(`/admin/events/${first.slug}`))
-  await host.getByLabel(fr.admin.moderatorEmail).fill(moderator)
-  await host.getByLabel(fr.admin.moderatorPassword).fill(TEMPORARY_PASSWORD)
-  await host.getByRole('button', { name: fr.admin.inviteSubmit }).click()
-  await expect(host.getByText(fr.admin.moderatorInvited(moderator))).toBeVisible()
+  const invite = async (slug: string): Promise<string> => {
+    await host.goto(app.url(`/admin/events/${slug}`))
+    await host.getByLabel(fr.admin.moderatorEmail).fill(moderator)
+    await host.getByRole('button', { name: fr.admin.inviteSubmit }).click()
+    await expect(host.getByText(fr.admin.inviteLinkCreated(moderator))).toBeVisible()
+    return host.getByLabel(fr.admin.inviteLinkUrl).inputValue()
+  }
 
-  await host.goto(app.url(`/admin/events/${second.slug}`))
-  await host.getByLabel(fr.admin.moderatorEmail).fill(moderator)
-  await host.getByLabel(fr.admin.moderatorPassword).fill('un-autre-mot-de-passe-inutile')
-  await host.getByRole('button', { name: fr.admin.inviteSubmit }).click()
+  const theirContext = await browser.newContext({ baseURL: app.baseUrl })
+  const strangerContext = await browser.newContext({ baseURL: app.baseUrl })
+  try {
+    // The first invitation makes the account, with the password its owner chooses.
+    const firstLink = await invite(first.slug)
+    const made = await theirContext.request.post(
+      app.url(`/api/invitations/${tokenOf(firstLink)}/accept`),
+      {
+        headers: await csrfHeaders(theirContext.request, app),
+        data: { password: CHOSEN_PASSWORD, displayName: 'Déjà vu' },
+      },
+    )
+    expect(made.status()).toBe(200)
 
-  await expect(host.getByText(fr.admin.moderatorInvitedExisting(moderator))).toBeVisible()
+    // The second invitation is to an address that now has an account, and the host's screen
+    // is the same: a link to pass on. Nothing on it says the address is known.
+    const secondLink = await invite(second.slug)
+    expect(secondLink).toMatch(/\/invite\/[A-Za-z0-9_-]{43}$/)
+
+    // Somebody who holds only the link cannot attach the account, nor make another one at its
+    // address: the box tells them to sign in, and spends nothing.
+    const stranger = await strangerContext.request.post(
+      app.url(`/api/invitations/${tokenOf(secondLink)}/accept`),
+      {
+        headers: await csrfHeaders(strangerContext.request, app),
+        data: { password: 'une-autre-phrase-de-passe-2026', displayName: 'Intrus' },
+      },
+    )
+    expect(stranger.status()).toBe(409)
+    expect((await stranger.json()).error.code).toBe('invitation.signInRequired')
+
+    // The account itself, signed in, accepts as itself.
+    const attached = await theirContext.request.post(
+      app.url(`/api/invitations/${tokenOf(secondLink)}/accept`),
+      { headers: await csrfHeaders(theirContext.request, app), data: {} },
+    )
+    expect(attached.status()).toBe(200)
+
+    // And its password is the one it chose the first time: the invitation changed nothing.
+    const signIn = await strangerContext.request.post(app.url('/api/auth/login'), {
+      headers: await csrfHeaders(strangerContext.request, app),
+      data: { email: moderator, password: CHOSEN_PASSWORD },
+    })
+    expect(signIn.status()).toBe(200)
+  } finally {
+    await theirContext.close()
+    await strangerContext.close()
+  }
 })

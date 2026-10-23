@@ -37,9 +37,17 @@ const LAST_GPL_RELEASE = 'v2.1.0'
 /**
  * Words that announce or hint at running the software for other people as an offer.
  * `self-hosted` and `self-hosters` are the opposite and are everywhere, hence the lookbehind.
+ *
+ * **`invitation` is no longer on the list; `invitation-only` is.** The word stood for "an
+ * invitation-only hosted instance", the offer these texts must not make. 3.0.0 also ships a
+ * feature of that name — a moderator is invited by a link (roadmap §10.3) — and the BREAKING
+ * entry and the upgrade page have to be able to say so. What the licence announcement must
+ * not say is still caught: `invitation-only` and `invite-only` here, and `hosted`, `hosting`,
+ * `instance`, `managed` and the rest beside them, none of which this change touches. The next
+ * test pins both halves, so narrowing the pattern cannot quietly widen what is allowed.
  */
 const HOSTED_SERVICE =
-  /(?<!self-)\bhost(?:ed|ing)\b|\bSaaS\b|\bmanaged\b|\binstances?\b|\binvitation\b|\bas a service\b|\bcloud\b/i
+  /(?<!self-)\bhost(?:ed|ing)\b|\bSaaS\b|\bmanaged\b|\binstances?\b|\binvit(?:ation|e)[- ]only\b|\bby invitation\b|\bas a service\b|\bcloud\b/i
 
 /** The GPL, and not the AGPL: `AGPL-3.0` contains the characters `GPL-3.0`. */
 const GPL = /(?<!A)GPL-3\.0/
@@ -155,6 +163,29 @@ describe('where the AGPL starts, said in the places a self-hoster reads', () => 
       for (const unit of naming) expect(unit).toMatch(GPL)
     },
   )
+})
+
+describe('what counts as announcing a service', () => {
+  it.each([
+    'an invitation-only hosted service',
+    'free, invite-only access',
+    'open by invitation only',
+    'available by invitation',
+    'an invitation only instance',
+    'EventSlide as a service',
+    'a managed instance',
+    'our cloud',
+  ])('catches %j', (text) => {
+    expect(text).toMatch(HOSTED_SERVICE)
+  })
+
+  it.each([
+    'a moderator is invited by an invitation link, which the person accepts',
+    'The invitation works once, for seven days.',
+    'self-hosted installations keep their own accounts',
+  ])('lets %j through, because the feature is not the offer', (text) => {
+    expect(text).not.toMatch(HOSTED_SERVICE)
+  })
 })
 
 describe('the CHANGELOG entry of 3.0.0', () => {

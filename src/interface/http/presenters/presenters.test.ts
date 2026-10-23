@@ -6,6 +6,9 @@ import {
   toEventSettingsDto,
   toGuestDto,
   toGuestPhotoDto,
+  toInvitationAcceptedDto,
+  toInvitationIssuedDto,
+  toInvitationPreviewDto,
   toModerationPhotoDto,
   toPublicEventDto,
   toSessionUserDto,
@@ -18,6 +21,72 @@ const context: PresenterContext = {
   uploadLimits: { maxBytes: 25_000_000, maxFiles: 20 },
   clipLimits: { maxBytes: 80_000_000, maxSeconds: 15, supported: true },
 }
+
+describe('the invitation DTOs', () => {
+  const NOW = new Date('2026-06-27T21:00:00.000Z')
+
+  it('shows a link only when no mail went out', () => {
+    const base = { invitationId: 'inv-1' as never, expiresAt: NOW }
+
+    expect(toInvitationIssuedDto({ ...base, delivery: 'mail' })).toEqual({
+      status: 'invited',
+      expiresAt: NOW.toISOString(),
+    })
+    expect(
+      toInvitationIssuedDto({ ...base, delivery: 'link', link: 'https://x.test/invite/t' }),
+    ).toEqual({
+      status: 'invited',
+      expiresAt: NOW.toISOString(),
+      link: 'https://x.test/invite/t',
+    })
+  })
+
+  it('names the slug of an event and nothing of a client', () => {
+    const event = {
+      userId: 'user-1' as never,
+      email: 'a@b.test',
+      target: { kind: 'event', eventId: 'event-1' as never, role: 'moderator' },
+      place: { kind: 'event', slug: 'camille', name: 'Camille' },
+    } as const
+    const client = {
+      userId: 'user-1' as never,
+      email: 'a@b.test',
+      target: { kind: 'client', clientId: 'client-1' as never, role: 'owner' },
+      place: { kind: 'client', name: 'Atelier' },
+    } as const
+
+    expect(toInvitationAcceptedDto(event)).toEqual({
+      status: 'accepted',
+      kind: 'event',
+      role: 'moderator',
+      targetName: 'Camille',
+      eventSlug: 'camille',
+    })
+    expect(toInvitationAcceptedDto(client)).toEqual({
+      status: 'accepted',
+      kind: 'client',
+      role: 'owner',
+      targetName: 'Atelier',
+      eventSlug: null,
+    })
+  })
+
+  it('previews the purpose, the target and the end, as strings', () => {
+    expect(
+      toInvitationPreviewDto({
+        kind: 'client',
+        role: 'member',
+        targetName: 'Atelier',
+        expiresAt: NOW,
+      }),
+    ).toEqual({
+      kind: 'client',
+      role: 'member',
+      targetName: 'Atelier',
+      expiresAt: NOW.toISOString(),
+    })
+  })
+})
 
 describe('joinUrl', () => {
   it('puts the code in the path, not a query parameter', () => {

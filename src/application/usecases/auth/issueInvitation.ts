@@ -102,7 +102,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
  *   An invitation to a different event is left alone.
  * - **At most {@link INVITATION_MAX_PER_ADDRESS_PER_HOUR} an hour to one address**, from
  *   anybody: a host can write a hundred invitations an hour to a hundred inboxes, and the
- *   per-client limit already slows that; this bounds what any one inbox is sent.
+ *   per-account limit of the route already slows that; this bounds what any one inbox is sent.
  *   Held under concurrency: writes for one address run one after another (see `queues`).
  *   The cap is global to the address, so one host can spend the five slots and make an
  *   operator's invitation to that address wait an hour; that is accepted, and a cap per
@@ -155,7 +155,7 @@ export const makeIssueInvitation = ({
     if (!address.ok) return address
 
     // An invitation to an event is honoured only while its author is still an owner of it
-    // (`resolveInvitation`), and one with no author never is. Refused here so the mail that
+    // (`makeResolveInvitation`), and one with no author never is. Refused here so the mail that
     // could never be opened is not sent, and a slot of the hourly cap is not spent on it.
     if (place.kind === 'event' && createdBy === null) {
       return err(DomainError.invalid('invitation.inviterRequired'))

@@ -454,12 +454,11 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   revokeGuest: vi.fn(async () => undefined),
 
   listModerators: vi.fn(async () => ({ items: [] })),
-  // `{ userId, created }`, as the server answers: a 201 saying whether an account was
-  // created, never a membership row. `created: true` is the interesting default — it is
-  // the branch where the temporary password the host typed is live.
+  // `{ status, expiresAt }`, as the server answers when the invitation went out by e-mail:
+  // a 201 with no link in it. A test about the box with no relay brings its own answer.
   inviteModerator: vi.fn(async (): Promise<ModeratorInviteResponse> => ({
-    userId: 'user-2',
-    created: true,
+    status: 'invited',
+    expiresAt: '2026-06-27T21:00:00.000Z',
   })),
   revokeModerator: vi.fn(async () => undefined),
 

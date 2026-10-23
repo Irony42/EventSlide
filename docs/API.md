@@ -249,9 +249,11 @@ paragraph beneath the table).
 | `POST /api/auth/login` †                                           | 10            | client IP                  | `rate.limited`                     |
 | `POST /api/auth/password-reset/request` †                          | 10            | client IP, own bucket      | `rate.limited`                     |
 | `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket      | `rate.limited`                     |
+| `GET /api/invitations/:token`, `POST …/accept`                     | 10            | client IP, own bucket each | `rate.limited`                     |
 | `POST /api/auth/login/2fa`, `step-up`, `2fa/enroll`, `2fa/confirm` | 10            | client IP, own bucket each | `rate.limited`                     |
 | the same four                                                      | 10 / 15 min   | **account**, failures only | `auth.tooManySecondFactorAttempts` |
 | `POST /api/events` (create)                                        | 20 / **hour** | account                    | `event.creationRateLimited`        |
+| `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                    | `rate.limited`                     |
 | `POST /api/events/:slug/photos`                                    | 12            | client IP **and** event    | `rate.limited`                     |
 | `POST /api/events/:slug/clips`                                     | 12            | client IP **and** event    | `rate.limited`                     |
 | `POST /api/events/:slug/photos/:id/reactions`                      | 30            | client IP **and** event    | `reaction.rateLimited`             |
@@ -1403,7 +1405,8 @@ principal comes from, a logout can only ever destroy the one it was handed — a
 browser — and `/auth/me` exists to answer whether there is a principal at all. Stated
 here so that an absent authorization middleware in `routes/authRoutes.ts` is a
 documented decision rather than an omission a reader has to judge. The two password-reset
-routes take none for the reason a login does: the person asking has lost the credential.
+routes take none for the reason a login does: the person asking has lost the credential. The two
+invitation routes (below) take none because the link is the credential.
 
 | Method | Path                               | Principal                                                               |
 | ------ | ---------------------------------- | ----------------------------------------------------------------------- |
@@ -1605,6 +1608,97 @@ switched off or uses another address), always the same answer. `400 password.*` 
 the policy refuses — and **the link is not spent by it**, so the form can be corrected and
 resubmitted. `400 request.invalid`, `429 rate.limited` and the CSRF codes. Responses are
 `Cache-Control: no-store`.
+
+### Invitations (roadmap §10.3, G2-09 / P3-10)
+
+Two public routes: the link is the credential, so neither takes a principal to authorize. The token
+is the last segment of `/invite/<token>`, 256 random bits; the box stores only its SHA-256. A token
+that is unknown, malformed, already used, replaced by a newer link, expired, waiting for an
+approval, or for an event or client that is gone is **always the same `404 invitation.notFound`**.
+Responses are `Cache-Control: no-store`. Each route has a rate-limit bucket of its own (§1).
+
+| Method | Path                             | Principal                                                            |
+| ------ | -------------------------------- | -------------------------------------------------------------------- |
+| `GET`  | `/api/invitations/:token`        | none: the link is the credential                                     |
+| `POST` | `/api/invitations/:token/accept` | none to choose a password; the signed-in account whose address it is |
+
+### `GET /api/invitations/:token`
+
+What the link offers, for the page that asks its holder to accept it. **200**
+
+```json
+{
+  "kind": "event",
+  "role": "moderator",
+  "targetName": "Camille & Sacha",
+  "expiresAt": "2026-06-27T21:00:00.000Z"
+}
+```
+
+`kind` is `event` (role `moderator`) or `client` (role `owner` or `member`). **Nothing else**: not who
+invited, not the address, and not whether the address already has an account — the person holding
+a link may be the one who wrote it, and a preview that said "sign in" for some addresses and
+"choose a password" for others would be an oracle for who is on the box. It spends nothing, so
+a mail client that fetches links to preview them cannot use one up. **Errors** —
+`404 invitation.notFound`, `409 event.immutable` (the event was archived), `429 rate.limited`.
+
+### `POST /api/invitations/:token/accept`
+
+Two forms, one route.
+
+**A person choosing how to sign in**, for an address that has no account:
+
+```json
+{ "password": "…", "displayName": "Camille" }
+```
+
+Creates the account **at the address the link was written to** (never one from the request), with
+the password and name chosen, no authority over the box, and nothing to change on first sign-in;
+grants the role; spends the link; and **signs the new account in** with a fresh session (the same
+session and CSRF token a login gets). The account's address is marked verified only if the link
+came by mail. The password is judged — and a refusal costs nothing, the same link still works —
+before the address is looked at.
+
+**The account the link was written to, already signed in**, with an empty body:
+
+```json
+{}
+```
+
+Attaches that account (from the **session**, never from the request) and spends the link. Its
+password, name and authority on the box are not touched, and a role it already holds there is not
+lowered.
+
+**200**, both forms
+
+```json
+{
+  "status": "accepted",
+  "kind": "event",
+  "role": "moderator",
+  "targetName": "Camille & Sacha",
+  "eventSlug": "camille-et-sacha"
+}
+```
+
+`eventSlug` is `null` for a client. The answer carries neither the address nor an account id.
+
+**Errors** — `404 invitation.notFound`; `409 invitation.signInRequired` when the address already
+has an account and a password was sent: **nothing is created and the link is not spent**, the
+person signs in as that account and accepts with the empty body; `403 invitation.wrongAccount`
+when the signed-in account is not the one the link was written to; `400 invitation.credentialsRequired`
+when the empty body is sent with no session; `400 password.*` and `400 accountName.*` for a
+password or a name the rules refuse; `400 request.invalid` (an unknown key — no field can name an
+account); `409 event.immutable`; `429 rate.limited`; `403 auth.passwordChangeRequired` for a signed-in account that must
+first choose a password (§1); and the CSRF codes. A path whose token cannot be decoded
+(`/api/invitations/%`) is a `404 invitation.notFound` like any other dead link.
+
+> **Who learns that an address has an account.** Only the holder of a link, and only by sending a
+> name and a password the policy accepts, and then not without creating the account when it is free.
+> The invitee needs the answer; a link that came by mail is theirs alone. Where the host was handed
+> the link (a box with no relay) the host holds it too, and can accept it first: that creates an
+> account with a password the host chose, never marked verified (docs/SECURITY.md, "Invitations").
+
 ---
 
 ### The second factor (roadmap §10.1, G2-13 / P3-15)
@@ -1758,7 +1852,7 @@ event_, never "is logged in".
 | `GET`    | `/api/events/:slug/guests`                 | moderator | 200 | Guest list + active count                      |
 | `POST`   | `/api/events/:slug/guests/:guestId/revoke` | moderator | 204 | Remove a disruptive guest; idempotent          |
 | `GET`    | `/api/events/:slug/moderators`             | owner     | 200 | Memberships                                    |
-| `POST`   | `/api/events/:slug/moderators`             | owner     | 201 | Invite; **address _and_ temporary password**   |
+| `POST`   | `/api/events/:slug/moderators`             | owner     | 201 | Invite **by link**; `{ "email" }`, no password |
 | `DELETE` | `/api/events/:slug/moderators/:userId`     | owner     | 204 | Revoke; never the last owner                   |
 | `GET`    | `/api/events/:slug/top-photos`             | moderator | 200 | Photo of the night                             |
 
@@ -1796,6 +1890,7 @@ cross-cutting codes in §1:
 | `photo.illegalTransition`      | 409    | A decision the photo's status machine does not allow                                                                                |
 | `guest.notFound`               | 404    | Revoking a guest id that is not in this event                                                                                       |
 | `membership.alreadyExists`     | 409    | Inviting someone who already moderates this event                                                                                   |
+| `invitation.tooManyForAddress` | 429    | An address already written to five times in the last hour, by anybody                                                               |
 | `membership.notFound`          | 404    | Revoking a membership that is not there                                                                                             |
 | `membership.lastOwner`         | 409    | Revoking the only remaining owner                                                                                                   |
 | `event.joinCodeExhausted`      | 500    | Rotation could not find a free code — a bug, not a client error                                                                     |
@@ -2541,45 +2636,55 @@ state, no last login, and nothing about the other events that account may run.
 ### `POST /api/events/:slug/moderators`
 
 ```json
+{ "email": "lea@example.test", "locale": "fr" }
+```
+
+An **invitation by link** (roadmap §10.3). `locale` is optional (`fr`, `en`, `de`, `es`, `it`;
+default `fr`): the language of the host's page, and the language the invitation is written in.
+Unknown keys are refused, which is how a client written for 2.x learns what changed (below).
+
+It creates **no account and no role**. It writes a single-use link that lives **seven days**,
+and either mails it to the address (when the box has a mail relay, `SMTP_URL`) or hands it back to
+the host to pass on (when it has none, or the relay refused). The person makes their account —
+or, if the address already has one, signs in — and accepts it (`/api/invitations/:token`,
+below). Only then does a membership exist.
+
+**201**, `Cache-Control: no-store`
+
+```json
+{ "status": "invited", "expiresAt": "2026-06-27T21:00:00.000Z" }
+```
+
+`link` is present **only** when no mail went out:
+
+```json
 {
-  "email": "lea@example.test",
-  "displayName": "Léa",
-  "temporaryPassword": "…"
+  "status": "invited",
+  "expiresAt": "2026-06-27T21:00:00.000Z",
+  "link": "https://photos.example.org/invite/AbC…"
 }
 ```
 
-`temporaryPassword` is **required**, and this is the part of the contract most likely to
-surprise: there is no mailer in this product, so the credential is one the host reads out
-to the person they are handing the laptop to. It is not generated server-side — the HTTP
-layer holds no id generator, and a controller inventing a credential is exactly the kind
-of decision this layer must not make. It is bounded only in length; the policy belongs to
-`Password` and applies when the invitee chooses their own.
+Whether it is there depends on the box and its relay and never on the address: **the answer is the
+same for an address that has an account and one that has not**, and nothing in it says which.
+Re-inviting an address to the same event revokes the earlier link, so a lost one can be replaced.
 
-`displayName` is optional and may be `null`; the console lists the address when there is
-no name.
+A host may write thirty invitations an hour, to any addresses (`429 rate.limited`, per account: another host is not
+affected).
 
-**201**
+**Errors** — `409 membership.alreadyExists` (the address is already a member of this event: the host
+can read that list), `429 invitation.tooManyForAddress` (an address is written to at most five
+times an hour, by anybody), `400 email.malformed`, `400 email.containsWhitespace`,
+`400 email.empty`, `400 request.invalid` (an unknown key, or a locale that is not one),
+`409 event.immutable` (an archived event).
 
-```json
-{ "userId": "…", "created": true }
-```
+#### What changed in 3.0
 
-`created` is the useful half: it says whether the temporary password the host just typed
-is worth reading out. An address that already had an account keeps its own password — an
-invitation that reset it would let one host take over a colleague's account, and with it
-every other event that colleague runs.
-
-**Errors** — `409 membership.alreadyExists`, `400 email.malformed`,
-`400 email.containsWhitespace`, `400 email.empty`, `400 password.*` on the temporary
-password.
-
-> Until this audit the table above said only "Invite by email", and
-> `web/src/lib/api/client.ts` sent only the address — so every invitation from the
-> console was a `400 request.invalid`. Both halves are fixed: the table says what the
-> schema requires, and the panel now has the password field
-> (`web/src/features/admin/ModeratorsPanel.tsx`), asserted by
-> `ModeratorsPanel.test.tsx` and by the client→server body contract test in
-> `src/interface/http/presenters/requestContract.test.ts`.
+The 2.x request carried `displayName` and a required `temporaryPassword`, and the response was
+`{ "userId": "…", "created": true }`: the box made the account, with the password the host typed
+and read out, and answered whether the address was already on the box. **A script written for 2.x
+now gets `400 request.invalid`** for either field, and the response has none of the three. See
+`docs/UPGRADING.md`, "Upgrading to 3.0".
 
 ### `DELETE /api/events/:slug/moderators/:userId`
 

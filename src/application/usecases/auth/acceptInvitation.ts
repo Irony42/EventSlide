@@ -40,6 +40,13 @@ export type AcceptInvitationInput = { readonly token: string } & (
 
 export interface AcceptedInvitation {
   readonly userId: UserId
+  /**
+   * The address of the account that accepted, which is the address the link was written to.
+   * For the session a new account is signed in with; **not for a response body**: the person
+   * who accepted has it already, and an HTTP layer that echoed it would be telling whoever
+   * holds a link whose mailbox it is.
+   */
+  readonly email: string
   /** What was granted, and where it is: the page lands the person there. */
   readonly target: InvitationTarget
   readonly place: InvitationPlace
@@ -141,7 +148,7 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
         account: { kind: 'existing', userId: account.id, emailVerifiedAt },
       })
       if (outcome !== 'accepted') return err(invitationNotFound())
-      return ok({ userId: account.id, target, place })
+      return ok({ userId: account.id, email: account.email.value, target, place })
     }
 
     // Judged before the address is looked at, so a refusal is the same for every address:
@@ -193,6 +200,6 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
     })
     if (outcome === 'emailTaken') return err(DomainError.conflict('invitation.signInRequired'))
     if (outcome !== 'accepted') return err(invitationNotFound())
-    return ok({ userId: created.value.id, target, place })
+    return ok({ userId: created.value.id, email: record.email.value, target, place })
   }
 }
