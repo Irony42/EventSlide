@@ -2,6 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { resolveAuthState } from '../middleware/authz'
+import { isUndecodablePath } from '../middleware/errorHandler'
 import { invitationLimiter } from '../middleware/rateLimit'
 import { toInvitationAcceptedDto, toInvitationPreviewDto } from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
@@ -123,9 +124,12 @@ export const invitationRoutes = ({ deps, usecases }: InvitationRouteDeps): Route
   // Express decodes a path parameter while it **matches** the route, before any handler or
   // limiter runs, and throws a `URIError` for `%`, `%zz` or a truncated sequence. Left alone that
   // is a 500 and an error line in the log for anybody who types it; a malformed link is a dead
-  // link, answered like every other. An error from anywhere else is not this router's to answer.
+  // link, answered like every other. Only the router's own refusal is answered here, by the same
+  // test the error handler and the gallery router use (a `URIError` **stamped** `status: 400`),
+  // so a `URIError` of ours in a handler above, or an error a library stamped 400, stays a bug:
+  // a 500 with its line in the log, not a quiet 404.
   router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
-    if (!(error instanceof URIError)) {
+    if (!isUndecodablePath(error)) {
       next(error)
       return
     }
