@@ -34,7 +34,14 @@ import { countingOpenFiles, seedAlbumRows, type OpenFiles } from './testing/arch
  */
 
 const HOUR = 60 * 60 * 1000
-const PHOTO_BYTES = 256 * 1024
+/**
+ * Twelve photographs of 3 MiB each. A photograph has to be larger than everything the writer
+ * and `archiver` buffer between them, a megabyte or two: smaller, and a file left open by a
+ * download that was abandoned is read to its end into those buffers and closes on its own,
+ * so the leak these tests exist for would not show.
+ */
+const PHOTOS = 12
+const PHOTO_BYTES = 3 * 1024 * 1024
 
 interface Rig {
   readonly world: GalleryWorld
@@ -61,7 +68,7 @@ describe('the gallery archive with the real archiver, filesystem and database', 
     const store = createFsMediaStore({ root })
     const { link } = world.seedLink()
 
-    for (let index = 0; index < 40; index += 1) {
+    for (let index = 0; index < PHOTOS; index += 1) {
       const photo = aPhoto({
         id: `photo-${String(index).padStart(3, '0')}`,
         eventId: WEDDING,
@@ -108,7 +115,7 @@ describe('the gallery archive with the real archiver, filesystem and database', 
     // The writer now asks for an entry only when it is about to write it, so there is no
     // whole-album listing to wait for: what is left to tell is a check made once from a
     // check made for every photograph, and the second is the one that ends this with an
-    // error and a fraction of the album rather than with a clean ZIP of all forty.
+    // error and a fraction of the album rather than with a clean ZIP of all twelve.
     const result = await rig.download()
     if (!result.ok) throw new Error(`expected an archive, got ${result.error.code}`)
 
@@ -126,13 +133,13 @@ describe('the gallery archive with the real archiver, filesystem and database', 
 
     await expect(consume()).rejects.toThrow(ShareLinkWithdrawnError)
     // Half the album is generous: what was already written when the link was revoked is
-    // what the writer's own buffers hold, a few photographs of forty.
-    expect(received).toBeLessThan(20 * PHOTO_BYTES)
+    // what the writer's own buffers hold, a photograph or two of twelve.
+    expect(received).toBeLessThan((PHOTOS / 2) * PHOTO_BYTES)
   })
 
   it('closes every file it opened when the client stops reading', async () => {
-    // The tab was closed with the album half sent. The writer used to take all forty
-    // photographs at once and open every file, then leave them open: 55 of 60 measured on
+    // The tab was closed with the album half sent. The writer used to take every
+    // photograph at once and open every file, then leave them open: 55 of 60 measured on
     // the real filesystem, a descriptor each for as long as the process lived, for anybody
     // holding a gallery link.
     const result = await rig.download()
@@ -146,7 +153,7 @@ describe('the gallery archive with the real archiver, filesystem and database', 
 
     await vi.waitFor(() => expect(rig.files.closed).toBe(rig.files.opened), { timeout: 2_000 })
     expect(rig.files.opened).toBeGreaterThan(0)
-    expect(rig.files.opened).toBeLessThan(40)
+    expect(rig.files.opened).toBeLessThan(PHOTOS)
   })
 
   it('leaves the database writable for every other event while an archive is listed', async () => {
@@ -182,6 +189,6 @@ describe('the gallery archive with the real archiver, filesystem and database', 
     const [total] = await Promise.all([consume(), upload()])
 
     expect(failures).toEqual([])
-    expect(total).toBeGreaterThan(40 * PHOTO_BYTES)
+    expect(total).toBeGreaterThan(PHOTOS * PHOTO_BYTES)
   })
 })

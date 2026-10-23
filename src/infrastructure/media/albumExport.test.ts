@@ -28,8 +28,14 @@ import { countingOpenFiles, seedAlbumRows, type OpenFiles } from './testing/arch
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
-const PHOTO_BYTES = 256 * 1024
-const PHOTOS = 40
+/**
+ * Twelve photographs of 3 MiB each. A photograph has to be larger than everything the writer
+ * and `archiver` buffer between them, a megabyte or two: smaller, and a file left open by a
+ * download that was abandoned is read to its end into those buffers and closes on its own,
+ * so the leak these tests exist for would not show.
+ */
+const PHOTOS = 12
+const PHOTO_BYTES = 3 * 1024 * 1024
 
 interface Rig {
   readonly db: Db
@@ -116,7 +122,7 @@ describe('the host’s album with the real archiver, filesystem and database', (
     for (let next = await chunks.next(); next.done !== true; next = await chunks.next()) {
       total += next.value.length
     }
-    expect(total).toBeGreaterThan((PHOTOS - 8) * PHOTO_BYTES)
+    expect(total).toBeGreaterThan((PHOTOS - 2) * PHOTO_BYTES)
   })
 
   it('closes every file it opened when the host stops reading', async () => {
