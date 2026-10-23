@@ -190,8 +190,8 @@ describe('routePatternFor', () => {
   })
 
   it('reports an array of paths joined, for a route declared with more than one', () => {
-    expect(routePatternFor(aRequest({ baseUrl: '', route: { path: ['/g', '/g/*'] } }))).toBe(
-      '/g|/g/*',
+    expect(routePatternFor(aRequest({ baseUrl: '', route: { path: ['/g', '/g/*splat'] } }))).toBe(
+      '/g|/g/*splat',
     )
   })
 

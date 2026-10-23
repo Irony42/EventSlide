@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import http from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { brotliCompressSync, gzipSync } from 'node:zlib'
 import request from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { aGuest, anEvent } from '../../application/testing/builders'
@@ -32,7 +33,7 @@ import {
  * - The API 404 is in front of the SPA fallback. Note what that does **not** prove: the
  *   fallback carries its own `/api/` guard, so moving the 404 behind it still answers
  *   JSON. Mutating the mount order leaves this file green; it is the pair that holds the
- *   contract, and the 404 is what covers the methods `app.get('*')` never sees.
+ *   contract, and the 404 is what covers the methods the `/{*splat}` fallback never sees.
  * - The error handler is last, so everything above can throw into it.
  *
  * `buildServer` never calls `listen()`, which is what makes all of this reachable with
@@ -42,6 +43,8 @@ import {
 /** A marker only the built web app could contain, so "did the SPA answer" is decidable. */
 const SPA_MARKER = '<div id="root" data-built-by="vite"></div>'
 const HASHED_ASSET = 'assets/app.0a1b2c3d.js'
+/** What sits inside a dot-directory of the client folder, and must never be served. */
+const HIDDEN_FILE_CONTENT = 'a file nobody asked to publish\n'
 
 /**
  * `set-cookie` is the one header that can legitimately repeat, so Node gives it as an
@@ -85,6 +88,50 @@ const csp = (headers: Readonly<Record<string, string>>): string => {
   const header = headers['content-security-policy']
   if (header === undefined) throw new Error('no Content-Security-Policy was set')
   return header
+}
+
+/**
+ * One POST of exactly these bytes, over a socket this call opens and closes.
+ *
+ * supertest serialises whatever it is handed under a JSON content type, so it cannot send a
+ * compressed body whose type is `application/json`: it would send the buffer's JSON
+ * description instead of the buffer.
+ */
+const postRaw = async (
+  app: Parameters<typeof http.createServer>[1],
+  path: string,
+  body: Buffer,
+  headers: Readonly<Record<string, string>>,
+): Promise<{ readonly status: number; readonly body: unknown }> => {
+  const server = http.createServer(app)
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('the server has no port')
+    return await new Promise((resolve, reject) => {
+      const outgoing = http.request(
+        {
+          port: address.port,
+          host: '127.0.0.1',
+          method: 'POST',
+          path,
+          headers: { ...headers, 'Content-Length': String(body.length) },
+        },
+        (incoming) => {
+          const chunks: Buffer[] = []
+          incoming.on('data', (chunk: Buffer) => chunks.push(chunk))
+          incoming.on('end', () => {
+            const text = Buffer.concat(chunks).toString('utf8')
+            resolve({ status: incoming.statusCode ?? 0, body: JSON.parse(text) as unknown })
+          })
+        },
+      )
+      outgoing.on('error', reject)
+      outgoing.end(body)
+    })
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
 }
 
 describe('buildServer: liveness and readiness', () => {
@@ -683,6 +730,58 @@ describe('buildServer: the error handler is last', () => {
 
     expect(response.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/)
   })
+
+  it.each([
+    ['gzip', (body: string) => gzipSync(body)],
+    ['br', (body: string) => brotliCompressSync(body)],
+  ])(
+    'bounds a %s body by what it inflates to, so a small request cannot carry a large one',
+    async (encoding, compress) => {
+      // The limit is on the *inflated* body. A compressed one that is tiny on the wire and
+      // large once read is the cheap way past a size limit, and Express 5 reads brotli as
+      // well as gzip and deflate (Express 4 refused `br` outright), so the second codec is
+      // a second road to the same place. Both must end at the same 413.
+      const bomb = compress(
+        JSON.stringify({ joinCode: 'H7K2QM', displayName: 'x'.repeat(200_000) }),
+      )
+      expect(bomb.length).toBeLessThan(2_000)
+
+      const answered = await postRaw(buildServerHarness().app, '/api/join', bomb, {
+        'Content-Type': 'application/json',
+        'Content-Encoding': encoding,
+      })
+
+      expect(answered.status).toBe(413)
+      expect(answered.body).toMatchObject({ error: { code: 'request.tooLarge' } })
+    },
+  )
+})
+
+describe('buildServer: a request that carries no body still has an empty one', () => {
+  it.each([
+    ['no body and no content type', undefined],
+    ['a body of a type the JSON parser does not read', 'text/plain'],
+    ['a form, which this API does not take', 'application/x-www-form-urlencoded'],
+  ] as const)(
+    'names the missing field of a join request with %s, as the contract shows',
+    async (_label, contentType) => {
+      // docs/API.md §1 shows `"details": { "fields": "joinCode" }` for exactly this
+      // request. Express 5 leaves `req.body` undefined where Express 4 left `{}`, and an
+      // undefined body fails the schema once at the root and names no field at all.
+      const subject = buildServerHarness()
+      const agent = request.agent(subject.app)
+      const first = await agent.get(ANY_GET)
+      const post = agent.post('/api/join').set(CSRF_HEADER, csrfTokenFrom(first.headers))
+
+      const response = await (contentType === undefined
+        ? post
+        : post.set('Content-Type', contentType).send('x=1'))
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+      expect(response.body.error.details).toEqual({ fields: 'joinCode' })
+    },
+  )
 })
 
 describe('buildServer: the API 404 in front of the SPA fallback', () => {
@@ -699,6 +798,8 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     await writeFile(join(clientDir, 'index.html'), `<!doctype html>${SPA_MARKER}`, 'utf8')
     await writeFile(join(clientDir, HASHED_ASSET), 'console.log(1)\n', 'utf8')
     await writeFile(join(clientDir, 'favicon.svg'), '<svg/>\n', 'utf8')
+    await mkdir(join(clientDir, '.hidden'), { recursive: true })
+    await writeFile(join(clientDir, '.hidden', 'secret.txt'), HIDDEN_FILE_CONTENT, 'utf8')
   })
 
   afterAll(async () => {
@@ -742,23 +843,52 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     expect(response.text).toContain(SPA_MARKER)
   })
 
+  it('serves the SPA shell at the root of the site, which a wildcard needs braces to reach', async () => {
+    // `/*splat` needs at least one character after the slash; `/{*splat}` is the spelling
+    // that also answers `/`. The host's first request to the box is this one.
+    const response = await request(withClient().app).get('/')
+
+    expect(response.status).toBe(200)
+    expect(response.text).toContain(SPA_MARKER)
+  })
+
+  it('refuses to serve what sits in a dot-directory of the client folder', async () => {
+    // Express 4 looked only at the last segment of the path and served this; Express 5
+    // refuses it by default, and the option is spelled out in `server.ts` so that neither
+    // version's default is what holds. It falls through to the shell, as any unknown path.
+    const response = await request(withClient().app).get('/.hidden/secret.txt')
+
+    expect(response.text).not.toContain(HIDDEN_FILE_CONTENT)
+    expect(response.text).toContain(SPA_MARKER)
+  })
+
   it('never caches the SPA shell, so a QR scan after a deploy cannot get stale assets', async () => {
     const response = await request(withClient().app).get('/join/H7K2QM')
 
     expect(response.get('cache-control')).toBe('no-cache')
   })
 
-  it('serves the shared gallery page with no referrer, no index and no cache', async () => {
-    // The token is in this address (roadmap §4.1), so the page itself carries what every
-    // gallery API response carries — and `no-store`, not the shell's `no-cache`.
-    const response = await request(withClient().app).get(`/g/${'Q'.repeat(43)}`)
+  it.each([
+    ['the link’s own address', `/g/${'Q'.repeat(43)}`],
+    ['a path below it', `/g/${'Q'.repeat(43)}/anything/at/all`],
+    ['the bare prefix', '/g'],
+  ])(
+    'serves the shared gallery page at %s with no referrer, no index and no cache',
+    async (_label, path) => {
+      // The token is in this address (roadmap §4.1), so the page itself carries what every
+      // gallery API response carries — and `no-store`, not the shell's `no-cache`. Two
+      // patterns hold it, `/g` and `/g/*splat`, and a wildcard that is not named is not a
+      // wildcard on Express 5: dropping either leaves its paths to the generic fallback
+      // below, which is the shell without any of these headers.
+      const response = await request(withClient().app).get(path)
 
-    expect(response.status).toBe(200)
-    expect(response.text).toContain(SPA_MARKER)
-    expect(response.get('cache-control')).toBe('no-store')
-    expect(response.get('x-robots-tag')).toBe('noindex, nofollow')
-    expect(response.get('referrer-policy')).toBe('no-referrer')
-  })
+      expect(response.status).toBe(200)
+      expect(response.text).toContain(SPA_MARKER)
+      expect(response.get('cache-control')).toBe('no-store')
+      expect(response.get('x-robots-tag')).toBe('noindex, nofollow')
+      expect(response.get('referrer-policy')).toBe('no-referrer')
+    },
+  )
 
   it('never caches index.html when it is requested by name', async () => {
     // `express.static` serves this one, not the fallback, so it needs its own header.
