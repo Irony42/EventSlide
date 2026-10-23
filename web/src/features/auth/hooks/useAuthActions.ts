@@ -155,3 +155,61 @@ export const useChangePassword = (): AuthActionState<PasswordChange> => {
 
   return { submit, submitting, error }
 }
+
+/** What a way out came to. A refusal carries its sentence, because the caller is a menu with a toast. */
+export type SignOutResult = { readonly ok: true } | { readonly ok: false; readonly message: string }
+
+export interface SignOutState {
+  /** This browser only. */
+  readonly signOut: () => Promise<SignOutResult>
+  /**
+   * Every device, this one included. `ok` only once **both** halves are done: the account's
+   * other sessions revoked, then this one destroyed.
+   */
+  readonly signOutEverywhere: () => Promise<SignOutResult>
+  readonly busy: boolean
+}
+
+/**
+ * The two ways out. `api.logout` had no caller before this: 1.0 had no control that signed
+ * anybody out, so a laptop handed to the next person at a venue stayed the host's.
+ *
+ * "Everywhere" is revoke-others and then logout, in that order and not the other: the first
+ * call needs the session the second one destroys. The server's `revoke-others` leaves the
+ * caller signed in — right for "sign out my other devices", but a button that says
+ * *everywhere* and leaves this one open would say something untrue, so the second call is
+ * made here. If it fails, the others are already out and the sentence says the attempt failed;
+ * pressing again repeats both, and both are safe to repeat.
+ */
+export const useSignOut = (): SignOutState => {
+  const api = useApi()
+  const t = useTranslations()
+  const [busy, setBusy] = useState(false)
+
+  const run = useCallback(
+    async (steps: () => Promise<void>): Promise<SignOutResult> => {
+      setBusy(true)
+      try {
+        await steps()
+        return { ok: true }
+      } catch (cause) {
+        return { ok: false, message: errorMessage(cause, t) }
+      } finally {
+        setBusy(false)
+      }
+    },
+    [t],
+  )
+
+  const signOut = useCallback(() => run(() => api.logout()), [api, run])
+  const signOutEverywhere = useCallback(
+    () =>
+      run(async () => {
+        await api.revokeOtherSessions()
+        await api.logout()
+      }),
+    [api, run],
+  )
+
+  return { signOut, signOutEverywhere, busy }
+}

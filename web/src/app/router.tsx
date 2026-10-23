@@ -110,6 +110,22 @@ const MustChangePasswordGate = lazy(async () => ({
 }))
 
 /**
+ * The pages a link opens: an invitation (G2-09), and the two halves of a forgotten password
+ * (G2-08). Lazy for the reason the sign-in form is (nobody needs them while photographing a
+ * party) and **none of them behind `RequireAuth`**: the person who opens one has no session,
+ * and the link or the form is the whole credential.
+ */
+const AcceptInvitationPage = lazy(async () => ({
+  default: (await import('../features/auth/AcceptInvitationPage')).AcceptInvitationPage,
+}))
+const ForgotPasswordPage = lazy(async () => ({
+  default: (await import('../features/auth/ForgotPasswordPage')).ForgotPasswordPage,
+}))
+const ResetPasswordPage = lazy(async () => ({
+  default: (await import('../features/auth/ResetPasswordPage')).ResetPasswordPage,
+}))
+
+/**
  * The loader between two lazy chunks, mounted twice over — which is the point of the pair
  * of `Suspense` boundaries below. The inner one, inside each layout, is under that
  * surface's locale, so a wall waiting for its chunk is labelled in the event's language.
@@ -306,6 +322,13 @@ export function AppRoutes() {
 
         <Route element={<HostLayout />}>
           <Route path="/login" element={<LoginPage />} />
+
+          {/* The pages a link or a forgotten password opens, with no session behind them. The
+              token is the last segment of the address, like the gallery's; `/invite` and
+              `/password` alone are the catch-all's, not these. */}
+          <Route path="/invite/:token" element={<AcceptInvitationPage />} />
+          <Route path="/password/forgot" element={<ForgotPasswordPage />} />
+          <Route path="/password/reset/:token" element={<ResetPasswordPage />} />
 
           <Route element={<RequireAuth />}>
             <Route element={<MustChangePasswordGate />}>

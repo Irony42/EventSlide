@@ -72,6 +72,14 @@ export const ROUTE_BACKDROPS: readonly RouteBackdrop[] = [
   { path: '/g/*', backdrop: 'ground', page: 'app/NotFoundView.tsx' },
   { path: '/about', backdrop: 'ground', page: 'features/about/AboutPage.tsx' },
   { path: '/login', backdrop: 'ground', page: 'features/auth/LoginPage.tsx' },
+  // The pages a link opens: forms and sentences, nothing a person uploaded.
+  { path: '/invite/:token', backdrop: 'ground', page: 'features/auth/AcceptInvitationPage.tsx' },
+  { path: '/password/forgot', backdrop: 'ground', page: 'features/auth/ForgotPasswordPage.tsx' },
+  {
+    path: '/password/reset/:token',
+    backdrop: 'ground',
+    page: 'features/auth/ResetPasswordPage.tsx',
+  },
   { path: '/admin', backdrop: 'ground', page: 'features/admin/DashboardPage.tsx' },
   { path: '/admin/events/new', backdrop: 'ground', page: 'features/admin/NewEventPage.tsx' },
   { path: '/admin/events/:slug', backdrop: 'photo', page: 'features/admin/EventPage.tsx' },

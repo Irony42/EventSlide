@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from './LoginPage'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
-import { aSessionUser, fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
+import {
+  anAbout,
+  aSessionUser,
+  fakeApi,
+  renderWithProviders,
+} from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
 import type { SessionUserDto } from '../../lib/api/dto'
 
@@ -226,5 +231,68 @@ describe('LoginPage', () => {
       expect(await screen.findByRole('heading', { name: fr.auth.secondFactorTitle })).toBeVisible()
       expect(screen.queryByRole('alert')).toBeNull()
     })
+  })
+})
+
+describe("LoginPage: 'Mot de passe oublié ?'", () => {
+  const canMail = (canMail: boolean) =>
+    fakeApi({
+      about: vi.fn(async () =>
+        anAbout({ features: { siteAdmin: false, forgotPassword: canMail } }),
+      ),
+    })
+
+  it('offers the link when the box can send mail, and it leads to the forgot page', async () => {
+    const api = canMail(true)
+    renderLogin(api)
+
+    const link = await screen.findByRole('link', { name: fr.auth.forgotLink })
+
+    expect(link).toHaveAttribute('href', '/password/forgot')
+  })
+
+  it('offers no link when the box cannot send mail, because the page behind it could not work', async () => {
+    const api = canMail(false)
+    renderLogin(api)
+
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+    // Let the answer land before asserting an absence: an absence checked before the answer
+    // arrives is true of every version of this page.
+    await screen.findByLabelText(fr.auth.email)
+    await waitFor(() => expect(api.about).toHaveBeenCalledTimes(1))
+
+    expect(screen.queryByRole('link', { name: fr.auth.forgotLink })).toBeNull()
+  })
+
+  it('offers no link when the server never says, which is what a server older than the flag does', async () => {
+    const api = fakeApi({
+      about: vi.fn(async () => ({ ...anAbout(), features: { siteAdmin: true } }) as never),
+    })
+    renderLogin(api)
+
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+
+    expect(screen.queryByRole('link', { name: fr.auth.forgotLink })).toBeNull()
+  })
+
+  it('offers no link while the server has not answered yet', async () => {
+    const api = fakeApi({ about: vi.fn(() => new Promise<never>(() => undefined)) })
+    renderLogin(api)
+
+    expect(screen.queryByRole('link', { name: fr.auth.forgotLink })).toBeNull()
+    expect(screen.getByLabelText(fr.auth.email)).toBeVisible()
+  })
+
+  it('is reachable after the link, by keyboard, without leaving the form', async () => {
+    renderLogin(canMail(true))
+
+    const link = await screen.findByRole('link', { name: fr.auth.forgotLink })
+    await userEvent.tab()
+    await userEvent.tab()
+    await userEvent.tab()
+    await userEvent.tab()
+
+    // Tab order: skip-less here (no shell), e-mail, password, submit, then the link.
+    expect(link).toHaveFocus()
   })
 })

@@ -1,0 +1,6 @@
+/* The way in for somebody who already has an account, beside the primary action and
+   quieter than it: most people holding this link are making one. */
+.haveAccount {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}

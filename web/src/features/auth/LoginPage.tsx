@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useAbout } from '../../app/useAbout'
 import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useTranslations } from '../../lib/i18n/useTranslations'
@@ -38,6 +39,9 @@ export function LoginPage() {
   const { submit, submitting, error } = useLogin()
   const navigate = useNavigate()
   const location = useLocation()
+  // Whether the box can mail a reset link. False until the server says so, which is the answer
+  // that offers no link to a page that cannot work.
+  const { features } = useAbout()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -81,6 +85,9 @@ export function LoginPage() {
       submitting={submitting}
       submitLabel={t.auth.submit}
       onSubmit={handleSubmit}
+      footer={
+        features.forgotPassword ? <Link to="/password/forgot">{t.auth.forgotLink}</Link> : null
+      }
     >
       <Field label={t.auth.email}>
         {(control) => (
