@@ -158,7 +158,7 @@ export const makeUploadClip = ({
     // moved to a plan without video keeps events created with it switched on. The guest is
     // told the same thing either way — video is not available here — and not which of the
     // two it was, which is not theirs to know.
-    if (!settings.allowClips || (ceilings !== null && !ceilings.clipsAllowed)) {
+    if (!event.acceptsClips(ceilings)) {
       return err(DomainError.forbidden('event.clipsNotAllowed'))
     }
 
