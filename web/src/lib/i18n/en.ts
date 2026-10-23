@@ -327,6 +327,7 @@ export const en: UiText = {
       'This invitation is no longer valid. Ask the person who sent it for a new one.',
     'invitation.signInRequired':
       'An account already uses the address this invitation was written to. Sign in with that account: you will come back here to accept.',
+    'terms.notAccepted': 'To continue, tick the box that accepts the terms of use.',
     'invitation.wrongAccount':
       'This invitation was written for a different email address than this account’s.',
     'invitation.credentialsRequired':
@@ -900,6 +901,10 @@ export const en: UiText = {
     invitationSignedInAs: (email: string) => `You are signed in as ${email}.`,
     invitationAcceptAs: 'Accept with this account',
     invitationUseAnother: 'Use another account',
+    /* ---- Added by G2-20: the terms of use an invitation's acceptance agrees to. ---- */
+    invitationAcceptTerms: (version: string) =>
+      `I accept the terms of use (version ${version}), including the data processing clauses.`,
+    invitationReadTerms: 'Read the terms of use',
     deadLinkTitle: 'This link is not valid',
     forgotLink: 'Forgot your password?',
     forgotTitle: 'Forgot your password',

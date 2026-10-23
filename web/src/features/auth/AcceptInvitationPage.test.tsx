@@ -734,3 +734,254 @@ describe('AcceptInvitationPage: the token stays where it was put', () => {
     expect(link.getAttribute('href')).toBe('/login')
   })
 })
+
+// -------------------------------------------------------- the terms of use --
+
+/**
+ * G2-20. On a box whose operator asks for its terms, the preview carries them and the page ends
+ * both ways in with a required, unticked box and a link to read them. On every other box the
+ * page is the one it always was, and nothing extra is sent.
+ */
+describe('AcceptInvitationPage: the terms of use', () => {
+  const TERMS = { url: 'https://hosted.example.org/legal/cgu', version: '2027-01' }
+
+  const asking = (overrides: Partial<Api> = {}): Api =>
+    fakeApi({
+      invitation: vi.fn(async () => anInvitationPreview({ terms: TERMS })),
+      ...overrides,
+    })
+
+  const termsBox = () =>
+    screen.findByRole('checkbox', { name: fr.auth.invitationAcceptTerms(TERMS.version) })
+
+  describe('on a box that asks for none', () => {
+    it('shows no box and no link, and sends the body it always did', async () => {
+      const api = fakeApi()
+      renderInvitation(api)
+
+      await fillIn('Camille')
+      expect(screen.queryByRole('checkbox')).toBeNull()
+      expect(screen.queryByText(fr.auth.invitationReadTerms)).toBeNull()
+      await submit()
+
+      await waitFor(() =>
+        expect(api.acceptInvitation).toHaveBeenCalledWith(TOKEN, {
+          kind: 'newAccount',
+          displayName: 'Camille',
+          password: CHOSEN_PASSWORD,
+        }),
+      )
+    })
+
+    it('shows none for an account that is signed in either, and sends nothing with it', async () => {
+      const api = fakeApi(signedInAs('camille@example.org'))
+      renderInvitation(api)
+
+      await userEvent.click(await screen.findByRole('button', { name: fr.auth.invitationAcceptAs }))
+
+      expect(screen.queryByRole('checkbox')).toBeNull()
+      await waitFor(() =>
+        expect(api.acceptInvitation).toHaveBeenCalledWith(TOKEN, { kind: 'signedInAccount' }),
+      )
+    })
+  })
+
+  describe('on a box that asks for them', () => {
+    it('shows a box that is unticked and required, with the version in its sentence', async () => {
+      renderInvitation(asking())
+
+      const box = await termsBox()
+
+      expect(box).not.toBeChecked()
+      expect(box).toBeRequired()
+      expect(box).toBeEnabled()
+    })
+
+    it('links the terms in a tab of their own, and says so to a screen reader', async () => {
+      renderInvitation(asking())
+
+      const link = await screen.findByRole('link', {
+        name: new RegExp(fr.auth.invitationReadTerms),
+      })
+
+      expect(link).toHaveAttribute('href', TERMS.url)
+      expect(link).toHaveAttribute('target', '_blank')
+      expect(link.getAttribute('rel')).toContain('noopener')
+      expect(link).toHaveAccessibleName(
+        new RegExp(`${fr.auth.invitationReadTerms} \\(${fr.about.opensInNewTab}\\)`),
+      )
+    })
+
+    it('describes the box by that link, so a screen reader hears where the terms are as it lands', async () => {
+      renderInvitation(asking())
+
+      const box = await termsBox()
+
+      expect(box).toHaveAccessibleDescription(new RegExp(fr.auth.invitationReadTerms))
+    })
+
+    it('links a path on this site, which is where a hosted instance serves its own pages', async () => {
+      const api = asking({
+        invitation: vi.fn(async () =>
+          anInvitationPreview({ terms: { url: '/legal/cgu', version: '2027-01' } }),
+        ),
+      })
+      renderInvitation(api)
+
+      expect(
+        await screen.findByRole('link', { name: new RegExp(fr.auth.invitationReadTerms) }),
+      ).toHaveAttribute('href', '/legal/cgu')
+    })
+
+    it.each([
+      ['a javascript: address', 'javascript:alert(1)'],
+      ['a plain http address', 'http://hosted.example.org/legal/cgu'],
+      ['a protocol-relative address', '//evil.example.org/cgu'],
+    ])('links nothing for %s, and still asks for the box', async (_what, url) => {
+      const api = asking({
+        invitation: vi.fn(async () =>
+          anInvitationPreview({ terms: { url, version: TERMS.version } }),
+        ),
+      })
+      renderInvitation(api)
+
+      expect(await termsBox()).toBeVisible()
+      expect(
+        screen.queryByRole('link', { name: new RegExp(fr.auth.invitationReadTerms) }),
+      ).toBeNull()
+    })
+
+    it('sends nothing and says so under the box when the form is sent with the box empty', async () => {
+      const api = asking()
+      renderInvitation(api)
+      await fillIn('Camille')
+
+      await submit()
+
+      const box = await termsBox()
+      expect(await screen.findByText(fr.errors['terms.notAccepted'])).toBeVisible()
+      expect(box).toHaveAttribute('aria-invalid', 'true')
+      expect(box).toHaveAccessibleDescription(new RegExp(fr.errors['terms.notAccepted']))
+      expect(box).toHaveFocus()
+      expect(api.acceptInvitation).not.toHaveBeenCalled()
+    })
+
+    it('says the first thing wrong first: a form with no name does not also scold about the box', async () => {
+      const api = asking()
+      renderInvitation(api)
+      await fillIn('', CHOSEN_PASSWORD, CHOSEN_PASSWORD)
+
+      await submit()
+
+      expect(await screen.findByText(fr.errors['accountName.empty'])).toBeVisible()
+      expect(screen.queryByText(fr.errors['terms.notAccepted'])).toBeNull()
+      expect(api.acceptInvitation).not.toHaveBeenCalled()
+    })
+
+    it('takes the message away as soon as the box is ticked, and then sends the tick with the form', async () => {
+      const api = asking()
+      renderInvitation(api)
+      await fillIn('Camille')
+      await submit()
+      await screen.findByText(fr.errors['terms.notAccepted'])
+
+      await userEvent.click(await termsBox())
+
+      expect(screen.queryByText(fr.errors['terms.notAccepted'])).toBeNull()
+      await submit()
+      await waitFor(() =>
+        expect(api.acceptInvitation).toHaveBeenCalledWith(TOKEN, {
+          kind: 'newAccount',
+          displayName: 'Camille',
+          password: CHOSEN_PASSWORD,
+          acceptTerms: true,
+        }),
+      )
+      expect(await screen.findByText(/Évènement à \/admin\/events\/camille-et-sacha/)).toBeVisible()
+    })
+
+    it('is ticked with the keyboard, space on the focused box', async () => {
+      renderInvitation(asking())
+      const box = await termsBox()
+
+      box.focus()
+      await userEvent.keyboard(' ')
+
+      expect(box).toBeChecked()
+    })
+
+    it('does not tick the box by pressing the link to read the terms', async () => {
+      renderInvitation(asking())
+      const box = await termsBox()
+
+      await userEvent.click(
+        screen.getByRole('link', { name: new RegExp(fr.auth.invitationReadTerms) }),
+      )
+
+      expect(box).not.toBeChecked()
+    })
+
+    it('asks the signed-in account too, and sends the tick with it', async () => {
+      const api = asking(signedInAs('camille@example.org'))
+      renderInvitation(api)
+
+      await userEvent.click(await screen.findByRole('button', { name: fr.auth.invitationAcceptAs }))
+      expect(await screen.findByText(fr.errors['terms.notAccepted'])).toBeVisible()
+      expect(api.acceptInvitation).not.toHaveBeenCalled()
+
+      await userEvent.click(await termsBox())
+      await userEvent.click(screen.getByRole('button', { name: fr.auth.invitationAcceptAs }))
+
+      await waitFor(() =>
+        expect(api.acceptInvitation).toHaveBeenCalledWith(TOKEN, {
+          kind: 'signedInAccount',
+          acceptTerms: true,
+        }),
+      )
+    })
+
+    it('says the server’s own words when it refuses for the box, which is worded like the page’s', async () => {
+      // A page read before the operator switched the terms on has no box to show, and the
+      // server then answers with the same sentence the page would have given.
+      const api = fakeApi({
+        acceptInvitation: vi.fn(() => Promise.reject(new ApiError(400, 'terms.notAccepted'))),
+      })
+      renderInvitation(api)
+      await fillIn('Camille')
+
+      await submit()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['terms.notAccepted'])
+    })
+
+    it('says it in the language of the reader, the sentence and the refusal', async () => {
+      const api = asking()
+      renderInvitation(api, { locale: 'de' })
+
+      const box = await screen.findByRole('checkbox', {
+        name: de.auth.invitationAcceptTerms(TERMS.version),
+      })
+      await userEvent.type(screen.getByLabelText(de.auth.invitationName), 'Camille')
+      await userEvent.type(screen.getByLabelText(de.auth.password), CHOSEN_PASSWORD)
+      await userEvent.type(
+        screen.getByLabelText(de.auth.invitationConfirmPassword),
+        CHOSEN_PASSWORD,
+      )
+      await userEvent.click(screen.getByRole('button', { name: de.auth.invitationSubmit }))
+
+      expect(await screen.findByText(de.errors['terms.notAccepted'])).toBeVisible()
+      expect(box).toHaveAttribute('aria-invalid', 'true')
+    })
+
+    it('shows nothing of them on a dead link, which is the one dead-link page', async () => {
+      const api = asking({
+        invitation: vi.fn(() => Promise.reject(new ApiError(404, 'invitation.notFound'))),
+      })
+      renderInvitation(api)
+
+      expect(await screen.findByText(fr.errors['invitation.notFound'])).toBeVisible()
+      expect(screen.queryByRole('checkbox')).toBeNull()
+      expect(document.body).not.toHaveTextContent(TERMS.version)
+    })
+  })
+})

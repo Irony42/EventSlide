@@ -194,10 +194,20 @@ export interface ModeratorInviteResponse {
  * Two shapes and no third. The server's body is `.strict()`, so a field that could name an
  * account (an address, an id) is a 400: the account an acceptance attaches is the one in the
  * session, never one the request names.
+ *
+ * Either may carry `acceptTerms`, the tick of "I accept the terms of use" (G2-20), and **only
+ * when the preview said the box asks for terms**: on any other box the key is not sent, so a
+ * self-hosted server sees the body it always did. It is a boolean and never a version: the
+ * version recorded is the box's own.
  */
 export type InvitationAcceptance =
-  | { readonly kind: 'newAccount'; readonly displayName: string; readonly password: string }
-  | { readonly kind: 'signedInAccount' }
+  | {
+      readonly kind: 'newAccount'
+      readonly displayName: string
+      readonly password: string
+      readonly acceptTerms?: boolean
+    }
+  | { readonly kind: 'signedInAccount'; readonly acceptTerms?: boolean }
 
 /*
  * The two answers of the invitation routes, declared here and not in `dto.ts` for the reason
@@ -215,6 +225,12 @@ export interface InvitationPreviewDto {
   readonly role: 'moderator' | 'owner' | 'member'
   readonly targetName: string
   readonly expiresAt: string
+  /**
+   * The terms accepting agrees to (G2-20): present **only on a box that asks for them**, where
+   * the page shows a required, unticked box beside a link to `url`. Absent on every
+   * self-hosted box, which is the page as it was.
+   */
+  readonly terms?: { readonly url: string; readonly version: string }
 }
 
 /**
@@ -446,12 +462,12 @@ export const createApi = (transport: Transport) => ({
     token: string,
     acceptance: InvitationAcceptance,
   ): Promise<InvitationAcceptedDto> =>
-    transport.post(
-      `/api/invitations/${encode(token)}/accept`,
-      acceptance.kind === 'newAccount'
+    transport.post(`/api/invitations/${encode(token)}/accept`, {
+      ...(acceptance.kind === 'newAccount'
         ? { displayName: acceptance.displayName, password: acceptance.password }
-        : {},
-    ),
+        : {}),
+      ...(acceptance.acceptTerms === undefined ? {} : { acceptTerms: acceptance.acceptTerms }),
+    }),
 
   // ------------------------------------------------------------ client space --
   //

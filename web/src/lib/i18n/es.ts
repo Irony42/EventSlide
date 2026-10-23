@@ -336,6 +336,7 @@ export const es: UiText = {
       'Esta invitación ya no es válida. Pida una nueva a la persona que se la envió.',
     'invitation.signInRequired':
       'Ya existe una cuenta con la dirección de esta invitación. Inicie sesión con esa cuenta: volverá aquí para aceptarla.',
+    'terms.notAccepted': 'Para continuar, marque la casilla que acepta las condiciones de uso.',
     'invitation.wrongAccount':
       'Esta invitación estaba destinada a una dirección de correo distinta de la de esta cuenta.',
     'invitation.credentialsRequired':
@@ -938,6 +939,10 @@ export const es: UiText = {
     invitationSignedInAs: (email: string) => `Ha iniciado sesión como ${email}.`,
     invitationAcceptAs: 'Aceptar con esta cuenta',
     invitationUseAnother: 'Usar otra cuenta',
+    /* ---- Added by G2-20: the terms of use an invitation's acceptance agrees to. ---- */
+    invitationAcceptTerms: (version: string) =>
+      `Acepto las condiciones de uso (versión ${version}), incluidas las cláusulas de encargo del tratamiento.`,
+    invitationReadTerms: 'Leer las condiciones de uso',
     deadLinkTitle: 'Este enlace no es válido',
     forgotLink: '¿Ha olvidado su contraseña?',
     forgotTitle: 'Contraseña olvidada',

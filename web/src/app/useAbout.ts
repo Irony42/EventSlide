@@ -58,7 +58,7 @@ const SAME_ORIGIN_PROBE = 'https://same-origin.invalid'
  * subtle case — does not *canonicalise* to `//host`: `/.//host` parses to a pathname that
  * starts with two slashes, which a browser reads as another site.
  */
-const siteLinkOnly = (value: string): string | null => {
+export const siteLinkOnly = (value: string): string | null => {
   if (!value.startsWith('/')) return httpsOnly(value)
   if (/[\s\p{Cc}]/u.test(value) || value.startsWith('//') || value.includes('\\')) return null
   try {
