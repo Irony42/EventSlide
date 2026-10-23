@@ -314,3 +314,19 @@ test.describe('the projected surface', () => {
     await expect(surfaces.projector.getByText(event.joinCode)).toBeVisible()
   })
 })
+
+test.describe('the browser tab', () => {
+  test('tells the guest page, the console and the wall apart', async ({ app, surfaces }) => {
+    // WCAG 2.4.2. Every address used to carry the same `<title>EventSlide</title>`, so a
+    // host with the console, the wall and a phone's join page open could not tell the tabs
+    // apart. Three surfaces, three titles, read from a real document.
+    const event = await app.seedEvent({ slug: 'onglets' })
+    await surfaces.guest.goto(app.url(`/join/${event.joinCode}`))
+    await signInAsHost(surfaces.host, app)
+    await surfaces.projector.goto(wallUrl(app, event.slug))
+
+    await expect(surfaces.guest).toHaveTitle(`${fr.titles.join} · ${fr.app.name}`)
+    await expect(surfaces.host).toHaveTitle(`${fr.titles.dashboard} · ${fr.app.name}`)
+    await expect(surfaces.projector).toHaveTitle(`${fr.titles.wall} · ${fr.app.name}`)
+  })
+})

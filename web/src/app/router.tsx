@@ -1,9 +1,11 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { PageTitle } from '../design-system/components/PageTitle'
 import { Spinner } from '../design-system/components/Spinner'
 import { ToastProvider } from '../design-system/components/ToastProvider'
 import { DeferredLocale } from '../lib/i18n/LocaleProvider'
 import { useAbout } from './useAbout'
+import type { UiText } from '../lib/i18n/translations'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
 import { JoinPage } from '../features/join/JoinPage'
@@ -311,6 +313,29 @@ const WallLayout = () => (
   </DeferredLocale>
 )
 
+/**
+ * A page, named in the browser tab (WCAG 2.4.2).
+ *
+ * The title is declared here, beside the address it belongs to, and not inside each page:
+ * a screen mounted from four addresses (the not-found one) carries no title of its own, a
+ * page with six states (the invitation) needs one in none of them, and a reader of this table
+ * sees every tab name together. It sits inside the layout, so the title is in the language
+ * that layout speaks: the event's, on the wall, once its response has said which.
+ *
+ * `pageTitles.test.tsx` mounts every address and holds this table to `fr.titles`.
+ */
+const TabTitle = ({ page }: { readonly page: keyof UiText['titles'] }) => {
+  const t = useTranslations()
+  return <PageTitle title={t.titles[page]} />
+}
+
+const titled = (page: keyof UiText['titles'], element: ReactNode): ReactNode => (
+  <>
+    <TabTitle page={page} />
+    {element}
+  </>
+)
+
 export function AppRoutes() {
   // Read once the box has said so: with `SITE_ADMIN=off` there is no client space, so no route is
   // registered and a direct visit to its address is the not-found screen, as for any address
@@ -324,11 +349,11 @@ export function AppRoutes() {
         <Route path="/" element={<Navigate to="/join" replace />} />
 
         <Route element={<GuestLayout />}>
-          <Route path="/join" element={<JoinPage />} />
+          <Route path="/join" element={titled('join', <JoinPage />)} />
           {/* A path, not a query string. 1.0 emitted `?partyname=` and read `?party`,
               so every guest silently uploaded to the default event. */}
-          <Route path="/join/:code" element={<JoinPage />} />
-          <Route path="/e/:slug/upload" element={<GuestUploadPage />} />
+          <Route path="/join/:code" element={titled('join', <JoinPage />)} />
+          <Route path="/e/:slug/upload" element={titled('upload', <GuestUploadPage />)} />
           {/* The guest's own dead ends, answered on the guest's own surface.
               A card printed against an older URL shape, a link forwarded through a
               group chat, a path that gained a segment: the reader is holding a phone
@@ -336,56 +361,73 @@ export function AppRoutes() {
               instead" is the whole value of the screen. The host catch-all below still
               answers everything else, in French and at host width, which is right for a
               mistyped `/admin` address. */}
-          <Route path="/join/*" element={<NotFoundView />} />
-          <Route path="/e/*" element={<NotFoundView />} />
+          <Route path="/join/*" element={titled('notFound', <NotFoundView />)} />
+          <Route path="/e/*" element={titled('notFound', <NotFoundView />)} />
           {/* The shared gallery. The token is a path segment, like the join code, and it
               is the whole credential: nothing here signs anybody in. */}
           <Route element={<LazyGuestPage />}>
-            <Route path="/g/:token" element={<GalleryPage />} />
-            <Route path="/about" element={<AboutPage />} />
+            <Route path="/g/:token" element={titled('gallery', <GalleryPage />)} />
+            <Route path="/about" element={titled('about', <AboutPage />)} />
           </Route>
-          <Route path="/g/*" element={<NotFoundView />} />
+          <Route path="/g/*" element={titled('notFound', <NotFoundView />)} />
         </Route>
 
         {/* Public, and behind no session: a projector has nobody to log it in. */}
         <Route element={<WallLayout />}>
-          <Route path="/e/:slug/display" element={<WallPage />} />
+          <Route path="/e/:slug/display" element={titled('wall', <WallPage />)} />
         </Route>
 
         <Route element={<HostLayout />}>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={titled('login', <LoginPage />)} />
 
           {/* The pages a link or a forgotten password opens, with no session behind them. The
               token is the last segment of the address, like the gallery's; `/invite` and
               `/password` alone are the catch-all's, not these. */}
-          <Route path="/invite/:token" element={<AcceptInvitationPage />} />
-          <Route path="/password/forgot" element={<ForgotPasswordPage />} />
-          <Route path="/password/reset/:token" element={<ResetPasswordPage />} />
+          <Route path="/invite/:token" element={titled('invitation', <AcceptInvitationPage />)} />
+          <Route
+            path="/password/forgot"
+            element={titled('forgotPassword', <ForgotPasswordPage />)}
+          />
+          <Route
+            path="/password/reset/:token"
+            element={titled('resetPassword', <ResetPasswordPage />)}
+          />
 
           <Route element={<RequireAuth />}>
             <Route element={<MustChangePasswordGate />}>
-              <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="/admin/events/new" element={<EventCreatePage />} />
-              <Route path="/admin/events/:slug" element={<EventDetailPage />} />
-              <Route path="/admin/events/:slug/moderation" element={<ModerationPage />} />
+              <Route path="/admin" element={titled('dashboard', <AdminDashboardPage />)} />
+              <Route path="/admin/events/new" element={titled('newEvent', <EventCreatePage />)} />
+              <Route path="/admin/events/:slug" element={titled('event', <EventDetailPage />)} />
+              <Route
+                path="/admin/events/:slug/moderation"
+                element={titled('moderation', <ModerationPage />)}
+              />
               {/* Beside the console rather than instead of it: the host chooses the
                   surface by choosing the address, and a phone-shaped screen is a
                   different screen, not a narrow one. */}
               <Route
                 path="/admin/events/:slug/moderation/mobile"
-                element={<MobileModerationPage />}
+                element={titled('mobileModeration', <MobileModerationPage />)}
               />
-              <Route path="/admin/events/:slug/settings" element={<EventSettingsPage />} />
-              {siteAdmin ? <Route path="/admin/client" element={<ClientSpacePage />} /> : null}
-              <Route path="/admin/password" element={<ChangePasswordPage />} />
+              <Route
+                path="/admin/events/:slug/settings"
+                element={titled('settings', <EventSettingsPage />)}
+              />
+              {siteAdmin ? (
+                <Route path="/admin/client" element={titled('clientSpace', <ClientSpacePage />)} />
+              ) : null}
+              <Route
+                path="/admin/password"
+                element={titled('changePassword', <ChangePasswordPage />)}
+              />
               {/* The operator's second factor (G2-13). Not linked from a menu yet: the console
                   that will link it (G2-15) does not exist, and the address is the entry. */}
-              <Route path="/admin/security" element={<SecurityPage />} />
+              <Route path="/admin/security" element={titled('security', <SecurityPage />)} />
             </Route>
           </Route>
 
           {/* Not a redirect to the upload page. See NotFoundView. */}
-          <Route path="*" element={<NotFoundView />} />
+          <Route path="*" element={titled('notFound', <NotFoundView />)} />
         </Route>
       </Routes>
     </Suspense>
