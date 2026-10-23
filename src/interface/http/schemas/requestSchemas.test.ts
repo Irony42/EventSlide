@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import * as allSchemas from './requestSchemas'
 import {
+  acceptInvitationBody,
   bulkModerationBody,
   captionBody,
   changePasswordBody,
@@ -17,6 +18,7 @@ import {
   guestListQuery,
   moderationDecisionBody,
   moderationQueueQuery,
+  moderatorInvitationBody,
   photoListQuery,
   photoParams,
   photoVariantParams,
@@ -682,5 +684,55 @@ describe('integers too large to be integers', () => {
   ])('refuses %s past 2^53, which a double cannot tell from its neighbour', (_label, parse) => {
     // zod 3 accepted these and rounded them; zod 4's `.int()` means a safe integer.
     expect(parse().success).toBe(false)
+  })
+})
+
+describe('the two bodies of an invitation (G2-09)', () => {
+  // A union, so the sweep over `z.ZodObject` exports does not reach it: each of its two arms is
+  // `z.strictObject`, and these cases are what hold that. No field of either can name an account.
+  const CHOSEN = { password: 'une-phrase-de-passe-longue', displayName: 'Camille' }
+
+  it.each([
+    ['the signed-in account, with nothing', {}],
+    ['a person choosing how to sign in', CHOSEN],
+  ])('accepts %s', (_name, body) => {
+    expect(acceptInvitationBody.safeParse(body).success).toBe(true)
+  })
+
+  it.each([
+    ['an account id with nothing else', { userId: UUID }],
+    ['an address with nothing else', { email: 'autre@example.test' }],
+    ['an account id beside a name and a password', { ...CHOSEN, userId: UUID }],
+    ['an address beside a name and a password', { ...CHOSEN, email: 'autre@example.test' }],
+    ['a password with no name', { password: CHOSEN.password }],
+    ['a name with no password', { displayName: CHOSEN.displayName }],
+    ['an empty password', { ...CHOSEN, password: '' }],
+    ['an empty name', { ...CHOSEN, displayName: '' }],
+    ['a name past its bound', { ...CHOSEN, displayName: 'x'.repeat(201) }],
+    ['a password past its bound', { ...CHOSEN, password: 'x'.repeat(1_001) }],
+  ])('refuses %s, so an acceptance names no account but the session', (_name, body) => {
+    expect(acceptInvitationBody.safeParse(body).success).toBe(false)
+  })
+
+  it('refuses a key the form does not declare, and says which', () => {
+    const outcome = moderatorInvitationBody.safeParse({ email: 'a@example.test', zzz: 1 })
+
+    expect(outcome.success).toBe(false)
+    expect(JSON.stringify(outcome.error?.issues)).toContain('zzz')
+  })
+
+  it('refuses what the 2.x form sent, which the 3.0 route no longer takes', () => {
+    expect(
+      moderatorInvitationBody.safeParse({ email: 'a@example.test', temporaryPassword: 'x' })
+        .success,
+    ).toBe(false)
+    expect(
+      moderatorInvitationBody.safeParse({ email: 'a@example.test', displayName: 'Camille' })
+        .success,
+    ).toBe(false)
+  })
+
+  it('writes the invitation in French when the form names no language', () => {
+    expect(moderatorInvitationBody.parse({ email: 'a@example.test' }).locale).toBe('fr')
   })
 })

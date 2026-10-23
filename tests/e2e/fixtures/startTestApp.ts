@@ -276,6 +276,11 @@ export const startTestApp = async ({
         // Always stated, never inherited: a developer's exported `EVENT_CREATION` must not
         // make `app.eventCreation` say one thing while the server does another.
         EVENT_CREATION: eventCreation,
+        // No mail relay, stated and not inherited: a developer's exported `SMTP_URL` would make
+        // every invitation a mail instead of a link, and the specs that copy the link — which is
+        // what a box with no relay does — would fail on their own machine and nowhere else.
+        SMTP_URL: '',
+        MAIL_FROM: '',
         // The operator's links and identity are stated empty for the same reason: a developer
         // or a CI runner with a `SUPPORT_URL` or `REPORT_URL` already exported for something
         // else must not turn the "stock server" specs into specs of a configured one, or

@@ -200,7 +200,7 @@ export const setCeilings = (app: TestApp, clientId: string, ceilings: Ceilings):
 /** A signed-in account of the box that is not the operator: it has events of its own, and nothing else. */
 export interface Account {
   readonly email: string
-  /** Signed in, with the temporary password already rotated. */
+  /** Signed in: accepting the invitation signs the new account in with the password it chose. */
   readonly api: Session
 }
 
@@ -231,17 +231,24 @@ const introductionOf = (app: TestApp): Promise<string> => {
   return made
 }
 
+/** The token an invitation link carries: the last segment of `/invite/<token>`. */
+export const tokenOf = (link: string): string => {
+  const token = link.split('/invite/')[1]
+  if (token === undefined || token.length === 0) throw new Error(`not an invitation link: ${link}`)
+  return token
+}
+
 /**
  * An account the operator invited to the introduction event, signed in with its own password.
  *
- * It arrives the only way the product can make one today — the operator invites it as a
- * moderator — and what it can then do is create events, which under `EVENT_CREATION=anyAccount`
- * any account may.
+ * It arrives the only way the product can make one: the operator invites it as a moderator, the
+ * box (which has no mail relay) hands back the link, and the account is made when the link is
+ * accepted, with a password the invitee chose. What it can then do is create events, which under
+ * `EVENT_CREATION=anyAccount` any account may.
  */
 const anInvitedAccount = async (app: TestApp, label: string): Promise<Account> => {
   const suffix = randomUUID().slice(0, 8)
   const email = `${label}-${suffix}@eventslide.test`
-  const temporary = 'mot-de-passe-provisoire-du-soir'
   const chosen = 'phrase-que-seule-la-cliente-connait'
 
   // The operator: the account the server bootstrapped, signed in over the API.
@@ -254,21 +261,24 @@ const anInvitedAccount = async (app: TestApp, label: string): Promise<Account> =
 
   const invited = await operator.post(`/api/events/${await introductionOf(app)}/moderators`, {
     email,
-    temporaryPassword: temporary,
   })
   if (!succeeded(invited)) {
     throw new Error(`inviting the account failed with ${invited.status} ${codeOf(invited) ?? ''}`)
   }
+  const link = invited.body['link']
+  if (typeof link !== 'string') {
+    throw new Error('the invitation carried no link: this box is meant to have no mail relay')
+  }
 
+  // Accepting is the person's own act, on their own machine: a session of its own, a name and
+  // a password of their choosing. It signs them in, so there is nothing more to do.
   const api = await sessionOn(app.baseUrl)
-  const signedIn = await api.post('/api/auth/login', { email, password: temporary })
-  if (!succeeded(signedIn)) throw new Error(`the account could not sign in: ${signedIn.status}`)
-  const rotated = await api.post('/api/auth/password', {
-    currentPassword: temporary,
-    newPassword: chosen,
+  const accepted = await api.post(`/api/invitations/${tokenOf(link)}/accept`, {
+    password: chosen,
+    displayName: label,
   })
-  if (!succeeded(rotated)) {
-    throw new Error(`the account's password rotation failed: ${rotated.status}`)
+  if (!succeeded(accepted)) {
+    throw new Error(`the account could not accept: ${accepted.status} ${codeOf(accepted) ?? ''}`)
   }
 
   return { email, api }

@@ -147,9 +147,11 @@ running server's own database and then asks).
 
 ### Forcing a password change
 
-`users.must_change_password` is set when somebody else chose the account's password — a
-host inviting a moderator (`registerModerator`) — so the invitee has to replace it before
-doing anything else. Until this branch (P3-03), only
+`users.must_change_password` is set when somebody else chose the account's password — the
+first account a box creates from `BOOTSTRAP_OWNER_PASSWORD`, and in 2.x a host inviting a
+moderator — so its holder has to replace it before doing anything else. **An invitation no
+longer sets it** (3.0): the invitee chooses their own password when they accept, so nobody else
+ever knew it. The flag, the gate and the epoch stay for the accounts that still need them. Until this branch (P3-03), only
 `web/src/features/auth/MustChangePasswordGate.tsx` enforced it: a client-side redirect,
 which is a courtesy to a browser that is already cooperating and does nothing for one that
 calls an endpoint directly while holding the session a host just read out to them.
@@ -180,9 +182,10 @@ not each ask storage again.
 Named tests at ring 3 (`userRepositoryContract`'s `authStateFor` cases, fake **and**
 SQLite) and ring 4 (`authz.test.ts`'s sweep over every mounted `/api` route, built the way
 `siteOperatorScope.test.ts` sweeps the operator's own invariant). `tests/e2e/journeys/
-moderator-invitation.spec.ts` is the ring-6 case that was already there and stays green:
-an invited moderator signs in on the temporary password, is sent to the rotation screen,
-and only reaches the moderation queue after choosing their own.
+moderator-invitation.spec.ts` was the ring-6 case that held it end to end in 2.x, and is now the
+journey of an invitation accepted by link, which has no rotation screen to cross; the gate is
+held by the sweep above at ring 4. No ring-6 journey crosses the rotation screen any more; the
+first account a box creates still has one to cross, and `startTestApp.ts` settles it for every spec.
 
 ### The credentials epoch, and signing out everywhere
 
@@ -359,6 +362,89 @@ are deleted opportunistically by the next reset request, a day after they expire
 dedicated sweep, because a reset token cascades with its account and holds no address the
 `users` table does not.
 
+### Invitations (roadmap §10.3, G2-09 / P3-10)
+
+An invitation is a password reset for an account that does not exist yet, and it is spent through
+the same table and the same single-use statement as a reset (§2, "Account tokens"). It replaced a
+flow in which a host typed a password, the box created an account with it, and the host read it out
+loud. That flow let a third party choose the credential of an account in somebody else's name,
+attached an existing account to an event without its owner's say, and answered whether the address
+was already on the box. What holds now, each rule with the test that holds it:
+
+- **No `users` row exists before an invitation is accepted.** `issueInvitation` has no dependency on
+  the user repository at all: it writes one `account_tokens` row. The account is made by
+  `acceptInvitation`, by the person the link is for, with a password they chose, at the address the
+  link was written to (never one from the request), with no authority on the box
+  (`siteRole: 'none'`, written out and asserted by name) and nothing to change on first sign-in.
+  (`acceptInvitation.test.ts`; the container test runs it through the real adapters, a relay and
+  bcrypt.)
+- **One transaction, read from the link.** Spending the link, creating the account, granting the
+  role and stamping the mailbox are one `IMMEDIATE` transaction (`SqliteInvitationAcceptance`;
+  `invitationAcceptanceContract.ts`, fake and SQLite). **What the link grants is read from its own
+  row inside the transaction**, never from the caller, so no caller's bug can spend one person's link
+  for another's place; an account at another address than the link's, and an account id that already
+  exists (an upsert would have rewritten another account's address and authority), are refused and
+  roll everything back. Of N concurrent acceptances exactly one wins.
+- **An existing account is never attached by someone who only holds the link.** A password sent for
+  an address that has an account is `409 invitation.signInRequired` and nothing is spent; the
+  account signs in and accepts as itself with an empty body, and any other signed-in account is
+  `403 invitation.wrongAccount`. It is never given a second account. A role it already holds is not
+  lowered (a member invited as owner is raised, which the invitation says).
+- **The mailbox is proved only by a mail.** `delivery` is part of the record: `mail` if the relay
+  accepted the message, `link` otherwise (no relay, a refusal, a timeout — a relay that times out may
+  in fact have delivered, and is read conservatively). `users.email_verified_at` is set at acceptance
+  **only** when the link was mailed: a link the inviter was handed proves nothing, because the
+  inviter could have accepted it.
+- **The answer does not depend on the address.** Writing an invitation, previewing one and the
+  mail itself are the same for an address that has an account and one that has not
+  (`registerModerator.test.ts`, `previewInvitation.test.ts`). A refusal of the name or the password is
+  the same for every address too, because the address is looked at after them.
+- **Authority is read when it is used, twice.** Only an owner of the event may invite a moderator,
+  read from storage; and when the link is accepted — up to a week later — its author must **still**
+  be an owner of the event (removed, disabled, demoted or deleted, the link opens nothing), and the
+  event must still be mutable. The link is read **again after the password has been hashed**, which is
+  long enough for either to change. An event invitation with no author is refused when it is written.
+- **One live link per address and place; at most five an hour per address.** Writing a new
+  invitation to an address for the same event or client revokes the earlier one; the cap counts
+  what was written, whoever wrote it. Both are count-then-act around a mail that takes as long as a
+  relay takes, so writes for one address queue, in the process (one process over one SQLite file is
+  the whole box). The cap is global to the address, so one host can spend its five slots and make an
+  operator's invitation to that address wait an hour; that is accepted.
+- **The password is judged before the link is spent**, so a weak password costs the person nothing and
+  the same link still works.
+- **The token is in the path and never in a log.** `/invite/<token>` and `/api/invitations/<token>`
+  are written `:token` by the request logger (`loggablePath`, `errorHandler.test.ts`); the SPA
+  fallback serves the former, so an error logged while serving it would otherwise have carried the
+  credential. **A reverse proxy in front of the box is the operator's own**: its access log must be
+  told not to record `/invite/*` **and `/api/invitations/*`** — the page carries the token in its path and
+  so do the two routes it calls, which a password reset's single `POST` body does not — as for
+  `/password/reset/*` (the hosted instance's edge rule, free plan F-13 and G5-02). The database holds only the SHA-256 (`container.test.ts` searches every table for
+  the token and the chosen password). The mail is plain text with one link, neutral about who sent it.
+  Nothing logs the address, the link or the name of the event.
+
+**Two smaller facts a link holder can learn.** A switched-off account at the address answers `404` to a
+valid name and password where an enabled one answers `409` and a free address `200`, so somebody
+who previewed the link (`200`) and then gets `404` learns that an account is switched off there.
+And the cap of five an hour is global to the address, so a host whose sixth invitation is refused
+learns that somebody else wrote to it recently. Neither is closed: the first would mean answering
+`409` for a dead account, which sends its owner to a sign-in that cannot work, and the second is
+the price of a cap that bounds what an inbox is sent whoever writes.
+
+**What this does not end, and says so.** On a box with **no mail relay** the inviter holds the link
+(that is what "copy the link" is) and can accept it first, which creates an account with a password the
+inviter chose, at an address they do not control. Such an account is never marked verified, and a
+later invitation to the real owner of the address answers `409 invitation.signInRequired` to an
+account whose password only the squatter knows. The plan accepts that trade — a box with no relay
+cannot prove a mailbox, and the operator who copies a link to a client is trusted to pass it on —
+and it is bounded: it needs the inviter to be an owner of the event, a client's own account is made at
+the address the operator typed, and an operator's invitation to a client that has events (roadmap
+G2-12) will be refused a link. Nothing here ends it, and a box that wants it ended configures SMTP.
+The same property is why **the one thing a holder of a link can learn about who is on the box** is the
+`409` above, and only by sending a name and a password that pass the policy — which, where the
+address is free, creates the account. A host cannot cancel a pending invitation except by writing a
+new one to the same address (the old one then dies); a list of pending invitations with a cancel
+button is not built.
+
 ### Guest token format
 
 Verified statelessly, then confirmed against the `guests` row — which is what makes a
@@ -450,21 +536,21 @@ and the entity do.
 
 Everything in `src/interface/http/middleware/authz.ts`:
 
-| Middleware                       | Grants                                                                                                                                                                                                                                                          |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enforceSessionAge(deps)`        | nothing. Ends a session older than the absolute cap, ahead of identity resolution                                                                                                                                                                               |
-| `attachUser()`                   | nothing. Reads the session into a principal — identity, never permission                                                                                                                                                                                        |
-| `requirePasswordCurrent(deps)`   | nothing. Mounted on `/api` ahead of every router (P3-03): refuses a signed-in, enabled account with `mustChangePassword` set — `403 auth.passwordChangeRequired` — on every route but `GET /api/auth/me`, `POST /api/auth/password` and `POST /api/auth/logout` |
-| `requireUser(deps)`              | any authenticated user **whose account is still enabled**, for the routes that are not event-scoped                                                                                                                                                             |
-| `requireRole('owner', deps)`     | event owner only, and only while that account is enabled                                                                                                                                                                                                        |
-| `requireRole('moderator', deps)` | owner or moderator of **that** event, same condition                                                                                                                                                                                                            |
-| `requireSecondFactor(deps)`      | nothing. Mounted by `siteRoutes` **after** `requireOperator`: with `REQUIRE_OPERATOR_2FA=true`, a session whose `secondFactorAt` is not a stamp the server wrote refuses with `403 auth.secondFactorRequired` (§19); off, it does nothing                       |
-| `requireStepUp(deps)`            | nothing. Declared per route, behind `requireUser`: refuses with `403 auth.stepUpRequired` unless the session confirmed a password and a code within five minutes (§19)                                                                                          |
-| `requireOperator(deps)`          | the account that operates the **box**, nothing inside any event. Gates `/api/site` and `/api/site/*` when `SITE_ADMIN=on`; see the site role below                                                                                                              |
-| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                                                                                                                                                   |
-| `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                                                                                                                                               |
-| _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/login/2fa` (the half-finished sign-in is the credential), `POST /api/auth/logout`, `GET /api/auth/me`                                                 |
-| `GET /api/about`, no middleware  | genuinely public, mounted ahead of the cookie parser, the session and CSRF: the AGPL §13 source offer sets no cookie                                                                                                                                            |
+| Middleware                       | Grants                                                                                                                                                                                                                                                                                                                |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enforceSessionAge(deps)`        | nothing. Ends a session older than the absolute cap, ahead of identity resolution                                                                                                                                                                                                                                     |
+| `attachUser()`                   | nothing. Reads the session into a principal — identity, never permission                                                                                                                                                                                                                                              |
+| `requirePasswordCurrent(deps)`   | nothing. Mounted on `/api` ahead of every router (P3-03): refuses a signed-in, enabled account with `mustChangePassword` set — `403 auth.passwordChangeRequired` — on every route but `GET /api/auth/me`, `POST /api/auth/password` and `POST /api/auth/logout`                                                       |
+| `requireUser(deps)`              | any authenticated user **whose account is still enabled**, for the routes that are not event-scoped                                                                                                                                                                                                                   |
+| `requireRole('owner', deps)`     | event owner only, and only while that account is enabled                                                                                                                                                                                                                                                              |
+| `requireRole('moderator', deps)` | owner or moderator of **that** event, same condition                                                                                                                                                                                                                                                                  |
+| `requireSecondFactor(deps)`      | nothing. Mounted by `siteRoutes` **after** `requireOperator`: with `REQUIRE_OPERATOR_2FA=true`, a session whose `secondFactorAt` is not a stamp the server wrote refuses with `403 auth.secondFactorRequired` (§19); off, it does nothing                                                                             |
+| `requireStepUp(deps)`            | nothing. Declared per route, behind `requireUser`: refuses with `403 auth.stepUpRequired` unless the session confirmed a password and a code within five minutes (§19)                                                                                                                                                |
+| `requireOperator(deps)`          | the account that operates the **box**, nothing inside any event. Gates `/api/site` and `/api/site/*` when `SITE_ADMIN=on`; see the site role below                                                                                                                                                                    |
+| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                                                                                                                                                                                                         |
+| `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                                                                                                                                                                                                     |
+| _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/login/2fa` (the half-finished sign-in is the credential), `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/invitations/:token` and `POST /api/invitations/:token/accept` (the link is the credential) |
+| `GET /api/about`, no middleware  | genuinely public, mounted ahead of the cookie parser, the session and CSRF: the AGPL §13 source offer sets no cookie                                                                                                                                                                                                  |
 
 There is no `requireGuestOwnsPhoto`. Ownership is not a middleware question: the rule is
 their photo, their window, and a status still off the wall, and all three live on the
@@ -528,7 +614,7 @@ different middleware, from the question of what anybody may do inside an event.
 | Every event-scoped route refuses an operator who is not a member        | `siteOperatorScope.test.ts` sweeps every route off the assembled server, so a route added later is covered the day it is mounted rather than the day somebody adds it to a list                                                                                                                                                       |
 | Media is reached as a member of the public                              | `mediaRoutes` resolves its own viewer, so an operator asking for a photograph is `{kind:'public'}` and a pending photo stays unreadable — asserted at rings 4 and 6                                                                                                                                                                   |
 | It is read from storage on every request, never carried in the session  | a capability in a cookie outlives the account being switched off. `siteRoleFor` answers `none` for an unknown **or disabled** account, and **throws** on a value the domain does not know rather than guessing at it                                                                                                                  |
-| An operator is created in exactly two places, both on a box's first day | `bootstrapOwner` on a fresh install, and migration `004_site_role` on an upgrade — never both, since `bootstrapOwner` stops on a non-empty `users` table. An invitation creates `none` explicitly (`registerModerator`), and there is no route that changes a site role at all today                                                  |
+| An operator is created in exactly two places, both on a box's first day | `bootstrapOwner` on a fresh install, and migration `004_site_role` on an upgrade — never both, since `bootstrapOwner` stops on a non-empty `users` table. Accepting an invitation creates `none` explicitly (`acceptInvitation`), and there is no route that changes a site role at all today                                         |
 | The operator's namespace exists only on a box that asked for it         | `/api/site` — itself and `/api/site/*`, never `/api/sites` — is mounted only with `SITE_ADMIN=on` (roadmap §10.9) and gated by `requireOperator` at **router level**, so a route there inherits the check. Off, every path under it answers as an unknown route does, headers included (`siteAdminMode.test.ts`): no operator surface |
 | The operator's console is fed by a content-free read model              | `SiteOverview` (§18) returns ids, statuses, dates and sizes in rows whose only free text is a client's name and an account's address, held by a closed field vocabulary, a per-query column list and a planted-content sweep. `GET /api/auth/me` reports `canOperateSite` from the same predicate as the gate                         |
 

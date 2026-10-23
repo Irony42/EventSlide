@@ -1,4 +1,5 @@
 import { http, type Transport, type UploadProgress } from '../http'
+import type { Locale } from '../i18n/locale'
 import type {
   About,
   BulkModerationResponse,
@@ -159,25 +160,28 @@ export interface ShareLinkInput {
   readonly password?: string
 }
 
+/**
+ * What the host's invitation form sends: the address, and the language of the page, which is
+ * the language the invitation is mailed in. No password and no name — the person chooses
+ * both when they accept (roadmap §10.3).
+ */
 export interface ModeratorInvitationInput {
   readonly email: string
-  readonly temporaryPassword: string
+  readonly locale: Locale
 }
 
 /**
- * What `POST /api/events/:slug/moderators` answers, as the server presents it.
- *
- * Not a `ModeratorDto`: the response is a 201 carrying `{ userId, created }`, and
- * `created` is the useful half — it says whether the temporary password the host just
- * typed is worth reading out, or whether the address already had an account that keeps
- * its own.
+ * What `POST /api/events/:slug/moderators` answers, as the server presents it: a 201 saying
+ * the invitation exists and when it ends — and, **only when no mail went out**, the link to
+ * pass on. It says nothing about whether the address already has an account.
  *
  * Declared here rather than in `dto.ts` because the response envelope of a write is not
  * one of the shapes the wall and the console share.
  */
 export interface ModeratorInviteResponse {
-  readonly userId: string
-  readonly created: boolean
+  readonly status: 'invited'
+  readonly expiresAt: string
+  readonly link?: string
 }
 
 export const createApi = (transport: Transport) => ({

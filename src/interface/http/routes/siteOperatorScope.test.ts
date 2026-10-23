@@ -98,6 +98,14 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'post /api/gallery/:token/unlock':
     'the gallery’s password, which is the second factor on top of the token and is ' +
     'answered by the token’s own rule',
+  'get /api/invitations/:token':
+    'an invitation link (roadmap §10.3): the token **is** the credential, and what it shows ' +
+    'is the same neutral answer to everyone — the purpose, the target’s name and the end of ' +
+    'the link, or the one 404 a dead link gets. An operator holding no token learns nothing',
+  'post /api/invitations/:token/accept':
+    'accepting that link: the token is the credential, and the use case decides everything ' +
+    'with it — an operator is a stranger to a link written to somebody else, and is attached ' +
+    'to nothing unless the link was written to their own address and they are signed in as it',
   'get /api/gallery/:token/photos': 'the gallery’s grid, behind the same token',
   'get /api/gallery-media/:linkId/album.zip':
     'the gallery’s archive: a signed URL the gallery minted, re-checked against the link',

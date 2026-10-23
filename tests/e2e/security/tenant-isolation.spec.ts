@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3'
 import type { APIRequestContext, Browser } from '@playwright/test'
 import { csrfHeaders, expect, test } from '../fixtures/app'
+import { tokenOf } from '../fixtures/clients'
 import type { TestApp } from '../fixtures/startTestApp'
 import { aDisguisedScript, anSvgNamedAsJpeg, aPhoto, aPixelBomb } from '../fixtures/media'
 
@@ -412,7 +413,7 @@ test.describe('an account that has been disabled', () => {
     }
   })
 
-  test('cannot mint a fresh enabled account by inviting a moderator', async ({ app, browser }) => {
+  test('cannot invite a moderator once their own account is disabled', async ({ app, browser }) => {
     const client = await aClientWithTheirOwnEvent(app, browser)
     const invitee = `remplacante-${Date.now()}@eventslide.test`
     try {
@@ -420,14 +421,15 @@ test.describe('an account that has been disabled', () => {
 
       const invited = await client.request.post(app.url(`/api/events/${client.slug}/moderators`), {
         headers: await csrfHeaders(client.request, app),
-        data: { email: invitee, temporaryPassword: 'mot-de-passe-provisoire-du-soir' },
+        data: { email: invitee },
       })
 
       expect(invited.status()).toBe(404)
-      // And nothing was written: the account the disabled host would have signed in as
-      // does not exist. A 404 with a row behind it would be the same escalation with a
-      // better status code.
+      // And nothing was written: no account for the address, and no invitation that would
+      // make one. A 404 with a row behind it would be the same escalation with a better
+      // status code.
       expect(accountExists(app, invitee)).toBe(false)
+      expect(invitationsTo(app, invitee)).toBe(0)
     } finally {
       await client.dispose()
     }
@@ -610,17 +612,16 @@ interface InvitedAccount {
 
 /**
  * An account with no event of its own and no client: the operator invites it to an event
- * of theirs, it signs in with the temporary password and chooses its own.
+ * of theirs, and it makes its account by accepting the link, with a password of its own.
  *
- * It is the only way the product can make an account today, and it is what an invited
- * moderator *is* — which is the account `EVENT_CREATION=clientMembers` exists to turn away.
+ * It is the only way the product can make an account, and it is what an invited moderator
+ * *is* — which is the account `EVENT_CREATION=clientMembers` exists to turn away.
  */
 const anInvitedAccount = async (app: TestApp, browser: Browser): Promise<InvitedAccount> => {
   // Scoped to the worker: the server outlives one test, and an address that already has
-  // an account takes the `created: false` branch and keeps its own password.
+  // an account is told to sign in instead of being given a second one.
   const port = app.baseUrl.split(':').at(-1) ?? '0'
   const email = `cliente-${port}-${Date.now()}-${randomUUID().slice(0, 8)}@eventslide.test`
-  const temporary = 'mot-de-passe-provisoire-du-soir'
   const chosen = 'phrase-que-seule-la-cliente-connait'
 
   const introduction = await app.seedEvent({ slug: 'presentation', name: 'Présentation' })
@@ -629,26 +630,25 @@ const anInvitedAccount = async (app: TestApp, browser: Browser): Promise<Invited
     app.url(`/api/events/${introduction.slug}/moderators`),
     {
       headers: await csrfHeaders(operator.request, app),
-      data: { email, temporaryPassword: temporary },
+      data: { email },
     },
   )
   if (!invited.ok()) throw new Error(`inviting the client failed with ${invited.status()}`)
+  const { link } = (await invited.json()) as { link?: string }
+  if (link === undefined) {
+    throw new Error('the invitation carried no link: this box is meant to have no mail relay')
+  }
   await operator.dispose()
 
+  // The client's own machine: a context of its own, which accepting signs in.
   const context = await browser.newContext({ baseURL: app.baseUrl })
   const api = context.request
 
-  const login = await api.post(app.url('/api/auth/login'), {
+  const accepted = await api.post(app.url(`/api/invitations/${tokenOf(link)}/accept`), {
     headers: await csrfHeaders(api, app),
-    data: { email, password: temporary },
+    data: { password: chosen, displayName: 'Cliente' },
   })
-  if (!login.ok()) throw new Error(`the client could not sign in: ${login.status()}`)
-
-  const rotated = await api.post(app.url('/api/auth/password'), {
-    headers: await csrfHeaders(api, app),
-    data: { currentPassword: temporary, newPassword: chosen },
-  })
-  if (!rotated.ok()) throw new Error(`the client's password rotation failed: ${rotated.status()}`)
+  if (!accepted.ok()) throw new Error(`the client could not accept: ${accepted.status()}`)
 
   return { email, request: api, dispose: () => context.close() }
 }
@@ -762,6 +762,21 @@ const accountExists = (app: TestApp, email: string): boolean => {
   const db = new Database(app.databasePath, { readonly: true, fileMustExist: true })
   try {
     return db.prepare('SELECT 1 FROM users WHERE email = ?').get(email) !== undefined
+  } finally {
+    db.close()
+  }
+}
+
+/** How many invitations are on the box for an address, spent or not. */
+const invitationsTo = (app: TestApp, email: string): number => {
+  const db = new Database(app.databasePath, { readonly: true, fileMustExist: true })
+  try {
+    const row = db
+      .prepare('SELECT COUNT(*) AS n FROM account_tokens WHERE email = ?')
+      .get(email) as {
+      n: number
+    }
+    return row.n
   } finally {
     db.close()
   }

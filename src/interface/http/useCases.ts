@@ -1,7 +1,9 @@
 import type { HttpDeps } from './types'
 import type { PresenterContext } from './presenters/presenters'
 import type { AuthenticateUser } from '../../application/usecases/auth/authenticateUser'
+import type { AcceptInvitation } from '../../application/usecases/auth/acceptInvitation'
 import type { ChangePassword } from '../../application/usecases/auth/changePassword'
+import type { PreviewInvitation } from '../../application/usecases/auth/previewInvitation'
 import type { ConfirmTotpEnrollment } from '../../application/usecases/auth/confirmTotpEnrollment'
 import type { DisableSecondFactor } from '../../application/usecases/auth/disableSecondFactor'
 import type { EnrollTotp } from '../../application/usecases/auth/enrollTotp'
@@ -103,6 +105,8 @@ export interface HttpUseCases {
   readonly regenerateRecoveryCodes: RegenerateRecoveryCodes
   readonly disableSecondFactor: DisableSecondFactor
   readonly registerModerator: RegisterModerator
+  readonly previewInvitation: PreviewInvitation
+  readonly acceptInvitation: AcceptInvitation
 
   // events
   readonly createEvent: CreateEvent

@@ -7,8 +7,7 @@ import { EmptyState } from '../../design-system/components/EmptyState'
 import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
-import { useTranslations } from '../../lib/i18n/useTranslations'
-import { PASSWORD_MIN_LENGTH } from '../auth/passwordPolicy'
+import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { useModerators } from './hooks/useEventData'
 import { useInviteModerator, useRevokeModerator } from './hooks/useEventActions'
@@ -32,6 +31,7 @@ const roleLabel = (moderator: ModeratorDto, text: UiText): string =>
  */
 export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
   const t = useTranslations()
+  const { locale } = useLocale()
   const { data: moderators, loading, error, reload } = useModerators(slug)
   const invite = useInviteModerator()
   const revoke = useRevokeModerator()
@@ -39,11 +39,13 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
 
   const [email, setEmail] = useState('')
   /**
-   * There is no mail service in this product, so the host types a credential and reads
-   * it out. The server requires it — an invitation without one is `400 request.invalid`
-   * — and `mustChangePassword` on the created account makes it single-use.
+   * The link of an invitation that was **not** mailed, for the host to pass on: present only
+   * when the box has no mail relay (or it refused), and the only time it exists outside the
+   * host's own message. Cleared by the next invitation, and never stored.
    */
-  const [temporaryPassword, setTemporaryPassword] = useState('')
+  const [pending, setPending] = useState<{ readonly email: string; readonly link: string } | null>(
+    null,
+  )
   const [inviteFailure, setInviteFailure] = useState<string | null>(null)
   const [selected, setSelected] = useState<ModeratorDto | null>(null)
 
@@ -58,30 +60,44 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
   const submitInvite = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setInviteFailure(null)
+    setPending(null)
 
     const address = email.trim()
 
-    // The password is not trimmed: leading and trailing spaces are legitimate characters
-    // in a passphrase, and silently removing them means the password the host read out
-    // is not the one the server stored. `Password` makes the same choice.
-    void invite.run('invite', slug, { email: address, temporaryPassword }).then((result) => {
+    // The language of this page is the language the invitation is written in: the host is
+    // writing to somebody in their own language, and the form has no field for another.
+    void invite.run('invite', slug, { email: address, locale }).then((result) => {
       if (!result.ok) {
         setInviteFailure(result.message)
         return
       }
-      // The response says whether an account was created. An address that already had
-      // one keeps its own password — saying otherwise would send the host off to read
-      // out a credential that does not work.
-      toast.show(
-        result.value.created
-          ? t.admin.moderatorInvited(address)
-          : t.admin.moderatorInvitedExisting(address),
-        { tone: 'success' },
-      )
+      // The answer is the same whether or not the address already has an account, so the
+      // panel says the same: an invitation exists, and the person has to accept it. With no
+      // mail it carries the link, which the host passes on.
+      if (result.value.link === undefined) {
+        toast.show(t.admin.moderatorInviteSent(address), { tone: 'success' })
+      } else {
+        setPending({ email: address, link: result.value.link })
+      }
       setEmail('')
-      setTemporaryPassword('')
       reload()
     })
+  }
+
+  const copyLink = () => {
+    if (pending === null) return
+    // The address is also selectable in the field beside this button, so a browser that
+    // refuses the clipboard costs the host a long-press rather than the link — and says so.
+    // `navigator.clipboard` does not exist on an address that is not a secure context, which
+    // includes the plain-HTTP LAN deployment this product is at home on.
+    const failed = () => toast.show(t.admin.inviteLinkCopyFailed, { tone: 'danger' })
+    if (navigator.clipboard === undefined) {
+      failed()
+      return
+    }
+    void navigator.clipboard
+      .writeText(pending.link)
+      .then(() => toast.show(t.admin.inviteLinkCopied, { tone: 'success' }), failed)
   }
 
   const confirmRevoke = () => {
@@ -142,6 +158,31 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
         </ul>
       ) : null}
 
+      {pending === null ? null : (
+        <div className={styles['created']}>
+          <p>{t.admin.inviteLinkCreated(pending.email)}</p>
+          <Field label={t.admin.inviteLinkUrl}>
+            {(control) => (
+              <TextInput
+                {...control}
+                readOnly
+                // Focus lands on the link and selects it (below), so a screen reader reads what
+                // appeared and a long-press or Ctrl+C copies it: the block would otherwise
+                // appear silently above the form, behind the button that was just pressed.
+                autoFocus
+                value={pending.link}
+                onFocus={(focused) => focused.target.select()}
+              />
+            )}
+          </Field>
+          <div>
+            <Button variant="primary" onClick={copyLink}>
+              {t.admin.inviteLinkCopy}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <form className={styles['invite']} onSubmit={submitInvite} noValidate>
         <Field
           label={t.admin.moderatorEmail}
@@ -159,26 +200,6 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-            />
-          )}
-        </Field>
-        <Field
-          label={t.admin.moderatorPassword}
-          hint={t.admin.moderatorPasswordHint(PASSWORD_MIN_LENGTH)}
-        >
-          {(control) => (
-            <TextInput
-              {...control}
-              type="password"
-              name="moderatorTemporaryPassword"
-              // `new-password`, never `current-password`: this is a credential the host
-              // is choosing for somebody else, and offering their own saved password
-              // here would be the worst possible autofill.
-              autoComplete="new-password"
-              required
-              minLength={PASSWORD_MIN_LENGTH}
-              value={temporaryPassword}
-              onChange={(event) => setTemporaryPassword(event.target.value)}
             />
           )}
         </Field>

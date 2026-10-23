@@ -130,7 +130,7 @@ const destroySession = (session: Session): Promise<void> =>
  * Both stamps are written here and nowhere else: refreshing `issuedAt` anywhere would turn
  * the absolute cap back into the idle timeout it exists to sit behind.
  */
-const startSession = async (
+export const startSession = async (
   req: Request,
   res: Response,
   deps: HttpDeps,

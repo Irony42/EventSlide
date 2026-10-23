@@ -350,6 +350,25 @@ describe('buildServer: the CSRF gate in front of the routers', () => {
     expect(response.body.error.code).toBe('request.csrfMissing')
   })
 
+  it('gates accepting an invitation too: it creates an account and starts a session', async () => {
+    // Mounted after the CSRF gate on purpose, and pinned here on the assembled server: a route
+    // that created accounts and sessions without the token would be a login-CSRF vector.
+    const response = await request(buildServerHarness().app)
+      .post('/api/invitations/any-token/accept')
+      .send({ password: 'une phrase de passe 2026', displayName: 'Camille' })
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('request.csrfMissing')
+  })
+
+  it('leaves the preview of an invitation public, since reading it changes nothing', async () => {
+    const response = await request(buildServerHarness().app).get('/api/invitations/any-token')
+
+    // The harness wires no use case behind it, so the point is what is not here: a 403 from
+    // the CSRF gate on a read.
+    expect(response.status).not.toBe(403)
+  })
+
   it('lets a state-changing request reach its route once it echoes the CSRF cookie', async () => {
     // The body is deliberately empty: reaching the route's own schema — a 400 from zod
     // rather than a 403 from the gate — is what proves the gate opened.

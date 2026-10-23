@@ -82,8 +82,8 @@ French: the admin console "has exactly one reader, and they are the person who i
 the box". Two of that argument's three premises were false.
 
 **The host is not the person who installed the box.** A moderator is invited by e-mail
-address and handed a temporary password the host reads out loud — there is no mail service
-in this product — so they are a sibling, a colleague, somebody given a phone at 21:00.
+address (until 3.0, and handed a temporary password the host read out loud — there was no
+mail service in this product; now by a link, §10.3) — so they are a sibling, a colleague, somebody given a phone at 21:00.
 Nothing about them implies they read French, and the console they are handed is the one
 screen where being wrong puts a photograph in front of two hundred people. **The room is
 not the host either**: "Rejoignez la galerie" is projected, and the mission panel rendered
@@ -560,7 +560,7 @@ the client the keys to their own evening, and never touches their photographs.
 That is a different product shape, and the code does not have it. Today a `User` is an
 account with no site-level role at all; the roles that exist (`owner`, `moderator`) belong
 to an _event_, and the first account is whatever `BOOTSTRAP_OWNER_EMAIL` said. There is no
-record of a client, no way to invite one, and the existing invitation flow creates an
+record of a client, no way to invite one, and the invitation flow of 2.x created an
 account with a password **read out loud to the person** — which works once, in the same
 room, and is exactly what will not do when the invitee is a bride you have never met.
 
@@ -636,26 +636,32 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 
 ### 10.3 Invitations that survive a box with no mail server (P1, effort M, risk: medium)
 
-> **Partly shipped**: the mailer, the tokens, and the invitation itself as use cases; the
-> routes that expose them are the next change. `Mailer` with `NullMailer` and an optional SMTP
-> adapter (G2-07 / P3-08), and the account tokens with the credentials epoch, password reset and
-> "sign out everywhere" (G2-08 / P3-09) are shipped. **Invitations** (G2-09 / P3-10) are built as
+> **Mostly shipped; the pages are not.** `Mailer` with `NullMailer` and an optional SMTP adapter
+> (G2-07 / P3-08), and the account tokens with the credentials epoch, password reset and "sign out
+> everywhere" (G2-08 / P3-09) are shipped. So are **invitations** (G2-09 / P3-10): the use cases
 > `issueInvitation`, `previewInvitation`, `acceptInvitation` and `provisionClientOwner`, over
-> migration 012 (`account_tokens.client_id` and `client_role`) and one new port,
-> `InvitationAcceptance`, whose adapter spends the link, creates the account and grants the role
-> in a single transaction, reading what the link grants from the link and not from its caller.
+> migration 012 (`account_tokens.client_id` and `client_role`) and one port, `InvitationAcceptance`,
+> whose adapter spends the link, creates the account and grants the role in a single transaction,
+> reading what the link grants from the link and not from its caller; and their routes.
+> `POST /api/events/:eventSlug/moderators` **invites by link** (3.0.0, a break: it no longer takes
+> a temporary password or answers whether an account was created), and the invitee's two routes
+> are `GET /api/invitations/:token` and `POST /api/invitations/:token/accept` (docs/API.md).
+>
 > The rules they hold: **no `users` row exists before an invitation is accepted**, so nobody can
-> make an account for an address ahead of its owner and choose a password for it — with one
-> limit that the plan states and this does not hide: on a box with **no mail relay** the inviter
-> holds the link and could accept it first, which creates the account with a password the
-> inviter chose; such an account is never marked verified (`email_verified_at` is set only when
-> the link came by mail), and nothing in this item ends that. A link is single-use and lives a
-> week; an address that already has an account is never given a second one and is never
-> attached by someone who only holds the link; one live link per address and place; five
-> invitations an hour to one address. The existing `POST /api/events/:eventSlug/moderators`
-> still takes a temporary password until the routes land; it is the thing this replaces.
+> make an account for an address ahead of its owner and choose a password for it — with one limit
+> that the plan states and this does not hide: on a box with **no mail relay** the inviter holds the
+> link and could accept it first, which creates the account with a password the inviter chose; such
+> an account is never marked verified (`email_verified_at` is set only when the link came by mail),
+> and nothing in this item ends that. A link is single-use and lives a week; an address that already
+> has an account is never given a second one and is never attached by someone who only holds the
+> link; one live link per address and place; five invitations an hour to one address, and thirty an
+> hour from one account.
+>
+> **Still to come:** the page that opens `/invite/:token` (G2-10 / P3-11) — until it lands, accepting
+> is an API call, and every link a box mails ends on the "not found" page, so **3.0.0 should not be
+> tagged before it** — and the operator's invitations to a client (G2-12 to G2-14).
 
-Today's flow — create the account, read the password aloud — has to be replaced by a
+The flow of 2.x — create the account, read the password aloud — is what this replaces: a
 single-use, expiring, signed link that lets a client set their own password and lands them
 on their event.
 

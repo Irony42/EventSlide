@@ -1704,6 +1704,47 @@ describe('createContainer: an invitation', () => {
     }
   })
 
+  it('holds one cap for an address whoever writes to it: a host and the operator share one queue', async () => {
+    const { booted } = await bootWithRelay()
+    booted.db
+      .prepare(
+        `INSERT INTO users (id, email, password_hash, created_at, site_role)
+         VALUES ('user-host', 'user-host@example.test', 'hash:x', ?, 'none')`,
+      )
+      .run(new Date().toISOString())
+    const created = await booted.usecases.createEvent({
+      ownerId: asUserId('user-host'),
+      name: 'Camille & Sacha',
+    })
+    if (!created.ok) throw new Error(`fixture rejected: ${created.error.code}`)
+
+    // Three invitations to the address by the host and three by the operator, all at once: the
+    // cap is five an hour for the address, whoever writes. Two issuers would be two queues, and
+    // the six would each count zero before any was written.
+    const writes = [
+      ...Array.from({ length: 3 }, () =>
+        booted.usecases.registerModerator({
+          eventId: created.value.id,
+          actorId: asUserId('user-host'),
+          email: OWNER,
+          locale: 'fr',
+        }),
+      ),
+      ...Array.from({ length: 3 }, (_unused, index) =>
+        booted.usecases.provisionClientOwner({
+          clientName: `Client ${index}`,
+          ownerEmail: OWNER,
+          locale: 'fr',
+          createdBy: null,
+        }),
+      ),
+    ]
+    const results = await Promise.all(writes)
+
+    expect(results.filter((result) => result.ok)).toHaveLength(5)
+    expect(results.filter((result) => !result.ok)).toHaveLength(1)
+  })
+
   it('on a box with no relay hands the link to the operator, and accepting it proves nothing about the mailbox', async () => {
     const booted = await boot({ PUBLIC_URL: 'https://photos.example.org' })
 
