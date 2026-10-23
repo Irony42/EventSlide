@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { AT, anEvent, atPlus } from '../../application/testing/builders'
-import { Event } from './event'
-import { EVENT_STATUSES } from './eventStatus'
+import { asClientId, asEventId, asUserId } from '../shared/ids'
+import { JoinCode } from '../shared/joinCode'
+import { Slug } from '../shared/slug'
+import { Event, type EventProps } from './event'
+import { EventName } from './eventName'
+import { EventSettings } from './eventSettings'
+import { EVENT_STATUSES, type EventStatus } from './eventStatus'
 
 /**
  * What an event says of its client's suspension (roadmap §10.7; G2-14): a fact read from the
@@ -9,10 +13,39 @@ import { EVENT_STATUSES } from './eventStatus'
  * that turns a join code, an upload and the wall into the answer an unknown event gets.
  */
 
-const suspended = (status: (typeof EVENT_STATUSES)[number] = 'live'): Event =>
+const CREATED_AT = new Date('2026-06-20T09:00:00.000Z')
+const SUSPENDED_AT = new Date('2026-06-22T09:00:00.000Z')
+
+const part = <T>(result: { ok: true; value: T } | { ok: false; error: { code: string } }): T => {
+  if (!result.ok) throw new Error('fixture: ' + result.error.code)
+  return result.value
+}
+
+const anEvent = (overrides: Partial<EventProps> = {}): Event =>
   Event.restore({
-    ...anEvent({ status, clientId: 'client-1' }).toProps(),
-    clientSuspendedAt: atPlus(5),
+    id: asEventId('evt-1'),
+    ownerId: asUserId('usr-1'),
+    name: part(EventName.create('Camille & Sacha')),
+    slug: part(Slug.create('camille-et-sacha')),
+    joinCode: part(JoinCode.create('H7K2QM')),
+    status: 'live',
+    settings: EventSettings.default(),
+    quotaBytes: 1_000,
+    createdAt: CREATED_AT,
+    startsAt: null,
+    clientId: null,
+    closedAt: null,
+    openedAt: CREATED_AT,
+    scheduledOpenAt: null,
+    scheduledCloseAt: null,
+    scheduleDiscardedAt: null,
+    ...overrides,
+  })
+
+const suspended = (status: EventStatus = 'live'): Event =>
+  Event.restore({
+    ...anEvent({ status, clientId: asClientId('client-1') }).toProps(),
+    clientSuspendedAt: SUSPENDED_AT,
   })
 
 describe('an event whose client is suspended', () => {
@@ -20,12 +53,12 @@ describe('an event whose client is suspended', () => {
     const event = suspended()
 
     expect(event.isClientSuspended()).toBe(true)
-    expect(event.clientSuspendedAt).toEqual(atPlus(5))
+    expect(event.clientSuspendedAt).toEqual(SUSPENDED_AT)
   })
 
   it('is not suspended when nothing says so: an event with no client, or one read by a listing', () => {
     expect(anEvent().isClientSuspended()).toBe(false)
-    expect(anEvent({ clientId: 'client-1' }).isClientSuspended()).toBe(false)
+    expect(anEvent({ clientId: asClientId('client-1') }).isClientSuspended()).toBe(false)
     expect(anEvent().clientSuspendedAt).toBeNull()
   })
 
@@ -41,7 +74,7 @@ describe('an event whose client is suspended', () => {
   })
 
   it('does the same for a live event of a client in good standing, so the predicates only ever say no more', () => {
-    const live = anEvent({ status: 'live', clientId: 'client-1' })
+    const live = anEvent({ status: 'live', clientId: asClientId('client-1') })
 
     expect(live.acceptsGuests()).toBe(true)
     expect(live.acceptsUploads()).toBe(true)
@@ -54,7 +87,7 @@ describe('an event whose client is suspended', () => {
 
     expect(event.status).toBe('closed')
     expect(event.servesWall()).toBe(anEvent({ status: 'closed' }).servesWall())
-    expect(event.createdAt).toEqual(AT)
+    expect(event.createdAt).toEqual(CREATED_AT)
   })
 
   it('carries the fact through a copy of its properties, so a restore does not lose it', () => {

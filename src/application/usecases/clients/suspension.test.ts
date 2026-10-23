@@ -144,6 +144,13 @@ describe('suspendClient and resumeClient', () => {
       expect(!result.ok && result.error.code).toBe('client.notFound')
     })
 
+    it('refuses an actor that makes no sense, and lifts nothing: no resumption without a name behind it', async () => {
+      const result = await resume({ clientId: CLIENT, actor: { kind: 'operator' } })
+
+      expect(!result.ok && result.error.code).toBe('audit.actorUserRequired')
+      expect(await standing()).toEqual(NOW)
+    })
+
     it('records before it saves: a failure to write the line leaves the client frozen', async () => {
       const broken: AuditRecorder = {
         record: async () => {
