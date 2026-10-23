@@ -130,10 +130,12 @@ DELETE CASCADE`. That cascade is what makes "delete this event and everything in
 - **Every foreign-key column leads an index**, unless its parent is never deleted. Deleting a
   parent row makes SQLite look its children up by that column; with no index leading with it
   the lookup is a scan of the whole child table, across every event, once per deleted parent
-  (purging one event of thirty took 320 ms for want of three of them; migration 013).
+  (purging one event took 320 ms for want of three of them, on a box of thirty events with a
+  thousand photographs each; migration 013).
   `event_id` first in a composite index does not count. `migrator.test.ts` plans the lookup
   for every foreign key and fails by name; its `PARENTS_NEVER_DELETED` map is the one
-  allow-list, and it holds `users`, because an account is switched off and never deleted.
+  allow-list, and it holds `users`, because no product code path deletes an account
+  (`scripts/userDeletionScope.test.ts` says so when one does).
 - `created_at TEXT NOT NULL` everywhere. `updated_at` where it is actually read.
 - Uniqueness is enforced in the database, not only in code:
   ```sql

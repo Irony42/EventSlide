@@ -239,11 +239,12 @@ describe('the real schema', () => {
   })
 
   /**
-   * Foreign keys whose parent table no code path deletes a row from, so that nothing ever
-   * looks their children up by the key. `users`: an account is switched off
+   * Foreign keys whose parent table no product code path deletes a row from, so that nothing
+   * ever looks their children up by the key. `users`: an account is switched off
    * (`users.disabled_at`) and kept; `UserRepository.delete` has no caller, and
-   * `events.owner_id` refuses it while the account still owns an event. The day a feature
-   * deletes accounts, take `users` out of this map and the test below asks for the indexes.
+   * `events.owner_id` refuses it while the account still owns an event.
+   * `scripts/userDeletionScope.test.ts` fails the day that stops being true; take `users`
+   * out of this map then, and the test below asks for the indexes.
    */
   const PARENTS_NEVER_DELETED = new Map<string, string>([
     ['users', 'an account is switched off, not deleted; nothing calls UserRepository.delete'],

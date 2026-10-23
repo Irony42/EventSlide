@@ -180,7 +180,8 @@ Read these before you upgrade, and back up with the version you run now.
   (`account_tokens.client_id` and `client_role`, the client an invitation is for) and 013
   (five indexes on the foreign keys that deleting a guest, a mission or an event follows, so
   that purging an event no longer reads every photograph of the box once per guest: 320 ms
-  became 5 ms on a box of thirty events, and the server answers nothing else while it runs;
+  became 5 ms on a box of thirty events of a hundred guests and a thousand photographs, and the
+  server answers nothing else while it runs;
   building them takes a moment on a large database).
   Migrations are not reversed, and 2.1.0 refuses a database that holds them
   ("downgrading is not supported"), so back up first.
