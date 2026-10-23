@@ -32,14 +32,14 @@ Every body, query string and path parameter is parsed by zod before it reaches a
 case (`src/interface/http/schemas/requestSchemas.ts`). Two consequences are part of this
 contract:
 
-- **Every body and every query schema is `.strict()`.** An unexpected field is a **400**,
+- **Every body and every query schema is strict** (`z.strictObject`). An unexpected field is a **400**,
   not a silently ignored key. A client that sends `{ "name": …, "colour": … }` to an
   endpoint that knows nothing about `colour` is told so, rather than believing the value
   took effect. This applies to query strings too — including the wall's, which is why a
   projector URL must not carry tracking parameters.
 - **A schema failure is always `400 request.invalid`**, never a per-field code.
-  `details.fields` names up to ten offending paths, comma-separated, and never echoes
-  the values:
+  `details.fields` names up to ten offending paths, comma-separated, each once however many
+  rules it broke, and never echoes the values:
 
   ```json
   {

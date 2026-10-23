@@ -20,14 +20,14 @@ import { z } from 'zod'
 
 export const moderatePhotoParams = z.object({
   eventSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{1,62}$/),
-  photoId: z.string().uuid(),
+  photoId: z.guid(),
 })
 
-export const moderatePhotoBody = z.object({
+export const moderatePhotoBody = z.strictObject({
   status: z.enum(['published', 'rejected', 'hidden']),
 })
 
-export const listPhotosQuery = z.object({
+export const listPhotosQuery = z.strictObject({
   status: z.enum(['pending', 'published', 'rejected', 'hidden']).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(60),
   cursor: z.string().optional(),
@@ -36,7 +36,11 @@ export const listPhotosQuery = z.object({
 
 - Every route parses `params`, `query`, and `body` it reads. Anything unparsed is
   untrusted input reaching a use case.
-- `.strict()` on bodies where extra keys would be a client bug worth surfacing.
+- `z.strictObject` for every body and query, so an extra key is a `400` and not a field the sender
+  believes took effect; a params schema is a plain `z.object`, because the route pattern owns its keys.
+  (zod 4 keeps `.strict()` only as a legacy method.)
+- `z.guid()` for an id, not `z.uuid()`: zod 4's `z.uuid()` demands an RFC 9562 version, which would
+  narrow what the API accepts (see `requestSchemas.ts`).
 - `z.coerce` for query numbers — they arrive as strings.
 - Schemas define **shape**, never business rules. "The event must not be archived" is
   a domain rule, not `z.refine`.
