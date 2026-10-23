@@ -54,9 +54,11 @@ export const archiverWriter: ArchiveWriter = {
     // exception.
     archive.on('error', fail)
 
-    // Feeding runs alongside consumption rather than before it: `archiver` applies
-    // backpressure through its own writable side, so a slow client throttles the
-    // database read instead of buffering the album in memory.
+    // Feeding runs alongside consumption rather than before it, so the first bytes leave
+    // while the album is still being listed. That is not backpressure: `archiver` queues
+    // every entry it is handed and starts reading its source at once, so a client that has
+    // stopped reading does not slow this loop (measured, with archiver 7 and 8 alike: 300
+    // of 300 entries pulled and opened after one chunk was read). Bounding it is open work.
     const feed = async (): Promise<void> => {
       for await (const entry of entries) {
         if (failed) return
@@ -73,8 +75,10 @@ export const archiverWriter: ArchiveWriter = {
     // truncated ZIP served with a 200 would look like a complete album.
     feed().catch(fail)
 
-    // `yield*` forwards the consumer's early exit to the archive's own iterator,
-    // which destroys it, exactly as iterating the archive directly did.
+    // `yield*` hands the consumer's early exit on to the archive's own iterator, which
+    // destroys the archive, as iterating it directly did. It does not stop `feed` or close
+    // the sources already queued, so a client that aborts a download leaves them open: the
+    // same on archiver 7, and nothing here tests it.
     yield* archive as AsyncIterable<Uint8Array>
   },
 }

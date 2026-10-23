@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { albumEntryName, archiverWriter } from './archiverWriter'
 import type { ArchiveEntry } from '../../application/ports/archiveWriter'
 
@@ -62,7 +62,12 @@ describe('archiverWriter', () => {
     // viewer that sorts by date uses to put the evening back in order. The library
     // falls back to `new Date()` for an entry given no date, so dropping the option
     // changes nothing visible but this.
-    const zip = await collect(archiverWriter.stream(entries(entry('a.jpg'))))
+    // A zone twelve hours from UTC, set on purpose: CI runs in UTC, where an archive built
+    // with `forceLocalTime` would carry the same bytes and this test could not tell.
+    vi.stubEnv('TZ', 'Pacific/Auckland')
+    const zip = await collect(archiverWriter.stream(entries(entry('a.jpg')))).finally(() => {
+      vi.unstubAllEnvs()
+    })
 
     // Bytes 10-13 of the local file header are the MS-DOS time then date, little-endian.
     // UTC by default, so the same bytes on a machine in any time zone; two-second
