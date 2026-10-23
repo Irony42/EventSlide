@@ -375,6 +375,19 @@ describe('POST /api/invitations/:token/accept, choosing a password', () => {
     expect(withToken.status).toBe(200)
   })
 
+  it('does not spend the allowance of the preview', async () => {
+    const subject = harness({
+      config: { rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 2 } },
+    })
+    await request(subject.app).get('/api/invitations/secret-99')
+    await request(subject.app).get('/api/invitations/secret-99')
+    expect((await request(subject.app).get('/api/invitations/secret-99')).status).toBe(429)
+
+    const response = await accept(subject, 'secret-99')
+
+    expect(response.status).toBe(404)
+  })
+
   it('is limited per client address, with its own allowance', async () => {
     const subject = harness({
       config: { rateLimits: { ...testHttpConfig().rateLimits, loginPerMinute: 2 } },
@@ -443,6 +456,23 @@ describe('POST /api/invitations/:token/accept, as the signed-in account', () => 
     const response = await agent.post('/api/invitations/secret-99/accept').send({})
 
     expect(response.status).toBe(404)
+  })
+
+  it('answers 400 for a session whose account has been switched off since, and spends nothing', async () => {
+    const subject = harness()
+    const { token } = await subject.world.invite({ email: EXISTING_EMAIL })
+    const agent = await asExisting(subject)
+    const account = await subject.world.users.findById(asUserId(EXISTING_ID))
+    await subject.world.users.save(account!.disable(atPlus(1)))
+
+    const response = await agent.post(`/api/invitations/${token}/accept`).send({})
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('invitation.credentialsRequired')
+    expect(subject.world.tokens.all[0]?.consumedAt).toBeNull()
+    expect(
+      await subject.world.memberships.membershipFor(asEventId(EVENT_ID), asUserId(EXISTING_ID)),
+    ).toBeNull()
   })
 
   it('does not take an account from the request: a body that names one is refused', async () => {

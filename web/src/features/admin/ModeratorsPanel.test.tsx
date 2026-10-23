@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { ApiError } from '../../lib/http'
+import { de } from '../../lib/i18n/de'
 import { fr } from '../../lib/i18n/fr'
 import { fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
@@ -131,6 +132,23 @@ describe('ModeratorsPanel', () => {
     })
     expect(await screen.findByText(fr.admin.moderatorInviteSent('sacha@example.com'))).toBeVisible()
     expect(screen.getByLabelText(fr.admin.moderatorEmail)).toHaveValue('')
+  })
+
+  it('writes to the invitee in the language of the page it was sent from', async () => {
+    const api = fakeApi({ listModerators: listOf(aModerator()) })
+    renderWithProviders(<ModeratorsPanel slug="camille-et-sacha" />, {
+      api,
+      route: '/admin/events/camille-et-sacha',
+      locale: 'de',
+    })
+
+    await userEvent.type(await screen.findByLabelText(de.admin.moderatorEmail), 'sacha@example.com')
+    await userEvent.click(screen.getByRole('button', { name: de.admin.inviteSubmit }))
+
+    expect(api.inviteModerator).toHaveBeenCalledWith('camille-et-sacha', {
+      email: 'sacha@example.com',
+      locale: 'de',
+    })
   })
 
   it('has no password field: nobody reads a password out any more', async () => {
