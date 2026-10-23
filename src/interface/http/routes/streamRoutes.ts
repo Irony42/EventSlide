@@ -173,6 +173,13 @@ export interface StreamOptions {
   readonly eventId: EventId
   readonly lastEventId: string | undefined
   readonly res: Response
+  /**
+   * What the beat does when the event's client turns out to be suspended (G2-14). `'ends'` is the
+   * public wall's: the same answer an unknown event gets, so the feed is closed. `'serves'` is the
+   * moderation console's: its members keep their reads while the client is frozen, so only an event
+   * that is gone ends it. Absent means `'ends'`, the refusal.
+   */
+  readonly suspension?: 'ends' | 'serves'
 }
 
 /**
@@ -192,6 +199,7 @@ export const openStream = ({
   eventId,
   lastEventId,
   res,
+  suspension = 'ends',
 }: StreamOptions): Result<Unsubscribe, DomainError> => {
   let closed = false
   const channel = acquireChannel(eventId)
@@ -236,19 +244,27 @@ export const openStream = ({
   // a database blip must not blank every projector on the box.
   const stillServed = async (): Promise<boolean> => {
     const current = await deps.events.findById(eventId)
-    return current !== null && !current.isClientSuspended()
+    return current !== null && (suspension === 'serves' || !current.isClientSuspended())
   }
 
   const beat = async (): Promise<void> => {
     if (closed || res.writableEnded) return
-    const served = await stillServed()
+    // A read that fails leaves the stream as it was, `: keep-alive` included: a database blip must
+    // not read, to a projector's silence watchdog, as a pipe that stopped delivering.
+    const served = await stillServed().catch((error: unknown) => {
+      logger.warn('a stream could not be re-checked at its heartbeat', {
+        eventId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return true
+    })
     if (closed || res.writableEnded) return
     if (!served) {
       res.write(`retry: ${UNSERVED_RETRY_MS}\n\n`)
       res.end()
       return
     }
-    // One block, two jobs. The comment line is invisible to every client handler and is
+    // One block, two jobs. (It is also written when the re-check above failed to answer.) The comment line is invisible to every client handler and is
     // what keeps a proxy from closing an idle connection; the named frame carries no
     // `id:`, so it moves no cursor, and is the only thing that lets a client tell a
     // quiet evening from a pipe that has stopped delivering.
@@ -256,12 +272,7 @@ export const openStream = ({
   }
 
   const heartbeat = setInterval(() => {
-    beat().catch((error: unknown) => {
-      logger.warn('a stream could not be re-checked at its heartbeat', {
-        eventId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
+    void beat()
   }, HEARTBEAT_MS)
 
   // Must not hold the process open during a graceful shutdown.
@@ -347,7 +358,7 @@ const RETRY_AFTER_SECONDS = '30'
  * correct answer about a temporary state, and the client's own backoff is built for it.
  */
 export const streamHandler =
-  (deps: HttpDeps): RequestHandler =>
+  (deps: HttpDeps, suspension: 'ends' | 'serves' = 'ends'): RequestHandler =>
   (req, res) => {
     const event = req.context.event
     if (event === undefined) {
@@ -361,6 +372,7 @@ export const streamHandler =
       eventId: event.id,
       lastEventId: req.get('last-event-id'),
       res,
+      suspension,
     })
 
     if (opened.ok) return
@@ -397,7 +409,7 @@ export const streamRoutes = (deps: HttpDeps): Router => {
     '/events/:eventSlug/moderation/stream',
     connections,
     requireRole('moderator', deps),
-    streamHandler(deps),
+    streamHandler(deps, 'serves'),
   )
 
   return router

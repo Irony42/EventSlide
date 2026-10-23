@@ -238,8 +238,6 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
     // event through and the viewer decides below (G2-14).
     resolvePublicEvent(deps, { suspended: 'visible' }),
     asyncHandler(async (req, res) => {
-      const params = photoVariantParams.parse(req.params)
-
       const event = req.context.event
       if (!event) {
         // `resolvePublicEvent` always populates it. This keeps the type honest without a
@@ -255,6 +253,10 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
       if (event.isClientSuspended() && viewer.kind !== 'moderator') {
         return sendError(res, DomainError.notFound('event.notFound'))
       }
+
+      // Parsed only now: a malformed id or variant is a 400 for an event that serves, and must not
+      // be what tells a suspended client's slug from an unknown one (G2-14).
+      const params = photoVariantParams.parse(req.params)
 
       /**
        * **One call, and it opens nothing.**
