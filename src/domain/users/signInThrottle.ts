@@ -9,11 +9,13 @@
  *
  * ## Two buckets, both counting failures only
  *
- * - **Account on one network** (B1: the account, and the client's /56 prefix). Five failures
- *   are free. After `n` failures (n >= 5) the next attempt must wait `2^(n-5)` seconds from
- *   the previous one, capped at fifteen minutes. A client that is told to wait and asks
- *   anyway is simply told again: **a refusal is not a failure**, so hammering cannot push the
- *   deadline further out.
+ * - **Account from one source** (B1: the account, and where the attempt comes from). The
+ *   source is the client's /56 prefix ({@link networkSource}) or, for a browser that presents
+ *   a valid trusted-device cookie, that device ({@link deviceSource}): see "A trusted device"
+ *   below. Five failures are free. After `n` failures (n >= 5) the next attempt must wait
+ *   `2^(n-5)` seconds from the previous one, capped at fifteen minutes. A client that is told
+ *   to wait and asks anyway is simply told again: **a refusal is not a failure**, so hammering
+ *   cannot push the deadline further out.
  * - **Account on every network** (B2: the account alone). Beyond a hundred failures in an
  *   hour, every attempt is **held two seconds** before it is looked at. It is never refused.
  *   It is also the signal that someone is stuffing credentials into one account, which the
@@ -32,13 +34,30 @@
  * - The worst a single network can do to the owner **on that same network** is fifteen
  *   minutes after its last failure, and the wait is a function of the failures it counted
  *   itself, not of the attempts it was refused.
- * - A success is not a failure. It spends nothing, and it clears the wait of the network it
+ * - A success is not a failure. It spends nothing, and it clears the wait of the source it
  *   came from, because the person who knows the password has just shown it.
  * - Sessions that are already open are not consulted at all.
  *
+ * ## A trusted device (G3-04b)
+ *
+ * One case the network key cannot serve: a stranger on the owner's **own** network (venue
+ * Wi-Fi, the same carrier-grade NAT) who knows the address shares the owner's B1 bucket, and
+ * one wrong guess each time a wait ends keeps the owner off that network. So a browser that
+ * has signed in to the account before carries a signed cookie (`domain/users/trustedDevice.ts`
+ * says when it counts), and an attempt that presents a valid one is counted under
+ * {@link deviceSource} instead: **a bucket of its own, per account and device**. The
+ * stranger's failures spend the network's bucket and never reach the owner's device; the owner's
+ * typos spend the device's and never reach the network's.
+ *
+ * Nothing else is separate. The device bucket has the same arithmetic and the same ceiling as
+ * the network's, so a cookie that is stolen buys a thief one more bucket of the same shape and
+ * never an unlimited number of tries. And **B2 below is shared by every source**: an account
+ * that takes a hundred failures in an hour is held two seconds whether they came from networks
+ * or from devices, and a trusted device is held with the rest.
+ *
  * ## What the state is
  *
- * In memory, one entry per (account, network) and one per account, so a restart forgets
+ * In memory, one entry per (account, source) and one per account, so a restart forgets
  * everything: the same posture as the per-client limiter beside it. The entries are bounded
  * (`maxKeys`, stale ones first, then the oldest), because the number of distinct addresses a
  * stranger may type is theirs to choose. Forgetting is always the safe direction: it can only
@@ -48,17 +67,17 @@
  * a failed guess. Counting only when a failure is known would let twelve requests started
  * together all see an empty counter, which is the race this ordering closes.
  *
- * The account and the network are opaque strings here. The caller keys the account by a keyed
+ * The account and the source are opaque strings here. The caller keys the account by a keyed
  * hash of the normalised address, so a heap dump or a log line holds no e-mail address.
  */
 
-/** Wrong guesses a (account, network) pair may make before it is asked to wait. */
+/** Wrong guesses a (account, source) pair may make before it is asked to wait. */
 export const FREE_FAILURES = 5
 
 /** The longest anyone is ever asked to wait: the no-lockout ceiling. */
 export const MAX_WAIT_SECONDS = 15 * 60
 
-/** How long a (account, network) pair's failures are remembered after the last of them. */
+/** How long a (account, source) pair's failures are remembered after the last of them. */
 export const FAILURE_MEMORY_MS = 60 * 60_000
 
 /** Failures on one account, from every network together, that start the hold. */
@@ -88,7 +107,7 @@ export const waitSecondsAfter = (failures: number): number => {
 }
 
 /**
- * One (account, network) pair: how many failures, when the latest was counted, and when the
+ * One (account, source) pair: how many failures, when the latest was counted, and when the
  * one before it was. The last is what a refund puts back, so that an attempt which turns out
  * not to have been a guess does not leave a fresh wait behind it.
  */
@@ -106,7 +125,7 @@ interface Hour {
 }
 
 export type Admission =
-  /** Not yet: the same account from the same network is inside its wait. */
+  /** Not yet: the same account from the same source is inside its wait. */
   | { readonly kind: 'wait'; readonly retryAfterSeconds: number }
   /**
    * Go ahead, after `holdMs` (zero unless the account is being stuffed). `credentialStuffing`
@@ -115,8 +134,17 @@ export type Admission =
    */
   | { readonly kind: 'admit'; readonly holdMs: number; readonly credentialStuffing: boolean }
 
+/**
+ * Where an attempt comes from, as the throttle keys it: a network (the client's /56 prefix) or a
+ * trusted device (the id inside its cookie). The prefixes keep the two apart whatever the
+ * strings contain, so a device id can never be mistaken for a network, nor a network for a
+ * device: they are two sets of buckets, not one.
+ */
+export const networkSource = (client: string): string => `network:${client}`
+export const deviceSource = (device: string): string => `device:${device}`
+
 /** Unambiguous whatever the two strings contain: the first one's length leads. */
-const pairKey = (client: string, account: string): string => `${client.length}:${client}:${account}`
+const pairKey = (source: string, account: string): string => `${source.length}:${source}:${account}`
 
 /**
  * Stores `value` under `key`, most recent last, within `limit` entries.
@@ -162,15 +190,15 @@ export class SignInThrottle {
   }
 
   /**
-   * An attempt on `account` from `client` is about to be looked at.
+   * An attempt on `account` from `source` is about to be looked at.
    *
    * Answers when the pair is inside its wait. Otherwise the attempt is admitted and
    * **reserved** against both buckets until the caller says how it ended ({@link refund},
    * {@link succeeded}); one that is never settled stays counted, which is what an abandoned
    * connection should be.
    */
-  begin(account: string, client: string, nowMs: number): Admission {
-    const key = pairKey(client, account)
+  begin(account: string, source: string, nowMs: number): Admission {
+    const key = pairKey(source, account)
     const slow = this.liveSlowdown(key, nowMs)
 
     if (slow !== undefined) {
@@ -212,8 +240,8 @@ export class SignInThrottle {
    * over when the attempt was admitted is still over when it is refunded. Otherwise a transient
    * `500` for the owner would cost them a fresh wait, up to fifteen minutes.
    */
-  refund(account: string, client: string): void {
-    const key = pairKey(client, account)
+  refund(account: string, source: string): void {
+    const key = pairKey(source, account)
     const slow = this.slowdowns.get(key)
     if (slow !== undefined) {
       if (slow.failures <= 1) this.slowdowns.delete(key)
@@ -227,8 +255,8 @@ export class SignInThrottle {
    * The attempt signed in. It spends nothing, and the pair's wait is cleared: whoever knows
    * the password is not the guesser the wait was for.
    */
-  succeeded(account: string, client: string): void {
-    this.slowdowns.delete(pairKey(client, account))
+  succeeded(account: string, source: string): void {
+    this.slowdowns.delete(pairKey(source, account))
     this.refundHour(account)
   }
 

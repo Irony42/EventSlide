@@ -23,6 +23,7 @@ import {
   secondFactorLimiter,
 } from '../middleware/rateLimit'
 import { signInThrottle, type SignInThrottleOptions } from '../middleware/signInThrottle'
+import { trustedDevices } from '../middleware/trustedDevice'
 import type { SecondFactorStatusDto } from '../presenters/dto'
 import {
   toRecoveryCodesDto,
@@ -278,12 +279,23 @@ const resetAddress = (body: unknown): string | undefined => {
 export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Router => {
   const router = Router()
 
+  // The cookie that tells the owner's browser from a stranger on the same network (G3-04b):
+  // set by a successful sign-in below, read by the sign-in throttle. One instance, because they
+  // have to agree on the key.
+  const devices = trustedDevices({
+    secret: deps.config.sessionSecret,
+    clock: deps.clock,
+    users: deps.users,
+    secureCookie: deps.config.secureCookie,
+  })
+
   // Per account, behind the per-client limit and ahead of the handler (G3-04 / P4-07). Built
   // once per route, so a failed sign-in does not spend the allowance for asking for a link.
   const accountThrottle = (
     counts: SignInThrottleOptions['counts'],
     addressOf: SignInThrottleOptions['addressOf'],
     alert: string,
+    trusted?: SignInThrottleOptions['devices'],
   ): RequestHandler =>
     signInThrottle({
       addressOf,
@@ -293,11 +305,13 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       logger: deps.logger,
       secret: deps.config.sessionSecret,
       ...(throttleHold === undefined ? {} : { hold: throttleHold }),
+      ...(trusted === undefined ? {} : { devices: trusted }),
     })
   const signInAccountThrottle = accountThrottle(
     'failures',
     loginAddress,
     'credential stuffing on one account: every sign-in attempt on it is being held',
+    devices,
   )
   const resetRequestAccountThrottle = accountThrottle(
     'every',
@@ -349,6 +363,12 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       }
 
       await startSession(req, res, deps, result.value)
+
+      // After the session, so a sign-in that fails on the server leaves no cookie behind. Set
+      // by a request that has just proved the password (here, the second step below, and a
+      // password change) and by nothing else: "sign out everywhere" renews a session without
+      // proving anything, and a stolen session must not be able to mint a device.
+      devices.remember(res, result.value)
 
       sendJson(res, toSignedInUserDto(result.value))
     }),
@@ -413,6 +433,13 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       await startSession(req, res, deps, pending, {
         secondFactorAt: deps.clock.now().getTime(),
       })
+
+      // The sign-in is complete only now, so this is where the device is remembered, not at the
+      // password: a password alone sets no cookie. The cookie is a throttle key and skips
+      // nothing, so the next sign-in from this browser asks for the password and for the second
+      // factor again.
+      devices.remember(res, pending)
+
       sendJson(
         res,
         toSignedInUserDto({
@@ -537,6 +564,13 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       // The `mustChangePassword` flag needs no session write: `changePassword` cleared it
       // in storage and `resolveAuthState` reads it from there on the next request.
       await startSession(req, res, deps, user, stampsOf(req))
+
+      // The change moved the epoch, which ended the trust this browser had. It has just proved
+      // the current password, as a sign-in does, so it is remembered again: the owner who rotates
+      // the password because somebody is guessing it must not land back in the bucket that
+      // somebody is holding. After the result check, so a session without the password (a stolen
+      // one) mints nothing.
+      devices.remember(res, user)
       sendNoContent(res)
     }),
   )

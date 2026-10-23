@@ -59,3 +59,15 @@ export class EmailAddress {
 
   static readonly maxLength = MAX_LENGTH
 }
+
+/**
+ * The text every spelling of one address shares: what the lookup would find, so that
+ * `Camille@Example.test ` and `camille@example.test` are one account to whatever keys on it.
+ * What is not an address at all can never match an account and is keyed by its trimmed,
+ * lower-cased text, so that nonsense is counted like anything else instead of being a way to
+ * spend nothing. Used by the sign-in throttle and the trusted-device cookie (G3-04, G3-04b).
+ */
+export const normalisedAddress = (raw: string): string => {
+  const parsed = EmailAddress.create(raw)
+  return parsed.ok ? parsed.value.value : raw.trim().toLowerCase()
+}

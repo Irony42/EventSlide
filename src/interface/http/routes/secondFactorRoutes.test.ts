@@ -941,3 +941,66 @@ describe('the second factor: what a session keeps across a renewal', () => {
     expect(codeOf(response)).toBe('request.invalid')
   })
 })
+
+describe('the trusted-device cookie, through the second factor (G3-04b)', () => {
+  const deviceCookie = (response: request.Response): string | undefined =>
+    setCookies(response.headers).find((value) => value.startsWith('es_device='))
+
+  it('is set by the second step and not by the password, nor by a wrong code: a sign-in is complete only when both have passed', async () => {
+    const { server, secret } = await anEnrolledServer()
+    const browser = await aBrowser(server)
+
+    const password = await browser.signIn()
+    const wrong = await browser.post('/api/auth/login/2fa', { code: '000000' })
+    const right = await browser.post('/api/auth/login/2fa', { code: server.world.codeFor(secret) })
+
+    expect(password.body).toEqual({ secondFactorRequired: true })
+    expect([wrong.status, right.status]).toEqual([401, 200])
+    expect(deviceCookie(password)).toBeUndefined()
+    expect(deviceCookie(wrong)).toBeUndefined()
+    expect(deviceCookie(right)).toBeDefined()
+  })
+
+  it('skips nothing: a browser that holds one is asked for the password and the code again, and has no session in between', async () => {
+    const { server, secret } = await anEnrolledServer()
+    const browser = await aBrowser(server)
+    await signInWithCode(server, browser, secret)
+    await browser.post('/api/auth/logout')
+
+    const again = await browser.signIn()
+    const me = await browser.get('/api/auth/me')
+
+    expect(again.body).toEqual({ secondFactorRequired: true })
+    expect(deviceCookie(again)).toBeUndefined()
+    expect(me.body).toEqual({ authenticated: false })
+  })
+
+  it('keeps a stranger on the same network from holding a trusted browser off the password step, and still holds an untrusted one', async () => {
+    const { server, secret } = await anEnrolledServer({ behindAProxy: true })
+    const venue = '203.0.113.9'
+    const owner = await aBrowser(server, venue)
+    await signInWithCode(server, owner, secret)
+    await owner.post('/api/auth/logout')
+
+    const stranger = await aBrowser(server, venue)
+    // Twelve wrong guesses, each made as soon as the wait before it allows: the last one leaves
+    // the venue's network inside a wait of a couple of minutes.
+    for (let failures = 0; failures < 12;) {
+      const response = await stranger.post('/api/auth/login', {
+        email: EMAIL,
+        password: 'nope-nope-nope',
+      })
+      if (response.status === 429) {
+        server.clock.advance(Number(response.headers['retry-after']) * 1_000)
+      } else {
+        failures += 1
+      }
+    }
+    const trusted = await owner.signIn()
+    const newPhone = await (await aBrowser(server, venue)).signIn()
+
+    expect(trusted.status).toBe(200)
+    expect(trusted.body).toEqual({ secondFactorRequired: true })
+    expect(newPhone.status).toBe(429)
+  })
+})

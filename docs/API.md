@@ -158,6 +158,12 @@ generic fallback sentence to a guest, which is why the lists are kept in step.
 | **Link holder**      | a gallery token in the path; for a protected link, an `es_gallery` unlock cookie  | a host, §6 share link  |
 | **Public**           | none                                                                              | —                      |
 
+Two cookies are not credentials. `es_csrf` is the CSRF value (below). **`es_device`** is set by a
+completed `POST /api/auth/login` (and by `POST /api/auth/password`) and is a key for the sign-in throttle's bucket, not a principal:
+it authenticates nobody and skips no step of a sign-in (see `POST /api/auth/login` and
+docs/SECURITY.md §5). `HttpOnly`, `SameSite=Strict`, `Secure` behind TLS, `Path=/api/auth`, 90
+days, renewed by every successful sign-in and kept across a sign-out.
+
 A guest token grants: upload to **that one event** while it is `live`, deletion of
 **their own** photo inside the grace window, a caption on their own pending photo, a
 reaction, and reading and acknowledging the event's privacy notice for **that device**.
@@ -265,7 +271,10 @@ answered normally: it is never refused. The answer is the same for an address th
 account, one that is not, a switched-off account and a malformed one, at every step.
 `password-reset/request` counts every request the same way, in a bucket of its own, and is
 answered `202` (or `429`, or `404` on a box with no relay) identically for every address; it sits ahead of the cap of three
-mails an hour per address and does not replace it. See docs/SECURITY.md §5.
+mails an hour per address and does not replace it. A browser that has signed in to the account
+before presents the `es_device` cookie its last login set and is counted in a bucket of its own,
+so a stranger who shares the owner's network no longer delays it; every other limit applies to it
+unchanged. See docs/SECURITY.md §5.
 
 The gallery unlock is the one row counted per **quarter hour** and per **failure**: a
 successful unlock spends none of that allowance, so a family opening one album on the
@@ -1426,6 +1435,15 @@ per-client limit, a network that has failed five times for one address is answer
 for every address, real or not (§1, "Rate limits"). A `401` is the only answer that counts as a
 failure.
 
+A completed login also sets **`es_device`**: `HttpOnly`, `SameSite=Strict`, `Secure` behind TLS,
+`Path=/api/auth`, `Max-Age` 90 days, renewed by every login (and by a password change, below) and
+left alone by a logout. It holds an opaque device id, the account id and the
+instant, signed; no e-mail address. A login that presents a valid one for the address being tried
+is counted in a bucket of its own, per account and device, in place of the network's; one that
+is missing, forged, expired, issued for another address or older than the account's last change
+of credentials is ignored and answered exactly as a login with no cookie. It grants nothing and
+skips no step. See docs/SECURITY.md §5.
+
 **200**
 
 ```json
@@ -1528,7 +1546,10 @@ one host's session to whoever asks next.
 **204**, and **every other session of the account is signed out** (the credentials epoch, SECURITY.md
 §2): a cookie that was stolen before the change stops working on its next request. The
 response replaces the caller's own session — a new `es_session` and a new `es_csrf`, so the
-client must read the CSRF cookie again — and the caller stays signed in. **Errors** — `401 auth.invalidCredentials`, `400 password.*`,
+client must read the CSRF cookie again — and the caller stays signed in. The response also sets a fresh
+`es_device` (the sign-in throttle's trusted-device cookie, `POST /api/auth/login`), because the request
+has just proved the current password; the previous one is older than the change and no longer counts.
+**Errors** — `401 auth.invalidCredentials`, `400 password.*`,
 `400 password.unchanged`, and `401 auth.required` when the session outlived the account it
 names or that account has been disabled. Both are refused by `requireUser` before the
 handler runs, and they are one answer on purpose: the id comes from the session, so either
@@ -1653,7 +1674,10 @@ reaches nothing else. It lives **five minutes**, allows **five wrong codes**, an
 account's credentials changed (a reset, a password change, a switch-off) after the password was typed.
 
 On success the session is regenerated (new id, new CSRF token) and stamped as having passed the
-second factor. **200** is the same body as the login's.
+second factor. **200** is the same body as the login's, and the response sets `es_device` (see
+`POST /api/auth/login`): the sign-in is complete only here, so the password step sets none. The cookie
+is a key for the sign-in throttle and skips nothing: the next login from that browser asks for the
+password and the code again.
 
 - **401** `auth.invalidSecondFactor` — a code that matches no step, one for a step **already spent**
   (the replay refusal), a recovery code never issued or already used, and text that is neither: one
