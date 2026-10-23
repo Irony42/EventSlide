@@ -59,6 +59,19 @@ contract:
   (the limit is 40); a 121-character one never reaches the domain and is
   `400 request.invalid`.
 
+- **A path that is not valid percent-encoding is `400 request.invalid` too**, with no
+  `details`: `/api/events/%E0%A4%A/wall`, `/g/%E0%A4%A`, a link copied with its last escape
+  cut in half. The router refuses it when it matches the address to a route, before that
+  route's handlers and before any lookup, so it is the same answer for every address and
+  tells the caller nothing about whether the thing it names exists. (The gates mounted ahead
+  of the routers — CSRF on a state-changing method, the session and the password-change
+  gate — still answer first, as they do for any path.) It never echoes the parameter, which
+  on a gallery, invitation or password-reset address is the credential, and it is not
+  written to the log as a failure. On an address that carries a credential it goes out with
+  the gallery's three headers (below). Two surfaces answer it in their own voice, because
+  their contract is one refusal for every dead link: the shared gallery's API, below, and the
+  invitation API.
+
 ### Errors
 
 Every failure has the same body:
@@ -130,7 +143,7 @@ generic fallback sentence to a guest, which is why the lists are kept in step.
 
 | Code                          | Status | When                                                                             |
 | ----------------------------- | ------ | -------------------------------------------------------------------------------- |
-| `request.invalid`             | 400    | Any zod failure: wrong type, out of bounds, unexpected field                     |
+| `request.invalid`             | 400    | A zod failure, or a path that is not valid percent-encoding                      |
 | `request.tooLarge`            | 413    | A JSON body over 64 KB                                                           |
 | `request.csrfMissing`         | 403    | No `es_csrf` cookie, or no `X-CSRF-Token` header                                 |
 | `request.csrfMismatch`        | 403    | The header does not equal the cookie                                             |
@@ -766,7 +779,11 @@ SPA shell, served with the headers below; the five routes here are what it calls
 **One refusal for every dead link.** A malformed token, an unknown one, an expired or
 revoked link, a link whose creator has been switched off or is no longer an owner of the
 event, and a purged event all answer **`404 gallery.notAvailable`**, byte for byte, on
-every route here. The host's console is where the reason is shown.
+every route here. The host's console is where the reason is shown. A path that cannot be
+percent-decoded at all — a link cut in the middle of an escape, `/api/gallery/<token>%E2%80` —
+is one more malformed token: the same `404 gallery.notAvailable`, from the gallery's router,
+with no lookup behind it. (The page at `/g/<token>%E2%80` is not one of these five routes. It
+is the `400 request.invalid` of §1, with the three headers below.)
 
 **Headers on every response, refusals included:** `Referrer-Policy: no-referrer`,
 `X-Robots-Tag: noindex, nofollow`, and `Cache-Control: no-store` — relaxed only for an
