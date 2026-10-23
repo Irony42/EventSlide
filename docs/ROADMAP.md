@@ -676,7 +676,7 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 > mounted with `SITE_ADMIN=on`), and is judged again when it is spent; an operator's reset is mailed and
 > never shown, `OPERATOR_RESET_LINKS=mailOnly` by default, with an opt-in for a box with no relay that
 > needs another owner's approval. Each leaves a line in the audit log. **Not built**: the operator routes
-> that call them (G2-14), the owner's list of what waits (G2-16), the break-glass command, and
+> that call them (G2-14), the break-glass command, and
 > the ownership transfer (P9-02).
 
 The flow of 2.x — create the account, read the password aloud — is what this replaces: a
@@ -765,8 +765,8 @@ three together are what let an operator stop a relationship without a database c
 > through `pruneAuditLog`. `setClientCeilings` is the first writer, write-ahead (the entry is
 > recorded before the client is saved): `client.ceilingsChanged {before, after}`, and
 > `client.periodReset {before, after}` when a renewal zeroes the period counter, and
-> `provisionClientOwner` writes `client.created {ceilings}` (G2-18). **Not built**: any route that reads the log (the operator's
-> `/api/site` view, G2-14, and the client-readable view, G2-16), the other operator actions'
+> `provisionClientOwner` writes `client.created {ceilings}` (G2-18). **Shipped since (G2-16)**: the client-readable view, `GET /api/client/audit`, for an owner of the client.
+> **Not built**: the operator's `/api/site` view (G2-14), the other operator actions'
 > entries, pruning from `npm run purge`, and a transaction shared with the act being recorded.
 > See [SECURITY.md §17](SECURITY.md).
 

@@ -229,13 +229,15 @@ adapter and use cases (`createClient`, `renameClient`, `setClientCeilings`, `lis
 `issuePasswordResetForAccount`, docs/SECURITY.md §20), and nothing in this document is an operator route
 for them: the operator API that calls them is a later item (G2-14) and will be mounted under
 `/api/site`, behind `SITE_ADMIN` and `requireOperator`, like everything else in that namespace. Until
-it lands the use cases are built and unreachable from the wire. The one route a client's **owner**
-has is under `/api/client` (§6, `POST /api/client/invitations/:invitationId/approve`), mounted only with
-`SITE_ADMIN=on`: off, it answers as a path nobody wrote.
+it lands the use cases are built and unreachable from the wire. What a **client** has is
+under `/api/client` (an owner's: approving, the list of what waits, the log) and `/api/me/limits` (every
+member's), documented in §6 and mounted only with `SITE_ADMIN=on`: off, none of them exists and each
+answers as a path nobody wrote.
 
-**No audit route exists yet either.** The append-only audit log (roadmap §10.8) is written by
-`setClientCeilings` and pruned by the retention sweep, and nothing reads it over the wire: the
-operator's view is G2-14 and the client-readable view is G2-16, both behind their own gates.
+**The client reads the audit log; the operator's view is not here yet.** The append-only audit log
+(roadmap §10.8) is written by the use cases that act on a client and pruned by the retention sweep.
+The client-readable view is `GET /api/client/audit` (§6, G2-16): an owner's, scoped to their own
+client. The operator's view, `/api/site/audit`, is G2-14.
 
 #### `GET /api/site/client-defaults`
 
@@ -627,7 +629,8 @@ which is what puts the right colour on the first frame instead of repainting one
 trip later under a guest's thumb. A client that has never heard of it renders the
 product's own look.
 
-`allowClips` here is **the host's switch and the box's capability together** — it answers
+`allowClips` here is **the host's switch, the client's plan (`clips_allowed`) and the box's capability
+together** — it answers
 "may a guest send a video to this event, on this deployment", which is a different
 question from `EventSettingsDto.allowClips` in §7, where the host sees their own setting
 exactly as they left it. A box with no video encoder answers `false` however the host set
@@ -2215,6 +2218,15 @@ cannot disagree — 1.0's central defect was exactly two client-side spellings o
 counts come from the caller's own dashboard listing rather than a second repository read
 in the handler.
 
+**`quotaBytes` is the quota the event's uploads are judged against**, not the number it was created
+with (G2-16): the stored quota, lowered to the client's `max_event_quota_bytes` when that is smaller, as
+`Event.effectiveQuotaBytes` computes it for every write path. An operator can lower the ceiling after an
+event was created, and a meter drawn against the stored number would promise room the box refuses. For an
+event with no client — every event on a box without clients — it is the stored quota exactly as before.
+`liveWindowEnd` (an ISO-8601 instant) is the end of the event's live window, `opened_at + max_live_days`;
+it is **absent**, not `null`, when there is none to announce (no client, no `max_live_days`, an event that
+has never opened), so a box without clients answers byte for byte as it did.
+
 ### `PATCH /api/events/:slug`
 
 ```json
@@ -3027,6 +3039,134 @@ so the invitee still has to open it and accept.
 | --------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `auth.forbidden`      | 403    | A member of the client who is not an owner; **an operator**, whether or not the client made them an owner. `details.required: "owner"`                                                                                                                               |
 | `invitation.notFound` | 404    | An unknown id; another client's invitation; an invitation to an event, or one that never waited for anyone; a password-reset link; one already spent, revoked or expired; and a caller with no part in the client (an operator included). One answer for all of them |
+
+### `GET /api/me/limits`
+
+What the signed-in account reads of its own clients' ceilings and use (roadmap §10.5, G2-16 / P3-17): what
+the operator allows, what has been used against it, and how close that is. **Only with `SITE_ADMIN=on`**:
+off, the route is unmounted and answers `404 route.notFound`, status, body and headers exactly as for a path
+nobody wrote.
+
+- **Auth:** a signed-in, enabled account (`401 auth.required` otherwise). **Whose limits they are is never
+  the request's to say**: the route takes no parameter (`400 request.invalid` for any), and the answer is
+  the caller's own memberships and nobody else's.
+- **Response:** `200`, `Cache-Control: no-store`.
+
+```json
+{
+  "clients": [
+    {
+      "id": "6f1c…",
+      "name": "Atelier Alpha",
+      "role": "owner",
+      "suspended": false,
+      "ceilings": {
+        "maxEvents": 5,
+        "maxTotalBytes": 5000000000,
+        "maxEventQuotaBytes": null,
+        "maxRetentionDays": 30,
+        "clipsAllowed": true,
+        "liveAllowed": true,
+        "maxLiveDays": 3,
+        "maxEventsPerPeriod": 6,
+        "periodStartedAt": "2026-01-01T00:00:00.000Z"
+      },
+      "usage": { "events": 4, "eventsCreatedInPeriod": 4, "usedBytes": 4600000000 },
+      "meters": [
+        { "kind": "events", "used": 4, "max": 5, "level": "warning" },
+        { "kind": "eventsPerPeriod", "used": 4, "max": 6, "level": "ok" },
+        { "kind": "storage", "used": 4600000000, "max": 5000000000, "level": "warning" }
+      ]
+    }
+  ]
+}
+```
+
+`null` is "no ceiling". `clients` is empty, `200`, for an account in no client (the box's operator
+included). `usage.events` counts events in every status; `usedBytes` is the admission figure the byte
+ceiling is judged against (photographs of every status and the staged source of each clip). A `meters`
+entry exists only for a ceiling that has a bound, and its `level` is decided once, by the server:
+`ok` below 90 per cent, `warning` from 90 per cent up to the ceiling, `reached` at or past it (past it
+is possible: lowering a ceiling never deletes anything). The banner and the client space page show
+exactly this and compute nothing.
+
+```
+GET /api/me/limits?clientId=… → 400 request.invalid   (no parameter exists to name another client with)
+```
+
+### `GET /api/client/audit`
+
+The log of what was done on the owner's own client (roadmap §10.8, rule R5 of the operator guard, G2-16 /
+P3-17): **every** entry written about the client — the operator's, an integration's, the system's and the
+client's own members' — newest first. **Only with `SITE_ADMIN=on`**; off, `404 route.notFound` as for a path
+nobody wrote.
+
+- **Auth:** a signed-in, enabled account that is an **owner** of the client. `403 client.ownerRequired` for
+  a member who is not an owner; `404 client.notFound` for an account with no part in the client.
+- **Query (strict; any other key is `400 request.invalid`):** `clientId` (a UUID; needed only by an account
+  in **several** clients, who gets `404 client.notFound` without it, as for `POST /api/events`; naming a
+  client the caller is not in is the same `404` as naming one that does not exist), `before` (the `next` of
+  the previous page, an integer ≥ 1), `limit` (1 to 100, default 50).
+- **Response:** `200`, `Cache-Control: no-store`.
+
+```json
+{
+  "items": [
+    {
+      "seq": 41,
+      "at": "2026-06-21T10:00:00.000Z",
+      "action": "invitation.issued",
+      "actor": { "kind": "operator", "label": null },
+      "subject": { "type": "invitation", "id": "9b2e…" },
+      "details": { "pendingApproval": true }
+    }
+  ],
+  "next": 40
+}
+```
+
+`next` is the `before` for the page after this one, `null` on the last. `action` is the server's
+vocabulary (`src/domain/audit/auditAction.ts`); a row written under a name a client does not know is shown
+as "an action was recorded", never hidden. **What a line never carries**: the account behind the actor (the
+operator is "the operator", a member is "a member", never an id), the id of an **account** subject, an
+address, a slug, a join code, a name, a token or a link. `details` is what the action's allow-list admits,
+numbers, switches and instants (a ceilings change is `{ before, after }` snapshots). `actor.label` is
+present only for an integration (`cloud:stripe-webhook`), a constant a programmer chose.
+
+| Code                   | Status | When                                                                                |
+| ---------------------- | ------ | ----------------------------------------------------------------------------------- |
+| `client.ownerRequired` | 403    | A member of the client who is not an owner                                          |
+| `client.notFound`      | 404    | No part in the client; a client that does not exist; several clients and none named |
+
+### `GET /api/client/invitations`
+
+What waits for the owner's approval (rule R1 of the operator guard): the operator's invitations into the
+client that cannot be used until an owner lets them in, and **whom they are for** — the one fact the approve
+route's answer withholds. **Only with `SITE_ADMIN=on`**; off, `404 route.notFound`.
+
+- **Auth, query, errors:** as `GET /api/client/audit` (an owner; `clientId` only for an account in several
+  clients; no other key). The list is scoped by the client in the query itself: another client's invitation
+  is not a row this call can return.
+- **Response:** `200`, `Cache-Control: no-store`.
+
+```json
+{
+  "items": [
+    {
+      "id": "9b2e…",
+      "email": "nouveau@example.org",
+      "role": "member",
+      "createdAt": "2026-06-20T09:00:00.000Z",
+      "expiresAt": "2026-06-27T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+Newest first, at most 50, only invitations still waiting (not approved, spent, revoked or expired). The
+address is the invitee's, shown to the owners of the account the invitee would join, and appears nowhere
+in the audit log. No link, no digest and no operator account is in an item; `id` is what
+`POST /api/client/invitations/:invitationId/approve` takes.
 
 ## 7. Realtime
 
