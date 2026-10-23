@@ -243,8 +243,9 @@ describe('what is checked before an image is signed', () => {
     expect(labels).toContain(
       'org.opencontainers.image.source=https://github.com/Irony42/EventSlide',
     )
-    expect(read('.github', 'workflows', 'release.yml')).not.toMatch(
-      /^\s*[^#\s][^\n]*org\.opencontainers\.image\.licenses=/m,
+    expect(labels).not.toContain('org.opencontainers.image.licenses')
+    expect(code(read('.github', 'workflows', 'release.yml'))).not.toMatch(
+      /org\.opencontainers\.image\.licenses=/,
     )
     expect(runOf(jobOf(release, 'verify-published'), 'The labels say what the image is')).toContain(
       'AGPL-3.0-only',
@@ -532,7 +533,9 @@ describe.skipIf(!bashAvailable)(
       'vx.y.z',
       '',
     ])('refuses %j as a release tag, before it is used for anything', (tag) => {
-      const ran = resolve({ REF_NAME: tag, PACKAGE_VERSION: '3.0.0' })
+      // package.json is given the very version the tag spells, so that nothing but the shape
+      // of the tag can be what refuses it.
+      const ran = resolve({ REF_NAME: tag, PACKAGE_VERSION: tag.replace(/^v/, '') })
 
       expect(ran.status).toBe(1)
       expect(ran.outputs).toEqual({})
