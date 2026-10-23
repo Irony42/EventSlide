@@ -115,6 +115,7 @@ import { makeListClients } from '../application/usecases/clients/listClients'
 import { makeProvisionClientOwner } from '../application/usecases/clients/provisionClientOwner'
 import { makeRenameClient } from '../application/usecases/clients/renameClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
+import type { NewClientDefaults } from '../domain/clients/newClientCeilings'
 import { makePruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import { makeUnlockGallery } from '../application/usecases/gallery/unlockGallery'
 
@@ -202,6 +203,11 @@ export interface UseCasePolicy {
   readonly mediaSweepMaxDigestsPerPass: number
   /** `audit.retentionDays`: how long a row of the audit log is kept. 365 at the least. */
   readonly auditRetentionDays: number
+  /**
+   * `newClientCeilings`: what `provisionClientOwner` gives a client whose operator named no
+   * ceiling (`NEW_CLIENT_*`, G2-18). No ceiling at all on a box that set none.
+   */
+  readonly newClientDefaults: NewClientDefaults
   /**
    * `operator.name`: who the guest's privacy notice says hosts their photo, or `null` on a
    * box whose operator said nothing (roadmap G2-17). One value for the three use cases that
@@ -752,6 +758,9 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => ({
     createClient: clientCreator(adapters),
     issueInvitation: invitationIssuer(adapters, policy),
     clients: adapters.clients,
+    newClientDefaults: policy.newClientDefaults,
+    audit: adapters.audit,
+    clock: adapters.clock,
   }),
   renameClient: makeRenameClient({ clients: adapters.clients }),
   setClientCeilings: makeSetClientCeilings({

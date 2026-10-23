@@ -437,6 +437,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     mediaSweepMinimumAgeMs: MEDIA_SWEEP_MIN_AGE_MS,
     mediaSweepMaxDigestsPerPass: MEDIA_SWEEP_MAX_DIGESTS,
     auditRetentionDays: config.audit.retentionDays,
+    newClientDefaults: config.newClientCeilings,
     operatorName: config.operator.name,
     mfaIssuer: config.operator.name ?? 'EventSlide',
     clips: {

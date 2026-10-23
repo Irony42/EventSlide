@@ -11,7 +11,7 @@ import type { AuditSubjectType } from './auditSubjectType'
  * name. See `auditDetails.ts` for why the vocabulary has no free-text kind.
  *
  * Only actions with a producer in the tree are declared. The plan names many more
- * (`client.created`, `client.suspended`, `invitation.issued`, `account.termsAccepted`,
+ * (`client.suspended`, `invitation.issued`, `account.termsAccepted`,
  * `event.autoClosed`, ...); each arrives with the use case that writes it, together with the
  * test that proves its details carry nothing a person typed, rather than as a guess made
  * before the use case exists.
@@ -54,6 +54,15 @@ const PERIOD_SNAPSHOT = detail.object({
 })
 
 export const AUDIT_ACTIONS = {
+  /**
+   * An operator opened a client (`provisionClientOwner`, G2-09 / G2-18), with the ceilings it
+   * started with — the operator's own, or the box's `NEW_CLIENT_*` defaults, or both. The
+   * snapshot is the point: the defaults are configuration, which changes at the next boot, and
+   * "what was this client promised on the day it was opened" must still have an answer. The
+   * client's name and its owner's address are not here: the first is the client's to change and
+   * the second is personal data, and the entry's subject already says which client it is.
+   */
+  'client.created': { subject: 'client', details: { ceilings: CEILINGS_SNAPSHOT } },
   /** An operator changed what a client may do (`setClientCeilings`). */
   'client.ceilingsChanged': {
     subject: 'client',

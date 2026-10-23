@@ -375,6 +375,86 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
     ])
   })
 
+  describe('NEW_CLIENT_* reaches provisionClientOwner (G2-18)', () => {
+    const provision = (booted: Container) =>
+      booted.usecases.provisionClientOwner({
+        clientName: 'Camille et Sacha',
+        ownerEmail: 'proprietaire@example.org',
+        locale: 'fr',
+        createdBy: null,
+      })
+
+    const clientRow = (db: Container['db']) =>
+      db
+        .prepare(
+          `SELECT max_events, max_events_per_period, max_total_bytes, max_event_quota_bytes,
+                  max_retention_days, max_live_days, clips_allowed, period_started_at
+             FROM clients`,
+        )
+        .all()
+
+    it('starts the client with the configured ceilings in the real clients table, and writes them to the real audit_log', async () => {
+      const booted = await boot({
+        SITE_ADMIN: 'on',
+        NEW_CLIENT_MAX_EVENTS: '1',
+        NEW_CLIENT_MAX_EVENTS_PER_PERIOD: '6',
+        NEW_CLIENT_MAX_TOTAL_BYTES: '5000000000',
+        NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '5000000000',
+        NEW_CLIENT_MAX_RETENTION_DAYS: '30',
+        NEW_CLIENT_MAX_LIVE_DAYS: '3',
+        NEW_CLIENT_CLIPS_ALLOWED: 'false',
+      })
+
+      const provisioned = await provision(booted)
+
+      expect(provisioned.ok).toBe(true)
+      expect(clientRow(booted.db)).toEqual([
+        {
+          max_events: 1,
+          max_events_per_period: 6,
+          max_total_bytes: 5_000_000_000,
+          max_event_quota_bytes: 5_000_000_000,
+          max_retention_days: 30,
+          max_live_days: 3,
+          clips_allowed: 0,
+          period_started_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/),
+        },
+      ])
+      const logged = booted.db
+        .prepare('SELECT action, actor_kind, details FROM audit_log')
+        .all() as {
+        action: string
+        actor_kind: string
+        details: string
+      }[]
+      expect(logged.map((row) => [row.action, row.actor_kind])).toEqual([
+        ['client.created', 'system'],
+      ])
+      expect(JSON.parse(logged[0]?.details ?? '{}')).toMatchObject({
+        ceilings: { maxEvents: 1, maxLiveDays: 3, clipsAllowed: false },
+      })
+    })
+
+    it('starts the client with no ceiling on a box that set none, which is every self-hosted box', async () => {
+      const booted = await boot({})
+
+      await provision(booted)
+
+      expect(clientRow(booted.db)).toEqual([
+        {
+          max_events: null,
+          max_events_per_period: null,
+          max_total_bytes: null,
+          max_event_quota_bytes: null,
+          max_retention_days: null,
+          max_live_days: null,
+          clips_allowed: 1,
+          period_started_at: null,
+        },
+      ])
+    })
+  })
+
   it('hands AUDIT_RETENTION_DAYS to the pruning use case, so the cutoff is that many days back', async () => {
     const { usecases } = await boot({ AUDIT_RETENTION_DAYS: '400' })
 

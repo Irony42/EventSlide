@@ -4,7 +4,8 @@ import { ClientCeilings, type ClientCeilingsInput } from '../clients/clientCeili
 import type { DomainError } from '../shared/errors'
 import { asClientId } from '../shared/ids'
 import type { Result } from '../shared/result'
-import { describeCeilingsChange } from './clientCeilingsAudit'
+import { AuditEntry } from './auditEntry'
+import { describeCeilingsChange, describeClientCreation } from './clientCeilingsAudit'
 
 const AT = new Date('2026-06-20T21:00:00.000Z')
 const NEXT_DAY = new Date('2026-06-21T21:00:00.000Z')
@@ -209,5 +210,61 @@ describe('describeCeilingsChange', () => {
       before: { periodStartedAt: '2026-06-20T21:00:00.000Z', eventsCreatedInPeriod: 3 },
       after: { periodStartedAt: null, eventsCreatedInPeriod: 0 },
     })
+  })
+})
+
+describe('describeClientCreation', () => {
+  it('writes client.created with the full snapshot of what the client starts with', () => {
+    const client = aClientWith({ maxEvents: 1, maxEventsPerPeriod: 6, periodStartedAt: AT })
+
+    const planned = describeClientCreation(client)
+
+    expect(planned.action).toBe('client.created')
+    expect(planned.details).toEqual({
+      ceilings: {
+        maxEvents: 1,
+        maxTotalBytes: null,
+        maxEventQuotaBytes: null,
+        maxRetentionDays: null,
+        clipsAllowed: true,
+        liveAllowed: true,
+        maxLiveDays: null,
+        maxEventsPerPeriod: 6,
+        periodStartedAt: '2026-06-20T21:00:00.000Z',
+      },
+    })
+  })
+
+  it('is written for a client with no ceiling at all too: that it was never limited is a fact about its first day', () => {
+    const planned = describeClientCreation(aClientWith({}))
+
+    expect(planned.details).toEqual({
+      ceilings: expect.objectContaining({ maxEvents: null, clipsAllowed: true, liveAllowed: true }),
+    })
+  })
+
+  it('is an entry the log accepts, for the client it is about', () => {
+    const client = aClientWith({ maxEvents: 2 })
+    const planned = describeClientCreation(client)
+
+    const entry = AuditEntry.create({
+      at: AT,
+      actor: { kind: 'system', label: 'provision-client-owner' },
+      action: planned.action,
+      subject: { type: 'client', id: client.id },
+      clientId: client.id,
+      details: planned.details,
+    })
+
+    expect(entry.ok).toBe(true)
+  })
+
+  it('carries nothing but the ceilings: no name, no address, no locale', () => {
+    const client = aClientWith({ maxEvents: 2 })
+
+    const text = JSON.stringify(describeClientCreation(client).details)
+
+    expect(text).not.toContain('Atelier Photo Camille')
+    expect(Object.keys(describeClientCreation(client).details)).toEqual(['ceilings'])
   })
 })
