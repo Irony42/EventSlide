@@ -24,7 +24,6 @@ import {
   makeOperatorGuardWorld,
   type OperatorGuardWorld,
 } from '../../testing/operatorGuardWorld'
-import { makeRegisterModerator } from '../auth/registerModerator'
 
 /**
  * The operator's anti-escalation guard, rule by rule (free plan G2-12, paid plan P3-14,
@@ -505,19 +504,11 @@ describe('the operator guard', () => {
     })
 
     const inviteModerator = (actor: string) =>
-      makeRegisterModerator({
-        events: world.events,
-        users: world.users,
-        memberships: world.memberships,
-        hasher: world.hasher,
-        ids: world.ids,
-        clock: world.clock,
-      })({
+      world.useCases.registerModerator({
         eventId: asEventId(WEDDING_ID),
         actorId: asUserId(actor),
         email: NEWCOMER,
-        displayName: 'Nouveau',
-        temporaryPassword: PASSWORD,
+        locale: 'fr',
       })
 
     it('lets the owner of the event do it', async () => {

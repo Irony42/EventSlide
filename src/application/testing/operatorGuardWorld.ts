@@ -4,6 +4,7 @@ import { makeAcceptInvitation } from '../usecases/auth/acceptInvitation'
 import { makeIssueInvitation } from '../usecases/auth/issueInvitation'
 import { makeIssuePasswordResetForAccount } from '../usecases/auth/issuePasswordResetForAccount'
 import { makePreviewInvitation } from '../usecases/auth/previewInvitation'
+import { makeRegisterModerator } from '../usecases/auth/registerModerator'
 import { makeResetPassword } from '../usecases/auth/resetPassword'
 import { makeApproveInvitation } from '../usecases/clients/approveInvitation'
 import { makeApprovePasswordReset } from '../usecases/clients/approvePasswordReset'
@@ -189,6 +190,7 @@ export const makeOperatorGuardWorld = (options: OperatorGuardWorldOptions = {}) 
       clock,
     }),
     resetPassword: makeResetPassword({ users, tokens, secrets, hasher, clock }),
+    registerModerator: makeRegisterModerator({ events, users, memberships, issueInvitation }),
   }
 
   return {
