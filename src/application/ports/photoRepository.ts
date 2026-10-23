@@ -148,7 +148,14 @@ export interface PhotoRepository {
    */
   listReferencedDigests(eventId: EventId): Promise<ReadonlySet<string>>
 
-  /** Newest first, with ties broken by id so two clients agree on the order. */
+  /**
+   * Newest first, with ties broken by **descending** id so two clients agree on the order.
+   *
+   * The cursor resumes inside a run of equal timestamps, which is routine: a multi-file
+   * upload stamps every file of the batch with one `createdAt`. An implementation pages
+   * through such a run without repeating or skipping a photo, at any limit; the contract
+   * suite holds the SQLite adapter and the fake to it.
+   */
   list(eventId: EventId, query?: PhotoQuery): Promise<PhotoPage>
 
   /**
