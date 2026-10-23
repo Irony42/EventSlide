@@ -182,6 +182,37 @@ describe('ClientSpacePage', () => {
     expect(api.clientAudit).not.toHaveBeenCalled()
   })
 
+  it('labels the wait for the limits with the generic word, not the dashboard’s', async () => {
+    // `admin.loading` is "Chargement de vos évènements…": true on the dashboard, and read
+    // aloud on a page about the account's limits it names something that is not loading.
+    // A status takes its name from its content only through the text it holds.
+    const myLimits = vi.fn(() => new Promise<never>(() => undefined))
+
+    open(onBox([], { myLimits }))
+
+    const waits = await screen.findAllByRole('status')
+    expect(waits.map((wait) => wait.textContent)).toEqual([fr.app.loading])
+  })
+
+  it('labels the wait for the invitations and for the log the same way', async () => {
+    const never = () => new Promise<never>(() => undefined)
+
+    open(
+      onBox([aClientLimits()], {
+        pendingInvitations: vi.fn(never),
+        clientAudit: vi.fn(never),
+      }),
+    )
+
+    // One spinner per card: two announcements, both the generic word.
+    await waitFor(() =>
+      expect(screen.getAllByRole('status').map((wait) => wait.textContent)).toEqual([
+        fr.app.loading,
+        fr.app.loading,
+      ]),
+    )
+  })
+
   it('says a suspended client is suspended', async () => {
     open(onBox([aClientLimits({ suspended: true })]))
 
