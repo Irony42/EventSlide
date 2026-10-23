@@ -34,7 +34,7 @@ import {
  *   throw, which aborts the response — deliberately, rather than ending the archive
  *   cleanly: a ZIP that ends early but well-formed looks exactly like a complete album,
  *   and a truncated one does not. See `bytesOf` for why the check has to be there.
- * - **The album is read in pages**, not as the export's row stream. See `entries`.
+ * - **The album is read in pages**, not as a row stream. See `entries`.
  */
 
 /** Rows per read while listing the album. Each is one statement, run to completion. */
@@ -121,9 +121,9 @@ export const makeDownloadGalleryArchive =
     }
 
     /**
-     * Pages rather than the export's row stream, because of what the stream holds open.
+     * Pages rather than a row stream, because of what a row stream holds open.
      *
-     * `streamForExport` keeps one better-sqlite3 statement iterating across every `await`
+     * A row stream keeps one better-sqlite3 statement iterating across every `await`
      * below it, and while a statement is iterating the connection refuses every write —
      * measured, 600 of 602 uploads on a *different* event failed during one archive. That
      * shape is tolerable for a host's own occasional export; on a public route anybody

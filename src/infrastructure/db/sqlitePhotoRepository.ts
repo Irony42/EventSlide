@@ -788,26 +788,4 @@ export class SqlitePhotoRepository implements PhotoRepository {
 
     return changed
   }
-
-  /**
-   * Streams the album for the ZIP export one row at a time.
-   *
-   * `.iterate()`, never `.all()`: a four-thousand-photo wedding materialised into an
-   * array before the archive is written is how a self-hosted box runs out of memory
-   * during the one operation a host runs after the party.
-   */
-  async *streamForExport(eventId: EventId, statuses: readonly PhotoStatus[]): AsyncIterable<Photo> {
-    if (statuses.length === 0) return
-
-    const rows = this.db
-      .prepare<string[], PhotoRow>(
-        `SELECT ${PHOTO_COLUMNS}
-           FROM photos
-          WHERE event_id = ? AND status IN (${placeholders(statuses.length)})
-          ORDER BY created_at DESC, id DESC`,
-      )
-      .iterate(eventId, ...statuses)
-
-    for (const row of rows) yield toPhoto(row)
-  }
 }

@@ -118,8 +118,10 @@ prebuilt binaries, so no contributor needs a C++ toolchain for `npm install`.
   written, and the number to watch is p99 of an SSE-triggered playlist rebuild.
 
 - **No streaming of very large result sets.** `.all()` materialises rows in memory. Not
-  a problem for a per-event query, and the one unbounded path — the ZIP export — uses
-  `.iterate()` to feed `archiver` a row at a time instead of collecting the album first.
+  a problem for a per-event query, and the one unbounded path — the ZIP export — reads
+  the album in pages of 200 rows, each statement run to completion, instead of collecting
+  it first. It does not use `.iterate()`: a statement that iterates makes the connection
+  refuse every write, for every event, for as long as a slow download holds it open.
 - **Long writes stall reads on the same connection.** Hence `busy_timeout` and WAL, and
   hence no expensive backfill inside a migration: those ship as a resumable
   `npm run db:backfill:<name>` script.
