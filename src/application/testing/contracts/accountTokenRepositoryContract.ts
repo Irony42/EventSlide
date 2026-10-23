@@ -513,17 +513,33 @@ export const accountTokenRepositoryContract = (
         ).not.toBeNull()
       })
 
-      it('does not count an invitation that is spent, already revoked or expired', async () => {
-        await repo.save(invite('tok-spent'))
+      it('counts only what is still live: not a link that is spent, already revoked or expired', async () => {
+        // One of each dead kind and one live link, all to the same address and event. The
+        // first call must revoke exactly the live one: a statement that forgot to ask whether
+        // a link was spent, or had expired, would count it too and stamp it revoked.
+        await repo.save(invite('tok-revoked'))
+        await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(100))
+        await repo.save(invite('tok-spent', { createdAt: atPlus(200) }))
         await repo.consume(asAccountTokenId('tok-spent'), atPlus(500))
-        await repo.save(invite('tok-revoked', { email: 'nouveau@example.test' }))
-        await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(600))
+        await repo.save(invite('tok-expired', { createdAt: atPlus(200), expiresAt: atPlus(900) }))
+        await repo.save(invite('tok-live', { createdAt: atPlus(200) }))
 
+        const revoked = await repo.revokeOutstandingInvitations(
+          NEWCOMER,
+          event('event-1'),
+          atPlus(1_000),
+        )
+
+        expect(revoked).toBe(1)
         expect(
-          await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(700)),
+          await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(1_100)),
         ).toBe(0)
+      })
 
+      it('does not count a link that expired by the time it was asked', async () => {
+        await repo.save(invite('tok-1'))
         const week = 7 * 24 * 60 * 60 * 1000
+
         expect(
           await repo.revokeOutstandingInvitations(NEWCOMER, event('event-1'), atPlus(week)),
         ).toBe(0)

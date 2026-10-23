@@ -1549,7 +1549,7 @@ describe('createContainer: an invitation', () => {
     expect(!again.ok && again.error.code).toBe('invitation.notFound')
   })
 
-  it('keeps the token out of every table: the database holds only its digest', async () => {
+  it('keeps the token and the chosen password out of every table: the database holds only the digest', async () => {
     const { booted, relay } = await bootWithRelay()
     await booted.usecases.provisionClientOwner({
       clientName: 'Camille et Sacha',
@@ -1559,15 +1559,28 @@ describe('createContainer: an invitation', () => {
     })
     await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
     const token = tokenIn(relay)
+    await booted.usecases.acceptInvitation({
+      token,
+      credentials: { password: PASSWORD, displayName: 'Camille' },
+    })
 
     const rows = booted.db.prepare('SELECT * FROM account_tokens').all() as Record<
       string,
       unknown
     >[]
-
     expect(rows).toHaveLength(1)
-    expect(JSON.stringify(rows)).not.toContain(token)
     expect(rows[0]).toMatchObject({ purpose: 'invitation', delivery: 'mail', client_role: 'owner' })
+
+    const tables = booted.db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all() as {
+      name: string
+    }[]
+    for (const { name } of tables) {
+      const dump = JSON.stringify(booted.db.prepare(`SELECT * FROM "${name}"`).all())
+      expect(dump, `table ${name}`).not.toContain(token)
+      expect(dump, `table ${name}`).not.toContain(PASSWORD)
+    }
   })
 
   it('on a box with no relay hands the link to the operator, and accepting it proves nothing about the mailbox', async () => {
