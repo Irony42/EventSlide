@@ -283,7 +283,8 @@ Read these before you upgrade, and back up with the version you run now.
 - **A guest can rename themself, and a phone can check a join code before joining** (#190):
   `PATCH /api/events/:slug/guests/:guestId` changes the name a guest's photos are signed with, their
   own and nobody else's, and `GET /api/join/:code` says which event a code names, with the same
-  answer and the same per-address budget as `POST /api/join`.
+  answer and the same per-address budget as `POST /api/join`. A join code in a request path is now
+  written to the log as `/api/join/:token`.
 - **The pages for the account flows** (G2-10, #143). `/invite/:token` opens a mailed or copied
   invitation: it says what the link is for and when it ends, takes a name and a password, or accepts
   as the account that is already signed in, and says one sentence for every dead link. A person whose
@@ -316,13 +317,6 @@ Read these before you upgrade, and back up with the version you run now.
   `acceptTerms: true` and answers `400 terms.notAccepted` without it, and the acceptance writes the
   audit entry `account.termsAccepted` with the version, in the transaction that spends the link. A
   box that sets neither, or only the address, looks and behaves as before.
-- **Two guest routes that had no door** (#190). `GET /api/join/:code` says which event a printed join
-  code names before the phone joins it: the name and what a guest may do there, the same `404` for
-  an unknown, draft, closed and archived event as the join gives, and one per-address budget shared
-  with `POST /api/join`, so the lookup tests codes no faster than the join did.
-  `PATCH /api/events/:slug/guests/:guestId` lets a guest change the name their photos are signed
-  with, their own and nobody else's. No screen calls either yet. A join code in a request path is
-  now written to the log as `/api/join/:token`.
 - **Mail, optional** (#120). A `Mailer` port, a `NullMailer` that sends nothing and is the
   default, and an SMTP adapter on `nodemailer` (a new dependency) switched on by `SMTP_URL`
   and `MAIL_FROM`. The password reset and the invitations are what send mail.
