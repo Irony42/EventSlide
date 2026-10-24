@@ -163,6 +163,7 @@ const DOCUMENTED_CODES: readonly string[] = [
   'reaction.alreadyExists',
   'reaction.notPublished',
   'reaction.notFound',
+  'reaction.ownPhoto',
   'reaction.rateLimited',
 
   'password.tooShort',

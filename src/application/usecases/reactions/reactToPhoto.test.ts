@@ -39,7 +39,16 @@ describe('reactToPhoto', () => {
     ids = new SequentialIdGenerator()
 
     events.seed(anEvent({ id: 'event-1' }))
-    photos.seed(aPhoto({ id: 'photo-1', eventId: 'event-1', status: 'published' }))
+    // Somebody else's: a guest does not react to their own photograph, and the rest of
+    // these cases are about everything else.
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'published',
+        author: { kind: 'guest', id: 'guest-2' },
+      }),
+    )
   })
 
   const react = (kind = 'love'): ReturnType<ReactToPhoto> =>
@@ -83,6 +92,39 @@ describe('reactToPhoto', () => {
       expect(!result.ok && result.error.code).toBe('reaction.notPublished')
     },
   )
+
+  it('refuses a guest a reaction to their own photograph', async () => {
+    photos = new FakePhotoRepository().seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'published',
+        author: { kind: 'guest', id: 'guest-1' },
+      }),
+    )
+
+    const result = await react()
+
+    expect(!result.ok && result.error.kind).toBe('forbidden')
+    expect(!result.ok && result.error.code).toBe('reaction.ownPhoto')
+    expect(await reactions.findOne(EVENT, PHOTO, GUEST, 'love')).toBeNull()
+    expect(bus.published).toEqual([])
+  })
+
+  it('lets a guest react to a photograph the host took from the venue camera', async () => {
+    photos = new FakePhotoRepository().seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'published',
+        author: { kind: 'host', id: 'user-1' },
+      }),
+    )
+
+    const result = await react()
+
+    expect(result.ok).toBe(true)
+  })
 
   it('refuses a kind outside the closed set', async () => {
     const result = await react('rocket')

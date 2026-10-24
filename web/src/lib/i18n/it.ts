@@ -418,6 +418,7 @@ export const it: UiText = {
     'reaction.alreadyExists': 'Ha già reagito così a questa foto.',
     'reaction.notPublished': 'Questa foto non è ancora sullo schermo.',
     'reaction.notFound': 'Questa reazione non esiste più.',
+    'reaction.ownPhoto': 'Non può reagire alla sua foto.',
     'upload.noFiles': 'Non è stata ricevuta nessuna foto. Ne selezioni una, poi riprovi.',
     'upload.unexpectedField': 'Non è stato possibile leggere questo invio. Riprovi.',
     'request.csrfMissing': 'Questa pagina è scaduta. La ricarichi, poi riprovi.',

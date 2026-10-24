@@ -1368,6 +1368,7 @@ export const fr = {
     'reaction.alreadyExists': 'Vous avez déjà réagi ainsi à cette photo.',
     'reaction.notPublished': 'Cette photo n’est pas encore à l’écran.',
     'reaction.notFound': 'Cette réaction n’existe plus.',
+    'reaction.ownPhoto': 'Vous ne pouvez pas réagir à votre propre photo.',
     'upload.noFiles': 'Aucune photo n’a été reçue. Sélectionnez-en une puis réessayez.',
     'upload.unexpectedField': 'Cet envoi n’a pas pu être lu. Réessayez.',
     // The page's CSRF cookie is gone or stale — a tab left open all evening, or a

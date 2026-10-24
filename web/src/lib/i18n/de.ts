@@ -430,6 +430,7 @@ export const de: UiText = {
     'reaction.alreadyExists': 'So haben Sie auf dieses Foto bereits reagiert.',
     'reaction.notPublished': 'Dieses Foto ist noch nicht auf dem Bildschirm.',
     'reaction.notFound': 'Diese Reaktion gibt es nicht mehr.',
+    'reaction.ownPhoto': 'Sie können nicht auf Ihr eigenes Foto reagieren.',
     'upload.noFiles':
       'Es ist kein Foto angekommen. Wählen Sie eines aus und versuchen Sie es erneut.',
     'upload.unexpectedField': 'Diese Datei konnte nicht gelesen werden. Versuchen Sie es erneut.',

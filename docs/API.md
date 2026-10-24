@@ -1691,8 +1691,13 @@ carries it), `429 rate.limited` with a `Retry-After` (the guest-write bucket of 
 projected in front of a family is not acceptable. One of each kind per guest per photo.
 Only on a **published** photo: you react to what is on the wall.
 
+Not on one's **own** photograph: the photo of the night is the one the room liked most, and
+a guest voting for their own is not the room. A photograph the host took has no guest author
+and can be reacted to by anyone. Withdrawing is not refused for the same reason, so a
+reaction given before the rule keeps its way out.
+
 **204**. **Errors** — `409 reaction.alreadyExists`, `409 reaction.notPublished`,
-`403 event.reactionsDisabled`, `429 reaction.rateLimited`.
+`403 event.reactionsDisabled`, `403 reaction.ownPhoto`, `429 reaction.rateLimited`.
 
 ### `DELETE /api/events/:slug/photos/:photoId/reactions/:kind`
 
