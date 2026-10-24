@@ -3,10 +3,10 @@ import { useApi } from '../../../app/useApi'
 import { ApiError, isAbortError } from '../../../lib/http'
 import { messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import type { ReactionCounts, ReactionKind } from '../../../lib/api/dto'
+import type { ReactionKind } from '../../../lib/api/dto'
 
 /**
- * The reactions under one photo, as a guest's phone shows and changes them.
+ * Which reactions this phone has given to one photo, and the taps on their way.
  *
  * View-state only. Whether a reaction is allowed is the server's decision — the host's
  * switch, the photo being on the wall, one of each kind per guest, the budget — and this
@@ -16,8 +16,18 @@ import type { ReactionCounts, ReactionKind } from '../../../lib/api/dto'
  * **Optimistic, and honest about it.** A tap changes the button before the server has
  * answered, because on venue Wi-Fi the answer is seconds away and a button that does not
  * move gets pressed again. The price of that is owed back: a refusal or a dropped
- * connection restores exactly what that tap changed, and the sentence under the row says
- * which. Nothing is left lit that the server does not hold.
+ * connection takes that tap back, and the sentence under the row says which.
+ *
+ * **Two things are kept apart, so that nothing has to be undone by arithmetic.** `sent` is
+ * what the server last said this phone holds; `asked` is the taps whose answer has not come.
+ * The screen shows `sent` with `asked` laid over it. A tap is added to `asked` and leaves it
+ * when its request settles — folded into `sent` on a success, simply dropped on a failure —
+ * so a rollback is the absence of an overlay, and a re-read, which replaces `sent` only,
+ * cannot be doubled or undone by a tap that happened to be in the air.
+ *
+ * Counts are not held. This list is the guest's own photographs, so the only person who can
+ * have reacted to one is its owner: a count would be `0` or `1`, and always the same fact as
+ * "pressed".
  */
 
 export type ReactionsPhase = 'loading' | 'ready' | 'failed'
@@ -26,10 +36,10 @@ export interface PhotoReactionsState {
   /**
    * `loading` until the server has said which reactions this phone already sent — a tap
    * before that could be answered with a refusal about something the guest was never
-   * shown — and `failed` when that read did not arrive.
+   * shown — and again while the row is being read after a refusal that said the screen was
+   * out of date. `failed` when the first read did not arrive.
    */
   readonly phase: ReactionsPhase
-  readonly counts: ReactionCounts
   readonly mine: ReadonlySet<ReactionKind>
   /** A sentence in the guest's current language, ready to render. `null` when nothing failed. */
   readonly error: string | null
@@ -47,52 +57,62 @@ type Failure = { readonly kind: 'load' } | { readonly kind: 'action'; readonly c
 
 interface Loaded {
   readonly phase: ReactionsPhase
-  readonly counts: ReactionCounts
-  readonly mine: readonly ReactionKind[]
+  /** Whether the server has answered at all: a failed re-read keeps what an earlier read said. */
+  readonly known: boolean
+  readonly sent: readonly ReactionKind[]
+  /** What each unanswered tap asked for: `true` to give the reaction, `false` to take it back. */
+  readonly asked: Readonly<Partial<Record<ReactionKind, boolean>>>
   readonly failure: Failure | null
 }
 
-const NOTHING: ReactionCounts = { love: 0, laugh: 0, wow: 0, cheers: 0, clap: 0 }
+const withReaction = (
+  sent: readonly ReactionKind[],
+  kind: ReactionKind,
+  given: boolean,
+): readonly ReactionKind[] => {
+  const others = sent.filter((other) => other !== kind)
+  return given ? [...others, kind] : others
+}
 
 /**
- * Sets one reaction to `pressed` and moves its count by one, leaving every other kind
- * alone. Used for the optimistic step **and** for its rollback with the opposite value,
- * which is what makes a refused tap undo itself without undoing a tap made beside it.
- */
-const withReaction = (state: Loaded, kind: ReactionKind, pressed: boolean): Loaded => ({
-  ...state,
-  counts: { ...state.counts, [kind]: Math.max(0, state.counts[kind] + (pressed ? 1 : -1)) },
-  mine: pressed
-    ? [...state.mine.filter((other) => other !== kind), kind]
-    : state.mine.filter((other) => other !== kind),
-})
-
-/**
- * The two refusals that mean "your screen was out of date" rather than "no".
+ * Whether a failure leaves the phone not knowing what the server holds.
  *
- * `reaction.alreadyExists`: the server holds a reaction this phone did not know it had —
- * a reply lost on venue Wi-Fi, or a second tab. `reaction.notFound`: the one the phone
- * thought it could take back is already gone. Rolling back and stopping would leave the
- * button saying the opposite of the server, so both read the row again.
+ * `reaction.alreadyExists`: the server holds a reaction this phone did not know it had.
+ * `reaction.notFound`: the one the phone thought it could take back is already gone. A
+ * dropped connection (`status 0`) is the same ignorance from the other side: the request may
+ * have been processed and only its reply lost, which is exactly what venue Wi-Fi does, and
+ * the screen would otherwise say "not sent" about a reaction the wall has already shown.
+ * Taking the tap back and stopping would leave the button saying the opposite of the server,
+ * so each reads the row again.
  */
-const STALE_SCREEN = new Set(['reaction.alreadyExists', 'reaction.notFound'])
+const leavesScreenUncertain = (cause: unknown): boolean =>
+  cause instanceof ApiError &&
+  (cause.isNetwork || cause.code === 'reaction.alreadyExists' || cause.code === 'reaction.notFound')
 
 export const usePhotoReactions = (slug: string, photoId: string): PhotoReactionsState => {
   const t = useTranslations()
   const api = useApi()
   const [state, setState] = useState<Loaded>({
     phase: 'loading',
-    counts: NOTHING,
-    mine: [],
+    known: false,
+    sent: [],
+    asked: {},
     failure: null,
   })
   const [attempt, setAttempt] = useState(0)
 
   /**
-   * The kinds with a request in the air. A ref and not state: the guard has to see a tap
-   * made in the same frame as the one before it, before any render has happened.
+   * The kinds with a request in the air, and whether a re-read is waiting for them.
+   *
+   * Refs because they are read by the handlers that settle a request, which have to see the
+   * others' settling as it happens rather than as of the last render.
+   *
+   * **A re-read starts only when nothing is in the air.** One that started earlier could be
+   * answered with a snapshot taken before a request still on its way had landed, and would
+   * then take that tap off the screen while the server holds it.
    */
   const inFlight = useRef<Set<ReactionKind>>(new Set())
+  const rereadWaiting = useRef(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -104,8 +124,8 @@ export const usePhotoReactions = (slug: string, photoId: string): PhotoReactions
         setState((previous) => ({
           ...previous,
           phase: 'ready',
-          counts: answer.counts,
-          mine: answer.mine,
+          known: true,
+          sent: answer.mine,
         }))
       },
       (cause: unknown) => {
@@ -113,8 +133,8 @@ export const usePhotoReactions = (slug: string, photoId: string): PhotoReactions
         // A re-read that fails after the row was already on screen changes nothing: the
         // guest keeps the buttons they have, and the next tap reconciles.
         setState((previous) =>
-          previous.phase === 'ready'
-            ? previous
+          previous.known
+            ? { ...previous, phase: 'ready' }
             : { ...previous, phase: 'failed', failure: { kind: 'load' } },
         )
       },
@@ -131,38 +151,68 @@ export const usePhotoReactions = (slug: string, photoId: string): PhotoReactions
     setAttempt((current) => current + 1)
   }, [])
 
+  /** Reads the row again once nothing is in the air; the buttons rest until it has answered. */
+  const settled = useCallback((kind: ReactionKind) => {
+    inFlight.current.delete(kind)
+    if (rereadWaiting.current && inFlight.current.size === 0) {
+      rereadWaiting.current = false
+      setAttempt((current) => current + 1)
+    }
+  }, [])
+
+  const mine = useMemo<ReadonlySet<ReactionKind>>(() => {
+    const shown = new Set(state.sent)
+    for (const [kind, given] of Object.entries(state.asked)) {
+      if (given) shown.add(kind as ReactionKind)
+      else shown.delete(kind as ReactionKind)
+    }
+    return shown
+  }, [state.sent, state.asked])
+
   const toggle = useCallback(
     (kind: ReactionKind) => {
       if (state.phase !== 'ready' || inFlight.current.has(kind)) return
 
-      const wasMine = state.mine.includes(kind)
+      const given = !mine.has(kind)
       inFlight.current.add(kind)
-      setState((previous) => ({ ...withReaction(previous, kind, !wasMine), failure: null }))
+      setState((previous) => ({
+        ...previous,
+        asked: { ...previous.asked, [kind]: given },
+        failure: null,
+      }))
 
-      const request = wasMine
-        ? api.withdrawReaction(slug, photoId, kind)
-        : api.react(slug, photoId, kind)
+      const request = given
+        ? api.react(slug, photoId, kind)
+        : api.withdrawReaction(slug, photoId, kind)
 
       request.then(
         () => {
-          inFlight.current.delete(kind)
+          setState((previous) => {
+            const { [kind]: _answered, ...asked } = previous.asked
+            return { ...previous, sent: withReaction(previous.sent, kind, given), asked }
+          })
+          settled(kind)
         },
         (cause: unknown) => {
-          inFlight.current.delete(kind)
-          setState((previous) => ({
-            ...withReaction(previous, kind, wasMine),
-            failure: { kind: 'action', cause },
-          }))
-          if (cause instanceof ApiError && STALE_SCREEN.has(cause.code)) {
-            setAttempt((current) => current + 1)
-          }
+          const uncertain = leavesScreenUncertain(cause)
+          setState((previous) => {
+            const { [kind]: _answered, ...asked } = previous.asked
+            return {
+              ...previous,
+              asked,
+              failure: { kind: 'action', cause },
+              // Resting until the row has been read, so no tap is made on a screen the
+              // phone has just been told it cannot trust.
+              phase: uncertain ? 'loading' : previous.phase,
+            }
+          })
+          if (uncertain) rereadWaiting.current = true
+          settled(kind)
         },
       )
     },
-    [api, slug, photoId, state.phase, state.mine],
+    [api, slug, photoId, state.phase, mine, settled],
   )
-
-  const mine = useMemo<ReadonlySet<ReactionKind>>(() => new Set(state.mine), [state.mine])
 
   const error = useMemo<string | null>(() => {
     if (state.failure === null) return null
@@ -170,5 +220,5 @@ export const usePhotoReactions = (slug: string, photoId: string): PhotoReactions
     return messageForError(state.failure.cause, t)
   }, [state.failure, t])
 
-  return { phase: state.phase, counts: state.counts, mine, error, toggle, retry }
+  return { phase: state.phase, mine, error, toggle, retry }
 }

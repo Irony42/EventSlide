@@ -6,10 +6,17 @@
   min-width: 0;
 }
 
+/**
+ * Five equal columns, never a wrapped row.
+ *
+ * Five targets of --touch-min and four gaps are 236 px, which fits the narrowest phone this
+ * runs on; a flexing row left one button alone on a second line the moment the card was a
+ * few pixels short, under a thumb that had just found the others.
+ */
 .row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(var(--touch-min), 1fr));
+  gap: var(--space-1);
 }
 
 /**
@@ -24,18 +31,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
-  min-inline-size: var(--touch-min);
-  min-block-size: var(--touch-min);
-  padding-inline: var(--space-3);
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding-inline: var(--space-1);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-strong);
-  background: transparent;
+  background-color: transparent;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition:
     background-color var(--duration-fast) var(--ease-out),
@@ -45,7 +47,7 @@
 }
 
 .reaction:hover:not(:disabled) {
-  background: var(--surface-overlay);
+  background-color: var(--surface-overlay);
   color: var(--text-primary);
 }
 
@@ -62,7 +64,7 @@
 
 .pressed,
 .pressed:hover:not(:disabled) {
-  background: var(--accent);
+  background-color: var(--accent);
   border-color: var(--accent);
   color: var(--accent-contrast);
 }
@@ -71,10 +73,6 @@
   display: inline-flex;
   font-size: var(--text-lg);
   line-height: 1;
-}
-
-.count {
-  min-inline-size: 1ch;
 }
 
 .failed {

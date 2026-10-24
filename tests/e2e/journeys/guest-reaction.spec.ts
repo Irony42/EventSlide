@@ -16,9 +16,13 @@ import { fr } from '../../../web/src/lib/i18n/fr'
  * be a button a screen reader cannot find either.
  */
 
-/** A reaction button's accessible name: its word, then how many people pressed it. */
-const loveWith = (count: number): string =>
-  fr.upload.reactionButton(fr.upload.reactionKinds.love, count)
+type Kind = keyof typeof fr.upload.reactionKinds
+
+/** A reaction button, by the word a screen reader says for it. */
+const named = (kind: Kind): { name: string; exact: true } => ({
+  name: fr.upload.reactionKinds[kind],
+  exact: true,
+})
 
 test('a reaction a guest gives reaches the wall, outlives a reload, and can be taken back', async ({
   app,
@@ -57,21 +61,28 @@ test('a reaction a guest gives reaches the wall, outlives a reload, and can be t
   // --- Guest: the list is read when the page opens, so a reload is how a guest learns
   // their photo went up. Nothing is offered under it until it has.
   await guest.reload()
-  await expect(guest.getByText(fr.upload.statusPublished)).toBeVisible()
-  const heart = guest.getByRole('button', { name: loveWith(0), exact: true })
+  await expect(guest.getByText(fr.upload.statusPublished, { exact: true })).toBeVisible()
+  const heart = guest.getByRole('button', named('love'))
   await expect(heart).toBeEnabled()
+
+  // The five sit on one line on a phone, whatever has been pressed: a button that drops to a
+  // second row as the others fill is one that moves under the thumb that was about to use it.
+  const kinds: readonly Kind[] = ['love', 'laugh', 'wow', 'cheers', 'clap']
+  const tops = await Promise.all(
+    kinds.map(async (kind) => (await guest.getByRole('button', named(kind)).boundingBox())?.y),
+  )
+  expect(tops).not.toContain(undefined)
+  expect(new Set(tops).size).toBe(1)
+
   await heart.click()
 
   // The thumb sees it at once; the room sees it when the server has announced it.
-  await expect(guest.getByRole('button', { name: loveWith(1), exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  )
+  await expect(heart).toHaveAttribute('aria-pressed', 'true')
   await expect(projector.getByTestId('wall-reaction')).toHaveCount(1)
 
   // --- The server holds it, not just the phone: a fresh page reads it back, pressed.
   await guest.reload()
-  const given = guest.getByRole('button', { name: loveWith(1), exact: true })
+  const given = guest.getByRole('button', named('love'))
   await expect(given).toBeEnabled()
   await expect(given).toHaveAttribute('aria-pressed', 'true')
 
@@ -80,18 +91,15 @@ test('a reaction a guest gives reaches the wall, outlives a reload, and can be t
   const withdrawn = guest.waitForResponse(
     (response) =>
       response.request().method() === 'DELETE' &&
-      response.url().endsWith(`/reactions/love`) &&
+      response.url().endsWith('/reactions/love') &&
       response.status() === 204,
   )
   await given.click()
   await withdrawn
-  await expect(guest.getByRole('button', { name: loveWith(0), exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'false',
-  )
+  await expect(given).toHaveAttribute('aria-pressed', 'false')
 
   await guest.reload()
-  const gone = guest.getByRole('button', { name: loveWith(0), exact: true })
+  const gone = guest.getByRole('button', named('love'))
   await expect(gone).toBeEnabled()
   await expect(gone).toHaveAttribute('aria-pressed', 'false')
 })

@@ -30,8 +30,8 @@ import styles from './MyPhotos.module.css'
  * **Reactions** sit under a photo that is on the wall, and only when the host has them on.
  * Both are decided from what the server already said — the row's status and the event the
  * join returned — so a bar that is not wanted never asks anything. This list is the guest's
- * own photographs, so it is where a guest sees what the room felt about theirs; a photo that
- * is not on the wall has no reactions to show and none to give.
+ * own photographs, so today the reactions here are the guest's own to their own photo; a
+ * photo that is not on the wall has none to give.
  */
 
 const labelsFor = (t: UiText): Readonly<Record<PhotoStatus, string>> => ({

@@ -452,9 +452,6 @@ export const fr = {
       cheers: 'Santé',
       clap: 'Bravo',
     },
-    /** A button's name: its word, then how many people pressed it — said only above zero. */
-    reactionButton: (name: string, count: number) =>
-      count === 0 ? name : `${name}, ${t.number(count)}`,
     /** The row's name. Numbered like `deleteOwnNumbered`, so two rows are never one label. */
     reactionsGroup: (position: number) => `Réagir à la photo ${t.number(position)}`,
     reactionsFailed: 'Les réactions n’ont pas pu être chargées.',

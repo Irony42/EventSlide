@@ -1126,7 +1126,7 @@ describe('reacting to a photo of one’s own', () => {
     havingJoined({ allowReactions: true })
     const api = fakeApi(withPhotos(aGuestPhoto({ id: 'photo-9', status: 'published' })))
     renderUpload(api)
-    const love = fr.upload.reactionButton(fr.upload.reactionKinds.love, 0)
+    const love = fr.upload.reactionKinds.love
     await waitFor(() => expect(screen.getByRole('button', { name: love })).toBeEnabled())
 
     await userEvent.click(screen.getByRole('button', { name: love }))

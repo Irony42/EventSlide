@@ -230,8 +230,6 @@ export const de: UiText = {
       cheers: 'Prost',
       clap: 'Applaus',
     },
-    reactionButton: (name: string, count: number) =>
-      count === 0 ? name : `${name}, ${t.number(count)}`,
     reactionsGroup: (position: number) => `Auf Foto ${t.number(position)} reagieren`,
     reactionsFailed: 'Die Reaktionen konnten nicht geladen werden.',
   },
