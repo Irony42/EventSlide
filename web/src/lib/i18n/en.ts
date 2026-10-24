@@ -262,7 +262,7 @@ export const en: UiText = {
     'account.holdsReviews': 'This account reviewed photos, whose rows carry its name.',
     'account.lastClientOwner':
       'This account is the only owner of a client that still has members or events: add an owner, or end the client’s engagement.',
-    'client.graceInvalid': 'This delay is not accepted: from 1 to 365 days.',
+    'client.graceInvalid': 'This grace period is not accepted. Give a whole number of days.',
     'client.offboarding': 'This client’s engagement is ending: its suspension cannot be lifted.',
     unknown: 'Something went wrong. Try again in a moment.',
     network: 'The connection dropped. Check your network, then try again.',
@@ -1166,7 +1166,7 @@ export const en: UiText = {
       }),
     periodEvents: (count: number) => `Created in the period: ${t.number(count)}`,
     suspendedSince: (date: string) => `Suspended since ${date}.`,
-    purgeOn: (date: string) => `The albums will be purged on ${date}.`,
+    purgeOn: (date: string) => `The albums will be purged on ${date} at the latest.`,
     suspend: 'Suspend',
     suspendTitle: 'Suspend this client?',
     suspendBody:
@@ -1290,30 +1290,31 @@ export const en: UiText = {
     disableAccount: 'Switch off',
     enableAccount: 'Switch on',
     deleteAccount: 'Delete',
-    disableTitle: 'Switch this account off?',
+    disableTitle: (address: string) => `Switch off the account of ${address}?`,
     disableBody:
       'Every session it has ends at once and the person can no longer sign in. Nothing is deleted: switching it back on gives the access back, but they will have to sign in again.',
     accountDisabledDone: 'Account switched off.',
     accountEnabledDone: 'Account switched on.',
-    deleteTitle: 'Delete this account?',
+    deleteTitle: (address: string) => `Delete the account of ${address}?`,
     deleteBody:
-      'This answers an erasure request. The account, its memberships, its invitations, its second factor and the share links it created go away. Its address stays in its live sessions (seven days at most) and in links already issued until they expire. This cannot be undone.',
+      'This answers an erasure request. The account, its memberships, the invitations addressed to it, its second factor and the share links it created go away. The log lines it wrote stay, without its name, and so do the invitations it issued. Its address stays in its live sessions (seven days at most) and in links already issued until they expire. This cannot be undone.',
     accountDeletedDone: 'Account deleted.',
     offboardTitle: 'End of engagement',
     offboardIntro:
-      'Live events are closed, drafts are archived, the client is suspended, and its albums are purged when the delay you give runs out: it is the time the client has to export what it wants to keep. The accounts that belonged only to it are deleted then.',
-    graceDays: 'Delay before the purge, in days',
+      'Live events are closed, drafts are archived, the client is suspended, and its albums are purged at the latest when the grace period you give runs out: it is the time the client has to export what it wants to keep (an event’s own retention or the client’s limits may purge sooner). Then the accounts that belonged only to it and hold nothing else are deleted, and the client with them.',
+    graceDays: 'Grace period before the purge, in days',
     graceDaysHint: 'A whole number of days: the limits are the server’s.',
     offboardAction: 'End the engagement',
     offboardConfirmTitle: 'End this client’s engagement?',
     offboardConfirmBody: (days: number) =>
       t.count(days, {
-        one: `In ${t.number(days)} day, this client’s albums will be purged, with no way back. Until then its live events are closed, its drafts archived and the client suspended.`,
-        other: `In ${t.number(days)} days, this client’s albums will be purged, with no way back. Until then its live events are closed, its drafts archived and the client suspended.`,
+        one: `In ${t.number(days)} day at the latest, this client’s albums will be purged, then the client will be deleted along with the accounts that belonged only to it and hold nothing else. There is no way back: neither the date nor the suspension can be changed. Until then its live events are closed, its drafts archived and the client suspended.`,
+        other: `In ${t.number(days)} days at the latest, this client’s albums will be purged, then the client will be deleted along with the accounts that belonged only to it and hold nothing else. There is no way back: neither the date nor the suspension can be changed. Until then its live events are closed, its drafts archived and the client suspended.`,
       }),
     offboardedDone: 'Engagement ending.',
     offboardingRunning:
-      'This engagement is ending: the albums will be purged on the date shown above.',
+      'This engagement is ending: the albums will be purged on the date shown above at the latest.',
+    daysNotWhole: 'Give a whole number of days.',
   },
 
   titles: {

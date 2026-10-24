@@ -282,7 +282,8 @@ export const de: UiText = {
     'account.holdsReviews': 'Dieses Konto hat Fotos geprüft, deren Zeilen seinen Namen tragen.',
     'account.lastClientOwner':
       'Dieses Konto ist der einzige Inhaber eines Kunden, der noch Mitglieder oder Veranstaltungen hat: Fügen Sie einen Inhaber hinzu oder beenden Sie die Zusammenarbeit mit dem Kunden.',
-    'client.graceInvalid': 'Diese Frist wird nicht akzeptiert: von 1 bis 365 Tagen.',
+    'client.graceInvalid':
+      'Diese Frist wird nicht akzeptiert. Geben Sie eine ganze Zahl von Tagen an.',
     'client.offboarding':
       'Die Zusammenarbeit mit diesem Kunden endet gerade: Seine Sperre lässt sich nicht aufheben.',
     unknown: 'Etwas ist schiefgelaufen. Versuchen Sie es gleich noch einmal.',
@@ -1221,7 +1222,7 @@ export const de: UiText = {
       }),
     periodEvents: (count: number) => `Im Zeitraum erstellt: ${t.number(count)}`,
     suspendedSince: (date: string) => `Gesperrt seit ${date}.`,
-    purgeOn: (date: string) => `Die Alben werden am ${date} gelöscht.`,
+    purgeOn: (date: string) => `Die Alben werden spätestens am ${date} gelöscht.`,
     suspend: 'Sperren',
     suspendTitle: 'Diesen Kunden sperren?',
     suspendBody:
@@ -1347,30 +1348,31 @@ export const de: UiText = {
     disableAccount: 'Deaktivieren',
     enableAccount: 'Reaktivieren',
     deleteAccount: 'Löschen',
-    disableTitle: 'Dieses Konto deaktivieren?',
+    disableTitle: (address: string) => `Konto von ${address} deaktivieren?`,
     disableBody:
       'Alle seine Sitzungen enden sofort, und die Person kann sich nicht mehr anmelden. Nichts wird gelöscht: Beim Reaktivieren bekommt sie den Zugang zurück, muss sich aber neu anmelden.',
     accountDisabledDone: 'Konto deaktiviert.',
     accountEnabledDone: 'Konto reaktiviert.',
-    deleteTitle: 'Dieses Konto löschen?',
+    deleteTitle: (address: string) => `Konto von ${address} löschen?`,
     deleteBody:
-      'Das beantwortet eine Löschanfrage. Das Konto, seine Zugehörigkeiten, seine Einladungen, sein zweiter Faktor und die von ihm erstellten Freigabelinks verschwinden. Seine Adresse bleibt in seinen laufenden Sitzungen (höchstens sieben Tage) und in bereits ausgestellten Links bis zu deren Ablauf. Das lässt sich nicht rückgängig machen.',
+      'Das beantwortet eine Löschanfrage. Das Konto, seine Zugehörigkeiten, die an es gerichteten Einladungen, sein zweiter Faktor und die von ihm erstellten Freigabelinks verschwinden. Die von ihm geschriebenen Protokollzeilen bleiben, ohne seinen Namen, ebenso die von ihm ausgestellten Einladungen. Seine Adresse bleibt in seinen laufenden Sitzungen (höchstens sieben Tage) und in bereits ausgestellten Links bis zu deren Ablauf. Das lässt sich nicht rückgängig machen.',
     accountDeletedDone: 'Konto gelöscht.',
     offboardTitle: 'Ende der Zusammenarbeit',
     offboardIntro:
-      'Live-Veranstaltungen werden beendet, Entwürfe archiviert, der Kunde wird gesperrt, und seine Alben werden nach der von Ihnen gesetzten Frist gelöscht: So lange hat der Kunde Zeit, zu exportieren, was er behalten will. Die Konten, die nur ihm gehörten, werden dann gelöscht.',
+      'Live-Veranstaltungen werden beendet, Entwürfe archiviert, der Kunde wird gesperrt, und seine Alben werden spätestens nach der von Ihnen gesetzten Frist gelöscht: So lange hat der Kunde Zeit, zu exportieren, was er behalten will (die Aufbewahrung einer Veranstaltung oder die Grenzen des Kunden können früher löschen). Danach werden die Konten, die nur ihm gehörten und sonst nichts halten, gelöscht, und mit ihnen der Kunde.',
     graceDays: 'Frist bis zur Löschung, in Tagen',
     graceDaysHint: 'Eine ganze Zahl von Tagen: Die Grenzen setzt der Server.',
     offboardAction: 'Zusammenarbeit beenden',
     offboardConfirmTitle: 'Die Zusammenarbeit mit diesem Kunden beenden?',
     offboardConfirmBody: (days: number) =>
       t.count(days, {
-        one: `In ${t.number(days)} Tag werden die Alben dieses Kunden gelöscht, ohne Rückweg. Bis dahin werden seine Live-Veranstaltungen beendet, seine Entwürfe archiviert und der Kunde gesperrt.`,
-        other: `In ${t.number(days)} Tagen werden die Alben dieses Kunden gelöscht, ohne Rückweg. Bis dahin werden seine Live-Veranstaltungen beendet, seine Entwürfe archiviert und der Kunde gesperrt.`,
+        one: `Spätestens in ${t.number(days)} Tag werden die Alben dieses Kunden gelöscht, danach der Kunde mit den Konten, die nur ihm gehörten und sonst nichts halten. Unwiderruflich: Weder das Datum noch die Sperre lassen sich ändern. Bis dahin werden seine Live-Veranstaltungen beendet, seine Entwürfe archiviert und der Kunde gesperrt.`,
+        other: `Spätestens in ${t.number(days)} Tagen werden die Alben dieses Kunden gelöscht, danach der Kunde mit den Konten, die nur ihm gehörten und sonst nichts halten. Unwiderruflich: Weder das Datum noch die Sperre lassen sich ändern. Bis dahin werden seine Live-Veranstaltungen beendet, seine Entwürfe archiviert und der Kunde gesperrt.`,
       }),
     offboardedDone: 'Ende der Zusammenarbeit eingeleitet.',
     offboardingRunning:
-      'Diese Zusammenarbeit endet: Die Alben werden an dem oben genannten Datum gelöscht.',
+      'Diese Zusammenarbeit endet: Die Alben werden spätestens an dem oben genannten Datum gelöscht.',
+    daysNotWhole: 'Geben Sie eine ganze Zahl von Tagen an.',
   },
 
   titles: {

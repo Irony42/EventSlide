@@ -30,11 +30,14 @@ const wholeDays = (text: string): number | null => {
  * closed and its drafts archived, the client is suspended, and its albums are purged when the window
  * the operator gives runs out, which is the time the client has to export what it wants to keep.
  *
- * Surface: the operator's laptop. **It is the one act of the console that cannot be taken back once
- * the window has run out**, so it is asked twice: the number of days, then a confirmation that says
+ * Surface: the operator's laptop. **It is one of the two acts of the console that cannot be taken
+ * back** (deleting an account is the other), so it is asked twice: the number of days, then a confirmation that says
  * how many and what happens, and then the confirmation of the person (the step-up) if the server
- * asks for it. The console states no range for the window: it is the server's (`client.graceInvalid`,
- * said in its words), so a bound changed there is not a bound left stale here.
+ * asks for it. The console checks no range for the window and sends whatever whole number was typed: a
+ * window out of range is refused by the server (`client.graceInvalid`), and the sentence for that
+ * says no number, so a bound changed there is not a bound left stale here. (The sentence for the
+ * ceilings' own refusals does print theirs, as the host's console does for its own: those are copy,
+ * not checks.)
  *
  * A client already being wound down shows that and offers nothing more: the server keeps the first
  * date whatever a second request asks for, and a form that cannot change anything is not offered.
@@ -86,7 +89,7 @@ export function OffboardCard({ client, onChanged }: OffboardCardProps) {
         <Field
           label={t.site.graceDays}
           hint={t.site.graceDaysHint}
-          {...(invalid ? { error: t.site.notANumber } : {})}
+          {...(invalid ? { error: t.site.daysNotWhole } : {})}
         >
           {(control) => (
             <TextInput

@@ -270,9 +270,9 @@ export const es: UiText = {
     'account.holdsReviews': 'Esta cuenta revisó fotos, cuyas filas llevan su nombre.',
     'account.lastClientOwner':
       'Esta cuenta es la única propietaria de un cliente que aún tiene miembros o eventos: añada un propietario o ponga fin al compromiso del cliente.',
-    'client.graceInvalid': 'Este plazo no se acepta: de 1 a 365 días.',
+    'client.graceInvalid': 'Este plazo no se acepta. Indique un número entero de días.',
     'client.offboarding':
-      'El compromiso de este cliente está terminando: su suspensión no se puede levantar.',
+      'La colaboración con este cliente está terminando: su suspensión no se puede levantar.',
     unknown: 'Se ha producido un error. Inténtelo de nuevo en un momento.',
     network: 'Se ha interrumpido la conexión. Revise su red e inténtelo de nuevo.',
     'request.invalid': 'Los datos enviados no son válidos.',
@@ -1211,7 +1211,7 @@ export const es: UiText = {
       }),
     periodEvents: (count: number) => `Creados en el periodo: ${t.number(count)}`,
     suspendedSince: (date: string) => `Suspendido desde el ${date}.`,
-    purgeOn: (date: string) => `Los álbumes se eliminarán el ${date}.`,
+    purgeOn: (date: string) => `Los álbumes se eliminarán como muy tarde el ${date}.`,
     suspend: 'Suspender',
     suspendTitle: '¿Suspender este cliente?',
     suspendBody:
@@ -1320,8 +1320,8 @@ export const es: UiText = {
       'account.resetApproved': 'Restablecimiento aprobado por un propietario.',
       'account.resetIssued': 'Restablecimiento emitido.',
       'account.disabled': 'Cuenta desactivada.',
-      'client.offboarded': 'Fin del compromiso iniciado.',
-      'client.finalized': 'Cliente eliminado al terminar su compromiso.',
+      'client.offboarded': 'Fin de la colaboración iniciado.',
+      'client.finalized': 'Cliente eliminado al terminar la colaboración.',
       'account.enabled': 'Cuenta reactivada.',
       'account.deleted': 'Cuenta eliminada.',
       'account.termsAccepted': 'Condiciones de uso aceptadas.',
@@ -1336,30 +1336,31 @@ export const es: UiText = {
     disableAccount: 'Desactivar',
     enableAccount: 'Reactivar',
     deleteAccount: 'Eliminar',
-    disableTitle: '¿Desactivar esta cuenta?',
+    disableTitle: (address: string) => `¿Desactivar la cuenta de ${address}?`,
     disableBody:
       'Todas sus conexiones abiertas terminan al instante y la persona ya no puede iniciar sesión. No se elimina nada: al reactivarla recupera el acceso, pero tendrá que volver a iniciar sesión.',
     accountDisabledDone: 'Cuenta desactivada.',
     accountEnabledDone: 'Cuenta reactivada.',
-    deleteTitle: '¿Eliminar esta cuenta?',
+    deleteTitle: (address: string) => `¿Eliminar la cuenta de ${address}?`,
     deleteBody:
-      'Responde a una solicitud de supresión. La cuenta, sus pertenencias, sus invitaciones, su segundo factor y los enlaces para compartir que creó desaparecen. Su dirección permanece en sus conexiones abiertas (siete días como máximo) y en los enlaces ya emitidos hasta que caduquen. Esta acción es definitiva.',
+      'Responde a una solicitud de supresión. La cuenta, sus pertenencias, las invitaciones dirigidas a ella, su segundo factor y los enlaces para compartir que creó desaparecen. Las líneas del registro que escribió permanecen, sin su nombre, y también las invitaciones que emitió. Su dirección permanece en sus conexiones abiertas (siete días como máximo) y en los enlaces ya emitidos hasta que caduquen. Esta acción es definitiva.',
     accountDeletedDone: 'Cuenta eliminada.',
-    offboardTitle: 'Fin del compromiso',
+    offboardTitle: 'Fin de la colaboración',
     offboardIntro:
-      'Los eventos en directo se cierran, los borradores se archivan, el cliente se suspende y sus álbumes se eliminan cuando termina el plazo que usted fija: es el tiempo que tiene el cliente para exportar lo que quiere conservar. Las cuentas que solo le pertenecían se eliminan entonces.',
+      'Los eventos en directo se cierran, los borradores se archivan, el cliente se suspende y sus álbumes se eliminan como muy tarde al terminar el plazo que usted fija: es el tiempo que tiene el cliente para exportar lo que quiere conservar (la retención propia de un evento o los límites del cliente pueden eliminarlos antes). Después se eliminan las cuentas que solo le pertenecían y no tienen nada más, y el cliente con ellas.',
     graceDays: 'Plazo antes de la eliminación, en días',
     graceDaysHint: 'Un número entero de días: los límites son los del servidor.',
-    offboardAction: 'Poner fin al compromiso',
-    offboardConfirmTitle: '¿Poner fin al compromiso de este cliente?',
+    offboardAction: 'Poner fin a la colaboración',
+    offboardConfirmTitle: '¿Poner fin a la colaboración con este cliente?',
     offboardConfirmBody: (days: number) =>
       t.count(days, {
-        one: `Dentro de ${t.number(days)} día, los álbumes de este cliente se eliminarán, sin vuelta atrás. Hasta entonces sus eventos en directo se cierran, sus borradores se archivan y el cliente se suspende.`,
-        other: `Dentro de ${t.number(days)} días, los álbumes de este cliente se eliminarán, sin vuelta atrás. Hasta entonces sus eventos en directo se cierran, sus borradores se archivan y el cliente se suspende.`,
+        one: `Dentro de ${t.number(days)} día como muy tarde, los álbumes de este cliente se eliminarán y después el propio cliente, con las cuentas que solo le pertenecían y no tienen nada más. No hay vuelta atrás: ni la fecha ni la suspensión podrán cambiarse. Hasta entonces sus eventos en directo se cierran, sus borradores se archivan y el cliente se suspende.`,
+        other: `Dentro de ${t.number(days)} días como muy tarde, los álbumes de este cliente se eliminarán y después el propio cliente, con las cuentas que solo le pertenecían y no tienen nada más. No hay vuelta atrás: ni la fecha ni la suspensión podrán cambiarse. Hasta entonces sus eventos en directo se cierran, sus borradores se archivan y el cliente se suspende.`,
       }),
-    offboardedDone: 'Fin del compromiso en marcha.',
+    offboardedDone: 'Fin de la colaboración en marcha.',
     offboardingRunning:
-      'Este compromiso termina: los álbumes se eliminarán en la fecha indicada arriba.',
+      'Esta colaboración termina: los álbumes se eliminarán como muy tarde en la fecha indicada arriba.',
+    daysNotWhole: 'Indique un número entero de días.',
   },
 
   titles: {

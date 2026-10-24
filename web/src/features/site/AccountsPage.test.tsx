@@ -15,8 +15,8 @@ import {
 } from '../../testing/siteConsole'
 
 /**
- * Every account of the box, by address, and the one act the console offers on it: a password reset
- * that goes to the account's own address.
+ * Every account of the box, by address, and the acts the console offers on it: a password reset that
+ * goes to the account's own address, and (below) switching it off, on and away.
  *
  * Ring 5, through the route table. The operator guard's R2 is what these tests hold from the
  * screen's side: where a mailer delivers the console is never shown the link, and where none can
@@ -337,6 +337,7 @@ describe('the console’s accounts: resetting a password', () => {
  */
 
 const SWITCHED_OFF_AT = '2026-06-22T08:00:00.000Z'
+const ADDRESS = 'camille@example.com'
 
 const press = (name: string) => userEvent.click(screen.getByRole('button', { name }))
 
@@ -387,7 +388,7 @@ describe('the console’s accounts: switching one off', () => {
     await screen.findByRole('table')
 
     await press(fr.site.disableAccount)
-    const dialog = await screen.findByRole('dialog', { name: fr.site.disableTitle })
+    const dialog = await screen.findByRole('dialog', { name: fr.site.disableTitle(ADDRESS) })
     expect(dialog).toHaveAccessibleDescription(fr.site.disableBody)
     await userEvent.click(within(dialog).getByRole('button', { name: fr.app.cancel }))
 
@@ -404,11 +405,29 @@ describe('the console’s accounts: switching one off', () => {
     await screen.findByRole('table')
 
     await press(fr.site.disableAccount)
-    await confirmDialog(fr.site.disableTitle, fr.site.disableAccount)
+    await confirmDialog(fr.site.disableTitle(ADDRESS), fr.site.disableAccount)
 
     await waitFor(() => expect(api.siteDisableAccount).toHaveBeenCalledWith(ACCOUNT_ID))
     expect(await screen.findByText(fr.site.accountDisabledDone)).toBeVisible()
     expect(await screen.findByRole('button', { name: fr.site.enableAccount })).toBeVisible()
+  })
+
+  it('does not reuse the button that switched the account off for the one that would switch it back on', async () => {
+    // A held Enter on the button that was just pressed must not fire the opposite act, unasked: the
+    // two are different elements, so the keyboard is not left on a control that now says another thing.
+    const siteAccounts = vi
+      .fn<Api['siteAccounts']>()
+      .mockResolvedValueOnce({ items: [aSiteAccount()], next: null })
+      .mockResolvedValue({ items: [aSiteAccount({ disabledAt: SWITCHED_OFF_AT })], next: null })
+    open(withAccounts([], { siteAccounts }))
+    await screen.findByRole('table')
+    const switchOff = screen.getByRole('button', { name: fr.site.disableAccount })
+
+    await userEvent.click(switchOff)
+    await confirmDialog(fr.site.disableTitle(ADDRESS), fr.site.disableAccount)
+
+    const switchOn = await screen.findByRole('button', { name: fr.site.enableAccount })
+    expect(switchOn).not.toBe(switchOff)
   })
 
   it('asks the operator to confirm themselves when the server says so, and switches off on that confirmation', async () => {
@@ -421,7 +440,7 @@ describe('the console’s accounts: switching one off', () => {
     await screen.findByRole('table')
 
     await press(fr.site.disableAccount)
-    await confirmDialog(fr.site.disableTitle, fr.site.disableAccount)
+    await confirmDialog(fr.site.disableTitle(ADDRESS), fr.site.disableAccount)
     const prompt = await screen.findByRole('dialog', { name: fr.site.stepUpTitle })
     await userEvent.type(within(prompt).getByLabelText(fr.auth.password), 'le mot de passe')
     await userEvent.type(within(prompt).getByLabelText(fr.auth.secondFactorCode), '123456')
@@ -435,14 +454,61 @@ describe('the console’s accounts: switching one off', () => {
     const siteDisableAccount = vi
       .fn<Api['siteDisableAccount']>()
       .mockRejectedValue(new ApiError(403, 'account.operatorProtected'))
+    const api = withAccounts([aSiteAccount()], { siteDisableAccount })
+    open(api)
+    await screen.findByRole('table')
+
+    await press(fr.site.disableAccount)
+    await confirmDialog(fr.site.disableTitle(ADDRESS), fr.site.disableAccount)
+
+    expect(await screen.findByText(fr.errors['account.operatorProtected'])).toBeVisible()
+    expect(screen.getByText(fr.site.accountActive)).toBeVisible()
+    // A refusal changed nothing, so nothing is read again.
+    expect(api.siteAccounts).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the console’s accounts: while an act is running', () => {
+  it('lets no other button of the row fire until the act has answered', async () => {
+    let answer: () => void = () => undefined
+    const siteDisableAccount = vi.fn<Api['siteDisableAccount']>(
+      () => new Promise<void>((resolve) => (answer = resolve)),
+    )
     open(withAccounts([aSiteAccount()], { siteDisableAccount }))
     await screen.findByRole('table')
 
     await press(fr.site.disableAccount)
-    await confirmDialog(fr.site.disableTitle, fr.site.disableAccount)
+    await confirmDialog(fr.site.disableTitle(ADDRESS), fr.site.disableAccount)
 
-    expect(await screen.findByText(fr.errors['account.operatorProtected'])).toBeVisible()
-    expect(screen.getByText(fr.site.accountActive)).toBeVisible()
+    await waitFor(() => expect(siteDisableAccount).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('button', { name: fr.site.resetPassword })).toBeDisabled()
+    expect(screen.getByRole('button', { name: fr.site.deleteAccount })).toBeDisabled()
+    // Two buttons carry this name while the question is still open: the row's and the question's.
+    for (const button of screen.getAllByRole('button', { name: fr.site.disableAccount })) {
+      expect(button).toBeDisabled()
+    }
+
+    answer()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: fr.site.deleteAccount })).toBeEnabled(),
+    )
+  })
+
+  it('puts the account’s address in the question, so an erasure rests on what is read', async () => {
+    open(
+      withAccounts([aSiteAccount(), aSiteAccount({ id: OPERATOR_ID, email: 'sacha@example.com' })]),
+    )
+    await screen.findByRole('table')
+
+    await userEvent.click(
+      within(screen.getByRole('row', { name: /sacha@example.com/ })).getByRole('button', {
+        name: fr.site.deleteAccount,
+      }),
+    )
+
+    expect(
+      await screen.findByRole('dialog', { name: fr.site.deleteTitle('sacha@example.com') }),
+    ).toBeVisible()
   })
 })
 
@@ -505,7 +571,7 @@ describe('the console’s accounts: deleting one', () => {
     await screen.findByRole('table')
 
     await press(fr.site.deleteAccount)
-    const dialog = await screen.findByRole('dialog', { name: fr.site.deleteTitle })
+    const dialog = await screen.findByRole('dialog', { name: fr.site.deleteTitle(ADDRESS) })
     expect(dialog).toHaveAccessibleDescription(fr.site.deleteBody)
     await userEvent.click(within(dialog).getByRole('button', { name: fr.app.cancel }))
 
@@ -522,7 +588,7 @@ describe('the console’s accounts: deleting one', () => {
     await screen.findByRole('table')
 
     await press(fr.site.deleteAccount)
-    await confirmDialog(fr.site.deleteTitle, fr.site.deleteAccount)
+    await confirmDialog(fr.site.deleteTitle(ADDRESS), fr.site.deleteAccount)
 
     await waitFor(() => expect(api.siteDeleteAccount).toHaveBeenCalledWith(ACCOUNT_ID))
     expect(await screen.findByText(fr.site.accountDeletedDone)).toBeVisible()
@@ -541,14 +607,16 @@ describe('the console’s accounts: deleting one', () => {
       const siteDeleteAccount = vi
         .fn<Api['siteDeleteAccount']>()
         .mockRejectedValue(new ApiError(code === 'account.operatorProtected' ? 403 : 409, code))
-      open(withAccounts([aSiteAccount()], { siteDeleteAccount }))
+      const api = withAccounts([aSiteAccount()], { siteDeleteAccount })
+      open(api)
       await screen.findByRole('table')
 
       await press(fr.site.deleteAccount)
-      await confirmDialog(fr.site.deleteTitle, fr.site.deleteAccount)
+      await confirmDialog(fr.site.deleteTitle(ADDRESS), fr.site.deleteAccount)
 
       expect(await screen.findByText(fr.errors[code])).toBeVisible()
       expect(screen.getByRole('rowheader', { name: 'camille@example.com' })).toBeVisible()
+      expect(api.siteAccounts).toHaveBeenCalledTimes(1)
     },
   )
 
@@ -561,7 +629,7 @@ describe('the console’s accounts: deleting one', () => {
     await screen.findByRole('table')
 
     await press(fr.site.deleteAccount)
-    await confirmDialog(fr.site.deleteTitle, fr.site.deleteAccount)
+    await confirmDialog(fr.site.deleteTitle(ADDRESS), fr.site.deleteAccount)
     const prompt = await screen.findByRole('dialog', { name: fr.site.stepUpTitle })
     await userEvent.type(within(prompt).getByLabelText(fr.auth.password), 'le mot de passe')
     await userEvent.type(within(prompt).getByLabelText(fr.auth.secondFactorCode), '123456')
@@ -577,7 +645,7 @@ describe('the console’s accounts: deleting one', () => {
     await screen.findByRole('table')
 
     await press(fr.site.deleteAccount)
-    await confirmDialog(fr.site.deleteTitle, fr.site.deleteAccount)
+    await confirmDialog(fr.site.deleteTitle(ADDRESS), fr.site.deleteAccount)
     const prompt = await screen.findByRole('dialog', { name: fr.site.stepUpTitle })
     await userEvent.click(within(prompt).getByRole('button', { name: fr.app.cancel }))
 

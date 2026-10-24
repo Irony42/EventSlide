@@ -281,7 +281,7 @@ export const it: UiText = {
       'Questo account ha esaminato delle foto, le cui righe portano il suo nome.',
     'account.lastClientOwner':
       'Questo account è l’unico proprietario di un cliente che ha ancora membri o eventi: aggiunga un proprietario o concluda l’incarico del cliente.',
-    'client.graceInvalid': 'Questo termine non è accettato: da 1 a 365 giorni.',
+    'client.graceInvalid': 'Questo termine non è accettato. Indichi un numero intero di giorni.',
     'client.offboarding':
       'L’incarico di questo cliente sta per concludersi: la sua sospensione non si può revocare.',
     unknown: 'Si è verificato un errore. Riprovi tra un istante.',
@@ -1181,7 +1181,7 @@ export const it: UiText = {
       }),
     periodEvents: (count: number) => `Creati nel periodo: ${t.number(count)}`,
     suspendedSince: (date: string) => `Sospeso dal ${date}.`,
-    purgeOn: (date: string) => `Gli album saranno eliminati il ${date}.`,
+    purgeOn: (date: string) => `Gli album saranno eliminati al più tardi il ${date}.`,
     suspend: 'Sospendi',
     suspendTitle: 'Sospendere questo cliente?',
     suspendBody:
@@ -1306,30 +1306,31 @@ export const it: UiText = {
     disableAccount: 'Disattiva',
     enableAccount: 'Riattiva',
     deleteAccount: 'Elimina',
-    disableTitle: 'Disattivare questo account?',
+    disableTitle: (address: string) => `Disattivare l’account di ${address}?`,
     disableBody:
       'Tutte le sue sessioni terminano subito e la persona non può più accedere. Non viene eliminato nulla: riattivarlo restituisce l’accesso, ma dovrà accedere di nuovo.',
     accountDisabledDone: 'Account disattivato.',
     accountEnabledDone: 'Account riattivato.',
-    deleteTitle: 'Eliminare questo account?',
+    deleteTitle: (address: string) => `Eliminare l’account di ${address}?`,
     deleteBody:
-      'Risponde a una richiesta di cancellazione. L’account, le sue appartenenze, i suoi inviti, il suo secondo fattore e i link di condivisione che ha creato scompaiono. Il suo indirizzo resta nelle sue sessioni aperte (al massimo sette giorni) e nei link già emessi fino alla loro scadenza. Questa azione è definitiva.',
+      'Risponde a una richiesta di cancellazione. L’account, le sue appartenenze, gli inviti indirizzati a lui, il suo secondo fattore e i link di condivisione che ha creato scompaiono. Le righe del registro che ha scritto restano, senza il suo nome, e così gli inviti che ha emesso. Il suo indirizzo resta nelle sue sessioni aperte (al massimo sette giorni) e nei link già emessi fino alla loro scadenza. Questa azione è definitiva.',
     accountDeletedDone: 'Account eliminato.',
     offboardTitle: 'Fine dell’incarico',
     offboardIntro:
-      'Gli eventi in diretta vengono chiusi, le bozze archiviate, il cliente sospeso e i suoi album eliminati allo scadere del termine che lei indica: è il tempo di cui il cliente dispone per esportare ciò che vuole conservare. Gli account che appartenevano solo a lui vengono eliminati in quel momento.',
+      'Gli eventi in diretta vengono chiusi, le bozze archiviate, il cliente sospeso e i suoi album eliminati al più tardi allo scadere del termine che lei indica: è il tempo di cui il cliente dispone per esportare ciò che vuole conservare (la conservazione propria di un evento o i limiti del cliente possono eliminarli prima). Poi vengono eliminati gli account che appartenevano solo a lui e non hanno nient’altro, e con essi il cliente.',
     graceDays: 'Termine prima dell’eliminazione, in giorni',
     graceDaysHint: 'Un numero intero di giorni: i limiti sono quelli del server.',
     offboardAction: 'Concludi l’incarico',
     offboardConfirmTitle: 'Concludere l’incarico di questo cliente?',
     offboardConfirmBody: (days: number) =>
       t.count(days, {
-        one: `Tra ${t.number(days)} giorno gli album di questo cliente verranno eliminati, senza ritorno. Fino ad allora i suoi eventi in diretta sono chiusi, le sue bozze archiviate e il cliente sospeso.`,
-        other: `Tra ${t.number(days)} giorni gli album di questo cliente verranno eliminati, senza ritorno. Fino ad allora i suoi eventi in diretta sono chiusi, le sue bozze archiviate e il cliente sospeso.`,
+        one: `Tra ${t.number(days)} giorno al più tardi gli album di questo cliente verranno eliminati, poi il cliente stesso con gli account che appartenevano solo a lui e non hanno nient’altro. Senza possibilità di recupero: né la data né la sospensione potranno essere modificate. Fino ad allora i suoi eventi in diretta sono chiusi, le sue bozze archiviate e il cliente sospeso.`,
+        other: `Tra ${t.number(days)} giorni al più tardi gli album di questo cliente verranno eliminati, poi il cliente stesso con gli account che appartenevano solo a lui e non hanno nient’altro. Senza possibilità di recupero: né la data né la sospensione potranno essere modificate. Fino ad allora i suoi eventi in diretta sono chiusi, le sue bozze archiviate e il cliente sospeso.`,
       }),
     offboardedDone: 'Fine dell’incarico avviata.',
     offboardingRunning:
-      'Questo incarico sta per concludersi: gli album verranno eliminati alla data indicata sopra.',
+      'Questo incarico sta per concludersi: gli album verranno eliminati al più tardi alla data indicata sopra.',
+    daysNotWhole: 'Indichi un numero intero di giorni.',
   },
 
   titles: {

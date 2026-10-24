@@ -18,6 +18,8 @@ import type { Locale } from '../../lib/i18n/locale'
 
 type NotMailed = Exclude<OperatorPasswordResetDto, { readonly delivery: 'mail' }>
 
+type Act = 'reset' | 'disable' | 'delete'
+
 /**
  * Every account of the box, by address (`GET /api/site/accounts`), and the acts the console offers on
  * one: send its holder a password reset, switch it off or back on, delete it (an erasure request).
@@ -34,8 +36,6 @@ type NotMailed = Exclude<OperatorPasswordResetDto, { readonly delivery: 'mail' }
  * is the last owner of a client) is the server's, in its own sentence: the console knows none of
  * those rules and restates none.
  */
-type Act = 'reset' | 'disable' | 'delete'
-
 export function AccountsPage() {
   const t = useTranslations()
   const { locale } = useLocale()
@@ -70,6 +70,11 @@ export function AccountsPage() {
   const erase = useOperatorAction(useCallback((id: string) => api.siteDeleteAccount(id), [api]))
   const busy = reset.busy || disable.busy || enable.busy || erase.busy
 
+  /** A refusal stays on screen until it is dismissed: one of them carries a thing to do. */
+  const refuse = (message: string): void => {
+    toast.show(message, { tone: 'danger', durationMs: 0 })
+  }
+
   /** What an act on the account came to: said, and the listing read again where it changed. */
   const settle = (
     result: { readonly ok: true } | { readonly ok: false; readonly message: string | null },
@@ -77,7 +82,7 @@ export function AccountsPage() {
   ): void => {
     setActing(null)
     if (!result.ok) {
-      if (result.message !== null) toast.show(result.message, { tone: 'danger' })
+      if (result.message !== null) refuse(result.message)
       return
     }
     toast.show(done, { tone: 'success' })
@@ -108,7 +113,7 @@ export function AccountsPage() {
     void reset.run(account.id, account.id, locale).then((result) => {
       setActing(null)
       if (!result.ok) {
-        if (result.message !== null) toast.show(result.message, { tone: 'danger' })
+        if (result.message !== null) refuse(result.message)
         return
       }
       if (result.value.delivery === 'mail') {
@@ -121,10 +126,21 @@ export function AccountsPage() {
     })
   }
 
+  // The address is in the question: an irreversible act rests on what the operator reads, not on
+  // which row they remember having pressed.
+  const address = acting?.account.email ?? ''
   const wording = {
     reset: { title: t.site.resetTitle, body: t.site.resetBody, label: t.site.resetPassword },
-    disable: { title: t.site.disableTitle, body: t.site.disableBody, label: t.site.disableAccount },
-    delete: { title: t.site.deleteTitle, body: t.site.deleteBody, label: t.site.deleteAccount },
+    disable: {
+      title: t.site.disableTitle(address),
+      body: t.site.disableBody,
+      label: t.site.disableAccount,
+    },
+    delete: {
+      title: t.site.deleteTitle(address),
+      body: t.site.deleteBody,
+      label: t.site.deleteAccount,
+    },
   } as const satisfies Record<Act, { title: string; body: string; label: string }>
 
   return (
@@ -209,6 +225,7 @@ export function AccountsPage() {
                       ) : null}
                       {account.siteRole === 'operator' ? null : account.disabledAt === null ? (
                         <Button
+                          key="disable"
                           variant="secondary"
                           size="sm"
                           aria-describedby={`account-${account.id}`}
@@ -219,6 +236,7 @@ export function AccountsPage() {
                         </Button>
                       ) : (
                         <Button
+                          key="enable"
                           variant="secondary"
                           size="sm"
                           aria-describedby={`account-${account.id}`}

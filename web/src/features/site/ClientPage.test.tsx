@@ -139,7 +139,7 @@ describe('a client’s page: reading it', () => {
 
     expect(screen.getByText(fr.site.statusOffboarding, { selector: 'span' })).toBeVisible()
     expect(screen.getByText(/Suspendu depuis le/)).toBeVisible()
-    expect(screen.getByText(/Les albums seront purgés le/)).toBeVisible()
+    expect(screen.getByText(/Les albums seront purgés au plus tard le/)).toBeVisible()
   })
 
   it('points at this client’s slice of the log', async () => {
@@ -746,7 +746,9 @@ describe('a client’s page: ending its engagement', () => {
 
     await press()
     const confirmation = await dialog(fr.site.offboardConfirmTitle)
-    expect(confirmation).toHaveAccessibleDescription(fr.site.offboardConfirmBody(30))
+    expect(confirmation).toHaveAccessibleDescription(/^Dans 30 jours au plus tard, les albums/)
+    expect(confirmation).toHaveAccessibleDescription(/sans possibilité de retour/i)
+    expect(confirmation).toHaveAccessibleDescription(/ni la date ni la suspension/)
     await userEvent.click(within(confirmation).getByRole('button', { name: fr.app.cancel }))
 
     expect(api.siteOffboardClient).not.toHaveBeenCalled()
@@ -760,7 +762,7 @@ describe('a client’s page: ending its engagement', () => {
     await userEvent.type(days, '1')
     await press()
     expect(await dialog(fr.site.offboardConfirmTitle)).toHaveAccessibleDescription(
-      fr.site.offboardConfirmBody(1),
+      /^Dans 1 jour au plus tard, les albums/,
     )
     await confirm()
 
@@ -802,7 +804,7 @@ describe('a client’s page: ending its engagement', () => {
       await userEvent.type(days, text)
       await press()
 
-      expect(await screen.findByText(fr.site.notANumber)).toBeVisible()
+      expect(await screen.findByText(fr.site.daysNotWhole)).toBeVisible()
       expect(screen.queryByRole('dialog', { name: fr.site.offboardConfirmTitle })).toBeNull()
       expect(api.siteOffboardClient).not.toHaveBeenCalled()
     },
@@ -812,7 +814,8 @@ describe('a client’s page: ending its engagement', () => {
     const siteOffboardClient = vi
       .fn<Api['siteOffboardClient']>()
       .mockRejectedValue(new ApiError(400, 'client.graceInvalid'))
-    const days = await openOffboard(withClient(aSiteClient(), { siteOffboardClient }))
+    const api = withClient(aSiteClient(), { siteOffboardClient })
+    const days = await openOffboard(api)
 
     await userEvent.clear(days)
     await userEvent.type(days, '0')
@@ -822,6 +825,8 @@ describe('a client’s page: ending its engagement', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['client.graceInvalid'])
     expect(days).toHaveValue('0')
     expect(siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 0)
+    // A refusal changed nothing, so the client is not read again.
+    expect(api.siteClients).toHaveBeenCalledTimes(1)
   })
 
   it('asks the operator to confirm themselves when the server says so, and ends the engagement on that confirmation', async () => {
@@ -837,6 +842,30 @@ describe('a client’s page: ending its engagement', () => {
 
     expect(await screen.findByText(fr.site.offboardedDone)).toBeVisible()
     expect(siteOffboardClient).toHaveBeenCalledTimes(2)
+  })
+
+  it('lets the form be sent only once while the engagement is being ended', async () => {
+    let answer: () => void = () => undefined
+    const siteOffboardClient = vi.fn<Api['siteOffboardClient']>(
+      () => new Promise<void>((resolve) => (answer = resolve)),
+    )
+    await openOffboard(withClient(aSiteClient(), { siteOffboardClient }))
+
+    await press()
+    await confirm()
+
+    await waitFor(() => expect(siteOffboardClient).toHaveBeenCalledTimes(1))
+    // The form's button and the open question's carry the same name.
+    for (const button of screen.getAllByRole('button', { name: fr.site.offboardAction })) {
+      expect(button).toBeDisabled()
+    }
+
+    answer()
+    await waitFor(() => {
+      const buttons = screen.getAllByRole('button', { name: fr.site.offboardAction })
+      expect(buttons).toHaveLength(1)
+      expect(buttons[0]).toBeEnabled()
+    })
   })
 
   it('offers no form to a client whose engagement is already ending, and says so', async () => {
