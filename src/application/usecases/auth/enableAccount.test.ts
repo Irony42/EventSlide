@@ -47,6 +47,23 @@ describe('enableAccount (G2-14 part 3)', () => {
     ])
   })
 
+  it('writes a line for every client the account belongs to, not only the first', async () => {
+    clients.seed(aClient({ id: 'client-2', name: 'Studio Sacha' }))
+    for (const clientId of ['client-1', 'client-2']) {
+      await clients.grantMember({
+        clientId: asClientId(clientId),
+        userId: asUserId('user-1'),
+        role: 'member',
+        grantedAt: AT,
+      })
+    }
+
+    await enable({ userId: asUserId('user-1'), actor: OPERATOR })
+
+    const { items } = await audit.list({ limit: 10 })
+    expect(items.map((item) => item.clientId).sort()).toEqual(['client-1', 'client-2'])
+  })
+
   it('writes one line with no client for an account that belongs to none', async () => {
     await enable({ userId: asUserId('user-1'), actor: OPERATOR })
 
