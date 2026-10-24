@@ -9,6 +9,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import { SERVED_VARIANTS, type MediaStore } from '../../ports/mediaStore'
 import type { ClipJobRepository } from '../../ports/clipJobRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
+import { requireWritable } from '../shared/eventRole'
 
 /**
  * Remove a photo, for a host at any time or for the guest who regrets it.
@@ -75,6 +76,9 @@ export const makeDeletePhoto = ({
   return async ({ eventId, photoId, actor }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     // Scoped read: passing `eventId` is what makes a photo of another event a 404
     // rather than a deletion.

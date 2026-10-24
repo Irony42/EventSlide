@@ -14,7 +14,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { MissionRepository } from '../../ports/missionRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { requireEditable, requireEventRole } from '../shared/eventRole'
+import { requireEditable, requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * The host adds a prompt to the list (roadmap §2.1).
@@ -62,6 +62,9 @@ export const makeCreateMission =
 
     const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
     if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     // The archived rule lives in the entity, so the mission list and the event's own
     // fields refuse an archived event for the same reason and in the same words.

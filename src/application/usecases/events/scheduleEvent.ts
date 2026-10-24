@@ -6,7 +6,7 @@ import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { requireEventRole } from '../shared/eventRole'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * The host arms — or disarms — the automatic opening and closing.
@@ -46,6 +46,9 @@ export const makeScheduleEvent =
 
     const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
     if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     const updated = event.reschedule({ scheduledOpenAt, scheduledCloseAt }, clock.now())
     if (!updated.ok) return updated
