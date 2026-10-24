@@ -22,11 +22,11 @@ In an entry:
 
 ## [3.0.0] - 2026-10-02
 
-Everything merged to `main` from pull request #104 on, plus this release's own preparation.
-The work before it is in the 2.1.0 entry, the last release under the GPL-3.0. This is a major
-release: it changes the licence, and it breaks things for an existing installation, which
-`### BREAKING` lists. [docs/UPGRADING.md](docs/UPGRADING.md#upgrading-to-30) says in which
-order to do what.
+Everything merged to `main` after 2.1.0: pull request #104 on, and four older ones that were
+merged after it (#52, #93, #94 and #99), plus this release's own preparation. The work before it
+is in the 2.1.0 entry, the last release under the GPL-3.0. This is a major release: it changes
+the licence, and it breaks things for an existing installation, which `### BREAKING` lists.
+[docs/UPGRADING.md](docs/UPGRADING.md#upgrading-to-30) says in which order to do what.
 
 ### Licence
 
@@ -76,9 +76,9 @@ Read these before you upgrade, and back up with the version you run now.
   `/data` paths and point the server away from your volume. Read your `.env` before you pull,
   and remove what you did not mean to apply.
 - **New settings are checked at boot, and a value that does not fit stops it** (exit 78,
-  naming the variable) (#114, #117, #118, #119, #120, #123, #130). If your environment or `.env`
-  already sets one of these names for another purpose, change or remove it before you
-  upgrade. An empty value counts as not set.
+  naming the variable) (#114, #117, #118, #119, #120, #123, #130, #145, #148, #159). If your
+  environment or `.env` already sets one of these names for another purpose, change or remove
+  it before you upgrade. An empty value counts as not set.
   - `SUPPORT_URL`, `REPORT_URL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL` and
     `LEGAL_NOTICE_URL` take an `https` URL without credentials, or a path starting with one
     `/`.
@@ -88,65 +88,38 @@ Read these before you upgrade, and back up with the version you run now.
     credentials.
   - `SOURCE_REF` takes a git tag, branch or commit; `OPERATOR_NAME`,
     `OPERATOR_CONTACT_EMAIL`, `SMTP_URL` and `MAIL_FROM` take the form `.env.example` shows;
-    `EVENT_CREATION` takes `anyAccount` or `clientMembers`; `AUDIT_RETENTION_DAYS` takes a
+    `EVENT_CREATION` takes `anyAccount` or `clientMembers`; `OPERATOR_RESET_LINKS` takes
+    `mailOnly` or `copyLinkWithOwnerApproval` (case matters); `AUDIT_RETENTION_DAYS` takes a
     number from 365 to 3650.
   - `MFA_ENCRYPTION_KEY` takes the form `.env.example` shows; `REQUIRE_OPERATOR_2FA` takes
     `true`, `false`, `1` or `0`, and is the one name here whose empty value stops the boot
     instead of counting as not set.
-  - The new limits take positive whole numbers: `MIN_FREE_DISK_BYTES`,
-    `MAX_CONCURRENT_UPLOAD_REQUESTS`, `MAX_QUEUED_CLIPS_PER_EVENT`, `MAX_STREAMS_PER_CLIENT`,
-    `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT` and `RETENTION_CAP_NOTICE_DAYS`.
-    `SQLITE_SHUTDOWN_CHECKPOINT` takes `truncate`, `passive` or `none`.
+  - The new limits take positive whole numbers, each with an upper bound that `.env.example`
+    gives: `MIN_FREE_DISK_BYTES`, `MAX_CONCURRENT_UPLOAD_REQUESTS`,
+    `MAX_QUEUED_CLIPS_PER_EVENT`, `MAX_STREAMS_PER_CLIENT`, `MAX_STREAMS_TOTAL`,
+    `MAX_SUBSCRIBERS_PER_EVENT` and `RETENTION_CAP_NOTICE_DAYS`. `SQLITE_SHUTDOWN_CHECKPOINT`
+    takes `truncate`, `passive` or `none`.
   - The ceilings a new client starts with, all optional and all for a box that has clients
     (`SITE_ADMIN=on`): `NEW_CLIENT_MAX_EVENTS`, `NEW_CLIENT_MAX_EVENTS_PER_PERIOD`,
     `NEW_CLIENT_MAX_TOTAL_BYTES` and `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` take positive whole
     numbers, `NEW_CLIENT_MAX_RETENTION_DAYS` a whole number from 1 to 3650,
     `NEW_CLIENT_MAX_LIVE_DAYS` one from 1 to 365, and `NEW_CLIENT_CLIPS_ALLOWED` `true`, `false`,
-    `1` or `0` (#145).
+    `1` or `0`.
   - These combinations are refused too: `SMTP_URL` without `MAIL_FROM`,
-    `EVENT_CREATION=clientMembers` without `SITE_ADMIN=on`, `OPERATOR_CONTACT_EMAIL`
-    without `OPERATOR_NAME`, `LEGAL_TERMS_VERSION` without `LEGAL_TERMS_URL`, `REQUIRE_OPERATOR_2FA=true` without a valid
+    `EVENT_CREATION=clientMembers` without `SITE_ADMIN=on`,
+    `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval` without `SITE_ADMIN=on`,
+    `OPERATOR_CONTACT_EMAIL` without `OPERATOR_NAME`,
+    `LEGAL_TERMS_VERSION` without `LEGAL_TERMS_URL`, `REQUIRE_OPERATOR_2FA=true` without a valid
     `MFA_ENCRYPTION_KEY` or without `SITE_ADMIN=on`, an `MFA_ENCRYPTION_KEY` equal to
     `SESSION_SECRET` or `GUEST_TOKEN_SECRET`, any `NEW_CLIENT_*` setting without
     `SITE_ADMIN=on` (which is the default), any other name that starts with `NEW_CLIENT_`, and
     `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` above `MAX_EVENT_QUOTA_BYTES`.
-- **An account that must change its password is stopped by the server** (#108), with
-  `403 auth.passwordChangeRequired` on every `/api` route except `GET /api/auth/me`,
-  `POST /api/auth/password` and `POST /api/auth/logout` (and the health and readiness
-  probes, which take no account). Only the web app stopped it before, so a script that signed
-  in as such an account and went straight to its work is refused until it has changed the
-  password.
-- **Changing a password ends the account's other sessions** (#125). `POST /api/auth/password`
-  signs out every other session of the account and replaces the caller's own `es_session` and
-  `es_csrf` cookies. A client that keeps the CSRF value it read at sign-in sends a stale
-  `X-CSRF-Token` and gets `403 request.csrfMismatch`: read the cookie again.
-- **Uploads can be refused for two new reasons** (#105). With less than 1 GB free
-  (`MIN_FREE_DISK_BYTES`) on the database or media volume, or when the free space cannot be
-  read, an upload gets `413 storage.boxFull`. With more than four uploads in flight at once
-  (`MAX_CONCURRENT_UPLOAD_REQUESTS`), the next gets `429 upload.busy` and a `Retry-After`.
-- **A video clip queue has a cap per event as well** (#109). `MAX_QUEUED_CLIPS_PER_EVENT`
-  defaults to 20 whatever `MAX_QUEUED_CLIPS` is. If you raised `MAX_QUEUED_CLIPS` above 20,
-  one event can no longer queue more than 20 clips: the next gets `429 clip.queueFull`
-  while the box-wide limit is far off. Raise `MAX_QUEUED_CLIPS_PER_EVENT` to match.
-- **Signing in is throttled per account** (#128). After five failed sign-ins for one address
-  from one network, the next attempt gets `429 rate.limited` with a `Retry-After` that starts
-  at one second, doubles with each further failure and stops at 15 minutes; the right
-  password is refused during that wait too. No account is locked: the wait belongs to one
-  network, and the owner of the address signs in from another with no wait. Beyond 100
-  failures an hour across every network, each attempt is held for two seconds and never
-  refused. A script that retries a wrong password must back off.
-- **A moderator is invited by a link, and the box no longer makes an account for them**
-  (#139, #141). `POST /api/events/:slug/moderators` takes `{ "email" }` (and an optional
-  `locale`) and answers `201 { "status": "invited", "expiresAt", "link"? }`. It no longer takes
-  `temporaryPassword` or `displayName`: a client that sends either gets `400 request.invalid`. It no
-  longer answers `created` or `userId`, which said whether the address was already on the box, and it
-  creates no account and no role: the person opens the link (`GET /api/invitations/:token`,
-  `POST /api/invitations/:token/accept`), chooses a name and a password, and the account exists from
-  that moment. The link works once and lives seven days. With a mail relay (`SMTP_URL`) it is mailed
-  and the answer has no `link`; with none, `link` is in the answer for the host to pass on. A script that
-  invited moderators must stop sending a password, read `link` when it is there, and give it to the
-  person. An address that already has an account is never given a second one and is never attached by
-  someone who only holds the link: that account signs in and accepts as itself.
+- **A whole number above 9007199254740991 (2^53 - 1) is refused** (#52, #154), where it was
+  rounded and accepted. In the environment that is one more boot refusal on a configuration
+  that used to start: `MAX_EVENT_QUOTA_BYTES=99999999999999999999`, written to mean "no limit",
+  booted before and now stops it (exit 78, naming the variable). Leave the variable empty for no
+  ceiling. In a request, a quota or a link lifetime above that number is `400 request.invalid`
+  instead of being stored as another number.
 - **A plain-`http` `PUBLIC_URL` is refused in production whatever the case of its scheme**
   (#146). `PUBLIC_URL=HTTP://photos.example.com` used to boot and hand guests join links that
   the `Secure` session cookie is never sent over; it now stops the boot like
@@ -170,6 +143,52 @@ Read these before you upgrade, and back up with the version you run now.
   never repeats the value). Remove it from the address; a `?` or `#` that belongs in a path prefix
   is written `%3F` or `%23` and boots. There was no warning first, because the old behaviour broke
   the join link of every guest.
+- **An account that must change its password is stopped by the server** (#108), with
+  `403 auth.passwordChangeRequired` on every `/api` route except `GET /api/auth/me`,
+  `POST /api/auth/password` and `POST /api/auth/logout` (and the health and readiness
+  probes, which take no account). Only the web app stopped it before, so a script that signed
+  in as such an account and went straight to its work is refused until it has changed the
+  password.
+- **Changing a password ends the account's other sessions** (#125). `POST /api/auth/password`
+  signs out every other session of the account and replaces the caller's own `es_session` and
+  `es_csrf` cookies. A client that keeps the CSRF value it read at sign-in sends a stale
+  `X-CSRF-Token` and gets `403 request.csrfMismatch`: read the cookie again.
+- **Uploads can be refused for two new reasons** (#105). With less than 1 GB free
+  (`MIN_FREE_DISK_BYTES`) on the database or media volume, or when the free space cannot be
+  read, an upload gets `413 storage.boxFull`. With more than four uploads in flight at once
+  (`MAX_CONCURRENT_UPLOAD_REQUESTS`), the next gets `429 upload.busy` and a `Retry-After`.
+- **A video clip queue has a cap per event as well** (#109). `MAX_QUEUED_CLIPS_PER_EVENT`
+  defaults to 20 whatever `MAX_QUEUED_CLIPS` is. If you raised `MAX_QUEUED_CLIPS` above 20,
+  one event can no longer queue more than 20 clips: the next gets `429 clip.queueFull`
+  while the box-wide limit is far off. Raise `MAX_QUEUED_CLIPS_PER_EVENT` to match.
+- **Signing in is throttled per account** (#128). After five failed sign-ins for one address
+  from one network, the next attempt gets `429 rate.limited` with a `Retry-After` that starts
+  at one second, doubles with each further failure and stops at 15 minutes; the right
+  password is refused during that wait too. No account is locked: the wait belongs to one
+  network, and the owner of the address signs in from another with no wait. A browser that has
+  signed in to the account before presents `es_device`, a signed cookie the sign-in sets
+  (`HttpOnly`, `SameSite=Strict`, `Path=/api/auth`, 90 days) and is counted on its own, so a
+  stranger on the owner's network no longer holds them off (#131); the cookie grants nothing and
+  skips no step. Beyond 100 failures an hour across every network, each attempt is held for two
+  seconds and never refused. A script that retries a wrong password must back off.
+- **A moderator is invited by a link, and the box no longer makes an account for them**
+  (#139, #141). `POST /api/events/:slug/moderators` takes `{ "email" }` (and an optional
+  `locale`) and answers `201 { "status": "invited", "expiresAt", "link"? }`. It no longer takes
+  `temporaryPassword` or `displayName`: a client that sends either gets `400 request.invalid`. It no
+  longer answers `created` or `userId`, which said whether the address was already on the box, and it
+  creates no account and no role: the person opens the link (`GET /api/invitations/:token`,
+  `POST /api/invitations/:token/accept`), chooses a name and a password, and the account exists from
+  that moment. The link works once and lives seven days. With a mail relay (`SMTP_URL`) it is mailed
+  and the answer has no `link`; with none, `link` is in the answer for the host to pass on. A script that
+  invited moderators must stop sending a password, read `link` when it is there, and give it to the
+  person. An address that already has an account is never given a second one and is never attached by
+  someone who only holds the link: that account signs in and accepts as itself.
+- **The server runs on Express 5, and a path with a doubled slash no longer reaches a route**
+  (#93). A request for `/api//health` or `/api//events/gala/wall` was handed to the router as
+  `/health` or `/events/gala/wall`; it answers 404 now. A script or a probe that builds its
+  address by joining a base ending in `/api/` to a path that starts with `/` breaks, and so does a
+  reverse-proxy rule that rewrites a path into that shape. The other differences a client or a
+  proxy can see are under "Behaviour changes to check before upgrading".
 
 ### Behaviour changes to check before upgrading
 
@@ -181,13 +200,50 @@ Read these before you upgrade, and back up with the version you run now.
   (five indexes on the foreign keys that deleting a guest, a mission or an event follows, so
   that purging an event no longer reads every photograph of the box once per guest: 320 ms
   became 5 ms on a box of thirty events of a hundred guests and a thousand photographs, and the
-  server answers nothing else while it runs;
-  building them takes a moment on a large database) and 014 (eight indexes on the foreign keys that
-  point at `users`, so that deleting an account, which the operator now does for an erasure request and
-  the retention sweep does for a client whose engagement has ended, does not read the whole audit log
-  once per account; they take a moment on a large database too).
+  server answers nothing else while it runs; building them takes a moment on a large database)
+  (#162) and 014 (eight indexes on the foreign keys that point at `users`, so that deleting an
+  account, which the operator now does for an erasure request and the retention sweep does for a
+  client whose engagement has ended, does not read the whole audit log once per account; they
+  take a moment on a large database too) (#169).
   Migrations are not reversed, and 2.1.0 refuses a database that holds them
   ("downgrading is not supported"), so back up first.
+- **A box that runs with `SITE_ADMIN=on` now has an operator API behind that switch** (#160,
+  #164, #169). In 2.1.0 the namespace was mounted and answered nothing past its gate;
+  `/api/site/*` now carries the routes of "Added" below, for the account whose site role is
+  `operator`, which is the first account the box ever had (2.1.0 gave it the role). Every route that
+  changes something asks that account to confirm itself again (`403 auth.stepUpRequired`).
+  `/api/client/*` and `GET /api/me/limits` are mounted under the same switch. Off, which is the
+  default, every one of those paths answers exactly as a path nobody wrote.
+- **On a box with clients, an event reports the limits that bind it** (#153). `quotaBytes` is the
+  quota that applies (a client's ceiling can lower it), `liveWindowEnd` is when the client's live
+  window closes the event and is absent when there is none, and what the join answers as
+  `allowClips` is the host's switch, the client's plan and the box's capability together. Each
+  used to show the event's own setting. A box with no client reads exactly as before.
+- **What Express 5 changes that a client or a proxy can see** (#93; each was measured against
+  the previous version on 265 requests):
+  - A request body with `Content-Encoding: br` (brotli) is accepted; it was a 400. The 64 kB
+    limit applies to the inflated body, as it already did for gzip and deflate.
+  - A query key with brackets (`?cursor[a]=1`) is one flat key instead of a nested one. A route
+    still refuses a key it does not know with `400 request.invalid`; only `details.fields` can
+    differ, because the unknown key is now named at the root.
+  - The files of the client app: a dot-directory inside the client folder (`/.well-known/x`) is
+    no longer served and falls through to the app's shell; `/index.html/` and `/dir/file.txt/` no
+    longer serve the file; `.js` is `text/javascript` (it was `application/javascript`) and
+    `.webmanifest` carries `charset=utf-8`; an `OPTIONS` request on a page answers
+    `Allow: GET, HEAD` as `text/plain` (it was `GET,HEAD` as `text/html`). A proxy rule that
+    matches on one of these needs a second look.
+  - If you maintain a fork: a route path written in Express 4's regular-expression spellings
+    (`(`, `)`, `[`, `]`, `?`, `+`, `!` or a bare `*`) no longer compiles, and the client app's
+    fallback is `/{*splat}`.
+- **zod 4 words some refusals differently** (#52, #154). A boot refusal still names the variable
+  and lists every problem at once, but an unknown word for a closed set (`SITE_ADMIN=ON`) is no
+  longer followed by what was typed, and a number that is not one reads
+  `expected number, received NaN`. A non-integer for a whole-number setting
+  (`JOIN_CODE_LENGTH=6.5`) now stops the boot's cross-field checks, so another problem in the
+  same file is named on the next boot and not in the same list. `details.fields` of a
+  `400 request.invalid` names each path once. The text of an error is not promised
+  ([docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises)), but a log search for
+  the old wording will miss.
 - **The container's memory limit in `compose.yaml` goes from 1 GB to 2 GB** (#105), because
   up to four uploads are now decoded at once. `GET /api/ready` reports the disk margin under
   `checks.disk` and never fails on it.
@@ -200,19 +256,20 @@ Read these before you upgrade, and back up with the version you run now.
   event streams are told to reconnect in 2 seconds.
 - **Three boot warnings, never refusals** (#109, #120): production with no `PUBLIC_URL`,
   production with a secure cookie and `TRUST_PROXY_HOPS=0`, and `MAIL_FROM` set without
-  `SMTP_URL`.
+  `SMTP_URL`. A fourth, in every environment, is for the deprecated setting below (#172).
 
 ### Deprecated
 
-- **`GUEST_SELF_DELETE_GRACE_SECONDS`** is read by nothing and will be removed in 4.0.0. How
-  long a guest may take a photo back is a setting of each event (`guestSelfDeleteGraceSeconds`,
-  chosen by its host), and this variable never reached it: a box that set it saw no change.
-  It is still validated, so a box that sets it boots as before, and 3.0.0 logs a warning at boot
-  that it does nothing. Remove it from your `.env`; `.env.example` no longer sets it.
+- **`GUEST_SELF_DELETE_GRACE_SECONDS`** is read by nothing and will be removed in 4.0.0 (#172).
+  How long a guest may take a photo back is a setting of each event
+  (`guestSelfDeleteGraceSeconds`, chosen by its host), and this variable never reached it: a box
+  that set it saw no change. It is still validated, so a box that sets it boots as before, and
+  3.0.0 logs a warning at boot that it does nothing. Remove it from your `.env`; `.env.example`
+  no longer sets it.
 
 ### Added
 
-- **The pages for the account flows** (G2-10). `/invite/:token` opens a mailed or copied
+- **The pages for the account flows** (G2-10, #143). `/invite/:token` opens a mailed or copied
   invitation: it says what the link is for and when it ends, takes a name and a password, or accepts
   as the account that is already signed in, and says one sentence for every dead link. A person whose
   address already has an account is sent to sign in and brought back to the same link.
@@ -231,59 +288,173 @@ Read these before you upgrade, and back up with the version you run now.
   Behind them: a credentials epoch on each account (`users.credentials_changed_at`), which a
   password change or reset, a sign out everywhere and disabling the account all raise, and
   single-use account tokens stored as their SHA-256 only (`account_tokens`).
-- **Operator groundwork, not reachable yet.** Behind `SITE_ADMIN=on`: clients as records,
-  with ceilings (#113); events attached to a client, and
-  `EVENT_CREATION=anyAccount|clientMembers` to say who may create one (#117); every ceiling
-  enforced on every write path, a live window that closes an event, and a purge that is safe
-  when a ceiling is unset (#121); an append-only audit log, with `AUDIT_RETENTION_DAYS`
-  (default 1095, never below 365) (#118); and a content-free overview of a box, shapes and
-  sizes and never what guests made (#126); and the ceilings a new client starts with (#145),
-  `NEW_CLIENT_*` (unset means no ceiling), applied when the operator provisions one and recorded
-  in the audit log. The one HTTP route in that namespace is `GET /api/site/client-defaults`, which
-  shows those defaults to the operator; no route reaches the clients, the audit log or the
-  overview yet. `GET /api/auth/me` reports `canOperateSite`, whatever `SITE_ADMIN` says.
 - **Invitations by link** (#139, #141). A moderator is invited by a single-use link that lives
   seven days, mailed when the box has a relay and otherwise handed to the host. The account is made by
   the invitee, with a password they choose, when they accept it; an account that already uses the
   address signs in and accepts as itself. Writing an invitation to the same address and event replaces
   the earlier link, and one address is written to at most five times an hour. The address is marked
-  verified only when the link came by mail. Behind it, and not reachable yet: opening a client and
-  inviting its owner.
-- **Mail, optional** (#120). A `Mailer` port, a `NullMailer` that sends nothing and is the
-  default, and an SMTP adapter on `nodemailer` (a new dependency) switched on by `SMTP_URL`
-  and `MAIL_FROM`. The password reset is the first thing that sends mail.
-- **Operator identity and legal links** (#123). `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`,
-  `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SUPPORT_URL` and `REPORT_URL`,
-  all empty by default. When set they appear on `/about` and in the footers, the guest
-  privacy notice names the operator, and guests get a link to report a content. A box that
-  sets none of them looks as before.
-- **Accepting an invitation can also accept the terms of use**, when the operator asks for it. With
+  verified only when the link came by mail. The operator invites into a client's account the same
+  way (below).
+- **Accepting an invitation can also accept the terms of use**, when the operator asks for it (#159). With
   `LEGAL_TERMS_URL` and `LEGAL_TERMS_VERSION` both set, the invitation page shows a required,
   unticked box with a link to the terms, `POST /api/invitations/:token/accept` takes
   `acceptTerms: true` and answers `400 terms.notAccepted` without it, and the acceptance writes the
   audit entry `account.termsAccepted` with the version, in the transaction that spends the link. A
   box that sets neither, or only the address, looks and behaves as before.
+- **Mail, optional** (#120). A `Mailer` port, a `NullMailer` that sends nothing and is the
+  default, and an SMTP adapter on `nodemailer` (a new dependency) switched on by `SMTP_URL`
+  and `MAIL_FROM`. The password reset and the invitations are what send mail.
+- **Operator identity and legal links** (#123). `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`,
+  `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SUPPORT_URL` and `REPORT_URL`,
+  all empty by default. When set they appear on `/about` and in the footers, the guest
+  privacy notice names the operator, and guests get a link to report a content. A box that
+  sets none of them looks as before.
 - **Support links, optional** (#119). `DONATION_URL` and `BUDGET_URL`, empty by default: a
   link in the host footer and on `/about`, and a closable card on the page of a closed event.
+- **Clients, ceilings and an audit log, for a box run for other people**, behind `SITE_ADMIN=on`
+  (off by default). Clients as records, with nine ceilings (#113); events attached to a client, and
+  `EVENT_CREATION=anyAccount|clientMembers` to say who may create one (#117); every ceiling
+  enforced on every write path, a live window that closes an event, and a purge that is safe
+  when a ceiling is unset (#121); an append-only audit log, with `AUDIT_RETENTION_DAYS`
+  (default 1095, never below 365) (#118); a content-free overview of a box, shapes and
+  sizes and never what guests made (#126); and the ceilings a new client starts with (#145),
+  `NEW_CLIENT_*` (unset means no ceiling), applied when the operator provisions one and recorded
+  in the audit log. `GET /api/auth/me` reports `canOperateSite`, whatever `SITE_ADMIN` says. The
+  next entries are what reaches all this over HTTP.
+- **The operator's API** (#160, #164, #169). With `SITE_ADMIN=on`, the account whose site role is
+  `operator` manages the box's clients over `/api/site/*`; [docs/API.md](docs/API.md) §1 lists
+  every route. It reads the clients (with what each uses), a client's events, the accounts, the audit
+  log and the defaults a new client starts with: shapes and sizes, never an event's name, a
+  photograph, a caption or a guest. It opens a client and invites its owner, renames it, changes its
+  ceilings (a reason of one line is required and goes to the audit log, which the client's owner is
+  not shown), suspends and resumes it, invites someone into its account, resets an account's
+  password, ends an engagement (`offboard`), switches an account off or on, and deletes one for an
+  erasure request. Every change asks for a confirmation of the person within the last five minutes
+  (`403 auth.stepUpRequired`) and writes its audit line before it acts. Suspending a client touches
+  nothing it holds: its guests, its wall and its gallery links answer as an event that does not
+  exist, its members keep their reads and every write is `403 client.suspended`, and resuming it
+  gives everything back (not a client that is being offboarded). Offboarding closes its live events,
+  archives its drafts, suspends it and sets a purge date, 1 to 365 days away, that the operator
+  chooses; the retention sweep that already runs then purges its albums and removes the accounts
+  that were only its own. Deleting an account is refused (`409`) while it owns an event, wrote
+  photographs or clips, reviewed photographs, or is the only owner of a client that still has others.
+- **An operator cannot hand itself access to a client** (#148,
+  [ADR 0009](docs/adr/0009-operator-cannot-grant-itself-access.md)). An operator's invitation into
+  a client that already has an event or a member is written as waiting and opens nothing, by link or
+  by mail, until one of that client's owners approves it
+  (`POST /api/client/invitations/:invitationId/approve`). A password reset the operator starts is
+  mailed to the account's own address and never shown to the operator; on a box with no mail relay
+  it issues nothing (`409 reset.mailerRequired`), unless `OPERATOR_RESET_LINKS` says
+  `copyLinkWithOwnerApproval`, which hands the operator the link once, after another owner of the
+  account's client approved that very request
+  (`POST /api/client/password-resets/:requestId/approve`, by the API only). `OPERATOR_RESET_LINKS` is
+  `mailOnly` unless you set it, and the other word needs `SITE_ADMIN=on`. No operator action grants a
+  role in an event, opens a session or impersonates an account.
+- **A second factor for the operator** (#130). An account that operates the box can enrol a TOTP
+  authenticator (RFC 6238, six digits every thirty seconds) and gets ten single-use recovery codes,
+  shown once. It needs `MFA_ENCRYPTION_KEY`, the key the authenticator's secret is stored under
+  (AES-256-GCM); with none, enrolment is not offered (`404 feature.unavailable`) and signing in is as
+  it was. Once enrolled, a right password starts no session: `POST /api/auth/login` answers
+  `{ "secondFactorRequired": true }` and `POST /api/auth/login/2fa` finishes the sign-in with a code or
+  a recovery code (five minutes, five wrong codes), and a code is accepted once. `REQUIRE_OPERATOR_2FA=true`
+  makes `/api/site/*` answer `403 auth.secondFactorRequired` to an operator whose session has not
+  passed the factor; it needs the key and `SITE_ADMIN=on`. `POST /api/auth/step-up` confirms the person
+  again for five minutes, which renewing the recovery codes, removing the factor and every change
+  under `/api/site` ask for. **Lose `MFA_ENCRYPTION_KEY` and every enrolled operator can only sign in
+  with a recovery code**: keep it apart from `SESSION_SECRET` and back it up with the database, somewhere
+  else. The page is `/admin/security`, in the five languages.
+- **The client's own space** (#153), only with `SITE_ADMIN=on`. A member reads their client's limits
+  and how close each is (`GET /api/me/limits`: the nine ceilings, what is used, and a level per meter,
+  `ok`, `warning` from 90 per cent or `reached`, decided by the server). An owner reads the audit log of
+  their own client (`GET /api/client/audit`) and what waits for their approval
+  (`GET /api/client/invitations`); a line of that log never carries an account, an address, a slug or
+  a name. The web app gets a ceilings banner, a page at `/admin/client`, a screen that says an account
+  is suspended (reading and export keep working), a three-step list on an empty dashboard and the live
+  window on an event's page. Off, those routes answer as a path nobody wrote and the app has no
+  `/admin/client`.
 - **Settings whose default is today's behaviour**: `MAX_STREAMS_PER_CLIENT`,
   `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT` and `SQLITE_SHUTDOWN_CHECKPOINT` (#109);
-  `RETENTION_CAP_NOTICE_DAYS`, which only matters to a box with clients (#121). A test now fails when `env.ts` reads a key that `.env.example` does
-  not document; its first run found `LOGIN_RATE_LIMIT_PER_MINUTE` and
-  `REACTION_RATE_LIMIT_PER_MINUTE`.
+  `RETENTION_CAP_NOTICE_DAYS`, which only matters to a box with clients (#121). A test now fails when
+  the configuration module reads a key that `.env.example` does not document; its first run found
+  `LOGIN_RATE_LIMIT_PER_MINUTE` and `REACTION_RATE_LIMIT_PER_MINUTE`.
+
+### Fixed
+
+- **The host's album ZIP carries the video clips** (#173). It asked the media store for the original
+  of every row, a clip has none, and every clip of the event was skipped with a warning: a host who
+  exported and then purged lost them. A clip is archived as its transcode, an `.mp4`, numbered with
+  the photographs, so the ZIP is as large as the clips it now holds.
+- **An upload that loses a race to an identical one no longer deletes the winner's media** (#167).
+  Two guests sending the same photograph at the same moment both missed the duplicate check, one
+  insert won, and the other's cleanup deleted the files the winner's row names: the album kept a
+  photograph with no file, a tile that is a 404 on the wall. The second upload is answered
+  `duplicate`, with the first one's photograph, as is a guest at their photo limit who double-tapped.
+- **"N guests here" counts the guests who are still uploading** (#170). Presence was written when a
+  guest joined and never again, so the host's console counted who had joined in the last five minutes.
+  A guest's requests refresh it, at most every 30 seconds, and a write that fails is logged and never
+  fails the request.
+- **The photo of the night counts the photographs that are shown** (#175).
+  `GET /api/events/:slug/top-photos` cut the ranking at `limit` and then dropped what is no longer
+  on the wall, so a hidden or rejected favourite took a place and the panel could come back empty
+  while a published photograph had a reaction. It walks the ranking until it has `limit` photographs
+  on the wall.
+- **An album download that is abandoned no longer leaves its sources open** (#144). A client that
+  closed the tab in the middle of an `album.zip` left one open file per queued photograph, on the
+  host's route and on a gallery link's. The next photograph is opened only when the one before has
+  been written, and the host's listing is read in pages of 200, so a slow download no longer blocks
+  the uploads of other events.
+- **A link cut in the middle of an escape is a 400, not a 500** (#147).
+  `/api/events/%E0%A4%A/wall` answered `500 server.unexpected` and logged a stack that, on a gallery,
+  invitation or reset address, held the token. It answers `400 request.invalid`; a gallery address
+  answers its usual `404 gallery.notAvailable` and the invitation API `404 invitation.notFound`.
+- **A moderator who had to change their password was sent back to the form after saving it** (#168).
+  The app kept the old answer; the host app also asks for the session and for `GET /api/about` once
+  per page load instead of up to three and eight times.
+- **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
+  event were all "EventSlide". The client space's loaders no longer say they are loading your
+  events, and the gallery viewer no longer reads a caption twice to a screen reader.
 
 ### Security
 
 - **A stolen session no longer survives a password change** (#125): the credentials epoch ends
   every session minted before it.
 - **Guessing a password is slowed per account, without locking anyone out** (#128), and the
-  password reset request is throttled the same way.
+  password reset request is throttled the same way. A browser that has signed in before is counted
+  on its own, so a stranger on the owner's network cannot hold them off (#131).
+- **The operator is held to a second factor and to a guard** (#130, #148, #160): a code that cannot
+  be replayed, a confirmation before every change, and no way for the operator to hand itself an
+  account, a role or a link that was not approved by the people it concerns.
+- **A credential in a link stays out of the log** (#147, #156, #157). A link cut in the middle of an
+  escape wrote its token to the error log; the `path` of a log line now hides a gallery, invitation
+  or reset token however the address is spelled (escaped letters, dot segments, doubled slashes).
+- **A critical advisory leaves the production dependencies** (#93): `proxy-addr`
+  (GHSA-jqcg-44mw-7w3h, IP spoofing through an IPv4-mapped IPv6 trust subnet), which Express 5 pulls at
+  2.0.8. It was not reachable here, because `TRUST_PROXY_HOPS` is a hop count and never a subnet.
 
 ### Documentation, tests and dependencies
 
 - The upgrade policy for self-hosters, `docs/UPGRADING.md`, and the CHANGELOG conventions it
-  relies on, held by tests (#127); ADR 0007 on the licence and the maintainer's own use (#111).
-- Dependencies: vite 8.3.1 (#106), ip-address 10.7.3 (#112), and the development group
-  (#116).
+  relies on, held by tests (#127); ADR 0007 on the licence and the maintainer's own use (#111)
+  and ADR 0009 on what an operator cannot grant itself (#148); the licensing FAQ and the 2.1.0
+  entry (#124); this entry and "Upgrading to 3.0" (#129); the ports catalogue, which lists all 32
+  ports (#174).
+- Tests that change nothing in the product: the operator namespace holds against path-mounted
+  middleware (#99), a flaky shared-gallery-link test (#149), the repository contract of keyset
+  paging over photographs that share a timestamp (#161), the contract suites of the media store and
+  the event bus (#165), the architecture lint's `process.env` ban in every spelling (#166), an end-to-end
+  server that takes no configuration from the shell (#176), rules found by a mutation sweep (#177) and
+  one logger double (#178).
+- Refactors and deletions with no change of behaviour: code nothing called (#155, #180), one guarded
+  job and one repeater for the background sweeps (#171), shared helpers in the web app (#179), and
+  `env.ts` split into the pieces of its schema (#182): the settings are declared in
+  `src/infrastructure/config/` now.
+- Continuous integration: the end-to-end job is bounded and retries a hung browser download (#140),
+  and `apt` waits for the runner's own lock (#142).
+- Dependencies: Express 4.22 to 5.3 (#93, see `### BREAKING`), zod 3.25 to 4.6 (#52, #154), archiver 7
+  to 8 (#94: it is ESM-only, so the server loads it with a dynamic import; the ZIPs are unchanged),
+  vite 8.3.5 (#106, #136), ip-address 10.7.4 (#112, #151), the production group (#137:
+  express-rate-limit 8.7.1, nodemailer 10.1.7, pino 10.4.0, react and react-dom 19.3.1, sharp 0.35.5)
+  and the development group (#116, #138).
 
 ## [2.1.0] - 2026-10-02
 

@@ -153,12 +153,20 @@ describe('the CHANGELOG entries of the releases already published', () => {
   })
 })
 
-// What separates the two entries is a pull request number. #103 is the last pull request the
-// GPL-3.0 release carries (the merge that `gpl-final` and `v2.1.0` name), and #104 the first
-// one after it. A pull request cited on the wrong side of that is a change attributed to the
-// wrong licence and the wrong version, and nothing else in the toolchain reads those numbers.
+// What separates the two entries is a pull request number, with four exceptions. #103 is the last
+// pull request the GPL-3.0 release carries (the merge that `gpl-final` and `v2.1.0` name), and #104
+// the first one after it. A pull request cited on the wrong side of that is a change attributed to
+// the wrong licence and the wrong version, and nothing else in the toolchain reads those numbers.
 describe('the pull requests each CHANGELOG entry cites', () => {
   const LAST_PULL_REQUEST_OF_2_1_0 = 103
+  /**
+   * Opened before #104 and merged after the commit `gpl-final` names, so they belong to 3.0.0 although
+   * they are numbered below it: the Dependabot bumps of zod (#52), Express (#93) and archiver
+   * (#94), and a test (#99). Found by asking `git merge-base --is-ancestor <merge commit> 5c26073`
+   * of every merged pull request, which is the only honest way to say which side of the boundary one
+   * is on; the number is a proxy that these four fall outside.
+   */
+  const OPENED_EARLIER_MERGED_AFTER: readonly number[] = [52, 93, 94, 99]
   const pullRequests = (version: string): readonly number[] =>
     [...entryOf(version).body.matchAll(/(?<![\w&])#(\d+)\b/g)].map((match) => Number(match[1]))
 
@@ -169,10 +177,21 @@ describe('the pull requests each CHANGELOG entry cites', () => {
     expect(Math.max(...cited)).toBe(LAST_PULL_REQUEST_OF_2_1_0)
   })
 
-  it('start after #103 in the entry of 3.0.0', () => {
+  it('do not include, in the entry of 2.1.0, one that was merged after its commit', () => {
+    const cited = new Set(pullRequests('2.1.0'))
+
+    for (const number of OPENED_EARLIER_MERGED_AFTER) {
+      expect(cited.has(number), `#${number} is in the 2.1.0 entry`).toBe(false)
+    }
+  })
+
+  it('start after #103 in the entry of 3.0.0, bar the four opened earlier and merged after', () => {
     const cited = pullRequests('3.0.0')
 
     expect(cited.length, 'pull requests cited by 3.0.0').toBeGreaterThan(0)
-    expect(Math.min(...cited)).toBeGreaterThan(LAST_PULL_REQUEST_OF_2_1_0)
+    const numberedBelow = [...new Set(cited.filter((n) => n <= LAST_PULL_REQUEST_OF_2_1_0))]
+    // Exactly the four: one that is missing is a change of this release the entry does not
+    // say, and one more is a change of the last GPL release attributed to the AGPL one.
+    expect(numberedBelow.sort((a, b) => a - b)).toEqual(OPENED_EARLIER_MERGED_AFTER)
   })
 })
