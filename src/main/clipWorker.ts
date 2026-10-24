@@ -11,7 +11,8 @@ import { createRepeater } from './repeater'
  *
  * It follows `retentionSweeper.ts` and `scheduleSweeper.ts` — a separate module in
  * `src/main` with `start`/`stop`/`runOnce`, an injected clock and logger, an overlap
- * guard, and an `unref`'d timer — and diverges from them on exactly three points, each
+ * guard (`guardedJob.ts`) and an `unref`'d timer (`repeater.ts`) — and diverges from them on
+ * exactly three points, each
  * for a reason that is about a guest standing in a room:
  *
  * 1. **It is woken by a fact, not only by a tick.** A clip uploaded at 22:03 must not

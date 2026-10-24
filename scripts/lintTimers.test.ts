@@ -22,13 +22,24 @@ const eslint = new ESLint({ cwd: ROOT })
 const messagesOf = async (filePath: string, source: string): Promise<readonly string[]> => {
   const [result] = await eslint.lintText(source, { filePath: join(ROOT, filePath) })
   return (result?.messages ?? [])
-    .filter((message) => message.ruleId === 'no-restricted-globals')
+    .filter(
+      (message) =>
+        message.ruleId === 'no-restricted-globals' || message.ruleId === 'no-restricted-properties',
+    )
     .map((message) => message.message)
 }
 
 const RAW = [
   ['setInterval', `const timer = setInterval(() => undefined, 1_000)\nclearInterval(timer)\n`],
   ['setTimeout', `const timer = setTimeout(() => undefined, 1_000)\nclearTimeout(timer)\n`],
+  [
+    'globalThis.setTimeout',
+    `const timer = globalThis.setTimeout(() => undefined, 1_000)\nclearTimeout(timer)\n`,
+  ],
+  [
+    'global.setInterval',
+    `const timer = global.setInterval(() => undefined, 1_000)\nclearInterval(timer)\n`,
+  ],
 ] as const
 
 describe('raw timers in the server', { timeout: 60_000 }, () => {

@@ -124,9 +124,9 @@ describe('createRetentionSweeper', () => {
       sweeper.stop()
     })
 
-    it('starts one timer however many times it is started', async () => {
+    it('starts one timer however many times it is started, and says it is scheduled once', async () => {
       let swept = 0
-      const { sweeper } = build({
+      const { sweeper, lines } = build({
         purge: async () => {
           swept += 1
           return nothingPurged
@@ -138,6 +138,7 @@ describe('createRetentionSweeper', () => {
       await vi.advanceTimersByTimeAsync(INTERVAL_MS)
 
       expect(swept).toBe(1)
+      expect(lines.filter((line) => line.message === 'retention sweep scheduled')).toHaveLength(1)
       sweeper.stop()
     })
 

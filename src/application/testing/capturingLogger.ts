@@ -5,7 +5,7 @@ import type { LogContext, Logger } from '../ports/logger'
  *
  * Twenty-seven test files declared their own, in two shapes (a class here, a closure there)
  * with the same three fields, because `src/application/testing/` held no logger. This is the
- * one. A line is the level, the message and the context the caller passed, and nothing is
+ * shared one, and the files migrate to it a folder at a time (`src/main` first). A line is the level, the message and the context the caller passed, and nothing is
  * redacted or reformatted: the production adapter's redaction is `pinoLogger`'s to test, and
  * a double that cleaned a line up would hide exactly what a test looks for.
  *

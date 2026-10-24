@@ -335,6 +335,24 @@ describe('clipWorker', () => {
   })
 
   describe('stop', () => {
+    it('drains again when it is started after a stop, which the stopping flag would otherwise forbid', async () => {
+      // `stop` raises a flag that makes a drain in flight break out of its loop; a restart has
+      // to lower it, or the second life of the worker takes no clip at all.
+      const queue = queueOf()
+      const { worker, bus } = build({ transcodeNext: queue.take })
+      worker.start()
+      worker.stop()
+      worker.start()
+      await vi.advanceTimersByTimeAsync(0)
+      const before = queue.calls
+
+      bus.publish({ type: 'clip.queued', eventId: EVENT, clipJobId: asClipJobId('job-1') })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(queue.calls).toBeGreaterThan(before)
+      worker.stop()
+    })
+
     it('stops the timer', async () => {
       const queue = queueOf()
       const { worker } = build({ transcodeNext: queue.take })

@@ -316,6 +316,19 @@ export default tseslint.config(
     files: ['src/main/**/*.ts', 'src/infrastructure/**/*.ts'],
     ignores: ['src/infrastructure/time/backgroundTimers.ts'],
     rules: {
+      // `globalThis.setTimeout` and `global.setInterval` are the same raw timer. What this
+      // does not follow is an import from `node:timers`, which is a deliberate act.
+      'no-restricted-properties': [
+        'error',
+        ...['globalThis', 'global'].flatMap((object) =>
+          ['setInterval', 'setTimeout'].map((property) => ({
+            object,
+            property,
+            message:
+              'A raw timer keeps the process open past docker stop. Use setBackgroundInterval or setBackgroundTimeout from src/infrastructure/time/backgroundTimers.ts, which unref it.',
+          })),
+        ),
+      ],
       'no-restricted-globals': [
         'error',
         {
@@ -410,6 +423,7 @@ export default tseslint.config(
       'no-restricted-syntax': 'off',
       // A test starts its own timers, and a fake timer is not a handle to unref.
       'no-restricted-globals': 'off',
+      'no-restricted-properties': 'off',
       'no-console': 'off',
     },
   },

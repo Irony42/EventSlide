@@ -177,6 +177,18 @@ describe('createGuardedJob', () => {
       expect(job.running).toBe(false)
     })
 
+    it('lowers the guard even if it throws, which it must not, so one broken job cannot skip every later pass', async () => {
+      const { job } = build({
+        afterwards: async () => {
+          throw new Error('broke its contract')
+        },
+      })
+
+      await expect(job.runOnce()).rejects.toThrow('broke its contract')
+
+      expect(job.running).toBe(false)
+    })
+
     it('keeps a tick that arrives while it runs from starting another pass', async () => {
       // The retention sweep prunes the audit log here, and a second sweep must not begin
       // while that is still going.

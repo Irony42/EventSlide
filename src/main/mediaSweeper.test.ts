@@ -158,14 +158,17 @@ describe('createMediaSweeper', () => {
     expect(sweep).toHaveBeenCalledTimes(3)
   })
 
-  it('starts once however often it is started', () => {
+  it('starts once however often it is started, and says it is scheduled once', () => {
     const sweep = vi.fn<SweepOrphanedMedia>(async () => nothingCollected)
-    const { sweeper } = build(sweep)
+    const { sweeper, lines } = build(sweep)
 
     sweeper.start()
     sweeper.start()
 
     expect(vi.getTimerCount()).toBe(1)
+    expect(lines.filter((line) => line.message === 'media reconciliation scheduled')).toHaveLength(
+      1,
+    )
   })
 
   it('skips rather than overlapping a sweep that is still running', async () => {

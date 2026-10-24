@@ -11,7 +11,8 @@ import { createRepeater } from './repeater'
  * The timer behind "opens at 18:00, closes at 02:00".
  *
  * Deliberately the same shape as `./retentionSweeper.ts`, down to the overlap guard and
- * the `unref()`, because the two failure modes are the same: a sweep that stops firing
+ * the `unref()` (both now live in `guardedJob.ts` and `backgroundTimers.ts`, which every
+ * background job shares), because the two failure modes are the same: a sweep that stops firing
  * is invisible — its symptom is that nothing happens — and a timer that keeps the event
  * loop alive makes `docker stop` wait out a whole interval.
  *

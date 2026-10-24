@@ -82,8 +82,14 @@ export const createGuardedJob = <Report>({
       })
       return { status: 'failed', error }
     } finally {
-      if (afterwards !== undefined) await afterwards()
-      running = false
+      try {
+        if (afterwards !== undefined) await afterwards()
+      } finally {
+        // Lowered whatever `afterwards` did: a job that throws from there has broken its
+        // contract, and the cost of that must not be a guard that stays up for ever and
+        // skips every pass after it.
+        running = false
+      }
     }
   }
 

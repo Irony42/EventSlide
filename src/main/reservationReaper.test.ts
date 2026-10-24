@@ -110,13 +110,17 @@ describe('createReservationReaper', () => {
     expect(reap).toHaveBeenCalledTimes(4)
   })
 
-  it('starts once however often it is started', () => {
-    const { reaper } = build(async () => nothingReaped)
+  it('starts once however often it is started, and says it is scheduled once', () => {
+    const reap = vi.fn<ReapStaleReservations>(async () => nothingReaped)
+    const { reaper, lines } = build(reap)
 
     reaper.start()
     reaper.start()
 
     expect(vi.getTimerCount()).toBe(1)
+    expect(lines.filter((line) => line.message === 'reservation reaper scheduled')).toHaveLength(1)
+    // The startup pass is the first start's alone.
+    expect(reap).toHaveBeenCalledTimes(1)
   })
 
   it('skips rather than overlapping a pass that is still running', async () => {
