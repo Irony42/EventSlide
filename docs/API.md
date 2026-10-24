@@ -2287,6 +2287,9 @@ does, the caller holds a half-finished sign-in in the session, **with no `userId
 on that, so the session is anonymous to `requireUser`, `requireRole` and `requireOperator` alike and
 reaches nothing else. It lives **five minutes**, allows **five wrong codes**, and is void if the
 account's credentials changed (a reset, a password change, a switch-off) after the password was typed.
+The five are counted as the codes are **tried**, not as the answers come back: codes sent at the same
+moment share them, and the sixth to start, and every one after it, is refused unread, so a right code
+that arrives behind five others is not accepted either.
 
 On success the session is regenerated (new id, new CSRF token) and stamped as having passed the
 second factor. **200** is the same body as the login's, and the response sets `es_device` (see
@@ -2298,7 +2301,8 @@ password and the code again.
   (the replay refusal), a recovery code never issued or already used, and text that is neither: one
   answer, so what separates them stays the owner's to know.
 - **401** `auth.secondFactorExpired` — no half-finished sign-in, one past its five minutes, one that
-  used its five wrong codes, or one the account's credentials outlived. Start again with the password.
+  used its five wrong codes (the fifth wrong one is answered this way, not `auth.invalidSecondFactor`),
+  or one the account's credentials outlived. Start again with the password.
 - **429** `auth.tooManySecondFactorAttempts` — the account's budget of wrong attempts is spent
   (below).
 - **500** `auth.secondFactorUnavailable` — the stored secret will not open under the

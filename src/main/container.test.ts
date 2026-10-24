@@ -1518,6 +1518,25 @@ describe('createContainer: the operator’s second factor', () => {
     expect(inside.status).toBe(404)
   })
 
+  it('ends a half-finished sign-in at the fifth wrong code, even when the wrong codes arrive together', async () => {
+    // The count is a port the container builds (`signInAttempts`), and the one place a ring-4 test
+    // cannot see whether the line that hands it to the use case is there.
+    const { app } = await bootHosted()
+    const { secret } = await enrol(app)
+    const returning = await browser(app)
+    await returning.signIn()
+
+    const together = await Promise.all(
+      Array.from({ length: 8 }, () => returning.post('/api/auth/login/2fa', { code: '000000' })),
+    )
+    const answers = together.map((response) => response.body.error?.code)
+    const right = await returning.post('/api/auth/login/2fa', { code: codeFor(secret, 1) })
+
+    expect(answers.filter((code) => code === 'auth.invalidSecondFactor')).toHaveLength(4)
+    expect(answers.filter((code) => code === 'auth.secondFactorExpired')).toHaveLength(4)
+    expect(right.body.error.code).toBe('auth.secondFactorExpired')
+  })
+
   it('refuses a code that has been used, on a fresh sign-in', async () => {
     const { app } = await bootHosted()
     const { secret } = await enrol(app)

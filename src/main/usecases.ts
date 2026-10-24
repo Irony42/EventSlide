@@ -23,6 +23,7 @@ import type { AuditLog } from '../application/ports/auditLog'
 import type { SiteOverview } from '../application/ports/siteOverview'
 import type { AccountTokenRepository } from '../application/ports/accountTokenRepository'
 import type { MfaVault } from '../application/ports/mfaVault'
+import type { SignInAttempts } from '../application/ports/signInAttempts'
 import type { SecondFactorRepository } from '../application/ports/secondFactorRepository'
 import type { TotpEngine } from '../application/ports/totpEngine'
 import type { InvitationAcceptance } from '../application/ports/invitationAcceptance'
@@ -193,6 +194,8 @@ export interface Adapters {
   readonly totpEngine: TotpEngine
   /** Encryption of a secret at rest; `null` on a box with no `MFA_ENCRYPTION_KEY`. */
   readonly mfaVault: MfaVault | null
+  /** How many second-factor guesses each half-finished sign-in has spent. In memory, one per box. */
+  readonly signInAttempts: SignInAttempts
   /** Spending an invitation: the link, the account and the grant in one transaction. */
   readonly invitationAcceptance: InvitationAcceptance
 }
@@ -273,7 +276,11 @@ const galleryAccess = (adapters: Adapters) => ({
   clock: adapters.clock,
 })
 
-/** One instance of the second-factor check per caller: it holds no state, so sharing is not a concern. */
+/**
+ * One instance of the second-factor check per caller. The check holds no state of its own; what
+ * is counted across calls (a sign-in's guesses) lives in `adapters.signInAttempts`, which is one
+ * object for the whole box, so every instance reads the same count.
+ */
 const verifySecondFactorFrom = (adapters: Adapters) =>
   makeVerifySecondFactor({
     users: adapters.users,
@@ -281,6 +288,7 @@ const verifySecondFactorFrom = (adapters: Adapters) =>
     vault: adapters.mfaVault,
     engine: adapters.totpEngine,
     secrets: adapters.secretTokens,
+    attempts: adapters.signInAttempts,
     audit: adapters.audit,
     clock: adapters.clock,
     logger: adapters.logger,

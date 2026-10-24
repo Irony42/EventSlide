@@ -3,6 +3,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import type { UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import { canonicalRecoveryCode } from '../../../domain/users/recoveryCode'
+import { MAX_SECOND_FACTOR_ATTEMPTS } from '../../../domain/users/secondFactor'
 import { matchTotpStep, parseTotpCode } from '../../../domain/users/totp'
 import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
@@ -10,6 +11,7 @@ import type { Logger } from '../../ports/logger'
 import type { MfaVault } from '../../ports/mfaVault'
 import type { SecondFactorRepository } from '../../ports/secondFactorRepository'
 import type { SecretTokens } from '../../ports/secretTokens'
+import type { SignInAttempts } from '../../ports/signInAttempts'
 import type { TotpEngine } from '../../ports/totpEngine'
 import type { UserRepository } from '../../ports/userRepository'
 
@@ -27,6 +29,13 @@ export interface VerifySecondFactorInput {
    * step-up, which verifies the password in the same breath.
    */
   readonly passwordVerifiedAt?: Date
+  /**
+   * Which half-finished sign-in this is, for the cap on its guesses (see the use case). Anything
+   * that is stable for the life of one sign-in and unguessable will do; the session id is what
+   * the route gives. Absent for a step-up, which has no sign-in to throw away: its guesses are
+   * bounded by the per-account budget and by the password it is asked for in the same breath.
+   */
+  readonly attemptId?: string
 }
 
 export interface VerifySecondFactorDeps {
@@ -36,6 +45,7 @@ export interface VerifySecondFactorDeps {
   readonly vault: MfaVault | null
   readonly engine: TotpEngine
   readonly secrets: SecretTokens
+  readonly attempts: SignInAttempts
   readonly audit: AuditRecorder
   readonly clock: Clock
   readonly logger: Logger
@@ -85,19 +95,41 @@ const expired = (): DomainError => DomainError.unauthenticated('auth.secondFacto
  * use to record, and a line for a claim that lost the race would be false. It works on a box
  * whose key is gone, because a recovery code is stored as a digest, not encrypted — it is the
  * way back in when the key is the thing that was lost.
+ *
+ * ## How many guesses a sign-in gets
+ *
+ * A sign-in that carries an `attemptId` is allowed `MAX_SECOND_FACTOR_ATTEMPTS` guesses. The
+ * guess is **reserved before it is judged** (`SignInAttempts.begin`, called before the first
+ * `await`), so the sixth and every later attempt is refused as `auth.secondFactorExpired`
+ * without being looked at: a hundred codes sent at once get five readings between them, and a
+ * correct code among the ones that came after the fifth is not accepted. The fifth wrong code
+ * is itself answered `auth.secondFactorExpired`, which is what tells the caller the sign-in is
+ * over and the password is asked again.
+ *
+ * Only a guess that was **found wrong** keeps its place. A sign-in that had already ended, a
+ * box that could not check a code and a log that refused a line after the code was spent give
+ * the attempt back, because none of them is the person's mistake.
+ *
+ * This used to be a number in the session, incremented by the route. A session is copied into
+ * each request, and a copy cannot count what the others are doing, so ten parallel wrong codes
+ * each saved "one" and the cap held only for a caller who waited for every answer.
  */
-export const makeVerifySecondFactor =
-  ({
-    users,
-    factors,
-    vault,
-    engine,
-    secrets,
-    audit,
-    clock,
-    logger,
-  }: VerifySecondFactorDeps): VerifySecondFactor =>
-  async ({ userId, proof, passwordVerifiedAt }) => {
+export const makeVerifySecondFactor = ({
+  users,
+  factors,
+  vault,
+  engine,
+  secrets,
+  attempts,
+  audit,
+  clock,
+  logger,
+}: VerifySecondFactorDeps): VerifySecondFactor => {
+  const judge = async ({
+    userId,
+    proof,
+    passwordVerifiedAt,
+  }: VerifySecondFactorInput): Promise<Result<VerifiedSecondFactor, DomainError>> => {
     const user = await users.findById(userId)
     if (user === null || !user.canSignIn()) return err(expired())
     const epoch = user.credentialsChangedAt
@@ -169,3 +201,22 @@ export const makeVerifySecondFactor =
 
     return ok({ method: 'recoveryCode', recoveryCodesRemaining: remaining })
   }
+
+  return async (input) => {
+    const { attemptId } = input
+    if (attemptId === undefined) return judge(input)
+
+    // Taken now, before anything is awaited: this line is what keeps the count exact.
+    const attempt = attempts.begin(attemptId)
+    if (attempt > MAX_SECOND_FACTOR_ATTEMPTS) return err(expired())
+
+    const result = await judge(input)
+
+    if (result.ok) return result
+    if (result.error.code !== 'auth.invalidSecondFactor') {
+      attempts.release(attemptId)
+      return result
+    }
+    return attempt >= MAX_SECOND_FACTOR_ATTEMPTS ? err(expired()) : result
+  }
+}
