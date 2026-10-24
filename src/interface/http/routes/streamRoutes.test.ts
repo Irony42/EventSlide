@@ -17,7 +17,7 @@ import {
   type TestWorld,
 } from '../testing/middlewareHarness'
 import { SseSink, asResponse } from '../testing/sseSink'
-import { AT, aClient, anEvent } from '../../../application/testing/builders'
+import { AT, aClient, aUser, anEvent } from '../../../application/testing/builders'
 import { asClientId, asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import { DomainError } from '../../../domain/shared/errors'
 import { err } from '../../../domain/shared/result'
@@ -667,6 +667,63 @@ describe('openStream', () => {
       await vi.advanceTimersByTimeAsync(0)
 
       expect(sink.frames.length).toBe(before)
+    })
+
+    describe('a moderation feed answers to the account behind it (G2-14 part 3)', () => {
+      const MODERATOR = asUserId('moderator-id')
+
+      const openForModerator = (): SseSink => {
+        world.users.seed(aUser({ id: 'moderator-id', email: 'moderateur@example.test' }))
+        world.memberships.seed({
+          eventId: asEventId(WEDDING),
+          userId: MODERATOR,
+          role: 'moderator',
+          grantedAt: AT,
+        })
+        const sink = new SseSink()
+        openStreamFor({
+          deps: world.deps,
+          logger: world.deps.logger,
+          eventId: asEventId(WEDDING),
+          lastEventId: undefined,
+          res: asResponse(sink),
+          suspension: 'serves',
+          member: MODERATOR,
+        })
+        return sink
+      }
+
+      it('stays open for an account that still holds its place, however many beats pass', async () => {
+        const sink = openForModerator()
+
+        await vi.advanceTimersByTimeAsync(15_000 * 3)
+
+        expect(sink.writableEnded).toBe(false)
+        expect(sink.text.match(/: keep-alive/g)).toHaveLength(3)
+      })
+
+      it('ends at the first beat after the account is switched off, telling the console to wait', async () => {
+        const sink = openForModerator()
+        await vi.advanceTimersByTimeAsync(15_000)
+        const stored = await world.users.findById(MODERATOR)
+        if (stored === null) throw new Error('fixture rejected')
+        await world.users.save(stored.disable(AT))
+        const before = sink.frames.length
+
+        await vi.advanceTimersByTimeAsync(15_000)
+
+        expect(sink.writableEnded).toBe(true)
+        expect(sink.frames.slice(before).join('')).toBe('retry: 60000\n\n')
+      })
+
+      it('ends at the first beat after the account loses its place in the event, which is what an deletion of an account leaves behind', async () => {
+        const sink = openForModerator()
+
+        await world.memberships.revoke(asEventId(WEDDING), MODERATOR)
+        await vi.advanceTimersByTimeAsync(15_000)
+
+        expect(sink.writableEnded).toBe(true)
+      })
     })
 
     it('keeps a moderation stream open for a suspended client, whose members keep their reads, and ends it when the event is gone', async () => {
