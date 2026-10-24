@@ -78,7 +78,8 @@ export const createHmacGallerySigner = ({
     sign: mac,
 
     verify: (parts: readonly string[], signature: string): boolean => {
-      // The length of an HMAC is public, so refusing on it leaks nothing.
+      // The length of an HMAC is public, so refusing on it leaks nothing, and it spares
+      // computing a MAC for a value that cannot be one.
       if (signature.length !== SIGNATURE_LENGTH) return false
       return constantTimeEqual(mac(parts), signature)
     },

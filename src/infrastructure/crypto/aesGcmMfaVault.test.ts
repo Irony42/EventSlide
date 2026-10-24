@@ -28,6 +28,16 @@ describe('createAesGcmMfaVault', () => {
     expect(vault.open(sealed, keyVersion)).toEqual(SECRET)
   })
 
+  it('opens a text sealed before this code existed, so no operator is locked out of their second factor by a refactor', () => {
+    // Sealed once with the key derived from KEY (HKDF-SHA256, empty salt, label
+    // `eventslide/mfa-secret/v1`), AES-256-GCM, additional data `v1`; opened independently with
+    // `node:crypto` before it was written down. A change to the label or the derivation makes every
+    // sealed secret in every installed database unopenable, and no other test would notice.
+    const sealed = 'uqs8XRJvdX3G2GSr.KokN6v6pjKjlls-SjC0hkw.rszip7k7I2TL4PxwkJjFdSgPhjw'
+
+    expect(vault.open(sealed, 1)).toEqual(SECRET)
+  })
+
   it('writes iv.tag.ciphertext in base64url: exactly the shape migration 011 insists on', () => {
     const { sealed } = vault.seal(SECRET)
 

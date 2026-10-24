@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomToken } from '../crypto/primitives'
 import { z } from 'zod'
 
 /**
@@ -111,8 +111,7 @@ export const secret = (name: string) =>
  */
 const EPHEMERAL_SECRET_BYTES = 48
 
-export const ephemeralSecret = (): string =>
-  randomBytes(EPHEMERAL_SECRET_BYTES).toString('base64url')
+export const ephemeralSecret = (): string => randomToken(EPHEMERAL_SECRET_BYTES)
 
 /**
  * How often one of the in-process sweeps runs, in minutes — or the word `off`.

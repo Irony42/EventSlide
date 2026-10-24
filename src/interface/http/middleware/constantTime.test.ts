@@ -11,6 +11,17 @@ describe('constantTimeEqual', () => {
     expect(constantTimeEqual('abcd', 'abce')).toBe(false)
   })
 
+  it('is false whichever byte differs: the first, one in the middle or the last', () => {
+    expect(constantTimeEqual('Xbcd', 'Ybcd')).toBe(false)
+    expect(constantTimeEqual('aXcd', 'aYcd')).toBe(false)
+    expect(constantTimeEqual('abcX', 'abcY')).toBe(false)
+  })
+
+  it('compares UTF-8 bytes, so two characters that share a low byte in a narrower encoding differ', () => {
+    expect(constantTimeEqual('\u0165', 'e')).toBe(false)
+    expect(constantTimeEqual('\u0165', '\u0165')).toBe(true)
+  })
+
   it('is false, and does not throw, for text of another length', () => {
     expect(constantTimeEqual('short', 'a longer one')).toBe(false)
     expect(constantTimeEqual('', 'x')).toBe(false)

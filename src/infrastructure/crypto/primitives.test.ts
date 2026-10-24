@@ -31,6 +31,13 @@ describe('deriveKey', () => {
     )
   })
 
+  it('encodes a secret as UTF-8, so an accented SESSION_SECRET derives the key it always did', () => {
+    // Computed with `node:crypto` directly: HKDF-SHA256, empty salt, label `label`, 32 bytes.
+    expect(deriveKey('\u00e9'.repeat(20), 'label').toString('hex')).toBe(
+      '64ea10687d1f1b9e3caa0f26574efc0ac8e469e10be810211839ee315488b7eb',
+    )
+  })
+
   it('takes a secret as text or as the bytes of that text, and derives the same key from both', () => {
     const text = 'a secret of more than thirty-two characters'
 
@@ -48,6 +55,18 @@ describe('constantTimeEqual', () => {
 
   it('is false for text of the same length that differs', () => {
     expect(constantTimeEqual('abcd', 'abce')).toBe(false)
+  })
+
+  it('is false whichever byte differs: the first, one in the middle or the last', () => {
+    expect(constantTimeEqual('Xbcd', 'Ybcd')).toBe(false)
+    expect(constantTimeEqual('aXcd', 'aYcd')).toBe(false)
+    expect(constantTimeEqual('abcX', 'abcY')).toBe(false)
+  })
+
+  it('compares UTF-8 bytes, so two characters that share a low byte in a narrower encoding differ', () => {
+    // U+0165 and `e` are the same byte in latin1 after truncation, and different characters.
+    expect(constantTimeEqual('\u0165', 'e')).toBe(false)
+    expect(constantTimeEqual('\u0165', '\u0165')).toBe(true)
   })
 
   it('is false, and does not throw, for text of another length', () => {

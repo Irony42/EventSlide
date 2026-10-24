@@ -122,6 +122,8 @@ const canonical = (parts: readonly string[]): Buffer =>
 
 /** The signing and the checking, with no Express and no clock in them. */
 export const trustedDeviceCodec = (secret: string) => {
+  // The HTTP layer's copy of `deriveKey` in `infrastructure/crypto/primitives.ts`, which it may
+  // not import: the same HKDF-SHA256 with an empty salt, under a label of its own.
   const key = Buffer.from(hkdfSync('sha256', secret, Buffer.alloc(0), LABEL, KEY_BYTES))
 
   const macOf = (payload: string, address: string): string =>

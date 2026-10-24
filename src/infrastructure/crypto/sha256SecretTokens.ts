@@ -5,8 +5,8 @@ import { constantTimeEqual, randomToken, sha256Hex } from './primitives'
  * `SecretTokens` over `node:crypto`: 256 random bits, stored as their SHA-256.
  *
  * The shared gallery's links are minted by this adapter too (`hmacGallerySigner.mintToken`
- * delegates here), so there is one construction. A gallery signs statements with a secret derived from `SESSION_SECRET`;
- * a token here is only ever compared with its own digest, so a keyed hash would add a way
+ * delegates here), so there is one construction. A gallery signs statements with a secret
+ * derived from `SESSION_SECRET`; a token here is only ever compared with its own digest, so a keyed hash would add a way
  * to lose every outstanding link (rotating the secret) without adding anything an attacker
  * who holds the database could not already do — which, with a digest of 256 random bits, is
  * nothing at all.
@@ -28,7 +28,8 @@ export const sha256SecretTokens: SecretTokens = {
   digestOf,
 
   verify: (token: string, digest: string): boolean => {
-    // The length of a SHA-256 digest is public, so refusing on it leaks nothing.
+    // The length of a SHA-256 digest is public, so refusing on it leaks nothing, and it spares
+    // hashing a token for a value that cannot be a digest.
     if (digest.length !== DIGEST_LENGTH) return false
     return constantTimeEqual(digestOf(token), digest)
   },
