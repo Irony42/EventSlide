@@ -6,6 +6,7 @@ import { CeilingsEditor } from './components/CeilingsEditor'
 import { ClientEvents } from './components/ClientEvents'
 import { ClientSummary } from './components/ClientSummary'
 import { InviteForm } from './components/InviteForm'
+import { OffboardCard } from './components/OffboardCard'
 import { useSiteClient } from './hooks/useSiteClient'
 import styles from './ClientPage.module.css'
 
@@ -56,6 +57,7 @@ export function ClientPage() {
             onChanged={reload}
           />
           <InviteForm clientId={client.id} />
+          <OffboardCard client={client} onChanged={reload} />
           <ClientEvents clientId={client.id} />
           <p>
             <Link className={styles['back']} to={`/admin/site/audit?clientId=${client.id}`}>
