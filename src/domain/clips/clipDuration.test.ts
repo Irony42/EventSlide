@@ -34,6 +34,13 @@ describe('ClipDuration', () => {
     expect(!result.ok && result.error.code).toBe('clip.durationUnknown')
   })
 
+  it('refuses a duration of exactly zero as undeclared, not as too short', () => {
+    // Both are permanent, but they say different things to the host: a header that never
+    // declared a length is a recording the phone did not finish, not a clip that is short.
+    const result = ClipDuration.create(0, MAX)
+    expect(!result.ok && result.error.code).toBe('clip.durationUnknown')
+  })
+
   it('refuses a negative duration rather than taking its magnitude', () => {
     const result = ClipDuration.create(-4_000, MAX)
     expect(!result.ok && result.error.code).toBe('clip.durationUnknown')

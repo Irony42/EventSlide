@@ -11,6 +11,7 @@ import {
   type EventInput,
   type PhotoInput,
 } from '../../testing/builders'
+import { CallLog } from '../../testing/callLog'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
@@ -330,6 +331,75 @@ describe('deletePhoto', () => {
     await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
 
     expect((await clips.findById(EVENT, asClipJobId('job-1')))?.id).toBe('job-1')
+  })
+
+  /**
+   * The order the use case documents: the row is what names the file, so it outlives the file,
+   * and a failure between the two leaves a row whose file is gone (a 404 the media endpoint
+   * already answers) and never bytes nothing names. The end state is the same either way, which
+   * is why only the order of the calls can say it.
+   */
+  it('removes the media before the row that names it', async () => {
+    seedEvent()
+    await seedPhoto({ status: 'published' })
+    const calls = new CallLog()
+    const ordered = makeDeletePhoto({
+      events,
+      photos: calls.watch('photos', photos),
+      clips,
+      media: calls.watch('media', media),
+      bus,
+      clock,
+    })
+
+    await ordered({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect(calls.sequenceOf('media.delete', 'photos.delete')).toEqual([
+      'media.delete',
+      'photos.delete',
+    ])
+  })
+
+  it('removes every file of a clip before the row, not only the first', async () => {
+    // A clip owns two digests, and the rule is about all of them: the poster unlinked after the
+    // row is the same stranded file.
+    seedEvent()
+    const clip = aClip({ id: 'photo-1', eventId: 'event-1', status: 'pending' })
+    photos.seed(clip)
+    await media.put(clip.eventId, clip.contentHash, 'video', Uint8Array.of(1, 2, 3))
+    await media.put(clip.eventId, clip.hashFor('poster'), 'poster', Uint8Array.of(4))
+    const calls = new CallLog()
+    const ordered = makeDeletePhoto({
+      events,
+      photos: calls.watch('photos', photos),
+      clips,
+      media: calls.watch('media', media),
+      bus,
+      clock,
+    })
+
+    await ordered({ eventId: EVENT, photoId: PHOTO, actor: HOST })
+
+    expect(calls.sequenceOf('media.delete', 'photos.delete')).toEqual([
+      'media.delete',
+      'media.delete',
+      'photos.delete',
+    ])
+  })
+
+  it('keeps the row when the media cannot be removed, so the file can still be found', async () => {
+    seedEvent()
+    await seedPhoto({ status: 'published' })
+    const failing = new (class extends InMemoryMediaStore {
+      override async delete(): Promise<void> {
+        throw new Error('EIO: i/o error')
+      }
+    })()
+    const refusing = makeDeletePhoto({ events, photos, clips, media: failing, bus, clock })
+
+    await refusing({ eventId: EVENT, photoId: PHOTO, actor: HOST }).catch(() => undefined)
+
+    expect(await photos.findById(EVENT, PHOTO)).not.toBeNull()
   })
 
   it('removes the files as well as the row, so nothing is left on the disk', async () => {
