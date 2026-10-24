@@ -634,6 +634,11 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // ring 4, but nothing in `web/src` calls it yet; the console reads the moderation
   // queue instead. `dtoContract.test.ts` records the same gap from the response side.
   photoListQuery: 'GET /api/events/:eventSlug/photos has no client method',
+  // `PATCH /api/events/:slug/guests/:guestId` (`renameGuest`): the route exists and is held at ring
+  // 4 (`guestRoutes.test.ts`: a body with no `displayName` or an extra key is a 400); the screen that
+  // sends it is not built, and `GuestSession` stores no guest id to put in the path yet.
+  renameGuestBody:
+    'PATCH /api/events/:eventSlug/guests/:guestId: the rename screen is not built yet',
   // `POST /api/invitations/:token/accept` has a client method (G2-10, `acceptInvitation`), but its
   // body is a **union** of two strict shapes — `{}` from a signed-in account, `{ displayName,
   // password }` from a person choosing how to sign in — and this pairing reads object schemas

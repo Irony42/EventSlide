@@ -1262,6 +1262,26 @@ describe('PATCH /api/events/:eventSlug/guests/:guestId', () => {
     expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
   })
 
+  it('still lets a guest correct their own name once the event has closed, as the use case says', async () => {
+    // `renameGuest` deliberately does not consult the lifecycle: a guest at a closed party may
+    // correct the spelling of their own name on an album that is still being viewed. Pinned
+    // here because the sentence is documented (docs/API.md) and a gate on `acceptsUploads()`
+    // added to the handler would pass every other case.
+    const subject = buildSubject()
+    subject.harness.events.seed(
+      anEvent({ id: 'closed-id', slug: 'termine', joinCode: 'C10SED', status: 'closed' }),
+    )
+    subject.harness.guests.seed(aGuest({ id: GUEST, eventId: 'closed-id', displayName: 'Léa' }))
+
+    const response = await request(subject.app)
+      .patch(`/api/events/termine/guests/${GUEST}`)
+      .set('Cookie', cookie(subject.harness.issueGuestToken('closed-id', GUEST)))
+      .send({ displayName: 'Léa D.' })
+
+    expect(response.status).toBe(200)
+    expect(response.body.displayName).toBe('Léa D.')
+  })
+
   it('refuses a guest the host has revoked, who may no longer sign anything', async () => {
     const subject = buildSubject({ revoked: true })
 

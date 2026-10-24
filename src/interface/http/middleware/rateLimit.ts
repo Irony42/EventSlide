@@ -80,6 +80,9 @@ const limiter = (perMinute: number, code: string, keyBy?: (req: Request) => stri
 /**
  * The join endpoint is the one an attacker would enumerate, so it is limited hardest
  * relative to its legitimate use: a guest joins once.
+ *
+ * `GET /join/:code` asks the same question, so `publicRoutes` mounts **one instance** of this on
+ * both: two would be two budgets for testing codes.
  */
 export const joinLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'rate.limited')

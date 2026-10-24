@@ -100,7 +100,8 @@ export interface GuestRouteDeps {
   readonly uploadRateLimiter?: RequestHandler
   /**
    * The bucket for the guest's other writes (HTTP-H-01): a caption, taking a photo back,
-   * withdrawing a reaction - and, from `privacyNoticeRoutes`, acknowledging the notice.
+   * withdrawing a reaction, renaming oneself - and, from `privacyNoticeRoutes`, acknowledging
+   * the notice.
    * **Built by the caller so that router can share this one**, for the reason
    * `uploadRateLimiter` gives: a guest doing two of them is one guest.
    *

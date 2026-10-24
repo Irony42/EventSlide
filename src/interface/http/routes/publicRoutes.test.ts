@@ -189,7 +189,7 @@ describe('GET /api/join/:code', () => {
     })
   })
 
-  it('creates no guest, sets no cookie and announces nothing: looking is not joining', async () => {
+  it('creates no guest, sets no guest cookie and announces nothing: looking is not joining', async () => {
     // The whole point of the route. `POST /join` is the commit.
     const { subject } = world()
 
@@ -200,10 +200,17 @@ describe('GET /api/join/:code', () => {
     expect(subject.bus.published).toEqual([])
   })
 
-  it('is never cached, since rotating the join code changes what a code names', async () => {
+  it.each([
+    { what: 'an open event', code: 'H7K2QM' },
+    { what: 'an unknown code', code: 'ZZZZZZ' },
+    { what: 'a draft event', code: 'D3M41N' },
+    { what: 'a malformed code', code: 'H7K2' },
+  ])('is never cached, whatever it answers for $what', async ({ code }) => {
+    // Rotating the join code, or opening the event, is what a host does between two scans, so
+    // a stored 404 is as wrong as a stored 200.
     const { subject } = world()
 
-    const response = await request(subject.app).get('/api/join/H7K2QM')
+    const response = await request(subject.app).get(`/api/join/${code}`)
 
     expect(response.headers['cache-control']).toBe('no-store')
   })

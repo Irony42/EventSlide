@@ -179,7 +179,8 @@ days, renewed by every successful sign-in and kept across a sign-out.
 
 A guest token grants: upload to **that one event** while it is `live`, deletion of
 **their own** photo inside the grace window, a caption on their own pending photo, a
-reaction, and reading and acknowledging the event's privacy notice for **that device**.
+reaction, changing **their own** display name, and reading and acknowledging the event's privacy
+notice for **that device**.
 Nothing else. It is checked against the event in the URL on every request,
 and the named guest row must not be revoked.
 
@@ -984,8 +985,9 @@ Everything a guest needs to confirm "yes, this is the wedding I am at", and noth
 owner, quota, count, id, theme or upload limit, and never the code back. `acceptsGuests` is true
 whenever this answers at all; it is stated rather than implied, so the page shows its form
 because the server said the doors are open. The lookup **creates no guest, sets no cookie and
-announces nothing**: looking is not joining. `Cache-Control: no-store`, because rotating the join
-code (§6) changes what a code names.
+announces nothing**: looking is not joining (the response sets no `es_guest` cookie). `Cache-Control:
+no-store` on **every** answer, because rotating the join code (§6) or opening the event changes
+what a code names, and a stored refusal would be as stale as a stored name.
 
 **Errors** — `404 event.notFound` for an unknown code and for an event that is `draft`, `closed`
 or `archived`: the answer `POST /api/join` gives, for the reason it gives it (a distinguishable
@@ -993,7 +995,10 @@ or `archived`: the answer `POST /api/join` gives, for the reason it gives it (a 
 `400 joinCode.malformed`, `400 request.invalid` (more than 32 characters), `429 rate.limited` with
 a `Retry-After`. It spends **the same per-address budget as `POST /api/join`** (§1 "Rate limits"):
 looking and joining answer one question, so they get one allowance, and exposing the lookup does
-not make codes testable any faster than they were.
+not make codes testable any faster than they were. It also means a client that looks a code up and
+then joins spends **two** hits of that budget per guest, which the default (20 a minute for an
+address, and a venue is one address) allows for ten guests a minute: size `JOIN_RATE_LIMIT_PER_MINUTE`
+for it before a client does.
 
 ### `GET /api/events/:slug/wall`
 
@@ -1719,7 +1724,8 @@ removed, at most 40 characters once folded. The boundary's own bound is 120, so 
 ```
 
 `displayName` is the name **as stored**, trimmed and folded: what the wall will print, `null` for
-no name. `Cache-Control: no-store`. The event's lifecycle is deliberately not consulted: a guest at
+no name. `Cache-Control: no-store`. A rename announces nothing, so a wall or a console that is
+already open shows the new name when it next reloads what it shows, not at once. The event's lifecycle is deliberately not consulted: a guest at
 a closed party may still correct the spelling of their own name on an album that is still being
 viewed.
 
@@ -3710,8 +3716,8 @@ bug needs a name and a line number.
 
 Every route that exists is documented, and every route documented exists — verified in
 both directions: **37 routes in code, 37 `###` headings in §1–8, no discrepancy either
-way**. Nothing here is a missing endpoint. The audit found ten divergences; five have
-since been fixed and removed, and these five are the places where the code and the intent
+way**. Nothing here is a missing endpoint. The audit found ten divergences; six have
+since been fixed and removed, and these four are the places where the code and the intent
 above are not yet the same thing. Items marked **doc corrected above** have been fixed in
 this file. The rest are code defects — rewriting a specification to agree with a bug is
 the one outcome an audit must not produce.

@@ -166,19 +166,22 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
    * limiter is the join's own instance ({@link joinCodeLimiter}), so the lookup cannot be
    * used to test codes faster than the join already allowed.
    *
-   * Never cached: what a code names is exactly what a host changes with "rotate the join
-   * code", and a proxy answering from a store would name the old event.
+   * Never cached, on every answer: what a code names is exactly what a host changes with
+   * "rotate the join code" or by opening the event, and a proxy answering from a store would
+   * name the old event or still refuse the new one.
    */
   router.get(
     '/join/:code',
     joinCodeLimiter,
     asyncHandler(async (req, res) => {
+      // Before anything can refuse: the 404 and the 400 are as stale as the 200 the moment a
+      // host rotates the code or opens the event.
+      res.setHeader('Cache-Control', 'no-store')
       const params = joinCodeParams.parse(req.params)
 
       const result = await usecases.resolveJoinCode({ code: params.code })
 
       sendResult(res, result, (response, target) => {
-        response.setHeader('Cache-Control', 'no-store')
         sendJson(response, toJoinTargetDto(target))
       })
     }),
