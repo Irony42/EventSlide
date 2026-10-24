@@ -146,7 +146,10 @@ describe('the console’s log', () => {
     openConsole(`/admin/site/audit?clientId=${CLIENT_ID}`, api)
 
     expect(await screen.findByText(fr.site.auditFiltered)).toBeVisible()
-    expect(api.siteAudit).toHaveBeenCalledWith({ clientId: CLIENT_ID }, expect.anything())
+    // The request is made in an effect, after the heading is on screen: wait for it, do not race it.
+    await waitFor(() =>
+      expect(api.siteAudit).toHaveBeenCalledWith({ clientId: CLIENT_ID }, expect.anything()),
+    )
     expect(screen.getByRole('link', { name: fr.site.auditShowAll })).toHaveAttribute(
       'href',
       '/admin/site/audit',
