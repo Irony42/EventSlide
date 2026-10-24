@@ -316,6 +316,4 @@ export interface PendingSecondFactor {
   readonly mustChangePassword: boolean
   /** When the password was verified: the clock of the five minutes, and of the credentials check. */
   readonly startedAt: number
-  /** Wrong codes so far; at the limit the sign-in is thrown away and the password is asked again. */
-  failures: number
 }

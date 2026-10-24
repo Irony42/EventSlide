@@ -1,3 +1,4 @@
+import session from 'express-session'
 import type request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { AT, aUser } from '../../../application/testing/builders'
@@ -39,6 +40,8 @@ interface ServerOptions {
   readonly behindAProxy?: boolean
   /** The per-address sign-in budget. Wide by default: most cases are not about it. */
   readonly loginPerMinute?: number
+  /** The session store, for a case that looks at what is kept in it. */
+  readonly sessionStore?: session.Store
 }
 
 const aServer = ({
@@ -47,6 +50,7 @@ const aServer = ({
   siteRole = 'operator',
   behindAProxy = false,
   loginPerMinute = 1_000,
+  sessionStore,
 }: ServerOptions = {}) => {
   const clock = new FakeClock(AT)
   const users = new FakeUserRepository()
@@ -57,6 +61,7 @@ const aServer = ({
     users,
     secondFactors: factors,
     clock,
+    ...(sessionStore === undefined ? {} : { sessionStore }),
     config: {
       siteAdmin: true,
       ...(behindAProxy ? { trustProxyHops: 1 } : {}),
@@ -263,6 +268,43 @@ describe('POST /api/auth/login/2fa', () => {
     ])
     expect(codeOf(right)).toBe('auth.secondFactorExpired')
     expect((await browser.get('/api/auth/me')).body).toEqual({ authenticated: false })
+  })
+
+  it('ends the sign-in at the fifth wrong code even when the wrong codes arrive at the same moment', async () => {
+    const { server } = await anEnrolledServer()
+    const browser = await aBrowser(server)
+    await browser.signIn()
+
+    // Eight at once, all carrying the one half-finished sign-in: each used to load the same
+    // count from its own copy of the session and save one more, so none of them ever reached five.
+    const responses = await Promise.all(
+      Array.from({ length: 8 }, () => browser.post('/api/auth/login/2fa', { code: '000000' })),
+    )
+    const answers = responses.map(codeOf)
+
+    expect(answers.filter((code) => code === 'auth.invalidSecondFactor')).toHaveLength(4)
+    expect(answers.filter((code) => code === 'auth.secondFactorExpired')).toHaveLength(4)
+    expect((await browser.get('/api/auth/me')).body).toEqual({ authenticated: false })
+  })
+
+  it('drops the half-finished session from the store once the fifth wrong code has ended it', async () => {
+    const store = new session.MemoryStore()
+    const { server } = await anEnrolledServer({ sessionStore: store })
+    const browser = await aBrowser(server)
+    await browser.signIn()
+    const kept = () =>
+      new Promise<string>((resolve) =>
+        store.all((_error, all) => resolve(JSON.stringify(Object.values(all ?? {})))),
+      )
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await browser.post('/api/auth/login/2fa', { code: '000000' })
+    }
+    const beforeTheFifth = await kept()
+
+    await browser.post('/api/auth/login/2fa', { code: '000000' })
+
+    expect(beforeTheFifth).toContain('pendingSecondFactor')
+    expect(await kept()).not.toContain('pendingSecondFactor')
   })
 
   it('answers expired to a caller who never entered a password', async () => {

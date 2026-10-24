@@ -485,6 +485,13 @@ Read these before you upgrade, and back up with the version you run now.
   withdrawing a reaction, acknowledging the privacy notice and renaming oneself (#190) share one allowance per client and
   event, `GUEST_WRITE_RATE_LIMIT_PER_MINUTE` (default 300, at most 6000), and are answered `429`
   above it. Before, one guest could send these as fast as the network allowed.
+- **Five wrong second-factor codes end a sign-in even when they arrive at the same moment** (#200).
+  The count of wrong codes was a number in the session, and every request carries its own copy of
+  the session, so ten codes sent together each counted as the first and none ended the sign-in. They
+  are now counted as they are tried, in one place: the sixth to start, and every one after it, is
+  refused unread as `401 auth.secondFactorExpired`, and the password is asked again. Typing one code
+  at a time changes nothing. The count is kept in memory, like the sign-in limits: a restart of the
+  box starts it again.
 - **A stolen session no longer survives a password change** (#125): the credentials epoch ends
   every session minted before it.
 - **Guessing a password is slowed per account, without locking anyone out** (#128), and the
