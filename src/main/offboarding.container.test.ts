@@ -279,7 +279,7 @@ describe('offboarding a client, through the real composition root', () => {
 
     const again = await s.booted.usecases.finalizeOffboardedClients()
 
-    expect(again).toEqual({ finalized: [], accountsDeleted: 0, failed: [] })
+    expect(again).toEqual({ finalized: [], accountsDeleted: 0, failed: [], reasons: [] })
     expect(lines().n).toBe(before)
   })
 
