@@ -662,6 +662,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // of what it holds.
     secondFactors: adapters.secondFactors,
     guestTokens: adapters.guestTokens,
+    authenticateGuest: usecases.authenticateGuest,
     // Narrowed by `HttpDeps` to the one fact the HTTP layer publishes.
     mailer,
     diskSpaceChecker: statfsDiskSpaceChecker,

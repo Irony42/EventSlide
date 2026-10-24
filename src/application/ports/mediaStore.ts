@@ -37,7 +37,7 @@ import type { MediaVariant } from '../../domain/photos/mediaVariant'
  * | --- | --- | --- |
  * | `display` | 2560 px | the wall and the guest's own view |
  * | `thumb` | 480 px | the moderation grid, the mosaic layout, the album index |
- * | `original` | untouched, EXIF-stripped | the ZIP export, so a host keeps full quality |
+ * | `original` | untouched, EXIF-stripped | the ZIP exports (a clip's is its `video`), so a host keeps full quality |
  *
  * Two more for a clip — `video`, the transcoded H.264/AAC file, and `poster`, the still
  * frame everything that cannot play a video renders instead — plus `source`, the guest's

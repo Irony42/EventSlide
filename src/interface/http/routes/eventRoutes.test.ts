@@ -327,7 +327,6 @@ const buildWorld = ({
         purgeEvent: makePurgeEvent({ events, memberships, media }),
 
         joinEvent: absent('joinEvent'),
-        authenticateGuest: absent('authenticateGuest'),
         renameGuest: absent('renameGuest'),
         revokeGuest: makeRevokeGuest({ guests, memberships, clock: deps.clock }),
         listGuests: makeListGuests({ guests, memberships, clock: deps.clock }),

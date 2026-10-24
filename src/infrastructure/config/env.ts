@@ -1155,6 +1155,13 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        */
       SCHEDULE_SWEEP_INTERVAL_MINUTES: scheduleSweepInterval.optional(),
 
+      /**
+       * **Deprecated, and read by nothing.** The grace a guest has to take a photo back is a
+       * setting of each event (`EventSettings.guestSelfDeleteGraceSeconds`, chosen by its host), and
+       * this key never reached it: it was validated, mapped into the config and left there. It is
+       * still validated, so a box that sets it boots as it did, and `computeWarnings` says it does
+       * nothing; it is removed in 4.0.0 (CHANGELOG, `### Deprecated`).
+       */
       GUEST_SELF_DELETE_GRACE_SECONDS: positiveInt(900, 86_400),
       UPLOAD_RATE_LIMIT_PER_MINUTE: positiveInt(12, 600),
       JOIN_RATE_LIMIT_PER_MINUTE: positiveInt(20, 600),
@@ -1657,10 +1664,6 @@ export interface AppConfig {
     readonly maxSubscribersPerEvent: number
   }
 
-  readonly guests: {
-    readonly selfDeleteGraceMs: number
-  }
-
   readonly retention: {
     /**
      * How often `src/main` sweeps events whose retention deadline has passed.
@@ -1824,8 +1827,9 @@ export interface AppConfig {
 
   /**
    * Problems worth telling an operator about that are not worth refusing the boot
-   * over — see {@link computeWarnings}. Empty outside production, and usually empty
-   * inside it too; `src/main/index.ts` logs each one once, after the container
+   * over — see {@link computeWarnings}. The production-only ones are absent outside
+   * production (a deprecated setting is warned about everywhere), and the list is usually
+   * empty; `src/main/index.ts` logs each one once, after the container
    * exists. These start as warnings and stay warnings in a minor release: turning one
    * into a boot refusal is a breaking change for an existing self-hosted install, and
    * belongs in a major version with its own CHANGELOG entry, not a silent tightening.
@@ -1910,7 +1914,8 @@ interface WarningInputs {
 
 /**
  * Boot-time problems that are real but not worth a refusal — see `AppConfig.warnings`
- * and R-16 (roadmap: "self-hosters go silent on a changed default"). Both cases here are
+ * and R-16 (roadmap: "self-hosters go silent on a changed default"). Apart from a deprecated
+ * setting, which is wrong in every environment, the cases here are
  * a production boot that looks configured and is not, and both were a boot refusal in an
  * earlier draft; **`loadConfig` never throws for either**, because the configurations
  * they describe already run in the wild and a new refusal in a minor release would be
@@ -1923,9 +1928,20 @@ const computeWarnings = ({
   trustProxyHops,
   mailFromWithoutRelay,
 }: WarningInputs): readonly string[] => {
-  if (!isProduction) return []
-
   const warnings: string[] = []
+
+  // A deprecated setting is wrong in every environment, so this precedes the production-only
+  // checks. Read from the unparsed source: a default and an explicit value parse alike.
+  const rawGuestGrace = source['GUEST_SELF_DELETE_GRACE_SECONDS']
+  if (rawGuestGrace !== undefined) {
+    warnings.push(
+      'GUEST_SELF_DELETE_GRACE_SECONDS is deprecated and does nothing: how long a guest may take ' +
+        'a photo back is a setting of each event, which its host chooses. Remove it from the ' +
+        'environment; it will be removed in 4.0.0.',
+    )
+  }
+
+  if (!isProduction) return warnings
 
   // Parsed, `raw.PUBLIC_URL` already carries its default and cannot say whether an
   // operator set it — only the unparsed source can. `PUBLIC_URL` has no `blankAsAbsent`
@@ -2093,10 +2109,6 @@ const load = (schema: typeof serverSchema, source: Source): AppConfig => {
       maxStreamsPerClient: raw.MAX_STREAMS_PER_CLIENT,
       maxStreamsTotal: raw.MAX_STREAMS_TOTAL,
       maxSubscribersPerEvent: raw.MAX_SUBSCRIBERS_PER_EVENT,
-    },
-
-    guests: {
-      selfDeleteGraceMs: raw.GUEST_SELF_DELETE_GRACE_SECONDS * 1000,
     },
 
     retention: {

@@ -51,22 +51,26 @@ export class RecordingArchiveWriter implements ArchiveWriter {
 }
 
 export class CapturingLogger implements Logger {
-  readonly lines: { readonly level: string; readonly message: string }[] = []
+  readonly lines: {
+    readonly level: string
+    readonly message: string
+    readonly context: LogContext | undefined
+  }[] = []
 
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
+  debug(message: string, context?: LogContext): void {
+    this.lines.push({ level: 'debug', message, context })
   }
 
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
+  info(message: string, context?: LogContext): void {
+    this.lines.push({ level: 'info', message, context })
   }
 
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
+  warn(message: string, context?: LogContext): void {
+    this.lines.push({ level: 'warn', message, context })
   }
 
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
+  error(message: string, context?: LogContext): void {
+    this.lines.push({ level: 'error', message, context })
   }
 
   child(_bindings: LogContext): Logger {

@@ -13,6 +13,7 @@ import { FakeSecondFactorRepository } from '../../../application/testing/fakeSec
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
 import { AT } from '../../../application/testing/builders'
+import { makeAuthenticateGuest } from '../../../application/usecases/guests/authenticateGuest'
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
 import { createHmacGuestTokenService } from '../../../infrastructure/crypto/hmacGuestTokenService'
 import { silentLogger } from '../../../infrastructure/logging/pinoLogger'
@@ -182,6 +183,13 @@ export const buildTestWorld = (
     users,
     secondFactors,
     guestTokens,
+    authenticateGuest: makeAuthenticateGuest({
+      events,
+      guests,
+      tokens: guestTokens,
+      clock,
+      logger,
+    }),
     mailer: options.mailer ?? { canDeliver: false },
     diskSpaceChecker,
     config: testHttpConfig(config),

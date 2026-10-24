@@ -6,6 +6,8 @@ import type {
 } from '../application/usecases/events/purgeExpiredEvents'
 import type { PruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import type { FinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
+import { createGuardedJob, type JobOutcome } from './guardedJob'
+import { createRepeater } from './repeater'
 
 /**
  * The trigger the retention setting never had.
@@ -52,12 +54,7 @@ export interface RetentionSweeperDeps {
   readonly intervalMs: number
 }
 
-export type SweepOutcome =
-  | { readonly status: 'completed'; readonly report: PurgeExpiredEventsReport }
-  /** A sweep was already running. Nothing was attempted. */
-  | { readonly status: 'skipped' }
-  /** The sweep itself threw — a closed or locked database, not a busy disk. */
-  | { readonly status: 'failed'; readonly error: unknown }
+export type SweepOutcome = JobOutcome<PurgeExpiredEventsReport>
 
 export interface RetentionSweeper {
   /** Idempotent. The first sweep happens one interval from now, never at startup. */
@@ -76,24 +73,6 @@ export const createRetentionSweeper = ({
   clock,
   intervalMs,
 }: RetentionSweeperDeps): RetentionSweeper => {
-  let timer: NodeJS.Timeout | null = null
-
-  /**
-   * The overlap guard.
-   *
-   * A sweep is a series of recursive directory removals. Two of them over the same event
-   * is how you get half a media root and a report that contradicts itself — one run
-   * deleting the tree out from under the other, both then failing to delete the row, and
-   * an operator reading two `failed` lists for an event that is in fact half gone. A
-   * slow sweep is the normal case, not the exceptional one: forty albums on a spinning
-   * disk on a machine that is also serving a live event can easily outlast an hour.
-   *
-   * Raised synchronously, before the first thing that can throw or await, and lowered only
-   * once the audit prune that follows the purge has finished: a guard set from the purge's
-   * own return value is down for the whole of that prune whenever the purge throws.
-   */
-  let sweeping = false
-
   /**
    * The offboarded clients' half of a sweep. Never throws, for the reason `pruneAudit` gives, and
    * run before it: a finalisation writes audit lines, and those should be in the log the prune reads.
@@ -128,9 +107,9 @@ export const createRetentionSweeper = ({
   }
 
   /**
-   * The audit log's half of a sweep. Never throws: it runs in a `finally`, where a throw
-   * would replace the purge's own outcome, and from a timer callback an unhandled rejection
-   * is fatal in `index.ts`.
+   * The audit log's half of a sweep. Never throws: it runs after the purge inside the
+   * guard, in a `finally`, where a throw would replace the purge's own outcome, and from a
+   * timer callback an unhandled rejection is fatal in `index.ts`.
    */
   const pruneAudit = async (): Promise<void> => {
     try {
@@ -147,26 +126,37 @@ export const createRetentionSweeper = ({
     }
   }
 
-  const runOnce = async (): Promise<SweepOutcome> => {
-    if (sweeping) {
-      // Worth a warning rather than silence: it means the sweep no longer fits in its
-      // interval, which an operator can fix by lengthening it.
-      logger.warn('retention sweep skipped, the previous one is still running')
-      return { status: 'skipped' }
-    }
-
-    sweeping = true
-
-    try {
-      const startedAt = clock.now()
-
-      // Called inside the try, not before it: a `purge` that threw synchronously rather
-      // than returning a rejected promise would otherwise skip this catch entirely and
-      // leave the timer's `void runOnce()` as an unhandled rejection, which `index.ts`
-      // treats as fatal.
-      const report = await purge()
-      const durationMs = clock.now().getTime() - startedAt.getTime()
-
+  /**
+   * A sweep is a series of recursive directory removals. Two of them over the same event
+   * is how you get half a media root and a report that contradicts itself — one run
+   * deleting the tree out from under the other, both then failing to delete the row, and
+   * an operator reading two `failed` lists for an event that is in fact half gone. A slow
+   * sweep is the normal case, not the exceptional one: forty albums on a spinning disk on a
+   * machine that is also serving a live event can easily outlast an hour.
+   *
+   * The guard is raised before the first thing that can throw or await and lowered only
+   * once the audit prune that follows the purge has finished (`afterwards`): a guard set
+   * from the purge's own return value is down for the whole of that prune whenever the
+   * purge throws, and a second tick must not start a sweep while this one is still pruning.
+   */
+  const job = createGuardedJob({
+    logger,
+    clock,
+    run: purge,
+    // The offboarded clients first, whose audit lines the prune should then see.
+    afterwards: async () => {
+      await finalizeClients()
+      await pruneAudit()
+    },
+    // Worth a warning rather than silence: it means the sweep no longer fits in its
+    // interval, which an operator can fix by lengthening it.
+    onSkipped: () => logger.warn('retention sweep skipped, the previous one is still running'),
+    // The use case swallows a per-event failure by design, so reaching the catch means the
+    // listing itself failed — the database is closed, locked or gone — and losing the
+    // whole server because a purge could not read it would be a far worse outcome than one
+    // skipped sweep.
+    failedMessage: 'retention sweep failed',
+    describe: (report, durationMs) => {
       // Three independent lines, because the mixed case is real: a run that purged
       // thirty-nine albums and could not purge the fortieth has to report both.
       if (report.purged.length > 0) {
@@ -193,43 +183,18 @@ export const createRetentionSweeper = ({
         // due" is not news. The scheduling line at startup is the proof of life.
         logger.debug('retention sweep found nothing to purge', { durationMs })
       }
+    },
+  })
 
-      return { status: 'completed', report }
-    } catch (error) {
-      // The use case swallows a per-event failure by design, so reaching here means the
-      // listing itself failed — the database is closed, locked or gone. Caught because
-      // an unhandled rejection from a timer callback is fatal in `index.ts`, and losing
-      // the whole server because a purge could not read the database would be a far
-      // worse outcome than one skipped sweep.
-      logger.error('retention sweep failed', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return { status: 'failed', error }
-    } finally {
-      // After the events, whatever became of them, and still inside the overlap guard: a
-      // second tick must not start a sweep while this one is still pruning.
-      await finalizeClients()
-      await pruneAudit()
-      sweeping = false
-    }
-  }
+  const repeater = createRepeater({ everyMs: intervalMs, tick: () => void job.runOnce() })
 
   return {
-    runOnce,
+    runOnce: job.runOnce,
 
     start: () => {
-      if (timer !== null) return
+      if (repeater.active) return
 
-      timer = setInterval(() => void runOnce(), intervalMs)
-
-      /**
-       * The timer must not be what keeps the process alive.
-       *
-       * Without this, `docker stop` waits out the full interval — up to a day — before
-       * Node's event loop empties, and the 15 s shutdown backstop in `index.ts` never
-       * gets to do its job because the process is not trying to exit in the first place.
-       */
-      timer.unref()
+      repeater.start()
 
       // Proof of life at boot, and the value an operator has to change if the skip
       // warning above ever appears.
@@ -237,10 +202,7 @@ export const createRetentionSweeper = ({
     },
 
     stop: () => {
-      if (timer !== null) {
-        clearInterval(timer)
-        timer = null
-      }
+      repeater.stop()
 
       /**
        * A sweep already running is abandoned, not awaited.
@@ -259,7 +221,7 @@ export const createRetentionSweeper = ({
        * choice is not "finish or abandon", it is "abandon now, in a controlled place, or
        * abandon later at an arbitrary one".
        */
-      if (sweeping) {
+      if (job.running) {
         logger.warn('shutting down during a retention sweep, the rest is left to the next run')
       }
     },

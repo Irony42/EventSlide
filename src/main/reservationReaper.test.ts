@@ -9,7 +9,7 @@ import type {
   ReapStaleReservationsReport,
 } from '../application/usecases/clips/reapStaleReservations'
 import { asClipJobId, asEventId } from '../domain/shared/ids'
-import type { LogContext, Logger } from '../application/ports/logger'
+import { CapturingLogger, type LoggedLine } from '../application/testing/capturingLogger'
 
 /**
  * The schedule behind the reservation reaper — which is the whole of the defect it was
@@ -32,29 +32,6 @@ const EVENT = asEventId('event-1')
 
 const nothingReaped: ReapStaleReservationsReport = { reaped: 0 }
 
-interface LoggedLine {
-  readonly level: 'debug' | 'info' | 'warn' | 'error'
-  readonly message: string
-  readonly context: LogContext | undefined
-}
-
-const recordingLogger = (): { logger: Logger; lines: LoggedLine[] } => {
-  const lines: LoggedLine[] = []
-  const record =
-    (level: LoggedLine['level']) =>
-    (message: string, context?: LogContext): void =>
-      void lines.push({ level, message, context })
-
-  const logger: Logger = {
-    debug: record('debug'),
-    info: record('info'),
-    warn: record('warn'),
-    error: record('error'),
-    child: () => logger,
-  }
-  return { logger, lines }
-}
-
 describe('createReservationReaper', () => {
   let clock: FakeClock
 
@@ -71,7 +48,8 @@ describe('createReservationReaper', () => {
     reap: ReapStaleReservations,
     overrides: Partial<ReservationReaperDeps> = {},
   ): { reaper: ReturnType<typeof createReservationReaper>; lines: LoggedLine[] } => {
-    const { logger, lines } = recordingLogger()
+    const logger = new CapturingLogger()
+    const { lines } = logger
     const reaper = createReservationReaper({
       reap,
       logger,
@@ -90,7 +68,7 @@ describe('createReservationReaper', () => {
     clock.set(new Date(AT.getTime() + 10_000))
     clips.seed(aClipJob({ id: 'job-1', eventId: 'event-1', status: 'reserved', createdAt: AT }))
 
-    const { logger } = recordingLogger()
+    const logger = new CapturingLogger()
     const reap = makeReapStaleReservations({
       clips,
       clock,
@@ -132,13 +110,17 @@ describe('createReservationReaper', () => {
     expect(reap).toHaveBeenCalledTimes(4)
   })
 
-  it('starts once however often it is started', () => {
-    const { reaper } = build(async () => nothingReaped)
+  it('starts once however often it is started, and says it is scheduled once', () => {
+    const reap = vi.fn<ReapStaleReservations>(async () => nothingReaped)
+    const { reaper, lines } = build(reap)
 
     reaper.start()
     reaper.start()
 
     expect(vi.getTimerCount()).toBe(1)
+    expect(lines.filter((line) => line.message === 'reservation reaper scheduled')).toHaveLength(1)
+    // The startup pass is the first start's alone.
+    expect(reap).toHaveBeenCalledTimes(1)
   })
 
   it('skips rather than overlapping a pass that is still running', async () => {

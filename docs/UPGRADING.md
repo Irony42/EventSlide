@@ -62,7 +62,9 @@ A change that makes an existing installation behave differently arrives in two s
 1. **A minor warns.** The server logs a warning at boot, and the CHANGELOG lists it under
    "Behaviour changes to check before upgrading". 3.0.0 introduced three such warnings, for a
    production box with no `PUBLIC_URL`, for one with a secure cookie and `TRUST_PROXY_HOPS=0`,
-   and for `MAIL_FROM` set without `SMTP_URL`: they are warnings, and none stops the boot.
+   and for `MAIL_FROM` set without `SMTP_URL`: they are warnings, and none stops the boot. A
+   fourth says, in any environment, that `GUEST_SELF_DELETE_GRACE_SECONDS` does nothing: it is
+   deprecated, and 4.0.0 removes it.
 2. **The next major changes it, at the earliest.** A refusal to start is only ever added in a
    major, with its own `BREAKING` entry.
 
@@ -274,7 +276,9 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
    where it used to pass only the few the file names. Remove each line you did not mean to
    apply. Look first at `DATABASE_PATH` and `MEDIA_ROOT`: the values in `.env.example`
    (`./data/eventslide.sqlite`, `./media`) override the `/data` paths the image sets, and
-   point the server away from your volume.
+   point the server away from your volume. If you copied the file before 3.0.0, it also sets
+   `GUEST_SELF_DELETE_GRACE_SECONDS`, which nothing ever read (the grace is a setting of each
+   event): it is deprecated, 3.0.0 warns at boot that it does nothing, and you can remove it.
 3. **Look for the names of the new settings.** The server now checks them at boot and exits
    with code 78 on a value that does not fit, naming the variable. If your environment already
    sets one of them for another purpose, change or remove it: `SUPPORT_URL`, `REPORT_URL`,

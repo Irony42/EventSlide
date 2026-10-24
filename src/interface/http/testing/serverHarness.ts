@@ -93,7 +93,6 @@ export const notWiredUseCases = (): HttpUseCases => ({
   purgeEvent: notWired('purgeEvent'),
 
   joinEvent: notWired('joinEvent'),
-  authenticateGuest: notWired('authenticateGuest'),
   renameGuest: notWired('renameGuest'),
   revokeGuest: notWired('revokeGuest'),
   listGuests: notWired('listGuests'),

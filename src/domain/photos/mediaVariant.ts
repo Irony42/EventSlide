@@ -24,8 +24,8 @@ export type PhotoVariant = (typeof MEDIA_VARIANTS)[number]
 
 /**
  * A clip: the transcoded H.264/AAC file, and the still frame everything that cannot play
- * a video renders instead — the moderation grid, the album index, the wall while the
- * clip is loading, and the ZIP export.
+ * a video renders instead — the moderation grid, the album index and the wall while the
+ * clip is loading. The ZIP exports carry the `video`, never the `poster`.
  *
  * There is no `original`. The stored bytes are always the pipeline's output; a clip's
  * upload is never kept, because keeping it would keep the GPS atom, the gyroscope track

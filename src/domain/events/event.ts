@@ -606,7 +606,7 @@ export class Event {
 
   /**
    * Whether a join code opens the event: the status says so **and the client is not suspended**.
-   * One expression feeds `joinEvent`, `resolveJoinCode` and `authenticateGuest`, which answer
+   * One expression feeds `joinEvent` and `resolveJoinCode`, which answer
    * `event.notFound` to anything that is false, so a suspended client's printed QR code is the same
    * dead end as a code nobody ever issued, and says nothing that confirms the event exists.
    */

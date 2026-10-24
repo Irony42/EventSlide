@@ -138,7 +138,6 @@ describe('loadConfig', () => {
           maxStreamsTotal: 500,
           maxSubscribersPerEvent: 200,
         },
-        guests: { selfDeleteGraceMs: 900_000 },
         retention: { sweepIntervalMs: 3_600_000, capNoticeDays: 30 },
         schedule: { sweepIntervalMs: 300_000 },
         rateLimits: {
@@ -250,10 +249,38 @@ describe('loadConfig', () => {
       expect(config.publicUrl).toBe('https://photos.example.com')
     })
 
-    it('converts the guest self-delete grace period from seconds to milliseconds', () => {
-      const config = loadConfig({ ...DEV, GUEST_SELF_DELETE_GRACE_SECONDS: '60' })
+    describe('GUEST_SELF_DELETE_GRACE_SECONDS, deprecated and read by nothing', () => {
+      // The grace is a setting of each event. The key was validated, mapped into the config and
+      // read by no one, so it is kept parsing (a box that sets it boots as it did), warned about,
+      // and listed under Deprecated in the 3.0.0 entry; docs/UPGRADING.md says why it is not just
+      // gone: a documented setting is removed in a major, after a deprecation.
+      it('still boots with it, and no longer carries it in the configuration', () => {
+        const config = loadConfig({ ...DEV, GUEST_SELF_DELETE_GRACE_SECONDS: '60' })
 
-      expect(config.guests.selfDeleteGraceMs).toBe(60_000)
+        expect(config).not.toHaveProperty('guests')
+      })
+
+      it('says at boot that it does nothing, in every environment', () => {
+        for (const env of [
+          { ...DEV, GUEST_SELF_DELETE_GRACE_SECONDS: '60' },
+          aProductionEnv({ TRUST_PROXY_HOPS: '1', GUEST_SELF_DELETE_GRACE_SECONDS: '60' }),
+        ]) {
+          const { warnings } = loadConfig(env)
+
+          expect(warnings).toHaveLength(1)
+          expect(warnings[0]).toContain('GUEST_SELF_DELETE_GRACE_SECONDS is deprecated')
+        }
+      })
+
+      it('says nothing when it is not set', () => {
+        expect(loadConfig({ ...DEV }).warnings).toEqual([])
+      })
+
+      it('still refuses a value it always refused, so a box does not start booting with a typo', () => {
+        expect(() => loadConfig({ ...DEV, GUEST_SELF_DELETE_GRACE_SECONDS: '86401' })).toThrow(
+          ConfigError,
+        )
+      })
     })
 
     it('turns on the Secure cookie flag in production without being told to', () => {
@@ -308,7 +335,6 @@ describe('loadConfig', () => {
         DEFAULT_EVENT_QUOTA_BYTES: '3333',
         MAX_CONCURRENT_UPLOAD_REQUESTS: '8',
         MIN_FREE_DISK_BYTES: '4444',
-        GUEST_SELF_DELETE_GRACE_SECONDS: '61',
         UPLOAD_RATE_LIMIT_PER_MINUTE: '101',
         JOIN_RATE_LIMIT_PER_MINUTE: '102',
         LOGIN_RATE_LIMIT_PER_MINUTE: '103',
@@ -349,7 +375,6 @@ describe('loadConfig', () => {
           maxStreamsTotal: 110,
           maxSubscribersPerEvent: 111,
         },
-        guests: { selfDeleteGraceMs: 61_000 },
         rateLimits: {
           uploadPerMinute: 101,
           joinPerMinute: 102,

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createScheduleSweeper, type ScheduleSweeperDeps } from './scheduleSweeper'
 import { FakeClock } from '../application/testing/fakeClock'
 import { asEventId } from '../domain/shared/ids'
-import type { LogContext, Logger } from '../application/ports/logger'
+import { CapturingLogger, type LoggedLine } from '../application/testing/capturingLogger'
 import type { ApplyEventSchedulesReport } from '../application/usecases/events/applyEventSchedules'
 
 /**
@@ -30,29 +30,6 @@ const nothingDue: ApplyEventSchedulesReport = {
   refused: [],
   failed: [],
   autoClosed: [],
-}
-
-interface LoggedLine {
-  readonly level: 'debug' | 'info' | 'warn' | 'error'
-  readonly message: string
-  readonly context: LogContext | undefined
-}
-
-const recordingLogger = (): { logger: Logger; lines: LoggedLine[] } => {
-  const lines: LoggedLine[] = []
-  const record =
-    (level: LoggedLine['level']) =>
-    (message: string, context?: LogContext): void =>
-      void lines.push({ level, message, context })
-
-  const logger: Logger = {
-    debug: record('debug'),
-    info: record('info'),
-    warn: record('warn'),
-    error: record('error'),
-    child: () => logger,
-  }
-  return { logger, lines }
 }
 
 const at = (lines: readonly LoggedLine[], level: LoggedLine['level']): readonly LoggedLine[] =>
@@ -85,7 +62,8 @@ const controllableSweep = (): {
 }
 
 const build = (overrides: Partial<ScheduleSweeperDeps> = {}) => {
-  const { logger, lines } = recordingLogger()
+  const logger = new CapturingLogger()
+  const { lines } = logger
   const clock = new FakeClock(AT)
   const sweeper = createScheduleSweeper({
     apply: async () => nothingDue,
@@ -138,9 +116,9 @@ describe('createScheduleSweeper', () => {
       sweeper.stop()
     })
 
-    it('starts one timer however many times it is started', async () => {
+    it('starts one timer however many times it is started, and says it is scheduled once', async () => {
       let swept = 0
-      const { sweeper } = build({
+      const { sweeper, lines } = build({
         apply: async () => {
           swept += 1
           return nothingDue
@@ -152,6 +130,7 @@ describe('createScheduleSweeper', () => {
       await vi.advanceTimersByTimeAsync(INTERVAL_MS)
 
       expect(swept).toBe(1)
+      expect(lines.filter((line) => line.message === 'schedule sweep scheduled')).toHaveLength(1)
       sweeper.stop()
     })
 
@@ -386,27 +365,5 @@ describe('createScheduleSweeper', () => {
 
       expect(at(lines, 'warn')).toEqual([])
     })
-  })
-})
-
-describe('createScheduleSweeper, against real timers', () => {
-  it('unrefs its interval, so a pending sweep never holds `docker stop` open', () => {
-    const created = vi.spyOn(globalThis, 'setInterval')
-    const { logger } = recordingLogger()
-    const sweeper = createScheduleSweeper({
-      apply: async () => nothingDue,
-      logger,
-      clock: new FakeClock(AT),
-      intervalMs: INTERVAL_MS,
-    })
-
-    sweeper.start()
-
-    const handle = created.mock.results[0]?.value
-    sweeper.stop()
-    created.mockRestore()
-
-    expect(handle).toBeDefined()
-    expect((handle as NodeJS.Timeout).hasRef()).toBe(false)
   })
 })

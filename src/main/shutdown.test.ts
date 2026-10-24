@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CallLog } from '../application/testing/callLog'
-import type { LogContext, Logger } from '../application/ports/logger'
+import { silentLogger } from '../application/testing/capturingLogger'
 import type { Container } from './container'
 import { createShutdownHandler, type ShutdownServer } from './shutdown'
 
@@ -19,17 +19,6 @@ import { createShutdownHandler, type ShutdownServer } from './shutdown'
  * rule — the committed state is identical whichever order the calls happen in, which
  * is exactly why only a recorded sequence, not an end-state assertion, can see it.
  */
-
-const recordingLogger = (): Logger => {
-  const logger: Logger = {
-    debug: (): void => {},
-    info: (): void => {},
-    warn: (): void => {},
-    error: (): void => {},
-    child: (_bindings: LogContext): Logger => logger,
-  }
-  return logger
-}
 
 type FakeContainer = Pick<Container, 'logger' | 'readiness' | 'dispose'>
 
@@ -70,7 +59,7 @@ const build = (grace = 15_000): Rig => {
 
   let settle: ((outcome: 'resolve' | 'reject') => void) | null = null
   const containerBase = {
-    logger: recordingLogger(),
+    logger: silentLogger(),
     readiness,
     dispose: (): Promise<void> =>
       new Promise<void>((resolve, reject) => {

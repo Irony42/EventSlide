@@ -7,33 +7,61 @@ import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { GuestTokenService } from '../../ports/guestTokenService'
+import type { Logger } from '../../ports/logger'
 
 /**
  * Turn a device token plus the slug in the URL into a guest of *that* event.
  *
- * A valid signature is never sufficient on its own. Four further checks stand between a
- * token and any right, and each closes a real hole:
+ * This is the **one** implementation: `requireGuest` (the middleware every guest route sits
+ * behind) calls it and re-implements nothing, so the rules below cannot drift between a use case
+ * and a handler, as they did while the middleware kept its own copy and this one was never
+ * called.
  *
- * 1. **The token's event must match the event in the URL.** Without it, a guest at one
+ * A valid signature is never sufficient on its own. Four further checks stand between a
+ * token and any right, in this order, and each closes a real hole:
+ *
+ * 1. **The event's client must not be suspended** (roadmap §10.7): a suspended client's
+ *    guests are answered exactly as if the event were not there. It comes before the others
+ *    so that a token that verifies cannot tell a suspended event from one that is absent.
+ * 2. **The token's event must match the event in the URL.** Without it, a guest at one
  *    wedding could point their own cookie at another event's endpoints. This is the
  *    cross-event attack; it has a named test here and again at rings 4 and 6.
- * 2. **The guest row must still exist.** That is what makes a signed, stateless token
+ * 3. **The guest row must still exist.** That is what makes a signed, stateless token
  *    revocable at all.
- * 3. **The row must not be revoked**, so the host's "remove this guest" button works
+ * 4. **The row must not be revoked**, so the host's "remove this guest" button works
  *    against a credential the server never stored.
- * 4. **The event must still accept guests**, so a closed or archived party stops
- *    granting identity rather than only stopping uploads.
+ *
+ * What it deliberately does **not** check is the event's lifecycle. Identity and permission
+ * are not the same question as "may this action happen now": a guest at a closed event can
+ * still look at their own photographs, and a guest who uploads to one is told
+ * `event.notAcceptingUploads`, which they can act on, rather than `event.notFound`, which
+ * they cannot. Only the upload use case knows it needs `acceptsUploads()`, and a join code
+ * is a different door (`joinEvent`, `resolveJoinCode`) that does ask `acceptsGuests()`.
  *
  * On success the guest is `touch`ed: the host's "who is here right now" count is read
  * from `lastSeenAt`, and a guest who joined an hour ago and is still uploading must not
- * be counted as gone.
+ * be counted as gone. The write is at most one per {@link PRESENCE_WRITE_INTERVAL_MS}: this
+ * runs on every guest request, the count is a five-minute window, and a row written on each
+ * tap of a reaction button is cost for no reader. It is `GuestRepository.touch`, which writes
+ * presence and nothing else, and it is **best effort**: the count is the only thing that reads
+ * it, so a write that fails (a full disk, a locked database) is logged and the guest is let
+ * through, rather than every request they make answering 500.
  */
+
+/**
+ * The finest `lastSeenAt` is kept. Far below the five-minute window the host's count is read
+ * through (`PRESENCE_WINDOW_MS` in `listGuests`), so the count is off by at most this much.
+ */
+export const PRESENCE_WRITE_INTERVAL_MS = 30 * 1_000
 
 export interface AuthenticateGuestInput {
   /** The raw `es_guest` cookie value. Untrusted until `verify` says otherwise. */
   readonly token: string
-  /** The slug from the URL — the event this request claims to be about. */
-  readonly eventSlug: string
+  /**
+   * The slug from the URL — the event this request claims to be about. Whatever the router
+   * handed over: `Slug.create` is what decides whether it is one.
+   */
+  readonly eventSlug: unknown
 }
 
 export interface AuthenticateGuestOutput {
@@ -47,6 +75,7 @@ export interface AuthenticateGuestDeps {
   readonly guests: GuestRepository
   readonly tokens: GuestTokenService
   readonly clock: Clock
+  readonly logger: Logger
 }
 
 export type AuthenticateGuest = (
@@ -54,7 +83,7 @@ export type AuthenticateGuest = (
 ) => Promise<Result<AuthenticateGuestOutput, DomainError>>
 
 export const makeAuthenticateGuest =
-  ({ events, guests, tokens, clock }: AuthenticateGuestDeps): AuthenticateGuest =>
+  ({ events, guests, tokens, clock, logger }: AuthenticateGuestDeps): AuthenticateGuest =>
   async (input) => {
     const now = clock.now()
 
@@ -67,7 +96,11 @@ export const makeAuthenticateGuest =
     if (!slug.ok) return err(DomainError.notFound('event.notFound'))
 
     const event = await events.findBySlug(slug.value)
-    if (event === null) return err(DomainError.notFound('event.notFound'))
+    // A suspended client's event is **the same 404 as an unknown one** (roadmap §10.7; G2-14): a
+    // token that worked yesterday tells the holder nothing today.
+    if (event === null || event.isClientSuspended()) {
+      return err(DomainError.notFound('event.notFound'))
+    }
 
     // The whole reason the token carries an event id. Compared against the event
     // resolved from the URL, never against an id the client sent.
@@ -81,10 +114,18 @@ export const makeAuthenticateGuest =
     // is 401 — drop the cookie and scan the code again — not a 404 it cannot act on.
     if (guest === null) return err(DomainError.unauthenticated('guestToken.malformed'))
     if (guest.isRevoked()) return err(DomainError.forbidden('guest.revoked'))
-    if (!event.acceptsGuests()) return err(DomainError.notFound('event.notFound'))
 
     const seen = guest.touch(now)
-    await guests.save(seen)
+    if (seen.lastSeenAt.getTime() - guest.lastSeenAt.getTime() >= PRESENCE_WRITE_INTERVAL_MS) {
+      try {
+        await guests.touch(event.id, guest.id, seen.lastSeenAt)
+      } catch (cause) {
+        logger.warn('could not record that a guest was seen; letting them through', {
+          eventId: event.id,
+          cause: String(cause),
+        })
+      }
+    }
 
     return ok({ guest: seen, event })
   }

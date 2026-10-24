@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMediaSweeper, isTooDangerousToSweep, type MediaSweeperDeps } from './mediaSweeper'
 import { FakeClock } from '../application/testing/fakeClock'
 import { asEventId } from '../domain/shared/ids'
-import type { LogContext, Logger } from '../application/ports/logger'
+import { CapturingLogger, type LoggedLine } from '../application/testing/capturingLogger'
 import type {
   SweepOrphanedMedia,
   SweepOrphanedMediaReport,
@@ -34,29 +34,6 @@ const nothingCollected: SweepOrphanedMediaReport = {
   bytes: 0,
   failed: [],
   skippedEvents: 0,
-}
-
-interface LoggedLine {
-  readonly level: 'debug' | 'info' | 'warn' | 'error'
-  readonly message: string
-  readonly context: LogContext | undefined
-}
-
-const recordingLogger = (): { logger: Logger; lines: LoggedLine[] } => {
-  const lines: LoggedLine[] = []
-  const record =
-    (level: LoggedLine['level']) =>
-    (message: string, context?: LogContext): void =>
-      void lines.push({ level, message, context })
-
-  const logger: Logger = {
-    debug: record('debug'),
-    info: record('info'),
-    warn: record('warn'),
-    error: record('error'),
-    child: () => logger,
-  }
-  return { logger, lines }
 }
 
 describe('isTooDangerousToSweep', () => {
@@ -124,7 +101,8 @@ describe('createMediaSweeper', () => {
     sweep: SweepOrphanedMedia,
     overrides: Partial<MediaSweeperDeps> = {},
   ): { sweeper: ReturnType<typeof createMediaSweeper>; lines: LoggedLine[] } => {
-    const { logger, lines } = recordingLogger()
+    const logger = new CapturingLogger()
+    const { lines } = logger
     const sweeper = createMediaSweeper({
       sweep,
       logger,
@@ -150,6 +128,26 @@ describe('createMediaSweeper', () => {
     expect(sweep).toHaveBeenCalledTimes(1)
   })
 
+  it('sweeps first at its offset, so it does not walk the disk in the same minute as the retention sweep', async () => {
+    // The offset is the point of `firstDelayMs`: both timers start at boot with the same
+    // interval, and without it the two long disk walks land together every time.
+    const sweep = vi.fn<SweepOrphanedMedia>(async () => nothingCollected)
+    const { sweeper } = build(sweep, { firstDelayMs: INTERVAL_MS / 4 })
+
+    sweeper.start()
+    await vi.advanceTimersByTimeAsync(INTERVAL_MS / 4 - 1)
+    expect(sweep).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(sweep).toHaveBeenCalledTimes(1)
+
+    // And then on the interval, counted from that first sweep.
+    await vi.advanceTimersByTimeAsync(INTERVAL_MS - 1)
+    expect(sweep).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(sweep).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps sweeping on the interval', async () => {
     const sweep = vi.fn<SweepOrphanedMedia>(async () => nothingCollected)
     const { sweeper } = build(sweep)
@@ -160,14 +158,17 @@ describe('createMediaSweeper', () => {
     expect(sweep).toHaveBeenCalledTimes(3)
   })
 
-  it('starts once however often it is started', () => {
+  it('starts once however often it is started, and says it is scheduled once', () => {
     const sweep = vi.fn<SweepOrphanedMedia>(async () => nothingCollected)
-    const { sweeper } = build(sweep)
+    const { sweeper, lines } = build(sweep)
 
     sweeper.start()
     sweeper.start()
 
     expect(vi.getTimerCount()).toBe(1)
+    expect(lines.filter((line) => line.message === 'media reconciliation scheduled')).toHaveLength(
+      1,
+    )
   })
 
   it('skips rather than overlapping a sweep that is still running', async () => {

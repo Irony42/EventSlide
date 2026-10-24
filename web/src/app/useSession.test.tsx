@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { ApiProvider } from './ApiProvider'
-import { useSession } from './useSession'
+import { SessionProvider } from './SessionProvider'
+import { useForgetSession, useSession } from './useSession'
 import { aSessionUser, fakeApi } from '../testing/renderWithProviders'
 import type { ReactNode } from 'react'
 import type { Api } from '../lib/api/client'
 import type { SessionResponse } from '../lib/api/dto'
 
 /**
- * `GET /api/auth/me`, as the state two gates read.
+ * `GET /api/auth/me`, as the state every reader under `SessionProvider` shares.
  *
  * `RequireAuth.test.tsx` and `MustChangePasswordGate.test.tsx` cover what each answer
  * means for a host trying to reach `/admin`. What is left here is the ordering: which
@@ -38,7 +39,9 @@ interface Mounted {
 const mount = (api: Api): Mounted => {
   let count = 0
   const wrapper = ({ children }: { readonly children: ReactNode }) => (
-    <ApiProvider api={api}>{children}</ApiProvider>
+    <ApiProvider api={api}>
+      <SessionProvider scope="test">{children}</SessionProvider>
+    </ApiProvider>
   )
   const { result } = renderHook(
     () => {
@@ -51,16 +54,17 @@ const mount = (api: Api): Mounted => {
 }
 
 describe('useSession', () => {
-  it('starts out waiting without a second render pass', () => {
+  it('starts out waiting, and costs one pass for the request and none to say it is waiting', () => {
     // `loading: true` is the initial state, never something the effect sets. Setting it
     // in the effect body cost a cascading render on every mount of both admin gates,
-    // and `react-hooks/set-state-in-effect` rejects that form for this reason.
+    // and `react-hooks/set-state-in-effect` rejects that form for this reason. The one
+    // pass is the provider noting that a reader has asked: nothing is read until then.
     const api = fakeApi({ session: vi.fn(() => new Promise<SessionResponse>(() => {})) })
 
     const { result, renders } = mount(api)
 
     expect(result.current.loading).toBe(true)
-    expect(renders()).toBe(1)
+    expect(renders()).toBe(2)
   })
 
   it('does not let a superseded request answer for the current one', async () => {
@@ -141,5 +145,102 @@ describe('useSession', () => {
     // Not "logged out": the gate above decides what an unreachable session means, and
     // it must be able to tell the two apart.
     expect(result.current.session).toBeNull()
+  })
+})
+
+describe('SessionProvider', () => {
+  it('asks nothing until a reader mounts, so a page with no use for the session costs no request', () => {
+    const api = fakeApi()
+
+    renderHook(() => 1, {
+      wrapper: ({ children }: { readonly children: ReactNode }) => (
+        <ApiProvider api={api}>
+          <SessionProvider scope="test">{children}</SessionProvider>
+        </ApiProvider>
+      ),
+    })
+
+    expect(api.session).not.toHaveBeenCalled()
+  })
+
+  it('asks once for however many readers there are', async () => {
+    const api = fakeApi({ session: vi.fn(async () => signedIn()) })
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+      <ApiProvider api={api}>
+        <SessionProvider scope="test">{children}</SessionProvider>
+      </ApiProvider>
+    )
+
+    const { result } = renderHook(() => [useSession(), useSession(), useSession()], { wrapper })
+
+    await waitFor(() => expect(result.current.every((state) => !state.loading)).toBe(true))
+    expect(api.session).toHaveBeenCalledTimes(1)
+    expect(result.current.map((state) => state.session)).toEqual(Array(3).fill(signedIn()))
+  })
+
+  it('reads again when the answer is forgotten while a reader is still mounted', async () => {
+    let current = signedIn()
+    const api = fakeApi({ session: vi.fn(async () => current) })
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+      <ApiProvider api={api}>
+        <SessionProvider scope="test">{children}</SessionProvider>
+      </ApiProvider>
+    )
+    const { result } = renderHook(() => ({ state: useSession(), forget: useForgetSession() }), {
+      wrapper,
+    })
+    await waitFor(() => expect(result.current.state.loading).toBe(false))
+
+    current = { authenticated: false }
+    act(() => result.current.forget())
+
+    // Waiting again, not the answer it held: a reader must not act on what was forgotten.
+    expect(result.current.state.loading).toBe(true)
+    await waitFor(() => expect(result.current.state.session).toEqual({ authenticated: false }))
+    expect(api.session).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops the answer the moment the scope changes, before any reader renders it', async () => {
+    // The console reads this answer to decide whether to redirect. A reader that rendered the
+    // old scope's "nobody" for one frame would act on it, so the reset happens in the render
+    // that sees the new scope and not in an effect after it.
+    let current: SessionResponse = { authenticated: false }
+    const api = fakeApi({ session: vi.fn(async () => current) })
+    let scope = 'open'
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+      <ApiProvider api={api}>
+        <SessionProvider scope={scope}>{children}</SessionProvider>
+      </ApiProvider>
+    )
+    const seen: (SessionResponse | null)[] = []
+    const { result, rerender } = renderHook(
+      () => {
+        const state = useSession()
+        seen.push(state.loading ? null : state.session)
+        return state
+      },
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.session).toEqual({ authenticated: false }))
+
+    current = signedIn()
+    seen.length = 0
+    scope = 'signed-in'
+    rerender()
+
+    // Never the old answer again: the first render of the new scope is already "waiting".
+    expect(seen).not.toContainEqual({ authenticated: false })
+    await waitFor(() => expect(result.current.session).toEqual(signedIn()))
+    expect(api.session).toHaveBeenCalledTimes(2)
+  })
+
+  it('refuses a reader with no provider above it, and says which one is missing', () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
+      <ApiProvider api={fakeApi()}>{children}</ApiProvider>
+    )
+
+    expect(() => renderHook(() => useSession(), { wrapper })).toThrow(/SessionProvider/)
+    quiet.mockRestore()
   })
 })

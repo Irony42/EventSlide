@@ -179,7 +179,6 @@ const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): Ht
     scheduleEvent: notWired,
     purgeEvent: notWired,
     joinEvent: notWired,
-    authenticateGuest: notWired,
     renameGuest: notWired,
     revokeGuest: notWired,
     listGuests: notWired,

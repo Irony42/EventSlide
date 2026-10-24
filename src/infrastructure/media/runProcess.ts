@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
+import { setBackgroundTimeout } from '../time/backgroundTimers'
 
 /**
  * Running a child process safely enough to point it at a stranger's file.
@@ -287,10 +288,9 @@ export const startProcess = ({
     // handle this function lost track of, and losing track is how the observable kind
     // starts.
     if (killTimer !== null) clearTimeout(killTimer)
-    killTimer = setTimeout(() => {
+    killTimer = setBackgroundTimeout(() => {
       if (child !== null) child.kill('SIGKILL')
     }, killGraceMs)
-    killTimer.unref()
   }
 
   const giveUp = (): void => {
@@ -300,8 +300,7 @@ export const startProcess = ({
 
   const resetStall = (): void => {
     if (stallTimer !== null) clearTimeout(stallTimer)
-    stallTimer = setTimeout(giveUp, stallMs)
-    stallTimer.unref()
+    stallTimer = setBackgroundTimeout(giveUp, stallMs)
   }
 
   try {
@@ -364,8 +363,7 @@ export const startProcess = ({
     })
   })
 
-  wallTimer = setTimeout(giveUp, timeoutMs)
-  wallTimer.unref()
+  wallTimer = setBackgroundTimeout(giveUp, timeoutMs)
   resetStall()
 
   return {

@@ -573,24 +573,24 @@ export const requireStepUp =
   }
 
 /**
- * Resolves the guest device token against the event in the URL.
+ * Resolves the guest device token against the event in the URL, by asking `authenticateGuest`.
  *
- * Three checks, and each closes a real hole:
- * 1. The token verifies — signature and age.
- * 2. **Its event matches the event in the path.** Without this, a guest at one wedding
- *    could point their own cookie at another event's upload endpoint. This is the
- *    cross-event attack, and it has named tests at rings 4 and 6.
- * 3. The guest row still exists and is not revoked, which is what makes a signed
- *    stateless token revocable at all.
+ * The rules live in that use case and nowhere else — the token verifies, **its event matches the
+ * event in the path** (the cross-event attack, with named tests at rings 2, 4 and 6), the guest
+ * row still exists and is not revoked (which is what makes a signed stateless token revocable at
+ * all), a suspended client's event is the same 404 as an unknown one — and so does stamping the
+ * guest as seen, which the host's "who is here now" count reads. This is the cookie in and the
+ * principal out. It kept its own copy of those rules for a while, the use case was never called,
+ * and the copy dropped the stamp.
  *
- * It deliberately does NOT check the event's lifecycle. Identity and permission are
- * not the same question as "may this action happen now": a guest at a closed event can
- * still view their own photos, and only the upload use case knows that it needs
- * `acceptsUploads()`. Putting the lifecycle check here would either block reads that
- * should work, or duplicate a rule the use case has to enforce anyway.
+ * It deliberately does NOT check the event's lifecycle, and the use case does not either.
+ * Identity and permission are not the same question as "may this action happen now": a guest at a
+ * closed event can still view their own photos, and only the upload use case knows that it needs
+ * `acceptsUploads()`. Putting the lifecycle check here would either block reads that should work,
+ * or duplicate a rule the use case has to enforce anyway.
  */
 export const requireGuest =
-  (deps: HttpDeps): RequestHandler =>
+  ({ authenticateGuest }: Pick<HttpDeps, 'authenticateGuest'>): RequestHandler =>
   (req, res, next) => {
     void (async () => {
       const raw = req.cookies?.[GUEST_COOKIE]
@@ -599,42 +599,16 @@ export const requireGuest =
         return
       }
 
-      const claims = deps.guestTokens.verify(raw, deps.clock.now())
-      if (!claims.ok) {
-        sendError(res, claims.error)
+      const authenticated = await authenticateGuest({
+        token: raw,
+        eventSlug: req.params['eventSlug'],
+      })
+      if (!authenticated.ok) {
+        sendError(res, authenticated.error)
         return
       }
 
-      const slug = Slug.create(req.params['eventSlug'])
-      if (!slug.ok) {
-        sendError(res, DomainError.notFound('event.notFound'))
-        return
-      }
-
-      const event = await deps.events.findBySlug(slug.value)
-      // A suspended client's event is **the same 404 as an unknown one** (roadmap §10.7; G2-14):
-      // a guest's token, a join code or a link that worked yesterday tells them nothing today.
-      if (!event || event.isClientSuspended()) {
-        sendError(res, DomainError.notFound('event.notFound'))
-        return
-      }
-
-      if (claims.value.eventId !== event.id) {
-        sendError(res, DomainError.forbidden('guest.wrongEvent'))
-        return
-      }
-
-      const guest = await deps.guests.findById(event.id, claims.value.guestId)
-      if (!guest) {
-        // The row is gone: the guest was erased, or the event was purged and recreated.
-        sendError(res, DomainError.unauthenticated('guestToken.malformed'))
-        return
-      }
-      if (guest.isRevoked()) {
-        sendError(res, DomainError.forbidden('guest.revoked'))
-        return
-      }
-
+      const { guest, event } = authenticated.value
       const principal: GuestPrincipal = { kind: 'guest', guest, eventId: event.id }
       req.context.guest = principal
       req.context.event = event
