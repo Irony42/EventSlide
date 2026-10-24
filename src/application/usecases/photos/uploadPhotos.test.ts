@@ -48,6 +48,7 @@ import {
   type UploadPhotosResult,
 } from './uploadPhotos'
 import { CapturingLogger } from '../../testing/capturingLogger'
+import { CountingClientRepository } from '../../testing/countingClientRepository'
 
 /**
  * Ingest is the highest-risk operation in the product: the only public write, it
@@ -1526,18 +1527,6 @@ describe('uploadPhotos under a client’s ceilings', () => {
   let media: InMemoryMediaStore
   let images: FakeImageProcessor
   let logger: CapturingLogger
-
-  /** Counts the reads, so "an event with no client never asks" is a number. */
-  class CountingClientRepository extends FakeClientRepository {
-    contextReads = 0
-
-    override async contextForEvent(
-      ...args: Parameters<FakeClientRepository['contextForEvent']>
-    ): ReturnType<FakeClientRepository['contextForEvent']> {
-      this.contextReads += 1
-      return super.contextForEvent(...args)
-    }
-  }
 
   const buildWith = (photoRepo: FakePhotoRepository = photos): UploadPhotos =>
     makeUploadPhotos({
