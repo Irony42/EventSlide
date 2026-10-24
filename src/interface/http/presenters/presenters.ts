@@ -2,6 +2,7 @@ import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { EventSettings } from '../../../domain/events/eventSettings'
 import type { Guest } from '../../../domain/guests/guest'
+import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
 import type { User } from '../../../domain/users/user'
 import type { EventSummary } from '../../../application/ports/eventRepository'
@@ -29,6 +30,7 @@ import type {
   GalleryPhotoDto,
   GuestDto,
   GuestPhotoDto,
+  JoinTargetDto,
   ModerationPhotoDto,
   MyLimitsDto,
   PendingInvitationDto,
@@ -36,6 +38,7 @@ import type {
   PrivacyNoticeDto,
   PrivacyNoticeStateDto,
   PublicEventDto,
+  RenamedGuestDto,
   SessionUserDto,
   ShareLinkCreatedDto,
   ShareLinkDto,
@@ -341,6 +344,21 @@ export const toGuestDto = (guest: Guest): GuestDto => ({
   lastSeenAt: iso(guest.lastSeenAt),
   photoCount: guest.photoCount,
   revoked: guest.isRevoked(),
+})
+
+/** The one field list of the join lookup, so a field cannot reach the wire by accident. */
+export const toJoinTargetDto = (target: JoinTarget): JoinTargetDto => ({
+  slug: target.slug,
+  name: target.name,
+  acceptsGuests: target.acceptsGuests,
+  allowCaptions: target.allowCaptions,
+  allowReactions: target.allowReactions,
+})
+
+/** A guest's own row after a rename: their id and the name as stored, nothing of the rest. */
+export const toRenamedGuestDto = (guest: Guest): RenamedGuestDto => ({
+  guestId: guest.id,
+  displayName: guest.label(),
 })
 
 export const toSessionUserDto = (user: User): SessionUserDto => ({

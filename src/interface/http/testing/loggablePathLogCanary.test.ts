@@ -42,6 +42,7 @@ const FAMILIES: readonly {
   { address: '/password/reset', logged: '/password/reset/:token', page: true },
   { address: '/invite', logged: '/invite/:token', page: true },
   { address: '/api/invitations', logged: '/api/invitations/:token', page: false },
+  { address: '/api/join', logged: '/api/join/:token', page: false },
 ]
 
 /** `g` as `%67`, in the case the escape is written in. */

@@ -1053,12 +1053,12 @@ on a restart loop)**.
 | --------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
 | `POST /api/auth/login` †                      | 10           | —                      | —               | 1 min  |
 | `POST /api/events` (create)\*                 | —            | —                      | —               | 1 hour |
-| `GET /api/join/:code` (code lookup)           | 20           | 60                     | —               | 1 min  |
+| `GET /api/join/:code` (code lookup)           | 20 (as join) | —                      | —               | 1 min  |
 | `POST /api/events/:slug/guests` (join)        | 10           | 60                     | —               | 1 min  |
 | `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**           | —               | 1 min  |
 | `POST /api/events/:slug/clips`                | **(defect)** | **(defect)**           | —               | 1 min  |
 | `POST /api/events/:slug/photos/:id/reactions` | 120          | 600                    | 60              | 1 min  |
-| the four other guest writes (below)           | 300 per pair | (keyed together)       | —               | 1 min  |
+| the five other guest writes (below)           | 300 per pair | (keyed together)       | —               | 1 min  |
 | `GET /api/events/:slug/stream` (SSE)          | 5 concurrent | 200 concurrent         | —               | —      |
 | `GET /api/gallery/:token`, `…/photos`, unlock | 120          | —                      | —               | 1 min  |
 | `GET /api/gallery-media/…`                    | 3000         | —                      | —               | 1 min  |
@@ -1081,8 +1081,8 @@ limiter at all. The numbers above were never implemented; the intent — a limit
 whole table of guests behind one venue access point does not trip on somebody else's
 behalf — is served by the composite key rather than by three tiers.
 
-**The four other guest writes** — a caption, taking a photo back, withdrawing a reaction and
-acknowledging the privacy notice — spend **one** bucket keyed by `clientKey:eventSlug`,
+**The five other guest writes** — a caption, taking a photo back, withdrawing a reaction,
+renaming oneself and acknowledging the privacy notice — spend **one** bucket keyed by `clientKey:eventSlug`,
 `GUEST_WRITE_RATE_LIMIT_PER_MINUTE` (default **300**), built once in `server.ts` and mounted ahead
 of `requireGuest` (HTTP-H-01). Before it a guest token, which costs nothing because
 `POST /api/join` is public, could repeat a caption edit without limit, and each edit is announced
@@ -1090,13 +1090,16 @@ to every screen watching the event. 300 is a backstop sized for a room and not a
 venue shares one address, and what it legitimately sends is bounded by the upload and join budgets.
 It counts per client address **and** event together (a pair has 300, not an address).
 `guestWriteRateLimit.test.ts` pins each mount and its place ahead of `requireGuest`, the shared
-bucket and the key, and sweeps the route table so that a fifth guest write with no limiter fails.
+bucket and the key, and sweeps the route table so that a sixth guest write with no limiter fails.
 
 - Limits return **429** with `Retry-After` and the code `request.rateLimited`. A named
   ring-4 test asserts the status; a limiter that silently allows everything is the
   classic dead control.
-- The join-code lookup is limited _per code as well as per IP_: an 8-character code is
-  guessable and a botnet defeats a per-IP limit alone.
+- The join-code lookup (`GET /api/join/:code`) and the join itself spend **one** budget per
+  address, `JOIN_RATE_LIMIT_PER_MINUTE`, because they answer one question (is this a real, open
+  event) and a second bucket would have doubled the rate at which codes can be tried. A
+  budget _per code_ as well, which a botnet spreading over addresses would meet, was planned and
+  is not built.
 - **The quota is the disk control, not the rate limit.** `events.quota_bytes` is compared
   against `SUM(byte_size)` for the event **inside the insert transaction**, because two
   concurrent uploads can both pass a check made outside it. When it is reached the event
@@ -2546,7 +2549,7 @@ cannot be traced to a file must be marked, never left standing.
 | §8                       | helmet lives in `server.ts`                                                       | `middleware/securityHeaders.ts:15-74`, mounted at `server.ts:65`                                                                                                                                                                                                                                                                                                                   |
 | §8                       | HSTS 180 days                                                                     | 365 days — `securityHeaders.ts:66`. Here the code is stricter than the doc                                                                                                                                                                                                                                                                                                         |
 | §7, §10                  | an `Origin` / `Referer` check against `PUBLIC_URL`                                | Does not exist — `middleware/csrf.ts:147-165`. §7 and §10 no longer claim it                                                                                                                                                                                                                                                                                                       |
-| §5                       | `GET /api/join/:code` limited per code as well as per IP                          | **That route does not exist.** The code is resolved inside `POST /api/join`, limited per IP only — `routes/publicRoutes.ts:94`                                                                                                                                                                                                                                                     |
+| §5                       | `GET /api/join/:code` limited per code as well as per IP                          | **Per IP only.** The route now exists and shares the join's one per-IP budget; none is per code — `routes/publicRoutes.ts`                                                                                                                                                                                                                                                         |
 | §5                       | the SSE hub "drops the oldest idle connection rather than refusing"               | It **refuses**, cleanly and before headers — `middleware/rateLimit.ts:156-168`, `routes/streamRoutes.ts:295`. The per-IP and per-event numbers in that table are also wrong: the code is 12 per client, 200 per event, 500 per process                                                                                                                                             |
 | §8                       | "fonts are bundled, self-hosted"                                                  | No font is shipped; `CLAUDE.md` §8 already corrected this. `font-src 'self'` is right, the note beside it is not                                                                                                                                                                                                                                                                   |
 | §14, "Fill the disk?"    | "no `statfs` or `checkDiskSpace` in `src/`"                                       | No longer: G3-06 / P4-10 added a process-wide upload concurrency cap and a `statfs`-based free-disk-space guard (`429 upload.busy`, `413 storage.boxFull`), reported without gating at `GET /api/ready`. See §5                                                                                                                                                                    |

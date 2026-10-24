@@ -95,6 +95,12 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
     'the join code **is** the credential, and a guest arrives holding nothing else — the ' +
     'route reaches an event, by a body field rather than by the path, so it is classified ' +
     'here rather than as a route that touches no event at all',
+  'get /api/join/:code':
+    'the lookup before the join: the join code **is** the credential, a guest arrives holding ' +
+    'nothing else, and the answer is the one every stranger gets — the name of an open event and ' +
+    'what a guest may do there, or the one 404 that an unknown, draft, closed and archived event ' +
+    'share. Like `post /api/join` it reaches an event by a path segment that is not a slug, so it ' +
+    'is classified here and not as a route that touches no event',
   'get /api/gallery/:token':
     'the shared gallery (roadmap §4.1): the link’s token **is** the credential, and the ' +
     'use case decides everything with it — an operator holding no token gets the neutral ' +
@@ -363,6 +369,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   invitationId: A_PHOTO,
   clientId: CLIENT,
   requestId: A_PHOTO,
+  code: 'H7K2QM',
 }
 
 /**
