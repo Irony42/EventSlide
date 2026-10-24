@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest'
  * those three, and the adapter is where it lives.
  *
  * The blocks after it pin the rest of what the config says (review of the infrastructure
- * layer, I-04 and I-05): the import table of every layer, `process.env` in every spelling in
+ * layer): the import table of every layer, `process.env` in every spelling in
  * every layer, and where the bans on ambient time and randomness apply. Until then only
  * `nodemailer` was asserted, so emptying `DOMAIN_FORBIDDEN`, or a layer block whose `files`
  * glob stopped matching (CLAUDE.md §9 trap 9), failed nothing: no violating import exists,
@@ -97,46 +97,72 @@ const IN = {
   web: 'web/src/features/wall/example.tsx',
 } as const
 
+/**
+ * Every package a layer's list names, one case each: a table that samples the lists lets a
+ * single deleted entry (`path` from the domain's, `react` from the application's) go
+ * unnoticed, and no import in the tree would be violating it.
+ */
+const FRAMEWORKS_AND_IO = [
+  'express',
+  'better-sqlite3',
+  'sharp',
+  'multer',
+  'archiver',
+  'helmet',
+  'bcrypt',
+  'nodemailer',
+  'pino',
+  'react',
+  'react-dom',
+  'fs',
+  'path',
+  'node:fs',
+] as const
+
+type Layer = keyof typeof IN
+
+const REFUSED: readonly (readonly [Layer, string])[] = [
+  // The domain is pure: no outer layer, no framework, no I/O.
+  ...FRAMEWORKS_AND_IO.map((source) => ['domain', source] as const),
+  ['domain', 'zod'],
+  ['domain', 'crypto'],
+  ['domain', 'node:crypto'],
+  ['domain', '../../application/ports/clock'],
+  ['domain', '../../infrastructure/db/connection'],
+  ['domain', '../../interface/http/server'],
+  ['domain', '../../main/container'],
+  ['domain', '../../../web/src/lib/api/client'],
+  // The application reaches ports and the domain, never an adapter or the HTTP layer, and
+  // does no I/O of its own.
+  ...FRAMEWORKS_AND_IO.map((source) => ['application', source] as const),
+  ['application', 'node:crypto'],
+  ['application', '../../../infrastructure/db/connection'],
+  ['application', '../../../interface/http/server'],
+  ['application', '../../../main/container'],
+  ['application', '../../../../web/src/lib/api/client'],
+  ['port', '../../infrastructure/db/connection'],
+  // Its doubles are held to the same rule: a fake that reaches for an adapter tests nothing.
+  ['applicationDouble', '../../infrastructure/db/connection'],
+  ['applicationDouble', 'better-sqlite3'],
+  // An adapter implements a port: it does not know about HTTP or the composition root.
+  ['infrastructure', '../../interface/http/server'],
+  ['infrastructure', '../../main/container'],
+  ['infrastructure', '../../../web/src/lib/api/client'],
+  // The HTTP layer receives its dependencies; it never reaches an adapter or a mail library.
+  ['interface', '../../../infrastructure/db/connection'],
+  ['interface', '../../../main/container'],
+  ['interface', '../../../../web/src/lib/api/client'],
+  ['interface', 'nodemailer'],
+  // The web app talks to the server over HTTP and shares no source with it.
+  ['web', '../../../../src/domain/events/event'],
+  ['web', '../../../../src/application/ports/clock'],
+  ['web', '../../../../src/infrastructure/db/connection'],
+  ['web', '../../../../src/interface/http/server'],
+  ['web', '../../../../src/main/container'],
+]
+
 describe('the import boundary of each layer', { timeout: 60_000 }, () => {
-  it.each([
-    // The domain is pure: no outer layer, no framework, no I/O.
-    ['domain', 'express'],
-    ['domain', 'better-sqlite3'],
-    ['domain', 'sharp'],
-    ['domain', 'zod'],
-    ['domain', 'react'],
-    ['domain', 'fs'],
-    ['domain', 'node:crypto'],
-    ['domain', '../../application/ports/clock'],
-    ['domain', '../../infrastructure/db/connection'],
-    ['domain', '../../interface/http/server'],
-    ['domain', '../../main/container'],
-    // The application reaches ports and the domain, never an adapter or the HTTP layer.
-    ['application', 'express'],
-    ['application', 'better-sqlite3'],
-    ['application', 'bcrypt'],
-    ['application', 'pino'],
-    ['application', 'fs'],
-    ['application', 'node:crypto'],
-    ['application', '../../../infrastructure/db/connection'],
-    ['application', '../../../interface/http/server'],
-    ['application', '../../../main/container'],
-    ['port', '../../infrastructure/db/connection'],
-    // Its doubles are held to the same rule: a fake that reaches for an adapter tests nothing.
-    ['applicationDouble', '../../infrastructure/db/connection'],
-    ['applicationDouble', 'better-sqlite3'],
-    // An adapter implements a port: it does not know about HTTP or the composition root.
-    ['infrastructure', '../../interface/http/server'],
-    ['infrastructure', '../../main/container'],
-    // The HTTP layer receives its dependencies; it never reaches an adapter or a mail library.
-    ['interface', '../../../infrastructure/db/connection'],
-    ['interface', '../../../main/container'],
-    ['interface', 'nodemailer'],
-    // The web app talks to the server over HTTP and shares no source with it.
-    ['web', '../../../../src/domain/events/event'],
-    ['web', '../../../../src/application/ports/clock'],
-    ['web', '../../../../src/infrastructure/db/connection'],
-  ] as const)('refuses %s importing %s', async (layer, source) => {
+  it.each(REFUSED)('refuses %s importing %s', async (layer, source) => {
     expect(await restrictedImports(IN[layer], source)).toHaveLength(1)
   })
 
@@ -176,6 +202,16 @@ describe('the ban on reading process.env', { timeout: 60_000 }, () => {
     ['env pulled out of process', `const { env } = process\nvoid env\n`],
     ['a read through globalThis', `const value = globalThis.process.env.SECRET\nvoid value\n`],
     ['a named import of env', `import { env } from 'node:process'\nvoid env\n`],
+    ['a default import of node:process', `import proc from 'node:process'\nvoid proc\n`],
+    ['a namespace import of node:process', `import * as proc from 'node:process'\nvoid proc\n`],
+    ['an alias of process', `const p = process\nvoid p\n`],
+    ['an assignment out of process', `let env: unknown\n;({ env } = process)\nvoid env\n`],
+    ['a default parameter holding process', `export const f = (p = process) => p\n`],
+    ['env pulled out of globalThis.process', `const { env } = globalThis.process\nvoid env\n`],
+    [
+      'a bracket read through globalThis',
+      `const value = globalThis['process'].env.SECRET\nvoid value\n`,
+    ],
   ]
 
   const GUARDED = [
@@ -219,6 +255,7 @@ describe('the ban on reading process.env', { timeout: 60_000 }, () => {
     ['a test beside the code', 'src/main/example.test.ts'],
     ['a test double', IN.applicationDouble],
     ['an end-to-end fixture', 'tests/e2e/fixtures/example.ts'],
+    ['a file under tests/ outside e2e', 'tests/example.ts'],
   ])('lets %s read the environment', async (_name, filePath) => {
     expect(await messagesOf('no-restricted-syntax', filePath, SPELLINGS[2]?.[1] ?? '')).toEqual([])
   })

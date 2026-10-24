@@ -318,12 +318,13 @@ With fake timers installed, `userEvent` must be told about them —
 never resolve and the test times out looking like a product bug.
 
 **`Date.now()`, `new Date()`, and `Math.random()` are banned in code under test** —
-`src/domain`, `src/application`, and `web/src`. They are permitted in exactly two
-places, both adapters behind a port: `src/infrastructure/time/systemClock.ts` and the id
-generator in `src/infrastructure/crypto/`. This is an eslint rule
-(`no-restricted-syntax` / `no-restricted-globals` scoped to those directories), not a
+`src/domain` and `src/application`. The adapters behind a port may read them, which is
+what an adapter is for: `src/infrastructure/time/systemClock.ts` and the id generator in
+`src/infrastructure/crypto/` are the two that hand time and randomness to everything
+inward, and the composition root, the scripts and the tests are not held to the ban either.
+This is an eslint rule (`no-restricted-syntax` in those two layers' blocks), not a
 convention, because the failure mode is a suite that passes for a year and then fails at
-23:59 UTC or on a leap day.
+23:59 UTC or on a leap day; `scripts/lintBoundaries.test.ts` pins where it applies.
 
 No test depends on another test's state: `beforeEach` builds a fresh world, every time.
 There is no shared module-level `db` any more — that single 1.0 global is why 1.0 had no

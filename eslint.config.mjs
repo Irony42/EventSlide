@@ -115,6 +115,15 @@ const APPLICATION_FORBIDDEN = [
 const ENV_MESSAGE =
   'process.env is read only by src/infrastructure/config/env.ts. Take the value as configuration instead.'
 
+const ALIAS_MESSAGE =
+  'Do not alias process or take parts out of it: the environment is read only by src/infrastructure/config/env.ts.'
+
+/**
+ * What a selector can see is syntax, not what a name refers to, so this is a list of the
+ * spellings a developer plausibly writes and not a proof: `Reflect.get(process, 'env')`, a
+ * cast (`(process as NodeJS.Process).env`) and a computed key held in a variable are not
+ * caught, and catching them takes type information this config does not use.
+ */
 const NO_PROCESS_ENV = [
   {
     selector: "MemberExpression[object.name='process'][property.name='env']",
@@ -125,14 +134,10 @@ const NO_PROCESS_ENV = [
     selector: "MemberExpression[object.name='process'][computed=true][property.value='env']",
     message: ENV_MESSAGE,
   },
-  // `globalThis.process.env` and `global.process.env`.
+  // `globalThis.process.env` and `global.process.env`, and the same with a bracket.
   {
-    selector: "MemberExpression[object.property.name='process'][property.name='env']",
-    message: ENV_MESSAGE,
-  },
-  // `const { env } = process`, after which `env.NAME` names nothing the first selector sees.
-  {
-    selector: "VariableDeclarator[init.name='process'] > ObjectPattern > Property[key.name='env']",
+    selector:
+      "MemberExpression[object.object.name=/^(globalThis|global)$/]:matches([object.property.name='process'], [object.property.value='process'])[property.name='env']",
     message: ENV_MESSAGE,
   },
   // `import { env } from 'node:process'`.
@@ -140,6 +145,26 @@ const NO_PROCESS_ENV = [
     selector:
       "ImportDeclaration[source.value=/^(node:)?process$/] > ImportSpecifier[imported.name='env']",
     message: ENV_MESSAGE,
+  },
+  // `import proc from 'node:process'` and `import * as proc from 'node:process'`, after which
+  // `proc.env` is not spelled `process.env`.
+  {
+    selector:
+      "ImportDeclaration[source.value=/^(node:)?process$/] > :matches(ImportDefaultSpecifier, ImportNamespaceSpecifier)[local.name!='process']",
+    message: ALIAS_MESSAGE,
+  },
+  // `const p = process`, `const { env } = process` and `const { env } = globalThis.process`,
+  // `({ env } = process)` and `(p = process) =>`: the object is carried somewhere the first
+  // selector cannot follow, because following it takes scope analysis.
+  {
+    selector:
+      ":matches(AssignmentExpression, AssignmentPattern)[right.name='process'], VariableDeclarator[init.name='process']",
+    message: ALIAS_MESSAGE,
+  },
+  {
+    selector:
+      "VariableDeclarator[init.object.name=/^(globalThis|global)$/][init.property.name='process']",
+    message: ALIAS_MESSAGE,
   },
 ]
 
