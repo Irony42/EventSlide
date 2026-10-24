@@ -109,22 +109,26 @@ export default defineConfig({
          * the untested surface grows — a new operator tool with no test pushes the
          * count past the pin and `npm run test:coverage` names the number it exceeded.
          *
-         * A percentage floor was the obvious move and it is the wrong one here. Four of
-         * these five files are at 0%, so the only floor they can pass is 0, and a
-         * threshold of 0 is a threshold that cannot fail — the same thing the visual
-         * suite was doing in CI before this change, and worse than having none.
+         * A percentage floor was the obvious move and it is the wrong one here: the
+         * three files that carry most of the debt are near 0%, so the only floor they can
+         * pass is 0, and a threshold of 0 is a threshold that cannot fail — the same
+         * thing the visual suite was doing in CI before this change, and worse than
+         * having none.
          *
          * **These numbers go down as tests land, and never up.** Raising one to admit a
          * new untested script is how a ratchet becomes a rubber stamp; write the test
-         * and lower the number instead. `backup.ts` shows the shape — it sits at 88%
-         * because `scripts/backup.test.ts` drives the real CLI. What is still at zero:
-         * `migrate.ts`, the tool an operator points at the database holding someone's
-         * wedding album; `restore.ts`, which refuses a non-empty target without
-         * `--force`; `purge.ts --dry-run`, which must touch nothing; and
-         * `seedDemo.ts`, which refuses to run when `config.isProduction` — a guard rail
-         * with nothing asserting it still works.
+         * and lower the number instead. They are the uncovered counts of a full
+         * `npm run test:coverage` (208 statements, 91 branches, 20 functions, 194 lines),
+         * not of the scripts' own tests alone, and they were once set 70 statements above
+         * that, room for a script of about that size to land untested without a word.
+         * `backup.ts` and `restore.ts` show the shape — they sit near 90% because
+         * `scripts/backup.test.ts` and `scripts/restore.test.ts` drive the real CLIs.
+         * What is still the debt: `seedDemo.ts` (79 statements), which refuses to run when
+         * `config.isProduction`, a guard rail with nothing asserting it still works;
+         * `purge.ts` (75), whose `--dry-run` must touch nothing; and `migrate.ts` (26), the
+         * tool an operator points at the database holding someone's wedding album.
          */
-        'scripts/**': { statements: -280, branches: -109, functions: -22, lines: -263 },
+        'scripts/**': { statements: -208, branches: -91, functions: -20, lines: -194 },
       },
     },
   },

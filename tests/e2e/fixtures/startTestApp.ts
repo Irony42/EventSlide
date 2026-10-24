@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:net'
 import type { EventLanguage, MissionScope } from '../../../web/src/lib/api/dto'
+import { serverEnvironment, type EventCreation } from './childEnvironment'
 
 /**
  * Boots a real EventSlide server for the end-to-end suite.
@@ -18,13 +19,7 @@ import type { EventLanguage, MissionScope } from '../../../web/src/lib/api/dto'
  * cannot see each other's photos and a failed run leaves nothing behind.
  */
 
-/**
- * Who may create an event on the server under test (`EVENT_CREATION`, roadmap §10.9 /
- * P3-05). `anyAccount` is the core default and what every journey runs against;
- * `clientMembers` is what a box run for other people sets, and the one project that runs
- * the security specs under it is `chromium-client-members` in `playwright.config.ts`.
- */
-export type EventCreation = 'anyAccount' | 'clientMembers'
+export type { EventCreation }
 
 export interface SeededEvent {
   readonly slug: string
@@ -245,59 +240,17 @@ export const startTestApp = async ({
     process.execPath,
     ['--enable-source-maps', join(process.cwd(), 'dist/server/main/index.js')],
     {
-      env: {
-        ...process.env,
-        NODE_ENV: 'test',
-        PORT: String(port),
-        PUBLIC_URL: baseUrl,
-        // Deterministic, so a token issued in one test is not affected by another
-        // worker's secret, and so a fixture can be reasoned about.
-        SESSION_SECRET: `e2e-session-secret-worker-${worker}-padding-padding`,
-        GUEST_TOKEN_SECRET: `e2e-guest-secret-worker-${worker}-padding-padding`,
-        DATABASE_PATH: databasePath,
-        MEDIA_ROOT: join(root, 'media'),
-        // The wall's timing hooks, so a visual test does not wait ten real seconds per
-        // slide. The config module refuses to boot production with this set.
-        E2E_HOOKS: '1',
-        // Rate limits high enough that a fast test suite is not throttled — the limits
-        // themselves are asserted in the security specs, which set them down again.
-        UPLOAD_RATE_LIMIT_PER_MINUTE: '600',
-        JOIN_RATE_LIMIT_PER_MINUTE: '600',
-        LOGIN_RATE_LIMIT_PER_MINUTE: '600',
-        REACTION_RATE_LIMIT_PER_MINUTE: '600',
-        GALLERY_RATE_LIMIT_PER_MINUTE: '600',
-        GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: '6000',
-        // Cost 10 rather than 12: this is the floor the hasher accepts, and it takes
-        // roughly a quarter of the time. Every login in the suite pays it.
-        BCRYPT_COST: '10',
-        BOOTSTRAP_OWNER_EMAIL: OWNER.email,
-        BOOTSTRAP_OWNER_PASSWORD: OWNER.password,
-        LOG_LEVEL: 'warn',
-        // Always stated, never inherited: a developer's exported `EVENT_CREATION` must not
-        // make `app.eventCreation` say one thing while the server does another.
-        EVENT_CREATION: eventCreation,
-        // No mail relay, stated and not inherited: a developer's exported `SMTP_URL` would make
-        // every invitation a mail instead of a link, and the specs that copy the link — which is
-        // what a box with no relay does — would fail on their own machine and nowhere else.
-        SMTP_URL: '',
-        MAIL_FROM: '',
-        // The operator's links and identity are stated empty for the same reason: a developer
-        // or a CI runner with a `SUPPORT_URL` or `REPORT_URL` already exported for something
-        // else must not turn the "stock server" specs into specs of a configured one, or
-        // refuse the boot. A spec that wants one passes it in `env` below.
-        OPERATOR_NAME: '',
-        OPERATOR_CONTACT_EMAIL: '',
-        LEGAL_TERMS_URL: '',
-        LEGAL_TERMS_VERSION: '',
-        LEGAL_PRIVACY_URL: '',
-        LEGAL_NOTICE_URL: '',
-        SUPPORT_URL: '',
-        REPORT_URL: '',
-        DONATION_URL: '',
-        BUDGET_URL: '',
-        ...(eventCreation === 'clientMembers' ? { SITE_ADMIN: 'on' } : {}),
-        ...env,
-      },
+      env: serverEnvironment({
+        host: process.env,
+        worker,
+        port,
+        baseUrl,
+        databasePath,
+        mediaRoot: join(root, 'media'),
+        eventCreation,
+        owner: OWNER,
+        overrides: env,
+      }),
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   )

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import sharp from 'sharp'
+import { hostEnvironment } from '../fixtures/childEnvironment'
 
 /**
  * The round trip, end to end: seed a real installation, back it up while the server is
@@ -80,7 +81,7 @@ test.describe('backup and restore', () => {
       ['--enable-source-maps', join(process.cwd(), 'dist/server/main/index.js')],
       {
         env: {
-          ...process.env,
+          ...hostEnvironment(process.env),
           NODE_ENV: 'test',
           PORT: String(port),
           PUBLIC_URL: baseUrl,
@@ -217,7 +218,7 @@ test.describe('backup and restore', () => {
         ['--import', 'tsx', join(process.cwd(), 'scripts', script), ...args],
         {
           cwd: process.cwd(),
-          env: { ...process.env, NODE_ENV: 'test' },
+          env: { ...hostEnvironment(process.env), NODE_ENV: 'test' },
           stdio: ['ignore', 'pipe', 'pipe'],
         },
       )
