@@ -36,7 +36,7 @@ import type { ListSiteClients } from '../../application/usecases/site/listSiteCl
 import type { GetClientLimits } from '../../application/usecases/clients/getClientLimits'
 import type { ListClientAudit } from '../../application/usecases/clients/listClientAudit'
 import type { ListPendingInvitations } from '../../application/usecases/clients/listPendingInvitations'
-import type { GetEventLimits } from '../../application/usecases/events/getEventLimits'
+import type { GetEventView } from '../../application/usecases/events/getEventView'
 
 import type { ChangeEventStatus } from '../../application/usecases/events/changeEventStatus'
 import type { CreateEvent } from '../../application/usecases/events/createEvent'
@@ -168,7 +168,7 @@ export interface HttpUseCases {
   // events
   readonly createEvent: CreateEvent
   readonly getEventBySlug: GetEventBySlug
-  readonly getEventLimits: GetEventLimits
+  readonly getEventView: GetEventView
   readonly listEventsForHost: ListEventsForHost
   readonly resolveJoinCode: ResolveJoinCode
   readonly updateEventSettings: UpdateEventSettings

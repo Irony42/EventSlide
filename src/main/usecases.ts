@@ -130,6 +130,7 @@ import { makeGetClientLimits } from '../application/usecases/clients/getClientLi
 import { makeListClientAudit } from '../application/usecases/clients/listClientAudit'
 import { makeListPendingInvitations } from '../application/usecases/clients/listPendingInvitations'
 import { makeGetEventLimits } from '../application/usecases/events/getEventLimits'
+import { makeGetEventView } from '../application/usecases/events/getEventView'
 import { makeApprovePasswordReset } from '../application/usecases/clients/approvePasswordReset'
 import { makeInviteToClientAsOperator } from '../application/usecases/clients/inviteToClientAsOperator'
 import { makeProvisionClientOwner } from '../application/usecases/clients/provisionClientOwner'
@@ -492,7 +493,10 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       joinCodeLength: policy.events.joinCodeLength,
     }),
     getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
-    getEventLimits: makeGetEventLimits({ clients: adapters.clients }),
+    getEventView: makeGetEventView({
+      events: adapters.events,
+      getEventLimits: makeGetEventLimits({ clients: adapters.clients }),
+    }),
     listEventsForHost: makeListEventsForHost({ events: adapters.events }),
     resolveJoinCode: makeResolveJoinCode({ events: adapters.events }),
     updateEventSettings: makeUpdateEventSettings({
