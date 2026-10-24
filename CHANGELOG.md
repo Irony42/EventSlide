@@ -250,8 +250,8 @@ Read these before you upgrade, and back up with the version you run now.
   ([docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises)), but a log search for
   the old wording will miss.
 - **The container's memory limit in `compose.yaml` goes from 1 GB to 2 GB** (#105), because
-  up to four uploads are now decoded at once. `GET /api/ready` reports the disk margin under
-  `checks.disk` and never fails on it.
+  up to four uploads are now decoded at once. `GET /api/ready` reports whether the disk margin is
+  sufficient under `checks.disk` and never fails on it (the exact free bytes are in the log, #197).
 - **A guest can no longer rename themself once the event is closed** (#196). `PATCH /api/events/:slug/guests/:guestId`
   (#190) answers `409 event.notAcceptingUploads` for a closed or archived event, the answer an upload gets: the
   name is printed on the wall of a closed event, unmoderated, so it could otherwise change under photographs the
@@ -286,6 +286,11 @@ Read these before you upgrade, and back up with the version you run now.
   its `service`, `version`, `requestId` and `route` keys twice, the first `route` being
   `(unmatched)`: a collector that kept the first duplicate read the wrong route for every request.
   `route` now sits after `duration`.
+- **`GET /api/ready` no longer says how many bytes are free** (#197). It is unauthenticated, and the exact free
+  space of the volume the albums live on let anyone watch an event fill the box. `checks.disk` is now
+  `{ "sufficient": true }`, without `freeBytes`, in the 200 and the 503 alike; each probe writes the number to the
+  log as `readiness: free disk space`, as a warning when the margin is too thin or could not be read. A
+  monitor that read `freeBytes` from the body should read the log, or alert on `sufficient`.
 - **Three boot warnings, never refusals** (#109, #120): production with no `PUBLIC_URL`,
   production with a secure cookie and `TRUST_PROXY_HOPS=0`, and, in production, `MAIL_FROM` set
   without `SMTP_URL`. A fourth, in every environment, is for the deprecated setting below (#172).

@@ -27,7 +27,8 @@ export interface DiskSpaceStatus {
   /** Whether every checked path is readable and at or above `minFreeBytes`. */
   readonly sufficient: boolean
   /**
-   * The tightest margin across every checked path, for `GET /api/ready` to report — or
+   * The tightest margin across every checked path, which `GET /api/ready` writes to the log and
+   * does **not** put in its body (HTTP-L-12: the route is unauthenticated) — or
    * `null` when at least one path could not be read, in which case there is no single
    * number that honestly describes the box's margin.
    */
